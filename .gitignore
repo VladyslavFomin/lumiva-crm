@@ -29,3 +29,8 @@ infra/*secret*
 .vscode
 .idea
 .DS_Store
+# Env
+.env
+.env.*
+*.env
+.env.local
