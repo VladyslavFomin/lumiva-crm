@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-lumiva-bg text-slate-100 antialiased;
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+    "Segoe UI", Roboto, sans-serif;
+}
+
+/* фон в стиле дорогой CRM, без ядреного синего */
+.lumiva-gradient-bg {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(248, 250, 252, 0.08), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgba(148, 163, 184, 0.15), transparent 55%),
+    radial-gradient(circle at 50% 0%, rgba(15, 23, 42, 0.85), transparent 60%),
+    #020617;
+}
+
+/* ================= COMPONENTS ================= */
+@layer components {
+  /* Базовый инпут – темный, но не "яма", мягкий фокус без синевы */
+  .base-input {
+    @apply w-full px-3 py-2 rounded-xl
+           bg-slate-900/80 border border-slate-700/80
+           text-sm text-slate-100 placeholder-slate-500 outline-none
+           focus:ring-1 focus:ring-slate-300/70 focus:border-slate-300/70;
+  }
+
+  /* Основная кнопка – классический светлый акцент на тёмном фоне */
+  .btn-primary {
+    @apply w-full md:w-auto px-3 py-2 rounded-xl text-xs font-semibold
+           bg-slate-100 text-slate-900
+           border border-slate-300
+           shadow-sm
+           hover:bg-slate-200 hover:border-slate-400
+           active:bg-slate-300
+           disabled:opacity-60 disabled:cursor-not-allowed
+           transition-colors;
+  }
+
+  /* Активный бейдж – чуть мягче зелёный */
+  .badge-active {
+    @apply inline-flex px-2 py-0.5 rounded-full text-[11px]
+           bg-emerald-900/50 text-emerald-300;
+  }
+
+  /* Неактивный бейдж – нейтральный серый */
+  .badge-disabled {
+    @apply inline-flex px-2 py-0.5 rounded-full text-[11px]
+           bg-slate-800/90 text-slate-400;
+  }
+  /* Лёгкое 3D ощущение для hero-карты */
+.lp-hero-3d-card {
+  transform: perspective(1000px) rotateX(0deg) rotateY(0deg) translateZ(0);
+  transform-style: preserve-3d;
+  transition: transform 220ms ease-out, box-shadow 220ms ease-out;
+}
+
+/* Небольшой “объём” у колонок-графика */
+.lp-bar-3d {
+  transform-origin: bottom;
+  transform: translateZ(0);
+}
+
+/* Градиент для тёмного блока-графика */
+.lp-hero-gradient {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(255,255,255,0.12), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgba(255,255,255,0.08), transparent 55%),
+    linear-gradient(135deg, #020617, #111827);
+}
+}

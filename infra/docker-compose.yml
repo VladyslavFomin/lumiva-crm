@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: lumiva_crm_api
+    env_file:
+      - ../backend/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    container_name: lumiva_crm_db
+    environment:
+      POSTGRES_USER: lumiva
+      POSTGRES_PASSWORD: supersecret
+      POSTGRES_DB: lumiva_crm
+    volumes:
+      - lumiva_crm_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  lumiva_crm_db_data:
