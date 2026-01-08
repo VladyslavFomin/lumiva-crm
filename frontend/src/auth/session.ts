@@ -43,8 +43,8 @@ export function getSession(): StoredSession | null {
 }
 
 export function getAccessToken(): string | null {
-  const s = getSession();
-  return s?.token ?? null;
+  const s = getSession() as any;
+  return s?.token ?? s?.accessToken ?? null;
 }
 
 export function getStoredUser(): any | null {

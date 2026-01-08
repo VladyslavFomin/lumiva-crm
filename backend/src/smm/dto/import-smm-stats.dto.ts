@@ -1,7 +1,7 @@
 // backend/src/smm/dto/import-smm-stats.dto.ts
 import { IsArray, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-export type SmmPlatform = 'instagram' | 'facebook' | 'vk' | 'tiktok' | 'other';
+export type SmmPlatform = 'instagram' | 'facebook' | 'telegram' | 'vk' | 'tiktok' | 'other';
 
 export class ImportSmmStatItemDto {
   @IsString()

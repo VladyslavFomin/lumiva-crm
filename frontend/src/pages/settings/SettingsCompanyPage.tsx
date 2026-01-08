@@ -1,5 +1,6 @@
 // src/pages/settings/SettingsCompanyPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchCompanySettings,
@@ -7,13 +8,8 @@ import {
   type CompanySettings,
 } from '../../api/settings';
 
-const LANG_OPTIONS = [
-  { value: 'ru', label: 'Русский' },
-  { value: 'en', label: 'English' },
-  { value: 'tr', label: 'Türkçe' },
-];
-
 export const SettingsCompanyPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const [data, setData] = useState<CompanySettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -23,6 +19,21 @@ export const SettingsCompanyPage: React.FC = () => {
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [uiLanguage, setUiLanguage] = useState<string | ''>('');
+
+  const locale = useMemo(() => {
+    if (i18n.language === 'tr') return 'tr-TR';
+    if (i18n.language === 'en') return 'en-US';
+    return 'ru-RU';
+  }, [i18n.language]);
+
+  const langOptions = useMemo(
+    () => [
+      { value: 'ru', label: t('lang.ru') },
+      { value: 'en', label: t('lang.en') },
+      { value: 'tr', label: t('lang.tr') },
+    ],
+    [t],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -41,7 +52,7 @@ export const SettingsCompanyPage: React.FC = () => {
       .catch((e: any) => {
         if (!alive) return;
         console.error(e);
-        setError(e.message || 'Ошибка загрузки настроек компании');
+        setError(e.message || t('crm.settings.company.errors.load'));
       })
       .finally(() => {
         if (!alive) return;
@@ -68,10 +79,10 @@ export const SettingsCompanyPage: React.FC = () => {
         uiLanguage: uiLanguage || null,
       });
       setData(updated);
-      setSuccess('Настройки сохранены');
+      setSuccess(t('crm.settings.company.success'));
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка сохранения настроек');
+      setError(e.message || t('crm.settings.company.errors.save'));
     } finally {
       setSaving(false);
     }
@@ -84,13 +95,13 @@ export const SettingsCompanyPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
-              Настройки
+              {t('crm.settings.company.sectionLabel')}
             </div>
             <h1 className="text-lg font-semibold text-slate-50">
-              Настройки компании
+              {t('crm.settings.company.title')}
             </h1>
             <div className="text-[11px] text-slate-500">
-              Название, логотип и базовые параметры клиента
+              {t('crm.settings.company.subtitle')}
             </div>
           </div>
         </div>
@@ -108,7 +119,9 @@ export const SettingsCompanyPage: React.FC = () => {
         )}
 
         {loading && (
-          <div className="text-xs text-slate-400">Загружаем настройки…</div>
+          <div className="text-xs text-slate-400">
+            {t('crm.settings.company.loading')}
+          </div>
         )}
 
         {!loading && data && (
@@ -120,19 +133,19 @@ export const SettingsCompanyPage: React.FC = () => {
             <div className="lg:col-span-2 bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Название компании
+                  {t('crm.settings.company.fields.name')}
                 </label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none text-slate-50"
-                  placeholder="Название, которое будет видно в CRM"
+                  placeholder={t('crm.settings.company.fields.namePlaceholder')}
                 />
               </div>
 
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Логотип (URL)
+                  {t('crm.settings.company.fields.logo')}
                 </label>
                 <input
                   value={logoUrl}
@@ -141,32 +154,10 @@ export const SettingsCompanyPage: React.FC = () => {
                   placeholder="https://…"
                 />
                 <p className="mt-1 text-[11px] text-slate-500">
-                  Позже можно будет сделать загрузку файла. Сейчас — только URL
-                  к изображению.
+                  {t('crm.settings.company.fields.logoHint')}
                 </p>
               </div>
 
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">
-                  Основной язык интерфейса
-                </label>
-                <select
-                  value={uiLanguage}
-                  onChange={(e) => setUiLanguage(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none text-slate-50"
-                >
-                  <option value="">— Не выбран —</option>
-                  {LANG_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Пока это только поле в настройках. Переключение UI по языку
-                  можно добавить позже.
-                </p>
-              </div>
 
               <div className="pt-2">
                 <button
@@ -174,7 +165,9 @@ export const SettingsCompanyPage: React.FC = () => {
                   disabled={saving}
                   className="px-4 py-2 rounded-xl bg-lumiva-accent text-slate-950 text-xs font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
                 >
-                  {saving ? 'Сохраняем…' : 'Сохранить изменения'}
+                  {saving
+                    ? t('crm.settings.company.saving')
+                    : t('crm.settings.company.save')}
                 </button>
               </div>
             </div>
@@ -183,7 +176,7 @@ export const SettingsCompanyPage: React.FC = () => {
             <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-3 text-xs">
               <div>
                 <div className="text-[11px] text-slate-400 mb-1">
-                  Клиентский ключ
+                  {t('crm.settings.company.fields.clientKey')}
                 </div>
                 <div className="px-2 py-1 rounded-xl bg-slate-950/80 border border-slate-800/80 font-mono text-[11px] break-all">
                   {data.clientKey}
@@ -193,7 +186,7 @@ export const SettingsCompanyPage: React.FC = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <div className="text-[11px] text-slate-400 mb-1">
-                    Тариф
+                    {t('crm.settings.company.fields.plan')}
                   </div>
                   <div className="inline-flex px-2 py-1 rounded-full bg-slate-800 text-slate-100">
                     {data.plan}
@@ -201,7 +194,7 @@ export const SettingsCompanyPage: React.FC = () => {
                 </div>
                 <div>
                   <div className="text-[11px] text-slate-400 mb-1">
-                    Статус
+                    {t('crm.settings.company.fields.status')}
                   </div>
                   <div
                     className={
@@ -216,33 +209,33 @@ export const SettingsCompanyPage: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <div className="text-[11px] text-slate-400 mb-1">
-                  Создан
+                <div>
+                  <div className="text-[11px] text-slate-400 mb-1">
+                  {t('crm.settings.company.fields.created')}
+                  </div>
+                  <div className="text-slate-200">
+                  {new Date(data.createdAt).toLocaleString(locale)}
+                  </div>
                 </div>
-                <div className="text-slate-200">
-                  {new Date(data.createdAt).toLocaleString('ru-RU')}
-                </div>
-              </div>
 
               <div>
                 <div className="text-[11px] text-slate-400 mb-1">
-                  Обновлён
+                  {t('crm.settings.company.fields.updated')}
                 </div>
                 <div className="text-slate-200">
-                  {new Date(data.updatedAt).toLocaleString('ru-RU')}
+                  {new Date(data.updatedAt).toLocaleString(locale)}
                 </div>
               </div>
 
               {logoUrl && (
                 <div className="pt-2">
                   <div className="text-[11px] text-slate-400 mb-1">
-                    Превью логотипа
+                    {t('crm.settings.company.fields.logoPreview')}
                   </div>
                   <div className="rounded-2xl bg-slate-950/70 border border-slate-800/80 p-3 flex items-center justify-center">
                     <img
                       src={logoUrl}
-                      alt="Лого компании"
+                      alt={t('crm.settings.company.fields.logoAlt')}
                       className="max-h-16 object-contain"
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).style.display =

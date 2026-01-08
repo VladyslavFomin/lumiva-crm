@@ -11,3 +11,5 @@ export type PermissionKey =
   | 'chat';
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
+
+export type UserPermissionMatrix = Record<string, PermissionKey[]>;

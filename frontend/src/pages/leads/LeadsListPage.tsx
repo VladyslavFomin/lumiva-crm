@@ -1,12 +1,21 @@
 // src/pages/leads/LeadsListPage.tsx
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { Lead } from '../../api/leads';
 import { fetchLeads } from '../../api/leads';
 
+function resolveLocale(lang: string) {
+  if (lang.startsWith('tr')) return 'tr-TR';
+  if (lang.startsWith('en')) return 'en-US';
+  return 'ru-RU';
+}
+
 export const LeadsListPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +25,26 @@ export const LeadsListPage: React.FC = () => {
   const handleCreateLead = () => navigate('/app/leads/new');
   const handleOpenLead = (id: string) => navigate(`/app/leads/${id}`);
   const goBoard = () => navigate('/app/leads');
+  const statusLabels = useMemo<Record<string, string>>(
+    () => ({
+      new: t('crm.leads.statuses.new'),
+      in_progress: t('crm.leads.statuses.inProgress'),
+      waiting: t('crm.leads.statuses.waiting'),
+      won: t('crm.leads.statuses.won'),
+      lost: t('crm.leads.statuses.lost'),
+    }),
+    [t],
+  );
+  const formatUtm = (lead: Lead) => {
+    const parts = [lead.utmSource, lead.utmMedium, lead.utmCampaign].filter(
+      (v) => v && String(v).trim().length > 0,
+    );
+    return parts.length ? parts.join(' / ') : t('crm.leads.list.emptyValue');
+  };
+  const formatStatus = (status?: string | null) => {
+    if (!status) return t('crm.leads.list.emptyValue');
+    return statusLabels[status] ?? status;
+  };
 
   useEffect(() => {
     let alive = true;
@@ -31,7 +60,7 @@ export const LeadsListPage: React.FC = () => {
       .catch((e) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Ошибка загрузки лидов');
+        setError(e.message || t('crm.leads.list.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
@@ -49,10 +78,10 @@ export const LeadsListPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-slate-50">
-              Лиды · Список
+              {t('crm.leads.list.title')}
             </h1>
             <div className="text-[11px] text-slate-500">
-              Табличный вид: удобно фильтровать и быстро искать
+              {t('crm.leads.list.subtitle')}
             </div>
           </div>
 
@@ -64,13 +93,13 @@ export const LeadsListPage: React.FC = () => {
                 type="button"
                 onClick={goBoard}
               >
-                Канбан
+                {t('crm.leads.list.viewKanban')}
               </button>
               <button
                 className="px-3 py-1.5 bg-slate-800 text-slate-50"
                 type="button"
               >
-                Список
+                {t('crm.leads.list.viewList')}
               </button>
             </div>
 
@@ -78,7 +107,7 @@ export const LeadsListPage: React.FC = () => {
               onClick={handleCreateLead}
               className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
             >
-              Создать лид
+              {t('crm.leads.list.create')}
             </button>
           </div>
         </div>
@@ -92,16 +121,31 @@ export const LeadsListPage: React.FC = () => {
         {/* Таблица */}
         <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
           {loading ? (
-            <div className="text-xs text-slate-400">Загружаем лидов…</div>
+            <div className="text-xs text-slate-400">
+              {t('crm.leads.list.loading')}
+            </div>
           ) : (
             <table className="w-full text-xs border-separate border-spacing-y-1">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left px-2 py-1">Имя</th>
-                  <th className="text-left px-2 py-1">Канал</th>
-                  <th className="text-left px-2 py-1">Статус</th>
-                  <th className="text-left px-2 py-1">Создан</th>
-                  <th className="text-right px-2 py-1">Действия</th>
+                  <th className="text-left px-2 py-1">
+                    {t('crm.leads.list.columns.name')}
+                  </th>
+                  <th className="text-left px-2 py-1">
+                    {t('crm.leads.list.columns.channel')}
+                  </th>
+                  <th className="text-left px-2 py-1">
+                    {t('crm.leads.list.columns.utm')}
+                  </th>
+                  <th className="text-left px-2 py-1">
+                    {t('crm.leads.list.columns.status')}
+                  </th>
+                  <th className="text-left px-2 py-1">
+                    {t('crm.leads.list.columns.created')}
+                  </th>
+                  <th className="text-right px-2 py-1">
+                    {t('crm.leads.list.columns.actions')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -112,20 +156,23 @@ export const LeadsListPage: React.FC = () => {
                     onClick={() => handleOpenLead(lead.id)}
                   >
                     <td className="px-2 py-1.5 text-slate-100">
-                      {lead.name}
+                      {lead.name || t('crm.leads.list.emptyValue')}
                     </td>
                     <td className="px-2 py-1.5 text-slate-400">
-                      {lead.channel}
+                      {lead.channel || t('crm.leads.list.emptyValue')}
                     </td>
                     <td className="px-2 py-1.5 text-slate-400">
-                      {lead.status}
+                      {formatUtm(lead)}
                     </td>
                     <td className="px-2 py-1.5 text-slate-400">
-                      {new Date(lead.createdAt).toLocaleString('ru-RU')}
+                      {formatStatus(lead.status)}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-400">
+                      {new Date(lead.createdAt).toLocaleString(locale)}
                     </td>
                     <td className="px-2 py-1.5 text-right">
                       <span className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft">
-                        Открыть
+                        {t('crm.leads.list.open')}
                       </span>
                     </td>
                   </tr>
@@ -134,10 +181,10 @@ export const LeadsListPage: React.FC = () => {
                 {leads.length === 0 && !loading && (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="px-2 py-2 text-[11px] text-slate-500 italic"
                     >
-                      Лидов пока нет
+                      {t('crm.leads.list.empty')}
                     </td>
                   </tr>
                 )}

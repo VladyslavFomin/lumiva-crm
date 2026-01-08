@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { Tenant } from './tenant.entity';
@@ -47,6 +48,101 @@ export class PlatformTenantsController {
   }
 
   /**
+   * Общий список логов (последние 200, опционально по tenantId)
+   */
+  @Get('logs')
+  async listLogs(
+    @Query('tenantId') tenantId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const limNum = limit ? Math.min(Number(limit) || 200, 500) : 200;
+    const logs = await this.tenants.getAllLogs({
+      tenantId: tenantId || undefined,
+      limit: limNum,
+    });
+    return logs;
+  }
+
+  /**
+   * Все API/сайты по всем тенантам (для поддержки). Токены маскируются.
+   */
+  @Get('sites')
+  async listSites(@Query('tenantId') tenantId?: string) {
+    const [sites, integrations] = await Promise.all([
+      this.tenants.findAllSitesWithTenant({
+        tenantId: tenantId || undefined,
+      }),
+      this.tenants.findIntegrations({ tenantId: tenantId || undefined }),
+    ]);
+
+    // считаем количество сайтов на тенант
+    const counts = new Map<string, number>();
+    sites.forEach((s) =>
+      counts.set(s.tenantId, (counts.get(s.tenantId) || 0) + 1),
+    );
+
+    // группируем интеграции по тенанту
+    const integrationsByTenant = new Map<string, any[]>();
+    integrations.forEach((i) => {
+      const arr = integrationsByTenant.get(i.tenantId) || [];
+      arr.push({
+        id: i.id,
+        name: i.name,
+        kind: i.kind,
+        lastSyncStatus: i.lastSyncStatus,
+        lastSyncAt: i.lastSyncAt,
+        isEnabled: i.isEnabled,
+        description: i.description,
+      });
+      integrationsByTenant.set(i.tenantId, arr);
+    });
+
+    // убираем дубликаты по домену на одного тенанта (берём самый свежий)
+    const unique = new Map<string, (typeof sites)[number]>();
+    sites.forEach((s) => {
+      const key = `${s.tenantId}|${s.domain.toLowerCase()}`;
+      const prev = unique.get(key);
+      if (!prev) {
+        unique.set(key, s);
+      } else {
+        const prevTs = new Date(prev.updatedAt).getTime();
+        const curTs = new Date(s.updatedAt).getTime();
+        if (curTs > prevTs) unique.set(key, s);
+      }
+    });
+
+    const maskToken = (token: string | null | undefined) => {
+      if (!token) return '';
+      const last = token.slice(-4);
+      const masked = '*'.repeat(Math.max(0, token.length - 4));
+      return `${masked}${last}`;
+    };
+
+    return Array.from(unique.values()).map((s) => ({
+      id: s.id,
+      tenantId: s.tenantId,
+      tenantClientKey: s.tenant?.clientKey,
+      tenantName: s.tenant?.name,
+      domain: s.domain,
+      name: s.name,
+      status: s.status,
+      apiTokenMasked: maskToken(s.apiToken),
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      sitesPerTenant: counts.get(s.tenantId) || 1,
+      integrations: integrationsByTenant.get(s.tenantId) || [],
+    }));
+  }
+
+  /**
+   * Принудительно очистить просроченные токены сброса пароля (для поддержки).
+   */
+  @Post('password-reset/prune')
+  async pruneResetTokens() {
+    return this.tenants.pruneResetTokens();
+  }
+
+  /**
    * Получить одного тенанта (для отладки / будущего UI)
    */
   @Get(':id')
@@ -56,6 +152,45 @@ export class PlatformTenantsController {
       throw new NotFoundException('Tenant not found');
     }
     return this.mapTenant(tenant);
+  }
+
+  /**
+   * История событий по тенанту (для поддержки/отладки)
+   */
+  @Get(':id/logs')
+  async getLogs(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.tenants.getTenantLogs(id, 100);
+  }
+
+  /**
+   * Сгенерировать ссылку на сброс пароля для владельца тенанта (через токен).
+   */
+  @Post(':id/password-reset')
+  async passwordResetLinkPost(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.tenants.issueOwnerPasswordResetLink(id);
+  }
+
+  // дублируем GET для совместимости, если где-то ограничены на POST
+  @Get(':id/password-reset')
+  async passwordResetLinkGet(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.tenants.issueOwnerPasswordResetLink(id);
+  }
+
+  /**
+   * Отправить письмо на сброс пароля (по ownerEmail или кастомному адресу).
+   */
+  @Post(':id/password-reset/send')
+  async sendPasswordReset(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { to?: string },
+  ) {
+    return this.tenants.sendOwnerPasswordResetEmail(id, body?.to);
   }
 
   /**

@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
@@ -105,5 +106,115 @@ export class SmmController {
     const items = Array.isArray(body.items) ? body.items : [];
     await this.smmService.importStats(tenantId, items);
     return { success: true, imported: items.length };
+  }
+
+  // -------- META OAUTH --------
+
+  @Get('meta/auth-url')
+  @UseGuards(JwtAuthGuard)
+  async getMetaAuthUrl(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('redirect') redirect?: string,
+  ) {
+    return this.smmService.getMetaAuthUrl(user.tenantId, redirect);
+  }
+
+  @Get('meta/callback')
+  async metaCallback(
+    @Res() res: any,
+    @Query('code') code?: string,
+    @Query('state') state?: string,
+  ) {
+    const redirectUrl = await this.smmService.handleMetaCallback(code, state);
+    return res.redirect(redirectUrl);
+  }
+
+  @Get('meta/assets')
+  @UseGuards(JwtAuthGuard)
+  async listMetaAssets(@CurrentUser() user: CurrentUserPayload) {
+    return this.smmService.listMetaAssets(user.tenantId);
+  }
+
+  @Get('meta/debug')
+  @UseGuards(JwtAuthGuard)
+  async debugMeta(@CurrentUser() user: CurrentUserPayload) {
+    return this.smmService.debugMeta(user.tenantId);
+  }
+
+  @Post('meta/sync')
+  @UseGuards(JwtAuthGuard)
+  async syncMeta(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('days') days?: string,
+  ) {
+    const parsed = days ? Number(days) : 1;
+    if (parsed && parsed > 1) {
+      return this.smmService.syncMetaProfilesRange(user.tenantId, parsed);
+    }
+    return this.smmService.syncMetaProfiles(user.tenantId);
+  }
+
+  @Post('meta/connect')
+  @UseGuards(JwtAuthGuard)
+  async connectMetaProfile(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body()
+    body: {
+      platform: 'facebook' | 'instagram';
+      pageId?: string;
+      igUserId?: string;
+    },
+  ) {
+    return this.smmService.connectMetaProfile(user.tenantId, body);
+  }
+
+  // -------- VK OAUTH --------
+
+  @Get('vk/auth-url')
+  @UseGuards(JwtAuthGuard)
+  async getVkAuthUrl(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('redirect') redirect?: string,
+  ) {
+    return this.smmService.getVkAuthUrl(user.tenantId, redirect);
+  }
+
+  @Get('vk/callback')
+  async vkCallback(
+    @Res() res: any,
+    @Query('code') code?: string,
+    @Query('state') state?: string,
+  ) {
+    const redirectUrl = await this.smmService.handleVkCallback(code, state);
+    return res.redirect(redirectUrl);
+  }
+
+  @Get('vk/assets')
+  @UseGuards(JwtAuthGuard)
+  async listVkAssets(@CurrentUser() user: CurrentUserPayload) {
+    return this.smmService.listVkAssets(user.tenantId);
+  }
+
+  @Post('vk/connect')
+  @UseGuards(JwtAuthGuard)
+  async connectVkGroup(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body()
+    body: { groupId?: number; screenName?: string },
+  ) {
+    return this.smmService.connectVkGroup(user.tenantId, body);
+  }
+
+  @Post('vk/sync')
+  @UseGuards(JwtAuthGuard)
+  async syncVk(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('days') days?: string,
+  ) {
+    const parsed = days ? Number(days) : 1;
+    if (parsed && parsed > 1) {
+      return this.smmService.syncVkProfilesRange(user.tenantId, parsed);
+    }
+    return this.smmService.syncVkProfiles(user.tenantId);
   }
 }

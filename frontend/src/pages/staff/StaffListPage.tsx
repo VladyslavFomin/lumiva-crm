@@ -1,7 +1,8 @@
 // src/pages/staff/StaffListPage.tsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 
 import {
@@ -17,16 +18,6 @@ import {
 
 import { adminProvisionUser } from '../../api/users';
 
-const ROLE_LABEL: Record<StaffRole, string> = {
-  owner: 'Владелец',
-  manager: 'Менеджер',
-  viewer: 'Наблюдатель',
-  finance: 'Финансы',
-  sales: 'Продажи',
-  developer: 'Разработчик',
-  support: 'Поддержка',
-};
-
 type DialogKind = 'info' | 'confirm';
 
 interface DialogState {
@@ -37,6 +28,7 @@ interface DialogState {
 }
 
 export const StaffListPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [items, setItems] = useState<StaffUser[]>([]);
@@ -56,6 +48,18 @@ export const StaffListPage: React.FC = () => {
 
   // наш popup-диалог
   const [dialog, setDialog] = useState<DialogState | null>(null);
+  const roleLabels = useMemo(
+    () => ({
+      owner: t('crm.staff.roles.owner'),
+      manager: t('crm.staff.roles.manager'),
+      viewer: t('crm.staff.roles.viewer'),
+      finance: t('crm.staff.roles.finance'),
+      sales: t('crm.staff.roles.sales'),
+      developer: t('crm.staff.roles.developer'),
+      support: t('crm.staff.roles.support'),
+    }),
+    [t],
+  );
 
   useEffect(() => {
     let alive = true;
@@ -70,7 +74,7 @@ export const StaffListPage: React.FC = () => {
       .catch((e: any) => {
         if (!alive) return;
         console.error(e);
-        setError(e.message || 'Ошибка загрузки сотрудников');
+        setError(e.message || t('crm.staff.errors.load'));
       })
       .finally(() => {
         if (!alive) return;
@@ -104,7 +108,7 @@ export const StaffListPage: React.FC = () => {
       setNewRole('manager');
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка создания сотрудника');
+      setError(e.message || t('crm.staff.errors.create'));
     } finally {
       setCreating(false);
     }
@@ -119,7 +123,7 @@ export const StaffListPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка отключения сотрудника');
+      setError(e.message || t('crm.staff.errors.deactivate'));
     }
   };
 
@@ -127,10 +131,8 @@ export const StaffListPage: React.FC = () => {
     if (e) e.stopPropagation();
     setDialog({
       kind: 'confirm',
-      title: 'Отключить сотрудника?',
-      message:
-        'Сотрудник потеряет доступ к CRM, но останется в списке.\n' +
-        'Вы всегда сможете включить его обратно.',
+      title: t('crm.staff.dialogs.deactivate.title'),
+      message: t('crm.staff.dialogs.deactivate.message'),
       onConfirm: () => doDeactivate(id),
     });
   };
@@ -144,7 +146,7 @@ export const StaffListPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка включения сотрудника');
+      setError(e.message || t('crm.staff.errors.activate'));
     }
   };
 
@@ -162,7 +164,7 @@ export const StaffListPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка обновления роли');
+      setError(e.message || t('crm.staff.errors.role'));
     } finally {
       setEditRoleId(null);
     }
@@ -177,7 +179,7 @@ export const StaffListPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка обновления отдела');
+      setError(e.message || t('crm.staff.errors.department'));
     } finally {
       setEditDeptId(null);
     }
@@ -196,18 +198,19 @@ export const StaffListPage: React.FC = () => {
 
       setDialog({
         kind: 'info',
-        title: 'Пароль сброшен',
-        message:
-          `Новый доступ для ${u.email}:\n\n` +
-          `Логин: ${res.email}\nПароль: ${res.password}\n\n` +
-          `Передайте данные сотруднику и попросите сменить пароль после первого входа.`,
+        title: t('crm.staff.dialogs.resetPassword.title'),
+        message: t('crm.staff.dialogs.resetPassword.message', {
+          email: u.email,
+          login: res.email,
+          password: res.password,
+        }),
       });
     } catch (err: any) {
       console.error(err);
       setDialog({
         kind: 'info',
-        title: 'Ошибка',
-        message: err.message || 'Ошибка при сбросе пароля',
+        title: t('crm.staff.dialogs.error.title'),
+        message: err.message || t('crm.staff.dialogs.error.message'),
       });
     }
   };
@@ -223,8 +226,8 @@ export const StaffListPage: React.FC = () => {
       .toUpperCase();
 
     return (
-      <div className="h-8 w-8 rounded-full bg-slate-800 flex items-center justify-center text-[11px] text-slate-200">
-        {initials || '??'}
+      <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-[11px] text-slate-700">
+        {initials || t('crm.staff.common.initialsFallback')}
       </div>
     );
   };
@@ -235,40 +238,40 @@ export const StaffListPage: React.FC = () => {
       <div className="space-y-4">
         {/* HEADER */}
         <div>
-          <h1 className="text-lg font-semibold text-slate-50">Сотрудники</h1>
+          <h1 className="text-lg font-semibold text-slate-900">{t('crm.staff.title')}</h1>
           <div className="text-[11px] text-slate-500">
-            Управление пользователями Lumiva CRM
+            {t('crm.staff.subtitle')}
           </div>
         </div>
 
         {/* Ошибка */}
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
         {/* Форма добавления */}
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-3">
-          <div className="text-xs text-slate-400 mb-1">Добавить сотрудника</div>
+        <div className="bg-white border border-slate-200 rounded-3xl p-4 space-y-3 shadow-sm">
+          <div className="text-xs text-slate-500 mb-1">{t('crm.staff.create.title')}</div>
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
             <input
               value={newFullName}
               onChange={(e) => setNewFullName(e.target.value)}
-              placeholder="ФИО"
+              placeholder={t('crm.staff.create.fullName')}
               className="base-input"
             />
             <input
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
-              placeholder="E-mail"
+              placeholder={t('crm.staff.create.email')}
               className="base-input"
             />
             <input
               value={newDept}
               onChange={(e) => setNewDept(e.target.value)}
-              placeholder="Отдел"
+              placeholder={t('crm.staff.create.department')}
               className="base-input"
             />
 
@@ -277,7 +280,7 @@ export const StaffListPage: React.FC = () => {
               onChange={(e) => setNewRole(e.target.value as StaffRole)}
               className="base-input"
             >
-              {Object.entries(ROLE_LABEL).map(([k, v]) => (
+              {Object.entries(roleLabels).map(([k, v]) => (
                 <option key={k} value={k}>
                   {v}
                 </option>
@@ -290,25 +293,26 @@ export const StaffListPage: React.FC = () => {
               disabled={creating}
               className="btn-primary"
             >
-              {creating ? 'Создаём…' : 'Добавить'}
+              {creating ? t('crm.staff.create.creating') : t('crm.staff.create.submit')}
             </button>
           </div>
         </div>
 
         {/* Таблица */}
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+        <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm">
           {loading ? (
-            <div className="text-xs text-slate-400">Загружаем…</div>
+            <div className="text-xs text-slate-400">{t('crm.staff.loading')}</div>
           ) : (
-            <table className="w-full text-xs border-separate border-spacing-y-1">
+            <div className="overflow-x-auto">
+              <table className="min-w-[820px] w-full text-xs border-separate border-spacing-y-1">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="px-3 py-1 text-left">Сотрудник</th>
-                  <th className="px-3 py-1 text-left">Email</th>
-                  <th className="px-3 py-1 text-left">Отдел</th>
-                  <th className="px-3 py-1 text-left">Роль</th>
-                  <th className="px-3 py-1 text-left">Статус</th>
-                  <th className="px-3 py-1 text-right">Действия</th>
+                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.name')}</th>
+                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.email')}</th>
+                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.department')}</th>
+                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.role')}</th>
+                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.status')}</th>
+                  <th className="px-3 py-1 text-right">{t('crm.staff.table.headers.actions')}</th>
                 </tr>
               </thead>
 
@@ -316,7 +320,7 @@ export const StaffListPage: React.FC = () => {
                 {items.map((u) => (
                   <tr
                     key={u.id}
-                    className="bg-slate-950/80 hover:bg-slate-900/80 cursor-pointer"
+                    className="hover:bg-slate-50 cursor-pointer"
                     onClick={() => navigate(`/app/staff/${u.id}/profile`)}
                   >
                     {/* Сотрудник */}
@@ -326,14 +330,14 @@ export const StaffListPage: React.FC = () => {
                         <div>
                           <div className="text-[13px]">{u.fullName}</div>
                           <div className="text-[10px] text-slate-500">
-                            ID: {u.id.slice(0, 8)}
+                            {t('crm.staff.table.id', { id: u.id.slice(0, 8) })}
                           </div>
                         </div>
                       </div>
                     </td>
 
                     {/* Email */}
-                    <td className="px-3 py-1.5 text-slate-300">{u.email}</td>
+                    <td className="px-3 py-1.5 text-slate-700">{u.email}</td>
 
                     {/* Отдел (inline) */}
                     <td className="px-3 py-1.5 text-slate-300">
@@ -345,23 +349,23 @@ export const StaffListPage: React.FC = () => {
                             handleSaveDept(u.id, e.target.value.trim())
                           }
                           autoFocus
-                          className="px-2 py-1 rounded bg-slate-800 text-slate-100 text-xs outline-none"
+                          className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-800 text-xs outline-none"
                         />
                       ) : (
                         <button
-                          className="text-slate-300 hover:text-slate-100"
+                          className="text-slate-600 hover:text-slate-900"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditDeptId(u.id);
                           }}
                         >
-                          {u.department || '—'}
+                          {u.department || t('crm.staff.common.empty')}
                         </button>
                       )}
                     </td>
 
                     {/* Роль (inline) */}
-                    <td className="px-3 py-1.5 text-slate-200">
+                    <td className="px-3 py-1.5 text-slate-700">
                       {editRoleId === u.id ? (
                         <select
                           defaultValue={u.role}
@@ -373,9 +377,9 @@ export const StaffListPage: React.FC = () => {
                             )
                           }
                           autoFocus
-                          className="px-2 py-1 rounded bg-slate-800 text-slate-100 text-xs outline-none"
+                          className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-800 text-xs outline-none"
                         >
-                          {Object.entries(ROLE_LABEL).map(([k, v]) => (
+                          {Object.entries(roleLabels).map(([k, v]) => (
                             <option key={k} value={k}>
                               {v}
                             </option>
@@ -383,13 +387,13 @@ export const StaffListPage: React.FC = () => {
                         </select>
                       ) : (
                         <button
-                          className="text-slate-300 hover:text-slate-100"
+                          className="text-slate-600 hover:text-slate-900"
                           onClick={(e) => {
                             e.stopPropagation();
                             setEditRoleId(u.id);
                           }}
                         >
-                          {ROLE_LABEL[u.role]}
+                          {roleLabels[u.role]}
                         </button>
                       )}
                     </td>
@@ -397,34 +401,34 @@ export const StaffListPage: React.FC = () => {
                     {/* Статус */}
                     <td className="px-3 py-1.5">
                       {u.isActive ? (
-                        <span className="badge-active">Активен</span>
+                        <span className="badge-active">{t('crm.staff.status.active')}</span>
                       ) : (
-                        <span className="badge-disabled">Отключён</span>
+                        <span className="badge-disabled">{t('crm.staff.status.disabled')}</span>
                       )}
                     </td>
 
                     {/* Действия */}
                     <td className="px-3 py-1.5 text-right space-x-3">
                       <button
-                        className="text-[11px] text-emerald-400 hover:text-emerald-300"
+                        className="text-[11px] text-emerald-600 hover:text-emerald-700"
                         onClick={(e) => handleResetPassword(u, e)}
                       >
-                        Сбросить пароль
+                        {t('crm.staff.actions.resetPassword')}
                       </button>
 
                       {u.isActive ? (
                         <button
-                          className="text-[11px] text-rose-400 hover:text-rose-300"
+                          className="text-[11px] text-rose-600 hover:text-rose-700"
                           onClick={(e) => handleDeactivate(u.id, e)}
                         >
-                          Отключить
+                          {t('crm.staff.actions.deactivate')}
                         </button>
                       ) : (
                         <button
-                          className="text-[11px] text-amber-300 hover:text-amber-200"
+                          className="text-[11px] text-emerald-600 hover:text-emerald-700"
                           onClick={(e) => handleActivate(u.id, e)}
                         >
-                          Включить
+                          {t('crm.staff.actions.activate')}
                         </button>
                       )}
                     </td>
@@ -437,38 +441,39 @@ export const StaffListPage: React.FC = () => {
                       colSpan={6}
                       className="px-3 py-3 text-center text-[12px] text-slate-500"
                     >
-                      Сотрудников пока нет
+                      {t('crm.staff.empty')}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+            </div>
           )}
         </div>
 
         {/* POPUP-ДИАЛОГ */}
         {dialog && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
-            <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 shadow-xl p-4">
-              <div className="text-sm font-semibold text-slate-50 mb-1">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl bg-white border border-slate-200 shadow-xl p-4">
+              <div className="text-sm font-semibold text-slate-900 mb-1">
                 {dialog.title}
               </div>
-              <div className="text-xs text-slate-300 whitespace-pre-line mb-4">
+              <div className="text-xs text-slate-600 whitespace-pre-line mb-4">
                 {dialog.message}
               </div>
 
               <div className="flex justify-end gap-2 text-xs">
                 {dialog.kind === 'confirm' && (
                   <button
-                    className="px-3 py-1.5 rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-800"
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-800 bg-white hover:bg-slate-50"
                     onClick={() => setDialog(null)}
                   >
-                    Отмена
+                    {t('crm.staff.dialogs.cancel')}
                   </button>
                 )}
 
                 <button
-                  className="px-3 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
+                  className="px-3 py-1.5 rounded-xl bg-lumiva-accent text-white font-semibold shadow-sm hover:-translate-y-[1px] transition"
                   onClick={() => {
                     if (dialog.kind === 'confirm' && dialog.onConfirm) {
                       dialog.onConfirm();
@@ -476,7 +481,7 @@ export const StaffListPage: React.FC = () => {
                     setDialog(null);
                   }}
                 >
-                  ОК
+                  {t('crm.staff.dialogs.ok')}
                 </button>
               </div>
             </div>

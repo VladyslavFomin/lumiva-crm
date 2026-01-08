@@ -24,20 +24,17 @@ export class AuthController {
 
   /**
    * POST /auth/set-password
-   * Вариант 1: { token, password }  — через reset/invite токен
-   * Вариант 2: { email, clientKey, password } — по ссылке из письма
+   * Только через reset/invite токен: { token, password }
    */
   @Post('set-password')
   async setPassword(
     @Body()
     body: {
       token?: string;
-      email?: string;
-      clientKey?: string;
       password?: string;
     },
   ) {
-    const { token, email, clientKey, password } = body;
+    const { token, password } = body;
 
     if (!password) {
       throw new BadRequestException('password обязателен');
@@ -55,18 +52,21 @@ export class AuthController {
       return { ok: true };
     }
 
-    if (!email || !clientKey) {
-      throw new BadRequestException(
-        'Нужен либо token, либо связка email + clientKey',
-      );
+    throw new BadRequestException('Требуется токен сброса/инвайта');
+  }
+
+  /**
+   * Публичный запрос на письмо для сброса пароля.
+   * Body: { clientKey, email }
+   */
+  @Post('request-reset')
+  async requestReset(
+    @Body() body: { clientKey?: string; email?: string },
+  ) {
+    if (!body.clientKey || !body.email) {
+      throw new BadRequestException('clientKey и email обязательны');
     }
-
-    await this.authService.setPasswordForEmailAndClient(
-      email,
-      clientKey,
-      password,
-    );
-
+    await this.authService.requestPasswordReset(body.clientKey, body.email);
     return { ok: true };
   }
 }

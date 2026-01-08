@@ -1,5 +1,6 @@
 // src/pages/marketing/SegmentsPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   createSegment,
@@ -8,8 +9,11 @@ import {
   type MarketingSegment,
   type LeadSegmentFilters,
 } from '../../api/marketing';
+import { getLocale } from '../../i18n/utils';
 
 export const SegmentsPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const [segments, setSegments] = useState<MarketingSegment[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -34,7 +38,7 @@ export const SegmentsPage: React.FC = () => {
       .then(setSegments)
       .catch((e: any) => {
         console.error(e);
-        setError(e.message || 'Не удалось загрузить сегменты');
+        setError(e.message || t('crm.marketingSegments.errors.load'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -80,7 +84,7 @@ export const SegmentsPage: React.FC = () => {
       setCreatedTo('');
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Не удалось сохранить сегмент');
+      setError(e.message || t('crm.marketingSegments.errors.save'));
     } finally {
       setSaving(false);
     }
@@ -104,15 +108,13 @@ export const SegmentsPage: React.FC = () => {
       <div className="space-y-4 md:space-y-6 pb-8">
         <section>
           <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-            Маркетинг · Сегменты
+            {t('crm.marketingSegments.kicker')}
           </div>
           <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-            Сегменты лидов
+            {t('crm.marketingSegments.title')}
           </h1>
           <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-            Сохраняйте часто используемые выборки по лидам: по статусам, каналам,
-            странам и менеджерам. В дальнейшем можно будет привязать сегменты к
-            рассылкам и задачам в n8n.
+            {t('crm.marketingSegments.subtitle')}
           </p>
         </section>
 
@@ -126,24 +128,24 @@ export const SegmentsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Название сегмента
+                  {t('crm.marketingSegments.form.name')}
                 </label>
                 <input
                   className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="Лиды из Google Ads RU за последние 30 дней"
+                  placeholder={t('crm.marketingSegments.form.namePlaceholder')}
                 />
               </div>
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Описание (опционально)
+                  {t('crm.marketingSegments.form.description')}
                 </label>
                 <input
                   className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Для рассылки по лидам из брендового трафика"
+                  placeholder={t('crm.marketingSegments.form.descriptionPlaceholder')}
                 />
               </div>
             </div>
@@ -151,15 +153,15 @@ export const SegmentsPage: React.FC = () => {
             {/* статусы */}
             <div>
               <div className="text-[11px] text-slate-400 mb-1">
-                Статусы лидов
+                {t('crm.marketingSegments.form.statuses')}
               </div>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { code: 'new', label: 'Новый' },
-                  { code: 'in_progress', label: 'В работе' },
-                  { code: 'waiting', label: 'Ожидает' },
-                  { code: 'won', label: 'Успех' },
-                  { code: 'lost', label: 'Проигран' },
+                  { code: 'new', label: t('crm.marketingSegments.statuses.new') },
+                  { code: 'in_progress', label: t('crm.marketingSegments.statuses.in_progress') },
+                  { code: 'waiting', label: t('crm.marketingSegments.statuses.waiting') },
+                  { code: 'won', label: t('crm.marketingSegments.statuses.won') },
+                  { code: 'lost', label: t('crm.marketingSegments.statuses.lost') },
                 ].map((s) => (
                   <button
                     key={s.code}
@@ -182,35 +184,35 @@ export const SegmentsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Источник (source)
+                  {t('crm.marketingSegments.form.source')}
                 </label>
                 <input
                   className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500"
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
-                  placeholder="google / facebook / crm…"
+                  placeholder={t('crm.marketingSegments.form.sourcePlaceholder')}
                 />
               </div>
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Страна
+                  {t('crm.marketingSegments.form.country')}
                 </label>
                 <input
                   className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500"
                   value={country}
                   onChange={(e) => setCountry(e.target.value)}
-                  placeholder="TR / RU / PL / DE…"
+                  placeholder={t('crm.marketingSegments.form.countryPlaceholder')}
                 />
               </div>
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Менеджер (assignedTo)
+                  {t('crm.marketingSegments.form.manager')}
                 </label>
                 <input
                   className="w-full rounded-xl border border-slate-700 bg-slate-950/60 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500"
                   value={manager}
                   onChange={(e) => setManager(e.target.value)}
-                  placeholder="Имя менеджера"
+                  placeholder={t('crm.marketingSegments.form.managerPlaceholder')}
                 />
               </div>
             </div>
@@ -218,7 +220,7 @@ export const SegmentsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Создан с
+                  {t('crm.marketingSegments.form.createdFrom')}
                 </label>
                 <input
                   type="date"
@@ -229,7 +231,7 @@ export const SegmentsPage: React.FC = () => {
               </div>
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Создан по
+                  {t('crm.marketingSegments.form.createdTo')}
                 </label>
                 <input
                   type="date"
@@ -242,8 +244,7 @@ export const SegmentsPage: React.FC = () => {
 
             <div className="flex items-center justify-between">
               <div className="text-[11px] text-slate-500">
-                Сегменты сейчас работают только по лидам. В будущем сюда можно
-                привязать рассылки, экспорт, webhooks в n8n.
+                {t('crm.marketingSegments.form.helper')}
               </div>
               <button
                 type="submit"
@@ -255,7 +256,9 @@ export const SegmentsPage: React.FC = () => {
                     : 'border-emerald-500 text-emerald-200 hover:bg-emerald-500/10')
                 }
               >
-                {saving ? 'Сохраняем…' : 'Создать сегмент'}
+                {saving
+                  ? t('crm.marketingSegments.actions.creating')
+                  : t('crm.marketingSegments.actions.create')}
               </button>
             </div>
           </form>
@@ -266,27 +269,28 @@ export const SegmentsPage: React.FC = () => {
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h2 className="text-sm font-semibold text-slate-50">
-                Сохранённые сегменты
+                {t('crm.marketingSegments.list.title')}
               </h2>
               <p className="mt-0.5 text-[11px] text-slate-500">
-                Нажмите «Запустить», чтобы посмотреть, сколько лидов попадает в
-                сегмент.
+                {t('crm.marketingSegments.list.subtitle')}
               </p>
             </div>
             <span className="text-[11px] text-slate-500">
-              Всего: {segments.length}
+              {t('crm.marketingSegments.list.total', {
+                count: segments.length,
+              })}
             </span>
           </div>
 
           {loading && (
             <div className="text-[11px] text-slate-500">
-              Загружаем сегменты…
+              {t('crm.marketingSegments.loading')}
             </div>
           )}
 
           {!loading && segments.length === 0 && (
             <div className="text-[11px] text-slate-500">
-              Сегментов пока нет. Создайте первый выше.
+              {t('crm.marketingSegments.list.empty')}
             </div>
           )}
 
@@ -307,14 +311,18 @@ export const SegmentsPage: React.FC = () => {
                       </div>
                     )}
                     <div className="text-[10px] text-slate-600 mt-0.5">
-                      entity: {seg.entityType} · создан:{' '}
-                      {new Date(seg.createdAt).toLocaleDateString('ru-RU')}
+                      {t('crm.marketingSegments.list.meta', {
+                        entity: seg.entityType,
+                        date: new Date(seg.createdAt).toLocaleDateString(locale),
+                      })}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
                     {runResultCount !== null && runningId === null && (
                       <span className="text-[11px] text-slate-400">
-                        Найдено: {runResultCount}
+                        {t('crm.marketingSegments.list.found', {
+                          count: runResultCount,
+                        })}
                       </span>
                     )}
                     <button
@@ -323,7 +331,9 @@ export const SegmentsPage: React.FC = () => {
                       disabled={runningId === seg.id}
                       className="px-3 py-1.5 rounded-xl text-[11px] border border-sky-500 text-sky-300 hover:bg-sky-500/10 disabled:opacity-60"
                     >
-                      {runningId === seg.id ? 'Запуск…' : 'Запустить'}
+                      {runningId === seg.id
+                        ? t('crm.marketingSegments.actions.running')
+                        : t('crm.marketingSegments.actions.run')}
                     </button>
                   </div>
                 </div>

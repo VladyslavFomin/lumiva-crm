@@ -13,6 +13,9 @@ import { Tenant } from '../tenants/tenant.entity';
 import { User } from '../users/user.entity';
 import { LoginDto } from './dto/login.dto';
 import { StaffUser } from '../staff/staff-user.entity';
+import { getTenantBlockReason } from '../tenants/tenant-status.util';
+import { TenantLogsService } from '../tenants/tenant-logs.service';
+import { StaffUsersService } from '../staff/staff-users.service';
 
 @Injectable()
 export class AuthService {
@@ -27,6 +30,8 @@ export class AuthService {
     private readonly staffRepo: Repository<StaffUser>,
 
     private readonly jwtService: JwtService,
+    private readonly tenantLogs: TenantLogsService,
+    private readonly staffUsers: StaffUsersService,
   ) {}
 
   // ========= ЛОГИН =========
@@ -35,11 +40,37 @@ export class AuthService {
 
     // 1) Тенант
     const tenant = await this.tenantRepo.findOne({
-      where: { clientKey, status: 'active' },
+      where: { clientKey },
     });
 
     if (!tenant) {
       throw new UnauthorizedException('Invalid client key or inactive tenant');
+    }
+
+    const tenantBlockReason = getTenantBlockReason(tenant);
+    if (tenantBlockReason) {
+      await this.tenantLogs.record({
+        tenantId: tenant.id,
+        type: 'login_denied',
+        statusCode: 401,
+        method: 'POST',
+        path: '/auth/login',
+        message: `Tenant login denied: ${tenantBlockReason}`,
+        meta: {
+          clientKey,
+          reason: tenantBlockReason,
+          activeUntil: tenant.activeUntil,
+        },
+      });
+      throw new UnauthorizedException({
+        code: 'TENANT_INACTIVE',
+        reason: tenantBlockReason,
+        message:
+          tenantBlockReason === 'expired'
+            ? 'Срок использования CRM закончился'
+            : 'Тенант заблокирован',
+        activeUntil: tenant.activeUntil,
+      });
     }
 
     // 2) Пользователь в users
@@ -109,7 +140,7 @@ export class AuthService {
 
   /**
    * ========= УСТАНОВКА ПАРОЛЯ ПО email + clientKey =========
-   * Используется на /set-password?email=...&clientKey=...
+   * Больше не используется напрямую (оставлено для совместимости)
    */
   async setPasswordForEmailAndClient(
     email: string,
@@ -169,5 +200,28 @@ export class AuthService {
 
     const newUser = this.userRepo.create(baseUser);
     await this.userRepo.save(newUser);
+  }
+
+  /**
+   * Публичный запрос на письмо для сброса пароля по clientKey + email.
+   * Используем staffUsers.issuePasswordResetToken для отправки.
+   */
+  async requestPasswordReset(clientKey: string, email: string) {
+    const tenant = await this.tenantRepo.findOne({
+      where: { clientKey },
+    });
+    if (!tenant) {
+      throw new BadRequestException('Тенант не найден');
+    }
+    await this.staffUsers.issuePasswordResetToken({
+      tenantId: tenant.id,
+      email,
+      fullName: email,
+      tenantName: tenant.name,
+      sendEmail: true,
+      sendTo: email,
+      emailTemplate: 'reset',
+      actor: { source: 'public-request', email },
+    });
   }
 }

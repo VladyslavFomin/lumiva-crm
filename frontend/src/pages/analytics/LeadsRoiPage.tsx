@@ -1,6 +1,7 @@
 // src/pages/analytics/LeadsRoiPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { useTranslation } from 'react-i18next';
 import {
   fetchLeadRoi,
   type LeadsRoiStats,
@@ -35,65 +36,79 @@ const ROI_COLORS = [
   '#6366f1',
 ];
 
-const periodLabel: Record<PeriodPreset, string> = {
-  '7d': '7 дней',
-  '30d': '30 дней',
-  '1y': '1 год',
-  all: 'Все время',
-  custom: 'Произвольно',
-};
-
-const modeLabel: Record<LeadRoiMode, string> = {
-  sales: 'По продажам',
-  projects: 'По проектам',
-};
-
-const modeDescription: Record<LeadRoiMode, string> = {
-  sales:
-    'Сколько денег принесли закрытые сделки по лидам за выбранный период. Основано на данных продаж, связанных с лидами.',
-  projects:
-    'Сколько денег принесли оплаченные проекты по лидам за выбранный период. Основано на суммах проектов, связанных с лидами.',
-};
-
-const RoiTooltip: React.FC<any> = ({ active, payload, label }) => {
-  if (!active || !payload || !payload.length) return null;
-  const row = payload[0].payload as LeadRoiRow & { revenueFormatted?: string };
-
-  return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl">
-      <div className="font-medium">
-        {row.leadName || 'Без имени'} ({label})
-      </div>
-      <div className="mt-1 text-slate-300">
-        Доход:{' '}
-        <span className="font-mono">
-          {row.revenueFormatted ?? row.totalRevenue} {row.currency}
-        </span>
-      </div>
-      <div className="mt-0.5 text-slate-500">
-        Сделок: {row.dealsCount}{' '}
-        {row.firstDealAt && row.lastDealAt && (
-          <>
-            · период{' '}
-            {new Date(row.firstDealAt).toLocaleDateString('ru-RU')}–{' '}
-            {new Date(row.lastDealAt).toLocaleDateString('ru-RU')}
-          </>
-        )}
-      </div>
-      {row.manager && (
-        <div className="mt-0.5 text-slate-500">Менеджер: {row.manager}</div>
-      )}
-    </div>
-  );
-};
+function resolveLocale(lang: string) {
+  if (lang.startsWith('tr')) return 'tr-TR';
+  if (lang.startsWith('en')) return 'en-US';
+  return 'ru-RU';
+}
 
 export const LeadsRoiPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   const [preset, setPreset] = useState<PeriodPreset>('all');
   const [range, setRange] = useState<DateRange>({});
   const [mode, setMode] = useState<LeadRoiMode>('projects'); // по умолчанию – по проектам
   const [stats, setStats] = useState<LeadsRoiStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const periodLabels = useMemo<Record<PeriodPreset, string>>(
+    () => ({
+      '7d': t('crm.leads.roi.period.days7'),
+      '30d': t('crm.leads.roi.period.days30'),
+      '1y': t('crm.leads.roi.period.year1'),
+      all: t('crm.leads.roi.period.all'),
+      custom: t('crm.leads.roi.period.custom'),
+    }),
+    [t],
+  );
+  const modeLabels = useMemo<Record<LeadRoiMode, string>>(
+    () => ({
+      sales: t('crm.leads.roi.mode.sales'),
+      projects: t('crm.leads.roi.mode.projects'),
+    }),
+    [t],
+  );
+  const modeDescriptions = useMemo<Record<LeadRoiMode, string>>(
+    () => ({
+      sales: t('crm.leads.roi.modeDescriptions.sales'),
+      projects: t('crm.leads.roi.modeDescriptions.projects'),
+    }),
+    [t],
+  );
+
+  const RoiTooltip: React.FC<any> = ({ active, payload, label }) => {
+    if (!active || !payload || !payload.length) return null;
+    const row = payload[0].payload as LeadRoiRow & { revenueFormatted?: string };
+
+    return (
+      <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl">
+        <div className="font-medium">
+          {row.leadName || t('crm.leads.roi.table.unnamed')} ({label})
+        </div>
+        <div className="mt-1 text-slate-300">
+          {t('crm.leads.roi.tooltip.revenue')}{' '}
+          <span className="font-mono">
+            {row.revenueFormatted ?? row.totalRevenue} {row.currency}
+          </span>
+        </div>
+        <div className="mt-0.5 text-slate-500">
+          {t('crm.leads.roi.tooltip.deals', { count: row.dealsCount })}{' '}
+          {row.firstDealAt && row.lastDealAt && (
+            <>
+              · {t('crm.leads.roi.tooltip.period')}{' '}
+              {new Date(row.firstDealAt).toLocaleDateString(locale)}–{' '}
+              {new Date(row.lastDealAt).toLocaleDateString(locale)}
+            </>
+          )}
+        </div>
+        {row.manager && (
+          <div className="mt-0.5 text-slate-500">
+            {t('crm.leads.roi.tooltip.manager', { name: row.manager })}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // простой пересчёт диапазона при клике по пресетам (без datepicker)
   const applyPreset = (p: PeriodPreset) => {
@@ -152,10 +167,10 @@ export const LeadsRoiPage: React.FC = () => {
       .then((res) => setStats(res))
       .catch((e: any) => {
         console.error(e);
-        setError(e.message || 'Не удалось загрузить ROI по лидам');
+        setError(e.message || t('crm.leads.roi.errors.loadFailed'));
       })
       .finally(() => setLoading(false));
-  }, [range.from, range.to, mode]);
+  }, [range.from, range.to, mode, t]);
 
   const currency = stats?.currency ?? 'EUR';
 
@@ -167,13 +182,13 @@ export const LeadsRoiPage: React.FC = () => {
   }, [stats]);
 
   const totalRevenueFmt =
-    stats?.totalRevenue.toLocaleString('ru-RU', {
+    stats?.totalRevenue.toLocaleString(locale, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }) ?? '0';
 
   const avgCheckFmt =
-    stats?.avgCheck.toLocaleString('ru-RU', {
+    stats?.avgCheck.toLocaleString(locale, {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }) ?? '0';
@@ -185,21 +200,23 @@ export const LeadsRoiPage: React.FC = () => {
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Лиды · ROI
+              {t('crm.leads.roi.hero.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Доход по лидам (ROI)
+            <h1 className="text-lg md:text-xl font-semibold text-lumiva-accent">
+              {t('crm.leads.roi.hero.title')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              {modeDescription[mode]}
+            <p className="text-xs text-slate-600 mt-1 max-w-2xl">
+              {modeDescriptions[mode]}
             </p>
           </div>
 
           <div className="flex flex-col items-stretch md:items-end gap-2">
             {/* Режим: продажи / проекты */}
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800/80 px-2 py-1">
-              <span className="text-[11px] text-slate-500 pl-1">Источник</span>
-              {(Object.keys(modeLabel) as LeadRoiMode[]).map((m) => (
+            <div className="inline-flex items-center gap-2 rounded-2xl bg-white border border-slate-200 px-2 py-1 shadow-sm">
+              <span className="text-[11px] text-slate-600 pl-1">
+                {t('crm.leads.roi.source.label')}
+              </span>
+              {(Object.keys(modeLabels) as LeadRoiMode[]).map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -207,18 +224,20 @@ export const LeadsRoiPage: React.FC = () => {
                   className={
                     'px-3 py-1.5 rounded-xl text-[11px] transition ' +
                     (mode === m
-                      ? 'bg-emerald-500 text-slate-950 font-semibold shadow-[0_0_0_1px_rgba(16,185,129,0.35)]'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900')
+                      ? 'bg-emerald-500 text-white font-semibold shadow-[0_10px_30px_rgba(16,185,129,0.25)]'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                   }
                 >
-                  {modeLabel[m]}
+                  {modeLabels[m]}
                 </button>
               ))}
             </div>
 
             {/* Период */}
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800/80 px-2 py-1">
-              <span className="text-[11px] text-slate-500 pl-1">Период</span>
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+              <span className="text-[11px] text-slate-600 pl-1">
+                {t('crm.leads.roi.period.label')}
+              </span>
               {(['7d', '30d', '1y', 'all'] as PeriodPreset[]).map((p) => (
                 <button
                   key={p}
@@ -227,11 +246,11 @@ export const LeadsRoiPage: React.FC = () => {
                   className={
                     'px-3 py-1.5 rounded-xl text-[11px] transition ' +
                     (preset === p
-                      ? 'bg-sky-500 text-slate-950 font-semibold shadow-[0_0_0_1px_rgba(56,189,248,0.3)]'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900')
+                      ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                   }
                 >
-                  {periodLabel[p]}
+                  {periodLabels[p]}
                 </button>
               ))}
             </div>
@@ -240,7 +259,7 @@ export const LeadsRoiPage: React.FC = () => {
 
         {loading && (
           <div className="text-[11px] text-slate-400">
-            Загружаем ROI по лидам…
+            {t('crm.leads.roi.loading')}
           </div>
         )}
 
@@ -252,57 +271,69 @@ export const LeadsRoiPage: React.FC = () => {
           <>
             {/* KPI блоки */}
             <section className="grid grid-cols-1 gap-3 md:grid-cols-4 md:gap-4">
-              <div className="rounded-3xl bg-gradient-to-br from-slate-950/90 via-slate-900/90 to-slate-950/90 border border-slate-800/80 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-slate-400 mb-1">
-                  Общий доход
+              <div className="rounded-3xl bg-white border border-slate-200 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-slate-500 mb-1">
+                  {t('crm.leads.roi.kpis.totalRevenue.title')}
                 </div>
-                <div className="text-2xl font-semibold text-slate-50">
+                <div className="text-2xl font-semibold text-lumiva-accent">
                   {totalRevenueFmt} {currency}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-2">
-                  Сумма всех {mode === 'sales' ? 'сделок' : 'проектов'} по
-                  лидам за период.
+                <div className="text-[11px] text-slate-600 mt-2">
+                  {t('crm.leads.roi.kpis.totalRevenue.desc', {
+                    mode: mode === 'sales'
+                      ? t('crm.leads.roi.labels.salesPlural')
+                      : t('crm.leads.roi.labels.projectsPlural'),
+                  })}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-emerald-500/10 via-emerald-400/10 to-slate-950 border border-emerald-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-emerald-300 mb-1">
-                  Лидов с доходом
+              <div className="rounded-3xl bg-emerald-50 border border-emerald-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-emerald-700 mb-1">
+                  {t('crm.leads.roi.kpis.withRevenue.title')}
                 </div>
-                <div className="text-2xl font-semibold text-emerald-300">
-                  {stats.leadsWithRevenue.toLocaleString('ru-RU')}
+                <div className="text-2xl font-semibold text-emerald-700">
+                  {stats.leadsWithRevenue.toLocaleString(locale)}
                 </div>
-                <div className="text-[11px] text-emerald-200/70 mt-2">
-                  Количество лидов, по которым были{' '}
-                  {mode === 'sales' ? 'сделки' : 'оплаченные проекты'}.
+                <div className="text-[11px] text-emerald-700/70 mt-2">
+                  {t('crm.leads.roi.kpis.withRevenue.desc', {
+                    mode: mode === 'sales'
+                      ? t('crm.leads.roi.labels.salesPlural')
+                      : t('crm.leads.roi.labels.paidProjects'),
+                  })}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-sky-500/10 via-sky-500/5 to-slate-950 border border-sky-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-sky-300 mb-1">
-                  Средний чек
+              <div className="rounded-3xl bg-sky-50 border border-sky-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-sky-700 mb-1">
+                  {t('crm.leads.roi.kpis.avgCheck.title')}
                 </div>
-                <div className="text-2xl font-semibold text-sky-300">
+                <div className="text-2xl font-semibold text-sky-700">
                   {avgCheckFmt} {currency}
                 </div>
-                <div className="text-[11px] text-sky-100/70 mt-2">
-                  Средний размер{' '}
-                  {mode === 'sales' ? 'сделки/оплаты' : 'проекта'} по лидам.
+                <div className="text-[11px] text-sky-700/70 mt-2">
+                  {t('crm.leads.roi.kpis.avgCheck.desc', {
+                    mode: mode === 'sales'
+                      ? t('crm.leads.roi.labels.saleOrPayment')
+                      : t('crm.leads.roi.labels.project'),
+                  })}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-fuchsia-500/10 via-rose-500/5 to-slate-950 border border-fuchsia-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-fuchsia-300 mb-1">
-                  {mode === 'sales' ? 'Сделок' : 'Проектов'}
-                </div>
-                <div className="text-2xl font-semibold text-fuchsia-300">
-                  {stats.dealsCount.toLocaleString('ru-RU')}
-                </div>
-                <div className="text-[11px] text-fuchsia-100/70 mt-2">
-                  Общее количество{' '}
+              <div className="rounded-3xl bg-rose-50 border border-rose-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-rose-700 mb-1">
                   {mode === 'sales'
-                    ? 'оплат / закрытых сделок'
-                    : 'учтённых проектов'}.
+                    ? t('crm.leads.roi.kpis.deals.titleSales')
+                    : t('crm.leads.roi.kpis.deals.titleProjects')}
+                </div>
+                <div className="text-2xl font-semibold text-rose-700">
+                  {stats.dealsCount.toLocaleString(locale)}
+                </div>
+                <div className="text-[11px] text-rose-700/70 mt-2">
+                  {t('crm.leads.roi.kpis.deals.desc', {
+                    mode: mode === 'sales'
+                      ? t('crm.leads.roi.labels.payments')
+                      : t('crm.leads.roi.labels.trackedProjects'),
+                  })}
                 </div>
               </div>
             </section>
@@ -310,18 +341,18 @@ export const LeadsRoiPage: React.FC = () => {
             {/* Топ-лиды + таблица */}
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1.8fr)] md:gap-5">
               {/* Бар-чарт TOP-лидов по доходу */}
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5 shadow-[0_24px_70px_rgba(15,23,42,0.9)]">
+              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 md:px-5 md:py-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-50">
-                      Топ лидов по доходу
+                    <h2 className="text-sm font-semibold text-lumiva-accent">
+                      {t('crm.leads.roi.top.title')}
                     </h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      Лиды с наибольшим суммарным доходом за выбранный период.
+                    <p className="mt-0.5 text-[11px] text-slate-600">
+                      {t('crm.leads.roi.top.subtitle')}
                     </p>
                   </div>
                   <span className="text-[11px] text-slate-500">
-                    Показано: {topLeads.length}
+                    {t('crm.leads.roi.top.shown', { count: topLeads.length })}
                   </span>
                 </div>
 
@@ -360,22 +391,15 @@ export const LeadsRoiPage: React.FC = () => {
                         ))}
                       </defs>
 
-                      <CartesianGrid
-                        strokeDasharray="3 3"
-                        vertical={false}
-                        stroke="#1f2937"
-                      />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
                       <XAxis
                         dataKey="leadName"
-                        tick={{ fontSize: 10, fill: '#9ca3af' }}
+                        tick={{ fontSize: 10, fill: '#94a3b8' }}
                         interval={0}
                         angle={-20}
                         textAnchor="end"
                       />
-                      <YAxis
-                        tick={{ fontSize: 10, fill: '#9ca3af' }}
-                        width={38}
-                      />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} width={38} />
                       <Tooltip content={<RoiTooltip />} />
                       <Bar
                         dataKey="totalRevenue"
@@ -395,43 +419,48 @@ export const LeadsRoiPage: React.FC = () => {
               </div>
 
               {/* Таблица по всем лидам */}
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5 text-xs">
+              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 md:px-5 md:py-5 text-xs shadow-sm">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-50">
-                      Лиды и доход
+                    <h2 className="text-sm font-semibold text-lumiva-accent">
+                      {t('crm.leads.roi.table.title')}
                     </h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      Детализированный список лидов с суммарным доходом и
-                      периодом {mode === 'sales' ? 'сделок' : 'проектов'}.
+                    <p className="mt-0.5 text-[11px] text-slate-600">
+                      {t('crm.leads.roi.table.subtitle', {
+                        mode: mode === 'sales'
+                          ? t('crm.leads.roi.labels.salesPlural')
+                          : t('crm.leads.roi.labels.projectsPlural'),
+                      })}
                     </p>
                   </div>
                   <span className="text-[11px] text-slate-500">
-                    Лидов: {stats.items.length}
+                    {t('crm.leads.roi.table.count', { count: stats.items.length })}
                   </span>
                 </div>
 
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse text-[11px]">
                     <thead>
-                      <tr className="border-b border-slate-800/80 text-slate-400">
+                      <tr className="border-b border-slate-200 text-slate-500">
                         <th className="py-1.5 pr-3 text-left font-normal">
-                          Лид
+                          {t('crm.leads.roi.table.columns.lead')}
                         </th>
                         <th className="py-1.5 px-3 text-left font-normal">
-                          Менеджер
+                          {t('crm.leads.roi.table.columns.manager')}
                         </th>
                         <th className="py-1.5 px-3 text-left font-normal">
-                          Канал
+                          {t('crm.leads.roi.table.columns.channel')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          {mode === 'sales' ? 'Сделок' : 'Проектов'}
+                          {mode === 'sales'
+                            ? t('crm.leads.roi.table.columns.dealsSales')
+                            : t('crm.leads.roi.table.columns.dealsProjects')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Доход
+                          {t('crm.leads.roi.table.columns.revenue')}
                         </th>
                         <th className="py-1.5 pl-3 text-right font-normal">
-                          Период
+                          {t('crm.leads.roi.table.columns.period')}
                         </th>
                       </tr>
                     </thead>
@@ -442,7 +471,7 @@ export const LeadsRoiPage: React.FC = () => {
                             colSpan={6}
                             className="py-3 text-center text-slate-500"
                           >
-                            Пока нет лидов с доходом за выбранный период.
+                            {t('crm.leads.roi.table.empty')}
                           </td>
                         </tr>
                       )}
@@ -450,40 +479,40 @@ export const LeadsRoiPage: React.FC = () => {
                       {stats.items.map((row) => (
                         <tr
                           key={row.leadId}
-                          className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
+                          className="border-b border-slate-200 last:border-none hover:bg-slate-50 transition-colors"
                         >
-                          <td className="py-1.5 pr-3 text-slate-100">
-                            {row.leadName || 'Без имени'}
+                          <td className="py-1.5 pr-3 text-lumiva-accent">
+                            {row.leadName || t('crm.leads.roi.table.unnamed')}
                           </td>
-                          <td className="py-1.5 px-3 text-slate-300">
-                            {row.manager || '—'}
+                          <td className="py-1.5 px-3 text-slate-500">
+                            {row.manager || t('crm.leads.roi.table.emptyValue')}
                           </td>
-                          <td className="py-1.5 px-3 text-slate-400">
-                            {row.channel || 'unknown'}
+                          <td className="py-1.5 px-3 text-slate-500">
+                            {row.channel || t('crm.leads.roi.table.unknown')}
                           </td>
-                          <td className="py-1.5 px-3 text-right text-slate-100">
+                          <td className="py-1.5 px-3 text-right text-lumiva-accent">
                             {row.dealsCount}
                           </td>
-                          <td className="py-1.5 px-3 text-right text-sky-300 font-mono">
-                            {row.totalRevenue.toLocaleString('ru-RU', {
+                          <td className="py-1.5 px-3 text-right text-sky-700 font-mono">
+                            {row.totalRevenue.toLocaleString(locale, {
                               minimumFractionDigits: 0,
                               maximumFractionDigits: 0,
                             })}{' '}
                             {row.currency}
                           </td>
-                          <td className="py-1.5 pl-3 text-right text-slate-400">
+                          <td className="py-1.5 pl-3 text-right text-slate-500">
                             {row.firstDealAt && row.lastDealAt ? (
                               <>
                                 {new Date(
                                   row.firstDealAt,
-                                ).toLocaleDateString('ru-RU')}{' '}
+                                ).toLocaleDateString(locale)}{' '}
                                 —{' '}
                                 {new Date(
                                   row.lastDealAt,
-                                ).toLocaleDateString('ru-RU')}
+                                ).toLocaleDateString(locale)}
                               </>
                             ) : (
-                              '—'
+                              t('crm.leads.roi.table.emptyValue')
                             )}
                           </td>
                         </tr>

@@ -74,6 +74,30 @@ export interface LeadsRoiStats {
   items: LeadRoiRow[];
 }
 
+// ===== Утраты (lost) =====
+export interface LostLeadManagerStat {
+  manager: string;
+  lost: number;
+  amount: number;
+}
+
+export interface LostLeadItem {
+  leadId: string;
+  leadName: string | null;
+  manager: string | null;
+  amount: number;
+  currency: string;
+  createdAt: string;
+}
+
+export interface LostLeadsStats {
+  totalLost: number;
+  totalAmount: number;
+  currency: string;
+  byManager: LostLeadManagerStat[];
+  items: LostLeadItem[];
+}
+
 @Injectable()
 export class LeadsService {
   constructor(
@@ -136,6 +160,12 @@ export class LeadsService {
       status: dto.status ?? 'new',
       source: dto.source ?? 'crm',
 
+      utmSource: dto.utmSource ?? null,
+      utmMedium: dto.utmMedium ?? null,
+      utmCampaign: dto.utmCampaign ?? null,
+      utmContent: dto.utmContent ?? null,
+      utmTerm: dto.utmTerm ?? null,
+
       // ответственный
       assignedUserId: dto.assignedUserId ?? null,
       assignedTo: dto.assignedTo ?? null,
@@ -160,6 +190,11 @@ export class LeadsService {
     if (dto.country !== undefined) lead.country = dto.country;
     if (dto.status !== undefined) lead.status = dto.status;
     if (dto.source !== undefined) lead.source = dto.source;
+    if (dto.utmSource !== undefined) lead.utmSource = dto.utmSource;
+    if (dto.utmMedium !== undefined) lead.utmMedium = dto.utmMedium;
+    if (dto.utmCampaign !== undefined) lead.utmCampaign = dto.utmCampaign;
+    if (dto.utmContent !== undefined) lead.utmContent = dto.utmContent;
+    if (dto.utmTerm !== undefined) lead.utmTerm = dto.utmTerm;
     if (dto.meta !== undefined) lead.meta = dto.meta;
     if (dto.siteId !== undefined) lead.siteId = dto.siteId;
 
@@ -175,8 +210,19 @@ export class LeadsService {
   }
 
   async removeForTenant(tenantId: string, id: string): Promise<void> {
-    const lead = await this.findOneForTenant(tenantId, id);
-    await this.leadsRepo.remove(lead);
+  const lead = await this.findOneForTenant(tenantId, id);
+
+  // ⛔ защита от FK-ошибок: не удаляем если привязаны продажи/проекты
+  const salesCount = await this.salesRepo.count({ where: { leadId: lead.id } as any });
+  const projectsCount = await this.projectsRepo.count({ where: { leadId: lead.id } as any });
+
+  if (salesCount > 0 || projectsCount > 0) {
+    throw new BadRequestException(
+      `Нельзя удалить лид: есть связи (sales=${salesCount}, projects=${projectsCount}). Сначала отвяжи/удали продажи или проекты.`,
+    );
+  }
+
+  await this.leadsRepo.remove(lead);
   }
 
   // ====== PUBLIC (сайты, формы, WP / CF7) ======
@@ -185,7 +231,7 @@ export class LeadsService {
    * Создание лида из публичного API `/v1/public/leads`.
    * Ожидаем либо apiToken (предпочтительно), либо tenantId+siteId.
    */
-  async createFromPublic(dto: any): Promise<Lead> {
+  async createFromPublic(dto: any, referer?: string | null): Promise<Lead> {
     let tenantId: string;
     let siteId: string | null = null;
 
@@ -216,6 +262,14 @@ export class LeadsService {
       channel: dto.channel ?? dto.source ?? 'cf7',
     };
 
+    const {
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmContent,
+      utmTerm,
+    } = this.extractUtm(dto, referer);
+
     const lead = this.leadsRepo.create({
       tenantId,
       siteId,
@@ -228,6 +282,12 @@ export class LeadsService {
       status: dto.status ?? 'new',
       source: dto.source ?? dto.channel ?? 'web',
 
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmContent,
+      utmTerm,
+
       // из публичных форм обычно ответственный не проставляется
       assignedUserId: null,
       assignedTo: null,
@@ -236,6 +296,104 @@ export class LeadsService {
     });
 
     return this.leadsRepo.save(lead);
+  }
+
+  private extractUtm(dto: any, referer?: string | null) {
+    const utm = dto?.utm || dto?.meta?.utm || {};
+    let utmSource =
+      dto.utmSource ??
+      dto.utm_source ??
+      dto?.meta?.utmSource ??
+      dto?.meta?.utm_source ??
+      utm.utmSource ??
+      utm.utm_source ??
+      null;
+    let utmMedium =
+      dto.utmMedium ??
+      dto.utm_medium ??
+      dto?.meta?.utmMedium ??
+      dto?.meta?.utm_medium ??
+      utm.utmMedium ??
+      utm.utm_medium ??
+      null;
+    let utmCampaign =
+      dto.utmCampaign ??
+      dto.utm_campaign ??
+      dto?.meta?.utmCampaign ??
+      dto?.meta?.utm_campaign ??
+      utm.utmCampaign ??
+      utm.utm_campaign ??
+      null;
+    let utmContent =
+      dto.utmContent ??
+      dto.utm_content ??
+      dto?.meta?.utmContent ??
+      dto?.meta?.utm_content ??
+      utm.utmContent ??
+      utm.utm_content ??
+      null;
+    let utmTerm =
+      dto.utmTerm ??
+      dto.utm_term ??
+      dto?.meta?.utmTerm ??
+      dto?.meta?.utm_term ??
+      utm.utmTerm ??
+      utm.utm_term ??
+      null;
+
+    const candidates = [
+      dto.pageUrl,
+      dto.page_url,
+      dto.url,
+      dto.page,
+      dto.referrer,
+      dto.referer,
+      dto?.meta?.pageUrl,
+      dto?.meta?.page_url,
+      dto?.meta?.url,
+      dto?.meta?.page,
+      dto?.meta?.referrer,
+      dto?.meta?.referer,
+      referer,
+    ];
+
+    for (const candidate of candidates) {
+      if (
+        utmSource &&
+        utmMedium &&
+        utmCampaign &&
+        utmContent &&
+        utmTerm
+      ) {
+        break;
+      }
+      const parsed = this.parseUtmFromUrl(candidate);
+      if (!utmSource && parsed.utmSource) utmSource = parsed.utmSource;
+      if (!utmMedium && parsed.utmMedium) utmMedium = parsed.utmMedium;
+      if (!utmCampaign && parsed.utmCampaign) utmCampaign = parsed.utmCampaign;
+      if (!utmContent && parsed.utmContent) utmContent = parsed.utmContent;
+      if (!utmTerm && parsed.utmTerm) utmTerm = parsed.utmTerm;
+    }
+
+    return { utmSource, utmMedium, utmCampaign, utmContent, utmTerm };
+  }
+
+  private parseUtmFromUrl(value?: string | null) {
+    if (!value) return {};
+    try {
+      const url = value.startsWith('http')
+        ? new URL(value)
+        : new URL(value, 'https://example.com');
+      return {
+        utmSource: url.searchParams.get('utm_source') || null,
+        utmMedium: url.searchParams.get('utm_medium') || null,
+        utmCampaign: url.searchParams.get('utm_campaign') || null,
+        utmContent: url.searchParams.get('utm_content') || null,
+        utmTerm: url.searchParams.get('utm_term') || null,
+      };
+    } catch {
+      return {};
+    }
   }
 
   // ====== SEARCH ДЛЯ ПРИВЯЗКИ ЗАКАЗОВ К ЛИДАМ ======
@@ -423,6 +581,127 @@ export class LeadsService {
       avgCheck,
       leadsWithRevenue,
       dealsCount,
+      items,
+    };
+  }
+
+  // ====== УТРАЧЕННЫЕ ЛИДЫ: количество и сумма проектов по lost ======
+  async getLostStatsForTenant(
+    tenantId: string,
+    from?: string,
+    to?: string,
+  ): Promise<LostLeadsStats> {
+    const allLost = await this.leadsRepo.find({
+      where: { tenantId, status: 'lost' },
+      order: { createdAt: 'DESC' },
+    });
+
+    let leads = allLost;
+
+    if (from || to) {
+      const fromDate = from ? new Date(from) : null;
+      const toDate = to ? new Date(to) : null;
+      let toEnd: Date | null = null;
+      if (toDate) {
+        toEnd = new Date(toDate);
+        toEnd.setHours(23, 59, 59, 999);
+      }
+
+      leads = allLost.filter((l) => {
+        const created =
+          l.createdAt instanceof Date
+            ? l.createdAt
+            : new Date((l as any).createdAt);
+        if (fromDate && created < fromDate) return false;
+        if (toEnd && created > toEnd) return false;
+        return true;
+      });
+    }
+
+    const totalLost = leads.length;
+    if (!totalLost) {
+      return {
+        totalLost: 0,
+        totalAmount: 0,
+        currency: 'EUR',
+        byManager: [],
+        items: [],
+      };
+    }
+
+    const leadIds = leads.map((l) => l.id);
+
+    // Суммируем по проектам, привязанным к утраченным лидам
+    const projects = leadIds.length
+      ? await this.projectsRepo.find({
+          where: {
+            tenantId,
+            leadId: In(leadIds),
+            isDeleted: false as any,
+          },
+        })
+      : [];
+
+    const byLeadAmount = new Map<string, number>();
+    let currency = 'EUR';
+
+    for (const p of projects) {
+      const amount = Number(p.amount) || 0;
+      const leadId = p.leadId || '';
+      currency = p.currency || currency;
+      byLeadAmount.set(leadId, (byLeadAmount.get(leadId) ?? 0) + amount);
+    }
+
+    const byManagerMap = new Map<string, { lost: number; amount: number }>();
+    const items: LostLeadItem[] = [];
+
+    for (const lead of leads) {
+      const manager = lead.assignedTo?.trim() || 'Без ответственного';
+      const leadAmount = byLeadAmount.get(lead.id) ?? 0;
+
+      const row = byManagerMap.get(manager) ?? { lost: 0, amount: 0 };
+      row.lost += 1;
+      row.amount += leadAmount;
+
+      byManagerMap.set(manager, row);
+
+      items.push({
+        leadId: lead.id,
+        leadName: lead.name ?? null,
+        manager: lead.assignedTo ?? null,
+        amount: leadAmount,
+        currency,
+        createdAt:
+          lead.createdAt instanceof Date
+            ? lead.createdAt.toISOString()
+            : new Date((lead as any).createdAt).toISOString(),
+      });
+    }
+
+    // сортируем по сумме убыв., потом по дате
+    items.sort((a, b) => {
+      if (b.amount !== a.amount) return b.amount - a.amount;
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    const byManager: LostLeadManagerStat[] = Array.from(
+      byManagerMap.entries(),
+    ).map(([manager, row]) => ({
+      manager,
+      lost: row.lost,
+      amount: row.amount,
+    }));
+
+    const totalAmount = Array.from(byLeadAmount.values()).reduce(
+      (sum, v) => sum + v,
+      0,
+    );
+
+    return {
+      totalLost,
+      totalAmount,
+      currency,
+      byManager,
       items,
     };
   }

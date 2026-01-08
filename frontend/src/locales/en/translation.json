@@ -1,0 +1,2889 @@
+{
+  "lang": {
+    "ru": "RU",
+    "en": "EN",
+    "tr": "TR"
+  },
+  "landing": {
+    "nav": {
+      "overview": "Overview",
+      "features": "Modules",
+      "analytics": "Analytics",
+      "security": "Security",
+      "partners": "Partners",
+      "integrations": "Integrations",
+      "workspace": "Workspace",
+      "login": "Login"
+    },
+    "cta": {
+      "requestDemo": "Request demo"
+    },
+    "hero": {
+      "badge": "Business management platform",
+      "title": "One calm workspace\nfor your entire business.",
+      "subtitle": "crm.lumiva.agency brings sales, marketing, projects, leads and tasks into one minimal interface. We designed the system around real processes: from a website request to revenue and team workload reports.",
+      "primary": "Request demo",
+      "secondary": "View modules",
+      "points": {
+        "analytics": "Live analytics for deals and bookings",
+        "roles": "Roles and access rights for teams and partners",
+        "api": "API and webhooks for integrations (sites, n8n, bots)"
+      }
+    },
+    "heroSnapshot": {
+      "title": "Today · Hotel network snapshot",
+      "live": "Live",
+      "newLeads": "New leads",
+      "newLeadsDelta": "+21% vs last week",
+      "conversion": "Conversion",
+      "conversionDelta": "+2.9 pp",
+      "revenue": "Revenue",
+      "revenueRange": "last 30 days",
+      "revenueTrend": "Revenue trend · 8 weeks",
+      "allChannels": "All channels in CRM",
+      "focus": "Focus",
+      "focusValue": "High demand for summer 2026",
+      "load": "Load",
+      "response": "Manager response",
+      "responseValue": "median < 3 min"
+    },
+    "form": {
+      "headline": "Tell us\nabout your\nproject",
+      "sub": "Describe your task — we will contact you soon and prepare a personal demo.",
+      "name": "First name",
+      "surname": "Last name",
+      "email": "Email",
+      "phone": "Phone",
+      "orders": "Orders per month",
+      "contact": "Preferred contact",
+      "consent": "I agree to the processing of personal data.",
+      "policy": "Policy (PDF)",
+      "send": "Send",
+      "sending": "Sending...",
+      "placeholders": {
+        "name": "Enter first name",
+        "surname": "Enter last name",
+        "email": "Email",
+        "phone": "XXX XXX XX XX",
+        "orders": "For example, 1200"
+      },
+      "contactOptions": {
+        "email": "E-mail",
+        "phone": "Phone",
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram"
+      },
+      "errors": {
+        "consent": "Consent is required.",
+        "required": "Fill in name, email and phone.",
+        "contact": "Choose a contact method.",
+        "failed": "Failed to send. Try again.",
+        "submit": "Send error"
+      },
+      "success": "Thanks! We will contact you shortly.",
+      "close": "Close form"
+    },
+    "features": {
+      "title": "One surface — five key modules.",
+      "subtitle": "Seams between processes are removed: marketing, sales, projects and tasks are linked by default to channels, revenue and owners.",
+      "note": "Icon cards with a light hover lift — no visual noise.",
+      "included": "Included: reports, roles, API, webhooks, site integrations.",
+      "projectStatus": "Minimal status scale instead of complex Gantt",
+      "today": "Today",
+      "tasksToday": "13 tasks",
+      "leadsLive": "new in the last hour",
+      "qualified": "Qualified",
+      "qualifiedHint": "match with ICP",
+      "routing": "Routing",
+      "routingValue": "Instant",
+      "routingHint": "by CRM rules",
+      "items": [
+        {
+          "title": "Marketing",
+          "description": "Forms, campaigns and SMM in one funnel to see which channel really brings revenue."
+        },
+        {
+          "title": "Sales",
+          "description": "Register of requests and bookings with stages, decline reasons and a revenue plan by direction."
+        },
+        {
+          "title": "Projects",
+          "description": "Hotel launches, promotions, exhibitions: stages, deadlines and owners without bulky PM."
+        },
+        {
+          "title": "Leads",
+          "description": "Leads from sites, chats and messengers are normalized and get source, campaign and agent."
+        },
+        {
+          "title": "Tasks",
+          "description": "Micro-tasks in CRM — calls, briefs, rate checks — linked to deals and clients."
+        }
+      ]
+    },
+    "analytics": {
+      "title": "Social & ad analytics.",
+      "subtitle": "CTR, leads and revenue by channels: Google Ads, Meta, Telegram, organic. You see what actually brings leads and sales.",
+      "cta": "Learn more",
+      "campaigns": {
+        "label": "Campaign dynamics",
+        "range": "Last 12 weeks",
+        "delta": "vs previous period"
+      },
+      "spend": {
+        "title": "Spend / Leads",
+        "region": "Geo EU + MENA",
+        "ctr": "CTR · 3.4%",
+        "cpl": "CPL · €18.4",
+        "cr": "CR · 6.8%"
+      },
+      "metrics": {
+        "title": "Key metrics",
+        "conversion": "Conversion",
+        "sla": "On-time close",
+        "avgCheck": "Avg. check",
+        "region": "across EU + MENA"
+      },
+      "channels": {
+        "title": "Channel conversions",
+        "subtitle": "Lead & deal funnel",
+        "avg": "network average",
+        "items": {
+          "ads": "Google Ads",
+          "meta": "Meta",
+          "telegram": "Telegram",
+          "organic": "Organic",
+          "direct": "Direct"
+        }
+      },
+      "sources": {
+        "title": "Streams & sources",
+        "bookings": {
+          "title": "Booking traffic · 38%",
+          "sites": "Sites: booking.landing, corp.landing",
+          "leads": "Leads: 420 · € 210K"
+        },
+        "performance": {
+          "title": "Performance · 34%",
+          "channels": "Channels: Google Ads, Meta",
+          "leads": "Leads: 360 · € 180K"
+        },
+        "partners": {
+          "title": "Partners / agencies · 28%",
+          "channels": "Channels: referrals, b2b",
+          "leads": "Leads: 220 · € 140K"
+        }
+      }
+    },
+    "dashboard": {
+      "title": "Marketing & sales cockpit.",
+      "subtitle": "One screen shows channel performance, team tasks and campaign statuses.",
+      "cta": "Learn more",
+      "liveTitle": "Live workspace",
+      "last24h": "Last 24 hours",
+      "todayAds": "Today · Social + ads",
+      "growthChannels": "3 channels growing",
+      "kpiDelta": "CTR +0.8 pp, CPL -12%",
+      "budget": "Budget",
+      "channelList": [
+        "Google Ads · 3 active campaigns",
+        "Meta · 6 ad groups",
+        "Telegram · 5 bots receiving leads",
+        "Organic · 24 leads/day",
+        "Tasks · 14 in progress"
+      ],
+      "realtime": "Real-time",
+      "realtimeHint": "CPA, leads, revenue — live",
+      "cpaDelta": "-12% vs last week",
+      "leads": "Leads",
+      "leadsHint": "3 channels on top",
+      "revenue": "Revenue",
+      "revenueHint": "Paid + Organic",
+      "plan": "Work plan",
+      "planTime": "09:00 – 19:00",
+      "planItems": [
+        "A/B launch",
+        "Leads report",
+        "Sync with sales"
+      ]
+    },
+    "security": {
+      "title": "Security by default.",
+      "subtitle": "Customer data is encrypted at DB and cache level, keys rotate, staff actions are audited and anomalies alerted. Every CRM module follows the same access policies.",
+      "note": "Cache is encrypted only, access tokens are short-lived, with backups and throttling on public endpoints.",
+      "dataContour": "Data contour",
+      "items": {
+        "encrypt": "Customer data → AES-256 at rest. Keys rotate, access by roles only.",
+        "redis": "Redis cache encrypted, TTL 15 minutes, no secrets stored.",
+        "publicApi": "Public API — rate limit, geo-fencing, webhook signatures.",
+        "audit": "Full audit trail: logins, token changes, data operations."
+      },
+      "tokens": {
+        "jwt": "15 min",
+        "refresh": "Refresh + role model",
+        "refreshTtl": "24 hours",
+        "webhooks": "Webhooks",
+        "webhooksHint": "Signature + idempotency"
+      },
+      "operations": {
+        "title": "Operations",
+        "range": "Last 24 hours",
+        "items": [
+          { "label": "Successful logins", "value": "1 284" },
+          { "label": "Blocks", "value": "34", "muted": true },
+          { "label": "API requests", "value": "182K" }
+        ],
+        "mutedNote": "Auto-block + alert"
+      },
+      "whyTitle": "Why data is safe",
+      "whyItems": [
+        "Tenant isolation, least privilege for services.",
+        "Regular backups and recovery testing.",
+        "Log anomalies → alerts to monitoring."
+      ]
+    },
+    "integrations": {
+      "title": "APIs and integrations without pain.",
+      "subtitle": "Connect stores, forms, messengers and webhooks. You get test keys, limits, hints and a request log.",
+      "note": "REST docs, payload examples, endpoint status and sandbox.",
+      "load": "Load",
+      "example": "Example: POST /v1/webhooks/orders, payload with amount, currency, SKU and delivery status.",
+      "items": [
+        {
+          "title": "WooCommerce",
+          "desc": "Online orders → deals in CRM, stock & price sync.",
+          "status": "Live",
+          "load": 82
+        },
+        {
+          "title": "Contact Form 7",
+          "desc": "Site forms → leads with UTM and source.",
+          "status": "Live",
+          "load": 64
+        },
+        {
+          "title": "Telegram / WhatsApp",
+          "desc": "Client chats → deals and tasks for managers.",
+          "status": "In progress",
+          "load": 48
+        },
+        {
+          "title": "Bots & Webhooks",
+          "desc": "CRM events → your bots and n8n scenarios.",
+          "status": "Live",
+          "load": 70
+        }
+      ]
+    },
+    "partners": {
+      "title": "Partners & cases.",
+      "subtitle": "From hotel chains to niche teams. We work closely with data, funnels and APIs so every integration feels native.",
+      "note": "Implementation support, audit and migration from spreadsheets or other CRMs.",
+      "card": "CRM → marketing, bookings, bots, reports. Connected campaigns and chats without manual stitching.",
+      "items": [
+        { "name": "Selectum Hotels", "region": "TR • Resorts", "uplift": "+18% direct sales" },
+        { "name": "The Norm Hotels", "region": "EU • City stays", "uplift": "+12% conversion" },
+        { "name": "Asteria Hotels", "region": "MENA • Leisure", "uplift": "+9% NPS" },
+        { "name": "Northwind Collection", "region": "B2B • Fictional", "uplift": "+15% occupancy" }
+      ]
+    },
+    "showcase": {
+      "label": "Campaigns · 12 weeks",
+      "title": "Social & ads: influence map",
+      "delta": "+22.4% vs previous period",
+      "ordersByChannel": "Orders by channel",
+      "period": "Quarters",
+      "channel": "Channel",
+      "growth": "Growth",
+      "ordersTooltip": "{{count}} orders · {{revenue}}",
+      "prevPeriod": "Previous period · €120K",
+      "currentPeriod": "Current period · €148K",
+      "median": "Median · €18.4",
+      "kpiTitle": "KPI by channels",
+      "kpi": {
+        "cr": "CR",
+        "sla": "SLA",
+        "avgCheck": "Avg. check",
+        "region": "across EU + MENA",
+        "median": "median by channels"
+      },
+      "leadChannel": "Lead channel: Paid · 43% · organic 31% · direct 26%",
+      "channels": [
+        { "label": "Woo1", "current": 78, "prev": 54, "growth": "+24%", "orders": 1240, "revenue": "€ 82K" },
+        { "label": "Woo2", "current": 64, "prev": 46, "growth": "+18%", "orders": 980, "revenue": "€ 61K" },
+        { "label": "Ads", "current": 72, "prev": 50, "growth": "+22%", "orders": 1100, "revenue": "€ 74K" },
+        { "label": "Referral", "current": 58, "prev": 42, "growth": "+16%", "orders": 760, "revenue": "€ 49K" }
+      ],
+      "topChannels": {
+        "title": "Top channels",
+        "note": "Campaign details: creatives, lead cost, connected sales team.",
+        "items": [
+          { "name": "WooCommerce", "share": 43, "sales": 820 },
+          { "name": "Google Ads", "share": 28, "sales": 540 },
+          { "name": "Referral", "share": 17, "sales": 310 },
+          { "name": "Meta / Instagram", "share": 12, "sales": 240 }
+        ],
+        "sales": "{{count}} sales"
+      }
+    },
+    "footer": {
+      "about": "A black-and-white operating system for teams that need control of data without spreadsheet chaos.",
+      "product": {
+        "title": "Product",
+        "items": ["Platform overview", "Modules", "Security", "APIs & integrations"]
+      },
+      "company": {
+        "title": "Company",
+        "items": ["Lumiva Agency", "Partners", "Careers", "Legal"]
+      },
+      "contacts": {
+        "title": "Contacts",
+        "items": ["vlad@lumiva.agency", "@lumiva.agency", "LinkedIn", "Dribbble"]
+      },
+      "privacy": "Privacy policy",
+      "terms": "Terms of use",
+      "copyright": "© {{year}} Lumiva CRM. All rights reserved."
+    },
+    "cookies": {
+      "title": "We use cookies",
+      "text": "For analytics and service improvements. More in",
+      "link": "cookie policy (PDF)",
+      "accept": "Accept",
+      "decline": "Decline"
+    }
+
+  },
+  "crm": {
+    "header": {
+      "realtime": "Real-time · connected",
+      "openMenu": "Open menu",
+      "close": "Close",
+      "newMessages": "New messages"
+    },
+    "nav": {
+      "dashboard": "Dashboard",
+      "leads": "Leads",
+      "leadsNew": "Create lead",
+      "leadsLost": "Lost leads",
+      "leadsAnalytics": "Analytics",
+      "leadsRoi": "ROI",
+      "projects": "Projects",
+      "projectsNew": "New projects",
+      "projectsClosed": "Closed projects",
+      "projectsInProgress": "In progress",
+      "projectsTasks": "Tasks",
+      "projectsOverdue": "Overdue tasks",
+      "projectsAnalytics": "Project analytics",
+      "sales": "Sales",
+      "salesChannels": "Sales channels",
+      "salesIntegrations": "Integrations",
+      "salesImport": "Sales import",
+      "marketing": "Marketing",
+      "marketingTraffic": "Traffic",
+      "marketingCampaigns": "Campaigns (ROAS)",
+      "marketingUtms": "UTM tags",
+      "marketingSegments": "Segments",
+      "marketingStatuses": "Lead/customer statuses",
+      "marketingChannels": "Channels & platforms",
+      "marketingSeo": "SEO & content",
+      "marketingSmm": "SMM / social",
+      "marketingIntegrations": "Marketing integrations",
+      "marketingAutomations": "Automations (n8n)",
+      "tools": "Tools",
+      "settingsCompany": "Company settings",
+      "settingsApi": "API & integrations",
+      "chat": "Chat",
+      "clientAccounts": "Client accounts",
+      "staff": "Staff",
+      "staffList": "Staff list",
+      "staffPermissions": "Access rights"
+    },
+    "common": {
+      "logout": "Log out",
+      "user": "User",
+      "language": "Language",
+      "adminLabel": "WP · CRM Admin",
+      "empty": "—",
+      "save": "Save",
+      "saving": "Saving...",
+      "cancel": "Cancel",
+      "close": "Close",
+      "ok": "OK",
+      "edit": "Edit"
+    },
+    "errors": {
+      "appFailedTitle": "The app failed to load",
+      "accessDeniedTitle": "Access denied",
+      "accessDeniedText": "Contact the owner or administrator to grant access to this section."
+    },
+    "auth": {
+      "login": {
+        "badge": "Lumiva CRM · v0.1",
+        "headline": "Modern CRM for leads and sales",
+        "headlineAccent": "From the first click to a paid invoice.",
+        "description": "All leads from websites, chats, ads, and bookings — in one system.",
+        "bullets": {
+          "collect": "Real-time lead capture from WordPress, chats, and web forms",
+          "statuses": "A ready structure for statuses, owners, and invoices",
+          "ui": "A clean, premium interface for daily work without clutter"
+        },
+        "brand": "LUMIVA",
+        "formTitle": "Sign in to Lumiva CRM",
+        "clientKey": "Client key",
+        "clientKeyPlaceholder": "Your client key",
+        "email": "E-mail",
+        "emailPlaceholder": "example@company.com",
+        "password": "Password",
+        "passwordPlaceholder": "password",
+        "success": "Signed in successfully. Session saved.",
+        "submit": "Sign in to CRM",
+        "submitting": "Signing in...",
+        "forgot": "Forgot password?",
+        "errors": {
+          "required": "Fill in all fields",
+          "failed": "Login failed"
+        }
+      },
+      "forgot": {
+        "brand": "LUMIVA",
+        "title": "Reset password",
+        "subtitle": "Enter clientKey and email — we will send a password reset link.",
+        "clientKey": "Client Key",
+        "clientKeyPlaceholder": "for example, selectum-main-site",
+        "email": "E-mail",
+        "emailPlaceholder": "you@company.com",
+        "success": "We sent a reset email. Check your inbox.",
+        "submit": "Request email",
+        "sending": "Sending...",
+        "back": "Back to login",
+        "errors": {
+          "required": "Enter clientKey and email",
+          "failed": "Failed to send email"
+        }
+      },
+      "setPassword": {
+        "brand": "Lumiva CRM",
+        "title": "Create password",
+        "subtitle": "Set a password for your first login.",
+        "tokenMissing": "The link is missing a token. Ask the admin to resend the invite.",
+        "password": "New password",
+        "passwordPlaceholder": "Minimum 8 characters",
+        "confirm": "Repeat password",
+        "confirmPlaceholder": "Repeat password",
+        "submit": "Set password",
+        "saving": "Saving...",
+        "success": "Password set successfully.",
+        "redirect": "Redirecting to the login page...",
+        "footer": "If the link does not work, contact the platform administrator.",
+        "errors": {
+          "missingToken": "Invalid link: missing token.",
+          "shortPassword": "Password must be at least 8 characters",
+          "mismatch": "Passwords do not match",
+          "failed": "Failed to set password"
+        }
+      }
+    },
+    "clientAccounts": {
+      "title": "Client accounts",
+      "subtitle": "Manage balances, transactions, and transfers.",
+      "refresh": "Refresh",
+      "sitesLabel": "Site",
+      "searchLabel": "Search",
+      "searchPlaceholder": "Search by name, email, or WP ID",
+      "clientsEmpty": "No clients found.",
+      "selectClient": "Select a client",
+      "wpUser": "WP user #{{id}}",
+      "wpUserShort": "WP#{{id}}",
+      "localId": "ID: {{id}}",
+      "openPage": "Open page",
+      "refreshActivity": "Refresh activity",
+      "edit": "Edit",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving...",
+      "tabs": {
+        "overview": "Overview",
+        "txns": "Transactions ({{count}})",
+        "transfers": "Transfers ({{count}})"
+      },
+      "loading": "Loading...",
+      "accounts": {
+        "eur": "EUR account",
+        "usd": "USD account",
+        "spent": "Spent",
+        "accountLabel": "Account",
+        "balance": "Balance",
+        "accountNumber": "Account number",
+        "eurNumberPlaceholder": "e.g. 1234 5678",
+        "usdNumberPlaceholder": "e.g. 9876 5432",
+        "iban": "IBAN",
+        "ibanPlaceholder": "TR.."
+      },
+      "quickStats": "Quick stats",
+      "txnsLabel": "Transactions",
+      "transfersLabel": "Transfers",
+      "lastUpdated": "Last updated:",
+      "operationTitle": "Transaction #{{id}}",
+      "transferTitle": "Transfer #{{id}}",
+      "wpPostMeta": "WP#{{id}} · {{date}}",
+      "txnsEmpty": "No transactions.",
+      "transfersEmpty": "No transfers.",
+      "direction": {
+        "label": "Direction",
+        "sent": "Sent",
+        "received": "Received"
+      },
+      "fromTo": "From / To",
+      "fromCurrency": "Debit currency",
+      "toCurrency": "Credit currency",
+      "amount": "Amount",
+      "rate": "Rate",
+      "credited": "Credited",
+      "status": {
+        "unknown": "Unknown",
+        "done": "Done",
+        "draft": "Draft",
+        "published": "Published",
+        "inProgress": "In progress",
+        "failed": "Failed"
+      }
+    },
+    "clientAccountDetails": {
+      "sectionLabel": "Client account",
+      "updating": "Updating...",
+      "siteLabel": "Site",
+      "wpUserIdLabel": "WP ID",
+      "clientsLoading": "Loading clients...",
+      "clientsCount": "Clients: {{count}}",
+      "backToList": "Back to list",
+      "refresh": "Refresh",
+      "edit": "Edit",
+      "loading": "Loading data...",
+      "title": "Client profile",
+      "clientFallback": "Client {{id}}",
+      "ccpStatus": {
+        "inProgress": "In progress",
+        "done": "Done",
+        "rejected": "Rejected",
+        "insufficient": "Insufficient funds"
+      },
+      "wpStatus": {
+        "publish": "Published",
+        "draft": "Draft",
+        "pending": "Pending",
+        "private": "Private"
+      },
+      "cards": {
+        "eurAccount": "EUR account",
+        "eurBalance": "EUR balance",
+        "usdAccount": "USD account",
+        "usdBalance": "USD balance",
+        "iban": "IBAN",
+        "spent": "Spent",
+        "contacts": "Contacts",
+        "updatedAt": "Updated {{date}}",
+        "txnsCount": "{{count}} transactions",
+        "transfersCount": "{{count}} transfers"
+      },
+      "tables": {
+        "loading": "Loading...",
+        "recordsCount": "Records: {{count}}"
+      },
+      "txns": {
+        "title": "Transactions",
+        "create": "New transaction",
+        "headers": {
+          "date": "Date",
+          "title": "Title",
+          "status": "Status",
+          "actions": "Actions"
+        },
+        "empty": "No transactions."
+      },
+      "transfers": {
+        "title": "Transfers",
+        "create": "New transfer",
+        "headers": {
+          "date": "Date",
+          "from": "From",
+          "to": "To",
+          "amount": "Amount",
+          "rate": "Rate",
+          "credited": "Credited",
+          "status": "Status",
+          "actions": "Actions"
+        },
+        "empty": "No transfers."
+      },
+      "editClient": {
+        "title": "Edit client",
+        "subtitle": "Update balances, accounts, and IBAN.",
+        "balanceEur": "EUR balance",
+        "balanceUsd": "USD balance",
+        "accountEur": "EUR account",
+        "accountUsd": "USD account",
+        "ibanEur": "EUR IBAN",
+        "ibanUsd": "USD IBAN"
+      },
+      "labels": {
+        "ccpStatus": "CCP status",
+        "wpStatus": "WP status",
+        "date": "Date",
+        "currency": "Currency",
+        "available": "Available: {{amount}}",
+        "amount": "Amount",
+        "rate": "Rate",
+        "description": "Description"
+      },
+      "txnCreate": {
+        "title": "New transaction",
+        "subtitle": "Create a debit or credit transaction.",
+        "save": "Save",
+        "nameLabel": "Transaction name",
+        "namePlaceholder": "e.g. service fee",
+        "amountHintPositive": "Amount must be greater than 0",
+        "amountHintInsufficient": "Insufficient funds",
+        "descPlaceholder": "Transaction note"
+      },
+      "txnEdit": {
+        "title": "Transaction #{{id}}",
+        "subtitle": "Update transaction details.",
+        "nameLabel": "Transaction name",
+        "spendEur": "EUR debit",
+        "spendUsd": "USD debit",
+        "insufficient": "Insufficient funds",
+        "descPlaceholder": "Transaction note"
+      },
+      "transferCreate": {
+        "title": "New transfer",
+        "subtitle": "Transfer between clients.",
+        "save": "Create transfer",
+        "senderLabel": "Sender",
+        "recipientSearchLabel": "Recipient",
+        "recipientPlaceholderLoading": "Loading clients...",
+        "recipientPlaceholder": "Search clients...",
+        "recipientChosen": "{{name}} · WP#{{id}}",
+        "recipientHint": "Type a name or email.",
+        "fromCurrency": "Debit currency",
+        "toCurrency": "Credit currency",
+        "credited": "Credited: {{amount}} {{currency}}",
+        "amountHintPositive": "Amount must be greater than 0",
+        "amountHintInsufficient": "Insufficient sender balance",
+        "amountHintRecipient": "Select a recipient",
+        "descPlaceholder": "Transfer note"
+      },
+      "transferEdit": {
+        "title": "Transfer #{{id}}",
+        "subtitle": "Update transfer details.",
+        "nameLabel": "Transfer name",
+        "participantsLoading": "Loading participants...",
+        "senderLabel": "Sender",
+        "recipientLabel": "Recipient",
+        "userMissing": "User #{{id}} not found",
+        "fromUserId": "Sender WP ID",
+        "toUserId": "Recipient WP ID",
+        "userIdPlaceholder": "WP ID {{id}}",
+        "fromCurrency": "Debit currency",
+        "toCurrency": "Credit currency",
+        "descLabel": "Description",
+        "descPlaceholder": "Transfer note",
+        "noteLabel": "Note",
+        "notePlaceholder": "Internal note",
+        "participantsMissing": "Sender and recipient are required."
+      },
+      "errors": {
+        "clientIdMissing": "Client ID not found.",
+        "loadFailed": "Failed to load client data.",
+        "clientSaveFailed": "Failed to save client.",
+        "amountPositive": "Amount must be greater than 0.",
+        "insufficientFunds": "Insufficient funds.",
+        "insufficientFundsEur": "Insufficient EUR balance.",
+        "insufficientFundsUsd": "Insufficient USD balance.",
+        "txnCreateFailed": "Failed to create transaction.",
+        "txnSaveFailed": "Failed to save transaction.",
+        "transferSenderMissing": "Sender is required.",
+        "transferRecipientMissing": "Recipient is required.",
+        "transferRecipientNotFound": "Recipient not found.",
+        "transferInsufficient": "Insufficient sender balance.",
+        "transferCreateFailed": "Failed to create transfer.",
+        "transferParticipantsMissing": "Sender and recipient are required.",
+        "transferParticipantsNotFound": "Sender or recipient not found.",
+        "transferSaveFailed": "Failed to save transfer."
+      }
+    },
+    "dashboard": {
+      "welcome": {
+        "badge": "Welcome",
+        "title": "{{name}}, here is your sales radar.",
+        "shift": "Shift: {{date}}",
+        "role": "Role: {{role}}",
+        "summary": "One screen shows your leads, channel activity, project flow and tasks. See where to grow revenue and what needs attention right now."
+      },
+      "focus": {
+        "title": "Focus of the day",
+        "prefix": "Speed up response to new leads to",
+        "highlight": "< 5 minutes",
+        "suffix": " to lift conversion by 20–30%.",
+        "items": {
+          "webchat": "Check new requests from webchat and WhatsApp",
+          "pending": "Review leads with “Waiting for reply” > 24 hours",
+          "notes": "Update notes for key agencies"
+        }
+      },
+      "kpi": {
+        "todayLeads": "Leads today",
+        "todayLeadsHint": "today only",
+        "totalLeads": "All my leads",
+        "totalLeadsHint": "total",
+        "conversion": "My conversion",
+        "conversionHint": "closed leads",
+        "wonProjects": "Won projects",
+        "wonProjectsHint": "count",
+        "revenue": "Revenue (EUR)",
+        "revenueHint": "from won projects",
+        "tasksTotal": "Total tasks",
+        "tasksSubtitle": "Today: {{today}}, overdue: {{overdue}}"
+      },
+      "leadsTimeline": {
+        "title": "My leads trend (14 days)",
+        "subtitle": "How many requests arrived each day",
+        "total": "Total in period:",
+        "empty": "No data to build the chart yet."
+      },
+      "projects": {
+        "title": "My project structure",
+        "subtitle": "Open, won and lost deals",
+        "total": "Total:",
+        "openPotential": "Open potential:",
+        "empty": "You have no projects yet.",
+        "chips": {
+          "open": "Open",
+          "won": "Won",
+          "lost": "Lost"
+        },
+        "tasksSummary": "Tasks summary:",
+        "countLabel": "Projects:",
+        "amountLabel": "Amount:"
+      },
+      "tasks": {
+        "title": "My project tasks",
+        "empty": "No tasks assigned to you yet.",
+        "overdue": "Overdue",
+        "today": "Today",
+        "upcoming": "Upcoming",
+        "fallbackTitle": "Task",
+        "titleWithProject": "{{title}} · {{project}}"
+      },
+      "channels": {
+        "title": "Leads by channel (mine)",
+        "period": "all time",
+        "empty": "No leads assigned to you yet."
+      },
+      "pipeline": {
+        "title": "My project pipeline",
+        "subtitle": "amount by status",
+        "empty": "You have no projects yet.",
+        "itemLabel": "{{count}} leads · {{value}} €"
+      },
+      "recentLeads": {
+        "title": "My latest leads",
+        "openAll": "Open all",
+        "headers": {
+          "name": "Name",
+          "channel": "Channel",
+          "status": "Status",
+          "created": "Created"
+        },
+        "empty": "No leads yet."
+      },
+      "taskTypes": {
+        "call": "Call",
+        "meeting": "Meeting",
+        "todo": "Task"
+      },
+      "roles": {
+        "owner": "Owner",
+        "admin": "Admin",
+        "superadmin": "Superadmin",
+        "user": "User"
+      },
+      "fallbacks": {
+        "user": "Teammate",
+        "other": "Other",
+        "noStatus": "No status",
+        "noName": "No name",
+        "empty": "—",
+        "noDue": "No due date"
+      },
+      "loading": "Refreshing dashboard data…",
+      "errors": {
+        "loadFailed": "Failed to load data"
+      }
+    },
+    "leads": {
+      "board": {
+        "title": "Leads · Kanban",
+        "subtitle": "Drag cards between stages.",
+        "viewKanban": "Kanban",
+        "viewList": "List",
+        "create": "New lead",
+        "loading": "Loading leads...",
+        "empty": "No leads in this stage.",
+        "errors": {
+          "loadFailed": "Failed to load leads"
+        }
+      },
+      "statusValues": {
+        "new": "New lead",
+        "inProgress": "In progress",
+        "waiting": "Waiting for reply",
+        "won": "Closed (won)",
+        "lost": "Closed (lost)"
+      },
+      "statuses": {
+        "new": "New",
+        "inProgress": "In progress",
+        "waiting": "Waiting for reply",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "analytics": {
+        "hero": {
+          "kicker": "Leads · Analytics",
+          "title": "Sales funnel pulse",
+          "subtitle": "A modern lead dashboard with statuses, sources, manager performance, and inbound geography.",
+          "note": "All tenant leads"
+        },
+        "period": {
+          "label": "Period",
+          "days7": "7 days",
+          "days30": "30 days",
+          "year1": "1 year",
+          "all": "All time",
+          "custom": "Custom"
+        },
+        "summary": {
+          "today": {
+            "title": "Today",
+            "note": "new inquiries"
+          },
+          "week": {
+            "title": "Week",
+            "note": "last 7 days"
+          },
+          "month": {
+            "title": "Month",
+            "note": "last 30 days"
+          }
+        },
+        "errors": {
+          "loadFailed": "Failed to load lead analytics"
+        },
+        "kpis": {
+          "total": {
+            "title": "Total leads",
+            "desc": "All inbound requests, including statuses and sources."
+          },
+          "won": {
+            "title": "Won",
+            "desc": "Status “won” — deals closed successfully."
+          },
+          "lost": {
+            "title": "Lost",
+            "desc": "Status “lost” — deals that didn’t convert."
+          },
+          "conversion": {
+            "title": "Conversion",
+            "desc": "Won leads / total leads."
+          },
+          "sources": "Sources:",
+          "managers": "Managers:"
+        },
+        "statuses": {
+          "title": "Status breakdown",
+          "subtitle": "Share of each lead status in the funnel.",
+          "total": "Total:",
+          "centerLabel": "Leads",
+          "winRate": "Win-rate {{value}}%"
+        },
+        "sources": {
+          "title": "Acquisition channels",
+          "subtitle": "Lead sources: forms, ads, organic, and other entries.",
+          "count": "Channels:",
+          "legend": "Lead count"
+        },
+        "managers": {
+          "title": "Manager performance",
+          "subtitle": "Leads and won deals by owner.",
+          "count": "Managers:",
+          "table": {
+            "manager": "Manager",
+            "leads": "Leads",
+            "won": "Won",
+            "lost": "Lost",
+            "winRate": "Win-rate"
+          },
+          "empty": "No manager data yet."
+        },
+        "countries": {
+          "title": "Lead geography",
+          "subtitle": "Countries where requests come from (by country field).",
+          "count": "Countries:",
+          "table": {
+            "country": "Country",
+            "leads": "Leads"
+          },
+          "empty": "No country specified in any lead yet.",
+          "unknown": "—"
+        },
+        "tooltips": {
+          "leads": "leads",
+          "unknown": "unknown"
+        }
+      },
+      "roi": {
+        "hero": {
+          "kicker": "Leads · ROI",
+          "title": "Lead revenue (ROI)"
+        },
+        "mode": {
+          "sales": "By sales",
+          "projects": "By projects"
+        },
+        "modeDescriptions": {
+          "sales": "Revenue from closed deals tied to leads for the selected period. Based on sales linked to leads.",
+          "projects": "Revenue from paid projects tied to leads for the selected period. Based on project amounts linked to leads."
+        },
+        "source": {
+          "label": "Source"
+        },
+        "period": {
+          "label": "Period",
+          "days7": "7 days",
+          "days30": "30 days",
+          "year1": "1 year",
+          "all": "All time",
+          "custom": "Custom"
+        },
+        "loading": "Loading lead ROI…",
+        "errors": {
+          "loadFailed": "Failed to load lead ROI"
+        },
+        "labels": {
+          "salesPlural": "deals",
+          "projectsPlural": "projects",
+          "paidProjects": "paid projects",
+          "saleOrPayment": "deal/payment",
+          "project": "project",
+          "payments": "payments / closed deals",
+          "trackedProjects": "tracked projects"
+        },
+        "kpis": {
+          "totalRevenue": {
+            "title": "Total revenue",
+            "desc": "Sum of all {{mode}} for leads in the period."
+          },
+          "withRevenue": {
+            "title": "Leads with revenue",
+            "desc": "Leads that generated {{mode}}."
+          },
+          "avgCheck": {
+            "title": "Average check",
+            "desc": "Average {{mode}} size per lead."
+          },
+          "deals": {
+            "titleSales": "Deals",
+            "titleProjects": "Projects",
+            "desc": "Total number of {{mode}}."
+          }
+        },
+        "top": {
+          "title": "Top leads by revenue",
+          "subtitle": "Leads with the highest total revenue for the selected period.",
+          "shown": "Shown: {{count}}"
+        },
+        "table": {
+          "title": "Leads and revenue",
+          "subtitle": "Detailed list of leads with total revenue and {{mode}} period.",
+          "count": "Leads: {{count}}",
+          "columns": {
+            "lead": "Lead",
+            "manager": "Manager",
+            "channel": "Channel",
+            "dealsSales": "Deals",
+            "dealsProjects": "Projects",
+            "revenue": "Revenue",
+            "period": "Period"
+          },
+          "empty": "No leads with revenue for the selected period.",
+          "unnamed": "No name",
+          "unknown": "unknown",
+          "emptyValue": "—"
+        },
+        "tooltip": {
+          "revenue": "Revenue:",
+          "deals": "Deals: {{count}}",
+          "period": "period",
+          "manager": "Manager: {{name}}"
+        }
+      },
+      "list": {
+        "title": "Leads · List",
+        "subtitle": "Table view for quick filtering and search",
+        "viewKanban": "Kanban",
+        "viewList": "List",
+        "create": "Create lead",
+        "loading": "Loading leads…",
+        "empty": "No leads yet",
+        "open": "Open",
+        "emptyValue": "—",
+        "columns": {
+          "name": "Name",
+          "channel": "Channel",
+          "utm": "UTM",
+          "status": "Status",
+          "created": "Created",
+          "actions": "Actions"
+        },
+        "errors": {
+          "loadFailed": "Failed to load leads"
+        }
+      },
+      "form": {
+        "back": "← Back to leads",
+        "titleNew": "New lead",
+        "titleId": "Lead #{{id}}",
+        "titleDefault": "Lead",
+        "nameFallback": "No name",
+        "loadingLead": "Loading lead data…",
+        "tabs": {
+          "main": "Lead",
+          "history": "History"
+        },
+        "actions": {
+          "createAccount": "Create account",
+          "delete": "Delete lead",
+          "save": "Save",
+          "saving": "Saving…",
+          "send": "Send"
+        },
+        "alerts": {
+          "createAccount": "Here will be the logic to create a WordPress account and link it to the lead.",
+          "deleteConfirm": "Delete this lead? This action is irreversible.",
+          "commentRequiresSave": "Save the lead first to add comments."
+        },
+        "account": {
+          "title": "Create client account",
+          "subtitle": "Create a WordPress account and set balances by currency.",
+          "fields": {
+            "site": "Client site",
+            "sitePlaceholder": "Select a site",
+            "name": "Name",
+            "namePlaceholder": "Client name",
+            "email": "Email",
+            "emailPlaceholder": "email@example.com",
+            "password": "Password",
+            "passwordPlaceholder": "Enter password",
+            "balanceEur": "EUR balance",
+            "balanceEurPlaceholder": "e.g. 1200",
+            "balanceUsd": "USD balance",
+            "balanceUsdPlaceholder": "e.g. 800"
+          },
+          "hints": {
+            "noSites": "No connected sites yet. Add a site in Client Accounts first."
+          },
+          "actions": {
+            "create": "Create account"
+          },
+          "messages": {
+            "created": "Client account created"
+          },
+          "errors": {
+            "loadSites": "Failed to load sites",
+            "siteRequired": "Select a site",
+            "emailRequired": "Enter client email",
+            "passwordRequired": "Enter password",
+            "exists": "An account with this email already exists",
+            "createFailed": "Failed to create account"
+          }
+        },
+        "messages": {
+          "leadCreated": "Lead created",
+          "leadSaved": "Lead changes saved",
+          "leadDeleted": "Lead deleted",
+          "commentAdded": "Comment added"
+        },
+        "errors": {
+          "loadLead": "Failed to load lead",
+          "saveLead": "Failed to save lead",
+          "deleteLead": "Failed to delete lead",
+          "deleteForbidden": "Not enough permissions: only owner can delete leads.",
+          "historyLoad": "Failed to load history",
+          "commentFailed": "Failed to add comment",
+          "metaInvalid": "Meta: invalid JSON"
+        },
+        "activity": {
+          "created": "Lead created",
+          "statusChanged": "Status changed",
+          "assigneeChanged": "Assignee changed",
+          "comment": "Comment"
+        },
+        "sections": {
+          "relatedProjects": "Related projects",
+          "historyEmptyNew": "History appears after you save the lead.",
+          "historyEmpty": "No events for this lead yet.",
+          "historyLoading": "Loading history…",
+          "addComment": "Add comment",
+          "user": "User"
+        },
+        "fields": {
+          "namePlaceholder": "Lead name",
+          "emailPlaceholder": "E-mail",
+          "phonePlaceholder": "Phone",
+          "countryPlaceholder": "Country (code or text)",
+          "assigneePlaceholder": "Assignee not set",
+          "channelPlaceholder": "Channel (e.g., FORM / CHAT / GOOGLE)",
+          "notesPlaceholder": "Lead text / customer request / important details...",
+          "metaPlaceholder": "Raw meta data (utm, page, form_id...)",
+          "commentPlaceholder": "Write a comment…",
+          "projectStatus": "Status: {{status}} — #{{id}}"
+        }
+      },
+      "lost": {
+        "sectionLabel": "Leads · Lost",
+        "title": "Lost leads and missed revenue",
+        "subtitle": "Lost leads count, related project amount, and manager breakdown.",
+        "periodLabel": "Period",
+        "presets": {
+          "7d": "7 days",
+          "30d": "30 days",
+          "90d": "90 days",
+          "all": "All time"
+        },
+        "loading": "Loading lost leads…",
+        "errors": {
+          "loadFailed": "Failed to load lost leads stats"
+        },
+        "kpi": {
+          "lostTitle": "Lost leads",
+          "lostHint": "Leads with “lost” status in selected period.",
+          "amountTitle": "Lost amount",
+          "amountHint": "Sum of projects linked to lost leads.",
+          "managersTitle": "Managers with losses",
+          "managersHint": "Number of managers who have lost leads."
+        },
+        "chart": {
+          "title": "Losses by manager",
+          "subtitle": "Lost lead count and related project amount.",
+          "shown": "Shown: {{count}}"
+        },
+        "tableManagers": {
+          "title": "Managers table",
+          "total": "Total: {{count}}",
+          "empty": "No lost leads in this period yet.",
+          "headers": {
+            "manager": "Manager",
+            "lost": "Lost",
+            "amount": "Amount"
+          }
+        },
+        "tableLeads": {
+          "title": "Lost leads list",
+          "subtitle": "Leads with “lost” status in selected period, with linked project totals.",
+          "total": "Total: {{count}}",
+          "empty": "No lost leads in the selected period.",
+          "leadFallback": "Untitled",
+          "managerFallback": "—",
+          "headers": {
+            "lead": "Lead",
+            "manager": "Manager",
+            "amount": "Amount",
+            "created": "Created"
+          }
+        },
+        "tooltip": {
+          "lost": "Lost leads: {{count}}",
+          "amount": "Project amount: {{amount}} {{currency}}"
+        }
+      }
+    },
+    "projects": {
+      "board": {
+        "title": "Projects · Kanban",
+        "subtitle": "Drag cards between columns to change the project status.",
+        "empty": "No projects"
+      },
+      "list": {
+        "title": "Projects · Table",
+        "subtitle": "Project list: status, amount, owner, and created date",
+        "headers": {
+          "name": "Project name",
+          "owner": "Owner",
+          "lead": "Lead",
+          "status": "Status",
+          "amount": "Amount",
+          "created": "Created"
+        },
+        "empty": "No projects yet"
+      },
+      "closed": {
+        "kicker": "Projects · Closed",
+        "title": "Closed projects",
+        "subtitle": "All projects with “Closed” status. Track final amounts and owners.",
+        "loading": "Loading closed projects…",
+        "empty": "No closed projects yet.",
+        "kpis": {
+          "count": "Closed projects",
+          "amount": "Closed amount",
+          "categories": "Categories"
+        },
+        "table": {
+          "title": "Projects table",
+          "total": "Total: {{count}}",
+          "headers": {
+            "project": "Project",
+            "category": "Category",
+            "status": "Status",
+            "owner": "Owner",
+            "amount": "Amount",
+            "created": "Created"
+          }
+        },
+        "errors": {
+          "loadFailed": "Failed to load closed projects"
+        }
+      },
+      "inProgress": {
+        "kicker": "Projects · In progress",
+        "title": "Projects in progress",
+        "subtitle": "Active projects with “In progress” status. Track totals and owners.",
+        "loading": "Loading projects in progress…",
+        "empty": "No projects in progress yet.",
+        "kpis": {
+          "count": "In progress",
+          "amount": "Total amount",
+          "categories": "Categories"
+        },
+        "table": {
+          "title": "Projects table",
+          "total": "Total: {{count}}",
+          "headers": {
+            "project": "Project",
+            "category": "Category",
+            "status": "Status",
+            "owner": "Owner",
+            "amount": "Amount",
+            "created": "Created"
+          }
+        },
+        "errors": {
+          "loadFailed": "Failed to load projects in progress"
+        }
+      },
+      "tasks": {
+        "kicker": "Projects · Tasks",
+        "title": "Project tasks",
+        "subtitle": "All project tasks. Owner sees everything, managers see their projects (current API logic).",
+        "loading": "Loading tasks…",
+        "empty": "No tasks yet.",
+        "table": {
+          "title": "All tasks",
+          "total": "Total: {{count}}",
+          "headers": {
+            "task": "Task",
+            "project": "Project",
+            "owner": "Owner",
+            "status": "Status",
+            "priority": "Priority",
+            "deadline": "Deadline"
+          }
+        },
+        "errors": {
+          "loadFailed": "Failed to load project tasks"
+        }
+      },
+      "overdue": {
+        "kicker": "Projects · Overdue tasks",
+        "title": "Overdue tasks",
+        "subtitle": "Tasks with a past deadline that are not marked as “Done”.",
+        "loading": "Loading tasks…",
+        "empty": "No overdue tasks.",
+        "table": {
+          "title": "Overdue list",
+          "total": "Total: {{count}}",
+          "headers": {
+            "task": "Task",
+            "project": "Project",
+            "owner": "Owner",
+            "priority": "Priority",
+            "deadline": "Deadline",
+            "overdue": "Overdue (days)"
+          }
+        },
+        "errors": {
+          "loadFailed": "Failed to load overdue tasks"
+        }
+      },
+      "new": {
+        "kicker": "Projects · New",
+        "title": "New projects",
+        "subtitle": "All projects with “New” status. Summary and table below.",
+        "loading": "Loading new projects…",
+        "empty": "No projects with “New” status yet.",
+        "kpis": {
+          "count": "Count",
+          "amount": "Amount",
+          "categories": "Categories"
+        },
+        "table": {
+          "title": "Projects table",
+          "total": "Total: {{count}}",
+          "headers": {
+            "project": "Project",
+            "category": "Category",
+            "status": "Status",
+            "owner": "Owner",
+            "amount": "Amount",
+            "created": "Created"
+          }
+        },
+        "errors": {
+          "loadFailed": "Failed to load new projects"
+        }
+      },
+      "views": {
+        "kanban": "Kanban",
+        "table": "Table"
+      },
+      "actions": {
+        "newProject": "New project"
+      },
+      "statuses": {
+        "new": "New",
+        "inProgress": "In progress",
+        "review": "Review",
+        "paused": "Paused",
+        "closed": "Closed"
+      },
+      "errors": {
+        "loadFailed": "Failed to load projects",
+        "statusUpdateFailed": "Failed to update project status"
+      },
+      "loading": "Loading projects…",
+      "common": {
+        "emptyValue": "—",
+        "amountWithCurrency": "{{amount}} {{currency}}"
+      },
+      "categories": {
+        "analytics": "Analytics",
+        "development": "Development",
+        "marketing": "Marketing",
+        "ads": "Ads",
+        "seo": "SEO",
+        "smm": "SMM"
+      },
+      "tags": {
+        "crm": "CRM",
+        "it": "IT",
+        "web": "WEB",
+        "seo": "SEO",
+        "smm": "SMM",
+        "ads": "ADS"
+      },
+      "detail": {
+        "titleNew": "New project",
+        "titleExisting": "Project #{{id}}",
+        "loading": "Loading project data…",
+        "confirmDelete": "Delete project?",
+        "tabs": {
+          "props": "Properties",
+          "tasks": "Tasks",
+          "comments": "Comments"
+        },
+        "fields": {
+          "name": "Project name",
+          "ownerEmpty": "Owner not assigned",
+          "description": "Project description",
+          "leadEmpty": "No lead",
+          "leadNameFallback": "No name",
+          "leadName": "Lead name (can be edited)",
+          "leadEmail": "Lead email",
+          "amount": "Amount",
+          "createdAt": "Created: 24.09.2025, 03:00:00",
+          "category": "Category",
+          "tags": "Tags"
+        },
+        "files": {
+          "title": "Files (brief, estimate, contract, etc.)",
+          "namePlaceholder": "File name / document type (e.g., website brief)",
+          "urlPlaceholder": "File link (Google Drive / Dropbox / WP media)"
+        },
+        "tasks": {
+          "newTitle": "New task: title",
+          "newAssignees": "Assignees (comma separated)…",
+          "add": "Add",
+          "empty": "No tasks yet",
+          "subtask": "Subtask…",
+          "checklist": "Checklist",
+          "headers": {
+            "task": "Task",
+            "assignees": "Assignees",
+            "status": "Status",
+            "priority": "Priority",
+            "deadline": "Deadline",
+            "checklist": "Checklist"
+          },
+          "status": {
+            "todo": "To do",
+            "inProgress": "In progress",
+            "done": "Done"
+          },
+          "priority": {
+            "normal": "Normal",
+            "high": "High",
+            "low": "Low"
+          }
+        },
+        "comments": {
+          "empty": "No comments yet",
+          "newPlaceholder": "New comment… you can use @manager name",
+          "draftTitle": "Draft with @mentions",
+          "draftPlaceholder": "Draft message…"
+        },
+        "actions": {
+          "save": "Save",
+          "saving": "Saving…",
+          "delete": "Delete project",
+          "add": "Add",
+          "remove": "Remove",
+          "send": "Send"
+        },
+        "errors": {
+          "loadFailed": "Failed to load project",
+          "saveFailed": "Failed to save project",
+          "deleteFailed": "Failed to delete project"
+        },
+        "fallbacks": {
+          "untitled": "Untitled",
+          "user": "Teammate"
+        }
+      },
+      "analytics": {
+        "kicker": "Projects · Analytics",
+        "title": "Project analytics",
+        "subtitle": "Quick overview of statuses, categories, and total amounts.",
+        "noCategory": "No category",
+        "shown": "Shown: {{count}}",
+        "kpis": {
+          "total": "Total projects",
+          "amount": "Total amount",
+          "categories": "Categories"
+        },
+        "statusChart": {
+          "title": "Project statuses"
+        },
+        "categoryChart": {
+          "title": "Project categories"
+        },
+        "table": {
+          "title": "All projects",
+          "total": "Total: {{count}}",
+          "loading": "Loading projects…",
+          "headers": {
+            "project": "Project",
+            "status": "Status",
+            "category": "Category",
+            "owner": "Owner",
+            "amount": "Amount"
+          }
+        },
+        "errors": {
+          "loadFailed": "Failed to load project analytics"
+        }
+      }
+    },
+    "staff": {
+      "title": "Staff",
+      "subtitle": "Team members, roles, and access.",
+      "loading": "Loading staff…",
+      "empty": "No staff yet.",
+      "roles": {
+        "owner": "Owner",
+        "manager": "Manager",
+        "viewer": "Viewer",
+        "finance": "Finance",
+        "sales": "Sales",
+        "developer": "Developer",
+        "support": "Support"
+      },
+      "status": {
+        "active": "Active",
+        "disabled": "Disabled"
+      },
+      "actions": {
+        "resetPassword": "Reset password",
+        "deactivate": "Deactivate",
+        "activate": "Activate"
+      },
+      "create": {
+        "title": "New staff member",
+        "fullName": "Full name",
+        "email": "Email",
+        "department": "Department",
+        "creating": "Creating…",
+        "submit": "Create"
+      },
+      "table": {
+        "id": "ID",
+        "headers": {
+          "name": "Member",
+          "email": "Email",
+          "department": "Department",
+          "role": "Role",
+          "status": "Status",
+          "actions": "Actions"
+        }
+      },
+      "common": {
+        "empty": "—",
+        "notSpecified": "Not specified",
+        "initialsFallback": "Staff"
+      },
+      "errors": {
+        "load": "Failed to load staff",
+        "create": "Failed to create staff member",
+        "deactivate": "Failed to deactivate staff member",
+        "activate": "Failed to activate staff member",
+        "role": "Failed to update role",
+        "department": "Failed to update department"
+      },
+      "dialogs": {
+        "cancel": "Cancel",
+        "ok": "OK",
+        "error": {
+          "title": "Error",
+          "message": "Please try again."
+        },
+        "deactivate": {
+          "title": "Deactivate access?",
+          "message": "The member will lose access to the CRM until reactivated."
+        },
+        "resetPassword": {
+          "title": "Reset password",
+          "message": "New access for {{email}}:\n\nLogin: {{login}}\nPassword: {{password}}\n\nShare with the employee and ask them to change the password after first login."
+        }
+      },
+      "detail": {
+        "back": "Back",
+        "loading": "Loading profile…",
+        "id": "Staff ID",
+        "role": "Role",
+        "department": "Department",
+        "status": "Status",
+        "external": "External",
+        "errors": {
+          "load": "Failed to load staff member"
+        }
+      },
+      "permissions": {
+        "title": "Access permissions",
+        "subtitle": "Global roles and module access.",
+        "saved": "Saved",
+        "loading": "Loading permissions…",
+        "saving": "Saving…",
+        "save": "Save",
+        "table": {
+          "module": "Module"
+        },
+        "errors": {
+          "load": "Failed to load permissions",
+          "loadUsers": "Failed to load staff",
+          "save": "Failed to save permissions",
+          "saveUser": "Failed to save staff permissions"
+        },
+        "user": {
+          "title": "User permissions",
+          "subtitle": "Configure module access for the selected user.",
+          "employee": "Employee",
+          "loading": "Loading user permissions…",
+          "access": "Access",
+          "save": "Save",
+          "saving": "Saving…",
+          "saved": "Permissions updated"
+        },
+        "leads": "Leads",
+        "projects": "Projects",
+        "staff": "Staff",
+        "finance": "Finance",
+        "analytics": "Analytics",
+        "settings": "Settings",
+        "chat": "Chat"
+      },
+      "profile": {
+        "invalidId": "Invalid staff ID",
+        "back": "Back to staff",
+        "title": "Staff profile",
+        "fallbackName": "Staff",
+        "idShort": "ID {{id}}",
+        "selfProfile": "Go to my profile",
+        "loading": "Loading staff profile…",
+        "roleAndDepartment": "Role and department",
+        "department": "Department",
+        "departmentPlaceholder": "not specified",
+        "statusTitle": "Staff status",
+        "statusChanging": "Updating…",
+        "statusDisable": "Deactivate",
+        "statusEnable": "Activate",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this staff member permanently?",
+        "kpis": {
+          "leadsTitle": "Manager leads",
+          "leadsHint": "assigned to {{name}}",
+          "managerFallback": "manager",
+          "projectsTitle": "Projects in progress",
+          "projectsHint": "where they are responsible",
+          "tasksTitle": "Tasks",
+          "tasksHint": "in project checklists"
+        },
+        "tabs": {
+          "overview": "Overview",
+          "leads": "Leads",
+          "projects": "Projects",
+          "tasks": "Tasks"
+        },
+        "contacts": {
+          "title": "Contacts"
+        },
+        "access": {
+          "title": "CRM access",
+          "creating": "Creating…",
+          "createReset": "Create / reset password",
+          "onlyOwner": "Only the owner can manage staff logins",
+          "message": "Login: {{email}}\nPassword: {{password}}\nShare with the employee and ask them to change it after first login.",
+          "error": "Failed to create/reset password"
+        },
+        "activity": {
+          "title": "Activity",
+          "last": "Last activity: {{date}}",
+          "never": "Never logged in",
+          "since": "In system since {{date}}"
+        },
+        "leads": {
+          "recentTitle": "Recent leads ({{count}})",
+          "all": "All leads →",
+          "fallbackName": "No name",
+          "fallbackContact": "no contacts",
+          "empty": "No leads for this manager yet.",
+          "title": "Leads assigned to {{name}}",
+          "table": {
+            "headers": {
+              "name": "Name",
+              "contacts": "Contacts",
+              "status": "Status",
+              "channel": "Channel",
+              "created": "Created"
+            },
+            "empty": "No leads yet."
+          }
+        },
+        "projects": {
+          "recentTitle": "Recent projects ({{count}})",
+          "all": "All projects →",
+          "empty": "No projects where this staff member is responsible.",
+          "title": "Projects where they are responsible",
+          "table": {
+            "headers": {
+              "project": "Project",
+              "status": "Status",
+              "amount": "Amount",
+              "lead": "Lead",
+              "created": "Created"
+            },
+            "empty": "No projects yet."
+          }
+        },
+        "tasks": {
+          "title": "Tasks in projects (from checklists) where their name is listed",
+          "fallbackTitle": "Untitled",
+          "table": {
+            "headers": {
+              "task": "Task",
+              "project": "Project",
+              "status": "Status",
+              "priority": "Priority",
+              "deadline": "Deadline"
+            },
+            "empty": "No tasks for this staff member yet."
+          }
+        },
+        "errors": {
+          "load": "Failed to load staff profile",
+          "role": "Failed to update staff role",
+          "department": "Failed to update department",
+          "status": "Failed to update staff status",
+          "delete": "Failed to delete staff member"
+        }
+      }
+    },
+    "inactive": {
+      "badge": "Subscription paused",
+      "title": "CRM access is currently unavailable",
+      "description": "Please contact support to extend your subscription or restore access. CRM activity has been paused until the issue is resolved.",
+      "defaultReason": "CRM access is temporarily unavailable.",
+      "reasonExpired": "Your subscription has expired.",
+      "reasonBlocked": "The tenant has been blocked by an administrator.",
+      "fields": {
+        "reason": "Reason",
+        "activeUntil": "Active until",
+        "lastCheck": "Last check"
+      },
+      "empty": "—",
+      "contact": {
+        "text": "Email us at {{email}} or via chat and we will restore access. After extension, sign in again.",
+        "subject": "CRM access restore",
+        "write": "Contact support",
+        "home": "Go to homepage"
+      }
+    },
+    "chat": {
+      "file": "File",
+      "confirmDelete": "Delete this conversation? Messages will be removed permanently.",
+      "errors": {
+        "deleteFailed": "Failed to delete chat"
+      },
+      "dialogTitle": "Dialog #{{id}}",
+      "title": "Online chat",
+      "subtitle": "All dialogues from website widgets: answer clients, track active chats, and review history.",
+      "searchPlaceholder": "Search by name or e-mail",
+      "loadingChats": "Loading chats...",
+      "empty": "No active chats yet.",
+      "visitorFallback": "Website visitor",
+      "statusOpen": "Open",
+      "statusClosed": "Closed",
+      "selectPrompt": "Select a chat on the left to start messaging.",
+      "refresh": "Refresh",
+      "delete": "Delete chat",
+      "loadingMessages": "Loading messages...",
+      "assistant": "Assistant",
+      "visitor": "Visitor",
+      "replyPlaceholder": "Write a reply...",
+      "send": "Send"
+    },
+    "settings": {
+      "company": {
+        "sectionLabel": "Settings",
+        "title": "Company settings",
+        "subtitle": "Name, logo, and base client settings",
+        "loading": "Loading settings...",
+        "saving": "Saving...",
+        "save": "Save changes",
+        "success": "Settings saved",
+        "errors": {
+          "load": "Failed to load company settings",
+          "save": "Failed to save settings"
+        },
+        "fields": {
+          "name": "Company name",
+          "namePlaceholder": "Name shown in CRM",
+          "logo": "Logo (URL)",
+          "logoHint": "File upload will be added later. For now, use an image URL.",
+          "language": "Primary UI language",
+          "languageEmpty": "— Not selected —",
+          "languageHint": "Currently stored in settings. UI switching can be added later.",
+          "clientKey": "Client key",
+          "plan": "Plan",
+          "status": "Status",
+          "created": "Created",
+          "updated": "Updated",
+          "logoPreview": "Logo preview",
+          "logoAlt": "Company logo"
+        }
+      },
+      "api": {
+        "sectionLabel": "Settings · API & integrations",
+        "title": "Marketing traffic import API",
+        "subtitle": "This token lets you send traffic and ads data to CRM from n8n, Google Apps Script, and other integrations. Each company has its own token and data is isolated.",
+        "cardTitle": "Marketing: traffic import",
+        "cardHint": "Use this token in the X-Api-Token header for POST /v1/marketing/traffic/import. All traffic rows are automatically linked to your company (tenant).",
+        "confirmRotate": "Regenerate the token? The old one will stop working.",
+        "rotate": "Regenerate token",
+        "rotating": "Regenerating...",
+        "loading": "Loading token...",
+        "tokenLabel": "Current token",
+        "copy": "Copy",
+        "copied": "Copied",
+        "exampleTitle": "Request example (n8n / curl)",
+        "tokenPlaceholder": "<YOUR_TOKEN>",
+        "empty": "—",
+        "errors": {
+          "load": "Failed to load marketing API token",
+          "rotate": "Failed to regenerate marketing API token"
+        }
+      },
+      "app": {
+        "sectionLabel": "Tenant general settings",
+        "title": "Company settings",
+        "loading": "Loading settings...",
+        "saving": "Saving...",
+        "save": "Save changes",
+        "success": "Settings saved",
+        "errors": {
+          "load": "Failed to load company settings",
+          "save": "Failed to save settings"
+        },
+        "fields": {
+          "name": "Company name",
+          "namePlaceholder": "For example, Lumiva Agency",
+          "clientKey": "Client key",
+          "clientKeyHint": "Used for integrations and tenant identification.",
+          "logo": "Logo (URL)",
+          "logoHint": "Image URL for now. File upload will come later.",
+          "language": "Primary UI language",
+          "languageHint": "Stored in DB for now. We'll use it for UI later.",
+          "logoPreview": "Logo preview",
+          "logoAlt": "Logo preview"
+        }
+      }
+    },
+    "profile": {
+      "sectionLabel": "Profile",
+      "title": "My profile",
+      "loading": "Loading profile data...",
+      "saving": "Saving...",
+      "save": "Save profile",
+      "success": "Profile updated",
+      "errors": {
+        "load": "Failed to load profile",
+        "save": "Failed to save profile"
+      },
+      "fields": {
+        "name": "Name",
+        "namePlaceholder": "Name shown in the system",
+        "phone": "Phone",
+        "phonePlaceholder": "e.g., +90 555 123 45 67",
+        "avatar": "Avatar (URL)",
+        "avatarPlaceholder": "https://example.com/avatar.png"
+      },
+      "password": {
+        "title": "Change password",
+        "subtitle": "Update your CRM access password here.",
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Confirm new password",
+        "saving": "Updating...",
+        "save": "Change password",
+        "success": "Password updated",
+        "errors": {
+          "required": "Fill in current and new password",
+          "mismatch": "New password and confirmation do not match",
+          "failed": "Failed to change password"
+        }
+      }
+    },
+    "sales": {
+      "kicker": "Sales",
+      "title": "Sales",
+      "subtitle": "Track orders, statuses, and revenue by channel.",
+      "manager": "Manager",
+      "summary": {
+        "totalSales": "Sales",
+        "revenue": "Revenue",
+        "avgCheck": "Avg check"
+      },
+      "filters": {
+        "period": "Period",
+        "lastDays": "{{count}} days",
+        "allTime": "All time",
+        "status": "Status",
+        "statusAll": "All",
+        "allChannels": "All channels",
+        "searchPlaceholder": "Search by order, customer, ID"
+      },
+      "charts": {
+        "statusStructureTitle": "Status structure",
+        "statusStructureHint": "Orders by status",
+        "byCurrencyTitle": "By currency",
+        "byCurrencyHint": "Revenue by currency",
+        "byCurrencyEmpty": "No currency data"
+      },
+      "list": {
+        "title": "Sales list",
+        "shown": "Showing {{shown}} of {{total}}",
+        "headers": {
+          "date": "Date",
+          "id": "ID",
+          "channel": "Channel",
+          "product": "Product",
+          "customer": "Customer",
+          "amount": "Amount",
+          "status": "Status",
+          "purchaseDate": "Purchase date",
+          "productLink": "Product link"
+        },
+        "empty": "No sales for selected filters.",
+        "manager": "Manager",
+        "market": "Market",
+        "company": "Company",
+        "openProduct": "Open"
+      },
+      "pagination": {
+        "page": "Page {{page}} of {{pages}}",
+        "prev": "Prev",
+        "next": "Next"
+      },
+      "loading": "Loading sales...",
+      "errors": {
+        "load": "Failed to load sales"
+      },
+      "common": {
+        "empty": "—"
+      },
+      "units": {
+        "items": "{{count}} items"
+      },
+      "status": {
+        "new": "New",
+        "pending": "Pending",
+        "confirmed": "Confirmed",
+        "cancelled": "Cancelled",
+        "refunded": "Refunded",
+        "other": "Other"
+      }
+    },
+    "salesChannels": {
+      "kicker": "Sales channels",
+      "title": "Sales channels",
+      "subtitle": "Manage channels, status, and revenue.",
+      "summary": {
+        "channels": "Channels: {{count}}",
+        "sales": "Sales: {{count}}",
+        "revenue": "Revenue: {{amount}}"
+      },
+      "openIntegrations": "Open integrations",
+      "chart": {
+        "title": "Revenue by channel",
+        "hint": "Share of total revenue",
+        "empty": "No data yet.",
+        "noRevenue": "No revenue"
+      },
+      "table": {
+        "title": "Channels list",
+        "hint": "Channel settings and stats",
+        "headers": {
+          "channel": "Channel",
+          "type": "Type",
+          "integration": "Integration",
+          "apiKey": "API key",
+          "connected": "Connected",
+          "sales": "Sales",
+          "amount": "Amount",
+          "status": "Status",
+          "lastSync": "Last sync",
+          "actions": "Actions"
+        },
+        "empty": "No channels found."
+      },
+      "types": {
+        "b2b": "B2B",
+        "ota": "OTA",
+        "direct": "Direct",
+        "gds": "GDS",
+        "other": "Other"
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "actions": {
+        "enable": "Enable",
+        "disable": "Disable",
+        "delete": "Delete"
+      },
+      "loading": "Loading channels...",
+      "lastError": "Error:",
+      "errors": {
+        "load": "Failed to load channels",
+        "toggle": "Failed to change status",
+        "delete": "Failed to delete channel"
+      },
+      "deleteConfirm": "Delete {{name}}?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingTraffic": {
+      "kicker": "Marketing · Traffic",
+      "title": "Traffic sources & performance",
+      "subtitle": "Data from analytics (GA4, Yandex.Metrica) and ad platforms. Conversions and revenue come from analytics; spend and clicks come from ads.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading traffic data...",
+      "errors": {
+        "load": "Failed to load traffic data"
+      },
+      "kpi": {
+        "sessions": "Sessions",
+        "sessionsHint": "Total sessions from all sources in the period.",
+        "conversions": "Conversions",
+        "conversionsHint": "Total leads / requests.",
+        "cr": "Conversion rate (CR)",
+        "crHint": "Share of sessions that turned into leads.",
+        "revPerSession": "Revenue per session",
+        "revPerSessionHint": "Average revenue generated per session."
+      },
+      "table": {
+        "title": "Traffic sources",
+        "subtitle": "Session channels, conversions and revenue per source.",
+        "headers": {
+          "source": "Source / channel",
+          "type": "Type",
+          "sessions": "Sessions",
+          "conversions": "Conversions",
+          "cr": "CR",
+          "revenue": "Revenue"
+        },
+        "empty": "No traffic data for the selected period."
+      },
+      "types": {
+        "paid": "Paid",
+        "organic": "Organic Search",
+        "email": "Email",
+        "social": "Social",
+        "direct": "Direct",
+        "other": "Other"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingChannels": {
+      "kicker": "Marketing · Channels",
+      "title": "Where leads come from",
+      "subtitle": "Aggregated by sources and campaigns using UTM to show traffic, leads and revenue.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading channel data...",
+      "errors": {
+        "load": "Failed to load channel data"
+      },
+      "kpi": {
+        "sessions": "Sessions",
+        "sessionsHint": "All channels, selected period",
+        "leads": "Leads",
+        "leadsHint": "Conversions from analytics",
+        "revenue": "Revenue",
+        "revenueHint": "From analytics"
+      },
+      "topSources": "Top sources",
+      "topMediums": "Top mediums",
+      "topCampaigns": "Top campaigns by revenue",
+      "common": {
+        "unknown": "(unknown)",
+        "none": "(none)",
+        "noCampaign": "No utm_campaign",
+        "noData": "No data."
+      }
+    },
+    "marketingCampaigns": {
+      "kicker": "Marketing · Campaigns",
+      "title": "Campaign performance",
+      "subtitle": "Compare spend, revenue and conversion by campaign. Aggregated from analytics and traffic sources.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading campaigns…",
+      "errors": {
+        "load": "Failed to load campaigns"
+      },
+      "kpi": {
+        "campaigns": "Campaigns",
+        "campaignsHint": "Number of campaigns with tracked traffic / spend.",
+        "cost": "Campaign spend",
+        "costHint": "Total marketing spend for the period.",
+        "revenue": "Campaign revenue",
+        "revenueHint": "Attributed revenue from related leads / sales.",
+        "roasCpl": "ROAS & CPL",
+        "roas": "ROAS",
+        "cpl": "CPL",
+        "roasCplHint": "Payback and average cost per lead."
+      },
+      "top": {
+        "title": "Top campaigns",
+        "subtitle": "By revenue for the selected period.",
+        "shown": "Shown: {{count}}"
+      },
+      "table": {
+        "title": "Campaign list",
+        "subtitle": "Channels, spend, revenue and efficiency.",
+        "count": "Total: {{count}}",
+        "headers": {
+          "campaign": "Campaign",
+          "source": "Source",
+          "medium": "Medium",
+          "cost": "Spend",
+          "revenue": "Revenue",
+          "leads": "Leads",
+          "roas": "ROAS",
+          "cpl": "CPL"
+        },
+        "empty": "No campaigns yet."
+      },
+      "tooltip": {
+        "revenue": "Revenue",
+        "cost": "Spend",
+        "leads": "Leads",
+        "clicks": "Clicks",
+        "sessions": "Sessions",
+        "roas": "ROAS",
+        "cpl": "CPL"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingSeo": {
+      "kicker": "Marketing · SEO & content",
+      "title": "SEO & site quality control",
+      "subtitle": "This page shows how ready the site is for growth: speed, indexability, errors and content structure. Some data comes from analytics; the rest is connected via Search Console and PageSpeed.",
+      "loading": "Loading data…",
+      "status": {
+        "saved": "Saved",
+        "updated": "Metrics updated",
+        "siteAdded": "Site added",
+        "siteDeleted": "Site removed"
+      },
+      "errors": {
+        "load": "Failed to load data",
+        "save": "Failed to save settings",
+        "oauth": "Failed to open OAuth",
+        "update": "Failed to refresh metrics",
+        "gscNotSynced": "GSC not synced: check property access.",
+        "psiNotSynced": "PageSpeed not synced: check key and URL.",
+        "siteRequired": "Enter a site domain",
+        "siteAdd": "Failed to add site",
+        "siteApply": "Failed to apply site",
+        "siteDelete": "Failed to delete site"
+      },
+      "connections": {
+        "title": "Connections",
+        "subtitle": "Configure Search Console and PageSpeed for your site.",
+        "gscConnected": "GSC connected",
+        "connectGsc": "Connect GSC",
+        "refresh": "Refresh metrics",
+        "refreshing": "Refreshing…"
+      },
+      "period": {
+        "title": "Period",
+        "presets": {
+          "7": "7 d.",
+          "30": "30 d.",
+          "90": "90 d."
+        },
+        "custom": "custom",
+        "apply": "Apply period"
+      },
+      "compare": {
+        "title": "Comparison",
+        "subtitle": "Show previous period."
+      },
+      "site": {
+        "title": "Site",
+        "placeholder": "Select site",
+        "addOption": "Add site +",
+        "delete": "Delete",
+        "deleting": "Deleting…"
+      },
+      "newSite": {
+        "title": "New site",
+        "placeholder": "example.com",
+        "add": "Add",
+        "adding": "Adding…"
+      },
+      "fields": {
+        "gscPropertyUrl": "GSC property URL",
+        "pageSpeedUrl": "PageSpeed URL",
+        "pageSpeedApiKey": "PageSpeed API Key",
+        "pageSpeedStrategy": "PageSpeed strategy",
+        "strategy": {
+          "mobile": "mobile",
+          "desktop": "desktop"
+        }
+      },
+      "actions": {
+        "save": "Save",
+        "saving": "Saving…"
+      },
+      "syncingOverlay": "Refreshing data…",
+      "gsc": {
+        "title": "Search Console",
+        "period": "Period",
+        "clicks": "Clicks",
+        "impressions": "Impressions",
+        "ctr": "CTR",
+        "position": "Position",
+        "trendTitle": "Spend / Leads",
+        "trendSource": "Search",
+        "legend": {
+          "current": "Current period",
+          "previous": "Previous period"
+        },
+        "metricTabs": {
+          "clicks": "clicks",
+          "impressions": "impressions",
+          "ctr": "ctr",
+          "position": "position"
+        },
+        "empty": "No data. Connect GSC and sync."
+      },
+      "gscDonut": {
+        "title": "Conversions by channels",
+        "subtitle": "Lead & deal funnel",
+        "average": "network average",
+        "labels": {
+          "ctr": "CTR",
+          "rank": "Rank",
+          "visibility": "Visibility"
+        },
+        "was": "Was: {{value}}%"
+      },
+      "psi": {
+        "title": "PageSpeed Insights",
+        "empty": "No data. Connect PageSpeed and sync."
+      },
+      "psiDonut": {
+        "title": "Conversions by channels",
+        "subtitle": "Lead & deal funnel",
+        "average": "network average",
+        "labels": {
+          "performance": "Performance",
+          "seo": "SEO",
+          "accessibility": "Accessibility",
+          "best": "Best"
+        }
+      },
+      "psiMetrics": {
+        "lcp": "LCP: {{value}}s",
+        "cls": "CLS: {{value}}",
+        "fcp": "FCP: {{value}}s",
+        "tbt": "TBT: {{value}}s",
+        "speedIndex": "Speed Index: {{value}}s",
+        "strategy": "Strategy: {{value}}"
+      },
+      "control": {
+        "title": "What you can control in CRM",
+        "items": [
+          "Load speed and Core Web Vitals for key pages.",
+          "Indexing errors, duplicates and sitemap issues.",
+          "Top organic pages by traffic and conversions.",
+          "SEO channels compared with ads and social."
+        ]
+      },
+      "connect": {
+        "title": "What to connect",
+        "items": [
+          "Google Search Console — indexing, errors, CTR.",
+          "PageSpeed Insights — speed and Core Web Vitals.",
+          "Analytics (GA4/Metrica) — behavior and conversions."
+        ]
+      }
+    },
+    "marketingSmm": {
+      "kicker": "Marketing · SMM",
+      "title": "Social networks & audience dynamics",
+      "subtitle": "Profiles and daily statistics: followers, reach, views and engagement.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days"
+      },
+      "compareLabel": "Previous period",
+      "compare": {
+        "loading": "Loading...",
+        "noData": "No data",
+        "dash": "—"
+      },
+      "errors": {
+        "profiles": "Failed to load profiles",
+        "stats": "Failed to load statistics",
+        "createProfile": "Failed to add profile",
+        "deleteProfile": "Failed to delete profile",
+        "metaConnect": "Failed to connect Meta",
+        "metaAssets": "Failed to load Meta accounts",
+        "metaAdd": "Failed to add Meta account",
+        "metaRemove": "Failed to disconnect Meta account",
+        "metaSync": "Failed to sync Meta data"
+      },
+      "meta": {
+        "profileAdded": "Profile connected",
+        "profileRemoved": "Profile disconnected",
+        "syncStatus": "Synced for {{label}}",
+        "scope": {
+          "days": "last {{days}} days",
+          "today": "today"
+        },
+        "connected": "connected",
+        "disconnected": "not connected"
+      },
+      "kpi": {
+        "activeProfiles": "Active profiles",
+        "activeProfilesHint": "Total profiles connected in CRM.",
+        "followersCurrent": "Followers (current)",
+        "followersHint": "Sum of followers across profiles on the latest date.",
+        "followersDelta": "Follower growth",
+        "followersDeltaHint": "Difference between start and end of the selected period.",
+        "reachEngagement": "Reach & engagement",
+        "reachLabel": "Reach",
+        "videoViewsLabel": "Video views",
+        "likesLabel": "Likes",
+        "commentsLabel": "Comments",
+        "erLabel": "ER",
+        "totalHint": "Totals across all platforms for the period."
+      },
+      "chart": {
+        "title": "Platform dynamics",
+        "subtitle": "Daily values for the selected metric.",
+        "metrics": {
+          "followers": "Followers",
+          "reach": "Reach",
+          "likes": "Likes",
+          "comments": "Comments",
+          "videoViews": "Views"
+        },
+        "loading": "Loading chart...",
+        "empty": "No data for the selected period.",
+        "prevSuffix": "prev"
+      },
+      "profiles": {
+        "title": "Social profiles",
+        "subtitle": "Profiles and daily stats for selected platforms.",
+        "tabs": {
+          "profiles": "Profiles",
+          "integrations": "Integrations"
+        },
+        "shown": "Shown: {{shown}} of {{total}}",
+        "searchPlaceholder": "Search by @account",
+        "filterAll": "All platforms",
+        "form": {
+          "platform": "Platform",
+          "handle": "Handle / @account",
+          "url": "URL (optional)",
+          "handlePlaceholder": "@company",
+          "urlPlaceholder": "https://instagram.com/...",
+          "add": "Add profile",
+          "adding": "Adding..."
+        },
+        "table": {
+          "headers": {
+            "profile": "Profile",
+            "platform": "Platform",
+            "followers": "Followers",
+            "reachLikesComments": "Reach / likes / comments",
+            "erViews": "ER / views",
+            "date": "Date",
+            "actions": "Actions"
+          },
+          "loading": "Loading...",
+          "empty": "No data for the selected filters."
+        },
+        "delete": "Delete",
+        "confirmDelete": "Delete {{platform}} profile {{handle}}?",
+        "loadMore": "Load more"
+      },
+      "integrations": {
+        "kicker": "Integrations",
+        "title": "Connections & status",
+        "subtitle": "Connect social platforms and check their status.",
+        "connections": "Connections",
+        "metaStatus": "Meta status: {{status}}",
+        "manage": "Manage",
+        "vkTitle": "VK Analytics",
+        "telegramTitle": "Telegram Analytics",
+        "inDev": "In development"
+      },
+      "popup": {
+        "title": "Integrations",
+        "close": "Close",
+        "metaTitle": "Meta (Facebook / Instagram)",
+        "statusLabel": "Status: {{status}}",
+        "connect": "Connect Meta",
+        "reconnect": "Reconnect Meta",
+        "syncNow": "Sync now",
+        "syncing": "Syncing...",
+        "accountList": "Account list",
+        "accountsTitle": "Meta accounts",
+        "showHidden": "Show hidden",
+        "loading": "Loading accounts...",
+        "empty": "No accounts found.",
+        "hide": "Hide",
+        "disconnectFacebook": "Disconnect",
+        "addFacebook": "Add Facebook",
+        "disconnectInstagram": "Disconnect",
+        "addInstagram": "Add Instagram",
+        "facebookPage": "Facebook page",
+        "instagramPrefix": "Instagram: {{handle}}",
+        "vkTitle": "VK Analytics",
+        "tgTitle": "Telegram Analytics",
+        "tiktokTitle": "TikTok",
+        "inDevLabel": "In development",
+        "soon": "Soon",
+        "vkDesc": "Coming soon — community connection and metrics.",
+        "tgDesc": "Coming soon — channel analytics and engagement.",
+        "tiktokDesc": "Views and reach metrics — in development."
+      },
+      "platforms": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "telegram": "Telegram",
+        "vk": "VK",
+        "tiktok": "TikTok",
+        "other": "Other"
+      },
+      "zeroNotes": {
+        "igVideo": "Instagram video views may be unavailable for some profiles.",
+        "igEngagement": "Likes/comments may be delayed if there is no recent content.",
+        "fbReach": "Facebook metrics may be delayed due to Insights limits."
+      }
+    },
+    "marketingIntegrations": {
+      "kicker": "Marketing · Integrations",
+      "title": "Marketing integrations",
+      "subtitle": "Configure analytics and ads accounts (GA4, Metrica, Meta Ads, Google Ads and more). The data is then used in reports and n8n scenarios.",
+      "loading": "Loading integrations...",
+      "providers": {
+        "google_analytics": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "yandex_metrika": "Yandex.Metrica",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "tiktok_ads": "TikTok Ads",
+        "other": "Other"
+      },
+      "form": {
+        "title": "Add integration",
+        "provider": "Provider",
+        "name": "CRM name",
+        "primaryId": "Primary ID (property, counter, ad account, etc.)",
+        "primaryIdHint": "GA4 property ID / Counter ID / Ad Account ID",
+        "ga": {
+          "serviceAccount": "Service Account JSON",
+          "conversionEvent": "Conversion event (optional)",
+          "revenueMetric": "Revenue metric (optional)"
+        },
+        "ym": {
+          "token": "OAuth token",
+          "goalId": "Goal ID (optional)",
+          "revenueMetric": "Revenue metric (optional)"
+        },
+        "ads": {
+          "developerToken": "Developer token",
+          "clientId": "OAuth client ID",
+          "clientSecret": "OAuth client secret",
+          "refreshToken": "Refresh token",
+          "loginCustomerId": "Login customer ID (optional)",
+          "source": "Source (optional)",
+          "medium": "Medium (optional)",
+          "currency": "Currency (optional)"
+        },
+        "meta": {
+          "accessToken": "Access token",
+          "conversionAction": "Conversion action (optional)",
+          "revenueAction": "Revenue action (optional)",
+          "source": "Source (optional)",
+          "medium": "Medium (optional)",
+          "currency": "Currency (optional)"
+        },
+        "note": "You can later use these connections in n8n flows: pull reports, sync audiences, and more."
+      },
+      "actions": {
+        "create": "Create integration",
+        "creating": "Creating...",
+        "sync": "Sync",
+        "syncing": "Syncing...",
+        "delete": "Delete"
+      },
+      "table": {
+        "title": "Current integrations",
+        "subtitle": "Enabled integrations are used in marketing reports.",
+        "total": "Total: {{count}}",
+        "empty": "No integrations yet. Add at least GA4 or Metrica.",
+        "headers": {
+          "name": "Name",
+          "provider": "Provider",
+          "primaryId": "Primary ID",
+          "status": "Status",
+          "actions": "Actions"
+        }
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "errors": {
+        "load": "Failed to load integrations",
+        "requiredName": "Enter an integration name",
+        "create": "Failed to create integration",
+        "update": "Failed to update integration",
+        "delete": "Failed to delete integration",
+        "sync": "Failed to sync"
+      },
+      "confirmDelete": "Delete integration “{{name}}”?",
+      "syncResult": "Synced rows: {{count}}",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingAutomations": {
+      "kicker": "Marketing · Automations",
+      "title": "Marketing automations (n8n)",
+      "subtitle": "Track n8n scenarios related to marketing: traffic imports, campaigns, audience sync. Later you can fetch statuses directly from the n8n API.",
+      "loading": "Loading automations...",
+      "form": {
+        "title": "New scenario",
+        "name": "Scenario name",
+        "namePlaceholder": "GA4 import → CRM (daily)",
+        "webhook": "Webhook URL (from n8n)",
+        "note": "Each scenario can later include tokens (e.g. traffic import token), schedules and run statuses."
+      },
+      "actions": {
+        "create": "Create scenario",
+        "creating": "Creating...",
+        "delete": "Delete"
+      },
+      "list": {
+        "title": "Current automations",
+        "subtitle": "No direct n8n API link yet, but you can store descriptions and webhooks per tenant.",
+        "total": "Total: {{count}}",
+        "empty": "No scenarios yet. Add at least a marketing traffic import from n8n.",
+        "lastStatus": "Last status: {{status}}",
+        "statusUnknown": "Status unknown"
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "errors": {
+        "load": "Failed to load automations",
+        "requiredName": "Enter a scenario name",
+        "create": "Failed to create automation",
+        "update": "Failed to update automation",
+        "delete": "Failed to delete automation"
+      },
+      "confirmDelete": "Delete scenario “{{name}}”?"
+    },
+    "marketingUtms": {
+      "kicker": "Marketing · UTM tags",
+      "title": "UTM link generator",
+      "subtitle": "Build UTM links for campaigns and save reusable channel presets.",
+      "fields": {
+        "channel": "Channel",
+        "baseUrl": "Base URL",
+        "utm_source": "utm_source",
+        "utm_medium": "utm_medium",
+        "utm_campaign": "utm_campaign",
+        "utm_content": "utm_content (optional)",
+        "utm_term": "utm_term (optional)",
+        "generatedUrl": "Generated link",
+        "templateName": "Template name"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com/landing",
+        "utm_campaign": "spring_2026_brand",
+        "utm_content": "banner_1",
+        "utm_term": "keyword",
+        "templateName": "Google Brand · EN · spring 2026"
+      },
+      "channels": {
+        "google_search": "Google Ads · Search",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "yandex_direct": "Yandex Direct",
+        "email": "Email campaign",
+        "other": "Other"
+      },
+      "actions": {
+        "saveTemplate": "Save template",
+        "saving": "Saving…",
+        "applyTemplate": "Apply",
+        "deleteTemplate": "Delete"
+      },
+      "templates": {
+        "title": "Saved templates",
+        "subtitle": "Stored per tenant. Quickly reuse parameters for recurring campaigns.",
+        "total": "Total: {{count}}",
+        "empty": "No templates yet. Build a UTM link and save it as a template."
+      },
+      "loading": "Loading templates...",
+      "errors": {
+        "loadTemplates": "Failed to load UTM templates",
+        "nameRequired": "Enter a template name",
+        "saveTemplate": "Failed to save template",
+        "deleteTemplate": "Failed to delete template"
+      },
+      "confirmDelete": "Delete template “{{name}}”?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingSegments": {
+      "kicker": "Marketing · Segments",
+      "title": "Lead segments",
+      "subtitle": "Save commonly used lead segments by status, channel, country and manager. Later you can tie segments to n8n automations.",
+      "errors": {
+        "load": "Failed to load segments",
+        "save": "Failed to save segment"
+      },
+      "form": {
+        "name": "Segment name",
+        "namePlaceholder": "Google Ads RU leads for the last 30 days",
+        "description": "Description (optional)",
+        "descriptionPlaceholder": "For brand traffic lead outreach",
+        "statuses": "Lead statuses",
+        "source": "Source",
+        "sourcePlaceholder": "google / facebook / crm…",
+        "country": "Country",
+        "countryPlaceholder": "TR / RU / PL / DE…",
+        "manager": "Manager (assignedTo)",
+        "managerPlaceholder": "Manager name",
+        "createdFrom": "Created from",
+        "createdTo": "Created to",
+        "helper": "Segments currently work only for leads. Later you can connect exports and n8n webhooks."
+      },
+      "statuses": {
+        "new": "New",
+        "in_progress": "In progress",
+        "waiting": "Waiting",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "actions": {
+        "create": "Create segment",
+        "creating": "Saving…",
+        "run": "Run",
+        "running": "Running…"
+      },
+      "list": {
+        "title": "Saved segments",
+        "subtitle": "Click “Run” to see how many leads match the segment.",
+        "total": "Total: {{count}}",
+        "empty": "No segments yet. Create the first one above.",
+        "meta": "entity: {{entity}} · created: {{date}}",
+        "found": "Found: {{count}}"
+      },
+      "loading": "Loading segments..."
+    },
+    "salesIntegrations": {
+      "kicker": "Sales integrations",
+      "title": "Sales channel integrations",
+      "subtitle": "Connect stores and external systems, manage sync status and keep sales data up to date.",
+      "kinds": {
+        "woocommerce": "WooCommerce",
+        "manualImport": "Manual import",
+        "other": "Other"
+      },
+      "status": {
+        "never": "Never synced",
+        "ok": "Synced",
+        "error": "Error",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "defaults": {
+        "woocommerceName": "WooCommerce store"
+      },
+      "available": {
+        "title": "Available integrations",
+        "woocommerceHint": "Connect a WooCommerce store via REST API.",
+        "newConnection": "New connection",
+        "woocommerceNote": "Use a Read-only key to import sales.",
+        "empty": "No adapters are available yet."
+      },
+      "new": {
+        "title": "New connection",
+        "close": "Close",
+        "name": "Connection name",
+        "namePlaceholder": "WooCommerce · main store",
+        "channel": "Sales channel",
+        "channelAuto": "Auto-create channel",
+        "description": "Short description",
+        "descriptionPlaceholder": "For example: store on shop.example.com",
+        "url": "WooCommerce URL (https)",
+        "urlPlaceholder": "https://shop.example.com",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret"
+      },
+      "edit": {
+        "title": "Edit connection: {{name}}",
+        "close": "Close",
+        "name": "Connection name",
+        "channel": "Sales channel",
+        "channelAuto": "Leave without channel / auto-create",
+        "description": "Short description",
+        "url": "WooCommerce URL (https)",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret (leave empty to keep current)"
+      },
+      "list": {
+        "title": "Integrations list",
+        "subtitle": "Manage status, test connections and run sync.",
+        "headers": {
+          "connection": "Connection",
+          "type": "Type",
+          "channel": "Sales channel",
+          "status": "Status",
+          "lastSync": "Last sync",
+          "sales": "Sales",
+          "amount": "Amount",
+          "actions": "Actions"
+        },
+        "empty": "No integrations configured yet.",
+        "lastError": "Error:"
+      },
+      "loading": "Loading integrations...",
+      "common": {
+        "empty": "—",
+        "none": "—",
+        "cancel": "Cancel",
+        "creating": "Creating...",
+        "create": "Create connection",
+        "saving": "Saving...",
+        "save": "Save changes",
+        "testing": "Testing...",
+        "test": "Test",
+        "syncing": "Syncing...",
+        "sync": "Sync",
+        "enable": "Enable",
+        "disable": "Disable",
+        "edit": "Edit",
+        "deleting": "Deleting...",
+        "delete": "Delete"
+      },
+      "errors": {
+        "load": "Failed to load integrations",
+        "toggle": "Failed to change status",
+        "delete": "Failed to delete integration",
+        "test": "Failed to test connection",
+        "sync": "Failed to sync",
+        "create": "Failed to create integration",
+        "update": "Failed to update integration",
+        "createMissing": "Provide URL, Consumer Key and Secret.",
+        "updateMissing": "URL and Consumer Key are required."
+      },
+      "deleteConfirm": "Delete {{name}}?",
+      "test": {
+        "ok": "Test OK: {{message}}",
+        "fail": "Test failed: {{message}}",
+        "defaultError": "Unknown error"
+      },
+      "sync": {
+        "summary": "Sync: created {{created}}, updated {{updated}}, skipped {{skipped}}.",
+        "done": "Sync complete. {{message}}"
+      }
+    },
+    "salesIntegrationNew": {
+      "kicker": "Integrations",
+      "title": "New sales channel connection",
+      "subtitle": "Choose the integration type, fill in connection settings and link it to a sales channel.",
+      "back": "Back to integrations",
+      "loading": "Loading data...",
+      "errors": {
+        "load": "Failed to load integration data",
+        "missingType": "Select an integration type",
+        "missingName": "Enter a connection name",
+        "missingWoo": "WooCommerce requires URL, Consumer Key and Secret",
+        "create": "Failed to create integration"
+      },
+      "fields": {
+        "type": "Integration type",
+        "typePlaceholder": "Select integration",
+        "typeFallback": "Integration with an external sales source.",
+        "name": "Connection name",
+        "namePlaceholder": "WooCommerce · main store",
+        "channel": "Link to sales channel",
+        "channelPlaceholder": "No channel",
+        "description": "Description",
+        "descriptionPlaceholder": "For example: shop.example.com"
+      },
+      "woocommerce": {
+        "title": "WooCommerce settings",
+        "url": "Store URL (REST API)",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret",
+        "hint": "Keys are created in WooCommerce → Settings → Advanced → REST API. Use at least Read access."
+      },
+      "actions": {
+        "saving": "Saving...",
+        "create": "Create connection"
+      }
+    },
+    "salesImport": {
+      "kicker": "Sales import",
+      "title": "Import sales from CSV / XML",
+      "subtitle": "Upload a sales file, map columns to CRM fields and import into a chosen channel.",
+      "actions": {
+        "newChannel": "Connect a new channel",
+        "previewing": "Previewing...",
+        "preview": "Preview file",
+        "applying": "Importing...",
+        "apply": "Import sales"
+      },
+      "fileLabel": "File: {{name}}",
+      "fileNone": "not selected",
+      "previewMeta": "Rows: {{rows}} · Columns: {{columns}}",
+      "fileInputLabel": "Import file (CSV or XML)",
+      "fileHint": "UTF-8 recommended, first row must contain column names.",
+      "channelLabel": "Sales channel",
+      "channelPlaceholder": "Auto-detect / create new channel",
+      "channelHint": "If not selected, CRM can create a new channel based on import settings.",
+      "mapping": {
+        "title": "Field mapping",
+        "subtitle": "Link file columns to CRM fields. Only purchase date is required; amount and currency are set later in the backend.",
+        "count": "Mapped fields: {{mapped}} of {{total}}",
+        "headers": {
+          "crmField": "CRM field",
+          "fileColumn": "File column"
+        },
+        "skip": "— Skip —"
+      },
+      "sample": {
+        "title": "Sample data (first rows)",
+        "empty": "Sample data is not available."
+      },
+      "fields": {
+        "purchaseDate": "Purchase date",
+        "customerName": "Customer / agent name",
+        "quantity": "Quantity",
+        "type": "Type",
+        "category": "Category",
+        "size": "Size",
+        "color": "Color",
+        "url": "Link",
+        "currency": "Currency",
+        "country": "Country"
+      },
+      "errors": {
+        "missingFile": "Select a CSV or XML file to import.",
+        "preview": "Failed to load import preview.",
+        "previewRequired": "Run file preview first.",
+        "apply": "Import failed."
+      },
+      "preview": {
+        "summary": "Preview: {{rows}} rows, {{columns}} columns."
+      },
+      "apply": {
+        "summary": "Import complete: created {{created}}, skipped {{skipped}}."
+      }
+    }
+  }
+}

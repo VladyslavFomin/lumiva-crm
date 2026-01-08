@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { useTranslation } from 'react-i18next';
 
 import {
   PROJECT_CATEGORIES,
@@ -35,7 +36,15 @@ const PROJECT_STATUSES: ProjectStatus[] = [
   'Закрыт',
 ];
 
+function resolveLocale(lang: string) {
+  if (lang.startsWith('tr')) return 'tr-TR';
+  if (lang.startsWith('en')) return 'en-US';
+  return 'ru-RU';
+}
+
 export const ProjectFormPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
 
@@ -65,6 +74,55 @@ export const ProjectFormPage: React.FC = () => {
   const [newTaskPriority, setNewTaskPriority] =
     useState<ProjectTask['priority']>('Обычный');
   const [newTaskDeadline, setNewTaskDeadline] = useState<string>('');
+
+  const statusLabels = useMemo<Record<ProjectStatus, string>>(
+    () => ({
+      Новый: t('crm.projects.statuses.new'),
+      'В работе': t('crm.projects.statuses.inProgress'),
+      'На проверке': t('crm.projects.statuses.review'),
+      Заморожен: t('crm.projects.statuses.paused'),
+      Закрыт: t('crm.projects.statuses.closed'),
+    }),
+    [t],
+  );
+  const taskStatusLabels = useMemo<Record<ProjectTask['status'], string>>(
+    () => ({
+      'К выполнению': t('crm.projects.detail.tasks.status.todo'),
+      'В работе': t('crm.projects.detail.tasks.status.inProgress'),
+      'Готово': t('crm.projects.detail.tasks.status.done'),
+    }),
+    [t],
+  );
+  const taskPriorityLabels = useMemo<Record<ProjectTask['priority'], string>>(
+    () => ({
+      Обычный: t('crm.projects.detail.tasks.priority.normal'),
+      Высокий: t('crm.projects.detail.tasks.priority.high'),
+      Низкий: t('crm.projects.detail.tasks.priority.low'),
+    }),
+    [t],
+  );
+  const categoryLabels = useMemo<Record<string, string>>(
+    () => ({
+      Аналитика: t('crm.projects.categories.analytics'),
+      Разработка: t('crm.projects.categories.development'),
+      Маркетинг: t('crm.projects.categories.marketing'),
+      Реклама: t('crm.projects.categories.ads'),
+      SEO: t('crm.projects.categories.seo'),
+      SMM: t('crm.projects.categories.smm'),
+    }),
+    [t],
+  );
+  const tagLabels = useMemo<Record<string, string>>(
+    () => ({
+      CRM: t('crm.projects.tags.crm'),
+      IT: t('crm.projects.tags.it'),
+      WEB: t('crm.projects.tags.web'),
+      SEO: t('crm.projects.tags.seo'),
+      SMM: t('crm.projects.tags.smm'),
+      ADS: t('crm.projects.tags.ads'),
+    }),
+    [t],
+  );
 
   // ---------------- Загрузка проекта ----------------
   useEffect(() => {
@@ -109,7 +167,7 @@ export const ProjectFormPage: React.FC = () => {
         .catch((e: any) => {
           if (!alive) return;
           console.error(e);
-          setError(e.message || 'Ошибка загрузки проекта');
+          setError(e.message || t('crm.projects.detail.errors.loadFailed'));
         })
         .finally(() => {
           if (!alive) return;
@@ -145,7 +203,10 @@ export const ProjectFormPage: React.FC = () => {
   }, [id, isNew]);
 
   const title = useMemo(
-    () => (isNew ? 'Новый проект' : `Проект #${project.id}`),
+    () =>
+      isNew
+        ? t('crm.projects.detail.titleNew')
+        : t('crm.projects.detail.titleExisting', { id: project.id }),
     [isNew, project.id],
   );
 
@@ -173,7 +234,7 @@ export const ProjectFormPage: React.FC = () => {
       navigate('/app/projects');
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка сохранения проекта');
+      setError(e.message || t('crm.projects.detail.errors.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -184,7 +245,7 @@ export const ProjectFormPage: React.FC = () => {
       navigate('/app/projects');
       return;
     }
-    if (!window.confirm('Удалить проект?')) return;
+    if (!window.confirm(t('crm.projects.detail.confirmDelete'))) return;
 
     setSaving(true);
     setError(null);
@@ -193,7 +254,7 @@ export const ProjectFormPage: React.FC = () => {
       navigate('/app/projects');
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка при удалении проекта');
+      setError(e.message || t('crm.projects.detail.errors.deleteFailed'));
     } finally {
       setSaving(false);
     }
@@ -364,9 +425,11 @@ export const ProjectFormPage: React.FC = () => {
                   ? {
                       ...c,
                       done: !c.done,
-                      doneBy: !c.done ? 'Vlad' : undefined,
+                      doneBy: !c.done
+                        ? t('crm.projects.detail.fallbacks.user')
+                        : undefined,
                       doneAt: !c.done
-                        ? new Date().toLocaleDateString('ru-RU')
+                        ? new Date().toLocaleDateString(locale)
                         : undefined,
                     }
                   : c,
@@ -393,8 +456,8 @@ export const ProjectFormPage: React.FC = () => {
     if (!newComment.trim()) return;
     const c: ProjectComment = {
       id: `cm${Date.now()}`,
-      author: 'Vlad Fomin',
-      createdAt: new Date().toLocaleString('ru-RU'),
+      author: t('crm.projects.detail.fallbacks.user'),
+      createdAt: new Date().toLocaleString(locale),
       text: newComment.trim(),
     };
     setComments((prev) => [c, ...prev]);
@@ -411,11 +474,11 @@ export const ProjectFormPage: React.FC = () => {
           <div>
             <div className="text-[11px] text-slate-500">{title}</div>
             <h1 className="text-lg font-semibold text-slate-50">
-              {project.name || 'Без названия'}
+              {project.name || t('crm.projects.detail.fallbacks.untitled')}
             </h1>
             {loading && (
               <div className="text-[11px] text-slate-500 mt-1">
-                Загрузка данных проекта…
+                {t('crm.projects.detail.loading')}
               </div>
             )}
             {error && (
@@ -431,16 +494,19 @@ export const ProjectFormPage: React.FC = () => {
                 disabled={saving}
                 className="px-3 py-1.5 text-xs rounded-xl border border-rose-500/60 text-rose-300 hover:bg-rose-950/60 disabled:opacity-60"
               >
-                Удалить проект
+                {t('crm.projects.detail.actions.delete')}
               </button>
             )}
             <button
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="px-3 py-1.5 text-xs rounded-xl bg-sky-500 text-slate-950 font-semibold hover:bg-sky-400 disabled:opacity-60"
+              className="px-3 py-1.5 text-xs rounded-xl !bg-slate-900 !text-white font-semibold hover:!bg-slate-800 disabled:opacity-60"
+              style={{ backgroundColor: '#0f172a', color: '#fff' }}
             >
-              {saving ? 'Сохранение…' : 'Сохранить'}
+              {saving
+                ? t('crm.projects.detail.actions.saving')
+                : t('crm.projects.detail.actions.save')}
             </button>
           </div>
         </div>
@@ -457,7 +523,7 @@ export const ProjectFormPage: React.FC = () => {
                 : 'text-slate-400 hover:text-slate-100')
             }
           >
-            Свойства
+            {t('crm.projects.detail.tabs.props')}
           </button>
           <button
             type="button"
@@ -469,7 +535,7 @@ export const ProjectFormPage: React.FC = () => {
                 : 'text-slate-400 hover:text-slate-100')
             }
           >
-            Задачи
+            {t('crm.projects.detail.tabs.tasks')}
           </button>
           <button
             type="button"
@@ -481,7 +547,7 @@ export const ProjectFormPage: React.FC = () => {
                 : 'text-slate-400 hover:text-slate-100')
             }
           >
-            Комментарии
+            {t('crm.projects.detail.tabs.comments')}
           </button>
         </div>
 
@@ -493,7 +559,7 @@ export const ProjectFormPage: React.FC = () => {
               <input
                 value={project.name}
                 onChange={handleChange('name')}
-                placeholder="Название проекта"
+                placeholder={t('crm.projects.detail.fields.name')}
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
               />
 
@@ -502,7 +568,9 @@ export const ProjectFormPage: React.FC = () => {
                 onChange={handleOwnerSelect}
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
               >
-                <option value="">Ответственный не назначен</option>
+                <option value="">
+                  {t('crm.projects.detail.fields.ownerEmpty')}
+                </option>
                 {staff.map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.fullName}
@@ -517,7 +585,7 @@ export const ProjectFormPage: React.FC = () => {
               <textarea
                 value={project.description}
                 onChange={handleChange('description')}
-                placeholder="Описание проекта"
+                placeholder={t('crm.projects.detail.fields.description')}
                 rows={4}
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
               />
@@ -528,10 +596,12 @@ export const ProjectFormPage: React.FC = () => {
                   onChange={handleLeadChange}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
                 >
-                  <option value="">Без лида</option>
+                  <option value="">
+                    {t('crm.projects.detail.fields.leadEmpty')}
+                  </option>
                   {allLeads.map((l) => (
                     <option key={l.id} value={l.id}>
-                      {(l.name || 'Без имени') +
+                      {(l.name || t('crm.projects.detail.fields.leadNameFallback')) +
                         (l.email ? ` · ${l.email}` : '')}
                     </option>
                   ))}
@@ -545,7 +615,7 @@ export const ProjectFormPage: React.FC = () => {
                       leadName: e.target.value || null,
                     }))
                   }
-                  placeholder="Имя лида (можно подправить вручную)"
+                  placeholder={t('crm.projects.detail.fields.leadName')}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
                 />
                 <input
@@ -556,7 +626,7 @@ export const ProjectFormPage: React.FC = () => {
                       leadEmail: e.target.value || null,
                     }))
                   }
-                  placeholder="Email лида"
+                  placeholder={t('crm.projects.detail.fields.leadEmail')}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
                 />
               </div>
@@ -568,13 +638,13 @@ export const ProjectFormPage: React.FC = () => {
                 type="number"
                 value={project.amount || ''}
                 onChange={handleChange('amount')}
-                placeholder="Сумма"
+                placeholder={t('crm.projects.detail.fields.amount')}
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
               />
               <input
                 value={project.createdAt}
                 onChange={handleChange('createdAt')}
-                placeholder="Создан: 24.09.2025, 03:00:00"
+                placeholder={t('crm.projects.detail.fields.createdAt')}
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
               />
               <select
@@ -584,7 +654,7 @@ export const ProjectFormPage: React.FC = () => {
               >
                 {PROJECT_STATUSES.map((st) => (
                   <option key={st} value={st}>
-                    {st}
+                    {statusLabels[st]}
                   </option>
                 ))}
               </select>
@@ -593,10 +663,12 @@ export const ProjectFormPage: React.FC = () => {
                 onChange={handleCategoryChange}
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
               >
-                <option value="">Категория</option>
+                <option value="">
+                  {t('crm.projects.detail.fields.category')}
+                </option>
                 {PROJECT_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
-                    {cat}
+                    {categoryLabels[cat] ?? cat}
                   </option>
                 ))}
               </select>
@@ -604,7 +676,9 @@ export const ProjectFormPage: React.FC = () => {
 
             {/* Метки */}
             <div className="space-y-2">
-              <div className="text-xs text-slate-400">Метки</div>
+              <div className="text-xs text-slate-400">
+                {t('crm.projects.detail.fields.tags')}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {PROJECT_TAGS.map((tag) => {
                   const active = project.tags.includes(tag);
@@ -620,7 +694,7 @@ export const ProjectFormPage: React.FC = () => {
                           : 'bg-slate-950/80 text-slate-300 border-slate-700/80')
                       }
                     >
-                      #{tag}
+                      #{tagLabels[tag] ?? tag}
                     </button>
                   );
                 })}
@@ -630,7 +704,7 @@ export const ProjectFormPage: React.FC = () => {
             {/* Файлы (ТЗ / смета / договор) */}
             <div className="space-y-2">
               <div className="text-xs text-slate-400">
-                Файлы (ТЗ, смета, договор и т.д.)
+                {t('crm.projects.detail.files.title')}
               </div>
               <input
                 value={project.briefFileName || ''}
@@ -640,7 +714,7 @@ export const ProjectFormPage: React.FC = () => {
                     briefFileName: e.target.value || null,
                   }))
                 }
-                placeholder="Название файла / тип документа (например, ТЗ по сайту)"
+                placeholder={t('crm.projects.detail.files.namePlaceholder')}
                 className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
               />
               <input
@@ -651,7 +725,7 @@ export const ProjectFormPage: React.FC = () => {
                     briefFileUrl: e.target.value || null,
                   }))
                 }
-                placeholder="Ссылка на файл (Google Drive / Dropbox / медиа WP)"
+                placeholder={t('crm.projects.detail.files.urlPlaceholder')}
                 className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
               />
             </div>
@@ -663,13 +737,13 @@ export const ProjectFormPage: React.FC = () => {
           <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
             <div className="flex flex-wrap gap-3 items-center">
               <input
-                placeholder="Новая задача: заголовок"
+                placeholder={t('crm.projects.detail.tasks.newTitle')}
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 className="flex-1 min-w-[220px] px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none"
               />
               <input
-                placeholder="Исполнители (через запятую)…"
+                placeholder={t('crm.projects.detail.tasks.newAssignees')}
                 value={newTaskAssignees}
                 onChange={(e) => setNewTaskAssignees(e.target.value)}
                 className="min-w-[220px] px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none"
@@ -681,9 +755,13 @@ export const ProjectFormPage: React.FC = () => {
                 }
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm"
               >
-                <option value="К выполнению">К выполнению</option>
-                <option value="В работе">В работе</option>
-                <option value="Готово">Готово</option>
+                <option value="К выполнению">
+                  {taskStatusLabels['К выполнению']}
+                </option>
+                <option value="В работе">
+                  {taskStatusLabels['В работе']}
+                </option>
+                <option value="Готово">{taskStatusLabels['Готово']}</option>
               </select>
               <select
                 value={newTaskPriority}
@@ -694,9 +772,13 @@ export const ProjectFormPage: React.FC = () => {
                 }
                 className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm"
               >
-                <option value="Обычный">Обычный</option>
-                <option value="Высокий">Высокий</option>
-                <option value="Низкий">Низкий</option>
+                <option value="Обычный">
+                  {taskPriorityLabels.Обычный}
+                </option>
+                <option value="Высокий">
+                  {taskPriorityLabels.Высокий}
+                </option>
+                <option value="Низкий">{taskPriorityLabels.Низкий}</option>
               </select>
               <input
                 type="date"
@@ -707,21 +789,33 @@ export const ProjectFormPage: React.FC = () => {
               <button
                 type="button"
                 onClick={addTask}
-                className="px-3 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
+                className="px-3 py-2 text-xs rounded-xl !bg-slate-900 !text-white font-semibold hover:!bg-slate-800"
               >
-                Добавить
+                {t('crm.projects.detail.tasks.add')}
               </button>
             </div>
 
             {/* Список задач */}
             <div className="mt-2 border-t border-slate-800/80 pt-3">
               <div className="grid grid-cols-12 text-[11px] text-slate-500 mb-2 px-1">
-                <div className="col-span-4">Задача</div>
-                <div className="col-span-2">Исполнители</div>
-                <div className="col-span-2">Статус</div>
-                <div className="col-span-2">Приоритет</div>
-                <div className="col-span-1">Дедлайн</div>
-                <div className="col-span-1 text-right">Чек-лист</div>
+                <div className="col-span-4">
+                  {t('crm.projects.detail.tasks.headers.task')}
+                </div>
+                <div className="col-span-2">
+                  {t('crm.projects.detail.tasks.headers.assignees')}
+                </div>
+                <div className="col-span-2">
+                  {t('crm.projects.detail.tasks.headers.status')}
+                </div>
+                <div className="col-span-2">
+                  {t('crm.projects.detail.tasks.headers.priority')}
+                </div>
+                <div className="col-span-1">
+                  {t('crm.projects.detail.tasks.headers.deadline')}
+                </div>
+                <div className="col-span-1 text-right">
+                  {t('crm.projects.detail.tasks.headers.checklist')}
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -745,18 +839,30 @@ export const ProjectFormPage: React.FC = () => {
                       onChange={updateTask(t.id, 'status')}
                       className="col-span-2 px-2 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800/80 text-xs outline-none"
                     >
-                      <option value="К выполнению">К выполнению</option>
-                      <option value="В работе">В работе</option>
-                      <option value="Готово">Готово</option>
+                      <option value="К выполнению">
+                        {taskStatusLabels['К выполнению']}
+                      </option>
+                      <option value="В работе">
+                        {taskStatusLabels['В работе']}
+                      </option>
+                      <option value="Готово">
+                        {taskStatusLabels['Готово']}
+                      </option>
                     </select>
                     <select
                       value={t.priority}
                       onChange={updateTask(t.id, 'priority')}
                       className="col-span-2 px-2 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800/80 text-xs outline-none"
                     >
-                      <option value="Обычный">Обычный</option>
-                      <option value="Высокий">Высокий</option>
-                      <option value="Низкий">Низкий</option>
+                      <option value="Обычный">
+                        {taskPriorityLabels.Обычный}
+                      </option>
+                      <option value="Высокий">
+                        {taskPriorityLabels.Высокий}
+                      </option>
+                      <option value="Низкий">
+                        {taskPriorityLabels.Низкий}
+                      </option>
                     </select>
                     <input
                       type="date"
@@ -771,14 +877,14 @@ export const ProjectFormPage: React.FC = () => {
                         className="text-[11px] text-sky-400 hover:text-sky-300"
                         onClick={() => addChecklistItem(t.id)}
                       >
-                        Чек-лист
+                        {t('crm.projects.detail.tasks.checklist')}
                       </button>
                       <button
                         type="button"
                         className="text-[11px] text-rose-400 hover:text-rose-300"
                         onClick={() => removeTask(t.id)}
                       >
-                        Удалить
+                        {t('crm.projects.detail.actions.remove')}
                       </button>
                     </div>
 
@@ -799,7 +905,7 @@ export const ProjectFormPage: React.FC = () => {
                               value={c.title}
                               onChange={updateChecklistTitle(t.id, c.id)}
                               className="flex-1 px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 outline-none"
-                              placeholder="Подзадача…"
+                              placeholder={t('crm.projects.detail.tasks.subtask')}
                             />
                             {c.done && (
                               <span className="text-slate-500">
@@ -824,7 +930,7 @@ export const ProjectFormPage: React.FC = () => {
 
                 {tasks.length === 0 && (
                   <div className="text-[11px] text-slate-500 italic px-1 py-2">
-                    Задач пока нет
+                    {t('crm.projects.detail.tasks.empty')}
                   </div>
                 )}
               </div>
@@ -852,7 +958,7 @@ export const ProjectFormPage: React.FC = () => {
 
               {comments.length === 0 && (
                 <div className="text-[11px] text-slate-500 italic">
-                  Комментариев пока нет
+                  {t('crm.projects.detail.comments.empty')}
                 </div>
               )}
             </div>
@@ -861,33 +967,33 @@ export const ProjectFormPage: React.FC = () => {
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Новый комментарий… можно использовать @имя менеджера"
+                placeholder={t('crm.projects.detail.comments.newPlaceholder')}
                 rows={3}
                 className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
               />
               <button
                 type="button"
                 onClick={addComment}
-                className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
+                className="px-3 py-1.5 text-xs rounded-xl !bg-slate-900 !text-white font-semibold hover:!bg-slate-800"
               >
-                Добавить
+                {t('crm.projects.detail.actions.add')}
               </button>
             </div>
 
             <div className="border-t border-slate-800/80 pt-3 space-y-2">
               <div className="text-xs text-slate-400">
-                Черновик с @упоминаниями
+                {t('crm.projects.detail.comments.draftTitle')}
               </div>
               <div className="flex gap-2">
                 <input
-                  placeholder="Черновик сообщения…"
+                  placeholder={t('crm.projects.detail.comments.draftPlaceholder')}
                   className="flex-1 px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none"
                 />
                 <button
                   type="button"
                   className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-300 hover:bg-slate-900/70"
                 >
-                  Отправить
+                  {t('crm.projects.detail.actions.send')}
                 </button>
               </div>
             </div>

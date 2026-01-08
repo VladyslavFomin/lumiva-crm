@@ -160,6 +160,18 @@ export class LeadsController {
     return this.leadsService.getStatsForTenant(tenantId, from, to);
   }
 
+  // ====================== GET /leads/lost/stats ======================
+  // Статистика по утраченным лидам: количество, сумма, по менеджерам
+  @Get('lost/stats')
+  async lostStats(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    const { tenantId } = user;
+    return this.leadsService.getLostStatsForTenant(tenantId, from, to);
+  }
+
   // ====================== GET /leads/analytics ======================
   // Алиас, чтобы фронт, который дергает /leads/analytics, тоже работал
   @Get('analytics')

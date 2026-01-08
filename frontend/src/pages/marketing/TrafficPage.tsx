@@ -1,11 +1,13 @@
 // src/pages/marketing/TrafficPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchMarketingTraffic,
   type MarketingTrafficStats,
   type MarketingTrafficRow,
 } from '../../api/marketing';
+import { getLocale } from '../../i18n/utils';
 
 type PeriodPreset = '7d' | '30d' | '90d' | 'all';
 
@@ -13,13 +15,6 @@ interface DateRange {
   from?: string;
   to?: string;
 }
-
-const periodLabel: Record<PeriodPreset, string> = {
-  '7d': '7 дней',
-  '30d': '30 дней',
-  '90d': '90 дней',
-  all: 'Все время',
-};
 
 interface ChannelAgg {
   key: string;                // google / cpc
@@ -35,15 +30,22 @@ interface ChannelAgg {
   revPerSession: number;      // revenue / sessions
 }
 
-const formatNumber = (v: number) =>
-  v.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
-
 export const TrafficPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const [preset, setPreset] = useState<PeriodPreset>('all');
   const [range, setRange] = useState<DateRange>({});
   const [stats, setStats] = useState<MarketingTrafficStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const formatNumber = (v: number) =>
+    v.toLocaleString(locale, { maximumFractionDigits: 0 });
+  const periodLabel: Record<PeriodPreset, string> = {
+    '7d': t('crm.marketingTraffic.periods.7d'),
+    '30d': t('crm.marketingTraffic.periods.30d'),
+    '90d': t('crm.marketingTraffic.periods.90d'),
+    all: t('crm.marketingTraffic.periods.all'),
+  };
 
   // Пересчёт диапазона по пресетам
   const applyPreset = (p: PeriodPreset) => {
@@ -92,7 +94,7 @@ export const TrafficPage: React.FC = () => {
       .then((res) => setStats(res))
       .catch((e: any) => {
         console.error(e);
-        setError(e.message || 'Не удалось загрузить данные по трафику');
+        setError(e.message || t('crm.marketingTraffic.errors.load'));
       })
       .finally(() => setLoading(false));
   }, [range.from, range.to]);
@@ -168,23 +170,20 @@ export const TrafficPage: React.FC = () => {
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Маркетинг · Трафик
+              {t('crm.marketingTraffic.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Источники трафика и эффективность
+              {t('crm.marketingTraffic.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Здесь отображаются реальные данные из аналитики (Google
-              Analytics, Яндекс.Метрика и др.), агрегированные по
-              основным каналам. Пока цифры берутся из таблицы
-              маркетингового трафика в CRM.
+              {t('crm.marketingTraffic.subtitle')}
             </p>
           </div>
 
           <div className="flex flex-col items-stretch md:items-end gap-2">
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800/80 px-2 py-1">
-              <span className="text-[11px] text-slate-500 pl-1">
-                Период
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+              <span className="text-[11px] text-slate-600 pl-1">
+                {t('crm.marketingTraffic.periodLabel')}
               </span>
               {(['7d', '30d', '90d', 'all'] as PeriodPreset[]).map((p) => (
                 <button
@@ -194,8 +193,8 @@ export const TrafficPage: React.FC = () => {
                   className={
                     'px-3 py-1.5 rounded-xl text-[11px] transition ' +
                     (preset === p
-                      ? 'bg-sky-500 text-slate-950 font-semibold shadow-[0_0_0_1px_rgba(56,189,248,0.3)]'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900')
+                      ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                   }
                 >
                   {periodLabel[p]}
@@ -207,7 +206,7 @@ export const TrafficPage: React.FC = () => {
 
         {loading && (
           <div className="text-[11px] text-slate-400">
-            Загружаем данные по трафику…
+            {t('crm.marketingTraffic.loading')}
           </div>
         )}
 
@@ -219,92 +218,91 @@ export const TrafficPage: React.FC = () => {
           <>
             {/* KPI плашки */}
             <section className="grid grid-cols-1 gap-3 md:grid-cols-4 md:gap-4">
-              <div className="rounded-3xl bg-slate-950/90 border border-slate-800/80 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-slate-400 mb-1">
-                  Сессии
+              <div className="rounded-3xl bg-white border border-slate-200 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-slate-500 mb-1">
+                  {t('crm.marketingTraffic.kpi.sessions')}
                 </div>
-                <div className="text-2xl font-semibold text-slate-50">
+                <div className="text-2xl font-semibold text-slate-900">
                   {formatNumber(totalSessions)}
                 </div>
                 <div className="text-[11px] text-slate-500 mt-2">
-                  Всего сессий по всем источникам за период.
+                  {t('crm.marketingTraffic.kpi.sessionsHint')}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-emerald-500/10 via-emerald-400/10 to-slate-950 border border-emerald-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-emerald-300 mb-1">
-                  Конверсии
+              <div className="rounded-3xl bg-emerald-50 border border-emerald-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-emerald-600 mb-1">
+                  {t('crm.marketingTraffic.kpi.conversions')}
                 </div>
-                <div className="text-2xl font-semibold text-emerald-300">
+                <div className="text-2xl font-semibold text-emerald-700">
                   {formatNumber(totalConversions)}
                 </div>
-                <div className="text-[11px] text-emerald-100/70 mt-2">
-                  Суммарное количество заявок / лидов.
+                <div className="text-[11px] text-emerald-700/70 mt-2">
+                  {t('crm.marketingTraffic.kpi.conversionsHint')}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-sky-500/10 via-sky-500/5 to-slate-950 border border-sky-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-sky-300 mb-1">
-                  Конверсия (CR)
+              <div className="rounded-3xl bg-sky-50 border border-sky-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-sky-600 mb-1">
+                  {t('crm.marketingTraffic.kpi.cr')}
                 </div>
-                <div className="text-2xl font-semibold text-sky-300">
+                <div className="text-2xl font-semibold text-sky-700">
                   {totalSessions > 0
                     ? `${globalCr.toFixed(1)}%`
-                    : '—'}
+                    : t('crm.marketingTraffic.common.empty')}
                 </div>
-                <div className="text-[11px] text-sky-100/70 mt-2">
-                  Доля сессий, которые превратились в лиды.
+                <div className="text-[11px] text-sky-700/70 mt-2">
+                  {t('crm.marketingTraffic.kpi.crHint')}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-fuchsia-500/10 via-rose-500/5 to-slate-950 border border-fuchsia-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-fuchsia-300 mb-1">
-                  Доход на сессию
+              <div className="rounded-3xl bg-rose-50 border border-rose-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-rose-600 mb-1">
+                  {t('crm.marketingTraffic.kpi.revPerSession')}
                 </div>
-                <div className="text-2xl font-semibold text-fuchsia-200">
+                <div className="text-2xl font-semibold text-rose-700">
                   {totalSessions > 0
                     ? `${revPerSession.toFixed(2)} ${currency}`
-                    : '—'}
+                    : t('crm.marketingTraffic.common.empty')}
                 </div>
-                <div className="text-[11px] text-fuchsia-100/70 mt-2">
-                  Средний доход, который приносит одна сессия.
+                <div className="text-[11px] text-rose-700/70 mt-2">
+                  {t('crm.marketingTraffic.kpi.revPerSessionHint')}
                 </div>
               </div>
             </section>
 
             {/* Таблица каналов */}
-            <section className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5 text-xs">
+            <section className="rounded-3xl border border-slate-200 bg-white px-4 py-4 md:px-5 md:py-5 text-xs shadow-sm">
               <div className="mb-3">
-                <h2 className="text-sm font-semibold text-slate-50">
-                  Источники трафика
+                <h2 className="text-sm font-semibold text-slate-900">
+                  {t('crm.marketingTraffic.table.title')}
                 </h2>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  Каналы сессий, количество конверсий и доход по
-                  каждому источнику.
+                  {t('crm.marketingTraffic.table.subtitle')}
                 </p>
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full border-collapse text-[11px]">
+                <table className="min-w-full border-separate border-spacing-0 text-[11px]">
                   <thead>
                     <tr className="border-b border-slate-800/80 text-slate-400">
                       <th className="py-1.5 pr-3 text-left font-normal">
-                        Источник / канал
+                        {t('crm.marketingTraffic.table.headers.source')}
                       </th>
                       <th className="py-1.5 px-3 text-left font-normal">
-                        Тип
+                        {t('crm.marketingTraffic.table.headers.type')}
                       </th>
                       <th className="py-1.5 px-3 text-right font-normal">
-                        Сессии
+                        {t('crm.marketingTraffic.table.headers.sessions')}
                       </th>
                       <th className="py-1.5 px-3 text-right font-normal">
-                        Конверсии
+                        {t('crm.marketingTraffic.table.headers.conversions')}
                       </th>
                       <th className="py-1.5 px-3 text-right font-normal">
-                        CR
+                        {t('crm.marketingTraffic.table.headers.cr')}
                       </th>
                       <th className="py-1.5 px-3 text-right font-normal">
-                        Доход
+                        {t('crm.marketingTraffic.table.headers.revenue')}
                       </th>
                     </tr>
                   </thead>
@@ -315,7 +313,7 @@ export const TrafficPage: React.FC = () => {
                           colSpan={6}
                           className="py-3 text-center text-slate-500"
                         >
-                          Пока нет данных по трафику за выбранный период.
+                          {t('crm.marketingTraffic.table.empty')}
                         </td>
                       </tr>
                     )}
@@ -323,13 +321,16 @@ export const TrafficPage: React.FC = () => {
                     {channels.map((ch) => {
                       const type = (() => {
                         const m = (ch.medium || '').toLowerCase();
-                        if (m === 'cpc' || m === 'paid') return 'Paid';
-                        if (m === 'organic') return 'Organic Search';
-                        if (m === 'email') return 'Email';
+                        if (m === 'cpc' || m === 'paid')
+                          return t('crm.marketingTraffic.types.paid');
+                        if (m === 'organic')
+                          return t('crm.marketingTraffic.types.organic');
+                        if (m === 'email') return t('crm.marketingTraffic.types.email');
                         if (m === 'social' || m === 'paid_social')
-                          return 'Social';
-                        if (m === '(none)' || m === 'direct') return 'Direct';
-                        return m || 'Other';
+                          return t('crm.marketingTraffic.types.social');
+                        if (m === '(none)' || m === 'direct')
+                          return t('crm.marketingTraffic.types.direct');
+                        return m || t('crm.marketingTraffic.types.other');
                       })();
 
                       return (
@@ -350,12 +351,14 @@ export const TrafficPage: React.FC = () => {
                             {formatNumber(ch.conversions)}
                           </td>
                           <td className="py-1.5 px-3 text-right text-sky-300">
-                            {ch.cr ? `${(ch.cr * 100).toFixed(1)}%` : '—'}
+                            {ch.sessions > 0
+                              ? `${(ch.cr * 100).toFixed(1)}%`
+                              : t('crm.marketingTraffic.common.empty')}
                           </td>
                           <td className="py-1.5 px-3 text-right text-emerald-300 font-mono">
                             {ch.revenue
                               ? `${formatNumber(ch.revenue)} ${ch.currency}`
-                              : '—'}
+                              : t('crm.marketingTraffic.common.empty')}
                           </td>
                         </tr>
                       );

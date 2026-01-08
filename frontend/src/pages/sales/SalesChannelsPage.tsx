@@ -1,5 +1,6 @@
 // src/pages/sales/SalesChannelsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchSalesChannels,
@@ -7,16 +8,18 @@ import {
   deleteSalesChannel,
   type SalesChannel,
 } from '../../api/salesChannels';
-
-const TYPE_LABEL: Record<SalesChannel['type'], string> = {
-  b2b: 'B2B',
-  ota: 'OTA',
-  direct: 'Интернет-магазин', // или "Прямые"
-  gds: 'GDS',
-  other: 'Другие',
-};
+import { getLocale } from '../../i18n/utils';
 
 export const SalesChannelsPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
+  const typeLabels: Record<SalesChannel['type'], string> = {
+    b2b: t('crm.salesChannels.types.b2b'),
+    ota: t('crm.salesChannels.types.ota'),
+    direct: t('crm.salesChannels.types.direct'),
+    gds: t('crm.salesChannels.types.gds'),
+    other: t('crm.salesChannels.types.other'),
+  };
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +38,7 @@ export const SalesChannelsPage: React.FC = () => {
       .catch((e: any) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Не удалось загрузить каналы продаж');
+        setError(e.message || t('crm.salesChannels.errors.load'));
       })
       .finally(() => {
         if (!alive) return;
@@ -67,7 +70,7 @@ export const SalesChannelsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Не удалось изменить статус канала');
+      alert(e.message || t('crm.salesChannels.errors.toggle'));
     } finally {
       setSavingId(null);
     }
@@ -76,7 +79,7 @@ export const SalesChannelsPage: React.FC = () => {
   const handleDelete = async (ch: SalesChannel) => {
     if (
       !window.confirm(
-        `Удалить канал «${ch.name}»? Интеграции не отключатся автоматически.`,
+        t('crm.salesChannels.deleteConfirm', { name: ch.name }),
       )
     ) {
       return;
@@ -87,7 +90,7 @@ export const SalesChannelsPage: React.FC = () => {
       setChannels((prev) => prev.filter((c) => c.id !== ch.id));
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Не удалось удалить канал');
+      alert(e.message || t('crm.salesChannels.errors.delete'));
     } finally {
       setSavingId(null);
     }
@@ -100,31 +103,33 @@ export const SalesChannelsPage: React.FC = () => {
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Каналы продаж
+              {t('crm.salesChannels.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Управление каналами и выручкой
+              {t('crm.salesChannels.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Здесь включаются/отключаются каналы продаж, которые приходят из
-              раздела «Интеграции». Смотрите выручку и количество сделок по
-              каждому каналу, контролируйте статусы и последние ошибки
-              синхронизаций.
+              {t('crm.salesChannels.subtitle')}
             </p>
           </div>
 
           <div className="flex flex-col items-end gap-2 text-[11px] text-slate-300">
             <div className="flex flex-wrap gap-2 justify-end">
               <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                Каналов: {channels.length}
+                {t('crm.salesChannels.summary.channels', {
+                  count: channels.length,
+                })}
               </span>
               <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                Продаж: {totalCount.toLocaleString('ru-RU')}
+                {t('crm.salesChannels.summary.sales', {
+                  count: totalCount.toLocaleString(locale),
+                })}
               </span>
               <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                Общая выручка:{' '}
-                {totalAmount.toLocaleString('ru-RU', {
-                  maximumFractionDigits: 0,
+                {t('crm.salesChannels.summary.revenue', {
+                  amount: totalAmount.toLocaleString(locale, {
+                    maximumFractionDigits: 0,
+                  }),
                 })}{' '}
                 €
               </span>
@@ -135,7 +140,7 @@ export const SalesChannelsPage: React.FC = () => {
               href="/app/sales/integrations"
               className="inline-flex items-center gap-1 px-3 py-1 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 bg-slate-950/80 hover:bg-slate-900/80"
             >
-              Открыть интеграции
+              {t('crm.salesChannels.openIntegrations')}
               <span className="text-[10px]">↗</span>
             </a>
           </div>
@@ -145,10 +150,10 @@ export const SalesChannelsPage: React.FC = () => {
         <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-slate-100">
-              Топ каналов по выручке
+              {t('crm.salesChannels.chart.title')}
             </h2>
             <span className="text-[11px] text-slate-500">
-              по данным из CRM
+              {t('crm.salesChannels.chart.hint')}
             </span>
           </div>
 
@@ -156,7 +161,7 @@ export const SalesChannelsPage: React.FC = () => {
             <ChannelBarChart channels={channels} />
           ) : (
             <div className="text-[11px] text-slate-500 italic">
-              Пока нет подключённых каналов.
+              {t('crm.salesChannels.chart.empty')}
             </div>
           )}
         </section>
@@ -165,10 +170,10 @@ export const SalesChannelsPage: React.FC = () => {
         <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 min-w-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-slate-100">
-              Список каналов
+              {t('crm.salesChannels.table.title')}
             </h2>
             <span className="text-[11px] text-slate-500">
-              Управляйте статусом и смотрите статистику продаж
+              {t('crm.salesChannels.table.hint')}
             </span>
           </div>
 
@@ -177,34 +182,34 @@ export const SalesChannelsPage: React.FC = () => {
               <thead className="text-slate-500">
                 <tr>
                   <th className="text-left font-normal px-2 py-1">
-                    Канал
+                    {t('crm.salesChannels.table.headers.channel')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Тип
+                    {t('crm.salesChannels.table.headers.type')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Интеграция
+                    {t('crm.salesChannels.table.headers.integration')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    API ключ
+                    {t('crm.salesChannels.table.headers.apiKey')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Подключён
+                    {t('crm.salesChannels.table.headers.connected')}
                   </th>
                   <th className="text-right font-normal px-2 py-1">
-                    Продаж
+                    {t('crm.salesChannels.table.headers.sales')}
                   </th>
                   <th className="text-right font-normal px-2 py-1">
-                    Сумма
+                    {t('crm.salesChannels.table.headers.amount')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Статус
+                    {t('crm.salesChannels.table.headers.status')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Последняя синхронизация
+                    {t('crm.salesChannels.table.headers.lastSync')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Действия
+                    {t('crm.salesChannels.table.headers.actions')}
                   </th>
                 </tr>
               </thead>
@@ -225,7 +230,7 @@ export const SalesChannelsPage: React.FC = () => {
                       colSpan={10}
                       className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
                     >
-                      Каналы ещё не настроены.
+                      {t('crm.salesChannels.table.empty')}
                     </td>
                   </tr>
                 )}
@@ -238,7 +243,7 @@ export const SalesChannelsPage: React.FC = () => {
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
             <div className="px-3 py-1.5 rounded-full bg-slate-950/95 border border-slate-700/80 text-[11px] text-slate-200 flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent animate-pulse" />
-              Загружаем каналы продаж…
+              {t('crm.salesChannels.loading')}
             </div>
           </div>
         )}
@@ -260,6 +265,8 @@ export const SalesChannelsPage: React.FC = () => {
 const ChannelBarChart: React.FC<{ channels: SalesChannel[] }> = ({
   channels,
 }) => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const top = [...channels]
     .filter((c) => c.totalSalesAmount > 0)
     .sort((a, b) => b.totalSalesAmount - a.totalSalesAmount)
@@ -268,7 +275,7 @@ const ChannelBarChart: React.FC<{ channels: SalesChannel[] }> = ({
   if (!top.length) {
     return (
       <div className="text-[11px] text-slate-500 italic">
-        Пока нет данных по выручке для каналов.
+        {t('crm.salesChannels.chart.noRevenue')}
       </div>
     );
   }
@@ -289,7 +296,7 @@ const ChannelBarChart: React.FC<{ channels: SalesChannel[] }> = ({
               />
             </div>
             <div className="w-28 text-right text-slate-200">
-              {c.totalSalesAmount.toLocaleString('ru-RU', {
+              {c.totalSalesAmount.toLocaleString(locale, {
                 maximumFractionDigits: 0,
               })}{' '}
               <span className="text-slate-400 text-[10px]">
@@ -309,13 +316,15 @@ const ChannelRow: React.FC<{
   onToggle: () => void;
   onDelete: () => void;
 }> = ({ channel, saving, onToggle, onDelete }) => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const connectedAt = new Date(
     channel.connectedAt,
-  ).toLocaleDateString('ru-RU');
+  ).toLocaleDateString(locale);
 
   const lastSync = channel.lastSyncAt
-    ? new Date(channel.lastSyncAt).toLocaleString('ru-RU')
-    : '—';
+    ? new Date(channel.lastSyncAt).toLocaleString(locale)
+    : t('crm.salesChannels.common.empty');
 
   const statusColor = channel.isEnabled
     ? 'bg-emerald-900/60 text-emerald-300'
@@ -323,7 +332,7 @@ const ChannelRow: React.FC<{
 
   // Хвост API-ключа (если бэкенд его отдаёт, например "apiKeyTail": "1a2b3c")
   const apiKeyTail = (channel as any).apiKeyTail as string | undefined;
-  const apiKeyLabel = apiKeyTail ? `*****${apiKeyTail}` : '—';
+  const apiKeyLabel = apiKeyTail ? `*****${apiKeyTail}` : t('crm.salesChannels.common.empty');
 
   return (
     <tr className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors">
@@ -331,10 +340,12 @@ const ChannelRow: React.FC<{
         {channel.name}
       </td>
       <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {TYPE_LABEL[channel.type]}
+        {t(`crm.salesChannels.types.${channel.type}`)}
       </td>
       <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {channel.integrationName || channel.integrationId || '—'}
+        {channel.integrationName ||
+          channel.integrationId ||
+          t('crm.salesChannels.common.empty')}
       </td>
       <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap font-mono text-[10px]">
         {apiKeyLabel}
@@ -343,10 +354,10 @@ const ChannelRow: React.FC<{
         {connectedAt}
       </td>
       <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {channel.totalSalesCount.toLocaleString('ru-RU')}
+        {channel.totalSalesCount.toLocaleString(locale)}
       </td>
       <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {channel.totalSalesAmount.toLocaleString('ru-RU', {
+        {channel.totalSalesAmount.toLocaleString(locale, {
           maximumFractionDigits: 0,
         })}{' '}
         <span className="text-slate-400 text-[10px]">
@@ -357,7 +368,9 @@ const ChannelRow: React.FC<{
         <span
           className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${statusColor}`}
         >
-          {channel.isEnabled ? 'Включён' : 'Выключен'}
+          {channel.isEnabled
+            ? t('crm.salesChannels.status.enabled')
+            : t('crm.salesChannels.status.disabled')}
         </span>
       </td>
       <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
@@ -365,7 +378,7 @@ const ChannelRow: React.FC<{
           <span>{lastSync}</span>
           {channel.lastError && (
             <span className="text-[10px] text-rose-300 truncate max-w-[220px]">
-              Ошибка: {channel.lastError}
+              {t('crm.salesChannels.lastError')} {channel.lastError}
             </span>
           )}
         </div>
@@ -378,7 +391,9 @@ const ChannelRow: React.FC<{
             disabled={saving}
             className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
           >
-            {channel.isEnabled ? 'Выключить' : 'Включить'}
+            {channel.isEnabled
+              ? t('crm.salesChannels.actions.disable')
+              : t('crm.salesChannels.actions.enable')}
           </button>
           <button
             type="button"
@@ -386,7 +401,7 @@ const ChannelRow: React.FC<{
             disabled={saving}
             className="px-2 py-0.5 rounded-lg text-[10px] border border-rose-700/80 text-rose-300 bg-rose-950/40 hover:bg-rose-900/50 disabled:opacity-50"
           >
-            Удалить
+            {t('crm.salesChannels.actions.delete')}
           </button>
         </div>
       </td>

@@ -1,5 +1,6 @@
 // src/pages/sales/SalesPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { getStoredUser } from '../../auth/session';
 import { useNavigate } from 'react-router-dom';
@@ -15,6 +16,7 @@ import {
   fetchSalesChannels,
   type SalesChannel,
 } from '../../api/salesChannels';
+import { getLocale } from '../../i18n/utils';
 
 /* ─────────────────────────────── */
 /* Локальные типы для фильтров     */
@@ -37,19 +39,22 @@ type SalesListResponse = {
   pageSize: number;
 };
 
-/* Карточки статусов — полное соответствие SaleStatus */
-const STATUS_LABEL: Record<SaleStatus, string> = {
-  new: 'Новый',
-  pending: 'Ожидает',
-  confirmed: 'Подтверждена',
-  cancelled: 'Отменена',
-  refunded: 'Возврат',
-  other: 'Другое',
-};
-
 export const SalesPage: React.FC = () => {
+  const { t } = useTranslation();
   const user = getStoredUser();
   const navigate = useNavigate();
+  const locale = getLocale();
+  const statusLabels = useMemo(
+    () => ({
+      new: t('crm.sales.status.new'),
+      pending: t('crm.sales.status.pending'),
+      confirmed: t('crm.sales.status.confirmed'),
+      cancelled: t('crm.sales.status.cancelled'),
+      refunded: t('crm.sales.status.refunded'),
+      other: t('crm.sales.status.other'),
+    }),
+    [t],
+  );
 
   const [channels, setChannels] = useState<SalesChannel[]>([]);
   const [filters, setFilters] = useState<SalesFilters>(() => {
@@ -112,7 +117,7 @@ export const SalesPage: React.FC = () => {
       } catch (e: any) {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Не удалось загрузить продажи');
+        setError(e.message || t('crm.sales.errors.load'));
       } finally {
         if (!alive) return;
         setLoading(false);
@@ -185,20 +190,17 @@ export const SalesPage: React.FC = () => {
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Продажи
+              {t('crm.sales.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Все продажи по каналам
+              {t('crm.sales.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-xl">
-              Здесь вы видите консолидированный список заказов из
-              подключённых каналов: интернет-магазины, сайты, маркетплейсы
-              и другие источники. Используйте фильтры, чтобы анализировать
-              продажи по периодам, статусам и каналам.
+              {t('crm.sales.subtitle')}
             </p>
             {user?.name && (
               <p className="text-[11px] text-slate-500 mt-1">
-                Менеджер:{' '}
+                {t('crm.sales.manager')}:{' '}
                 <span className="text-slate-300">{user.name}</span>
               </p>
             )}
@@ -206,24 +208,24 @@ export const SalesPage: React.FC = () => {
           {stats && (
             <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
               <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                Всего продаж:{' '}
+                {t('crm.sales.summary.totalSales')}:{' '}
                 <span className="font-semibold">
-                  {stats.totalCount.toLocaleString('ru-RU')}
+                  {stats.totalCount.toLocaleString(locale)}
                 </span>
               </span>
               <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                Выручка:{' '}
+                {t('crm.sales.summary.revenue')}:{' '}
                 <span className="font-semibold">
-                  {stats.totalAmount.toLocaleString('ru-RU', {
+                  {stats.totalAmount.toLocaleString(locale, {
                     maximumFractionDigits: 0,
                   })}{' '}
                   €
                 </span>
               </span>
               <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                Средний чек:{' '}
+                {t('crm.sales.summary.avgCheck')}:{' '}
                 <span className="font-semibold">
-                  {stats.avgCheck.toLocaleString('ru-RU', {
+                  {stats.avgCheck.toLocaleString(locale, {
                     maximumFractionDigits: 0,
                   })}{' '}
                   €
@@ -236,35 +238,37 @@ export const SalesPage: React.FC = () => {
         {/* Фильтры */}
         <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-3.5 md:p-4 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-slate-500 mr-1">
-              Период:
-            </span>
-            <QuickRangeButton
-              label="7 дней"
-              active={!!filters.from && !!filters.to}
-              onClick={() => handleQuickRange(7)}
-            />
-            <QuickRangeButton
-              label="14 дней"
-              onClick={() => handleQuickRange(14)}
-            />
-            <QuickRangeButton
-              label="30 дней"
-              onClick={() => handleQuickRange(30)}
-            />
-            <QuickRangeButton
-              label="Всё время"
-              onClick={() => handleQuickRange('all')}
-            />
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+              <span className="text-[11px] text-slate-600 pl-1">
+                {t('crm.sales.filters.period')}
+              </span>
+              <QuickRangeButton
+                label={t('crm.sales.filters.lastDays', { count: 7 })}
+                active={!!filters.from && !!filters.to}
+                onClick={() => handleQuickRange(7)}
+              />
+              <QuickRangeButton
+                label={t('crm.sales.filters.lastDays', { count: 14 })}
+                onClick={() => handleQuickRange(14)}
+              />
+              <QuickRangeButton
+                label={t('crm.sales.filters.lastDays', { count: 30 })}
+                onClick={() => handleQuickRange(30)}
+              />
+              <QuickRangeButton
+                label={t('crm.sales.filters.allTime')}
+                onClick={() => handleQuickRange('all')}
+              />
+            </div>
           </div>
 
           <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-[11px] text-slate-500">
-                Статус:
+                {t('crm.sales.filters.status')}:
               </span>
               <StatusPill
-                label="Все"
+                label={t('crm.sales.filters.statusAll')}
                 active={!filters.status || filters.status === 'all'}
                 onClick={() => onStatusChange('all')}
               />
@@ -272,7 +276,7 @@ export const SalesPage: React.FC = () => {
                 (s) => (
                   <StatusPill
                     key={s}
-                    label={STATUS_LABEL[s]}
+                    label={statusLabels[s]}
                     active={filters.status === s}
                     onClick={() => onStatusChange(s)}
                   />
@@ -286,7 +290,7 @@ export const SalesPage: React.FC = () => {
                 onChange={onChannelChange}
                 className="h-8 px-2.5 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 outline-none min-w-[150px]"
               >
-                <option value="">Все каналы</option>
+                <option value="">{t('crm.sales.filters.allChannels')}</option>
                 {channels.map((ch) => (
                   <option key={ch.id} value={ch.id}>
                     {ch.name}
@@ -297,7 +301,7 @@ export const SalesPage: React.FC = () => {
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Поиск: ID, клиент, товар..."
+                  placeholder={t('crm.sales.filters.searchPlaceholder')}
                   defaultValue={filters.search || ''}
                   onChange={onSearchChange}
                   className="h-8 w-56 md:w-72 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-7 pr-2 outline-none"
@@ -316,10 +320,10 @@ export const SalesPage: React.FC = () => {
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-slate-100">
-                  Структура по статусам
+                  {t('crm.sales.charts.statusStructureTitle')}
                 </h2>
                 <span className="text-[11px] text-slate-500">
-                  количество и выручка
+                  {t('crm.sales.charts.statusStructureHint')}
                 </span>
               </div>
               <div className="space-y-2 text-xs">
@@ -332,10 +336,10 @@ export const SalesPage: React.FC = () => {
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-slate-100">
-                  Выручка по валютам
+                  {t('crm.sales.charts.byCurrencyTitle')}
                 </h2>
                 <span className="text-[11px] text-slate-500">
-                  сумма по текущему фильтру
+                  {t('crm.sales.charts.byCurrencyHint')}
                 </span>
               </div>
               {stats.byCurrency.length ? (
@@ -344,7 +348,7 @@ export const SalesPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-[11px] text-slate-500 italic">
-                  Нет данных по валютам.
+                  {t('crm.sales.charts.byCurrencyEmpty')}
                 </div>
               )}
             </div>
@@ -355,12 +359,14 @@ export const SalesPage: React.FC = () => {
         <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 min-w-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-slate-100">
-              Список продаж
+              {t('crm.sales.list.title')}
             </h2>
             {list && (
               <span className="text-[11px] text-slate-500">
-                Показано {list.items.length} из{' '}
-                {list.total.toLocaleString('ru-RU')}
+                {t('crm.sales.list.shown', {
+                  shown: list.items.length,
+                  total: list.total.toLocaleString(locale),
+                })}
               </span>
             )}
           </div>
@@ -370,31 +376,31 @@ export const SalesPage: React.FC = () => {
               <thead className="text-slate-500">
                 <tr>
                   <th className="text-left font-normal px-2 py-1">
-                    Дата
+                    {t('crm.sales.list.headers.date')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    ID / External
+                    {t('crm.sales.list.headers.id')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Канал
+                    {t('crm.sales.list.headers.channel')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Товар
+                    {t('crm.sales.list.headers.product')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Клиент
+                    {t('crm.sales.list.headers.customer')}
                   </th>
                   <th className="text-right font-normal px-2 py-1">
-                    Сумма
+                    {t('crm.sales.list.headers.amount')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Статус
+                    {t('crm.sales.list.headers.status')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Дата покупки
+                    {t('crm.sales.list.headers.purchaseDate')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Ссылка на товар
+                    {t('crm.sales.list.headers.productLink')}
                   </th>
                 </tr>
               </thead>
@@ -413,7 +419,7 @@ export const SalesPage: React.FC = () => {
                       colSpan={9}
                       className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
                     >
-                      Продаж пока нет по выбранным фильтрам.
+                      {t('crm.sales.list.empty')}
                     </td>
                   </tr>
                 )}
@@ -425,7 +431,10 @@ export const SalesPage: React.FC = () => {
           {list && pageCount > 1 && (
             <div className="mt-4 flex justify-between items-center text-[11px] text-slate-400">
               <div>
-                Страница {list.page} из {pageCount}
+                {t('crm.sales.pagination.page', {
+                  page: list.page,
+                  pages: pageCount,
+                })}
               </div>
               <div className="flex gap-1">
                 <button
@@ -434,7 +443,7 @@ export const SalesPage: React.FC = () => {
                   onClick={() => onPageChange(list.page - 1)}
                   className="px-2 py-1 rounded-lg border border-slate-700/80 disabled:opacity-40 bg-slate-950/80 hover:bg-slate-900/80"
                 >
-                  ← Назад
+                  {t('crm.sales.pagination.prev')}
                 </button>
                 <button
                   type="button"
@@ -442,7 +451,7 @@ export const SalesPage: React.FC = () => {
                   onClick={() => onPageChange(list.page + 1)}
                   className="px-2 py-1 rounded-lg border border-slate-700/80 disabled:opacity-40 bg-slate-950/80 hover:bg-slate-900/80"
                 >
-                  Вперёд →
+                  {t('crm.sales.pagination.next')}
                 </button>
               </div>
             </div>
@@ -453,7 +462,7 @@ export const SalesPage: React.FC = () => {
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
             <div className="px-3 py-1.5 rounded-full bg-slate-950/95 border border-slate-700/80 text-[11px] text-slate-200 flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent animate-pulse" />
-              Загружаем продажи…
+              {t('crm.sales.loading')}
             </div>
           </div>
         )}
@@ -483,10 +492,10 @@ const QuickRangeButton: React.FC<{
     type="button"
     onClick={onClick}
     className={
-      'px-2.5 py-1 rounded-full text-[11px] border ' +
+      'px-3 py-1.5 rounded-xl text-[11px] transition ' +
       (active
-        ? 'border-lumiva-accent-soft bg-lumiva-accent/10 text-slate-50'
-        : 'border-slate-700/80 text-slate-300 hover:bg-slate-900/80')
+        ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
+        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
     }
   >
     {label}
@@ -515,10 +524,12 @@ const StatusPill: React.FC<{
 const StatusBarRow: React.FC<{
   stat: SalesStats['byStatus'][number];
 }> = ({ stat }) => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const maxAmount = Math.max(stat.amount, 1);
   const width = Math.max(8, (stat.amount / maxAmount) * 100);
 
-  const statusLabel = STATUS_LABEL[stat.status];
+  const statusLabel = t(`crm.sales.status.${stat.status}`);
 
   let color = 'from-slate-400 to-slate-300';
   if (stat.status === 'confirmed') color = 'from-emerald-400 to-lumiva-accent';
@@ -531,8 +542,10 @@ const StatusBarRow: React.FC<{
       <div className="flex items-center justify-between gap-2">
         <span className="text-slate-300">{statusLabel}</span>
         <span className="text-slate-500 whitespace-nowrap">
-          {stat.count.toLocaleString('ru-RU')} шт ·{' '}
-          {stat.amount.toLocaleString('ru-RU')} €
+          {t('crm.sales.units.items', {
+            count: stat.count.toLocaleString(locale),
+          })}{' '}
+          · {stat.amount.toLocaleString(locale)} €
         </span>
       </div>
       <div className="h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
@@ -548,6 +561,7 @@ const StatusBarRow: React.FC<{
 const CurrencyRowList: React.FC<{
   stats: { currency: string; amount: number }[];
 }> = ({ stats }) => {
+  const locale = getLocale();
   const max = Math.max(...stats.map((s) => s.amount), 1);
 
   return (
@@ -564,7 +578,7 @@ const CurrencyRowList: React.FC<{
               />
             </div>
             <div className="w-24 text-right text-slate-300">
-              {c.amount.toLocaleString('ru-RU', {
+              {c.amount.toLocaleString(locale, {
                 maximumFractionDigits: 0,
               })}
             </div>
@@ -579,12 +593,14 @@ const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
   sale,
   onOpen,
 }) => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const created = sale.saleDate || sale.createdAt;
   const fmtDateTime = created
-    ? new Date(created).toLocaleString('ru-RU')
-    : '—';
+    ? new Date(created).toLocaleString(locale)
+    : t('crm.sales.common.empty');
 
-  const statusLabel = STATUS_LABEL[sale.status];
+  const statusLabel = t(`crm.sales.status.${sale.status}`);
 
   let statusColor = 'bg-slate-800 text-slate-300';
   if (sale.status === 'confirmed')
@@ -595,14 +611,15 @@ const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
     statusColor = 'bg-rose-900/60 text-rose-300';
 
   const channelLabel =
-    (sale as any).channelName || sale.channelId || '—';
+    (sale as any).channelName || sale.channelId || t('crm.sales.common.empty');
 
   // Товар: храним в поле hotel, рынок — в market
-  const productName = sale.hotel || '—';
+  const productName = sale.hotel || t('crm.sales.common.empty');
   const marketLabel = sale.market;
 
   // Клиент: имя → guestName, компания/доп.инфо → agentName
-  const clientName = sale.guestName || sale.agentName || '—';
+  const clientName =
+    sale.guestName || sale.agentName || t('crm.sales.common.empty');
   const clientCompany =
     sale.guestName && sale.agentName ? sale.agentName : null;
 
@@ -632,10 +649,10 @@ const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
       </td>
       <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
         <div className="flex flex-col">
-          <span>{channelLabel}</span>
+            <span>{channelLabel}</span>
           {sale.managerName && (
             <span className="text-[10px] text-slate-500">
-              Менеджер: {sale.managerName}
+              {t('crm.sales.list.manager')}: {sale.managerName}
             </span>
           )}
         </div>
@@ -645,7 +662,7 @@ const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
           <span>{productName}</span>
           {marketLabel && (
             <span className="text-[10px] text-slate-500">
-              Страна / рынок: {marketLabel}
+              {t('crm.sales.list.market')}: {marketLabel}
             </span>
           )}
         </div>
@@ -655,13 +672,13 @@ const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
           <span>{clientName}</span>
           {clientCompany && (
             <span className="text-[10px] text-slate-500">
-              Компания: {clientCompany}
+              {t('crm.sales.list.company')}: {clientCompany}
             </span>
           )}
         </div>
       </td>
       <td className="px-2 py-1.5 text-right text-slate-100 whitespace-nowrap">
-        {sale.amount.toLocaleString('ru-RU', {
+        {sale.amount.toLocaleString(locale, {
           maximumFractionDigits: 0,
         })}{' '}
         <span className="text-slate-400">{sale.currency}</span>
@@ -686,7 +703,7 @@ const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
             title={productUrl}
             onClick={(e) => e.stopPropagation()}
           >
-            Открыть товар
+            {t('crm.sales.list.openProduct')}
           </a>
         ) : notes ? (
           <span
@@ -696,7 +713,7 @@ const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
             {notes}
           </span>
         ) : (
-          '—'
+          t('crm.sales.common.empty')
         )}
       </td>
     </tr>

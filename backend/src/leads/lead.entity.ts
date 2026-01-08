@@ -63,6 +63,22 @@ export class Lead {
   @Column({ type: 'varchar', length: 64, nullable: true })
   source: string | null; // form, chat, wc, api, crm...
 
+  // ==== UTM ====
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  utmSource: string | null;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  utmMedium: string | null;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  utmCampaign: string | null;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  utmContent: string | null;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  utmTerm: string | null;
+
   // ==== ОТВЕТСТВЕННЫЙ ====
   // ID сотрудника (StaffUser.id)
   @Column({ type: 'uuid', nullable: true })

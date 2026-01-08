@@ -1,15 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchSmmProfiles,
   fetchSmmStats,
   createSmmProfile,
   deleteSmmProfile,
+  fetchMetaAssets,
+  getMetaAuthUrl,
+  connectMetaProfile,
+  syncMetaNow,
   type SmmProfile,
   type SmmPlatform,
   type SmmStatsResponse,
   type SmmProfileLastStat,
 } from '../../api/smm';
+import { getLocale } from '../../i18n/utils';
 
 import {
   ResponsiveContainer,
@@ -31,48 +37,35 @@ interface DateRange {
   to?: string;
 }
 
-const periodLabel: Record<PeriodPreset, string> = {
-  '7d': '7 дней',
-  '30d': '30 дней',
-  '90d': '90 дней',
-};
-
-const PLATFORM_LABEL: Record<SmmPlatform, string> = {
-  instagram: 'Instagram',
-  facebook: 'Facebook',
-  vk: 'VK',
-  tiktok: 'TikTok',
-  other: 'Другое',
-};
-
 const PLATFORM_COLORS: Record<SmmPlatform, string> = {
   instagram: '#e1306c',
   facebook: '#1877f2',
+  telegram: '#229ED9',
   vk: '#4c75a3',
   tiktok: '#25f4ee',
   other: '#9ca3af',
 };
 
+const CHART_PLATFORMS: SmmPlatform[] = ['instagram', 'facebook', 'telegram', 'vk'];
+
 interface FollowersChartPoint {
   date: string;
-  instagram?: number;
-  facebook?: number;
-  vk?: number;
-  tiktok?: number;
-  other?: number;
+  [key: string]: number | string | undefined;
 }
 
-const FollowersTooltip: React.FC<any> = ({ active, payload, label }) => {
+type ChartMetric = 'followers' | 'reach' | 'likes' | 'comments' | 'videoViews';
+
+const FollowersTooltip: React.FC<any> = ({ active, payload, label, locale }) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl max-w-[260px]">
-      <div className="font-medium mb-1">{label}</div>
+    <div className="rounded-2xl border border-slate-700/70 bg-slate-900/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl max-w-[260px]">
+      <div className="font-semibold text-slate-100 mb-1">{label}</div>
       {payload.map((p: any) => (
-        <div key={p.dataKey} className="text-slate-300">
+        <div key={p.dataKey} className="text-slate-100/90">
           <span className="inline-block w-3 h-3 rounded-full mr-1 align-middle"
             style={{ background: p.color }} />
           <span className="align-middle">
-            {p.name}: {p.value?.toLocaleString?.('ru-RU') ?? p.value}
+            {p.name}: {p.value?.toLocaleString?.(locale) ?? p.value}
           </span>
         </div>
       ))}
@@ -81,11 +74,22 @@ const FollowersTooltip: React.FC<any> = ({ active, payload, label }) => {
 };
 
 export const SmmPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
+  const periodLabel: Record<PeriodPreset, string> = {
+    '7d': t('crm.marketingSmm.periods.7d'),
+    '30d': t('crm.marketingSmm.periods.30d'),
+    '90d': t('crm.marketingSmm.periods.90d'),
+  };
+  const platformLabel = (platform: SmmPlatform) =>
+    t(`crm.marketingSmm.platforms.${platform}`);
   const [preset, setPreset] = useState<PeriodPreset>('30d');
   const [range, setRange] = useState<DateRange>({});
   const [profiles, setProfiles] = useState<SmmProfile[]>([]);
   const [stats, setStats] = useState<SmmStatsResponse | null>(null);
+  const [compareStats, setCompareStats] = useState<SmmStatsResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [compareLoading, setCompareLoading] = useState(false);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState<{
@@ -100,6 +104,28 @@ export const SmmPage: React.FC = () => {
     note: '',
   });
   const [savingProfile, setSavingProfile] = useState(false);
+  const [metaLoading, setMetaLoading] = useState(false);
+  const [metaError, setMetaError] = useState<string | null>(null);
+  const [metaStatus, setMetaStatus] = useState<string | null>(null);
+  const [metaSyncLoading, setMetaSyncLoading] = useState(false);
+  const [integrationsOpen, setIntegrationsOpen] = useState(false);
+  const [chartMetric, setChartMetric] = useState<ChartMetric>('followers');
+  const [activeTab, setActiveTab] = useState<'profiles' | 'integrations'>('profiles');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [platformFilter, setPlatformFilter] = useState<SmmPlatform | 'all'>('all');
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [metaAssets, setMetaAssets] = useState<{
+    pages: Array<{
+      id: string;
+      name: string;
+      username: string | null;
+      link: string | null;
+      instagramBusinessId: string | null;
+      instagramUsername: string | null;
+    }>;
+  } | null>(null);
+  const metaConnected = Boolean(metaAssets && !metaError);
+  const [hiddenMetaPages, setHiddenMetaPages] = useState<Set<string>>(new Set());
 
   // ------ helpers: период
 
@@ -131,37 +157,187 @@ export const SmmPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const raw = window.localStorage.getItem('smm.meta.hiddenPages');
+    if (!raw) return;
+    try {
+      const ids = JSON.parse(raw);
+      if (Array.isArray(ids)) {
+        setHiddenMetaPages(new Set(ids));
+      }
+    } catch {
+      // ignore bad local storage
+    }
+  }, []);
+
+  useEffect(() => {
+    const ids = Array.from(hiddenMetaPages);
+    window.localStorage.setItem('smm.meta.hiddenPages', JSON.stringify(ids));
+  }, [hiddenMetaPages]);
+
+  const reloadProfiles = async () => {
+    setLoadingProfiles(true);
+    try {
+      const data = await fetchSmmProfiles();
+      setProfiles(data);
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || t('crm.marketingSmm.errors.profiles'));
+    } finally {
+      setLoadingProfiles(false);
+    }
+  };
+
+  const reloadStats = async () => {
+    if (!range.from || !range.to) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetchSmmStats({
+        from: range.from,
+        to: range.to,
+      });
+      setStats(res);
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || t('crm.marketingSmm.errors.stats'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reloadCompareStats = async () => {
+    if (!range.from || !range.to) return;
+    setCompareLoading(true);
+    try {
+      const start = new Date(`${range.from}T00:00:00Z`);
+      const end = new Date(`${range.to}T00:00:00Z`);
+      const days =
+        Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+      const prevEnd = new Date(start);
+      prevEnd.setUTCDate(start.getUTCDate() - 1);
+      const prevStart = new Date(prevEnd);
+      prevStart.setUTCDate(prevEnd.getUTCDate() - (days - 1));
+
+      const prevRange = {
+        from: prevStart.toISOString().slice(0, 10),
+        to: prevEnd.toISOString().slice(0, 10),
+      };
+      const res = await fetchSmmStats(prevRange);
+      setCompareStats(res);
+    } catch (e: any) {
+      console.error(e);
+      setCompareStats(null);
+    } finally {
+      setCompareLoading(false);
+    }
+  };
+
+  const loadMetaAssets = async () => {
+    setMetaLoading(true);
+    setMetaError(null);
+    try {
+      const data = await fetchMetaAssets();
+      setMetaAssets(data);
+    } catch (err: any) {
+      setMetaError(err?.message || t('crm.marketingSmm.errors.metaAssets'));
+    } finally {
+      setMetaLoading(false);
+    }
+  };
+
+  const connectMeta = async () => {
+    setMetaError(null);
+    setMetaStatus(null);
+    try {
+      const { url } = await getMetaAuthUrl('/app/marketing/smm');
+      window.location.href = url;
+    } catch (err: any) {
+      setMetaError(err?.message || t('crm.marketingSmm.errors.metaConnect'));
+    }
+  };
+
+  const handleConnectAsset = async (payload: { platform: 'facebook' | 'instagram'; pageId?: string; igUserId?: string }) => {
+    setMetaStatus(null);
+    setMetaError(null);
+    try {
+      await connectMetaProfile(payload);
+      await reloadProfiles();
+      await reloadStats();
+      setMetaStatus(t('crm.marketingSmm.meta.profileAdded'));
+    } catch (err: any) {
+      setMetaError(err?.message || t('crm.marketingSmm.errors.metaAdd'));
+    }
+  };
+
+  const handleDisconnectProfile = async (profileId: string) => {
+    setMetaStatus(null);
+    setMetaError(null);
+    try {
+      await deleteSmmProfile(profileId);
+      await reloadProfiles();
+      await reloadStats();
+      setMetaStatus(t('crm.marketingSmm.meta.profileRemoved'));
+    } catch (err: any) {
+      setMetaError(err?.message || t('crm.marketingSmm.errors.metaRemove'));
+    }
+  };
+
+  const handleSyncMetaNow = async (days?: number) => {
+    setMetaSyncLoading(true);
+    setMetaError(null);
+    setMetaStatus(null);
+    try {
+      const res = await syncMetaNow(days ? { days } : undefined);
+      await reloadProfiles();
+      await reloadStats();
+      const scope = res.days
+        ? t('crm.marketingSmm.meta.scope.days', { days: res.days })
+        : t('crm.marketingSmm.meta.scope.today');
+      setMetaStatus(
+        t('crm.marketingSmm.meta.syncStatus', {
+          scope,
+          synced: res.synced,
+          skipped: res.skipped,
+          errors: res.errors,
+        }),
+      );
+    } catch (err: any) {
+      setMetaError(err?.message || t('crm.marketingSmm.errors.metaSync'));
+    } finally {
+      setMetaSyncLoading(false);
+    }
+  };
+
+  const handleHideMetaPage = (pageId: string) => {
+    setHiddenMetaPages((prev) => {
+      const next = new Set(prev);
+      next.add(pageId);
+      return next;
+    });
+  };
+
+  const handleResetHiddenPages = () => {
+    setHiddenMetaPages(new Set());
+  };
+
   // ------ загрузка профилей
 
   useEffect(() => {
-    setLoadingProfiles(true);
-    fetchSmmProfiles()
-      .then(setProfiles)
-      .catch((e: any) => {
-        console.error(e);
-        setError(e.message || 'Не удалось загрузить SMM-профили');
-      })
-      .finally(() => setLoadingProfiles(false));
+    void reloadProfiles();
   }, []);
 
   // ------ загрузка статов
 
   useEffect(() => {
     if (!range.from || !range.to) return;
-    setLoading(true);
-    setError(null);
-
-    fetchSmmStats({
-      from: range.from,
-      to: range.to,
-    })
-      .then((res) => setStats(res))
-      .catch((e: any) => {
-        console.error(e);
-        setError(e.message || 'Не удалось загрузить SMM-статистику');
-      })
-      .finally(() => setLoading(false));
+    void reloadStats();
+    void reloadCompareStats();
   }, [range.from, range.to]);
+
+  useEffect(() => {
+    void loadMetaAssets();
+  }, []);
 
   // ------ агрегаты
 
@@ -179,6 +355,35 @@ export const SmmPage: React.FC = () => {
     return map;
   }, [stats]);
 
+  const latestFollowersByProfileCompare = useMemo(() => {
+    const map = new Map<string, { followers: number; platform: SmmPlatform }>();
+    if (!compareStats?.items?.length) return map;
+
+    for (const row of compareStats.items) {
+      map.set(row.profileId, {
+        followers: row.followers || 0,
+        platform: row.platform || 'other',
+      });
+    }
+    return map;
+  }, [compareStats]);
+
+  const getConnectedFacebookProfile = (pageId: string) =>
+    profiles.find(
+      (p) =>
+        p.platform === 'facebook' &&
+        p.meta?.provider === 'meta' &&
+        p.meta?.pageId === pageId,
+    ) || null;
+
+  const getConnectedInstagramProfile = (igUserId: string) =>
+    profiles.find(
+      (p) =>
+        p.platform === 'instagram' &&
+        p.meta?.provider === 'meta' &&
+        p.meta?.igUserId === igUserId,
+    ) || null;
+
   const totalFollowers = useMemo(() => {
     let sum = 0;
     for (const v of latestFollowersByProfile.values()) {
@@ -186,6 +391,14 @@ export const SmmPage: React.FC = () => {
     }
     return sum;
   }, [latestFollowersByProfile]);
+
+  const compareTotalFollowers = useMemo(() => {
+    let sum = 0;
+    for (const v of latestFollowersByProfileCompare.values()) {
+      sum += v.followers;
+    }
+    return sum;
+  }, [latestFollowersByProfileCompare]);
 
   // прирост фолловеров за период: берём первые и последние значения по каждому профилю
   const followersDeltaTotal = useMemo(() => {
@@ -209,15 +422,118 @@ export const SmmPage: React.FC = () => {
     return delta;
   }, [stats]);
 
+  const compareFollowersDeltaTotal = useMemo(() => {
+    if (!compareStats?.items?.length) return 0;
+
+    const firstByProfile = new Map<string, number>();
+    const lastByProfile = new Map<string, number>();
+
+    for (const row of compareStats.items) {
+      if (!firstByProfile.has(row.profileId)) {
+        firstByProfile.set(row.profileId, row.followers || 0);
+      }
+      lastByProfile.set(row.profileId, row.followers || 0);
+    }
+
+    let delta = 0;
+    for (const [id, first] of firstByProfile.entries()) {
+      const last = lastByProfile.get(id) ?? first;
+      delta += last - first;
+    }
+    return delta;
+  }, [compareStats]);
+
   const totalImpressions = useMemo(() => {
     if (!stats?.items?.length) return 0;
     return stats.items.reduce((s, r) => s + (r.impressions || 0), 0);
   }, [stats]);
 
+  const compareTotalImpressions = useMemo(() => {
+    if (!compareStats?.items?.length) return 0;
+    return compareStats.items.reduce((s, r) => s + (r.impressions || 0), 0);
+  }, [compareStats]);
+
+  const totalReach = useMemo(() => {
+    if (!stats?.items?.length) return 0;
+    return stats.items.reduce((s, r) => s + (r.reach || 0), 0);
+  }, [stats]);
+
+  const compareTotalReach = useMemo(() => {
+    if (!compareStats?.items?.length) return 0;
+    return compareStats.items.reduce((s, r) => s + (r.reach || 0), 0);
+  }, [compareStats]);
+
+  const totalLikes = useMemo(() => {
+    if (!stats?.items?.length) return 0;
+    return stats.items.reduce((s, r) => s + (r.likes || 0), 0);
+  }, [stats]);
+
+  const compareTotalLikes = useMemo(() => {
+    if (!compareStats?.items?.length) return 0;
+    return compareStats.items.reduce((s, r) => s + (r.likes || 0), 0);
+  }, [compareStats]);
+
+  const totalComments = useMemo(() => {
+    if (!stats?.items?.length) return 0;
+    return stats.items.reduce((s, r) => s + (r.comments || 0), 0);
+  }, [stats]);
+
+  const compareTotalComments = useMemo(() => {
+    if (!compareStats?.items?.length) return 0;
+    return compareStats.items.reduce((s, r) => s + (r.comments || 0), 0);
+  }, [compareStats]);
+
   const totalVideoViews = useMemo(() => {
     if (!stats?.items?.length) return 0;
     return stats.items.reduce((s, r) => s + (r.videoViews || 0), 0);
   }, [stats]);
+
+  const compareTotalVideoViews = useMemo(() => {
+    if (!compareStats?.items?.length) return 0;
+    return compareStats.items.reduce((s, r) => s + (r.videoViews || 0), 0);
+  }, [compareStats]);
+
+  const totalEngagementRate = useMemo(() => {
+    if (!stats?.items?.length) return 0;
+    const totalEngagement = stats.items.reduce(
+      (s, r) => s + (r.likes || 0) + (r.comments || 0),
+      0,
+    );
+    const base = totalReach || 0;
+    if (!base) return 0;
+    return (totalEngagement / base) * 100;
+  }, [stats, totalReach]);
+
+  const compareEngagementRate = useMemo(() => {
+    if (!compareStats?.items?.length) return 0;
+    const totalEngagement = compareStats.items.reduce(
+      (s, r) => s + (r.likes || 0) + (r.comments || 0),
+      0,
+    );
+    const base = compareTotalReach || 0;
+    if (!base) return 0;
+    return (totalEngagement / base) * 100;
+  }, [compareStats, compareTotalReach]);
+
+  const hasCompareData = Boolean(compareStats?.items?.length);
+
+  const formatDelta = (current: number, previous: number) => {
+    if (!previous && previous !== 0) return t('crm.marketingSmm.compare.dash');
+    if (!previous && !current) return t('crm.marketingSmm.compare.dash');
+    if (!previous) {
+      return `+${current.toLocaleString(locale)}`;
+    }
+    const diff = current - previous;
+    const pct = (diff / previous) * 100;
+    const sign = diff >= 0 ? '+' : '';
+    return `${sign}${diff.toLocaleString(locale)} (${sign}${pct.toFixed(1)}%)`;
+  };
+
+  const renderCompare = (current: number, previous: number) => {
+    if (compareLoading) return t('crm.marketingSmm.compare.loading');
+    if (!hasCompareData) return t('crm.marketingSmm.compare.noData');
+    return formatDelta(current, previous);
+  };
 
   // ------ данные для графика
 
@@ -232,13 +548,27 @@ export const SmmPage: React.FC = () => {
 
       const point =
         byDate.get(date) ||
-        ({
-          date,
-        } as FollowersChartPoint);
+        (() => {
+          const base = { date } as FollowersChartPoint;
+          CHART_PLATFORMS.forEach((p) => {
+            (base as any)[p] = 0;
+          });
+          return base;
+        })();
 
       const platformKey = platform as keyof FollowersChartPoint;
+      const metricValue =
+        chartMetric === 'followers'
+          ? row.followers
+          : chartMetric === 'reach'
+            ? row.reach
+            : chartMetric === 'likes'
+              ? row.likes
+              : chartMetric === 'comments'
+                ? row.comments
+                : row.videoViews;
       (point as any)[platformKey] =
-    Number((point as any)[platformKey] || 0) + Number(row.followers || 0);
+        Number((point as any)[platformKey] || 0) + Number(metricValue || 0);
 
       byDate.set(date, point);
     }
@@ -246,7 +576,174 @@ export const SmmPage: React.FC = () => {
     return Array.from(byDate.values()).sort((a, b) =>
       a.date.localeCompare(b.date),
     );
+  }, [stats, chartMetric]);
+
+  const chartDataWithCompare: FollowersChartPoint[] = useMemo(() => {
+    if (!compareStats?.items?.length || chartData.length === 0) return chartData;
+
+    const byDate = new Map<string, FollowersChartPoint>();
+    for (const row of compareStats.items) {
+      const date = row.date;
+      const platform: SmmPlatform = row.platform || 'other';
+      if (!CHART_PLATFORMS.includes(platform)) continue;
+
+      const point =
+        byDate.get(date) ||
+        (() => {
+          const base = { date } as FollowersChartPoint;
+          CHART_PLATFORMS.forEach((p) => {
+            (base as any)[p] = 0;
+          });
+          return base;
+        })();
+
+      const platformKey = platform as keyof FollowersChartPoint;
+      const metricValue =
+        chartMetric === 'followers'
+          ? row.followers
+          : chartMetric === 'reach'
+            ? row.reach
+            : chartMetric === 'likes'
+              ? row.likes
+              : chartMetric === 'comments'
+                ? row.comments
+                : row.videoViews;
+      (point as any)[platformKey] =
+        Number((point as any)[platformKey] || 0) + Number(metricValue || 0);
+      byDate.set(date, point);
+    }
+
+    const comparePoints = Array.from(byDate.values()).sort((a, b) =>
+      a.date.localeCompare(b.date),
+    );
+
+    return chartData.map((point, index) => {
+      const comparePoint = comparePoints[index];
+      if (!comparePoint) return point;
+      const next = { ...point } as FollowersChartPoint;
+      CHART_PLATFORMS.forEach((platform) => {
+        (next as any)[`${platform}Prev`] = (comparePoint as any)[platform] || 0;
+      });
+      return next;
+    });
+  }, [compareStats, chartData, chartMetric]);
+
+  const profileTotals = useMemo(() => {
+    const map = new Map<string, SmmProfileLastStat>();
+    if (!stats?.items?.length) return map;
+
+    for (const row of stats.items) {
+      const existing = map.get(row.profileId);
+      if (!existing) {
+        map.set(row.profileId, {
+          date: row.date,
+          followers: row.followers || 0,
+          impressions: row.impressions || 0,
+          reach: row.reach || 0,
+          profileViews: row.profileViews || 0,
+          likes: row.likes || 0,
+          comments: row.comments || 0,
+          videoViews: row.videoViews || 0,
+        });
+        continue;
+      }
+
+      existing.date = row.date;
+      existing.followers = row.followers || existing.followers;
+      existing.impressions += row.impressions || 0;
+      existing.reach += row.reach || 0;
+      existing.profileViews += row.profileViews || 0;
+      existing.likes += row.likes || 0;
+      existing.comments += row.comments || 0;
+      existing.videoViews += row.videoViews || 0;
+    }
+
+    return map;
   }, [stats]);
+
+  const tableProfiles = useMemo(
+    () => profiles.filter((p) => !['tiktok', 'other'].includes(p.platform)),
+    [profiles],
+  );
+
+  const filteredProfiles = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    return tableProfiles.filter((p) => {
+      if (platformFilter !== 'all' && p.platform !== platformFilter) {
+        return false;
+      }
+      if (!normalized) return true;
+      return p.handle.toLowerCase().includes(normalized);
+    });
+  }, [tableProfiles, searchQuery, platformFilter]);
+
+  const pagedProfiles = useMemo(
+    () => filteredProfiles.slice(0, visibleCount),
+    [filteredProfiles, visibleCount],
+  );
+
+  const canLoadMore = filteredProfiles.length > visibleCount;
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [searchQuery, platformFilter]);
+
+  const platformTotals = useMemo(() => {
+    const totals = new Map<SmmPlatform, SmmProfileLastStat>();
+    if (!stats?.items?.length) return totals;
+
+    for (const row of stats.items) {
+      const platform = row.platform || 'other';
+      const existing = totals.get(platform);
+      if (!existing) {
+        totals.set(platform, {
+          date: row.date,
+          followers: row.followers || 0,
+          impressions: row.impressions || 0,
+          reach: row.reach || 0,
+          profileViews: row.profileViews || 0,
+          likes: row.likes || 0,
+          comments: row.comments || 0,
+          videoViews: row.videoViews || 0,
+        });
+        continue;
+      }
+      existing.date = row.date;
+      existing.followers += row.followers || 0;
+      existing.impressions += row.impressions || 0;
+      existing.reach += row.reach || 0;
+      existing.profileViews += row.profileViews || 0;
+      existing.likes += row.likes || 0;
+      existing.comments += row.comments || 0;
+      existing.videoViews += row.videoViews || 0;
+    }
+
+    return totals;
+  }, [stats]);
+
+  const zeroMetricNotes = useMemo(() => {
+    if (!stats?.items?.length) return [];
+    const notes: string[] = [];
+
+    const ig = platformTotals.get('instagram');
+    if (ig) {
+      if (ig.videoViews === 0) {
+        notes.push(t('crm.marketingSmm.zeroNotes.igVideo'));
+      }
+      if (ig.likes === 0 && ig.comments === 0 && ig.reach > 0) {
+        notes.push(t('crm.marketingSmm.zeroNotes.igEngagement'));
+      }
+    }
+
+    const fb = platformTotals.get('facebook');
+    if (fb) {
+      if (fb.reach === 0 && fb.impressions === 0) {
+        notes.push(t('crm.marketingSmm.zeroNotes.fbReach'));
+      }
+    }
+
+    return notes;
+  }, [platformTotals, stats]);
 
   // ------ создание профиля
 
@@ -271,14 +768,14 @@ export const SmmPage: React.FC = () => {
       }));
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Не удалось создать профиль');
+      setError(err.message || t('crm.marketingSmm.errors.createProfile'));
     } finally {
       setSavingProfile(false);
     }
   };
 
   const handleDeleteProfile = async (p: SmmProfile) => {
-    if (!window.confirm(`Удалить профиль ${PLATFORM_LABEL[p.platform]} @${p.handle}?`)) {
+    if (!window.confirm(t('crm.marketingSmm.profiles.confirmDelete', { platform: platformLabel(p.platform), handle: p.handle }))) {
       return;
     }
     try {
@@ -286,7 +783,7 @@ export const SmmPage: React.FC = () => {
       setProfiles((prev) => prev.filter((x) => x.id !== p.id));
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Не удалось удалить профиль');
+      setError(err.message || t('crm.marketingSmm.errors.deleteProfile'));
     }
   };
 
@@ -299,21 +796,22 @@ export const SmmPage: React.FC = () => {
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Маркетинг · SMM
+              {t('crm.marketingSmm.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Соцсети и динамика аудитории
+              {t('crm.marketingSmm.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Хранение профилей соцсетей (Instagram, Facebook, VK, TikTok) и
-              дневной статистики: подписчики, охват, просмотры, вовлечение.
+              {t('crm.marketingSmm.subtitle')}
             </p>
           </div>
 
           <div className="flex flex-col items-stretch md:items-end gap-2">
             {/* Период */}
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800/80 px-2 py-1">
-              <span className="text-[11px] text-slate-500 pl-1">Период</span>
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+              <span className="text-[11px] text-slate-600 pl-1">
+                {t('crm.marketingSmm.periodLabel')}
+              </span>
               {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
                 <button
                   key={p}
@@ -322,13 +820,27 @@ export const SmmPage: React.FC = () => {
                   className={
                     'px-3 py-1.5 rounded-xl text-[11px] transition ' +
                     (preset === p
-                      ? 'bg-sky-500 text-slate-950 font-semibold shadow-[0_0_0_1px_rgba(56,189,248,0.3)]'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900')
+                      ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                   }
                 >
                   {periodLabel[p]}
                 </button>
               ))}
+            </div>
+            {range.from && range.to && (
+              <div className="text-[10px] text-slate-500 text-right">
+                {range.from} → {range.to}
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIntegrationsOpen(true)}
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-700 hover:border-slate-300"
+              >
+                {t('crm.marketingSmm.integrations.kicker')}
+              </button>
             </div>
           </div>
         </section>
@@ -337,64 +849,94 @@ export const SmmPage: React.FC = () => {
           <div className="text-[11px] text-red-400">{error}</div>
         )}
 
+        {metaError && (
+          <div className="text-[11px] text-rose-500">{metaError}</div>
+        )}
+
+        {metaStatus && (
+          <div className="text-[11px] text-emerald-500">{metaStatus}</div>
+        )}
+
         {/* KPI блоки */}
         <section className="grid grid-cols-1 gap-3 md:grid-cols-4 md:gap-4">
-          <div className="rounded-3xl bg-gradient-to-br from-slate-950/90 via-slate-900/90 to-slate-950/90 border border-slate-800/80 px-4 py-4 flex flex-col justify-between">
-            <div className="text-[11px] text-slate-400 mb-1">
-              Активные профили
+          <div className="rounded-3xl bg-white border border-slate-200 px-4 py-4 flex flex-col justify-between shadow-sm">
+            <div className="text-[11px] text-slate-500 mb-1">
+              {t('crm.marketingSmm.kpi.activeProfiles')}
             </div>
-            <div className="text-2xl font-semibold text-slate-50">
-              {profiles.length.toLocaleString('ru-RU')}
+            <div className="text-2xl font-semibold text-slate-900">
+              {profiles.length.toLocaleString(locale)}
             </div>
             <div className="text-[11px] text-slate-500 mt-2">
-              Суммарное количество профилей, подгруженных в CRM.
+              {t('crm.marketingSmm.kpi.activeProfilesHint')}
             </div>
           </div>
 
-          <div className="rounded-3xl bg-gradient-to-br from-sky-500/10 via-sky-500/5 to-slate-950 border border-sky-500/40 px-4 py-4 flex flex-col justify-between">
-            <div className="text-[11px] text-sky-300 mb-1">
-              Подписчики (текущие)
+          <div className="rounded-3xl bg-sky-50 border border-sky-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+            <div className="text-[11px] text-sky-600 mb-1">
+              {t('crm.marketingSmm.kpi.followersCurrent')}
             </div>
-            <div className="text-2xl font-semibold text-sky-300">
-              {totalFollowers.toLocaleString('ru-RU')}
+            <div className="text-2xl font-semibold text-sky-700">
+              {totalFollowers.toLocaleString(locale)}
             </div>
-            <div className="text-[11px] text-sky-100/70 mt-2">
-              Сумма подписчиков по всем профилям на последнюю дату.
+            <div className="text-[11px] text-sky-700/70 mt-1">
+              {t('crm.marketingSmm.compareLabel')}: {renderCompare(totalFollowers, compareTotalFollowers)}
+            </div>
+            <div className="text-[11px] text-sky-700/70 mt-2">
+              {t('crm.marketingSmm.kpi.followersHint')}
             </div>
           </div>
 
-          <div className="rounded-3xl bg-gradient-to-br from-emerald-500/10 via-emerald-400/10 to-slate-950 border border-emerald-500/40 px-4 py-4 flex flex-col justify-between">
-            <div className="text-[11px] text-emerald-300 mb-1">
-              Прирост подписчиков
+          <div className="rounded-3xl bg-emerald-50 border border-emerald-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+            <div className="text-[11px] text-emerald-600 mb-1">
+              {t('crm.marketingSmm.kpi.followersDelta')}
             </div>
-            <div className="text-2xl font-semibold text-emerald-300">
+            <div className="text-2xl font-semibold text-emerald-700">
               {followersDeltaTotal >= 0 ? '+' : ''}
-              {followersDeltaTotal.toLocaleString('ru-RU')}
+              {followersDeltaTotal.toLocaleString(locale)}
             </div>
-            <div className="text-[11px] text-emerald-200/70 mt-2">
-              Разница между началом и концом выбранного периода.
+            <div className="text-[11px] text-emerald-700/70 mt-1">
+              {t('crm.marketingSmm.compareLabel')}: {renderCompare(followersDeltaTotal, compareFollowersDeltaTotal)}
+            </div>
+            <div className="text-[11px] text-emerald-700/70 mt-2">
+              {t('crm.marketingSmm.kpi.followersDeltaHint')}
             </div>
           </div>
 
-          <div className="rounded-3xl bg-gradient-to-br from-fuchsia-500/10 via-rose-500/5 to-slate-950 border border-fuchsia-500/40 px-4 py-4 flex flex-col justify-between">
-            <div className="text-[11px] text-fuchsia-300 mb-1">
-              Охват и видео-просмотры
+          <div className="rounded-3xl bg-rose-50 border border-rose-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+            <div className="text-[11px] text-rose-600 mb-1">
+              {t('crm.marketingSmm.kpi.reachEngagement')}
             </div>
-            <div className="text-sm font-semibold text-fuchsia-100">
-              Охват:{' '}
+            <div className="text-sm font-semibold text-rose-700">
+              {t('crm.marketingSmm.kpi.reachLabel')}:{' '}
               <span className="text-lg">
-                {totalImpressions.toLocaleString('ru-RU')}
+                {totalReach.toLocaleString(locale)}
               </span>
             </div>
-            <div className="text-[11px] text-fuchsia-100/70 mt-1">
-              Видео-просмотры:{' '}
-              {totalVideoViews.toLocaleString('ru-RU')}
+            <div className="text-[11px] text-rose-700/70 mt-1">
+              {t('crm.marketingSmm.compareLabel')}: {renderCompare(totalReach, compareTotalReach)}
             </div>
-            <div className="text-[11px] text-fuchsia-100/60 mt-1">
-              Сумма по всем платформам за период.
+            <div className="text-[11px] text-rose-700/70 mt-1">
+              {t('crm.marketingSmm.kpi.videoViewsLabel')}: {totalVideoViews.toLocaleString(locale)}
+            </div>
+            <div className="text-[11px] text-rose-700/70 mt-1">
+              {t('crm.marketingSmm.kpi.likesLabel')}: {totalLikes.toLocaleString(locale)} · {t('crm.marketingSmm.kpi.commentsLabel')}: {totalComments.toLocaleString(locale)}
+            </div>
+            <div className="text-[11px] text-rose-700/70 mt-1">
+              {t('crm.marketingSmm.kpi.erLabel')}: {totalEngagementRate.toFixed(2)}% · {t('crm.marketingSmm.compareLabel')}: {renderCompare(totalEngagementRate, compareEngagementRate)}
+            </div>
+            <div className="text-[11px] text-rose-700/60 mt-1">
+              {t('crm.marketingSmm.kpi.totalHint')}
             </div>
           </div>
         </section>
+
+        {zeroMetricNotes.length > 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[11px] text-slate-500">
+            {zeroMetricNotes.map((note) => (
+              <div key={note}>{note}</div>
+            ))}
+          </div>
+        )}
 
         {/* График + список профилей */}
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1.6fr)] md:gap-5">
@@ -403,29 +945,52 @@ export const SmmPage: React.FC = () => {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-slate-50">
-                  Динамика подписчиков по платформам
+                  {t('crm.marketingSmm.chart.title')}
                 </h2>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  Суммарное количество подписчиков по каждой платформе.
+                  {t('crm.marketingSmm.chart.subtitle')}
                 </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-1">
+                {([
+                  { key: 'followers', label: t('crm.marketingSmm.chart.metrics.followers') },
+                  { key: 'reach', label: t('crm.marketingSmm.chart.metrics.reach') },
+                  { key: 'likes', label: t('crm.marketingSmm.chart.metrics.likes') },
+                  { key: 'comments', label: t('crm.marketingSmm.chart.metrics.comments') },
+                  { key: 'videoViews', label: t('crm.marketingSmm.chart.metrics.videoViews') },
+                ] as { key: ChartMetric; label: string }[]).map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setChartMetric(m.key)}
+                    className={
+                      'px-2.5 py-1 rounded-full text-[10px] border transition ' +
+                      (chartMetric === m.key
+                        ? 'bg-white text-slate-900 border-white'
+                        : 'border-slate-700 text-slate-400 hover:text-slate-200')
+                    }
+                  >
+                    {m.label}
+                  </button>
+                ))}
               </div>
             </div>
 
             <div className="h-64 md:h-72">
               {loading && (
                 <div className="text-[11px] text-slate-400">
-                  Загружаем SMM-данные…
+                  {t('crm.marketingSmm.chart.loading')}
                 </div>
               )}
               {!loading && chartData.length === 0 && (
                 <div className="text-[11px] text-slate-500">
-                  Пока нет статистики за выбранный период.
+                  {t('crm.marketingSmm.chart.empty')}
                 </div>
               )}
               {!loading && chartData.length > 0 && (
                 <ResponsiveContainer>
                   <LineChart
-                    data={chartData}
+                    data={chartDataWithCompare}
                     margin={{ top: 10, right: 16, left: -16, bottom: 8 }}
                   >
                     <CartesianGrid
@@ -441,26 +1006,41 @@ export const SmmPage: React.FC = () => {
                       tick={{ fontSize: 10, fill: '#9ca3af' }}
                       width={52}
                     />
-                    <Tooltip content={<FollowersTooltip />} />
+                    <Tooltip content={<FollowersTooltip locale={locale} />} />
                     <Legend
                       iconType="circle"
                       wrapperStyle={{ fontSize: 10 }}
                     />
 
-                    {(Object.keys(PLATFORM_LABEL) as SmmPlatform[]).map(
-                      (platform) => (
+                    {CHART_PLATFORMS.map((platform) => (
+                      <Line
+                        key={platform}
+                        type="monotone"
+                        dataKey={platform}
+                        name={platformLabel(platform)}
+                        stroke={PLATFORM_COLORS[platform]}
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
+                        strokeWidth={1.6}
+                        isAnimationActive={false}
+                      />
+                    ))}
+                    {compareStats?.items?.length
+                      ? CHART_PLATFORMS.map((platform) => (
                         <Line
-                          key={platform}
+                          key={`${platform}-prev`}
                           type="monotone"
-                          dataKey={platform}
-                          name={PLATFORM_LABEL[platform]}
+                          dataKey={`${platform}Prev`}
+                          name={`${platformLabel(platform)} ${t('crm.marketingSmm.chart.prevSuffix')}`}
                           stroke={PLATFORM_COLORS[platform]}
+                          strokeDasharray="4 4"
+                          strokeOpacity={0.4}
                           dot={false}
                           strokeWidth={1.6}
                           isAnimationActive={false}
                         />
-                      ),
-                    )}
+                      ))
+                      : null}
                   </LineChart>
                 </ResponsiveContainer>
               )}
@@ -469,186 +1049,544 @@ export const SmmPage: React.FC = () => {
 
           {/* Профили + форма добавления */}
           <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5 text-xs flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-slate-50">
-                  Профили соцсетей
+                  {activeTab === 'profiles'
+                    ? t('crm.marketingSmm.profiles.title')
+                    : t('crm.marketingSmm.integrations.title')}
                 </h2>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  Список профилей, для которых приходят статы из n8n.
+                  {activeTab === 'profiles'
+                    ? t('crm.marketingSmm.profiles.subtitle')
+                    : t('crm.marketingSmm.integrations.subtitle')}
                 </p>
               </div>
-              <span className="text-[11px] text-slate-500">
-                Всего: {profiles.length}
-              </span>
-            </div>
-
-            {/* Форма */}
-            <form
-              onSubmit={handleCreateProfile}
-              className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-3 flex flex-col md:flex-row gap-2 md:items-end"
-            >
-              <div className="flex-1 flex flex-col gap-1">
-                <label className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                  Платформа
-                </label>
-                <select
-                  className="rounded-xl bg-slate-950/80 border border-slate-800/80 px-2 py-1.5 text-[11px] text-slate-100 outline-none"
-                  value={form.platform}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      platform: e.target
-                        .value as unknown as SmmPlatform,
-                    }))
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('profiles')}
+                  className={
+                    'rounded-full px-3 py-1 text-[10px] border transition ' +
+                    (activeTab === 'profiles'
+                      ? 'border-slate-100 bg-slate-100 text-slate-900'
+                      : 'border-slate-800 text-slate-400 hover:text-slate-200')
                   }
                 >
-                  <option value="instagram">Instagram</option>
-                  <option value="facebook">Facebook</option>
-                  <option value="vk">VK</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="other">Другое</option>
-                </select>
-              </div>
-
-              <div className="flex-1 flex flex-col gap-1">
-                <label className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                  Handle / @аккаунт
-                </label>
-                <input
-                  className="rounded-xl bg-slate-950/80 border border-slate-800/80 px-2 py-1.5 text-[11px] text-slate-100 outline-none"
-                  placeholder="@lumiva.agency"
-                  value={form.handle}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, handle: e.target.value }))
+                  {t('crm.marketingSmm.profiles.tabs.profiles')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('integrations')}
+                  className={
+                    'rounded-full px-3 py-1 text-[10px] border transition ' +
+                    (activeTab === 'integrations'
+                      ? 'border-slate-100 bg-slate-100 text-slate-900'
+                      : 'border-slate-800 text-slate-400 hover:text-slate-200')
                   }
-                />
+                >
+                  {t('crm.marketingSmm.profiles.tabs.integrations')}
+                </button>
               </div>
+              {activeTab === 'profiles' && (
+                <span className="text-[11px] text-slate-500">
+                  {t('crm.marketingSmm.profiles.shown', {
+                    shown: pagedProfiles.length,
+                    total: filteredProfiles.length,
+                  })}
+                </span>
+              )}
+            </div>
 
-              <div className="hidden md:flex-1 md:flex md:flex-col md:gap-1">
-                <label className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                  URL (опционально)
-                </label>
-                <input
-                  className="rounded-xl bg-slate-950/80 border border-slate-800/80 px-2 py-1.5 text-[11px] text-slate-100 outline-none"
-                  placeholder="https://instagram.com/..."
-                  value={form.url}
-                  onChange={(e) =>
-                    setForm((prev) => ({ ...prev, url: e.target.value }))
-                  }
-                />
-              </div>
+            {activeTab === 'profiles' && (
+              <>
+                <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex flex-1 items-center gap-2">
+                    <input
+                      className="flex-1 rounded-xl bg-slate-950/80 border border-slate-800/80 px-3 py-2 text-[11px] text-slate-100 outline-none"
+                      placeholder={t('crm.marketingSmm.profiles.searchPlaceholder')}
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <select
+                      className="rounded-xl bg-slate-950/80 border border-slate-800/80 px-2 py-2 text-[11px] text-slate-100 outline-none"
+                      value={platformFilter}
+                      onChange={(e) =>
+                        setPlatformFilter(e.target.value as SmmPlatform | 'all')
+                      }
+                    >
+                      <option value="all">{t('crm.marketingSmm.profiles.filterAll')}</option>
+                      <option value="instagram">{t('crm.marketingSmm.platforms.instagram')}</option>
+                      <option value="facebook">{t('crm.marketingSmm.platforms.facebook')}</option>
+                      <option value="vk">{t('crm.marketingSmm.platforms.vk')}</option>
+                      <option value="telegram">{t('crm.marketingSmm.platforms.telegram')}</option>
+                    </select>
+                  </div>
+                </div>
 
-              <button
-                type="submit"
-                disabled={!form.handle.trim() || savingProfile}
-                className="px-4 py-1.5 rounded-xl bg-sky-500 text-slate-950 text-[11px] font-semibold hover:bg-sky-400 disabled:opacity-60 disabled:cursor-not-allowed transition"
-              >
-                {savingProfile ? 'Добавляем…' : 'Добавить профиль'}
-              </button>
-            </form>
+                <form
+                  onSubmit={handleCreateProfile}
+                  className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-3 flex flex-col md:flex-row gap-2 md:items-end"
+                >
+                  <div className="flex-1 flex flex-col gap-1">
+                    <label className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      {t('crm.marketingSmm.profiles.form.platform')}
+                    </label>
+                    <select
+                      className="rounded-xl bg-slate-950/80 border border-slate-800/80 px-2 py-1.5 text-[11px] text-slate-100 outline-none"
+                      value={form.platform}
+                      onChange={(e) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          platform: e.target
+                            .value as unknown as SmmPlatform,
+                        }))
+                      }
+                    >
+                      <option value="instagram">{t('crm.marketingSmm.platforms.instagram')}</option>
+                      <option value="facebook">{t('crm.marketingSmm.platforms.facebook')}</option>
+                    </select>
+                  </div>
 
-            {/* Таблица профилей */}
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-[11px]">
-                <thead>
-                  <tr className="border-b border-slate-800/80 text-slate-400">
-                    <th className="py-1.5 pr-3 text-left font-normal">
-                      Профиль
-                    </th>
-                    <th className="py-1.5 px-3 text-left font-normal">
-                      Платформа
-                    </th>
-                    <th className="py-1.5 px-3 text-right font-normal">
-                      Подписчики
-                    </th>
-                    <th className="py-1.5 px-3 text-right font-normal">
-                      Охват / видео
-                    </th>
-                    <th className="py-1.5 px-3 text-right font-normal">
-                      Дата
-                    </th>
-                    <th className="py-1.5 px-3 text-right font-normal">
-                      Действия
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loadingProfiles && (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="py-3 text-center text-slate-500"
-                      >
-                        Загружаем профили…
-                      </td>
-                    </tr>
-                  )}
+                  <div className="flex-1 flex flex-col gap-1">
+                    <label className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      {t('crm.marketingSmm.profiles.form.handle')}
+                    </label>
+                    <input
+                      className="rounded-xl bg-slate-950/80 border border-slate-800/80 px-2 py-1.5 text-[11px] text-slate-100 outline-none"
+                      placeholder={t('crm.marketingSmm.profiles.form.handlePlaceholder')}
+                      value={form.handle}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, handle: e.target.value }))
+                      }
+                    />
+                  </div>
 
-                  {!loadingProfiles && profiles.length === 0 && (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="py-3 text-center text-slate-500"
-                      >
-                        Пока нет ни одного профиля. Добавь хотя бы один
-                        профиль выше.
-                      </td>
-                    </tr>
-                  )}
+                  <div className="hidden md:flex-1 md:flex md:flex-col md:gap-1">
+                    <label className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      {t('crm.marketingSmm.profiles.form.url')}
+                    </label>
+                    <input
+                      className="rounded-xl bg-slate-950/80 border border-slate-800/80 px-2 py-1.5 text-[11px] text-slate-100 outline-none"
+                      placeholder={t('crm.marketingSmm.profiles.form.urlPlaceholder')}
+                      value={form.url}
+                      onChange={(e) =>
+                        setForm((prev) => ({ ...prev, url: e.target.value }))
+                      }
+                    />
+                  </div>
 
-                  {!loadingProfiles &&
-                    profiles.map((p) => {
-                      const s = (p as any).lastStat as
-                        | SmmProfileLastStat
-                        | null
-                        | undefined;
-                      return (
-                        <tr
-                          key={p.id}
-                          className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
-                        >
-                          <td className="py-1.5 pr-3 text-slate-100 max-w-[200px] truncate">
-                            @{p.handle}
-                          </td>
-                          <td className="py-1.5 px-3 text-slate-300">
-                            {PLATFORM_LABEL[p.platform]}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-100">
-                            {s
-                              ? s.followers.toLocaleString('ru-RU')
-                              : '—'}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-300">
-                            {s
-                              ? `${s.impressions.toLocaleString(
-                                  'ru-RU',
-                                )} / ${s.videoViews.toLocaleString(
-                                  'ru-RU',
-                                )}`
-                              : '—'}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-400">
-                            {s?.date || '—'}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-400">
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteProfile(p)}
-                              className="text-[10px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300"
-                            >
-                              Удалить
-                            </button>
+                  <button
+                    type="submit"
+                    disabled={!form.handle.trim() || savingProfile}
+                    className="px-4 py-1.5 rounded-xl bg-sky-500 text-slate-950 text-[11px] font-semibold hover:bg-sky-400 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  >
+                    {savingProfile
+                      ? t('crm.marketingSmm.profiles.form.adding')
+                      : t('crm.marketingSmm.profiles.form.add')}
+                  </button>
+                </form>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full border-collapse text-[11px]">
+                    <thead>
+                      <tr className="border-b border-slate-800/80 text-slate-400">
+                        <th className="py-1.5 pr-3 text-left font-normal">
+                          {t('crm.marketingSmm.profiles.table.headers.profile')}
+                        </th>
+                        <th className="py-1.5 px-3 text-left font-normal">
+                          {t('crm.marketingSmm.profiles.table.headers.platform')}
+                        </th>
+                        <th className="py-1.5 px-3 text-right font-normal">
+                          {t('crm.marketingSmm.profiles.table.headers.followers')}
+                        </th>
+                        <th className="py-1.5 px-3 text-right font-normal">
+                          {t('crm.marketingSmm.profiles.table.headers.reachLikesComments')}
+                        </th>
+                        <th className="py-1.5 px-3 text-right font-normal">
+                          {t('crm.marketingSmm.profiles.table.headers.erViews')}
+                        </th>
+                        <th className="py-1.5 px-3 text-right font-normal">
+                          {t('crm.marketingSmm.profiles.table.headers.date')}
+                        </th>
+                        <th className="py-1.5 px-3 text-right font-normal">
+                          {t('crm.marketingSmm.profiles.table.headers.actions')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loadingProfiles && (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="py-3 text-center text-slate-500"
+                          >
+                            {t('crm.marketingSmm.profiles.table.loading')}
                           </td>
                         </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
+                      )}
+
+                      {!loadingProfiles && filteredProfiles.length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={7}
+                            className="py-3 text-center text-slate-500"
+                          >
+                            {t('crm.marketingSmm.profiles.table.empty')}
+                          </td>
+                        </tr>
+                      )}
+
+                      {!loadingProfiles &&
+                        pagedProfiles.map((p) => {
+                          const totals = profileTotals.get(p.id);
+                          const s =
+                            totals ||
+                            ((p as any).lastStat as
+                              | SmmProfileLastStat
+                              | null
+                              | undefined);
+                          return (
+                            <tr
+                              key={p.id}
+                              className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
+                            >
+                              <td className="py-1.5 pr-3 text-slate-100 max-w-[200px] truncate">
+                                @{p.handle}
+                              </td>
+                              <td className="py-1.5 px-3 text-slate-300">
+                                {platformLabel(p.platform)}
+                              </td>
+                              <td className="py-1.5 px-3 text-right text-slate-100">
+                                {s
+                                  ? s.followers.toLocaleString(locale)
+                                  : t('crm.marketingSmm.compare.dash')}
+                              </td>
+                              <td className="py-1.5 px-3 text-right text-slate-300">
+                                {s
+                                  ? `${s.reach.toLocaleString(locale)} / ${s.likes.toLocaleString(
+                                      locale,
+                                    )} / ${s.comments.toLocaleString(locale)}`
+                                  : t('crm.marketingSmm.compare.dash')}
+                              </td>
+                              <td className="py-1.5 px-3 text-right text-slate-300">
+                                {s
+                                  ? `${s.reach
+                                      ? (((s.likes + s.comments) / s.reach) * 100).toFixed(2)
+                                      : '0.00'}% / ${s.videoViews.toLocaleString(locale)}`
+                                  : t('crm.marketingSmm.compare.dash')}
+                              </td>
+                              <td className="py-1.5 px-3 text-right text-slate-400">
+                                {s?.date || t('crm.marketingSmm.compare.dash')}
+                              </td>
+                              <td className="py-1.5 px-3 text-right text-slate-400">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteProfile(p)}
+                                  className="text-[10px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300"
+                                >
+                                  {t('crm.marketingSmm.profiles.delete')}
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+                {canLoadMore && (
+                  <button
+                    type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                  className="self-center rounded-full border border-slate-800 px-4 py-1.5 text-[11px] text-slate-300 hover:border-slate-600"
+                >
+                  {t('crm.marketingSmm.profiles.loadMore')}
+                </button>
+              )}
+            </>
+          )}
+
+            {activeTab === 'integrations' && (
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                        {t('crm.marketingSmm.integrations.connections')}
+                    </div>
+                    <div className="text-sm text-slate-100 mt-1">
+                        {t('crm.marketingSmm.integrations.metaStatus', {
+                          status: metaConnected
+                            ? t('crm.marketingSmm.meta.connected')
+                            : t('crm.marketingSmm.meta.disconnected'),
+                        })}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIntegrationsOpen(true)}
+                    className="rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-[11px] text-slate-100 hover:border-slate-500"
+                  >
+                    {t('crm.marketingSmm.integrations.manage')}
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      {t('crm.marketingSmm.integrations.vkTitle')}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-2">
+                      {t('crm.marketingSmm.integrations.inDev')}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-800/80 bg-slate-900/60 p-4">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                      {t('crm.marketingSmm.integrations.telegramTitle')}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-2">
+                      {t('crm.marketingSmm.integrations.inDev')}
+                  </div>
+                </div>
+              </div>
+              </div>
+            )}
           </div>
         </section>
       </div>
+
+      {integrationsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+          <div className="w-full max-w-[95vw] sm:max-w-[90vw] lg:max-w-[80vw] max-h-[90vh] overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl flex flex-col">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                  {t('crm.marketingSmm.integrations.kicker')}
+                </div>
+                <h2 className="text-lg font-semibold text-slate-900 mt-1">
+                  {t('crm.marketingSmm.popup.title')}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIntegrationsOpen(false)}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-500 hover:border-slate-300"
+              >
+                {t('crm.marketingSmm.popup.close')}
+              </button>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-2 max-h-[70vh] overflow-y-auto pr-1">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-semibold">
+                    M
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">
+                      {t('crm.marketingSmm.popup.metaTitle')}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {t('crm.marketingSmm.popup.statusLabel', {
+                        status: metaConnected
+                          ? t('crm.marketingSmm.meta.connected')
+                          : t('crm.marketingSmm.meta.disconnected'),
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={connectMeta}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-700 hover:border-slate-300"
+                  >
+                    {metaConnected
+                      ? t('crm.marketingSmm.popup.reconnect')
+                      : t('crm.marketingSmm.popup.connect')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSyncMetaNow()}
+                    className="rounded-xl border border-slate-200 bg-black px-3 py-2 text-[11px] text-white hover:bg-slate-900 disabled:opacity-60"
+                    disabled={metaSyncLoading}
+                  >
+                    {metaSyncLoading
+                      ? t('crm.marketingSmm.popup.syncing')
+                      : t('crm.marketingSmm.popup.syncNow')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={loadMetaAssets}
+                    className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 hover:border-slate-300"
+                  >
+                    {t('crm.marketingSmm.popup.accountList')}
+                  </button>
+                </div>
+                <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3 max-h-[42vh] overflow-y-auto">
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                    {t('crm.marketingSmm.popup.accountsTitle')}
+                    {hiddenMetaPages.size > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleResetHiddenPages}
+                        className="ml-2 text-[10px] text-slate-400 hover:text-slate-600"
+                      >
+                        {t('crm.marketingSmm.popup.showHidden')}
+                      </button>
+                    )}
+                  </div>
+                  {metaLoading && (
+                    <div className="text-[11px] text-slate-500 mt-2">
+                      {t('crm.marketingSmm.popup.loading')}
+                    </div>
+                  )}
+                  {!metaLoading && (!metaAssets || metaAssets.pages.length === 0) && (
+                    <div className="text-[11px] text-slate-500 mt-2">
+                      {t('crm.marketingSmm.popup.empty')}
+                    </div>
+                  )}
+                  {!metaLoading && metaAssets && metaAssets.pages.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {metaAssets.pages
+                        .filter((page) => !hiddenMetaPages.has(page.id))
+                        .map((page) => (
+                          <div key={page.id} className="rounded-xl border border-slate-200 px-3 py-2">
+                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                              <div className="min-w-0">
+                                <div className="text-[11px] text-slate-900 truncate">{page.name}</div>
+                                <div className="text-[10px] text-slate-500 truncate">
+                                  {page.link || t('crm.marketingSmm.popup.facebookPage')}
+                                </div>
+                                {page.instagramBusinessId && (
+                                  <div className="text-[10px] text-slate-500 truncate">
+                                    {t('crm.marketingSmm.popup.instagramPrefix', {
+                                      handle: page.instagramUsername || page.instagramBusinessId,
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleHideMetaPage(page.id)}
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-500 hover:border-slate-300"
+                                >
+                                  {t('crm.marketingSmm.popup.hide')}
+                                </button>
+                                {getConnectedFacebookProfile(page.id) ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleDisconnectProfile(getConnectedFacebookProfile(page.id)!.id)}
+                                  className="rounded-lg border border-rose-500/40 bg-rose-50 px-3 py-1.5 text-[10px] text-rose-600 hover:border-rose-400"
+                                >
+                                    {t('crm.marketingSmm.popup.disconnectFacebook')}
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConnectAsset({ platform: 'facebook', pageId: page.id })}
+                                  className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-700 hover:border-slate-300"
+                                >
+                                    {t('crm.marketingSmm.popup.addFacebook')}
+                                  </button>
+                                )}
+                                {page.instagramBusinessId && (
+                                  getConnectedInstagramProfile(page.instagramBusinessId) ? (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleDisconnectProfile(
+                                          getConnectedInstagramProfile(page.instagramBusinessId)!.id,
+                                        )
+                                      }
+                                      className="rounded-lg border border-rose-500/40 bg-rose-50 px-3 py-1.5 text-[10px] text-rose-600 hover:border-rose-400"
+                                    >
+                                      {t('crm.marketingSmm.popup.disconnectInstagram')}
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        handleConnectAsset({ platform: 'instagram', igUserId: page.instagramBusinessId })
+                                      }
+                                      className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-[10px] text-slate-700 hover:border-slate-300"
+                                    >
+                                      {t('crm.marketingSmm.popup.addInstagram')}
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center text-sm font-semibold">
+                      VK
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {t('crm.marketingSmm.popup.vkTitle')}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {t('crm.marketingSmm.popup.inDevLabel')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[11px] text-slate-500">
+                    {t('crm.marketingSmm.popup.vkDesc')}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-sky-100 text-sky-600 flex items-center justify-center text-sm font-semibold">
+                      TG
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {t('crm.marketingSmm.popup.tgTitle')}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {t('crm.marketingSmm.popup.inDevLabel')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[11px] text-slate-500">
+                    {t('crm.marketingSmm.popup.tgDesc')}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-semibold">
+                      TT
+                    </div>
+                    <div>
+                      <div className="text-sm font-semibold text-slate-900">
+                        {t('crm.marketingSmm.popup.tiktokTitle')}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {t('crm.marketingSmm.popup.soon')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2 text-[11px] text-slate-500">
+                    {t('crm.marketingSmm.popup.tiktokDesc')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };

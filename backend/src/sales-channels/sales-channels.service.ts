@@ -67,80 +67,74 @@ export class SalesChannelsService {
 
   // маленький хелпер для одного канала
   private async findIntegrationForChannel(
-    ch: SalesChannel,
-  ): Promise<IntegrationConnection | null> {
-    if (ch.integrationId) {
-      const byIntegrationId = await this.integrationsRepo.findOne({
-        where: { id: ch.integrationId, isDeleted: false },
-      });
-      if (byIntegrationId) return byIntegrationId;
-    }
-
-    const byChannelId = await this.integrationsRepo.findOne({
-      where: { channelId: ch.id, isDeleted: false },
+  ch: SalesChannel,
+  tenantId: string,
+): Promise<IntegrationConnection | null> {
+  if (ch.integrationId) {
+    const byIntegrationId = await this.integrationsRepo.findOne({
+      where: { id: ch.integrationId, tenantId, isDeleted: false } as any,
     });
-
-    return byChannelId ?? null;
+    if (byIntegrationId) return byIntegrationId;
   }
 
-  // ─────────────────────────────────────────────
-  // Список каналов
-  // ─────────────────────────────────────────────
-  async findAll(): Promise<SalesChannelDto[]> {
-    const channels = await this.repo.find({
-      where: { isDeleted: false },
-      order: { connectedAt: 'DESC' },
-    });
+  const byChannelId = await this.integrationsRepo.findOne({
+    where: { channelId: ch.id, tenantId, isDeleted: false } as any,
+  });
 
-    if (!channels.length) return [];
+  return byChannelId ?? null;
+}
+  // ✅ Список каналов ТОЛЬКО для tenant
+async findAllForTenant(tenantId: string): Promise<SalesChannelDto[]> {
+  const channels = await this.repo.find({
+    where: { tenantId, isDeleted: false } as any,
+    order: { connectedAt: 'DESC' },
+  });
 
-    const integrations = await this.integrationsRepo.find({
-      where: { isDeleted: false },
-    });
+  if (!channels.length) return [];
 
-    const byChannelId = new Map<string, IntegrationConnection>();
-    const byIntegrationId = new Map<string, IntegrationConnection>();
+  const integrations = await this.integrationsRepo.find({
+    where: { tenantId, isDeleted: false } as any,
+  });
 
-    for (const integ of integrations) {
-      if (integ.channelId) {
-        byChannelId.set(integ.channelId, integ);
-      }
-      byIntegrationId.set(integ.id, integ);
-    }
+  const byChannelId = new Map<string, IntegrationConnection>();
+  const byIntegrationId = new Map<string, IntegrationConnection>();
 
-    return channels.map((ch) => {
-      const integration =
-        (ch.integrationId && byIntegrationId.get(ch.integrationId)) ||
-        byChannelId.get(ch.id) ||
-        null;
-
-      return this.toDto(ch, integration);
-    });
+  for (const integ of integrations) {
+    if (integ.channelId) byChannelId.set(integ.channelId, integ);
+    byIntegrationId.set(integ.id, integ);
   }
 
-  // ─────────────────────────────────────────────
-  // Включить / выключить канал
-  // ─────────────────────────────────────────────
-  async toggleEnabled(id: string, isEnabled: boolean): Promise<SalesChannelDto> {
-    const ch = await this.repo.findOne({ where: { id } });
-    if (!ch) throw new NotFoundException('Channel not found');
+  return channels.map((ch) => {
+    const integration =
+      (ch.integrationId && byIntegrationId.get(ch.integrationId)) ||
+      byChannelId.get(ch.id) ||
+      null;
 
-    ch.isEnabled = isEnabled;
-    const saved = await this.repo.save(ch);
+    return this.toDto(ch, integration);
+  });
+}
 
-    const integration = await this.findIntegrationForChannel(saved);
-    return this.toDto(saved, integration);
-  }
+async toggleEnabledForTenant(
+  tenantId: string,
+  id: string,
+  isEnabled: boolean,
+): Promise<SalesChannelDto> {
+  const ch = await this.repo.findOne({ where: { id, tenantId } as any });
+  if (!ch) throw new NotFoundException('Channel not found');
 
-  // ─────────────────────────────────────────────
-  // Мягкое удаление
-  // ─────────────────────────────────────────────
-  async softDelete(id: string): Promise<void> {
-    const ch = await this.repo.findOne({ where: { id } });
-    if (!ch) return;
+  ch.isEnabled = isEnabled;
+  const saved = await this.repo.save(ch);
 
-    ch.isDeleted = true;
-    ch.isEnabled = false;
-    await this.repo.save(ch);
+  const integration = await this.findIntegrationForChannel(saved, tenantId);
+  return this.toDto(saved, integration);
+}
+
+async softDeleteForTenant(tenantId: string, id: string): Promise<void> {
+  const ch = await this.repo.findOne({ where: { id, tenantId } as any });
+  if (!ch) return;
+
+  ch.isDeleted = true;
+  ch.isEnabled = false;
+  await this.repo.save(ch);
   }
 }

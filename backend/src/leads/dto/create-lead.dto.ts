@@ -35,6 +35,26 @@ export class CreateLeadDto {
   @IsString()
   source?: string | null;
 
+  @IsOptional()
+  @IsString()
+  utmSource?: string | null;
+
+  @IsOptional()
+  @IsString()
+  utmMedium?: string | null;
+
+  @IsOptional()
+  @IsString()
+  utmCampaign?: string | null;
+
+  @IsOptional()
+  @IsString()
+  utmContent?: string | null;
+
+  @IsOptional()
+  @IsString()
+  utmTerm?: string | null;
+
   // ---- ответственный ----
   @IsOptional()
   @IsUUID()

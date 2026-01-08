@@ -7,20 +7,26 @@ import {
   Param,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
+
 import {
   IntegrationsService,
   type IntegrationConnectionDto,
 } from './integrations.service';
+
 import { CreateIntegrationConnectionDto } from './dto/create-integration-connection.dto';
 import { UpdateIntegrationConnectionDto } from './dto/update-integration-connection.dto';
+
 import { IntegrationRegistryService } from './integration-registry.service';
 import type { IntegrationKind } from './integration-kind.enum';
-import type {
-  TestConnectionResult,
-  SyncResult,
-} from './sales-integration.adapter';
+import type { TestConnectionResult, SyncResult } from './sales-integration.adapter';
 
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+
+@UseGuards(JwtAuthGuard)
 @Controller('integrations')
 export class IntegrationsController {
   constructor(
@@ -29,12 +35,14 @@ export class IntegrationsController {
   ) {}
 
   /**
-   * Список всех подключений интеграций
+   * Список всех подключений интеграций ТОЛЬКО своего tenant
    * GET /v1/integrations
    */
   @Get()
-  async list(): Promise<IntegrationConnectionDto[]> {
-    return this.svc.findAll();
+  async list(
+    @CurrentUser() user: CurrentUserPayload,
+  ): Promise<IntegrationConnectionDto[]> {
+    return this.svc.findAllForTenant(user.tenantId);
   }
 
   /**
@@ -47,62 +55,76 @@ export class IntegrationsController {
   }
 
   /**
-   * Создать подключение
+   * Создать подключение (в рамках своего tenant)
    * POST /v1/integrations
    */
   @Post()
   async create(
+    @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateIntegrationConnectionDto,
   ): Promise<IntegrationConnectionDto> {
-    return this.svc.create(dto);
+    return this.svc.createForTenant(user.tenantId, dto);
   }
 
   /**
-   * Получить одно подключение
+   * Получить одно подключение (в рамках своего tenant)
    * GET /v1/integrations/:id
    */
   @Get(':id')
-  async getOne(@Param('id') id: string): Promise<IntegrationConnectionDto> {
-    return this.svc.findOne(id);
+  async getOne(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ): Promise<IntegrationConnectionDto> {
+    return this.svc.findOneForTenant(user.tenantId, id);
   }
 
   /**
-   * Обновить подключение (имя, описание, канал, config, isEnabled и т.п.)
+   * Обновить подключение (в рамках своего tenant)
    * PATCH /v1/integrations/:id
    */
   @Patch(':id')
   async update(
+    @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
     @Body() dto: UpdateIntegrationConnectionDto,
   ): Promise<IntegrationConnectionDto> {
-    return this.svc.update(id, dto);
+    return this.svc.updateForTenant(user.tenantId, id, dto);
   }
 
   /**
-   * Мягкое удаление подключения
+   * Мягкое удаление (в рамках своего tenant)
    * DELETE /v1/integrations/:id
    */
   @Delete(':id')
-  async remove(@Param('id') id: string): Promise<{ ok: true }> {
-    await this.svc.softDelete(id);
+  async remove(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ): Promise<{ ok: true }> {
+    await this.svc.softDeleteForTenant(user.tenantId, id);
     return { ok: true };
   }
 
   /**
-   * Тест подключения
+   * Тест подключения (в рамках своего tenant)
    * POST /v1/integrations/:id/test
    */
   @Post(':id/test')
-  async test(@Param('id') id: string): Promise<TestConnectionResult> {
-    return this.svc.testConnection(id);
+  async test(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ): Promise<TestConnectionResult> {
+    return this.svc.testConnectionForTenant(user.tenantId, id);
   }
 
   /**
-   * Запуск синхронизации
+   * Запуск синхронизации (в рамках своего tenant)
    * POST /v1/integrations/:id/sync
    */
   @Post(':id/sync')
-  async sync(@Param('id') id: string): Promise<SyncResult> {
-    return this.svc.sync(id);
+  async sync(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ): Promise<SyncResult> {
+    return this.svc.syncForTenant(user.tenantId, id);
   }
 }

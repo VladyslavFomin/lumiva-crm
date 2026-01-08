@@ -1,13 +1,14 @@
 // frontend/src/pages/SetPasswordPage.tsx
 import React, { useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 const API_BASE = import.meta.env.VITE_PLATFORM_API_URL || "/v1";
 
 const SetPasswordPage: React.FC = () => {
+  const { t } = useTranslation();
   const [params] = useSearchParams();
-  const email = params.get("email");
-  const clientKey = params.get("clientKey");
+  const token = params.get("token");
 
   const navigate = useNavigate();
 
@@ -21,16 +22,16 @@ const SetPasswordPage: React.FC = () => {
     e.preventDefault();
     setError(null);
 
-    if (!email || !clientKey) {
-      setError("Ссылка недействительна: отсутствуют email или clientKey.");
+    if (!token) {
+      setError(t("crm.auth.setPassword.errors.missingToken"));
       return;
     }
 
     if (!password || password.length < 8) {
-      return setError("Пароль должен содержать минимум 8 символов");
+      return setError(t("crm.auth.setPassword.errors.shortPassword"));
     }
     if (password !== password2) {
-      return setError("Пароли не совпадают");
+      return setError(t("crm.auth.setPassword.errors.mismatch"));
     }
 
     setLoading(true);
@@ -40,15 +41,14 @@ const SetPasswordPage: React.FC = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email,
-          clientKey,
+          token,
           password,
         }),
       });
 
       if (!res.ok) {
         const msg = await res.json().catch(() => null);
-        throw new Error(msg?.message || "Ошибка установки пароля");
+        throw new Error(msg?.message || t("crm.auth.setPassword.errors.failed"));
       }
 
       setSuccess(true);
@@ -56,7 +56,7 @@ const SetPasswordPage: React.FC = () => {
       // через секунду уводим на логин
       setTimeout(() => navigate("/login"), 1200);
     } catch (e: any) {
-      setError(e.message || "Не удалось установить пароль");
+      setError(e.message || t("crm.auth.setPassword.errors.failed"));
     } finally {
       setLoading(false);
     }
@@ -99,25 +99,17 @@ const SetPasswordPage: React.FC = () => {
               marginBottom: "4px",
             }}
           >
-            Lumiva CRM
+            {t("crm.auth.setPassword.brand")}
           </div>
           <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "6px" }}>
-            Создание пароля
+            {t("crm.auth.setPassword.title")}
           </h1>
           <p style={{ fontSize: "14px", color: "#9ca3af" }}>
-            Задайте пароль для первого входа в систему.
+            {t("crm.auth.setPassword.subtitle")}
           </p>
-          {email && clientKey && (
-            <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "4px" }}>
-              Для: <span style={{ color: "#e5e7eb" }}>{email}</span>
-              <br />
-              Клиент:{" "}
-              <span style={{ color: "#e5e7eb" }}>{clientKey}</span>
-            </p>
-          )}
         </div>
 
-        {(!email || !clientKey) && (
+        {!token && (
           <div
             style={{
               marginBottom: "14px",
@@ -129,8 +121,7 @@ const SetPasswordPage: React.FC = () => {
               border: "1px solid rgba(248,113,113,0.4)",
             }}
           >
-            Ссылка не содержит необходимых параметров. Попросите администратора
-            выслать приглашение повторно.
+            {t("crm.auth.setPassword.tokenMissing")}
           </div>
         )}
 
@@ -162,9 +153,9 @@ const SetPasswordPage: React.FC = () => {
               textAlign: "center",
             }}
           >
-            Пароль успешно установлен.
+            {t("crm.auth.setPassword.success")}
             <br />
-            Сейчас перенаправим на страницу входа…
+            {t("crm.auth.setPassword.redirect")}
           </div>
         ) : (
           <form onSubmit={submit}>
@@ -176,13 +167,13 @@ const SetPasswordPage: React.FC = () => {
                 color: "#e5e7eb",
               }}
             >
-              Новый пароль
+              {t("crm.auth.setPassword.password")}
             </label>
             <input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Минимум 8 символов"
+              placeholder={t("crm.auth.setPassword.passwordPlaceholder")}
               style={inputStyle}
             />
 
@@ -195,39 +186,41 @@ const SetPasswordPage: React.FC = () => {
                 color: "#e5e7eb",
               }}
             >
-              Повторите пароль
+              {t("crm.auth.setPassword.confirm")}
             </label>
             <input
               type="password"
               value={password2}
               onChange={(e) => setPassword2(e.target.value)}
-              placeholder="Повторите пароль"
+              placeholder={t("crm.auth.setPassword.confirmPlaceholder")}
               style={inputStyle}
             />
 
             <button
               type="submit"
-              disabled={loading || !email || !clientKey}
+              disabled={loading || !token}
               style={{
                 width: "100%",
                 marginTop: "22px",
                 padding: "11px 14px",
                 borderRadius: "999px",
                 background:
-                  loading || !email || !clientKey
+                  loading || !token
                     ? "linear-gradient(135deg,#4f46e5aa,#06b6d4aa)"
                     : "linear-gradient(135deg,#4f46e5,#06b6d4)",
                 border: "none",
                 color: "white",
                 cursor:
-                  loading || !email || !clientKey ? "default" : "pointer",
+                  loading || !token ? "default" : "pointer",
                 fontSize: "15px",
                 fontWeight: 500,
                 boxShadow: "0 18px 40px rgba(37,99,235,0.45)",
                 transition: "transform 0.12s ease, box-shadow 0.12s ease",
               }}
             >
-              {loading ? "Сохраняем…" : "Установить пароль"}
+              {loading
+                ? t("crm.auth.setPassword.saving")
+                : t("crm.auth.setPassword.submit")}
             </button>
 
             <div
@@ -238,7 +231,7 @@ const SetPasswordPage: React.FC = () => {
                 textAlign: "center",
               }}
             >
-              Если ссылка не работает, обратитесь к администратору платформы.
+              {t("crm.auth.setPassword.footer")}
             </div>
           </form>
         )}

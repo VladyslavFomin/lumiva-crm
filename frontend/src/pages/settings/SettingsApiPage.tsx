@@ -1,5 +1,6 @@
 // frontend/src/pages/settings/SettingsApiPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchMarketingApiToken,
@@ -7,6 +8,7 @@ import {
 } from '../../api/marketing';
 
 export const SettingsApiPage: React.FC = () => {
+  const { t } = useTranslation();
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [rotating, setRotating] = useState(false);
@@ -21,9 +23,7 @@ export const SettingsApiPage: React.FC = () => {
       .then((t) => setToken(t))
       .catch((e: any) => {
         console.error(e);
-        setError(
-          e?.message || 'Не удалось загрузить API-токен для маркетинга',
-        );
+        setError(e?.message || t('crm.settings.api.errors.load'));
       })
       .finally(() => setLoading(false));
   }, []);
@@ -40,7 +40,7 @@ export const SettingsApiPage: React.FC = () => {
   };
 
   const handleRotate = async () => {
-    if (!confirm('Пересоздать токен? Старый перестанет работать.')) return;
+    if (!confirm(t('crm.settings.api.confirmRotate'))) return;
 
     setRotating(true);
     setError(null);
@@ -49,9 +49,7 @@ export const SettingsApiPage: React.FC = () => {
       setToken(newToken);
     } catch (e: any) {
       console.error(e);
-      setError(
-        e?.message || 'Не удалось пересоздать API-токен для маркетинга',
-      );
+      setError(e?.message || t('crm.settings.api.errors.rotate'));
     } finally {
       setRotating(false);
     }
@@ -62,15 +60,13 @@ export const SettingsApiPage: React.FC = () => {
       <div className="max-w-3xl mx-auto space-y-5 md:space-y-6 pb-10">
         <section>
           <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-            Настройки · API и интеграции
+            {t('crm.settings.api.sectionLabel')}
           </div>
           <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-            API для импорта маркетингового трафика
+            {t('crm.settings.api.title')}
           </h1>
           <p className="mt-1 text-xs text-slate-400 max-w-2xl">
-            Этот токен позволяет отправлять данные трафика и рекламы в CRM из
-            n8n, Google Apps Script и других интеграций. У каждого предприятия
-            свой токен, данные не пересекаются между компаниями.
+            {t('crm.settings.api.subtitle')}
           </p>
         </section>
 
@@ -78,19 +74,10 @@ export const SettingsApiPage: React.FC = () => {
           <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
             <div>
               <h2 className="text-sm font-semibold text-slate-50">
-                Маркетинг: импорт трафика
+                {t('crm.settings.api.cardTitle')}
               </h2>
               <p className="text-[11px] text-slate-500 max-w-xl">
-                Используйте этот токен в заголовке{' '}
-                <span className="font-mono text-slate-300">
-                  X-Api-Token
-                </span>{' '}
-                при запросах на{' '}
-                <span className="font-mono text-slate-300">
-                  POST /v1/marketing/traffic/import
-                </span>
-                . Все строки трафика будут автоматически привязаны к вашей
-                компании (tenant).
+                {t('crm.settings.api.cardHint')}
               </p>
             </div>
 
@@ -105,13 +92,15 @@ export const SettingsApiPage: React.FC = () => {
                   : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10')
               }
             >
-              {rotating ? 'Пересоздание…' : 'Пересоздать токен'}
+              {rotating
+                ? t('crm.settings.api.rotating')
+                : t('crm.settings.api.rotate')}
             </button>
           </div>
 
           {loading && (
             <div className="text-[11px] text-slate-500">
-              Загружаем токен…
+              {t('crm.settings.api.loading')}
             </div>
           )}
 
@@ -126,11 +115,11 @@ export const SettingsApiPage: React.FC = () => {
                   htmlFor="marketing-token"
                   className="text-[11px] text-slate-400"
                 >
-                  Текущий токен
+                  {t('crm.settings.api.tokenLabel')}
                 </label>
                 <div className="flex items-center gap-2">
                   <div className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-[11px] font-mono text-slate-100 break-all">
-                    {token || '—'}
+                    {token || t('crm.settings.api.empty')}
                   </div>
                   <button
                     type="button"
@@ -138,20 +127,20 @@ export const SettingsApiPage: React.FC = () => {
                     disabled={!token}
                     className="inline-flex items-center justify-center rounded-xl border border-slate-700/80 px-3 py-1.5 text-[11px] text-slate-200 hover:bg-slate-900/70 disabled:opacity-50"
                   >
-                    {copied ? 'Скопировано' : 'Копировать'}
+                    {copied ? t('crm.settings.api.copied') : t('crm.settings.api.copy')}
                   </button>
                 </div>
               </div>
 
               <div className="rounded-2xl bg-slate-950/80 border border-slate-800/80 px-3 py-3 text-[11px] text-slate-400 space-y-1.5">
                 <div className="font-semibold text-slate-200">
-                  Пример запроса из n8n / curl
+                  {t('crm.settings.api.exampleTitle')}
                 </div>
                 <pre className="text-[10px] leading-snug text-slate-300 overflow-auto">
 {`POST https://crm.lumiva.agency/v1/marketing/traffic/import
 Headers:
   Content-Type: application/json
-  X-Api-Token: ${token || '<ВАШ_ТОКЕН>'}
+  X-Api-Token: ${token || t('crm.settings.api.tokenPlaceholder')}
 
 Body:
 {

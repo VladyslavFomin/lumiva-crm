@@ -1,5 +1,6 @@
 // src/pages/sales/SalesIntegrationsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -18,22 +19,11 @@ import {
   fetchSalesChannels,
   type SalesChannel,
 } from '../../api/salesChannels';
+import { getLocale } from '../../i18n/utils';
 
 /* ─────────────────────────────── */
 /* Вспомогательные маппинги       */
 /* ─────────────────────────────── */
-
-const KIND_LABEL: Record<IntegrationKind, string> = {
-  'woocommerce': 'WooCommerce',
-  'manual-import': 'Ручной импорт',
-  'other': 'Другое подключение',
-};
-
-const STATUS_LABEL: Record<string, string> = {
-  never: 'Ещё не синкалось',
-  ok: 'OK',
-  error: 'Ошибка',
-};
 
 /* ─────────────────────────────── */
 
@@ -47,6 +37,8 @@ type NewWooFormState = {
 };
 
 export const SalesIntegrationsPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const navigate = useNavigate();
   const [connections, setConnections] = useState<IntegrationConnectionDto[]>([]);
   const [channels, setChannels] = useState<SalesChannel[]>([]);
@@ -61,7 +53,7 @@ export const SalesIntegrationsPage: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [newOpen, setNewOpen] = useState(false);
-  const [newKind] = useState<IntegrationKind>('woocommerce'); // пока только Woo
+  const [newKind] = useState<IntegrationKind>('woocommerce'); // only Woo for now
   const [newForm, setNewForm] = useState<NewWooFormState>({
     name: '',
     description: '',
@@ -71,6 +63,22 @@ export const SalesIntegrationsPage: React.FC = () => {
     consumerSecret: '',
   });
   const [creating, setCreating] = useState(false);
+  const kindLabels = useMemo(
+    () => ({
+      woocommerce: t('crm.salesIntegrations.kinds.woocommerce'),
+      'manual-import': t('crm.salesIntegrations.kinds.manualImport'),
+      other: t('crm.salesIntegrations.kinds.other'),
+    }),
+    [t],
+  );
+  const statusLabels = useMemo(
+    () => ({
+      never: t('crm.salesIntegrations.status.never'),
+      ok: t('crm.salesIntegrations.status.ok'),
+      error: t('crm.salesIntegrations.status.error'),
+    }),
+    [t],
+  );
 
   // ─── Редактирование интеграции ────────────────────────────
 
@@ -109,7 +117,7 @@ export const SalesIntegrationsPage: React.FC = () => {
       .catch((e: any) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Не удалось загрузить интеграции');
+        setError(e.message || t('crm.salesIntegrations.errors.load'));
       })
       .finally(() => {
         if (!alive) return;
@@ -148,9 +156,9 @@ export const SalesIntegrationsPage: React.FC = () => {
   /* ─────────────────────────────── */
 
   const findChannelName = (channelId: string | null): string => {
-    if (!channelId) return '—';
+    if (!channelId) return t('crm.salesIntegrations.common.empty');
     const ch = channels.find((c: SalesChannel) => c.id === channelId);
-    return ch?.name || '—';
+    return ch?.name || t('crm.salesIntegrations.common.empty');
   };
 
   const handleToggleEnabled = async (conn: IntegrationConnectionDto) => {
@@ -164,7 +172,7 @@ export const SalesIntegrationsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Не удалось изменить статус интеграции');
+      alert(e.message || t('crm.salesIntegrations.errors.toggle'));
     } finally {
       setSavingId(null);
     }
@@ -173,7 +181,7 @@ export const SalesIntegrationsPage: React.FC = () => {
   const handleDelete = async (conn: IntegrationConnectionDto) => {
     if (
       !window.confirm(
-        `Удалить интеграцию «${conn.name}»? Канал продаж останется, но связь будет потеряна.`,
+        t('crm.salesIntegrations.deleteConfirm', { name: conn.name }),
       )
     ) {
       return;
@@ -186,7 +194,7 @@ export const SalesIntegrationsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Не удалось удалить интеграцию');
+      alert(e.message || t('crm.salesIntegrations.errors.delete'));
     } finally {
       setDeletingId(null);
     }
@@ -198,12 +206,17 @@ export const SalesIntegrationsPage: React.FC = () => {
       const res = await testIntegrationConnection(conn.id);
       alert(
         res.ok
-          ? `Подключение успешно: ${res.message || 'OK'}`
-          : `Проблема с подключением: ${res.message || 'Ошибка'}`,
+          ? t('crm.salesIntegrations.test.ok', {
+              message: res.message || 'OK',
+            })
+          : t('crm.salesIntegrations.test.fail', {
+              message:
+                res.message || t('crm.salesIntegrations.test.defaultError'),
+            }),
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Ошибка проверки подключения');
+      alert(e.message || t('crm.salesIntegrations.errors.test'));
     } finally {
       setTestingId(null);
     }
@@ -215,8 +228,12 @@ export const SalesIntegrationsPage: React.FC = () => {
       const res = await triggerIntegrationSync(conn.id);
       const msg =
         res.message ||
-        `Создано: ${res.created}, обновлено: ${res.updated}, пропущено: ${res.skipped}`;
-      alert(`Синхронизация: ${msg}`);
+        t('crm.salesIntegrations.sync.summary', {
+          created: res.created,
+          updated: res.updated,
+          skipped: res.skipped,
+        });
+      alert(t('crm.salesIntegrations.sync.done', { message: msg }));
 
       // После синка можно обновить список (чтобы подтянуть новые totalSales*)
       const updated = await fetchIntegrations();
@@ -225,7 +242,7 @@ export const SalesIntegrationsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Ошибка синхронизации');
+      alert(e.message || t('crm.salesIntegrations.errors.sync'));
     } finally {
       setSyncingId(null);
     }
@@ -237,14 +254,16 @@ export const SalesIntegrationsPage: React.FC = () => {
 
   const handleCreate = async () => {
     if (!newForm.url || !newForm.consumerKey || !newForm.consumerSecret) {
-      alert('Укажите URL, consumer key и consumer secret WooCommerce');
+      alert(t('crm.salesIntegrations.errors.createMissing'));
       return;
     }
 
     setCreating(true);
     try {
       const payload = {
-        name: newForm.name || 'WooCommerce магазин',
+        name:
+          newForm.name ||
+          t('crm.salesIntegrations.defaults.woocommerceName'),
         kind: newKind,
         channelId: newForm.channelId || undefined,
         description: newForm.description || undefined,
@@ -268,7 +287,7 @@ export const SalesIntegrationsPage: React.FC = () => {
       });
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Не удалось создать интеграцию');
+      alert(e.message || t('crm.salesIntegrations.errors.create'));
     } finally {
       setCreating(false);
     }
@@ -297,14 +316,16 @@ export const SalesIntegrationsPage: React.FC = () => {
     if (!editConn) return;
 
     if (!editForm.url || !editForm.consumerKey) {
-      alert('Укажите URL и consumer key WooCommerce');
+      alert(t('crm.salesIntegrations.errors.updateMissing'));
       return;
     }
 
     setUpdating(true);
     try {
       const payload: any = {
-        name: editForm.name || 'WooCommerce магазин',
+        name:
+          editForm.name ||
+          t('crm.salesIntegrations.defaults.woocommerceName'),
         channelId: editForm.channelId || null,
         description: editForm.description || null,
         config: {
@@ -327,7 +348,7 @@ export const SalesIntegrationsPage: React.FC = () => {
       setEditConn(null);
     } catch (e: any) {
       console.error(e);
-      alert(e.message || 'Не удалось сохранить изменения интеграции');
+      alert(e.message || t('crm.salesIntegrations.errors.update'));
     } finally {
       setUpdating(false);
     }
@@ -344,15 +365,13 @@ export const SalesIntegrationsPage: React.FC = () => {
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Интеграции
+              {t('crm.salesIntegrations.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Подключения каналов продаж
+              {t('crm.salesIntegrations.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Здесь настраиваются интеграции (WooCommerce и др.), которые
-              создают каналы продаж и отправляют заказы в CRM. Можно проверить
-              подключение, запускать синхронизацию и отключать интеграции.
+              {t('crm.salesIntegrations.subtitle')}
             </p>
           </div>
         </section>
@@ -361,7 +380,7 @@ export const SalesIntegrationsPage: React.FC = () => {
         <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)]">
           <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
             <h2 className="text-sm font-semibold text-slate-100 mb-2">
-              Доступные интеграции
+              {t('crm.salesIntegrations.available.title')}
             </h2>
 
             {availableWoo ? (
@@ -369,10 +388,10 @@ export const SalesIntegrationsPage: React.FC = () => {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <div className="text-slate-100 font-semibold">
-                      WooCommerce
+                      {kindLabels.woocommerce}
                     </div>
                     <div className="text-slate-400 text-[11px]">
-                      Подключение интернет-магазина (заказы → CRM).
+                      {t('crm.salesIntegrations.available.woocommerceHint')}
                     </div>
                   </div>
                   <button
@@ -384,17 +403,16 @@ export const SalesIntegrationsPage: React.FC = () => {
                     }}
                     className="px-3 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft"
                   >
-                    Новое подключение
+                    {t('crm.salesIntegrations.available.newConnection')}
                   </button>
                 </div>
                 <div className="text-[11px] text-slate-500">
-                  Используйте для основной витрины или нескольких магазинов
-                  (каждое подключение = отдельный канал продаж).
+                  {t('crm.salesIntegrations.available.woocommerceNote')}
                 </div>
               </div>
             ) : (
               <div className="text-[11px] text-slate-500">
-                Пока нет зарегистрированных адаптеров интеграций.
+                {t('crm.salesIntegrations.available.empty')}
               </div>
             )}
           </div>
@@ -404,21 +422,21 @@ export const SalesIntegrationsPage: React.FC = () => {
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-slate-100">
-                  Новое подключение WooCommerce
+                  {t('crm.salesIntegrations.new.title')}
                 </h2>
                 <button
                   type="button"
                   onClick={() => setNewOpen(false)}
                   className="text-[11px] text-slate-400 hover:text-slate-100"
                 >
-                  ✕ Закрыть
+                  ✕ {t('crm.salesIntegrations.new.close')}
                 </button>
               </div>
 
               <div className="space-y-3 text-xs">
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Название подключения
+                    {t('crm.salesIntegrations.new.name')}
                   </label>
                   <input
                     type="text"
@@ -426,14 +444,14 @@ export const SalesIntegrationsPage: React.FC = () => {
                     onChange={(e) =>
                       setNewForm((f) => ({ ...f, name: e.target.value }))
                     }
-                    placeholder="WooCommerce · основной магазин"
+                    placeholder={t('crm.salesIntegrations.new.namePlaceholder')}
                     className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                   />
                 </div>
 
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Канал продаж (опционально)
+                    {t('crm.salesIntegrations.new.channel')}
                   </label>
                   <select
                     value={newForm.channelId}
@@ -442,7 +460,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                     }
                     className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                   >
-                    <option value="">Создать автоматически</option>
+                    <option value="">{t('crm.salesIntegrations.new.channelAuto')}</option>
                     {channels.map((ch: SalesChannel) => (
                       <option key={ch.id} value={ch.id}>
                         {ch.name}
@@ -453,7 +471,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Краткое описание
+                    {t('crm.salesIntegrations.new.description')}
                   </label>
                   <input
                     type="text"
@@ -464,7 +482,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                         description: e.target.value,
                       }))
                     }
-                    placeholder="shop.example.com / main store"
+                    placeholder={t('crm.salesIntegrations.new.descriptionPlaceholder')}
                     className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                   />
                 </div>
@@ -472,7 +490,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
-                      WooCommerce URL (с https)
+                      {t('crm.salesIntegrations.new.url')}
                     </label>
                     <input
                       type="text"
@@ -480,13 +498,13 @@ export const SalesIntegrationsPage: React.FC = () => {
                       onChange={(e) =>
                         setNewForm((f) => ({ ...f, url: e.target.value }))
                       }
-                      placeholder="https://shop.example.com"
+                      placeholder={t('crm.salesIntegrations.new.urlPlaceholder')}
                       className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                     />
                   </div>
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
-                      Consumer key
+                      {t('crm.salesIntegrations.new.consumerKey')}
                     </label>
                     <input
                       type="text"
@@ -503,7 +521,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
-                      Consumer secret
+                      {t('crm.salesIntegrations.new.consumerSecret')}
                     </label>
                     <input
                       type="text"
@@ -527,7 +545,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                     disabled={creating}
                     className="px-3 py-1.5 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
                   >
-                    Отмена
+                    {t('crm.salesIntegrations.common.cancel')}
                   </button>
                   <button
                     type="button"
@@ -535,7 +553,9 @@ export const SalesIntegrationsPage: React.FC = () => {
                     disabled={creating}
                     className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
                   >
-                    {creating ? 'Создаём…' : 'Создать подключение'}
+                    {creating
+                      ? t('crm.salesIntegrations.common.creating')
+                      : t('crm.salesIntegrations.common.create')}
                   </button>
                 </div>
               </div>
@@ -547,7 +567,9 @@ export const SalesIntegrationsPage: React.FC = () => {
             <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-slate-100">
-                  Редактировать подключение: {editConn.name}
+                  {t('crm.salesIntegrations.edit.title', {
+                    name: editConn.name,
+                  })}
                 </h2>
                 <button
                   type="button"
@@ -557,14 +579,14 @@ export const SalesIntegrationsPage: React.FC = () => {
                   }}
                   className="text-[11px] text-slate-400 hover:text-slate-100"
                 >
-                  ✕ Закрыть
+                  ✕ {t('crm.salesIntegrations.edit.close')}
                 </button>
               </div>
 
               <div className="space-y-3 text-xs">
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Название подключения
+                    {t('crm.salesIntegrations.edit.name')}
                   </label>
                   <input
                     type="text"
@@ -578,7 +600,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Канал продаж
+                    {t('crm.salesIntegrations.edit.channel')}
                   </label>
                   <select
                     value={editForm.channelId}
@@ -587,7 +609,9 @@ export const SalesIntegrationsPage: React.FC = () => {
                     }
                     className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                   >
-                    <option value="">Оставить без канала / автосоздание</option>
+                    <option value="">
+                      {t('crm.salesIntegrations.edit.channelAuto')}
+                    </option>
                     {channels.map((ch: SalesChannel) => (
                       <option key={ch.id} value={ch.id}>
                         {ch.name}
@@ -598,7 +622,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Краткое описание
+                    {t('crm.salesIntegrations.edit.description')}
                   </label>
                   <input
                     type="text"
@@ -616,7 +640,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
-                      WooCommerce URL (с https)
+                      {t('crm.salesIntegrations.edit.url')}
                     </label>
                     <input
                       type="text"
@@ -629,7 +653,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
-                      Consumer key
+                      {t('crm.salesIntegrations.edit.consumerKey')}
                     </label>
                     <input
                       type="text"
@@ -645,7 +669,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[11px] text-slate-400 mb-1">
-                      Consumer secret (оставьте пустым, чтобы не менять)
+                      {t('crm.salesIntegrations.edit.consumerSecret')}
                     </label>
                     <input
                       type="text"
@@ -672,7 +696,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                     disabled={updating}
                     className="px-3 py-1.5 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
                   >
-                    Отмена
+                    {t('crm.salesIntegrations.common.cancel')}
                   </button>
                   <button
                     type="button"
@@ -680,7 +704,9 @@ export const SalesIntegrationsPage: React.FC = () => {
                     disabled={updating}
                     className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
                   >
-                    {updating ? 'Сохраняем…' : 'Сохранить изменения'}
+                    {updating
+                      ? t('crm.salesIntegrations.common.saving')
+                      : t('crm.salesIntegrations.common.save')}
                   </button>
                 </div>
               </div>
@@ -692,11 +718,10 @@ export const SalesIntegrationsPage: React.FC = () => {
         <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 min-w-0">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-slate-100">
-              Список интеграций
+              {t('crm.salesIntegrations.list.title')}
             </h2>
             <span className="text-[11px] text-slate-500">
-              Управляйте статусом, тестируйте подключение и запускайте
-              синхронизацию
+              {t('crm.salesIntegrations.list.subtitle')}
             </span>
           </div>
 
@@ -705,28 +730,28 @@ export const SalesIntegrationsPage: React.FC = () => {
               <thead className="text-slate-500">
                 <tr>
                   <th className="text-left font-normal px-2 py-1">
-                    Подключение
+                    {t('crm.salesIntegrations.list.headers.connection')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Тип
+                    {t('crm.salesIntegrations.list.headers.type')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Канал продаж
+                    {t('crm.salesIntegrations.list.headers.channel')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Статус
+                    {t('crm.salesIntegrations.list.headers.status')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Последняя синхронизация
+                    {t('crm.salesIntegrations.list.headers.lastSync')}
                   </th>
                   <th className="text-right font-normal px-2 py-1">
-                    Продаж
+                    {t('crm.salesIntegrations.list.headers.sales')}
                   </th>
                   <th className="text-right font-normal px-2 py-1">
-                    Сумма
+                    {t('crm.salesIntegrations.list.headers.amount')}
                   </th>
                   <th className="text-left font-normal px-2 py-1">
-                    Действия
+                    {t('crm.salesIntegrations.list.headers.actions')}
                   </th>
                 </tr>
               </thead>
@@ -754,7 +779,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                       colSpan={8}
                       className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
                     >
-                      Интеграции ещё не настроены.
+                      {t('crm.salesIntegrations.list.empty')}
                     </td>
                   </tr>
                 )}
@@ -764,7 +789,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
           {loading && (
             <div className="mt-3 text-[11px] text-slate-400">
-              Загружаем интеграции…
+              {t('crm.salesIntegrations.loading')}
             </div>
           )}
         </section>
@@ -810,15 +835,33 @@ const IntegrationRow: React.FC<{
   onSync,
   onEdit,
 }) => {
+  const { t } = useTranslation();
+  const locale = getLocale();
+  const kindLabels = useMemo(
+    () => ({
+      woocommerce: t('crm.salesIntegrations.kinds.woocommerce'),
+      'manual-import': t('crm.salesIntegrations.kinds.manualImport'),
+      other: t('crm.salesIntegrations.kinds.other'),
+    }),
+    [t],
+  );
+  const statusLabels = useMemo(
+    () => ({
+      never: t('crm.salesIntegrations.status.never'),
+      ok: t('crm.salesIntegrations.status.ok'),
+      error: t('crm.salesIntegrations.status.error'),
+    }),
+    [t],
+  );
   const lastSync =
     conn.lastSyncAt && conn.lastSyncAt !== null
-      ? new Date(conn.lastSyncAt).toLocaleString('ru-RU')
-      : '—';
+      ? new Date(conn.lastSyncAt).toLocaleString(locale)
+      : t('crm.salesIntegrations.common.none');
 
   const statusBase =
-    conn.lastSyncStatus && STATUS_LABEL[conn.lastSyncStatus]
-      ? STATUS_LABEL[conn.lastSyncStatus]
-      : conn.lastSyncStatus || '—';
+    conn.lastSyncStatus && statusLabels[conn.lastSyncStatus]
+      ? statusLabels[conn.lastSyncStatus]
+      : conn.lastSyncStatus || t('crm.salesIntegrations.common.none');
 
   const statusColor =
     conn.lastSyncStatus === 'ok'
@@ -844,7 +887,7 @@ const IntegrationRow: React.FC<{
         </div>
       </td>
       <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {KIND_LABEL[conn.kind]}
+        {kindLabels[conn.kind]}
       </td>
       <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
         {channelName}
@@ -854,7 +897,9 @@ const IntegrationRow: React.FC<{
           <span
             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${enabledColor}`}
           >
-            {conn.isEnabled ? 'Включено' : 'Выключено'}
+            {conn.isEnabled
+              ? t('crm.salesIntegrations.status.enabled')
+              : t('crm.salesIntegrations.status.disabled')}
           </span>
           <span
             className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${statusColor}`}
@@ -868,16 +913,16 @@ const IntegrationRow: React.FC<{
           <span>{lastSync}</span>
           {conn.lastError && (
             <span className="text-[10px] text-rose-300 truncate max-w-[220px]">
-              Ошибка: {conn.lastError}
+              {t('crm.salesIntegrations.list.lastError')} {conn.lastError}
             </span>
           )}
         </div>
       </td>
       <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {conn.totalSalesCount.toLocaleString('ru-RU')}
+        {conn.totalSalesCount.toLocaleString(locale)}
       </td>
       <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {conn.totalSalesAmount.toLocaleString('ru-RU', {
+        {conn.totalSalesAmount.toLocaleString(locale, {
           maximumFractionDigits: 0,
         })}{' '}
         <span className="text-slate-400 text-[10px]">
@@ -892,7 +937,9 @@ const IntegrationRow: React.FC<{
             disabled={testing || deleting}
             className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
           >
-            {testing ? 'Тест…' : 'Проверить'}
+            {testing
+              ? t('crm.salesIntegrations.common.testing')
+              : t('crm.salesIntegrations.common.test')}
           </button>
           <button
             type="button"
@@ -900,7 +947,9 @@ const IntegrationRow: React.FC<{
             disabled={syncing || deleting}
             className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
           >
-            {syncing ? 'Синк…' : 'Синхронизировать'}
+            {syncing
+              ? t('crm.salesIntegrations.common.syncing')
+              : t('crm.salesIntegrations.common.sync')}
           </button>
           <button
             type="button"
@@ -908,7 +957,9 @@ const IntegrationRow: React.FC<{
             disabled={saving || deleting}
             className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
           >
-            {conn.isEnabled ? 'Выключить' : 'Включить'}
+            {conn.isEnabled
+              ? t('crm.salesIntegrations.common.disable')
+              : t('crm.salesIntegrations.common.enable')}
           </button>
           <button
             type="button"
@@ -916,7 +967,7 @@ const IntegrationRow: React.FC<{
             disabled={deleting}
             className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
           >
-            Редактировать
+            {t('crm.salesIntegrations.common.edit')}
           </button>
           <button
             type="button"
@@ -924,7 +975,9 @@ const IntegrationRow: React.FC<{
             disabled={deleting}
             className="px-2 py-0.5 rounded-lg text-[10px] border border-rose-700/80 text-rose-300 bg-rose-950/40 hover:bg-rose-900/50 disabled:opacity-50"
           >
-            {deleting ? 'Удаляем…' : 'Удалить'}
+            {deleting
+              ? t('crm.salesIntegrations.common.deleting')
+              : t('crm.salesIntegrations.common.delete')}
           </button>
         </div>
       </td>

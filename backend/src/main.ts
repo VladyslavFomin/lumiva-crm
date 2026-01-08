@@ -1,4 +1,3 @@
-// backend/src/main.ts
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -6,17 +5,28 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Явный CORS: разрешаем только наши фронты
   app.enableCors({
     origin: [
       'https://lumiva.agency',
       'https://crm.lumiva.agency',
       'https://pl1.lumiva.agency',
-      'http://localhost:5173', // на всякий случай для дев-режима
+      'http://localhost:5173',
     ],
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: '*',
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Api-Token',
+      'X-Requested-With',
+      'X-WP-Nonce',
+    ],
+    exposedHeaders: [
+      // если когда-нибудь захочешь пагинацию/лимиты через хедеры
+      'X-Total-Count',
+      'X-Request-Id',
+    ],
     credentials: false,
+    maxAge: 86400, // 24h кеш preflight
   });
 
   // Все бэкенд-ручки будут начинаться с /v1
@@ -28,6 +38,8 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       forbidUnknownValues: false,
+      // полезно для class-transformer (если где-то появятся DTO с вложенностями)
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 

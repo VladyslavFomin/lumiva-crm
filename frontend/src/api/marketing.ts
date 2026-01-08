@@ -6,40 +6,25 @@ import { api } from './client';
 //
 
 export interface MarketingTrafficRow {
-  channel: string;
-  utmCampaign: string;
-  utmSource: string | null;
-  utmMedium: string | null;
+  date: string;
+  source: string | null;
+  medium: string | null;
+  campaign: string | null;
 
-  impressions: number;
+  sessions: number;
   clicks: number;
-  cost: number;
-  currency: string;
-
   leads: number;
-  projects: number;
+  cost: number;
   revenue: number;
-
-  cpc: number;
-  cpl: number;
-  roas: number;
+  currency: string;
 }
 
 export interface MarketingTrafficStats {
-  from?: string | null;
-  to?: string | null;
   currency: string;
-  totals: {
-    impressions: number;
-    clicks: number;
-    cost: number;
-    leads: number;
-    projects: number;
-    revenue: number;
-    cpc: number;
-    cpl: number;
-    roas: number;
-  };
+  totalSessions: number;
+  totalLeads: number;
+  totalRevenue: number;
+  totalCost: number;
   items: MarketingTrafficRow[];
 }
 
@@ -233,6 +218,20 @@ export async function updateMarketingIntegration(
 export async function deleteMarketingIntegration(id: string): Promise<void> {
   // @Delete('integrations/:id')
   await api.del(`/marketing/integrations/${id}`);
+}
+
+export async function syncMarketingIntegration(
+  id: string,
+  params?: { from?: string; to?: string },
+): Promise<{ ok: boolean; updated: number }> {
+  const search = new URLSearchParams();
+  if (params?.from) search.append('from', params.from);
+  if (params?.to) search.append('to', params.to);
+  const qs = search.toString();
+  return api.post(
+    `/marketing/integrations/${id}/sync${qs ? `?${qs}` : ''}`,
+    {},
+  );
 }
 
 //

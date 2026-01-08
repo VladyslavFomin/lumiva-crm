@@ -169,4 +169,11 @@ export class ApiTokensService {
 
     return token;
   }
+    async findTenantByToken(rawToken: string): Promise<Tenant | null> {
+    const tok = await this.findActiveByToken(String(rawToken || '').trim());
+    if (!tok?.tenantId) return null;
+
+    const tenant = await this.tenantRepo.findOne({ where: { id: tok.tenantId } });
+    return tenant || null;
+  }
 }

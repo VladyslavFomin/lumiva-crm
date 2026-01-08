@@ -1,5 +1,6 @@
 // src/pages/sales/SalesIntegrationNewPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import {
@@ -13,6 +14,7 @@ import {
 import { fetchSalesChannels, type SalesChannel } from '../../api/salesChannels';
 
 export const SalesIntegrationNewPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
 
   const [adapters, setAdapters] = useState<IntegrationAdapterDto[]>([]);
@@ -46,7 +48,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
       .catch((e: any) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Не удалось загрузить данные для интеграции');
+        setError(e.message || t('crm.salesIntegrationNew.errors.load'));
       })
       .finally(() => {
         if (!alive) return;
@@ -60,17 +62,17 @@ export const SalesIntegrationNewPage: React.FC = () => {
 
   const handleSave = async () => {
     if (!kind) {
-      setError('Выберите тип интеграции');
+      setError(t('crm.salesIntegrationNew.errors.missingType'));
       return;
     }
     if (!name.trim()) {
-      setError('Укажите название подключения');
+      setError(t('crm.salesIntegrationNew.errors.missingName'));
       return;
     }
 
     if (kind === 'woocommerce') {
       if (!url.trim() || !consumerKey.trim() || !consumerSecret.trim()) {
-        setError('Для WooCommerce нужно указать URL, Consumer Key и Secret');
+        setError(t('crm.salesIntegrationNew.errors.missingWoo'));
         return;
       }
     }
@@ -95,7 +97,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
       navigate('/app/sales/integrations');
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Не удалось создать интеграцию');
+      setError(e.message || t('crm.salesIntegrationNew.errors.create'));
     } finally {
       setSaving(false);
     }
@@ -109,15 +111,13 @@ export const SalesIntegrationNewPage: React.FC = () => {
         <section className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Интеграции
+              {t('crm.salesIntegrationNew.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Новое подключение канала продаж
+              {t('crm.salesIntegrationNew.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-xl">
-              Выберите тип интеграции (например, WooCommerce), укажите
-              основные параметры подключения и привяжите его к каналу
-              продаж в CRM.
+              {t('crm.salesIntegrationNew.subtitle')}
             </p>
           </div>
 
@@ -126,7 +126,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
             onClick={() => navigate('/app/sales/integrations')}
             className="px-3 py-1.5 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 hover:bg-slate-900/80"
           >
-            ← Назад к интеграциям
+            {t('crm.salesIntegrationNew.back')}
           </button>
         </section>
 
@@ -139,21 +139,23 @@ export const SalesIntegrationNewPage: React.FC = () => {
         <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 space-y-4">
           {loading ? (
             <div className="text-[11px] text-slate-400">
-              Загружаем данные…
+              {t('crm.salesIntegrationNew.loading')}
             </div>
           ) : (
             <>
               {/* Тип интеграции */}
               <div className="space-y-1">
                 <label className="text-[11px] text-slate-400">
-                  Тип интеграции
+                  {t('crm.salesIntegrationNew.fields.type')}
                 </label>
                 <select
                   value={kind}
                   onChange={(e) => setKind(e.target.value as IntegrationKind)}
                   className="h-9 w-full max-w-xs rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
                 >
-                  <option value="">Выберите интеграцию</option>
+                  <option value="">
+                    {t('crm.salesIntegrationNew.fields.typePlaceholder')}
+                  </option>
                   {adapters.map((a) => (
                     <option key={a.kind} value={a.kind}>
                       {a.label}
@@ -163,7 +165,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
                 {selectedAdapter && (
                   <p className="text-[11px] text-slate-500 mt-1">
                     {selectedAdapter.description ??
-                      'Интеграция с внешним источником продаж.'}
+                      t('crm.salesIntegrationNew.fields.typeFallback')}
                   </p>
                 )}
               </div>
@@ -172,26 +174,28 @@ export const SalesIntegrationNewPage: React.FC = () => {
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1">
                   <label className="text-[11px] text-slate-400">
-                    Название подключения
+                    {t('crm.salesIntegrationNew.fields.name')}
                   </label>
                   <input
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="WooCommerce · основной магазин"
+                    placeholder={t('crm.salesIntegrationNew.fields.namePlaceholder')}
                     className="h-9 w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
                   />
                 </div>
                 <div className="space-y-1">
                   <label className="text-[11px] text-slate-400">
-                    Привязать к каналу продаж
+                    {t('crm.salesIntegrationNew.fields.channel')}
                   </label>
                   <select
                     value={channelId}
                     onChange={(e) => setChannelId(e.target.value)}
                     className="h-9 w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
                   >
-                    <option value="">Без привязки</option>
+                    <option value="">
+                      {t('crm.salesIntegrationNew.fields.channelPlaceholder')}
+                    </option>
                     {channels.map((ch) => (
                       <option key={ch.id} value={ch.id}>
                         {ch.name}
@@ -204,13 +208,15 @@ export const SalesIntegrationNewPage: React.FC = () => {
               {/* Описание */}
               <div className="space-y-1">
                 <label className="text-[11px] text-slate-400">
-                  Описание (для себя)
+                  {t('crm.salesIntegrationNew.fields.description')}
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
-                  placeholder="Например: магазин на домене shop.example.com"
+                  placeholder={t(
+                    'crm.salesIntegrationNew.fields.descriptionPlaceholder',
+                  )}
                   className="w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 py-2 outline-none resize-none"
                 />
               </div>
@@ -219,12 +225,12 @@ export const SalesIntegrationNewPage: React.FC = () => {
               {kind === 'woocommerce' && (
                 <div className="border border-slate-800/80 rounded-2xl p-3.5 space-y-3 bg-slate-950/60">
                   <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                    Параметры WooCommerce
+                    {t('crm.salesIntegrationNew.woocommerce.title')}
                   </div>
                   <div className="space-y-2">
                     <div className="space-y-1">
                       <label className="text-[11px] text-slate-400">
-                        URL магазина (REST API)
+                        {t('crm.salesIntegrationNew.woocommerce.url')}
                       </label>
                       <input
                         type="text"
@@ -237,7 +243,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
                     <div className="grid md:grid-cols-2 gap-3">
                       <div className="space-y-1">
                         <label className="text-[11px] text-slate-400">
-                          Consumer Key
+                          {t('crm.salesIntegrationNew.woocommerce.consumerKey')}
                         </label>
                         <input
                           type="text"
@@ -248,7 +254,9 @@ export const SalesIntegrationNewPage: React.FC = () => {
                       </div>
                       <div className="space-y-1">
                         <label className="text-[11px] text-slate-400">
-                          Consumer Secret
+                          {t(
+                            'crm.salesIntegrationNew.woocommerce.consumerSecret',
+                          )}
                         </label>
                         <input
                           type="password"
@@ -259,8 +267,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
                       </div>
                     </div>
                     <p className="text-[10px] text-slate-500">
-                      Ключи берутся в WooCommerce → Settings → Advanced →
-                      REST API. Доступ должен быть хотя бы Read.
+                      {t('crm.salesIntegrationNew.woocommerce.hint')}
                     </p>
                   </div>
                 </div>
@@ -273,7 +280,9 @@ export const SalesIntegrationNewPage: React.FC = () => {
                   disabled={saving || loading}
                   className="px-4 py-2 rounded-xl bg-lumiva-accent text-slate-950 text-xs font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
                 >
-                  {saving ? 'Сохраняем…' : 'Создать подключение'}
+                  {saving
+                    ? t('crm.salesIntegrationNew.actions.saving')
+                    : t('crm.salesIntegrationNew.actions.create')}
                 </button>
               </div>
             </>

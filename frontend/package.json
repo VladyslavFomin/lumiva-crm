@@ -13,9 +13,11 @@
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
+    "i18next": "^24.0.0",
     "framer-motion": "^12.23.25",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-i18next": "^15.0.0",
     "react-router-dom": "^7.9.6",
     "recharts": "^3.5.0",
     "three": "^0.181.2"

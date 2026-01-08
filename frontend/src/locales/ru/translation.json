@@ -1,0 +1,2889 @@
+{
+  "lang": {
+    "ru": "RU",
+    "en": "EN",
+    "tr": "TR"
+  },
+  "landing": {
+    "nav": {
+      "overview": "Обзор",
+      "features": "Модули",
+      "analytics": "Аналитика",
+      "security": "Безопасность",
+      "partners": "Партнёры",
+      "integrations": "Интеграции",
+      "workspace": "Рабочее пространство",
+      "login": "Вход"
+    },
+    "cta": {
+      "requestDemo": "Запросить демо"
+    },
+    "hero": {
+      "badge": "Платформа управления бизнесом",
+      "title": "Одна спокойная рабочая среда\nдля всего вашего бизнеса.",
+      "subtitle": "crm.lumiva.agency объединяет продажи, маркетинг, проекты, лиды и задачи в одном минималистичном интерфейсе. Мы спроектировали систему вокруг реальных процессов: от заявки с сайта до отчёта по выручке и загрузке команды.",
+      "primary": "Запросить демо",
+      "secondary": "Смотреть модули",
+      "points": {
+        "analytics": "Живая аналитика по сделкам и бронированиям",
+        "roles": "Роли и права доступа для отделов и партнёров",
+        "api": "API и Webhooks для интеграций (сайты, n8n, боты)"
+      }
+    },
+    "heroSnapshot": {
+      "title": "Сегодня · Снимок по сети отелей",
+      "live": "Live",
+      "newLeads": "Новых лидов",
+      "newLeadsDelta": "+21% к прошлой неделе",
+      "conversion": "Конверсия",
+      "conversionDelta": "+2,9 п.п.",
+      "revenue": "Выручка",
+      "revenueRange": "за последние 30 дней",
+      "revenueTrend": "Динамика выручки · 8 недель",
+      "allChannels": "Все каналы в CRM",
+      "focus": "Фокус",
+      "focusValue": "Высокий спрос на лето 2026",
+      "load": "Нагрузка",
+      "response": "Ответ менеджеров",
+      "responseValue": "медиана < 3 мин"
+    },
+    "form": {
+      "headline": "Расскажите\nо вашем\nпроекте",
+      "sub": "Опишите задачу — мы свяжемся в ближайшее время и подготовим персональную демонстрацию.",
+      "name": "Имя",
+      "surname": "Фамилия",
+      "email": "Почта",
+      "phone": "Телефон",
+      "orders": "Количество заказов в месяц",
+      "contact": "Как лучше связаться",
+      "consent": "Я согласен на обработку персональных данных.",
+      "policy": "Политика (PDF)",
+      "send": "Отправить",
+      "sending": "Отправляем...",
+      "placeholders": {
+        "name": "Введите имя",
+        "surname": "Введите фамилию",
+        "email": "E-mail",
+        "phone": "XXX XXX XX XX",
+        "orders": "Например, 1200"
+      },
+      "contactOptions": {
+        "email": "E-mail",
+        "phone": "Телефон",
+        "whatsapp": "WhatsApp",
+        "telegram": "Telegram"
+      },
+      "errors": {
+        "consent": "Нужно согласие на обработку данных.",
+        "required": "Заполните имя, почту и телефон.",
+        "contact": "Выберите способ связи.",
+        "failed": "Не удалось отправить. Попробуйте ещё раз.",
+        "submit": "Ошибка отправки"
+      },
+      "success": "Спасибо! Мы свяжемся с вами в ближайшее время.",
+      "close": "Закрыть форму"
+    },
+    "features": {
+      "title": "Одна поверхность — пять ключевых модулей.",
+      "subtitle": "Швы между процессами убраны: маркетинг, продажи, проекты и задачи по умолчанию связаны с каналами, выручкой и ответственными.",
+      "note": "Карточки с иконками и лёгким подъёмом по hover — без лишнего визуального шума.",
+      "included": "Включено: отчёты, роли, API, webhooks, интеграции с сайтами.",
+      "projectStatus": "Минималистичная шкала статусов вместо сложного Gantt",
+      "today": "Сегодня",
+      "tasksToday": "13 задач",
+      "leadsLive": "новых за последний час",
+      "qualified": "Квалифицировано",
+      "qualifiedHint": "совпадение с ICP",
+      "routing": "Роутинг",
+      "routingValue": "Мгновенно",
+      "routingHint": "по правилам в CRM",
+      "items": [
+        {
+          "title": "Маркетинг",
+          "description": "Формы, кампании и SMM в одной воронке, чтобы видеть, какой канал реально даёт выручку."
+        },
+        {
+          "title": "Продажи",
+          "description": "Реестр заявок и бронирований с этапами, причинами отказа и планом по выручке по направлениям."
+        },
+        {
+          "title": "Проекты",
+          "description": "Запуск отелей, спец-акции, выставки: этапы, дедлайны и ответственные без громоздкого PM."
+        },
+        {
+          "title": "Лиды",
+          "description": "Заявки с сайтов, чатов и мессенджеров нормализуются и получают источник, кампанию и агента."
+        },
+        {
+          "title": "Задачи",
+          "description": "Микрозадачи прямо в CRM — звонки, брифы, проверки тарифов — привязаны к сделкам и клиентам."
+        }
+      ]
+    },
+    "analytics": {
+      "title": "Аналитика рекламы и соцсетей.",
+      "subtitle": "CTR, лиды и выручка по каналам: Google Ads, Meta, Telegram, органика. Видно, что реально приносит заявки и продажи.",
+      "cta": "Подробнее",
+      "campaigns": {
+        "label": "Динамика кампаний",
+        "range": "Последние 12 недель",
+        "delta": "к прошлому периоду"
+      },
+      "spend": {
+        "title": "Spend / Leads",
+        "region": "Geo EU + MENA",
+        "ctr": "CTR · 3.4%",
+        "cpl": "CPL · €18.4",
+        "cr": "CR · 6.8%"
+      },
+      "metrics": {
+        "title": "Ключевые метрики",
+        "conversion": "Конверсия",
+        "sla": "Закрыто в срок",
+        "avgCheck": "Ср. чек",
+        "region": "по рынкам EU + MENA"
+      },
+      "channels": {
+        "title": "Конверсии по каналам",
+        "subtitle": "Воронка лидов и сделок",
+        "avg": "средняя по сети",
+        "items": {
+          "ads": "Google Ads",
+          "meta": "Meta",
+          "telegram": "Telegram",
+          "organic": "Organic",
+          "direct": "Direct"
+        }
+      },
+      "sources": {
+        "title": "Потоки и источники",
+        "bookings": {
+          "title": "Трафик бронирований · 38%",
+          "sites": "Сайты: booking.landing, corp.landing",
+          "leads": "Лиды: 420 · € 210K"
+        },
+        "performance": {
+          "title": "Performance · 34%",
+          "channels": "Каналы: Google Ads, Meta",
+          "leads": "Лиды: 360 · € 180K"
+        },
+        "partners": {
+          "title": "Партнёры / агентства · 28%",
+          "channels": "Каналы: рефералы, b2b",
+          "leads": "Лиды: 220 · € 140K"
+        }
+      }
+    },
+    "dashboard": {
+      "title": "Личный кабинет маркетинга и продаж.",
+      "subtitle": "В одном экране видно эффективность каналов, задачи команды и статусы кампаний.",
+      "cta": "Подробнее",
+      "liveTitle": "Live кабинет",
+      "last24h": "Последние 24 часа",
+      "todayAds": "Сегодня · Соцсети + реклама",
+      "growthChannels": "3 канала в росте",
+      "kpiDelta": "CTR +0.8 п.п., CPL -12%",
+      "budget": "Бюджет",
+      "channelList": [
+        "Google Ads · 3 активные кампании",
+        "Meta · 6 групп объявлений",
+        "Telegram · 5 ботов на приёме лидов",
+        "Organic · 24 лида/день",
+        "Задачи · 14 в работе"
+      ],
+      "realtime": "Реальное время",
+      "realtimeHint": "CPA, лиды, выручка — онлайн",
+      "cpaDelta": "-12% к прошлой неделе",
+      "leads": "Лиды",
+      "leadsHint": "3 канала в топе",
+      "revenue": "Выручка",
+      "revenueHint": "Paid + Organic",
+      "plan": "План работ",
+      "planTime": "09:00 – 19:00",
+      "planItems": [
+        "Запуск A/B",
+        "Отчёт по лидам",
+        "Синк с продажами"
+      ]
+    },
+    "security": {
+      "title": "Безопасность по умолчанию.",
+      "subtitle": "Данные клиентов шифруются на уровне БД и кеша, ключи rotating, аудит действий персонала, алерты по аномалиям. Любой модуль CRM работает через те же политики доступа.",
+      "note": "Кеш только с шифрованием, токены доступа короткоживущие, резервное копирование и троттлинг на публичных ручках.",
+      "dataContour": "Контур данных",
+      "items": {
+        "encrypt": "Клиентские данные → AES-256 at rest. Ключи вращаются, доступы только по ролям.",
+        "redis": "Кеш Redis зашифрован, TTL 15 минут, без хранения секретов.",
+        "publicApi": "Публичные API — rate limit, geo-fencing, подпись вебхуков.",
+        "audit": "Полный аудит действий: входы, смена токенов, операции с данными."
+      },
+      "tokens": {
+        "jwt": "15 мин",
+        "refresh": "Refresh + ролевая модель",
+        "refreshTtl": "24 часа",
+        "webhooks": "Вебхуки",
+        "webhooksHint": "Подпись + idempotency"
+      },
+      "operations": {
+        "title": "Операции",
+        "range": "Последние 24 часа",
+        "items": [
+          { "label": "Успешные логины", "value": "1 284" },
+          { "label": "Блокировки", "value": "34", "muted": true },
+          { "label": "Запросы API", "value": "182K" }
+        ],
+        "mutedNote": "Автоблок + алерт"
+      },
+      "whyTitle": "Почему данные в безопасности",
+      "whyItems": [
+        "Изоляция тенантов, минимум привилегий для сервисов.",
+        "Регулярные бэкапы и тест восстановления.",
+        "Аномалии логов → алерты в мониторинг."
+      ]
+    },
+    "integrations": {
+      "title": "API и интеграции без боли.",
+      "subtitle": "Подключаем магазины, формы, мессенджеры и вебхуки. В коробке — тестовые ключи, лимиты, подсказки и журнал запросов.",
+      "note": "Документация по REST, примеры payload, статус эндпоинтов и sandbox.",
+      "load": "Нагрузка",
+      "example": "Пример: POST /v1/webhooks/orders, payload с суммой, валютой, SKU и статусом доставки.",
+      "items": [
+        {
+          "title": "WooCommerce",
+          "desc": "Онлайн-заказы → сделки в CRM, синк остатков и цен.",
+          "status": "Live",
+          "load": 82
+        },
+        {
+          "title": "Contact Form 7",
+          "desc": "Формы с сайтов → лиды с UTM и источником.",
+          "status": "Live",
+          "load": 64
+        },
+        {
+          "title": "Telegram / WhatsApp",
+          "desc": "Чаты клиентов → сделки и задачи для менеджеров.",
+          "status": "In progress",
+          "load": 48
+        },
+        {
+          "title": "Bots & Webhooks",
+          "desc": "События CRM → ваши боты и n8n сценарии.",
+          "status": "Live",
+          "load": 70
+        }
+      ]
+    },
+    "partners": {
+      "title": "Партнёры и кейсы.",
+      "subtitle": "От сетей отелей до нишевых команд. Плотно работаем с данными, воронками и API, чтобы каждая интеграция чувствовалась как родная.",
+      "note": "Сопровождение внедрения, аудит и миграция из таблиц или чужих CRM.",
+      "card": "CRM → маркетинг, бронирования, боты, отчёты. Связанные кампании и чаты без ручной склейки.",
+      "items": [
+        { "name": "Selectum Hotels", "region": "TR • Resorts", "uplift": "+18% прямых продаж" },
+        { "name": "The Norm Hotels", "region": "EU • City stays", "uplift": "+12% конверсии" },
+        { "name": "Asteria Hotels", "region": "MENA • Leisure", "uplift": "+9% NPS" },
+        { "name": "Northwind Collection", "region": "B2B • Fictional", "uplift": "+15% загрузки" }
+      ]
+    },
+    "showcase": {
+      "label": "Кампании · 12 недель",
+      "title": "Соцсети и реклама: карта влияния",
+      "delta": "+22,4% к прошлому периоду",
+      "ordersByChannel": "Заказы по каналам",
+      "period": "Кварталы",
+      "channel": "Канал",
+      "growth": "Прирост",
+      "ordersTooltip": "{{count}} заказов · {{revenue}}",
+      "prevPeriod": "Прошлый период · €120K",
+      "currentPeriod": "Текущий период · €148K",
+      "median": "Медиана · €18.4",
+      "kpiTitle": "KPI по каналам",
+      "kpi": {
+        "cr": "CR",
+        "sla": "SLA",
+        "avgCheck": "Ср. чек",
+        "region": "по рынкам EU + MENA",
+        "median": "медиана по каналам"
+      },
+      "leadChannel": "Лид‑канал: Paid · 43% · organic 31% · direct 26%",
+      "channels": [
+        { "label": "Woo1", "current": 78, "prev": 54, "growth": "+24%", "orders": 1240, "revenue": "€ 82K" },
+        { "label": "Woo2", "current": 64, "prev": 46, "growth": "+18%", "orders": 980, "revenue": "€ 61K" },
+        { "label": "Ads", "current": 72, "prev": 50, "growth": "+22%", "orders": 1100, "revenue": "€ 74K" },
+        { "label": "Referral", "current": 58, "prev": 42, "growth": "+16%", "orders": 760, "revenue": "€ 49K" }
+      ],
+      "topChannels": {
+        "title": "Топ каналов",
+        "note": "Детали кампаний: объявления, стоимость заявки, связанный отдел продаж.",
+        "items": [
+          { "name": "WooCommerce", "share": 43, "sales": 820 },
+          { "name": "Google Ads", "share": 28, "sales": 540 },
+          { "name": "Referral", "share": 17, "sales": 310 },
+          { "name": "Meta / Instagram", "share": 12, "sales": 240 }
+        ],
+        "sales": "{{count}} продаж"
+      }
+    },
+    "footer": {
+      "about": "Бело-чёрная операционная система для команд, которым нужен контроль над данными без хаоса таблиц и мессенджеров.",
+      "product": {
+        "title": "Продукт",
+        "items": ["Обзор платформы", "Модули", "Безопасность", "API и интеграции"]
+      },
+      "company": {
+        "title": "Компания",
+        "items": ["Lumiva Agency", "Партнёры", "Карьера", "Правовая информация"]
+      },
+      "contacts": {
+        "title": "Контакты",
+        "items": ["vlad@lumiva.agency", "@lumiva.agency", "LinkedIn", "Dribbble"]
+      },
+      "privacy": "Политика конфиденциальности",
+      "terms": "Условия использования",
+      "copyright": "© {{year}} Lumiva CRM. Все права защищены."
+    },
+    "cookies": {
+      "title": "Мы используем cookies",
+      "text": "Для аналитики и улучшения сервиса. Подробнее в",
+      "link": "cookie-политике (PDF)",
+      "accept": "Согласен",
+      "decline": "Отклонить"
+    }
+
+  },
+  "crm": {
+    "header": {
+      "realtime": "Реальное время · подключено",
+      "openMenu": "Открыть меню",
+      "close": "Закрыть",
+      "newMessages": "Новые сообщения"
+    },
+    "nav": {
+      "dashboard": "Главная",
+      "leads": "Лиды",
+      "leadsNew": "Создать лид",
+      "leadsLost": "Утраченные лиды",
+      "leadsAnalytics": "Аналитика",
+      "leadsRoi": "ROI",
+      "projects": "Проекты",
+      "projectsNew": "Новые проекты",
+      "projectsClosed": "Закрытые проекты",
+      "projectsInProgress": "Проекты в работе",
+      "projectsTasks": "Задачи",
+      "projectsOverdue": "Просроченные задачи",
+      "projectsAnalytics": "Аналитика проектов",
+      "sales": "Продажи",
+      "salesChannels": "Каналы продаж",
+      "salesIntegrations": "Интеграции",
+      "salesImport": "Импорт продаж",
+      "marketing": "Маркетинг",
+      "marketingTraffic": "Трафик",
+      "marketingCampaigns": "Кампании (ROAS)",
+      "marketingUtms": "UTM-метки",
+      "marketingSegments": "Сегменты",
+      "marketingStatuses": "Статусы лидов/клиентов",
+      "marketingChannels": "Каналы и площадки",
+      "marketingSeo": "SEO & контент",
+      "marketingSmm": "SMM / соцсети",
+      "marketingIntegrations": "Интеграции маркетинга",
+      "marketingAutomations": "Автоматизации (n8n)",
+      "tools": "Инструменты",
+      "settingsCompany": "Настройки компании",
+      "settingsApi": "API и интеграции",
+      "chat": "Чат",
+      "clientAccounts": "Счета клиентов",
+      "staff": "Сотрудники",
+      "staffList": "Список сотрудников",
+      "staffPermissions": "Права доступа"
+    },
+    "common": {
+      "logout": "Выйти",
+      "user": "Пользователь",
+      "language": "Язык",
+      "adminLabel": "WP · CRM Админ",
+      "empty": "—",
+      "save": "Сохранить",
+      "saving": "Сохраняем...",
+      "cancel": "Отмена",
+      "close": "Закрыть",
+      "ok": "Ок",
+      "edit": "Редактировать"
+    },
+    "errors": {
+      "appFailedTitle": "Приложение не загрузилось",
+      "accessDeniedTitle": "Доступ запрещён",
+      "accessDeniedText": "Обратитесь к владельцу или администратору, чтобы выдать доступ к этому разделу."
+    },
+    "auth": {
+      "login": {
+        "badge": "Lumiva CRM · v0.1",
+        "headline": "Современная CRM для лидов и продаж",
+        "headlineAccent": "От первого клика до оплаченного счёта.",
+        "description": "Все лиды из сайтов, чатов, рекламы и бронирований — в одной системе.",
+        "bullets": {
+          "collect": "Сбор лидов из WordPress, чатов и онлайн-форм в реальном времени",
+          "statuses": "Готовую структуру для статусов, ответственных и счетов",
+          "ui": "Чистый, премиальный интерфейс для ежедневной работы без перегруза"
+        },
+        "brand": "LUMIVA",
+        "formTitle": "Вход в Lumiva CRM",
+        "clientKey": "Ключ клиента",
+        "clientKeyPlaceholder": "Ваш ключ клиента",
+        "email": "E-mail",
+        "emailPlaceholder": "example@company.com",
+        "password": "Пароль",
+        "passwordPlaceholder": "password",
+        "success": "Успешный вход. Сессия сохранена.",
+        "submit": "Войти в CRM",
+        "submitting": "Входим...",
+        "forgot": "Забыли пароль?",
+        "errors": {
+          "required": "Заполните все поля",
+          "failed": "Не удалось войти"
+        }
+      },
+      "forgot": {
+        "brand": "LUMIVA",
+        "title": "Сброс пароля",
+        "subtitle": "Укажите clientKey и email — мы отправим письмо со ссылкой для смены пароля.",
+        "clientKey": "Client Key",
+        "clientKeyPlaceholder": "например, selectum-main-site",
+        "email": "E-mail",
+        "emailPlaceholder": "you@company.com",
+        "success": "Мы отправили письмо для смены пароля, проверьте почту.",
+        "submit": "Получить письмо",
+        "sending": "Отправляем…",
+        "back": "Вернуться к входу",
+        "errors": {
+          "required": "Укажите clientKey и email",
+          "failed": "Не удалось отправить письмо"
+        }
+      },
+      "setPassword": {
+        "brand": "Lumiva CRM",
+        "title": "Создание пароля",
+        "subtitle": "Задайте пароль для первого входа в систему.",
+        "tokenMissing": "Ссылка не содержит токен. Попросите администратора выслать приглашение повторно.",
+        "password": "Новый пароль",
+        "passwordPlaceholder": "Минимум 8 символов",
+        "confirm": "Повторите пароль",
+        "confirmPlaceholder": "Повторите пароль",
+        "submit": "Установить пароль",
+        "saving": "Сохраняем…",
+        "success": "Пароль успешно установлен.",
+        "redirect": "Сейчас перенаправим на страницу входа…",
+        "footer": "Если ссылка не работает, обратитесь к администратору платформы.",
+        "errors": {
+          "missingToken": "Ссылка недействительна: отсутствует токен.",
+          "shortPassword": "Пароль должен содержать минимум 8 символов",
+          "mismatch": "Пароли не совпадают",
+          "failed": "Ошибка установки пароля"
+        }
+      }
+    },
+    "clientAccounts": {
+      "title": "Счета клиентов",
+      "subtitle": "Управление балансами, операциями и переводами клиентов.",
+      "refresh": "Обновить",
+      "sitesLabel": "Сайт",
+      "searchLabel": "Поиск",
+      "searchPlaceholder": "Поиск по имени, email или WP ID",
+      "clientsEmpty": "Клиенты не найдены.",
+      "selectClient": "Выберите клиента",
+      "wpUser": "WP пользователь #{{id}}",
+      "wpUserShort": "WP#{{id}}",
+      "localId": "ID: {{id}}",
+      "openPage": "Открыть страницу",
+      "refreshActivity": "Обновить активность",
+      "edit": "Редактировать",
+      "cancel": "Отмена",
+      "save": "Сохранить",
+      "saving": "Сохраняем...",
+      "tabs": {
+        "overview": "Обзор",
+        "txns": "Операции ({{count}})",
+        "transfers": "Переводы ({{count}})"
+      },
+      "loading": "Загрузка...",
+      "accounts": {
+        "eur": "EUR счет",
+        "usd": "USD счет",
+        "spent": "Потрачено",
+        "accountLabel": "Счет",
+        "balance": "Баланс",
+        "accountNumber": "Номер счета",
+        "eurNumberPlaceholder": "Например: 1234 5678",
+        "usdNumberPlaceholder": "Например: 9876 5432",
+        "iban": "IBAN",
+        "ibanPlaceholder": "TR.."
+      },
+      "quickStats": "Быстрая статистика",
+      "txnsLabel": "Операции",
+      "transfersLabel": "Переводы",
+      "lastUpdated": "Последнее обновление:",
+      "operationTitle": "Операция #{{id}}",
+      "transferTitle": "Перевод #{{id}}",
+      "wpPostMeta": "WP#{{id}} · {{date}}",
+      "txnsEmpty": "Нет операций.",
+      "transfersEmpty": "Нет переводов.",
+      "direction": {
+        "label": "Направление",
+        "sent": "Отправлено",
+        "received": "Получено"
+      },
+      "fromTo": "От / Кому",
+      "fromCurrency": "Валюта списания",
+      "toCurrency": "Валюта зачисления",
+      "amount": "Сумма",
+      "rate": "Курс",
+      "credited": "Зачислено",
+      "status": {
+        "unknown": "Неизвестно",
+        "done": "Выполнено",
+        "draft": "Черновик",
+        "published": "Опубликовано",
+        "inProgress": "В процессе",
+        "failed": "Ошибка"
+      }
+    },
+    "clientAccountDetails": {
+      "sectionLabel": "Профиль клиента",
+      "updating": "Обновляем данные...",
+      "siteLabel": "Сайт",
+      "wpUserIdLabel": "WP ID",
+      "clientsLoading": "Загружаем клиентов...",
+      "clientsCount": "Клиентов: {{count}}",
+      "backToList": "К списку",
+      "refresh": "Обновить",
+      "edit": "Редактировать",
+      "loading": "Загрузка данных...",
+      "title": "Профиль клиента",
+      "clientFallback": "Клиент {{id}}",
+      "ccpStatus": {
+        "inProgress": "В процессе",
+        "done": "Выполнено",
+        "rejected": "Отклонено",
+        "insufficient": "Недостаточно средств"
+      },
+      "wpStatus": {
+        "publish": "Опубликовано",
+        "draft": "Черновик",
+        "pending": "На проверке",
+        "private": "Приватный"
+      },
+      "cards": {
+        "eurAccount": "EUR счет",
+        "eurBalance": "Баланс EUR",
+        "usdAccount": "USD счет",
+        "usdBalance": "Баланс USD",
+        "iban": "IBAN",
+        "spent": "Потрачено",
+        "contacts": "Контакты",
+        "updatedAt": "Обновлено {{date}}",
+        "txnsCount": "{{count}} операций",
+        "transfersCount": "{{count}} переводов"
+      },
+      "tables": {
+        "loading": "Загрузка...",
+        "recordsCount": "Записей: {{count}}"
+      },
+      "txns": {
+        "title": "Операции",
+        "create": "Создать операцию",
+        "headers": {
+          "date": "Дата",
+          "title": "Название",
+          "status": "Статус",
+          "actions": "Действия"
+        },
+        "empty": "Операций нет."
+      },
+      "transfers": {
+        "title": "Переводы",
+        "create": "Создать перевод",
+        "headers": {
+          "date": "Дата",
+          "from": "Отправитель",
+          "to": "Получатель",
+          "amount": "Сумма",
+          "rate": "Курс",
+          "credited": "Зачислено",
+          "status": "Статус",
+          "actions": "Действия"
+        },
+        "empty": "Переводов нет."
+      },
+      "editClient": {
+        "title": "Редактирование клиента",
+        "subtitle": "Измените балансы, счета и IBAN.",
+        "balanceEur": "Баланс EUR",
+        "balanceUsd": "Баланс USD",
+        "accountEur": "Счет EUR",
+        "accountUsd": "Счет USD",
+        "ibanEur": "IBAN EUR",
+        "ibanUsd": "IBAN USD"
+      },
+      "labels": {
+        "ccpStatus": "Статус CCP",
+        "wpStatus": "Статус WP",
+        "date": "Дата",
+        "currency": "Валюта",
+        "available": "Доступно: {{amount}}",
+        "amount": "Сумма",
+        "rate": "Курс",
+        "description": "Описание"
+      },
+      "txnCreate": {
+        "title": "Новая операция",
+        "subtitle": "Создание операции списания или зачисления.",
+        "save": "Сохранить",
+        "nameLabel": "Название операции",
+        "namePlaceholder": "Например: сервисный сбор",
+        "amountHintPositive": "Сумма должна быть больше 0",
+        "amountHintInsufficient": "Недостаточно средств",
+        "descPlaceholder": "Комментарий к операции"
+      },
+      "txnEdit": {
+        "title": "Операция #{{id}}",
+        "subtitle": "Обновите параметры операции.",
+        "nameLabel": "Название операции",
+        "spendEur": "Списание EUR",
+        "spendUsd": "Списание USD",
+        "insufficient": "Недостаточно средств",
+        "descPlaceholder": "Комментарий к операции"
+      },
+      "transferCreate": {
+        "title": "Новый перевод",
+        "subtitle": "Перевод между клиентами.",
+        "save": "Создать перевод",
+        "senderLabel": "Отправитель",
+        "recipientSearchLabel": "Получатель",
+        "recipientPlaceholderLoading": "Загрузка клиентов...",
+        "recipientPlaceholder": "Найдите клиента...",
+        "recipientChosen": "{{name}} · WP#{{id}}",
+        "recipientHint": "Начните вводить имя или email.",
+        "fromCurrency": "Валюта списания",
+        "toCurrency": "Валюта зачисления",
+        "credited": "Зачислено: {{amount}} {{currency}}",
+        "amountHintPositive": "Сумма должна быть больше 0",
+        "amountHintInsufficient": "Недостаточно средств у отправителя",
+        "amountHintRecipient": "Выберите получателя",
+        "descPlaceholder": "Комментарий к переводу"
+      },
+      "transferEdit": {
+        "title": "Перевод #{{id}}",
+        "subtitle": "Обновите параметры перевода.",
+        "nameLabel": "Название перевода",
+        "participantsLoading": "Загружаем участников...",
+        "senderLabel": "Отправитель",
+        "recipientLabel": "Получатель",
+        "userMissing": "Пользователь #{{id}} не найден",
+        "fromUserId": "WP ID отправителя",
+        "toUserId": "WP ID получателя",
+        "userIdPlaceholder": "WP ID {{id}}",
+        "fromCurrency": "Валюта списания",
+        "toCurrency": "Валюта зачисления",
+        "descLabel": "Описание",
+        "descPlaceholder": "Комментарий к переводу",
+        "noteLabel": "Примечание",
+        "notePlaceholder": "Внутреннее примечание",
+        "participantsMissing": "Нужно указать отправителя и получателя."
+      },
+      "errors": {
+        "clientIdMissing": "Не найден ID клиента.",
+        "loadFailed": "Не удалось загрузить данные клиента.",
+        "clientSaveFailed": "Не удалось сохранить клиента.",
+        "amountPositive": "Сумма должна быть больше 0.",
+        "insufficientFunds": "Недостаточно средств.",
+        "insufficientFundsEur": "Недостаточно EUR.",
+        "insufficientFundsUsd": "Недостаточно USD.",
+        "txnCreateFailed": "Не удалось создать операцию.",
+        "txnSaveFailed": "Не удалось сохранить операцию.",
+        "transferSenderMissing": "Не выбран отправитель.",
+        "transferRecipientMissing": "Не выбран получатель.",
+        "transferRecipientNotFound": "Получатель не найден.",
+        "transferInsufficient": "Недостаточно средств у отправителя.",
+        "transferCreateFailed": "Не удалось создать перевод.",
+        "transferParticipantsMissing": "Нужно указать отправителя и получателя.",
+        "transferParticipantsNotFound": "Отправитель или получатель не найден.",
+        "transferSaveFailed": "Не удалось сохранить перевод."
+      }
+    },
+    "dashboard": {
+      "welcome": {
+        "badge": "Добро пожаловать",
+        "title": "{{name}}, вот ваш радар по продажам.",
+        "shift": "Смена: {{date}}",
+        "role": "Роль: {{role}}",
+        "summary": "В одном экране — ваши лиды, активность каналов, движение по проектам и задачи. Смотрите, где вырастить выручку и что требует реакции прямо сейчас."
+      },
+      "focus": {
+        "title": "Фокус дня",
+        "prefix": "Ускорьте реакцию на новые лиды до",
+        "highlight": "< 5 минут",
+        "suffix": ", чтобы поднять конверсию на 20–30%.",
+        "items": {
+          "webchat": "Проверить новые заявки из webchat и WhatsApp",
+          "pending": "Сверить статусы лидов «Ожидает ответа» > 24 часов",
+          "notes": "Обновить заметки по ключевым агентствам"
+        }
+      },
+      "kpi": {
+        "todayLeads": "Лиды сегодня",
+        "todayLeadsHint": "за текущие сутки",
+        "totalLeads": "Все мои лиды",
+        "totalLeadsHint": "накопительно",
+        "conversion": "Моя конверсия",
+        "conversionHint": "по закрытым лидам",
+        "wonProjects": "Выигранные проекты",
+        "wonProjectsHint": "кол-во",
+        "revenue": "Выручка (EUR)",
+        "revenueHint": "по выигранным проектам",
+        "tasksTotal": "Задачи всего",
+        "tasksSubtitle": "Сегодня: {{today}}, просрочено: {{overdue}}"
+      },
+      "leadsTimeline": {
+        "title": "Динамика моих лидов (14 дней)",
+        "subtitle": "Сколько заявок приходило каждый день",
+        "total": "Всего за период:",
+        "empty": "Пока нет данных для построения графика."
+      },
+      "projects": {
+        "title": "Структура моих проектов",
+        "subtitle": "Открытые, выигранные и проигранные сделки",
+        "total": "Всего:",
+        "openPotential": "Потенциал (open):",
+        "empty": "У вас пока нет проектов.",
+        "chips": {
+          "open": "Открытые",
+          "won": "Выигранные",
+          "lost": "Проигранные"
+        },
+        "tasksSummary": "Кратко по задачам:",
+        "countLabel": "Проектов:",
+        "amountLabel": "Сумма:"
+      },
+      "tasks": {
+        "title": "Мои задачи в проектах",
+        "empty": "На вас пока нет задач.",
+        "overdue": "Просрочено",
+        "today": "Сегодня",
+        "upcoming": "Впереди",
+        "fallbackTitle": "Задача",
+        "titleWithProject": "{{title}} · {{project}}"
+      },
+      "channels": {
+        "title": "Лиды по каналам (мои)",
+        "period": "за всё время",
+        "empty": "Пока нет лидов с привязкой к вам."
+      },
+      "pipeline": {
+        "title": "Воронка по моим проектам",
+        "subtitle": "сумма по статусам",
+        "empty": "У вас пока нет проектов.",
+        "itemLabel": "{{count}} лидов · {{value}} €"
+      },
+      "recentLeads": {
+        "title": "Последние мои лиды",
+        "openAll": "Открыть все",
+        "headers": {
+          "name": "Имя",
+          "channel": "Канал",
+          "status": "Статус",
+          "created": "Создан"
+        },
+        "empty": "Лидов пока нет."
+      },
+      "taskTypes": {
+        "call": "Звонок",
+        "meeting": "Встреча",
+        "todo": "Задача"
+      },
+      "roles": {
+        "owner": "Владелец",
+        "admin": "Администратор",
+        "superadmin": "Суперадмин",
+        "user": "Пользователь"
+      },
+      "fallbacks": {
+        "user": "Коллега",
+        "other": "Другие",
+        "noStatus": "Без статуса",
+        "noName": "Без имени",
+        "empty": "—",
+        "noDue": "Без срока"
+      },
+      "loading": "Обновляем данные дашборда…",
+      "errors": {
+        "loadFailed": "Не удалось загрузить данные"
+      }
+    },
+    "leads": {
+      "board": {
+        "title": "Лиды · Канбан",
+        "subtitle": "Перетаскивайте карточки между статусами.",
+        "viewKanban": "Канбан",
+        "viewList": "Список",
+        "create": "Новый лид",
+        "loading": "Загрузка лидов...",
+        "empty": "Нет лидов в этом статусе.",
+        "errors": {
+          "loadFailed": "Не удалось загрузить лиды"
+        }
+      },
+      "statusValues": {
+        "new": "Новый клиент",
+        "inProgress": "В работе",
+        "waiting": "Ожидает ответа",
+        "won": "Закрыт (успех)",
+        "lost": "Закрыт (проигран)"
+      },
+      "statuses": {
+        "new": "Новые",
+        "inProgress": "В работе",
+        "waiting": "Ожидает ответа",
+        "won": "Успешно закрыт",
+        "lost": "Проигран"
+      },
+      "analytics": {
+        "hero": {
+          "kicker": "Лиды · Аналитика",
+          "title": "Пульс воронки продаж",
+          "subtitle": "Современный дашборд по лидам: статусы, источники, эффективность менеджеров и география входящих запросов.",
+          "note": "Данные по всем лидам арендатора"
+        },
+        "period": {
+          "label": "Период",
+          "days7": "7 дней",
+          "days30": "30 дней",
+          "year1": "1 год",
+          "all": "Все время",
+          "custom": "Custom"
+        },
+        "summary": {
+          "today": {
+            "title": "Сегодня",
+            "note": "новые обращения"
+          },
+          "week": {
+            "title": "Неделя",
+            "note": "за последние 7 дней"
+          },
+          "month": {
+            "title": "Месяц",
+            "note": "за последние 30 дней"
+          }
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить аналитику по лидам"
+        },
+        "kpis": {
+          "total": {
+            "title": "Всего лидов",
+            "desc": "Все входящие обращения, учитывая статусы и источники."
+          },
+          "won": {
+            "title": "Успешные",
+            "desc": "Статус “won” — закрытые с успехом сделки."
+          },
+          "lost": {
+            "title": "Потери",
+            "desc": "Статус “lost” — сделки, которые не дошли до продажи."
+          },
+          "conversion": {
+            "title": "Конверсия",
+            "desc": "Успешные лиды / все лиды."
+          },
+          "sources": "Источники:",
+          "managers": "Менеджеры:"
+        },
+        "statuses": {
+          "title": "Распределение по статусам",
+          "subtitle": "Какой долей в воронке занимает каждый статус лида.",
+          "total": "Всего:",
+          "centerLabel": "Лидов",
+          "winRate": "Win-rate {{value}}%"
+        },
+        "sources": {
+          "title": "Каналы привлечения",
+          "subtitle": "Источники заявок: формы, реклама, органика и другие входы.",
+          "count": "Каналов:",
+          "legend": "Кол-во лидов"
+        },
+        "managers": {
+          "title": "Эффективность менеджеров",
+          "subtitle": "Распределение лидов и выигранных сделок по ответственным.",
+          "count": "Менеджеров:",
+          "table": {
+            "manager": "Менеджер",
+            "leads": "Лидов",
+            "won": "Успехов",
+            "lost": "Потерь",
+            "winRate": "Win-rate"
+          },
+          "empty": "Пока нет данных по менеджерам."
+        },
+        "countries": {
+          "title": "География лидов",
+          "subtitle": "Страны, из которых приходят запросы (по полю country).",
+          "count": "Стран:",
+          "table": {
+            "country": "Страна",
+            "leads": "Лидов"
+          },
+          "empty": "Пока ни в одном лиде не указана страна.",
+          "unknown": "—"
+        },
+        "tooltips": {
+          "leads": "лидов",
+          "unknown": "неизвестно"
+        }
+      },
+      "roi": {
+        "hero": {
+          "kicker": "Лиды · ROI",
+          "title": "Доход по лидам (ROI)"
+        },
+        "mode": {
+          "sales": "По продажам",
+          "projects": "По проектам"
+        },
+        "modeDescriptions": {
+          "sales": "Сколько денег принесли закрытые сделки по лидам за выбранный период. Основано на данных продаж, связанных с лидами.",
+          "projects": "Сколько денег принесли оплаченные проекты по лидам за выбранный период. Основано на суммах проектов, связанных с лидами."
+        },
+        "source": {
+          "label": "Источник"
+        },
+        "period": {
+          "label": "Период",
+          "days7": "7 дней",
+          "days30": "30 дней",
+          "year1": "1 год",
+          "all": "Все время",
+          "custom": "Произвольно"
+        },
+        "loading": "Загружаем ROI по лидам…",
+        "errors": {
+          "loadFailed": "Не удалось загрузить ROI по лидам"
+        },
+        "labels": {
+          "salesPlural": "сделок",
+          "projectsPlural": "проектов",
+          "paidProjects": "оплаченные проекты",
+          "saleOrPayment": "сделки/оплаты",
+          "project": "проекта",
+          "payments": "оплат / закрытых сделок",
+          "trackedProjects": "учтённых проектов"
+        },
+        "kpis": {
+          "totalRevenue": {
+            "title": "Общий доход",
+            "desc": "Сумма всех {{mode}} по лидам за период."
+          },
+          "withRevenue": {
+            "title": "Лидов с доходом",
+            "desc": "Количество лидов, по которым были {{mode}}."
+          },
+          "avgCheck": {
+            "title": "Средний чек",
+            "desc": "Средний размер {{mode}} по лидам."
+          },
+          "deals": {
+            "titleSales": "Сделок",
+            "titleProjects": "Проектов",
+            "desc": "Общее количество {{mode}}."
+          }
+        },
+        "top": {
+          "title": "Топ лидов по доходу",
+          "subtitle": "Лиды с наибольшим суммарным доходом за выбранный период.",
+          "shown": "Показано: {{count}}"
+        },
+        "table": {
+          "title": "Лиды и доход",
+          "subtitle": "Детализированный список лидов с суммарным доходом и периодом {{mode}}.",
+          "count": "Лидов: {{count}}",
+          "columns": {
+            "lead": "Лид",
+            "manager": "Менеджер",
+            "channel": "Канал",
+            "dealsSales": "Сделок",
+            "dealsProjects": "Проектов",
+            "revenue": "Доход",
+            "period": "Период"
+          },
+          "empty": "Пока нет лидов с доходом за выбранный период.",
+          "unnamed": "Без имени",
+          "unknown": "неизвестно",
+          "emptyValue": "—"
+        },
+        "tooltip": {
+          "revenue": "Доход:",
+          "deals": "Сделок: {{count}}",
+          "period": "период",
+          "manager": "Менеджер: {{name}}"
+        }
+      },
+      "list": {
+        "title": "Лиды · Список",
+        "subtitle": "Табличный вид: удобно фильтровать и быстро искать",
+        "viewKanban": "Канбан",
+        "viewList": "Список",
+        "create": "Создать лид",
+        "loading": "Загружаем лидов…",
+        "empty": "Лидов пока нет",
+        "open": "Открыть",
+        "emptyValue": "—",
+        "columns": {
+          "name": "Имя",
+          "channel": "Канал",
+          "utm": "UTM",
+          "status": "Статус",
+          "created": "Создан",
+          "actions": "Действия"
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки лидов"
+        }
+      },
+      "form": {
+        "back": "← Назад к лидам",
+        "titleNew": "Новый лид",
+        "titleId": "Лид #{{id}}",
+        "titleDefault": "Лид",
+        "nameFallback": "Без имени",
+        "loadingLead": "Загружаем данные лида…",
+        "tabs": {
+          "main": "Лид",
+          "history": "История"
+        },
+        "actions": {
+          "createAccount": "Создать аккаунт",
+          "delete": "Удалить лид",
+          "save": "Сохранить",
+          "saving": "Сохраняем…",
+          "send": "Отправить"
+        },
+        "alerts": {
+          "createAccount": "Здесь будет логика создания аккаунта на стороне WordPress клиента и линковки с лидом.",
+          "deleteConfirm": "Удалить лид? Это действие необратимо.",
+          "commentRequiresSave": "Сначала сохраните лид, чтобы добавлять комментарии."
+        },
+        "account": {
+          "title": "Создать аккаунт клиента",
+          "subtitle": "Создание аккаунта в WordPress и привязка балансов по валютам.",
+          "fields": {
+            "site": "Сайт клиента",
+            "sitePlaceholder": "Выберите сайт",
+            "name": "Имя",
+            "namePlaceholder": "Имя клиента",
+            "email": "Почта",
+            "emailPlaceholder": "email@example.com",
+            "password": "Пароль",
+            "passwordPlaceholder": "Введите пароль",
+            "balanceEur": "Баланс EUR",
+            "balanceEurPlaceholder": "Например, 1200",
+            "balanceUsd": "Баланс USD",
+            "balanceUsdPlaceholder": "Например, 800"
+          },
+          "hints": {
+            "noSites": "Нет подключённых сайтов. Сначала добавьте сайт в разделе клиентских аккаунтов."
+          },
+          "actions": {
+            "create": "Создать аккаунт"
+          },
+          "messages": {
+            "created": "Аккаунт клиента создан"
+          },
+          "errors": {
+            "loadSites": "Не удалось загрузить список сайтов",
+            "siteRequired": "Выберите сайт",
+            "emailRequired": "Укажите почту клиента",
+            "passwordRequired": "Укажите пароль",
+            "exists": "Аккаунт с этой почтой уже существует",
+            "createFailed": "Не удалось создать аккаунт"
+          }
+        },
+        "messages": {
+          "leadCreated": "Лид создан",
+          "leadSaved": "Изменения по лиду сохранены",
+          "leadDeleted": "Лид удалён",
+          "commentAdded": "Комментарий добавлен"
+        },
+        "errors": {
+          "loadLead": "Ошибка загрузки лида",
+          "saveLead": "Ошибка сохранения лида",
+          "deleteLead": "Ошибка удаления лида",
+          "deleteForbidden": "Недостаточно прав: удалять лиды может только владелец.",
+          "historyLoad": "Ошибка загрузки истории",
+          "commentFailed": "Не удалось добавить комментарий",
+          "metaInvalid": "Meta: некорректный JSON"
+        },
+        "activity": {
+          "created": "Лид создан",
+          "statusChanged": "Изменён статус",
+          "assigneeChanged": "Изменён ответственный",
+          "comment": "Комментарий"
+        },
+        "sections": {
+          "relatedProjects": "Связанные проекты",
+          "historyEmptyNew": "История появится после того, как вы сохраните лид.",
+          "historyEmpty": "Пока нет событий по этому лиду.",
+          "historyLoading": "Загружаем историю…",
+          "addComment": "Добавить комментарий",
+          "user": "Пользователь"
+        },
+        "fields": {
+          "namePlaceholder": "Имя лида",
+          "emailPlaceholder": "E-mail",
+          "phonePlaceholder": "Телефон",
+          "countryPlaceholder": "Страна (код или текст)",
+          "assigneePlaceholder": "Ответственный не назначен",
+          "channelPlaceholder": "Канал (например, FORM / CHAT / GOOGLE)",
+          "notesPlaceholder": "Текст лида / запрос клиента / важные детали...",
+          "metaPlaceholder": "Сырые данные meta (utm, page, form_id...)",
+          "commentPlaceholder": "Напишите комментарий…",
+          "projectStatus": "Статус: {{status}} — #{{id}}"
+        }
+      },
+      "lost": {
+        "sectionLabel": "Лиды · Утраты",
+        "title": "Утраченные лиды и упущенная выручка",
+        "subtitle": "Количество потерянных лидов, сумма связанных проектов и распределение по менеджерам.",
+        "periodLabel": "Период",
+        "presets": {
+          "7d": "7 дней",
+          "30d": "30 дней",
+          "90d": "90 дней",
+          "all": "Все время"
+        },
+        "loading": "Загружаем утраченные лиды…",
+        "errors": {
+          "loadFailed": "Не удалось загрузить статистику по утраченным лидам"
+        },
+        "kpi": {
+          "lostTitle": "Утрачено лидов",
+          "lostHint": "Лиды со статусом “lost” за выбранный период.",
+          "amountTitle": "Упущенная сумма",
+          "amountHint": "Сумма проектов, связанных с утраченными лидами.",
+          "managersTitle": "Менеджеры с утратами",
+          "managersHint": "Количество менеджеров, у кого есть потерянные лиды."
+        },
+        "chart": {
+          "title": "Утраты по менеджерам",
+          "subtitle": "Количество потерянных лидов и сумма связанных проектов.",
+          "shown": "Показано: {{count}}"
+        },
+        "tableManagers": {
+          "title": "Таблица по менеджерам",
+          "total": "Всего: {{count}}",
+          "empty": "Пока нет утраченных лидов в этом периоде.",
+          "headers": {
+            "manager": "Менеджер",
+            "lost": "Утрачено",
+            "amount": "Сумма"
+          }
+        },
+        "tableLeads": {
+          "title": "Список утраченных лидов",
+          "subtitle": "Лиды со статусом “lost” за выбранный период, с суммой связанных проектов.",
+          "total": "Всего: {{count}}",
+          "empty": "Пока нет утраченных лидов за выбранный период.",
+          "leadFallback": "Без названия",
+          "managerFallback": "—",
+          "headers": {
+            "lead": "Лид",
+            "manager": "Менеджер",
+            "amount": "Сумма",
+            "created": "Создан"
+          }
+        },
+        "tooltip": {
+          "lost": "Утрачено лидов: {{count}}",
+          "amount": "Сумма проектов: {{amount}} {{currency}}"
+        }
+      }
+    },
+    "projects": {
+      "board": {
+        "title": "Проекты · Канбан",
+        "subtitle": "Перетаскивайте карточки между колонками, чтобы менять статус проекта.",
+        "empty": "Нет проектов"
+      },
+      "list": {
+        "title": "Проекты · Таблица",
+        "subtitle": "Список проектов: статус, сумма, ответственный и дата создания",
+        "headers": {
+          "name": "Название проекта",
+          "owner": "Ответственный",
+          "lead": "Лид",
+          "status": "Статус",
+          "amount": "Сумма",
+          "created": "Создан"
+        },
+        "empty": "Проектов пока нет"
+      },
+      "closed": {
+        "kicker": "Проекты · Закрытые",
+        "title": "Закрытые проекты",
+        "subtitle": "Все проекты со статусом “Закрыт”. Здесь можно отследить итоговые суммы и ответственных.",
+        "loading": "Загружаем закрытые проекты…",
+        "empty": "Закрытых проектов пока нет.",
+        "kpis": {
+          "count": "Закрытых проектов",
+          "amount": "Сумма закрытых",
+          "categories": "Категорий"
+        },
+        "table": {
+          "title": "Таблица проектов",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "project": "Проект",
+            "category": "Категория",
+            "status": "Статус",
+            "owner": "Ответственный",
+            "amount": "Сумма",
+            "created": "Создан"
+          }
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить закрытые проекты"
+        }
+      },
+      "inProgress": {
+        "kicker": "Проекты · В работе",
+        "title": "Проекты в работе",
+        "subtitle": "Активные проекты со статусом “В работе”. Следите за суммой и ответственными.",
+        "loading": "Загружаем проекты в работе…",
+        "empty": "Проектов в работе пока нет.",
+        "kpis": {
+          "count": "В работе",
+          "amount": "Сумма",
+          "categories": "Категории"
+        },
+        "table": {
+          "title": "Таблица проектов",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "project": "Проект",
+            "category": "Категория",
+            "status": "Статус",
+            "owner": "Ответственный",
+            "amount": "Сумма",
+            "created": "Создан"
+          }
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить проекты в работе"
+        }
+      },
+      "tasks": {
+        "kicker": "Проекты · Задачи",
+        "title": "Задачи по проектам",
+        "subtitle": "Список всех задач по проектам. Owner видит всё, менеджеры — свои проекты (по текущей логике API).",
+        "loading": "Загружаем задачи…",
+        "empty": "Задач пока нет.",
+        "table": {
+          "title": "Все задачи",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "task": "Задача",
+            "project": "Проект",
+            "owner": "Ответственный",
+            "status": "Статус",
+            "priority": "Приоритет",
+            "deadline": "Дедлайн"
+          }
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить задачи проектов"
+        }
+      },
+      "overdue": {
+        "kicker": "Проекты · Просроченные задачи",
+        "title": "Просроченные задачи",
+        "subtitle": "Задачи с дедлайном в прошлом, не переведённые в статус “Готово”.",
+        "loading": "Загружаем задачи…",
+        "empty": "Нет просроченных задач.",
+        "table": {
+          "title": "Список просроченных",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "task": "Задача",
+            "project": "Проект",
+            "owner": "Ответственный",
+            "priority": "Приоритет",
+            "deadline": "Дедлайн",
+            "overdue": "Просрочено (дней)"
+          }
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить просроченные задачи"
+        }
+      },
+      "new": {
+        "kicker": "Проекты · Новые",
+        "title": "Новые проекты",
+        "subtitle": "Все проекты со статусом “Новый”. Ниже — краткая статистика и таблица.",
+        "loading": "Загружаем новые проекты…",
+        "empty": "Пока нет проектов со статусом “Новый”.",
+        "kpis": {
+          "count": "Количество",
+          "amount": "Сумма",
+          "categories": "Категории"
+        },
+        "table": {
+          "title": "Таблица проектов",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "project": "Проект",
+            "category": "Категория",
+            "status": "Статус",
+            "owner": "Ответственный",
+            "amount": "Сумма",
+            "created": "Создан"
+          }
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить новые проекты"
+        }
+      },
+      "views": {
+        "kanban": "Канбан",
+        "table": "Таблица"
+      },
+      "actions": {
+        "newProject": "Новый проект"
+      },
+      "statuses": {
+        "new": "Новый",
+        "inProgress": "В работе",
+        "review": "На проверке",
+        "paused": "Заморожен",
+        "closed": "Закрыт"
+      },
+      "errors": {
+        "loadFailed": "Ошибка загрузки проектов",
+        "statusUpdateFailed": "Не удалось изменить статус проекта"
+      },
+      "loading": "Загрузка проектов…",
+      "common": {
+        "emptyValue": "—",
+        "amountWithCurrency": "{{amount}} {{currency}}"
+      },
+      "categories": {
+        "analytics": "Аналитика",
+        "development": "Разработка",
+        "marketing": "Маркетинг",
+        "ads": "Реклама",
+        "seo": "SEO",
+        "smm": "SMM"
+      },
+      "tags": {
+        "crm": "CRM",
+        "it": "IT",
+        "web": "WEB",
+        "seo": "SEO",
+        "smm": "SMM",
+        "ads": "ADS"
+      },
+      "detail": {
+        "titleNew": "Новый проект",
+        "titleExisting": "Проект #{{id}}",
+        "loading": "Загрузка данных проекта…",
+        "confirmDelete": "Удалить проект?",
+        "tabs": {
+          "props": "Свойства",
+          "tasks": "Задачи",
+          "comments": "Комментарии"
+        },
+        "fields": {
+          "name": "Название проекта",
+          "ownerEmpty": "Ответственный не назначен",
+          "description": "Описание проекта",
+          "leadEmpty": "Без лида",
+          "leadNameFallback": "Без имени",
+          "leadName": "Имя лида (можно подправить вручную)",
+          "leadEmail": "Email лида",
+          "amount": "Сумма",
+          "createdAt": "Создан: 24.09.2025, 03:00:00",
+          "category": "Категория",
+          "tags": "Метки"
+        },
+        "files": {
+          "title": "Файлы (ТЗ, смета, договор и т.д.)",
+          "namePlaceholder": "Название файла / тип документа (например, ТЗ по сайту)",
+          "urlPlaceholder": "Ссылка на файл (Google Drive / Dropbox / медиа WP)"
+        },
+        "tasks": {
+          "newTitle": "Новая задача: заголовок",
+          "newAssignees": "Исполнители (через запятую)…",
+          "add": "Добавить",
+          "empty": "Задач пока нет",
+          "subtask": "Подзадача…",
+          "checklist": "Чек-лист",
+          "headers": {
+            "task": "Задача",
+            "assignees": "Исполнители",
+            "status": "Статус",
+            "priority": "Приоритет",
+            "deadline": "Дедлайн",
+            "checklist": "Чек-лист"
+          },
+          "status": {
+            "todo": "К выполнению",
+            "inProgress": "В работе",
+            "done": "Готово"
+          },
+          "priority": {
+            "normal": "Обычный",
+            "high": "Высокий",
+            "low": "Низкий"
+          }
+        },
+        "comments": {
+          "empty": "Комментариев пока нет",
+          "newPlaceholder": "Новый комментарий… можно использовать @имя менеджера",
+          "draftTitle": "Черновик с @упоминаниями",
+          "draftPlaceholder": "Черновик сообщения…"
+        },
+        "actions": {
+          "save": "Сохранить",
+          "saving": "Сохранение…",
+          "delete": "Удалить проект",
+          "add": "Добавить",
+          "remove": "Удалить",
+          "send": "Отправить"
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки проекта",
+          "saveFailed": "Ошибка сохранения проекта",
+          "deleteFailed": "Ошибка при удалении проекта"
+        },
+        "fallbacks": {
+          "untitled": "Без названия",
+          "user": "Коллега"
+        }
+      },
+      "analytics": {
+        "kicker": "Проекты · Аналитика",
+        "title": "Аналитика проектов",
+        "subtitle": "Быстрый обзор по статусам, категориям и сумме проектов.",
+        "noCategory": "Без категории",
+        "shown": "Показано: {{count}}",
+        "kpis": {
+          "total": "Всего проектов",
+          "amount": "Суммарная сумма",
+          "categories": "Категорий"
+        },
+        "statusChart": {
+          "title": "Статусы проектов"
+        },
+        "categoryChart": {
+          "title": "Категории проектов"
+        },
+        "table": {
+          "title": "Все проекты",
+          "total": "Всего: {{count}}",
+          "loading": "Загружаем проекты…",
+          "headers": {
+            "project": "Проект",
+            "status": "Статус",
+            "category": "Категория",
+            "owner": "Ответственный",
+            "amount": "Сумма"
+          }
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить аналитику проектов"
+        }
+      }
+    },
+    "staff": {
+      "title": "Сотрудники",
+      "subtitle": "Команда, роли и доступы пользователей.",
+      "loading": "Загрузка сотрудников…",
+      "empty": "Сотрудников пока нет.",
+      "roles": {
+        "owner": "Владелец",
+        "manager": "Менеджер",
+        "viewer": "Наблюдатель",
+        "finance": "Финансы",
+        "sales": "Продажи",
+        "developer": "Разработчик",
+        "support": "Поддержка"
+      },
+      "status": {
+        "active": "Активен",
+        "disabled": "Отключён"
+      },
+      "actions": {
+        "resetPassword": "Сбросить пароль",
+        "deactivate": "Отключить",
+        "activate": "Активировать"
+      },
+      "create": {
+        "title": "Новый сотрудник",
+        "fullName": "Имя и фамилия",
+        "email": "Email",
+        "department": "Отдел",
+        "creating": "Создаём…",
+        "submit": "Создать"
+      },
+      "table": {
+        "id": "ID",
+        "headers": {
+          "name": "Сотрудник",
+          "email": "Email",
+          "department": "Отдел",
+          "role": "Роль",
+          "status": "Статус",
+          "actions": "Действия"
+        }
+      },
+      "common": {
+        "empty": "—",
+        "notSpecified": "Не указано",
+        "initialsFallback": "Сотрудник"
+      },
+      "errors": {
+        "load": "Не удалось загрузить сотрудников",
+        "create": "Не удалось создать сотрудника",
+        "deactivate": "Не удалось отключить сотрудника",
+        "activate": "Не удалось активировать сотрудника",
+        "role": "Не удалось обновить роль",
+        "department": "Не удалось обновить отдел"
+      },
+      "dialogs": {
+        "cancel": "Отмена",
+        "ok": "Ок",
+        "error": {
+          "title": "Ошибка",
+          "message": "Попробуйте ещё раз."
+        },
+        "deactivate": {
+          "title": "Отключить доступ?",
+          "message": "Сотрудник потеряет доступ к CRM до повторной активации."
+        },
+        "resetPassword": {
+          "title": "Сброс пароля",
+          "message": "Новый доступ для {{email}}:\n\nЛогин: {{login}}\nПароль: {{password}}\n\nПередайте данные сотруднику и попросите сменить пароль после первого входа."
+        }
+      },
+      "detail": {
+        "back": "Назад",
+        "loading": "Загрузка профиля…",
+        "id": "ID сотрудника",
+        "role": "Роль",
+        "department": "Отдел",
+        "status": "Статус",
+        "external": "Внешние",
+        "errors": {
+          "load": "Не удалось загрузить данные сотрудника"
+        }
+      },
+      "permissions": {
+        "title": "Права доступа",
+        "subtitle": "Глобальные роли и права по модулям CRM.",
+        "saved": "Сохранено",
+        "loading": "Загрузка прав…",
+        "saving": "Сохраняем…",
+        "save": "Сохранить",
+        "table": {
+          "module": "Модуль"
+        },
+        "errors": {
+          "load": "Не удалось загрузить права доступа",
+          "loadUsers": "Не удалось загрузить сотрудников",
+          "save": "Не удалось сохранить права",
+          "saveUser": "Не удалось сохранить права сотрудника"
+        },
+        "user": {
+          "title": "Права сотрудника",
+          "subtitle": "Настройте доступ к модулям для выбранного пользователя.",
+          "employee": "Сотрудник",
+          "loading": "Загрузка прав сотрудника…",
+          "access": "Доступы",
+          "save": "Сохранить",
+          "saving": "Сохраняем…",
+          "saved": "Права обновлены"
+        },
+        "leads": "Лиды",
+        "projects": "Проекты",
+        "staff": "Сотрудники",
+        "finance": "Финансы",
+        "analytics": "Аналитика",
+        "settings": "Настройки",
+        "chat": "Чат"
+      },
+      "profile": {
+        "invalidId": "Некорректный ID сотрудника",
+        "back": "Назад к сотрудникам",
+        "title": "Профиль сотрудника",
+        "fallbackName": "Сотрудник",
+        "idShort": "ID {{id}}",
+        "selfProfile": "Перейти в мой профиль",
+        "loading": "Загружаем профиль сотрудника…",
+        "roleAndDepartment": "Роль и отдел",
+        "department": "Отдел",
+        "departmentPlaceholder": "не указан",
+        "statusTitle": "Статус сотрудника",
+        "statusChanging": "Меняем…",
+        "statusDisable": "Отключить",
+        "statusEnable": "Включить",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить этого сотрудника без возможности восстановления?",
+        "kpis": {
+          "leadsTitle": "Лиды менеджера",
+          "leadsHint": "назначено на {{name}}",
+          "managerFallback": "менеджера",
+          "projectsTitle": "Проекты в работе",
+          "projectsHint": "где он указан как ответственный",
+          "tasksTitle": "Задачи",
+          "tasksHint": "в чек-листах проектов"
+        },
+        "tabs": {
+          "overview": "Обзор",
+          "leads": "Лиды",
+          "projects": "Проекты",
+          "tasks": "Задачи"
+        },
+        "contacts": {
+          "title": "Контакты"
+        },
+        "access": {
+          "title": "Доступ в CRM",
+          "creating": "Создаём…",
+          "createReset": "Создать / сбросить пароль",
+          "onlyOwner": "Только владелец может управлять логинами сотрудников",
+          "message": "Логин: {{email}}\nПароль: {{password}}\nПередайте его сотруднику и попросите сменить после первого входа.",
+          "error": "Не удалось создать/сбросить пароль"
+        },
+        "activity": {
+          "title": "Активность",
+          "last": "Последняя активность: {{date}}",
+          "never": "Ни разу не заходил в систему",
+          "since": "В системе с {{date}}"
+        },
+        "leads": {
+          "recentTitle": "Последние лиды ({{count}})",
+          "all": "Все лиды →",
+          "fallbackName": "Без имени",
+          "fallbackContact": "контакты не указаны",
+          "empty": "На этого менеджера пока нет лидов.",
+          "title": "Лиды, назначенные на {{name}}",
+          "table": {
+            "headers": {
+              "name": "Имя",
+              "contacts": "Контакты",
+              "status": "Статус",
+              "channel": "Канал",
+              "created": "Создан"
+            },
+            "empty": "Лидов пока нет."
+          }
+        },
+        "projects": {
+          "recentTitle": "Последние проекты ({{count}})",
+          "all": "Все проекты →",
+          "empty": "У сотрудника пока нет проектов, где он ответственный.",
+          "title": "Проекты, где он ответственный",
+          "table": {
+            "headers": {
+              "project": "Проект",
+              "status": "Статус",
+              "amount": "Сумма",
+              "lead": "Лид",
+              "created": "Создан"
+            },
+            "empty": "Проектов пока нет."
+          }
+        },
+        "tasks": {
+          "title": "Задачи в проектах (по чек-листам), где указано его имя",
+          "fallbackTitle": "Без названия",
+          "table": {
+            "headers": {
+              "task": "Задача",
+              "project": "Проект",
+              "status": "Статус",
+              "priority": "Приоритет",
+              "deadline": "Дедлайн"
+            },
+            "empty": "Для этого сотрудника пока нет задач в проектах."
+          }
+        },
+        "errors": {
+          "load": "Ошибка загрузки профиля сотрудника",
+          "role": "Не удалось изменить роль сотрудника",
+          "department": "Не удалось изменить отдел",
+          "status": "Не удалось изменить статус сотрудника",
+          "delete": "Не удалось удалить сотрудника"
+        }
+      }
+    },
+    "inactive": {
+      "badge": "Подписка приостановлена",
+      "title": "Доступ к CRM сейчас недоступен",
+      "description": "Пожалуйста, свяжитесь с нашей поддержкой, чтобы продлить подписку или разблокировать доступ. Текущая работа в CRM была приостановлена до решения вопроса.",
+      "defaultReason": "Доступ к CRM временно закрыт.",
+      "reasonExpired": "Срок действия подписки закончился.",
+      "reasonBlocked": "Тенант заблокирован администратором.",
+      "fields": {
+        "reason": "Причина",
+        "activeUntil": "Активен до",
+        "lastCheck": "Последняя проверка"
+      },
+      "empty": "—",
+      "contact": {
+        "text": "Напишите нам на {{email}} или в чат, чтобы мы помогли возобновить доступ. После продления авторизуйтесь заново.",
+        "subject": "Разблокировка CRM",
+        "write": "Написать в поддержку",
+        "home": "На главную"
+      }
+    },
+    "chat": {
+      "file": "Файл",
+      "confirmDelete": "Удалить переписку? Сообщения будут удалены безвозвратно.",
+      "errors": {
+        "deleteFailed": "Не удалось удалить чат"
+      },
+      "dialogTitle": "Диалог #{{id}}",
+      "title": "Онлайн-чат",
+      "subtitle": "Все диалоги с виджетов на сайтах: отвечайте клиентам, следите за активными чатами и историей переписок.",
+      "searchPlaceholder": "Поиск по имени или e-mail",
+      "loadingChats": "Загрузка чатов…",
+      "empty": "Пока нет активных чатов.",
+      "visitorFallback": "Гость сайта",
+      "statusOpen": "Открыт",
+      "statusClosed": "Закрыт",
+      "selectPrompt": "Выберите чат слева, чтобы начать переписку.",
+      "refresh": "Обновить",
+      "delete": "Удалить чат",
+      "loadingMessages": "Загрузка сообщений…",
+      "assistant": "Ассистент",
+      "visitor": "Посетитель",
+      "replyPlaceholder": "Напишите ответ клиенту…",
+      "send": "Отправить"
+    },
+    "settings": {
+      "company": {
+        "sectionLabel": "Настройки",
+        "title": "Настройки компании",
+        "subtitle": "Название, логотип и базовые параметры клиента",
+        "loading": "Загружаем настройки…",
+        "saving": "Сохраняем…",
+        "save": "Сохранить изменения",
+        "success": "Настройки сохранены",
+        "errors": {
+          "load": "Ошибка загрузки настроек компании",
+          "save": "Ошибка сохранения настроек"
+        },
+        "fields": {
+          "name": "Название компании",
+          "namePlaceholder": "Название, которое будет видно в CRM",
+          "logo": "Логотип (URL)",
+          "logoHint": "Позже можно будет сделать загрузку файла. Сейчас — только URL к изображению.",
+          "language": "Основной язык интерфейса",
+          "languageEmpty": "— Не выбран —",
+          "languageHint": "Пока это только поле в настройках. Переключение UI по языку можно добавить позже.",
+          "clientKey": "Клиентский ключ",
+          "plan": "Тариф",
+          "status": "Статус",
+          "created": "Создан",
+          "updated": "Обновлён",
+          "logoPreview": "Превью логотипа",
+          "logoAlt": "Лого компании"
+        }
+      },
+      "api": {
+        "sectionLabel": "Настройки · API и интеграции",
+        "title": "API для импорта маркетингового трафика",
+        "subtitle": "Этот токен позволяет отправлять данные трафика и рекламы в CRM из n8n, Google Apps Script и других интеграций. У каждого предприятия свой токен, данные не пересекаются между компаниями.",
+        "cardTitle": "Маркетинг: импорт трафика",
+        "cardHint": "Используйте этот токен в заголовке X-Api-Token при запросах на POST /v1/marketing/traffic/import. Все строки трафика будут автоматически привязаны к вашей компании (tenant).",
+        "confirmRotate": "Пересоздать токен? Старый перестанет работать.",
+        "rotate": "Пересоздать токен",
+        "rotating": "Пересоздание…",
+        "loading": "Загружаем токен…",
+        "tokenLabel": "Текущий токен",
+        "copy": "Копировать",
+        "copied": "Скопировано",
+        "exampleTitle": "Пример запроса из n8n / curl",
+        "tokenPlaceholder": "<ВАШ_ТОКЕН>",
+        "empty": "—",
+        "errors": {
+          "load": "Не удалось загрузить API-токен для маркетинга",
+          "rotate": "Не удалось пересоздать API-токен для маркетинга"
+        }
+      },
+      "app": {
+        "sectionLabel": "Общие настройки арендатора",
+        "title": "Настройки компании",
+        "loading": "Загружаем настройки…",
+        "saving": "Сохраняем…",
+        "save": "Сохранить изменения",
+        "success": "Настройки сохранены",
+        "errors": {
+          "load": "Ошибка загрузки настроек компании",
+          "save": "Ошибка сохранения настроек"
+        },
+        "fields": {
+          "name": "Название компании",
+          "namePlaceholder": "Например, Lumiva Agency",
+          "clientKey": "Клиентский ключ",
+          "clientKeyHint": "Используется для интеграций и идентификации тенанта.",
+          "logo": "Логотип (URL)",
+          "logoHint": "Пока только ссылка на изображение. Загрузка файлов будет позже.",
+          "language": "Основной язык интерфейса",
+          "languageHint": "Пока только хранится в БД. Позже будем использовать для UI.",
+          "logoPreview": "Превью логотипа",
+          "logoAlt": "Превью логотипа"
+        }
+      }
+    },
+    "profile": {
+      "sectionLabel": "Профиль",
+      "title": "Мой профиль",
+      "loading": "Загружаем данные профиля…",
+      "saving": "Сохраняем…",
+      "save": "Сохранить профиль",
+      "success": "Профиль обновлён",
+      "errors": {
+        "load": "Ошибка загрузки профиля",
+        "save": "Не удалось сохранить профиль"
+      },
+      "fields": {
+        "name": "Имя",
+        "namePlaceholder": "Имя, как будет отображаться в системе",
+        "phone": "Телефон",
+        "phonePlaceholder": "Например, +90 555 123 45 67",
+        "avatar": "Аватар (URL)",
+        "avatarPlaceholder": "https://example.com/avatar.png"
+      },
+      "password": {
+        "title": "Смена пароля",
+        "subtitle": "Здесь можно изменить свой пароль доступа к CRM.",
+        "current": "Текущий пароль",
+        "new": "Новый пароль",
+        "confirm": "Повторите новый пароль",
+        "saving": "Обновляем…",
+        "save": "Изменить пароль",
+        "success": "Пароль успешно изменён",
+        "errors": {
+          "required": "Заполните текущий и новый пароль",
+          "mismatch": "Новый пароль и подтверждение не совпадают",
+          "failed": "Не удалось сменить пароль"
+        }
+      }
+    },
+    "sales": {
+      "kicker": "Продажи",
+      "title": "Продажи",
+      "subtitle": "Отслеживайте заказы, статусы и выручку по каналам.",
+      "manager": "Менеджер",
+      "summary": {
+        "totalSales": "Продаж",
+        "revenue": "Выручка",
+        "avgCheck": "Средний чек"
+      },
+      "filters": {
+        "period": "Период",
+        "lastDays": "{{count}} дней",
+        "allTime": "Все время",
+        "status": "Статус",
+        "statusAll": "Все",
+        "allChannels": "Все каналы",
+        "searchPlaceholder": "Поиск по заказу, клиенту, ID"
+      },
+      "charts": {
+        "statusStructureTitle": "Структура статусов",
+        "statusStructureHint": "Количество заказов по статусам",
+        "byCurrencyTitle": "По валютам",
+        "byCurrencyHint": "Выручка по валютам",
+        "byCurrencyEmpty": "Нет данных по валютам"
+      },
+      "list": {
+        "title": "Продажи",
+        "shown": "Показано {{shown}} из {{total}}",
+        "headers": {
+          "date": "Дата",
+          "id": "ID",
+          "channel": "Канал",
+          "product": "Продукт",
+          "customer": "Клиент",
+          "amount": "Сумма",
+          "status": "Статус",
+          "purchaseDate": "Дата покупки",
+          "productLink": "Ссылка"
+        },
+        "empty": "Нет продаж по выбранным фильтрам.",
+        "manager": "Менеджер",
+        "market": "Рынок",
+        "company": "Компания",
+        "openProduct": "Открыть"
+      },
+      "pagination": {
+        "page": "Страница {{page}} из {{pages}}",
+        "prev": "Назад",
+        "next": "Вперёд"
+      },
+      "loading": "Загружаем продажи...",
+      "errors": {
+        "load": "Не удалось загрузить продажи"
+      },
+      "common": {
+        "empty": "—"
+      },
+      "units": {
+        "items": "{{count}} шт."
+      },
+      "status": {
+        "new": "Новый",
+        "pending": "Ожидает",
+        "confirmed": "Подтверждён",
+        "cancelled": "Отменён",
+        "refunded": "Возврат",
+        "other": "Другое"
+      }
+    },
+    "salesChannels": {
+      "kicker": "Каналы продаж",
+      "title": "Каналы продаж",
+      "subtitle": "Управляйте каналами, статусом и выручкой.",
+      "summary": {
+        "channels": "Каналов: {{count}}",
+        "sales": "Продаж: {{count}}",
+        "revenue": "Выручка: {{amount}}"
+      },
+      "openIntegrations": "Интеграции",
+      "chart": {
+        "title": "Выручка по каналам",
+        "hint": "Доля от общей выручки",
+        "empty": "Пока нет данных.",
+        "noRevenue": "Нет выручки"
+      },
+      "table": {
+        "title": "Список каналов",
+        "hint": "Настройки и статистика по каналам",
+        "headers": {
+          "channel": "Канал",
+          "type": "Тип",
+          "integration": "Интеграция",
+          "apiKey": "API ключ",
+          "connected": "Подключено",
+          "sales": "Продаж",
+          "amount": "Сумма",
+          "status": "Статус",
+          "lastSync": "Последний синк",
+          "actions": "Действия"
+        },
+        "empty": "Каналы не найдены."
+      },
+      "types": {
+        "b2b": "B2B",
+        "ota": "OTA",
+        "direct": "Прямые",
+        "gds": "GDS",
+        "other": "Другое"
+      },
+      "status": {
+        "enabled": "Включено",
+        "disabled": "Выключено"
+      },
+      "actions": {
+        "enable": "Включить",
+        "disable": "Выключить",
+        "delete": "Удалить"
+      },
+      "loading": "Загружаем каналы...",
+      "lastError": "Ошибка:",
+      "errors": {
+        "load": "Не удалось загрузить каналы",
+        "toggle": "Не удалось изменить статус",
+        "delete": "Не удалось удалить канал"
+      },
+      "deleteConfirm": "Удалить {{name}}?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingTraffic": {
+      "kicker": "Маркетинг · Трафик",
+      "title": "Источники трафика и эффективность",
+      "subtitle": "Данные из аналитики (GA4, Яндекс.Метрика) и рекламных кабинетов. Конверсии и доход — из аналитики, расходы и клики — из Ads.",
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней",
+        "all": "Все время"
+      },
+      "loading": "Загружаем данные по трафику…",
+      "errors": {
+        "load": "Не удалось загрузить данные по трафику"
+      },
+      "kpi": {
+        "sessions": "Сессии",
+        "sessionsHint": "Всего сессий по всем источникам за период.",
+        "conversions": "Конверсии",
+        "conversionsHint": "Суммарное количество заявок / лидов.",
+        "cr": "Конверсия (CR)",
+        "crHint": "Доля сессий, которые превратились в лиды.",
+        "revPerSession": "Доход на сессию",
+        "revPerSessionHint": "Средний доход, который приносит одна сессия."
+      },
+      "table": {
+        "title": "Источники трафика",
+        "subtitle": "Каналы сессий, количество конверсий и доход по каждому источнику.",
+        "headers": {
+          "source": "Источник / канал",
+          "type": "Тип",
+          "sessions": "Сессии",
+          "conversions": "Конверсии",
+          "cr": "CR",
+          "revenue": "Доход"
+        },
+        "empty": "Пока нет данных по трафику за выбранный период."
+      },
+      "types": {
+        "paid": "Платный",
+        "organic": "Органический поиск",
+        "email": "Email",
+        "social": "Соцсети",
+        "direct": "Прямой",
+        "other": "Другое"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingChannels": {
+      "kicker": "Маркетинг · Каналы и площадки",
+      "title": "Откуда приходят заявки",
+      "subtitle": "Данные агрегируются по источникам и кампаниям на основе UTM. Это помогает видеть, какие каналы дают трафик, лиды и выручку.",
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней",
+        "all": "Все время"
+      },
+      "loading": "Загружаем данные по каналам…",
+      "errors": {
+        "load": "Не удалось загрузить данные по каналам"
+      },
+      "kpi": {
+        "sessions": "Сессии",
+        "sessionsHint": "Все каналы, выбранный период",
+        "leads": "Лиды",
+        "leadsHint": "Конверсии из аналитики",
+        "revenue": "Выручка",
+        "revenueHint": "По данным аналитики"
+      },
+      "topSources": "Топ источников",
+      "topMediums": "Топ площадок (medium)",
+      "topCampaigns": "Топ кампаний по выручке",
+      "common": {
+        "unknown": "(unknown)",
+        "none": "(none)",
+        "noCampaign": "(без utm_campaign)",
+        "noData": "Нет данных."
+      }
+    },
+    "marketingCampaigns": {
+      "kicker": "Маркетинг · Кампании",
+      "title": "Эффективность рекламных кампаний",
+      "subtitle": "Сравнивайте расходы, выручку и конверсию по кампаниям. Данные агрегируются из аналитики и источников трафика.",
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней",
+        "all": "Все время"
+      },
+      "loading": "Загружаем кампании…",
+      "errors": {
+        "load": "Не удалось загрузить кампании"
+      },
+      "kpi": {
+        "campaigns": "Количество кампаний",
+        "campaignsHint": "Число кампаний, где зафиксирован трафик / расходы.",
+        "cost": "Расходы по кампаниям",
+        "costHint": "Суммарные маркетинговые расходы за период.",
+        "revenue": "Доход по кампаниям",
+        "revenueHint": "Атрибутированный доход по связанным лидам / продажам.",
+        "roasCpl": "ROAS & CPL",
+        "roas": "ROAS",
+        "cpl": "CPL",
+        "roasCplHint": "Окупаемость и средняя стоимость лида."
+      },
+      "top": {
+        "title": "Топ кампаний",
+        "subtitle": "По выручке за выбранный период.",
+        "shown": "Показано: {{count}}"
+      },
+      "table": {
+        "title": "Список кампаний",
+        "subtitle": "Каналы, расходы, выручка и эффективность.",
+        "count": "Всего: {{count}}",
+        "headers": {
+          "campaign": "Кампания",
+          "source": "Источник",
+          "medium": "Medium",
+          "cost": "Расходы",
+          "revenue": "Выручка",
+          "leads": "Лиды",
+          "roas": "ROAS",
+          "cpl": "CPL"
+        },
+        "empty": "Кампаний пока нет."
+      },
+      "tooltip": {
+        "revenue": "Выручка",
+        "cost": "Расходы",
+        "leads": "Лиды",
+        "clicks": "Клики",
+        "sessions": "Сессии",
+        "roas": "ROAS",
+        "cpl": "CPL"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingIntegrations": {
+      "kicker": "Маркетинг · Интеграции",
+      "title": "Интеграции маркетинга",
+      "subtitle": "Настройка аккаунтов аналитики и рекламы (GA4, Метрика, Meta Ads, Google Ads и т.д.). Данные используются в отчетах и сценариях n8n.",
+      "loading": "Загружаем интеграции...",
+      "providers": {
+        "google_analytics": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "yandex_metrika": "Яндекс.Метрика",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "tiktok_ads": "TikTok Ads",
+        "other": "Другое"
+      },
+      "form": {
+        "title": "Добавить интеграцию",
+        "provider": "Провайдер",
+        "name": "Название в CRM",
+        "primaryId": "Основной ID (property, счетчик, рекламный аккаунт и т.д.)",
+        "primaryIdHint": "GA4 property ID / Counter ID / Ad Account ID",
+        "ga": {
+          "serviceAccount": "Service Account JSON",
+          "conversionEvent": "Событие конверсии (опционально)",
+          "revenueMetric": "Метрика выручки (опционально)"
+        },
+        "ym": {
+          "token": "OAuth токен",
+          "goalId": "ID цели (опционально)",
+          "revenueMetric": "Метрика выручки (опционально)"
+        },
+        "ads": {
+          "developerToken": "Developer token",
+          "clientId": "OAuth client ID",
+          "clientSecret": "OAuth client secret",
+          "refreshToken": "Refresh token",
+          "loginCustomerId": "Login customer ID (опционально)",
+          "source": "Source (опционально)",
+          "medium": "Medium (опционально)",
+          "currency": "Currency (опционально)"
+        },
+        "meta": {
+          "accessToken": "Access token",
+          "conversionAction": "Conversion action (опционально)",
+          "revenueAction": "Revenue action (опционально)",
+          "source": "Source (опционально)",
+          "medium": "Medium (опционально)",
+          "currency": "Currency (опционально)"
+        },
+        "note": "Далее эти подключения можно использовать в n8n-флоу: выгрузка отчетов, синхронизация аудиторий и т.д."
+      },
+      "actions": {
+        "create": "Создать интеграцию",
+        "creating": "Создание...",
+        "sync": "Синхр.",
+        "syncing": "Синхрон...",
+        "delete": "Удалить"
+      },
+      "table": {
+        "title": "Текущие интеграции",
+        "subtitle": "Включенные интеграции используются в маркетинговых отчетах.",
+        "total": "Всего: {{count}}",
+        "empty": "Интеграций пока нет. Добавьте хотя бы GA4 или Метрику.",
+        "headers": {
+          "name": "Название",
+          "provider": "Провайдер",
+          "primaryId": "Основной ID",
+          "status": "Статус",
+          "actions": "Действия"
+        }
+      },
+      "status": {
+        "enabled": "Включена",
+        "disabled": "Выключена"
+      },
+      "errors": {
+        "load": "Не удалось загрузить интеграции",
+        "requiredName": "Введите название интеграции",
+        "create": "Не удалось создать интеграцию",
+        "update": "Не удалось обновить интеграцию",
+        "delete": "Не удалось удалить интеграцию",
+        "sync": "Не удалось синхронизировать"
+      },
+      "confirmDelete": "Удалить интеграцию «{{name}}»?",
+      "syncResult": "Синхронизировано строк: {{count}}",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingAutomations": {
+      "kicker": "Маркетинг · Автоматизации",
+      "title": "Автоматизации маркетинга (n8n)",
+      "subtitle": "Отслеживайте сценарии n8n: импорт трафика, кампании, синхронизация аудиторий. Позже можно получать статусы напрямую из n8n API.",
+      "loading": "Загружаем автоматизации...",
+      "form": {
+        "title": "Новый сценарий",
+        "name": "Название сценария",
+        "namePlaceholder": "Импорт GA4 → CRM (ежедневно)",
+        "webhook": "Webhook URL (из n8n)",
+        "note": "Для каждого сценария можно добавить токены, расписание и статус выполнения."
+      },
+      "actions": {
+        "create": "Создать сценарий",
+        "creating": "Создание...",
+        "delete": "Удалить"
+      },
+      "list": {
+        "title": "Текущие автоматизации",
+        "subtitle": "Пока без связи с n8n API, но можно хранить описание и webhooks по тенантам.",
+        "total": "Всего: {{count}}",
+        "empty": "Пока нет ни одного сценария. Добавьте хотя бы импорт трафика из n8n.",
+        "lastStatus": "Последний статус: {{status}}",
+        "statusUnknown": "Статус пока неизвестен"
+      },
+      "status": {
+        "enabled": "Включен",
+        "disabled": "Выключен"
+      },
+      "errors": {
+        "load": "Не удалось загрузить автоматизации",
+        "requiredName": "Введите название сценария",
+        "create": "Не удалось создать автоматизацию",
+        "update": "Не удалось обновить автоматизацию",
+        "delete": "Не удалось удалить автоматизацию"
+      },
+      "confirmDelete": "Удалить сценарий «{{name}}»?"
+    },
+    "marketingSeo": {
+      "kicker": "Маркетинг · SEO & контент",
+      "title": "Контроль SEO и качества сайта",
+      "subtitle": "Эта страница показывает, насколько сайт готов к росту: скорость, индексируемость, ошибки и структура контента. Часть данных берём из аналитики, остальное подключается через Search Console и PageSpeed.",
+      "loading": "Загружаем данные…",
+      "status": {
+        "saved": "Сохранено",
+        "updated": "Метрики обновлены",
+        "siteAdded": "Сайт добавлен",
+        "siteDeleted": "Сайт удалён"
+      },
+      "errors": {
+        "load": "Не удалось загрузить данные",
+        "save": "Не удалось сохранить настройки",
+        "oauth": "Не удалось открыть OAuth",
+        "update": "Не удалось обновить метрики",
+        "gscNotSynced": "GSC не синхронизирован: проверьте доступ к property.",
+        "psiNotSynced": "PageSpeed не синхронизирован: проверьте ключ и URL.",
+        "siteRequired": "Введите домен сайта",
+        "siteAdd": "Не удалось добавить сайт",
+        "siteApply": "Не удалось применить сайт",
+        "siteDelete": "Не удалось удалить сайт"
+      },
+      "connections": {
+        "title": "Подключения",
+        "subtitle": "Настройте Search Console и PageSpeed для вашего сайта.",
+        "gscConnected": "GSC подключен",
+        "connectGsc": "Подключить GSC",
+        "refresh": "Обновить метрики",
+        "refreshing": "Обновляем…"
+      },
+      "period": {
+        "title": "Период",
+        "presets": {
+          "7": "7 дн.",
+          "30": "30 дн.",
+          "90": "90 дн."
+        },
+        "custom": "custom",
+        "apply": "Применить период"
+      },
+      "compare": {
+        "title": "Сравнение",
+        "subtitle": "Показать предыдущий период."
+      },
+      "site": {
+        "title": "Сайт",
+        "placeholder": "Выбрать сайт",
+        "addOption": "Добавить сайт +",
+        "delete": "Удалить",
+        "deleting": "Удаляем…"
+      },
+      "newSite": {
+        "title": "Новый сайт",
+        "placeholder": "example.com",
+        "add": "Добавить",
+        "adding": "Добавляем…"
+      },
+      "fields": {
+        "gscPropertyUrl": "GSC property URL",
+        "pageSpeedUrl": "PageSpeed URL",
+        "pageSpeedApiKey": "PageSpeed API Key",
+        "pageSpeedStrategy": "Стратегия PageSpeed",
+        "strategy": {
+          "mobile": "mobile",
+          "desktop": "desktop"
+        }
+      },
+      "actions": {
+        "save": "Сохранить",
+        "saving": "Сохраняем…"
+      },
+      "syncingOverlay": "Обновляем данные…",
+      "gsc": {
+        "title": "Search Console",
+        "period": "Период",
+        "clicks": "Клики",
+        "impressions": "Показы",
+        "ctr": "CTR",
+        "position": "Позиция",
+        "trendTitle": "Spend / Leads",
+        "trendSource": "Search",
+        "legend": {
+          "current": "Текущий период",
+          "previous": "Предыдущий период"
+        },
+        "metricTabs": {
+          "clicks": "clicks",
+          "impressions": "impressions",
+          "ctr": "ctr",
+          "position": "position"
+        },
+        "empty": "Нет данных. Подключите GSC и выполните синхронизацию."
+      },
+      "gscDonut": {
+        "title": "Конверсии по каналам",
+        "subtitle": "Воронка лидов и сделок",
+        "average": "средняя по сети",
+        "labels": {
+          "ctr": "CTR",
+          "rank": "Rank",
+          "visibility": "Visibility"
+        },
+        "was": "Было: {{value}}%"
+      },
+      "psi": {
+        "title": "PageSpeed Insights",
+        "empty": "Нет данных. Подключите PageSpeed и выполните синхронизацию."
+      },
+      "psiDonut": {
+        "title": "Конверсии по каналам",
+        "subtitle": "Воронка лидов и сделок",
+        "average": "средняя по сети",
+        "labels": {
+          "performance": "Performance",
+          "seo": "SEO",
+          "accessibility": "Accessibility",
+          "best": "Best"
+        }
+      },
+      "psiMetrics": {
+        "lcp": "LCP: {{value}}s",
+        "cls": "CLS: {{value}}",
+        "fcp": "FCP: {{value}}s",
+        "tbt": "TBT: {{value}}s",
+        "speedIndex": "Speed Index: {{value}}s",
+        "strategy": "Стратегия: {{value}}"
+      },
+      "control": {
+        "title": "Что можно контролировать в CRM",
+        "items": [
+          "Скорость загрузки и Core Web Vitals по ключевым страницам.",
+          "Ошибки индексации, дубль‑страницы, проблемы с sitemap.",
+          "Топ‑страницы по органическому трафику и конверсии.",
+          "Сравнение SEO‑каналов с рекламой и соцсетями."
+        ]
+      },
+      "connect": {
+        "title": "Что нужно подключить",
+        "items": [
+          "Google Search Console — индексация, ошибки, CTR.",
+          "PageSpeed Insights — скорость и Core Web Vitals.",
+          "Analytics (GA4/Метрика) — поведение и конверсии."
+        ]
+      }
+    },
+    "marketingSmm": {
+      "kicker": "Маркетинг · SMM",
+      "title": "Соцсети и динамика аудитории",
+      "subtitle": "Профили и дневная статистика: подписчики, охват, просмотры, вовлечённость.",
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней"
+      },
+      "compareLabel": "Прошлый период",
+      "compare": {
+        "loading": "Загрузка...",
+        "noData": "Нет данных",
+        "dash": "—"
+      },
+      "errors": {
+        "profiles": "Не удалось загрузить профили",
+        "stats": "Не удалось загрузить статистику",
+        "createProfile": "Не удалось добавить профиль",
+        "deleteProfile": "Не удалось удалить профиль",
+        "metaConnect": "Не удалось подключить Meta",
+        "metaAssets": "Не удалось загрузить аккаунты Meta",
+        "metaAdd": "Не удалось подключить аккаунт Meta",
+        "metaRemove": "Не удалось отключить аккаунт Meta",
+        "metaSync": "Не удалось обновить данные Meta"
+      },
+      "meta": {
+        "profileAdded": "Профиль подключён",
+        "profileRemoved": "Профиль отключён",
+        "syncStatus": "Синхронизировано за {{label}}",
+        "scope": {
+          "days": "последние {{days}} дней",
+          "today": "сегодня"
+        },
+        "connected": "подключена",
+        "disconnected": "не подключена"
+      },
+      "kpi": {
+        "activeProfiles": "Активные профили",
+        "activeProfilesHint": "Суммарное количество профилей, подключенных в CRM.",
+        "followersCurrent": "Подписчики (текущие)",
+        "followersHint": "Сумма подписчиков по всем профилям на последнюю дату.",
+        "followersDelta": "Прирост подписчиков",
+        "followersDeltaHint": "Разница между началом и концом выбранного периода.",
+        "reachEngagement": "Охват и вовлечённость",
+        "reachLabel": "Охват",
+        "videoViewsLabel": "Видео-просмотры",
+        "likesLabel": "Лайки",
+        "commentsLabel": "Комментарии",
+        "erLabel": "ER",
+        "totalHint": "Сумма по всем платформам за период."
+      },
+      "chart": {
+        "title": "Динамика по платформам",
+        "subtitle": "Дневные значения по выбранной метрике.",
+        "metrics": {
+          "followers": "Подписчики",
+          "reach": "Охват",
+          "likes": "Лайки",
+          "comments": "Комментарии",
+          "videoViews": "Просмотры"
+        },
+        "loading": "Загрузка графика...",
+        "empty": "Нет данных по выбранному периоду.",
+        "prevSuffix": "прошлый"
+      },
+      "profiles": {
+        "title": "Профили соцсетей",
+        "subtitle": "Профили и ежедневная статистика по выбранным площадкам.",
+        "tabs": {
+          "profiles": "Профили",
+          "integrations": "Интеграции"
+        },
+        "shown": "Показано: {{shown}} из {{total}}",
+        "searchPlaceholder": "Поиск по @аккаунту",
+        "filterAll": "Все платформы",
+        "form": {
+          "platform": "Платформа",
+          "handle": "Handle / @аккаунт",
+          "url": "URL (опционально)",
+          "handlePlaceholder": "@company",
+          "urlPlaceholder": "https://instagram.com/...",
+          "add": "Добавить профиль",
+          "adding": "Добавление..."
+        },
+        "table": {
+          "headers": {
+            "profile": "Профиль",
+            "platform": "Платформа",
+            "followers": "Подписчики",
+            "reachLikesComments": "Охват / лайки / комм",
+            "erViews": "ER / просмотры",
+            "date": "Дата",
+            "actions": "Действия"
+          },
+          "loading": "Загрузка...",
+          "empty": "Нет данных по выбранным фильтрам."
+        },
+        "delete": "Удалить",
+        "confirmDelete": "Удалить профиль {{platform}} {{handle}}?",
+        "loadMore": "Загрузить ещё"
+      },
+      "integrations": {
+        "kicker": "Интеграции",
+        "title": "Подключения и статус",
+        "subtitle": "Подключайте соцсети и проверяйте статус.",
+        "connections": "Подключения",
+        "metaStatus": "Статус Meta: {{status}}",
+        "manage": "Управление",
+        "vkTitle": "VK Analytics",
+        "telegramTitle": "Telegram Analytics",
+        "inDev": "В разработке"
+      },
+      "popup": {
+        "title": "Интеграции",
+        "close": "Закрыть",
+        "metaTitle": "Meta (Facebook / Instagram)",
+        "statusLabel": "Статус: {{status}}",
+        "connect": "Подключить Meta",
+        "reconnect": "Переподключить Meta",
+        "syncNow": "Обновить сейчас",
+        "syncing": "Обновление...",
+        "accountList": "Список аккаунтов",
+        "accountsTitle": "Meta аккаунты",
+        "showHidden": "Показать скрытые",
+        "loading": "Загрузка аккаунтов...",
+        "empty": "Аккаунты не найдены.",
+        "hide": "Скрыть",
+        "disconnectFacebook": "Отключить",
+        "addFacebook": "Добавить Facebook",
+        "disconnectInstagram": "Отключить",
+        "addInstagram": "Добавить Instagram",
+        "facebookPage": "Страница Facebook",
+        "instagramPrefix": "Instagram: {{handle}}",
+        "vkTitle": "VK Analytics",
+        "tgTitle": "Telegram Analytics",
+        "tiktokTitle": "TikTok",
+        "inDevLabel": "В разработке",
+        "soon": "Скоро",
+        "vkDesc": "Скоро на сайте — подключение сообществ и метрик.",
+        "tgDesc": "Скоро на сайте — аналитика каналов и вовлечённости.",
+        "tiktokDesc": "Метрики по просмотрам и охвату — в разработке."
+      },
+      "platforms": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "telegram": "Telegram",
+        "vk": "VK",
+        "tiktok": "TikTok",
+        "other": "Другое"
+      },
+      "zeroNotes": {
+        "igVideo": "Видео-просмотры Instagram могут быть недоступны для некоторых профилей.",
+        "igEngagement": "Лайки и комментарии могут приходить с задержкой при отсутствии свежего контента.",
+        "fbReach": "Метрики Facebook могут задерживаться из-за ограничений Insights."
+      }
+    },
+    "marketingUtms": {
+      "kicker": "Маркетинг · UTM-метки",
+      "title": "Генератор UTM-ссылок",
+      "subtitle": "Быстро собирайте UTM-ссылки для кампаний. Можно сохранять пресеты по каналам (Google Ads, Meta Ads, Яндекс, email и т.д.).",
+      "fields": {
+        "channel": "Канал",
+        "baseUrl": "Базовый URL",
+        "utm_source": "utm_source",
+        "utm_medium": "utm_medium",
+        "utm_campaign": "utm_campaign",
+        "utm_content": "utm_content (опционально)",
+        "utm_term": "utm_term (опционально)",
+        "generatedUrl": "Сгенерированная ссылка",
+        "templateName": "Название для шаблона"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com/landing",
+        "utm_campaign": "spring_2026_brand",
+        "utm_content": "banner_1",
+        "utm_term": "keyword",
+        "templateName": "Google Brand · RU · весна 2026"
+      },
+      "channels": {
+        "google_search": "Google Ads · Search",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "yandex_direct": "Yandex Direct",
+        "email": "Email-рассылка",
+        "other": "Другое"
+      },
+      "actions": {
+        "saveTemplate": "Сохранить шаблон",
+        "saving": "Сохранение…",
+        "applyTemplate": "Подставить",
+        "deleteTemplate": "Удалить"
+      },
+      "templates": {
+        "title": "Сохранённые шаблоны",
+        "subtitle": "Хранится по компании (tenant). Можно быстро подставлять параметры для повторяющихся кампаний.",
+        "total": "Всего: {{count}}",
+        "empty": "Пока нет сохранённых шаблонов. Сконструируйте UTM-ссылку и сохраните её как шаблон."
+      },
+      "loading": "Загружаем шаблоны…",
+      "errors": {
+        "loadTemplates": "Не удалось загрузить UTM-шаблоны",
+        "nameRequired": "Введите название шаблона",
+        "saveTemplate": "Не удалось сохранить шаблон",
+        "deleteTemplate": "Не удалось удалить шаблон"
+      },
+      "confirmDelete": "Удалить шаблон «{{name}}»?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingSegments": {
+      "kicker": "Маркетинг · Сегменты",
+      "title": "Сегменты лидов",
+      "subtitle": "Сохраняйте часто используемые выборки по лидам: по статусам, каналам, странам и менеджерам. В дальнейшем можно будет привязать сегменты к рассылкам и задачам в n8n.",
+      "errors": {
+        "load": "Не удалось загрузить сегменты",
+        "save": "Не удалось сохранить сегмент"
+      },
+      "form": {
+        "name": "Название сегмента",
+        "namePlaceholder": "Лиды из Google Ads RU за последние 30 дней",
+        "description": "Описание (опционально)",
+        "descriptionPlaceholder": "Для рассылки по лидам из брендового трафика",
+        "statuses": "Статусы лидов",
+        "source": "Источник (source)",
+        "sourcePlaceholder": "google / facebook / crm…",
+        "country": "Страна",
+        "countryPlaceholder": "TR / RU / PL / DE…",
+        "manager": "Менеджер (assignedTo)",
+        "managerPlaceholder": "Имя менеджера",
+        "createdFrom": "Создан с",
+        "createdTo": "Создан по",
+        "helper": "Сегменты сейчас работают только по лидам. В будущем сюда можно привязать рассылки, экспорт, webhooks в n8n."
+      },
+      "statuses": {
+        "new": "Новый",
+        "in_progress": "В работе",
+        "waiting": "Ожидает",
+        "won": "Успех",
+        "lost": "Проигран"
+      },
+      "actions": {
+        "create": "Создать сегмент",
+        "creating": "Сохраняем…",
+        "run": "Запустить",
+        "running": "Запуск…"
+      },
+      "list": {
+        "title": "Сохранённые сегменты",
+        "subtitle": "Нажмите «Запустить», чтобы посмотреть, сколько лидов попадает в сегмент.",
+        "total": "Всего: {{count}}",
+        "empty": "Сегментов пока нет. Создайте первый выше.",
+        "meta": "entity: {{entity}} · создан: {{date}}",
+        "found": "Найдено: {{count}}"
+      },
+      "loading": "Загружаем сегменты…"
+    },
+    "salesIntegrations": {
+      "kicker": "Интеграции продаж",
+      "title": "Интеграции каналов продаж",
+      "subtitle": "Подключайте внешние системы, управляйте статусом и синхронизацией продаж.",
+      "kinds": {
+        "woocommerce": "WooCommerce",
+        "manualImport": "Ручной импорт",
+        "other": "Другое"
+      },
+      "status": {
+        "never": "Не синхронизировалось",
+        "ok": "Синхронизировано",
+        "error": "Ошибка",
+        "enabled": "Включено",
+        "disabled": "Выключено"
+      },
+      "defaults": {
+        "woocommerceName": "WooCommerce магазин"
+      },
+      "available": {
+        "title": "Доступные интеграции",
+        "woocommerceHint": "Подключение WooCommerce через REST API.",
+        "newConnection": "Новое подключение",
+        "woocommerceNote": "Используйте ключ с доступом Read.",
+        "empty": "Адаптеры пока недоступны."
+      },
+      "new": {
+        "title": "Новое подключение",
+        "close": "Закрыть",
+        "name": "Название подключения",
+        "namePlaceholder": "WooCommerce · основной магазин",
+        "channel": "Канал продаж",
+        "channelAuto": "Автосоздание канала",
+        "description": "Краткое описание",
+        "descriptionPlaceholder": "Например: магазин на shop.example.com",
+        "url": "WooCommerce URL (https)",
+        "urlPlaceholder": "https://shop.example.com",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret"
+      },
+      "edit": {
+        "title": "Редактировать подключение: {{name}}",
+        "close": "Закрыть",
+        "name": "Название подключения",
+        "channel": "Канал продаж",
+        "channelAuto": "Оставить без канала / автосоздание",
+        "description": "Краткое описание",
+        "url": "WooCommerce URL (https)",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret (оставьте пустым, чтобы не менять)"
+      },
+      "list": {
+        "title": "Список интеграций",
+        "subtitle": "Управляйте статусом, тестируйте подключение и запускайте синхронизацию.",
+        "headers": {
+          "connection": "Подключение",
+          "type": "Тип",
+          "channel": "Канал продаж",
+          "status": "Статус",
+          "lastSync": "Последняя синхронизация",
+          "sales": "Продаж",
+          "amount": "Сумма",
+          "actions": "Действия"
+        },
+        "empty": "Интеграции ещё не настроены.",
+        "lastError": "Ошибка:"
+      },
+      "loading": "Загружаем интеграции...",
+      "common": {
+        "empty": "—",
+        "none": "—",
+        "cancel": "Отмена",
+        "creating": "Создаём...",
+        "create": "Создать подключение",
+        "saving": "Сохраняем...",
+        "save": "Сохранить изменения",
+        "testing": "Тест...",
+        "test": "Проверить",
+        "syncing": "Синк...",
+        "sync": "Синхронизировать",
+        "enable": "Включить",
+        "disable": "Выключить",
+        "edit": "Редактировать",
+        "deleting": "Удаляем...",
+        "delete": "Удалить"
+      },
+      "errors": {
+        "load": "Не удалось загрузить интеграции",
+        "toggle": "Не удалось изменить статус",
+        "delete": "Не удалось удалить интеграцию",
+        "test": "Не удалось проверить подключение",
+        "sync": "Не удалось выполнить синхронизацию",
+        "create": "Не удалось создать интеграцию",
+        "update": "Не удалось обновить интеграцию",
+        "createMissing": "Укажите URL, Consumer Key и Secret.",
+        "updateMissing": "URL и Consumer Key обязательны."
+      },
+      "deleteConfirm": "Удалить {{name}}?",
+      "test": {
+        "ok": "Тест успешен: {{message}}",
+        "fail": "Тест не пройден: {{message}}",
+        "defaultError": "Неизвестная ошибка"
+      },
+      "sync": {
+        "summary": "Синк: создано {{created}}, обновлено {{updated}}, пропущено {{skipped}}.",
+        "done": "Синхронизация завершена. {{message}}"
+      }
+    },
+    "salesIntegrationNew": {
+      "kicker": "Интеграции",
+      "title": "Новое подключение канала продаж",
+      "subtitle": "Выберите тип интеграции, заполните параметры подключения и привяжите к каналу.",
+      "back": "Назад к интеграциям",
+      "loading": "Загружаем данные...",
+      "errors": {
+        "load": "Не удалось загрузить данные для интеграции",
+        "missingType": "Выберите тип интеграции",
+        "missingName": "Укажите название подключения",
+        "missingWoo": "Для WooCommerce нужны URL, Consumer Key и Secret",
+        "create": "Не удалось создать интеграцию"
+      },
+      "fields": {
+        "type": "Тип интеграции",
+        "typePlaceholder": "Выберите интеграцию",
+        "typeFallback": "Интеграция с внешним источником продаж.",
+        "name": "Название подключения",
+        "namePlaceholder": "WooCommerce · основной магазин",
+        "channel": "Привязать к каналу продаж",
+        "channelPlaceholder": "Без привязки",
+        "description": "Описание",
+        "descriptionPlaceholder": "Например: магазин на shop.example.com"
+      },
+      "woocommerce": {
+        "title": "Параметры WooCommerce",
+        "url": "URL магазина (REST API)",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret",
+        "hint": "Ключи создаются в WooCommerce → Settings → Advanced → REST API. Нужен доступ минимум Read."
+      },
+      "actions": {
+        "saving": "Сохраняем...",
+        "create": "Создать подключение"
+      }
+    },
+    "salesImport": {
+      "kicker": "Импорт продаж",
+      "title": "Загрузка продаж из CSV / XML",
+      "subtitle": "Загрузите файл, замапьте колонки и импортируйте в выбранный канал.",
+      "actions": {
+        "newChannel": "Подключить новый канал",
+        "previewing": "Предпросмотр...",
+        "preview": "Предпросмотр файла",
+        "applying": "Импортируем...",
+        "apply": "Импортировать продажи"
+      },
+      "fileLabel": "Файл: {{name}}",
+      "fileNone": "не выбран",
+      "previewMeta": "Строк: {{rows}} · Колонок: {{columns}}",
+      "fileInputLabel": "Файл для импорта (CSV или XML)",
+      "fileHint": "Рекомендуется UTF-8, первая строка — названия колонок.",
+      "channelLabel": "Канал продаж",
+      "channelPlaceholder": "Определить автоматически / создать новый канал",
+      "channelHint": "Если канал не выбран, CRM может создать новый канал по настройкам импорта.",
+      "mapping": {
+        "title": "Маппинг полей",
+        "subtitle": "Свяжите колонки файла с полями CRM. Обязательна только дата покупки.",
+        "count": "Замаплено полей: {{mapped}} из {{total}}",
+        "headers": {
+          "crmField": "Поле CRM",
+          "fileColumn": "Колонка файла"
+        },
+        "skip": "— Не импортировать —"
+      },
+      "sample": {
+        "title": "Пример данных (первые строки)",
+        "empty": "Пример данных недоступен."
+      },
+      "fields": {
+        "purchaseDate": "Дата покупки",
+        "customerName": "Имя клиента / агента",
+        "quantity": "Количество",
+        "type": "Тип",
+        "category": "Категория",
+        "size": "Размер",
+        "color": "Цвет",
+        "url": "Ссылка",
+        "currency": "Валюта",
+        "country": "Страна"
+      },
+      "errors": {
+        "missingFile": "Выберите файл CSV или XML для импорта.",
+        "preview": "Не удалось получить предпросмотр импорта.",
+        "previewRequired": "Сначала выполните предпросмотр файла.",
+        "apply": "Ошибка при применении импорта."
+      },
+      "preview": {
+        "summary": "Предпросмотр: строк {{rows}}, колонок {{columns}}."
+      },
+      "apply": {
+        "summary": "Импорт выполнен: создано {{created}}, пропущено {{skipped}}."
+      }
+    }
+  }
+}

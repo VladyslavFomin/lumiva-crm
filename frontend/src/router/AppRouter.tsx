@@ -10,6 +10,9 @@ import {
 import { LoginPage } from '../pages/LoginPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import LandingPage from "../pages/LandingPage";
+import { AccessDeniedPage } from '../pages/AccessDeniedPage';
+import TenantInactivePage from '../pages/TenantInactivePage';
+import ForgotPasswordPage from "../pages/ForgotPasswordPage";
 
 // STAFF
 import { StaffDetailPage } from '../pages/staff/StaffDetailPage';
@@ -38,11 +41,22 @@ import { LeadsListPage } from '../pages/leads/LeadsListPage';
 import { LeadFormPage } from '../pages/leads/LeadFormPage';
 import { LeadsAnalyticsPage } from '../pages/analytics/LeadsAnalyticsPage';
 import { LeadsRoiPage } from '../pages/analytics/LeadsRoiPage';
+import { LostLeadsPage } from '../pages/leads/LostLeadsPage';
 
 // Проекты
 import { ProjectsListPage } from '../pages/projects/ProjectsListPage';
 import { ProjectsBoardPage } from '../pages/projects/ProjectsBoardPage';
 import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
+import { NewProjectsPage } from '../pages/projects/NewProjectsPage';
+import { ClosedProjectsPage } from '../pages/projects/ClosedProjectsPage';
+import { InProgressProjectsPage } from '../pages/projects/InProgressProjectsPage';
+import { ProjectTasksPage } from '../pages/projects/ProjectTasksPage';
+import { OverdueTasksPage } from '../pages/projects/OverdueTasksPage';
+import { ProjectsAnalyticsPage } from '../pages/projects/ProjectsAnalyticsPage';
+
+// CCP
+import ClientAccountsPage from '../pages/client-accounts/ClientAccountsPage';
+import ClientAccountDetailsPage from '../pages/client-accounts/ClientAccountDetailsPage';
 
 // MARKETING
 import { TrafficPage } from '../pages/marketing/TrafficPage';
@@ -52,7 +66,9 @@ import { SegmentsPage } from '../pages/marketing/SegmentsPage';
 import { MarketingIntegrationsPage } from '../pages/marketing/MarketingIntegrationsPage';
 import { AutomationsPage } from '../pages/marketing/AutomationsPage';
 import { SmmPage } from '../pages/marketing/SmmPage';
-
+import { ChannelsPage } from '../pages/marketing/ChannelsPage';
+import { SeoPage } from '../pages/marketing/SeoPage';
+import  OnlineChatPage  from '../pages/online-chat/OnlineChatPage'; // или default export
 import { getAccessToken } from '../auth/session';
 import SetPasswordPage from '../pages/SetPasswordPage';
 
@@ -76,6 +92,8 @@ export const AppRouter: React.FC = () => {
         {/* ПУБЛИЧНЫЕ РОУТЫ */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/set-password" element={<SetPasswordPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/tenant-inactive" element={<TenantInactivePage />} />
 
         {/* DASHBOARD */}
         <Route
@@ -83,6 +101,15 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/app/forbidden"
+          element={
+            <ProtectedRoute>
+              <AccessDeniedPage />
             </ProtectedRoute>
           }
         />
@@ -129,6 +156,14 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/app/leads/lost"
+          element={
+            <ProtectedRoute>
+              <LostLeadsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/app/leads/roi"
           element={
             <ProtectedRoute>
@@ -155,6 +190,54 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/app/projects/new-projects"
+          element={
+            <ProtectedRoute>
+              <NewProjectsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/closed"
+          element={
+            <ProtectedRoute>
+              <ClosedProjectsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/in-progress"
+          element={
+            <ProtectedRoute>
+              <InProgressProjectsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/tasks"
+          element={
+            <ProtectedRoute>
+              <ProjectTasksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/tasks/overdue"
+          element={
+            <ProtectedRoute>
+              <OverdueTasksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/analytics"
+          element={
+            <ProtectedRoute>
+              <ProjectsAnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/app/projects/board"
           element={
             <ProtectedRoute>
@@ -164,6 +247,14 @@ export const AppRouter: React.FC = () => {
         />
         <Route
           path="/app/projects/new"
+          element={
+            <ProtectedRoute>
+              <ProjectFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/create"
           element={
             <ProtectedRoute>
               <ProjectFormPage />
@@ -364,6 +455,22 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/app/marketing/channels"
+          element={
+            <ProtectedRoute>
+              <ChannelsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/marketing/seo"
+          element={
+            <ProtectedRoute>
+              <SeoPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/app/marketing/integrations"
           element={
             <ProtectedRoute>
@@ -395,9 +502,7 @@ export const AppRouter: React.FC = () => {
           path="/app/chat"
           element={
             <ProtectedRoute>
-              <div className="text-slate-200 p-10">
-                Онлайн-чат (в разработке)
-              </div>
+              <OnlineChatPage />
             </ProtectedRoute>
           }
         />
@@ -405,9 +510,16 @@ export const AppRouter: React.FC = () => {
           path="/app/client-accounts"
           element={
             <ProtectedRoute>
-              <div className="text-slate-200 p-10">
-                Счета клиентов (в разработке)
-              </div>
+              <ClientAccountsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/app/client-accounts/:clientId"
+          element={
+            <ProtectedRoute>
+              <ClientAccountDetailsPage />
             </ProtectedRoute>
           }
         />

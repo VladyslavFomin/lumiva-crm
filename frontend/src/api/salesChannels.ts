@@ -1,4 +1,5 @@
 // src/api/salesChannels.ts
+import { api } from './client';
 
 export type SalesChannelType = 'b2b' | 'ota' | 'direct' | 'gds' | 'other';
 
@@ -22,67 +23,20 @@ export interface SalesChannel {
   lastSyncStatus: string;
   lastError: string | null;
 
-  // на будущее, если захочешь показывать хвост API-ключа
   apiKeyTail?: string | null;
 }
 
-interface UpdateSalesChannelPayload {
-  isEnabled: boolean;
-}
-
-/** Общий helper для запросов */
-async function request<T>(
-  input: string,
-  init?: RequestInit,
-): Promise<T> {
-  const res = await fetch(input, {
-    credentials: 'include',
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers || {}),
-    },
-  });
-
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const data = await res.json();
-      if (data && typeof data.message === 'string') {
-        msg = data.message;
-      }
-    } catch {
-      // ignore
-    }
-    throw new Error(msg);
-  }
-
-  if (res.status === 204) {
-    return undefined as T;
-  }
-
-  return res.json() as Promise<T>;
-}
-
-/** Получить список каналов продаж */
 export async function fetchSalesChannels(): Promise<SalesChannel[]> {
-  return request<SalesChannel[]>('/api/sales-channels');
+  return api.get<SalesChannel[]>('/sales-channels');
 }
 
-/** Включить/выключить канал продаж */
 export async function updateSalesChannel(
   id: string,
-  payload: UpdateSalesChannelPayload,
+  payload: { isEnabled: boolean },
 ): Promise<SalesChannel> {
-  return request<SalesChannel>(`/api/sales-channels/${id}/enabled`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  });
+  return api.patch<SalesChannel>(`/sales-channels/${id}/enabled`, payload);
 }
 
-/** Пометить канал как удалённый */
 export async function deleteSalesChannel(id: string): Promise<void> {
-  await request<void>(`/api/sales-channels/${id}`, {
-    method: 'DELETE',
-  });
+  await api.delete<void>(`/sales-channels/${id}`);
 }

@@ -1,6 +1,7 @@
 // src/pages/analytics/LeadsAnalyticsPage.tsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { useTranslation } from 'react-i18next';
 import {
   fetchLeadStats,
   type LeadStats,
@@ -40,13 +41,11 @@ const CHART_COLORS = [
   '#6366f1',
 ];
 
-const STATUS_LABELS: Record<string, string> = {
-  new: 'Новые',
-  in_progress: 'В работе',
-  waiting: 'Ожидают',
-  won: 'Успешные',
-  lost: 'Проигранные',
-};
+function resolveLocale(lang: string) {
+  if (lang.startsWith('tr')) return 'tr-TR';
+  if (lang.startsWith('en')) return 'en-US';
+  return 'ru-RU';
+}
 
 // локальное расширение LeadStats — чтобы не трогать тип в api/leads.ts
 type ExtendedLeadStats = LeadStats & {
@@ -63,67 +62,24 @@ type StatusChartPoint = {
 
 type PeriodId = '7d' | '30d' | '1y' | 'all' | 'custom';
 
-const PERIOD_LABELS: Record<PeriodId, string> = {
-  '7d': '7 дней',
-  '30d': '30 дней',
-  '1y': '1 год',
-  all: 'Все время',
-  custom: 'Custom',
-};
-// Премиум-tooltip для пончика
-const StatusTooltip: React.FC<any & { total: number }> = ({
-  active,
-  payload,
-  total,
-}) => {
-  if (!active || !payload || !payload.length) return null;
-  const item = payload[0].payload as { label: string; count: number };
-  const percent =
-    total > 0 ? ((item.count / total) * 100).toFixed(1).replace('.0', '') : '0';
-
-  return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl">
-      <div className="font-medium">{item.label}</div>
-      <div className="mt-1 flex items-center gap-2 text-slate-300">
-        <span className="font-mono">
-          {item.count.toLocaleString('ru-RU')} лидов
-        </span>
-        <span className="text-slate-500">· {percent}%</span>
-      </div>
-    </div>
-  );
-};
-
-// Tooltip для каналов
-const SourceTooltip: React.FC<any & { total: number }> = ({
-  active,
-  payload,
-  label,
-  total,
-}) => {
-  if (!active || !payload || !payload.length) return null;
-  const item = payload[0].payload as { source: string; count: number };
-  const percent =
-    total > 0 ? ((item.count / total) * 100).toFixed(1).replace('.0', '') : '0';
-
-  return (
-    <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl">
-      <div className="font-medium">{label || item.source || 'unknown'}</div>
-      <div className="mt-1 flex items-center gap-2 text-slate-300">
-        <span className="font-mono">
-          {item.count.toLocaleString('ru-RU')} лидов
-        </span>
-        <span className="text-slate-500">· {percent}%</span>
-      </div>
-    </div>
-  );
-};
 
 export const LeadsAnalyticsPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   const [stats, setStats] = useState<ExtendedLeadStats | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodId>('all');
+  const periodLabels = useMemo<Record<PeriodId, string>>(
+    () => ({
+      '7d': t('crm.leads.analytics.period.days7'),
+      '30d': t('crm.leads.analytics.period.days30'),
+      '1y': t('crm.leads.analytics.period.year1'),
+      all: t('crm.leads.analytics.period.all'),
+      custom: t('crm.leads.analytics.period.custom'),
+    }),
+    [t],
+  );
 
   // ------ загрузка с учётом периода ------
   useEffect(() => {
@@ -144,7 +100,7 @@ export const LeadsAnalyticsPage: React.FC = () => {
       } catch (e: any) {
         console.error(e);
         if (cancelled) return;
-        setError(e.message || 'Не удалось загрузить аналитику по лидам');
+        setError(e.message || t('crm.leads.analytics.errors.loadFailed'));
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -154,7 +110,7 @@ export const LeadsAnalyticsPage: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [period]);
+  }, [period, t]);
 
   const totalLeads = stats?.total ?? 0;
   const totalWon =
@@ -176,17 +132,81 @@ export const LeadsAnalyticsPage: React.FC = () => {
   const totalThisWeek = stats?.totalThisWeek ?? 0;
   const totalThisMonth = stats?.totalThisMonth ?? 0;
 
+  const statusLabels = useMemo<Record<string, string>>(
+    () => ({
+      new: t('crm.leads.statuses.new'),
+      in_progress: t('crm.leads.statuses.inProgress'),
+      waiting: t('crm.leads.statuses.waiting'),
+      won: t('crm.leads.statuses.won'),
+      lost: t('crm.leads.statuses.lost'),
+    }),
+    [t],
+  );
+
   const statusChartData: StatusChartPoint[] = useMemo(
     () =>
       stats?.byStatus.map((s) => ({
         code: s.status,
-        label: STATUS_LABELS[s.status] ?? s.status,
+        label: statusLabels[s.status] ?? s.status,
         count: s.count,
       })) ?? [],
-    [stats],
+    [stats, statusLabels],
   );
 
   const hasData = !!stats && !loading && !error;
+
+  const StatusTooltip: React.FC<any & { total: number }> = ({
+    active,
+    payload,
+    total,
+  }) => {
+    if (!active || !payload || !payload.length) return null;
+    const item = payload[0].payload as { label: string; count: number };
+    const percent =
+      total > 0
+        ? ((item.count / total) * 100).toFixed(1).replace('.0', '')
+        : '0';
+
+    return (
+      <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl">
+        <div className="font-medium">{item.label}</div>
+        <div className="mt-1 flex items-center gap-2 text-slate-300">
+          <span className="font-mono">
+            {item.count.toLocaleString(locale)} {t('crm.leads.analytics.tooltips.leads')}
+          </span>
+          <span className="text-slate-500">· {percent}%</span>
+        </div>
+      </div>
+    );
+  };
+
+  const SourceTooltip: React.FC<any & { total: number }> = ({
+    active,
+    payload,
+    label,
+    total,
+  }) => {
+    if (!active || !payload || !payload.length) return null;
+    const item = payload[0].payload as { source: string; count: number };
+    const percent =
+      total > 0
+        ? ((item.count / total) * 100).toFixed(1).replace('.0', '')
+        : '0';
+
+    return (
+      <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl">
+        <div className="font-medium">
+          {label || item.source || t('crm.leads.analytics.tooltips.unknown')}
+        </div>
+        <div className="mt-1 flex items-center gap-2 text-slate-300">
+          <span className="font-mono">
+            {item.count.toLocaleString(locale)} {t('crm.leads.analytics.tooltips.leads')}
+          </span>
+          <span className="text-slate-500">· {percent}%</span>
+        </div>
+      </div>
+    );
+  };
 
   // ------ UI ------
 
@@ -194,37 +214,34 @@ export const LeadsAnalyticsPage: React.FC = () => {
     <MainLayout>
       <div className="pb-10 space-y-6 md:space-y-8">
         {/* HERO / TOP BAR */}
-        <section className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-gradient-to-r from-slate-950 via-slate-950 to-slate-900 shadow-[0_0_80px_rgba(15,23,42,0.90)]">
-          {/* световые пятна */}
-          <div className="pointer-events-none absolute -right-40 -top-40 h-72 w-72 rounded-full bg-gradient-to-br from-sky-500/40 via-indigo-500/30 to-emerald-400/10 blur-3xl opacity-80" />
-          <div className="pointer-events-none absolute -left-40 bottom-[-120px] h-72 w-72 rounded-full bg-gradient-to-tr from-sky-500/30 via-fuchsia-500/20 to-transparent blur-3xl opacity-60" />
-
+        <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_16px_50px_rgba(15,23,42,0.08)]">
           <div className="relative z-10 flex flex-col gap-4 px-4 py-5 md:flex-row md:items-center md:justify-between md:px-7 md:py-6">
             <div>
               <div className="mb-1 text-[11px] uppercase tracking-[0.28em] text-slate-500">
-                Лиды · Аналитика
+                {t('crm.leads.analytics.hero.kicker')}
               </div>
-              <h1 className="text-xl font-semibold text-slate-50 md:text-2xl">
-                Пульс воронки продаж
+              <h1 className="text-xl font-semibold text-lumiva-accent md:text-2xl">
+                {t('crm.leads.analytics.hero.title')}
               </h1>
-              <p className="mt-1 max-w-xl text-xs text-slate-400 md:text-[13px]">
-                Современный дашборд по лидам: статусы, источники, эффективность
-                менеджеров и география входящих запросов.
+              <p className="mt-1 max-w-xl text-xs text-slate-600 md:text-[13px]">
+                {t('crm.leads.analytics.hero.subtitle')}
               </p>
             </div>
 
             <div className="flex flex-col items-stretch gap-2 text-xs md:items-end">
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-700/70 bg-slate-900/70 px-3 py-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="text-slate-300">
-                  Данные по всем лидам арендатора
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-100/70 px-3 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-slate-700">
+                  {t('crm.leads.analytics.hero.note')}
                 </span>
               </div>
 
               {/* переключатель периодов */}
-              <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-900/70 px-3 py-1.5 border border-slate-800/80">
-                <span className="text-[11px] text-slate-500">Период</span>
-                <div className="flex overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-950/80 text-[11px]">
+              <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+                <span className="text-[11px] text-slate-600 pl-1">
+                  {t('crm.leads.analytics.period.label')}
+                </span>
+                <div className="flex">
                   {(['7d', '30d', '1y', 'all', 'custom'] as PeriodId[]).map(
                     (p) => (
                       <button
@@ -239,13 +256,13 @@ export const LeadsAnalyticsPage: React.FC = () => {
                           setPeriod(p);
                         }}
                         className={
-                          'px-2.5 py-1 transition-colors ' +
+                          'px-3 py-1.5 rounded-xl text-[11px] transition ' +
                           (period === p
-                            ? 'bg-sky-500/90 text-slate-950 font-semibold'
-                            : 'text-slate-400 hover:text-slate-100')
+                            ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
+                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                         }
                       >
-                        {PERIOD_LABELS[p]}
+                        {periodLabels[p]}
                       </button>
                     ),
                   )}
@@ -258,56 +275,52 @@ export const LeadsAnalyticsPage: React.FC = () => {
         {/* МИНИ-ВИДЖЕТЫ: сегодня / неделя / месяц */}
         {hasData && (
           <section className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3 md:gap-4">
-            <div className="relative overflow-hidden rounded-3xl border border-sky-700/50 bg-gradient-to-br from-sky-950/80 via-slate-950 to-slate-950 px-4 py-4 md:px-5">
-              <div className="pointer-events-none absolute -right-20 -top-10 h-32 w-32 rounded-full bg-sky-500/30 blur-2xl opacity-80" />
-              <div className="relative z-10 flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-sky-300/90">
-                    Сегодня
+            {[
+              {
+                title: t('crm.leads.analytics.summary.today.title'),
+                value: totalToday.toLocaleString(locale),
+                note: t('crm.leads.analytics.summary.today.note'),
+                accent: 'sky',
+              },
+              {
+                title: t('crm.leads.analytics.summary.week.title'),
+                value: totalThisWeek.toLocaleString(locale),
+                note: t('crm.leads.analytics.summary.week.note'),
+                accent: 'violet',
+              },
+              {
+                title: t('crm.leads.analytics.summary.month.title'),
+                value: totalThisMonth.toLocaleString(locale),
+                note: t('crm.leads.analytics.summary.month.note'),
+                accent: 'emerald',
+              },
+            ].map((item) => (
+              <div
+                key={item.title}
+                className="rounded-3xl border border-slate-200 bg-white px-4 py-4 md:px-5 shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                      {item.title}
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-lumiva-accent">
+                      {item.value}
+                    </div>
                   </div>
-                  <div className="mt-1 text-2xl font-semibold text-sky-100">
-                    {totalToday.toLocaleString('ru-RU')}
-                  </div>
+                  <span
+                    className={`rounded-full px-2 py-1 text-[10px] text-white ${item.accent === 'sky'
+                      ? 'bg-sky-400/90'
+                      : item.accent === 'violet'
+                        ? 'bg-violet-400/90'
+                        : 'bg-emerald-400/90'
+                      }`}
+                  >
+                    {item.note}
+                  </span>
                 </div>
-                <span className="rounded-full bg-sky-500/15 px-2 py-1 text-[10px] text-sky-200">
-                  новые обращения
-                </span>
               </div>
-            </div>
-
-            <div className="relative overflow-hidden rounded-3xl border border-violet-700/50 bg-gradient-to-br from-violet-950/80 via-slate-950 to-slate-950 px-4 py-4 md:px-5">
-              <div className="pointer-events-none absolute -right-16 -bottom-14 h-32 w-32 rounded-full bg-violet-500/30 blur-2xl opacity-80" />
-              <div className="relative z-10 flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-violet-300/90">
-                    Неделя
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold text-violet-100">
-                    {totalThisWeek.toLocaleString('ru-RU')}
-                  </div>
-                </div>
-                <span className="rounded-full bg-violet-500/15 px-2 py-1 text-[10px] text-violet-100">
-                  за последние 7 дней
-                </span>
-              </div>
-            </div>
-
-            <div className="relative overflow-hidden rounded-3xl border border-emerald-700/50 bg-gradient-to-br from-emerald-950/80 via-slate-950 to-slate-950 px-4 py-4 md:px-5">
-              <div className="pointer-events-none absolute -left-16 -bottom-14 h-32 w-32 rounded-full bg-emerald-500/30 blur-2xl opacity-80" />
-              <div className="relative z-10 flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-300/90">
-                    Месяц
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold text-emerald-100">
-                    {totalThisMonth.toLocaleString('ru-RU')}
-                  </div>
-                </div>
-                <span className="rounded-full bg-emerald-500/15 px-2 py-1 text-[10px] text-emerald-100">
-                  за последние 30 дней
-                </span>
-              </div>
-            </div>
+            ))}
           </section>
         )}
 
@@ -338,100 +351,99 @@ export const LeadsAnalyticsPage: React.FC = () => {
           <>
             {/* KPI STRIP */}
             <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4 md:gap-4">
-              <div className="group relative overflow-hidden rounded-3xl border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 px-4 py-4 md:px-5 md:py-5 transition-transform duration-200 hover:-translate-y-0.5 hover:border-sky-500/70">
-                <div className="pointer-events-none absolute -right-16 -top-16 h-32 w-32 rounded-full bg-sky-500/20 blur-2xl opacity-70 group-hover:opacity-90" />
-                <div className="relative z-10 flex flex-col gap-1.5">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                    Всего лидов
-                  </div>
-                  <div className="text-2xl font-semibold text-slate-50 md:text-[26px]">
-                    {totalLeads.toLocaleString('ru-RU')}
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    Все входящие обращения, учитывая статусы и источники.
+              {[
+                {
+                  id: 'total',
+                  title: t('crm.leads.analytics.kpis.total.title'),
+                  value: totalLeads.toLocaleString(locale),
+                  desc: t('crm.leads.analytics.kpis.total.desc'),
+                  accent: 'slate',
+                },
+                {
+                  id: 'won',
+                  title: t('crm.leads.analytics.kpis.won.title'),
+                  value: totalWon.toLocaleString(locale),
+                  desc: t('crm.leads.analytics.kpis.won.desc'),
+                  accent: 'emerald',
+                },
+                {
+                  id: 'lost',
+                  title: t('crm.leads.analytics.kpis.lost.title'),
+                  value: totalLost.toLocaleString(locale),
+                  desc: t('crm.leads.analytics.kpis.lost.desc'),
+                  accent: 'rose',
+                },
+                {
+                  id: 'conversion',
+                  title: t('crm.leads.analytics.kpis.conversion.title'),
+                  value: `${winRate}%`,
+                  desc: t('crm.leads.analytics.kpis.conversion.desc'),
+                  accent: 'sky',
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-3xl border border-slate-200 bg-white px-4 py-4 md:px-5 md:py-5 shadow-sm"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                        {item.title}
+                      </div>
+                      <div
+                        className={`text-2xl font-semibold md:text-[26px] ${item.accent === 'emerald'
+                          ? 'text-emerald-600'
+                          : item.accent === 'rose'
+                            ? 'text-rose-600'
+                            : item.accent === 'sky'
+                              ? 'text-sky-600'
+                              : 'text-lumiva-accent'
+                          }`}
+                      >
+                        {item.value}
+                      </div>
+                      <div className="text-[11px] text-slate-600">
+                        {item.desc}
+                      </div>
+                    </div>
+                    {item.id === 'conversion' && (
+                      <div className="flex flex-col items-end gap-1 text-[11px] text-slate-500">
+                        <div>
+                          {t('crm.leads.analytics.kpis.sources')}{' '}
+                          <span className="text-lumiva-accent">
+                            {sourcesCount}
+                          </span>
+                        </div>
+                        <div>
+                          {t('crm.leads.analytics.kpis.managers')}{' '}
+                          <span className="text-lumiva-accent">
+                            {managersCount}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              </div>
-
-              <div className="group relative overflow-hidden rounded-3xl border border-emerald-700/50 bg-gradient-to-br from-emerald-950/40 via-slate-950 to-slate-950 px-4 py-4 md:px-5 md:py-5 transition-transform duration-200 hover:-translate-y-0.5 hover:border-emerald-400/80">
-                <div className="pointer-events-none absolute -right-16 -bottom-20 h-32 w-32 rounded-full bg-emerald-400/25 blur-2xl opacity-80" />
-                <div className="relative z-10 flex flex-col gap-1.5">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-emerald-300/90">
-                    Успешные
-                  </div>
-                  <div className="text-2xl font-semibold text-emerald-400 md:text-[26px]">
-                    {totalWon.toLocaleString('ru-RU')}
-                  </div>
-                  <div className="text-[11px] text-emerald-200/80">
-                    Статус <span className="font-mono text-xs">'won'</span> — закрытые с успехом сделки.
-                  </div>
-                </div>
-              </div>
-
-              <div className="group relative overflow-hidden rounded-3xl border border-rose-800/60 bg-gradient-to-br from-rose-950/50 via-slate-950 to-slate-950 px-4 py-4 md:px-5 md:py-5 transition-transform duration-200 hover:-translate-y-0.5 hover:border-rose-500/80">
-                <div className="pointer-events-none absolute -left-16 -top-16 h-32 w-32 rounded-full bg-rose-500/20 blur-2xl opacity-80" />
-                <div className="relative z-10 flex flex-col gap-1.5">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-rose-200/90">
-                    Потери
-                  </div>
-                  <div className="text-2xl font-semibold text-rose-300 md:text-[26px]">
-                    {totalLost.toLocaleString('ru-RU')}
-                  </div>
-                  <div className="text-[11px] text-rose-100/70">
-                    Статус <span className="font-mono text-xs">'lost'</span> — сделки, которые не дошли до продажи.
-                  </div>
-                </div>
-              </div>
-
-              <div className="group relative overflow-hidden rounded-3xl border border-slate-800/80 bg-gradient-to-br from-slate-950 via-slate-950 to-slate-900 px-4 py-4 md:px-5 md:py-5 transition-transform duration-200 hover:-translate-y-0.5 hover:border-sky-500/70">
-                <div className="pointer-events-none absolute -right-14 -top-10 h-28 w-28 rounded-full bg-indigo-500/25 blur-2xl opacity-80" />
-                <div className="relative z-10 flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                      Конверсия
-                    </div>
-                    <div className="text-2xl font-semibold text-sky-400 md:text-[26px]">
-                      {winRate}%
-                    </div>
-                    <div className="text-[11px] text-slate-500">
-                      Успешные лиды / все лиды.
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-1 text-[11px] text-slate-400">
-                    <div>
-                      Источники:{' '}
-                      <span className="text-slate-100">
-                        {sourcesCount}
-                      </span>
-                    </div>
-                    <div>
-                      Менеджеры:{' '}
-                      <span className="text-slate-100">
-                        {managersCount}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              ))}
             </section>
 
             {/* STATUSES + SOURCES */}
 <section className="grid grid-cols-1 gap-4 xl:grid-cols-2 md:gap-5">
   {/* ПРЕМИУМ ПОНЧИК — распределение по статусам */}
-  <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 shadow-[0_24px_70px_rgba(15,23,42,0.9)] md:px-5 md:py-5">
+  <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
     <div className="mb-4 flex items-center justify-between gap-3">
       <div>
-        <h2 className="text-sm font-semibold text-slate-50">
-          Распределение по статусам
+        <h2 className="text-sm font-semibold text-lumiva-accent">
+          {t('crm.leads.analytics.statuses.title')}
         </h2>
-        <p className="mt-0.5 text-[11px] text-slate-500">
-          Какой долей в воронке занимает каждый статус лида.
+        <p className="mt-0.5 text-[11px] text-slate-600">
+          {t('crm.leads.analytics.statuses.subtitle')}
         </p>
       </div>
-      <div className="text-[11px] text-slate-500">
-        Всего:{' '}
-        <span className="text-slate-100">
-          {totalLeads.toLocaleString('ru-RU')}
+      <div className="text-[11px] text-slate-600">
+        {t('crm.leads.analytics.statuses.total')}{' '}
+        <span className="text-lumiva-accent">
+          {totalLeads.toLocaleString(locale)}
         </span>
       </div>
     </div>
@@ -441,19 +453,6 @@ export const LeadsAnalyticsPage: React.FC = () => {
       <div className="relative h-56 flex-1 md:h-64">
         <ResponsiveContainer>
           <PieChart>
-            <defs>
-              {/* мягкое свечение под пончиком */}
-              <filter id="leadStatusGlow" x="-40%" y="-40%" width="180%" height="180%">
-                <feDropShadow
-                  dx="0"
-                  dy="6"
-                  stdDeviation="10"
-                  floodColor="#0f172a"
-                  floodOpacity="0.9"
-                />
-              </filter>
-            </defs>
-
             <Pie
               data={statusChartData}
               dataKey="count"
@@ -462,10 +461,8 @@ export const LeadsAnalyticsPage: React.FC = () => {
               outerRadius={100}
               paddingAngle={5}
               cornerRadius={10}
-              stroke="#020617"
-              strokeWidth={3}
-              // @ts-ignore
-              filter="url(#leadStatusGlow)"
+              stroke="#e2e8f0"
+              strokeWidth={1.5}
               isAnimationActive
             >
               {statusChartData.map((entry, index) => {
@@ -490,14 +487,14 @@ export const LeadsAnalyticsPage: React.FC = () => {
 
         {/* центр пончика */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-          <div className="rounded-full bg-slate-950/80 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-500 border border-slate-800/80">
-            Лидов
+          <div className="rounded-full bg-white px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-500 border border-slate-200 shadow-sm">
+            {t('crm.leads.analytics.statuses.centerLabel')}
           </div>
-          <div className="mt-1 text-xl font-semibold text-slate-50">
-            {totalLeads.toLocaleString('ru-RU')}
+          <div className="mt-1 text-xl font-semibold text-lumiva-accent">
+            {totalLeads.toLocaleString(locale)}
           </div>
-          <div className="mt-1 text-[11px] text-sky-400">
-            Win-rate {winRate}%
+          <div className="mt-1 text-[11px] text-sky-600">
+            {t('crm.leads.analytics.statuses.winRate', { value: winRate })}
           </div>
         </div>
       </div>
@@ -521,18 +518,18 @@ export const LeadsAnalyticsPage: React.FC = () => {
           return (
             <div
               key={s.code}
-              className="flex items-center justify-between gap-3 rounded-2xl bg-slate-900/60 px-3 py-2 border border-slate-800/80"
+              className="flex items-center justify-between gap-3 rounded-2xl bg-white px-3 py-2 border border-slate-200 shadow-sm"
             >
               <div className="flex items-center gap-2">
                 <span
                   className="h-2.5 w-2.5 rounded-full"
                   style={{ backgroundColor: color }}
                 />
-                <span className="text-slate-100">{s.label}</span>
+                <span className="text-lumiva-accent">{s.label}</span>
               </div>
-              <div className="flex items-center gap-2 text-slate-300">
+              <div className="flex items-center gap-2 text-slate-600">
                 <span className="font-mono">
-                  {s.count.toLocaleString('ru-RU')}
+                  {s.count.toLocaleString(locale)}
                 </span>
                 <span className="text-slate-500">{percent}%</span>
               </div>
@@ -544,19 +541,19 @@ export const LeadsAnalyticsPage: React.FC = () => {
   </div>
 
   {/* ПРЕМИУМ КАНАЛЫ ПРИВЛЕЧЕНИЯ */}
-  <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 shadow-[0_24px_70px_rgba(15,23,42,0.9)] md:px-5 md:py-5">
+  <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 shadow-sm md:px-5 md:py-5">
     <div className="mb-4 flex items-center justify-between gap-3">
       <div>
-        <h2 className="text-sm font-semibold text-slate-50">
-          Каналы привлечения
+        <h2 className="text-sm font-semibold text-lumiva-accent">
+          {t('crm.leads.analytics.sources.title')}
         </h2>
-        <p className="mt-0.5 text-[11px] text-slate-500">
-          Источники заявок: формы, реклама, органика и другие входы.
+        <p className="mt-0.5 text-[11px] text-slate-600">
+          {t('crm.leads.analytics.sources.subtitle')}
         </p>
       </div>
-      <div className="text-[11px] text-slate-500">
-        Каналов:{' '}
-        <span className="text-slate-100">
+      <div className="text-[11px] text-slate-600">
+        {t('crm.leads.analytics.sources.count')}{' '}
+        <span className="text-lumiva-accent">
           {stats.bySource.length}
         </span>
       </div>
@@ -614,7 +611,7 @@ export const LeadsAnalyticsPage: React.FC = () => {
           />
           <Legend
             wrapperStyle={{ fontSize: 10, color: '#9ca3af' }}
-            formatter={() => 'Кол-во лидов'}
+            formatter={() => t('crm.leads.analytics.sources.legend')}
           />
           <Bar
             dataKey="count"
@@ -636,19 +633,19 @@ export const LeadsAnalyticsPage: React.FC = () => {
             {/* MANAGERS + COUNTRIES */}
             <section className="grid grid-cols-1 gap-4 xl:grid-cols-2 md:gap-5">
               {/* Менеджеры */}
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5">
+              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 md:px-5 md:py-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-50">
-                      Эффективность менеджеров
+                    <h2 className="text-sm font-semibold text-lumiva-accent">
+                      {t('crm.leads.analytics.managers.title')}
                     </h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      Распределение лидов и выигранных сделок по ответственным.
+                    <p className="mt-0.5 text-[11px] text-slate-600">
+                      {t('crm.leads.analytics.managers.subtitle')}
                     </p>
                   </div>
-                  <div className="text-[11px] text-slate-500">
-                    Менеджеров:{' '}
-                    <span className="text-slate-100">
+                  <div className="text-[11px] text-slate-600">
+                    {t('crm.leads.analytics.managers.count')}{' '}
+                    <span className="text-lumiva-accent">
                       {managersCount}
                     </span>
                   </div>
@@ -657,21 +654,21 @@ export const LeadsAnalyticsPage: React.FC = () => {
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse text-[11px]">
                     <thead>
-                      <tr className="border-b border-slate-800/80 text-slate-400">
+                      <tr className="border-b border-slate-200 text-slate-500">
                         <th className="py-1.5 pr-3 text-left font-normal">
-                          Менеджер
+                          {t('crm.leads.analytics.managers.table.manager')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Лидов
+                          {t('crm.leads.analytics.managers.table.leads')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Успехов
+                          {t('crm.leads.analytics.managers.table.won')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Потерь
+                          {t('crm.leads.analytics.managers.table.lost')}
                         </th>
                         <th className="py-1.5 pl-3 text-right font-normal">
-                          Win-rate
+                          {t('crm.leads.analytics.managers.table.winRate')}
                         </th>
                       </tr>
                     </thead>
@@ -682,7 +679,7 @@ export const LeadsAnalyticsPage: React.FC = () => {
                             colSpan={5}
                             className="py-3 text-center text-slate-500"
                           >
-                            Пока нет данных по менеджерам.
+                            {t('crm.leads.analytics.managers.empty')}
                           </td>
                         </tr>
                       )}
@@ -694,21 +691,21 @@ export const LeadsAnalyticsPage: React.FC = () => {
                         return (
                           <tr
                             key={m.manager}
-                            className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/60 transition-colors"
+                            className="border-b border-slate-200 last:border-none hover:bg-slate-100 transition-colors"
                           >
-                            <td className="py-1.5 pr-3 text-slate-100">
+                            <td className="py-1.5 pr-3 text-lumiva-accent">
                               {m.manager}
                             </td>
-                            <td className="py-1.5 px-3 text-right text-slate-100">
+                            <td className="py-1.5 px-3 text-right text-lumiva-accent">
                               {m.total}
                             </td>
-                            <td className="py-1.5 px-3 text-right text-emerald-400">
+                            <td className="py-1.5 px-3 text-right text-emerald-600">
                               {m.won}
                             </td>
-                            <td className="py-1.5 px-3 text-right text-rose-400">
+                            <td className="py-1.5 px-3 text-right text-rose-600">
                               {m.lost}
                             </td>
-                            <td className="py-1.5 pl-3 text-right text-sky-400">
+                            <td className="py-1.5 pl-3 text-right text-sky-600">
                               {wr}%
                             </td>
                           </tr>
@@ -720,19 +717,19 @@ export const LeadsAnalyticsPage: React.FC = () => {
               </div>
 
               {/* Страны */}
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5">
+              <div className="rounded-3xl border border-slate-200 bg-white px-4 py-4 md:px-5 md:py-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
-                    <h2 className="text-sm font-semibold text-slate-50">
-                      География лидов
+                    <h2 className="text-sm font-semibold text-lumiva-accent">
+                      {t('crm.leads.analytics.countries.title')}
                     </h2>
-                    <p className="mt-0.5 text-[11px] text-slate-500">
-                      Страны, из которых приходят запросы (по полю country).
+                    <p className="mt-0.5 text-[11px] text-slate-600">
+                      {t('crm.leads.analytics.countries.subtitle')}
                     </p>
                   </div>
-                  <div className="text-[11px] text-slate-500">
-                    Стран:{' '}
-                    <span className="text-slate-100">
+                  <div className="text-[11px] text-slate-600">
+                    {t('crm.leads.analytics.countries.count')}{' '}
+                    <span className="text-lumiva-accent">
                       {stats.byCountry.length}
                     </span>
                   </div>
@@ -741,12 +738,12 @@ export const LeadsAnalyticsPage: React.FC = () => {
                 <div className="overflow-x-auto">
                   <table className="min-w-full border-collapse text-[11px]">
                     <thead>
-                      <tr className="border-b border-slate-800/80 text-slate-400">
+                      <tr className="border-b border-slate-200 text-slate-500">
                         <th className="py-1.5 pr-3 text-left font-normal">
-                          Страна
+                          {t('crm.leads.analytics.countries.table.country')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Лидов
+                          {t('crm.leads.analytics.countries.table.leads')}
                         </th>
                       </tr>
                     </thead>
@@ -757,19 +754,19 @@ export const LeadsAnalyticsPage: React.FC = () => {
                             colSpan={2}
                             className="py-3 text-center text-slate-500"
                           >
-                            Пока ни в одном лиде не указана страна.
+                            {t('crm.leads.analytics.countries.empty')}
                           </td>
                         </tr>
                       )}
                       {stats.byCountry.map((c) => (
                         <tr
                           key={`${c.country || 'unknown'}-${c.count}`}
-                          className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/60 transition-colors"
+                          className="border-b border-slate-200 last:border-none hover:bg-slate-100 transition-colors"
                         >
-                          <td className="py-1.5 pr-3 text-slate-100">
-                            {c.country || '—'}
+                          <td className="py-1.5 pr-3 text-lumiva-accent">
+                            {c.country || t('crm.leads.analytics.countries.unknown')}
                           </td>
-                          <td className="py-1.5 px-3 text-right text-slate-100">
+                          <td className="py-1.5 px-3 text-right text-lumiva-accent">
                             {c.count}
                           </td>
                         </tr>

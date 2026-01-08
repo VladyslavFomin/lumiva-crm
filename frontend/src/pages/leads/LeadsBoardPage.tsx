@@ -3,20 +3,22 @@
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import type { Lead, LeadStatus } from '../../api/leads';
 import { fetchLeads, updateLeadStatus } from '../../api/leads';
 
 // ВАЖНО: здесь используем именно текстовые статусы,
 // которые описаны в api/leads.ts (Новый клиент, В работе, ...)
-const STATUSES: { id: LeadStatus; title: string }[] = [
-  { id: 'Новый клиент',        title: 'Новый клиент' },
-  { id: 'В работе',            title: 'В работе' },
-  { id: 'Ожидает ответа',      title: 'Ожидает ответа' },
-  { id: 'Закрыт (успех)',      title: 'Закрыт (успех)' },
-  { id: 'Закрыт (проигран)',   title: 'Закрыт (проигран)' },
+const STATUSES: { id: LeadStatus; key: string }[] = [
+  { id: 'Новый клиент', key: 'new' },
+  { id: 'В работе', key: 'inProgress' },
+  { id: 'Ожидает ответа', key: 'waiting' },
+  { id: 'Закрыт (успех)', key: 'won' },
+  { id: 'Закрыт (проигран)', key: 'lost' },
 ];
 
 export const LeadsBoardPage: React.FC = () => {
+  const { t } = useTranslation();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [dragLeadId, setDragLeadId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -37,7 +39,7 @@ export const LeadsBoardPage: React.FC = () => {
       .catch((e) => {
         if (!alive) return;
         console.error(e);
-        setError(e.message || 'Ошибка загрузки лидов');
+        setError(e.message || t('crm.leads.board.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
@@ -86,10 +88,10 @@ export const LeadsBoardPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-slate-50">
-              Лиды · Канбан
+              {t('crm.leads.board.title')}
             </h1>
             <div className="text-[11px] text-slate-500">
-              Перетаскивайте карточки между колонками, чтобы менять статус
+              {t('crm.leads.board.subtitle')}
             </div>
           </div>
 
@@ -100,14 +102,14 @@ export const LeadsBoardPage: React.FC = () => {
                 className="px-3 py-1.5 bg-slate-800 text-slate-50"
                 type="button"
               >
-                Канбан
+                {t('crm.leads.board.viewKanban')}
               </button>
               <button
                 className="px-3 py-1.5 text-slate-400 hover:bg-slate-800/80"
                 type="button"
                 onClick={goList}
               >
-                Список
+                {t('crm.leads.board.viewList')}
               </button>
             </div>
 
@@ -115,7 +117,7 @@ export const LeadsBoardPage: React.FC = () => {
               onClick={handleCreateLead}
               className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
             >
-              Создать лид
+              {t('crm.leads.board.create')}
             </button>
           </div>
         </div>
@@ -127,7 +129,7 @@ export const LeadsBoardPage: React.FC = () => {
           </div>
         )}
         {loading && !error && (
-          <div className="text-xs text-slate-400">Загружаем лиды…</div>
+          <div className="text-xs text-slate-400">{t('crm.leads.board.loading')}</div>
         )}
 
         {/* Канбан доска */}
@@ -145,7 +147,7 @@ export const LeadsBoardPage: React.FC = () => {
                   {/* Шапка колонки */}
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs text-slate-300 font-medium">
-                      {col.title}
+                      {t(`crm.leads.statuses.${col.key}`)}
                     </div>
                     <div className="text-[10px] text-slate-500">
                       {colLeads.length}
@@ -182,7 +184,7 @@ export const LeadsBoardPage: React.FC = () => {
 
                     {colLeads.length === 0 && (
                       <div className="text-[11px] text-slate-500 italic px-1 py-2">
-                        Нет лидов
+                        {t('crm.leads.board.empty')}
                       </div>
                     )}
                   </div>

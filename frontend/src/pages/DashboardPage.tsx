@@ -1,5 +1,6 @@
 // src/pages/DashboardPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../layout/MainLayout';
 import { getStoredUser } from '../auth/session';
 
@@ -70,7 +71,18 @@ interface TaskWithProject extends ProjectTask {
 }
 
 // === Реальный загрузчик дашборда ===
-async function loadDashboardData(): Promise<DashboardData> {
+type TranslateFn = (key: string, options?: any) => string;
+
+function resolveLocale(lang: string) {
+  if (lang === 'tr') return 'tr-TR';
+  if (lang === 'en') return 'en-US';
+  return 'ru-RU';
+}
+
+async function loadDashboardData(
+  t: TranslateFn,
+  locale: string,
+): Promise<DashboardData> {
   const currentUser = getStoredUser();
   const staffName = currentUser?.name?.trim() || null;
   const staffEmail = currentUser?.email || null;
@@ -196,7 +208,7 @@ async function loadDashboardData(): Promise<DashboardData> {
 
   const leadsByChannelMap = new Map<string, number>();
   for (const l of myLeads) {
-    const ch = (l.channel || 'Другие').toString();
+    const ch = (l.channel || t('crm.dashboard.fallbacks.other')).toString();
     leadsByChannelMap.set(ch, (leadsByChannelMap.get(ch) || 0) + 1);
   }
 
@@ -216,7 +228,7 @@ async function loadDashboardData(): Promise<DashboardData> {
   >();
 
   for (const p of myProjects) {
-    const stage = p.status || 'Без статуса';
+    const stage = p.status || t('crm.dashboard.fallbacks.noStatus');
     const prev = pipelineMap.get(stage) || { count: 0, valueEUR: 0 };
     prev.count += 1;
     if (typeof p.amount === 'number') {
@@ -245,10 +257,10 @@ async function loadDashboardData(): Promise<DashboardData> {
     .slice(0, 10)
     .map((l) => ({
       id: l.id,
-      name: l.name || 'Без имени',
-      channel: l.channel || '—',
-      status: l.status || '—',
-      createdAt: new Date(l.createdAt).toLocaleString('ru-RU'),
+      name: l.name || t('crm.dashboard.fallbacks.noName'),
+      channel: l.channel || t('crm.dashboard.fallbacks.empty'),
+      status: l.status || t('crm.dashboard.fallbacks.empty'),
+      createdAt: new Date(l.createdAt).toLocaleString(locale),
     }));
 
   /* ─────────── Динамика лидов (14 дней) ─────────── */
@@ -268,7 +280,7 @@ async function loadDashboardData(): Promise<DashboardData> {
     day.setDate(day.getDate() - i);
     const key = day.toISOString().slice(0, 10);
     const value = leadsTimelineMap.get(key) || 0;
-    const label = day.toLocaleDateString('ru-RU', {
+    const label = day.toLocaleDateString(locale, {
       day: '2-digit',
       month: '2-digit',
     });
@@ -359,12 +371,15 @@ async function loadDashboardData(): Promise<DashboardData> {
       return da - db;
     })
     .slice(0, 10)
-    .map((t: any) => ({
-      id: t.id,
-      title: `${t.title || 'Задача'} · ${t.projectName}`,
-      due: t.deadline
-        ? new Date(t.deadline).toLocaleString('ru-RU')
-        : 'Без срока',
+    .map((task: any) => ({
+      id: task.id,
+      title: t('crm.dashboard.tasks.titleWithProject', {
+        title: task.title || t('crm.dashboard.tasks.fallbackTitle'),
+        project: task.projectName,
+      }),
+      due: task.deadline
+        ? new Date(task.deadline).toLocaleString(locale)
+        : t('crm.dashboard.fallbacks.noDue'),
       type: 'todo' as const,
     }));
 
@@ -388,6 +403,8 @@ async function loadDashboardData(): Promise<DashboardData> {
 }
 
 export const DashboardPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -396,7 +413,7 @@ export const DashboardPage: React.FC = () => {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    loadDashboardData()
+    loadDashboardData(t, locale)
       .then((res) => {
         if (!alive) return;
         setData(res);
@@ -405,7 +422,7 @@ export const DashboardPage: React.FC = () => {
       .catch((err) => {
         if (!alive) return;
         console.error(err);
-        setError(err.message || 'Не удалось загрузить данные');
+        setError(err.message || t('crm.dashboard.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
@@ -415,7 +432,7 @@ export const DashboardPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [t, locale]);
 
   const summary = data?.summary;
   const projectsSummary = data?.projectsSummary;
@@ -426,45 +443,62 @@ export const DashboardPage: React.FC = () => {
       <div className="space-y-4 md:space-y-6 pb-8">
         {/* Верхний приветственный блок */}
         <section className="grid gap-4 xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1.4fr)]">
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 shadow-lumiva">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_24px_60px_rgba(17,24,39,0.08)]">
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-1">
-                  Добро пожаловать
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">
+                  {t('crm.dashboard.welcome.badge')}
                 </div>
-                <div className="text-lg md:text-xl font-semibold text-slate-50">
-                  {user?.name ?? 'Коллега'}, вот ваш радар по продажам.
+                <div className="text-lg md:text-xl font-semibold text-lumiva-accent">
+                  {t('crm.dashboard.welcome.title', {
+                    name: user?.name ?? t('crm.dashboard.fallbacks.user'),
+                  })}
                 </div>
               </div>
-              <div className="flex flex-col items-start md:items-end text-[11px] text-slate-400">
+              <div className="flex flex-col items-start md:items-end text-[11px] text-slate-500">
                 <span>
-                  Смена: {new Date().toLocaleDateString('ru-RU')}
+                  {t('crm.dashboard.welcome.shift', {
+                    date: new Date().toLocaleDateString(locale),
+                  })}
                 </span>
-                <span>Роль: {user?.role ?? 'owner'}</span>
+                <span>
+                  {t('crm.dashboard.welcome.role', {
+                    role: t(`crm.dashboard.roles.${user?.role}`, {
+                      defaultValue: user?.role ?? 'owner',
+                    }),
+                  })}
+                </span>
               </div>
             </div>
-            <p className="text-xs md:text-sm text-slate-400 max-w-2xl">
-              В одном экране — ваши лиды, активность каналов, движение по
-              проектам и задачи. Смотрите, где вырастить выручку и что требует
-              реакции прямо сейчас.
+            <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
+              {t('crm.dashboard.welcome.summary')}
             </p>
           </div>
 
-          <div className="bg-gradient-to-br from-lumiva-accent/15 via-slate-900 to-slate-950 border border-slate-800/80 rounded-3xl p-4 md:p-5">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-300 mb-2">
-              Фокус дня
+          <div className="bg-gradient-to-br from-white via-slate-100 to-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_50px_rgba(17,24,39,0.08)]">
+            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">
+              {t('crm.dashboard.focus.title')}
             </div>
-            <div className="text-sm text-slate-100 mb-3">
-              Ускорьте реакцию на новые лиды до{' '}
-              <span className="font-semibold text-lumiva-accent">
-                &lt; 5 минут
+            <div className="text-sm text-lumiva-accent mb-3">
+              {t('crm.dashboard.focus.prefix')}{' '}
+              <span className="font-semibold text-black underline decoration-2">
+                {t('crm.dashboard.focus.highlight')}
               </span>
-              , чтобы поднять конверсию на 20–30%.
+              {t('crm.dashboard.focus.suffix')}
             </div>
-            <ul className="space-y-1.5 text-[11px] text-slate-300">
-              <li>• Проверить новые заявки из webchat и WhatsApp</li>
-              <li>• Сверить статусы лидов «Ожидает ответа» &gt; 24 часов</li>
-              <li>• Обновить заметки по ключевым агентствам</li>
+            <ul className="space-y-1.5 text-[11px] text-slate-600">
+              <li className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent" />
+                <span>{t('crm.dashboard.focus.items.webchat')}</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent" />
+                <span>{t('crm.dashboard.focus.items.pending')}</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent" />
+                <span>{t('crm.dashboard.focus.items.notes')}</span>
+              </li>
             </ul>
           </div>
         </section>
@@ -472,40 +506,43 @@ export const DashboardPage: React.FC = () => {
         {/* Карточки KPI */}
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
           <KpiCard
-            label="Лиды сегодня"
+            label={t('crm.dashboard.kpi.todayLeads')}
             value={summary?.todayLeads ?? 0}
-            subtitle="за текущие сутки"
+            subtitle={t('crm.dashboard.kpi.todayLeadsHint')}
             accent
           />
           <KpiCard
-            label="Все мои лиды"
+            label={t('crm.dashboard.kpi.totalLeads')}
             value={summary?.totalLeads ?? 0}
             format="number"
-            subtitle="накопительно"
+            subtitle={t('crm.dashboard.kpi.totalLeadsHint')}
           />
           <KpiCard
-            label="Моя конверсия"
+            label={t('crm.dashboard.kpi.conversion')}
             value={summary?.conversion ?? 0}
             suffix="%"
-            subtitle="по закрытым лидам"
+            subtitle={t('crm.dashboard.kpi.conversionHint')}
           />
           <KpiCard
-            label="Выигранные проекты"
+            label={t('crm.dashboard.kpi.wonProjects')}
             value={projectsSummary?.won ?? 0}
-            subtitle="кол-во"
+            subtitle={t('crm.dashboard.kpi.wonProjectsHint')}
           />
           <KpiCard
-            label="Выручка (EUR)"
+            label={t('crm.dashboard.kpi.revenue')}
             value={summary?.revenueEUR ?? 0}
             format="currency"
-            subtitle="по выигранным проектам"
+            subtitle={t('crm.dashboard.kpi.revenueHint')}
           />
           <KpiCard
-            label="Задачи всего"
+            label={t('crm.dashboard.kpi.tasksTotal')}
             value={tasksSummary?.total ?? 0}
             subtitle={
               tasksSummary
-                ? `Сегодня: ${tasksSummary.today}, просрочено: ${tasksSummary.overdue}`
+                ? t('crm.dashboard.kpi.tasksSubtitle', {
+                    today: tasksSummary.today,
+                    overdue: tasksSummary.overdue,
+                  })
                 : ''
             }
           />
@@ -514,20 +551,20 @@ export const DashboardPage: React.FC = () => {
         {/* Блок графиков: динамика лидов + проекты */}
         <section className="grid gap-4 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.5fr)]">
           {/* Динамика лидов */}
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-sm font-semibold text-slate-100">
-                  Динамика моих лидов (14 дней)
+                <h2 className="text-sm font-semibold text-lumiva-accent">
+                  {t('crm.dashboard.leadsTimeline.title')}
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  Сколько заявок приходило каждый день
+                  {t('crm.dashboard.leadsTimeline.subtitle')}
                 </p>
               </div>
-              <div className="text-right text-[11px] text-slate-400">
+              <div className="text-right text-[11px] text-slate-500">
                 <div>
-                  Всего за период:{' '}
-                  <span className="text-slate-50 font-medium">
+                  {t('crm.dashboard.leadsTimeline.total')}{' '}
+                  <span className="text-lumiva-accent font-medium">
                     {(data?.leadsTimeline || []).reduce(
                       (s, d) => s + d.value,
                       0,
@@ -542,35 +579,35 @@ export const DashboardPage: React.FC = () => {
                 <SparklineBars data={data.leadsTimeline} />
               ) : (
                 <div className="text-[11px] text-slate-500 italic">
-                  Пока нет данных для построения графика.
+                  {t('crm.dashboard.leadsTimeline.empty')}
                 </div>
               )}
             </div>
           </div>
 
           {/* Структура проектов */}
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-sm font-semibold text-slate-100">
-                  Структура моих проектов
+                <h2 className="text-sm font-semibold text-lumiva-accent">
+                  {t('crm.dashboard.projects.title')}
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  Открытые, выигранные и проигранные сделки
+                  {t('crm.dashboard.projects.subtitle')}
                 </p>
               </div>
               {projectsSummary && (
-                <div className="text-right text-[11px] text-slate-400">
+                <div className="text-right text-[11px] text-slate-500">
                   <div>
-                    Всего:{' '}
-                    <span className="text-slate-50 font-medium">
+                    {t('crm.dashboard.projects.total')}{' '}
+                    <span className="text-lumiva-accent font-medium">
                       {projectsSummary.total}
                     </span>
                   </div>
                   <div>
-                    Потенциал (open):{' '}
-                    <span className="text-slate-50 font-medium">
-                      {projectsSummary.openValueEUR.toLocaleString('ru-RU')} €
+                    {t('crm.dashboard.projects.openPotential')}{' '}
+                    <span className="text-lumiva-accent font-medium">
+                      {projectsSummary.openValueEUR.toLocaleString(locale)} €
                     </span>
                   </div>
                 </div>
@@ -582,19 +619,19 @@ export const DashboardPage: React.FC = () => {
                 <ProjectDistributionBar summary={projectsSummary} />
                 <div className="mt-4 grid grid-cols-3 gap-2 text-[11px]">
                   <ProjectSummaryChip
-                    label="Открытые"
+                    label={t('crm.dashboard.projects.chips.open')}
                     color="bg-sky-400"
                     count={projectsSummary.open}
                     value={projectsSummary.openValueEUR}
                   />
                   <ProjectSummaryChip
-                    label="Выигранные"
+                    label={t('crm.dashboard.projects.chips.won')}
                     color="bg-emerald-400"
                     count={projectsSummary.won}
                     value={projectsSummary.wonValueEUR}
                   />
                   <ProjectSummaryChip
-                    label="Проигранные"
+                    label={t('crm.dashboard.projects.chips.lost')}
                     color="bg-rose-400"
                     count={projectsSummary.lost}
                     value={projectsSummary.lostValueEUR}
@@ -603,28 +640,28 @@ export const DashboardPage: React.FC = () => {
               </>
             ) : (
               <div className="text-[11px] text-slate-500 italic mt-2">
-                У вас пока нет проектов.
+                {t('crm.dashboard.projects.empty')}
               </div>
             )}
 
             {tasksSummary && (
-              <div className="mt-5 border-t border-slate-800/80 pt-3 text-[11px]">
-                <div className="text-slate-400 mb-1">
-                  Кратко по задачам:
+              <div className="mt-5 border-t border-slate-200 pt-3 text-[11px]">
+                <div className="text-slate-500 mb-1">
+                  {t('crm.dashboard.projects.tasksSummary')}
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <TaskStatPill
-                    label="Просрочено"
+                    label={t('crm.dashboard.tasks.overdue')}
                     value={tasksSummary.overdue}
                     color="bg-rose-500/80"
                   />
                   <TaskStatPill
-                    label="Сегодня"
+                    label={t('crm.dashboard.tasks.today')}
                     value={tasksSummary.today}
                     color="bg-amber-400/80"
                   />
                   <TaskStatPill
-                    label="Впереди"
+                    label={t('crm.dashboard.tasks.upcoming')}
                     value={tasksSummary.upcoming}
                     color="bg-emerald-500/80"
                   />
@@ -636,13 +673,13 @@ export const DashboardPage: React.FC = () => {
 
         {/* Средний блок: каналы + воронка */}
         <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-100">
-                Лиды по каналам (мои)
+              <h2 className="text-sm font-semibold text-lumiva-accent">
+                {t('crm.dashboard.channels.title')}
               </h2>
               <span className="text-[11px] text-slate-500">
-                за всё время
+                {t('crm.dashboard.channels.period')}
               </span>
             </div>
             <div className="space-y-2">
@@ -651,19 +688,19 @@ export const DashboardPage: React.FC = () => {
               ))}
               {!data?.leadsByChannel.length && (
                 <div className="text-[11px] text-slate-500 italic">
-                  Пока нет лидов с привязкой к вам.
+                  {t('crm.dashboard.channels.empty')}
                 </div>
               )}
             </div>
           </div>
 
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-100">
-                Воронка по моим проектам
+              <h2 className="text-sm font-semibold text-lumiva-accent">
+                {t('crm.dashboard.pipeline.title')}
               </h2>
               <span className="text-[11px] text-slate-500">
-                сумма по статусам
+                {t('crm.dashboard.pipeline.subtitle')}
               </span>
             </div>
             <div className="space-y-3">
@@ -672,7 +709,7 @@ export const DashboardPage: React.FC = () => {
               ))}
               {!data?.pipeline.length && (
                 <div className="text-[11px] text-slate-500 italic">
-                  У вас пока нет проектов.
+                  {t('crm.dashboard.pipeline.empty')}
                 </div>
               )}
             </div>
@@ -681,26 +718,26 @@ export const DashboardPage: React.FC = () => {
 
         {/* Нижний блок: последние лиды + задачи */}
         <section className="grid gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)]">
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 min-w-0">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 min-w-0 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-100">
-                Последние мои лиды
+              <h2 className="text-sm font-semibold text-lumiva-accent">
+                {t('crm.dashboard.recentLeads.title')}
               </h2>
               <button className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft">
-                Открыть все
+                {t('crm.dashboard.recentLeads.openAll')}
               </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
                 <thead className="text-slate-500">
                   <tr>
-                    <th className="text-left font-normal px-2 py-1">Имя</th>
-                    <th className="text-left font-normal px-2 py-1">Канал</th>
+                    <th className="text-left font-normal px-2 py-1">{t('crm.dashboard.recentLeads.headers.name')}</th>
+                    <th className="text-left font-normal px-2 py-1">{t('crm.dashboard.recentLeads.headers.channel')}</th>
                     <th className="text-left font-normal px-2 py-1">
-                      Статус
+                      {t('crm.dashboard.recentLeads.headers.status')}
                     </th>
                     <th className="text-left font-normal px-2 py-1">
-                      Создан
+                      {t('crm.dashboard.recentLeads.headers.created')}
                     </th>
                   </tr>
                 </thead>
@@ -708,15 +745,15 @@ export const DashboardPage: React.FC = () => {
                   {data?.recentLeads.map((lead) => (
                     <tr
                       key={lead.id}
-                      className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors"
+                      className="bg-slate-100/70 hover:bg-slate-200 transition-colors"
                     >
-                      <td className="px-2 py-1.5 text-slate-100 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-lumiva-accent whitespace-nowrap">
                         {lead.name}
                       </td>
-                      <td className="px-2 py-1.5 text-slate-400 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
                         {lead.channel}
                       </td>
-                      <td className="px-2 py-1.5 text-slate-400 whitespace-nowrap">
+                      <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
                         {lead.status}
                       </td>
                       <td className="px-2 py-1.5 text-slate-500 whitespace-nowrap">
@@ -731,7 +768,7 @@ export const DashboardPage: React.FC = () => {
                         colSpan={4}
                         className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
                       >
-                        Лидов пока нет.
+                        {t('crm.dashboard.recentLeads.empty')}
                       </td>
                     </tr>
                   )}
@@ -740,10 +777,10 @@ export const DashboardPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-100">
-                Мои задачи в проектах
+              <h2 className="text-sm font-semibold text-lumiva-accent">
+                {t('crm.dashboard.tasks.title')}
               </h2>
             </div>
             <div className="space-y-2">
@@ -752,7 +789,7 @@ export const DashboardPage: React.FC = () => {
               ))}
               {!data?.myTasks.length && (
                 <div className="text-[11px] text-slate-500 italic">
-                  На вас пока нет задач.
+                  {t('crm.dashboard.tasks.empty')}
                 </div>
               )}
             </div>
@@ -761,16 +798,16 @@ export const DashboardPage: React.FC = () => {
 
         {loading && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-slate-950/90 border border-slate-700/80 text-[11px] text-slate-300 flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent animate-pulse" />
-              Обновляем данные дашборда…
+            <div className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] text-lumiva-accent shadow-[0_10px_30px_rgba(17,24,39,0.08)] flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {t('crm.dashboard.loading')}
             </div>
           </div>
         )}
 
         {error && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-red-950/95 border border-red-700/80 text-[11px] text-red-200">
+            <div className="px-3 py-1.5 rounded-full bg-red-50 border border-red-100 text-[11px] text-red-600 shadow-[0_10px_30px_rgba(248,113,113,0.25)]">
               {error}
             </div>
           </div>
@@ -799,25 +836,29 @@ const KpiCard: React.FC<{
   accent,
   subtitle,
 }) => {
+  const { i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   let display = value.toString();
   if (format === 'number') {
-    display = value.toLocaleString('ru-RU');
+    display = value.toLocaleString(locale);
   } else if (format === 'currency') {
-    display = value.toLocaleString('ru-RU', {
+    display = value.toLocaleString(locale, {
       maximumFractionDigits: 0,
     });
   }
 
   return (
     <div
-      className={`rounded-2xl border border-slate-800/80 px-3.5 py-3 bg-slate-950/80 transition-transform duration-300 hover:-translate-y-0.5 ${
-        accent ? 'bg-gradient-to-br from-lumiva-accent/15 to-slate-950' : ''
+      className={`rounded-2xl border px-3.5 py-3 bg-white transition-transform duration-300 hover:-translate-y-0.5 shadow-[0_16px_50px_rgba(17,24,39,0.06)] ${
+        accent
+          ? 'bg-gradient-to-br from-white via-slate-100 to-white border-lumiva-accent/30 shadow-[0_20px_60px_rgba(34,34,34,0.08)]'
+          : 'border-slate-200'
       }`}
     >
-      <div className="text-[11px] text-slate-400 mb-1 truncate">
+      <div className="text-[11px] text-slate-500 mb-1 truncate uppercase tracking-[0.08em]">
         {label}
       </div>
-      <div className="text-lg font-semibold text-slate-50">
+      <div className="text-lg font-semibold text-lumiva-accent">
         {display}
         {suffix && (
           <span className="text-xs text-slate-400 ml-1">{suffix}</span>
@@ -852,8 +893,8 @@ const SparklineBars: React.FC<{
               className="flex-1 flex items-end justify-center"
             >
               <div
-                className={`w-full rounded-t-full bg-gradient-to-t from-lumiva-accent/40 to-lumiva-accent ${
-                  highlight ? 'shadow-[0_0_12px_rgba(56,189,248,0.9)]' : ''
+                className={`w-full rounded-t-full bg-gradient-to-t from-slate-300 to-lumiva-accent ${
+                  highlight ? 'shadow-[0_0_12px_rgba(34,34,34,0.4)]' : ''
                 }`}
                 style={{ height: `${height}%` }}
               />
@@ -878,26 +919,26 @@ const ProjectDistributionBar: React.FC<{
 
   return (
     <div className="mt-3">
-      <div className="h-3 rounded-full bg-slate-800/80 overflow-hidden flex">
+      <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex">
         {total === 0 ? (
-          <div className="h-full w-full bg-slate-700/60" />
+          <div className="h-full w-full bg-slate-200" />
         ) : (
           <>
             {open > 0 && (
               <div
-                className="h-full bg-sky-500/80"
+                className="h-full bg-sky-500/70"
                 style={{ flex: open }}
               />
             )}
             {won > 0 && (
               <div
-                className="h-full bg-emerald-500/80"
+                className="h-full bg-emerald-500/70"
                 style={{ flex: won }}
               />
             )}
             {lost > 0 && (
               <div
-                className="h-full bg-rose-500/80"
+                className="h-full bg-rose-500/70"
                 style={{ flex: lost }}
               />
             )}
@@ -913,34 +954,39 @@ const ProjectSummaryChip: React.FC<{
   color: string;
   count: number;
   value: number;
-}> = ({ label, color, count, value }) => (
-  <div className="rounded-2xl bg-slate-950/80 border border-slate-800/80 px-3 py-2 flex flex-col gap-0.5">
-    <div className="flex items-center gap-1.5 text-[11px] text-slate-300">
-      <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
-      <span>{label}</span>
+}> = ({ label, color, count, value }) => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
+
+  return (
+    <div className="rounded-2xl bg-white border border-slate-200 px-3 py-2 flex flex-col gap-0.5 shadow-[0_12px_40px_rgba(17,24,39,0.06)]">
+      <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
+        <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
+        <span>{label}</span>
+      </div>
+      <div className="text-[11px] text-slate-500">
+        {t('crm.dashboard.projects.countLabel')}{' '}
+        <span className="text-lumiva-accent font-medium">{count}</span>
+      </div>
+      <div className="text-[11px] text-slate-500">
+        {t('crm.dashboard.projects.amountLabel')}{' '}
+        <span className="text-lumiva-accent font-medium">
+          {value.toLocaleString(locale)} €
+        </span>
+      </div>
     </div>
-    <div className="text-[11px] text-slate-400">
-      Проектов:{' '}
-      <span className="text-slate-50 font-medium">{count}</span>
-    </div>
-    <div className="text-[11px] text-slate-400">
-      Сумма:{' '}
-      <span className="text-slate-50 font-medium">
-        {value.toLocaleString('ru-RU')} €
-      </span>
-    </div>
-  </div>
-);
+  );
+};
 
 const TaskStatPill: React.FC<{
   label: string;
   value: number;
   color: string;
 }> = ({ label, value, color }) => (
-  <div className="inline-flex items-center gap-1.5 rounded-full bg-slate-950/80 border border-slate-800/80 px-2.5 py-1">
+  <div className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1 shadow-sm">
     <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
-    <span className="text-[11px] text-slate-300">{label}</span>
-    <span className="text-[11px] text-slate-100 font-medium">
+    <span className="text-[11px] text-slate-600">{label}</span>
+    <span className="text-[11px] text-lumiva-accent font-medium">
       {value}
     </span>
   </div>
@@ -953,27 +999,29 @@ const ChannelRow: React.FC<{
 }> = ({ channel, count, trend }) => {
   const maxBar = Math.max(1, count * 1.4); // адаптивная длина
   const width = Math.max(8, (count / maxBar) * 100);
+  const { i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
 
   const trendLabel =
     trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
   const trendColor =
     trend === 'up'
-      ? 'text-emerald-400'
+      ? 'text-emerald-600'
       : trend === 'down'
-      ? 'text-rose-400'
-      : 'text-slate-400';
+      ? 'text-rose-500'
+      : 'text-slate-500';
 
   return (
     <div className="flex items-center gap-3 text-xs">
-      <div className="w-20 text-slate-300 truncate">{channel}</div>
-      <div className="flex-1 h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
+      <div className="w-20 text-slate-600 truncate">{channel}</div>
+      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-lumiva-accent-soft to-lumiva-accent transition-all duration-500"
+          className="h-full bg-gradient-to-r from-slate-300 to-lumiva-accent transition-all duration-500"
           style={{ width: `${width}%` }}
         />
       </div>
-      <div className="w-16 text-right text-slate-300">
-        {count.toLocaleString('ru-RU')}
+      <div className="w-16 text-right text-slate-600">
+        {count.toLocaleString(locale)}
       </div>
       <div className={`w-5 text-right ${trendColor}`}>{trendLabel}</div>
     </div>
@@ -987,18 +1035,23 @@ const PipelineRow: React.FC<{
 }> = ({ stage, count, valueEUR }) => {
   const max = Math.max(1, valueEUR * 1.4);
   const width = Math.max(10, (valueEUR / max) * 100);
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
 
   return (
     <div className="text-xs space-y-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-slate-300 truncate">{stage}</span>
+        <span className="text-lumiva-accent truncate">{stage}</span>
         <span className="text-slate-500 whitespace-nowrap">
-          {count} лидов · {valueEUR.toLocaleString('ru-RU')} €
+          {t('crm.dashboard.pipeline.itemLabel', {
+            count,
+            value: valueEUR.toLocaleString(locale),
+          })}
         </span>
       </div>
-      <div className="h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-emerald-400 to-lumiva-accent-soft transition-all duration-500"
+          className="h-full bg-gradient-to-r from-emerald-400 to-lumiva-accent transition-all duration-500"
           style={{ width: `${width}%` }}
         />
       </div>
@@ -1012,6 +1065,7 @@ const TaskRow: React.FC<{
   due: string;
   type: 'call' | 'meeting' | 'todo';
 }> = ({ title, due, type }) => {
+  const { t } = useTranslation();
   const color =
     type === 'call'
       ? 'bg-emerald-500/80'
@@ -1019,16 +1073,20 @@ const TaskRow: React.FC<{
       ? 'bg-lumiva-accent-soft'
       : 'bg-indigo-400';
 
-  const label =
-    type === 'call' ? 'Звонок' : type === 'meeting' ? 'Встреча' : 'Задача';
+  const translatedLabel =
+    type === 'call'
+      ? t('crm.dashboard.taskTypes.call')
+      : type === 'meeting'
+      ? t('crm.dashboard.taskTypes.meeting')
+      : t('crm.dashboard.taskTypes.todo');
 
   return (
-    <div className="flex items-start gap-2.5 text-xs bg-slate-950/80 border border-slate-800/80 rounded-2xl px-3 py-2">
+    <div className="flex items-start gap-2.5 text-xs bg-white border border-slate-200 rounded-2xl px-3 py-2 shadow-[0_12px_40px_rgba(17,24,39,0.06)]">
       <div className={`mt-1 h-1.5 w-1.5 rounded-full ${color}`} />
       <div className="flex-1">
-        <div className="text-slate-100">{title}</div>
+        <div className="text-lumiva-accent">{title}</div>
         <div className="text-[11px] text-slate-500 mt-0.5">
-          {label} · {due}
+          {translatedLabel} · {due}
         </div>
       </div>
     </div>

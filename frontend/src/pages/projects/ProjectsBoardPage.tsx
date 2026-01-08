@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import type { Project, ProjectStatus } from './projectTypes';
@@ -6,16 +6,17 @@ import {
   fetchProjects,
   changeProjectStatus,
 } from '../../api/projects';
+import { useTranslation } from 'react-i18next';
 
-const STATUSES: { id: ProjectStatus; title: string }[] = [
-  { id: 'Новый', title: 'Новый' },
-  { id: 'В работе', title: 'В работе' },
-  { id: 'На проверке', title: 'На проверке' },
-  { id: 'Заморожен', title: 'Заморожен' },
-  { id: 'Закрыт', title: 'Закрыт' },
-];
+function resolveLocale(lang: string) {
+  if (lang.startsWith('tr')) return 'tr-TR';
+  if (lang.startsWith('en')) return 'en-US';
+  return 'ru-RU';
+}
 
 export const ProjectsBoardPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +24,34 @@ export const ProjectsBoardPage: React.FC = () => {
   const [changing, setChanging] = useState<string | null>(null);
 
   const navigate = useNavigate();
+  const statusLabels = useMemo<Record<ProjectStatus, string>>(
+    () => ({
+      Новый: t('crm.projects.statuses.new'),
+      'В работе': t('crm.projects.statuses.inProgress'),
+      'На проверке': t('crm.projects.statuses.review'),
+      Заморожен: t('crm.projects.statuses.paused'),
+      Закрыт: t('crm.projects.statuses.closed'),
+    }),
+    [t],
+  );
+  const statuses = useMemo(
+    (): { id: ProjectStatus; title: string }[] => [
+      { id: 'Новый', title: statusLabels.Новый },
+      { id: 'В работе', title: statusLabels['В работе'] },
+      { id: 'На проверке', title: statusLabels['На проверке'] },
+      { id: 'Заморожен', title: statusLabels.Заморожен },
+      { id: 'Закрыт', title: statusLabels.Закрыт },
+    ],
+    [statusLabels],
+  );
+  const formatAmount = (amount: number, currency?: string) => {
+    const formatted = new Intl.NumberFormat(locale).format(amount);
+    if (!currency) return formatted;
+    return t('crm.projects.common.amountWithCurrency', {
+      amount: formatted,
+      currency,
+    });
+  };
 
   const goTable = () => navigate('/app/projects');
   const createProject = () => navigate('/app/projects/new');
@@ -41,7 +70,7 @@ export const ProjectsBoardPage: React.FC = () => {
       .catch((e) => {
         if (!alive) return;
         console.error(e);
-        setError(e.message || 'Ошибка загрузки проектов');
+        setError(e.message || t('crm.projects.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
@@ -80,7 +109,7 @@ export const ProjectsBoardPage: React.FC = () => {
     } catch (e: any) {
       // если не удалось — откатить и показать ошибку
       console.error(e);
-      setError(e.message || 'Не удалось изменить статус проекта');
+      setError(e.message || t('crm.projects.errors.statusUpdateFailed'));
       // перезагрузить с сервера
       fetchProjects()
         .then((res) => setProjects(res.items))
@@ -97,10 +126,10 @@ export const ProjectsBoardPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-slate-50">
-              Проекты · Канбан
+              {t('crm.projects.board.title')}
             </h1>
             <div className="text-[11px] text-slate-500">
-              Перетаскивайте карточки между колонками, чтобы менять статус проекта
+              {t('crm.projects.board.subtitle')}
             </div>
           </div>
 
@@ -110,14 +139,14 @@ export const ProjectsBoardPage: React.FC = () => {
                 type="button"
                 className="px-3 py-1.5 bg-slate-800 text-slate-50"
               >
-                Канбан
+                {t('crm.projects.views.kanban')}
               </button>
               <button
                 type="button"
                 className="px-3 py-1.5 text-slate-400 hover:bg-slate-800/80"
                 onClick={goTable}
               >
-                Таблица
+                {t('crm.projects.views.table')}
               </button>
             </div>
 
@@ -125,7 +154,7 @@ export const ProjectsBoardPage: React.FC = () => {
               onClick={createProject}
               className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
             >
-              + Новый проект
+              + {t('crm.projects.actions.newProject')}
             </button>
           </div>
         </div>
@@ -137,12 +166,14 @@ export const ProjectsBoardPage: React.FC = () => {
         )}
 
         {loading && (
-          <div className="text-[12px] text-slate-400">Загрузка проектов…</div>
+          <div className="text-[12px] text-slate-400">
+            {t('crm.projects.loading')}
+          </div>
         )}
 
         {!loading && (
           <div className="flex gap-3 overflow-x-auto pb-1">
-            {STATUSES.map((col) => {
+            {statuses.map((col) => {
               const columnProjects = projectsByStatus(col.id);
               return (
                 <div
@@ -183,7 +214,7 @@ export const ProjectsBoardPage: React.FC = () => {
 
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-[11px] text-slate-400">
-                            € {project.amount.toLocaleString('ru-RU')}
+                            {formatAmount(project.amount, project.currency)}
                           </span>
                           <span className="text-[10px] text-slate-500">
                             {project.createdAt}
@@ -210,7 +241,7 @@ export const ProjectsBoardPage: React.FC = () => {
 
                     {columnProjects.length === 0 && (
                       <div className="text-[11px] text-slate-500 italic px-1 py-2">
-                        Нет проектов
+                        {t('crm.projects.board.empty')}
                       </div>
                     )}
                   </div>

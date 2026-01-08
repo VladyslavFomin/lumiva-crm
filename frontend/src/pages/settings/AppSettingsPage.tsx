@@ -1,5 +1,6 @@
 // src/pages/settings/AppSettingsPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { api } from '../../api/client';
 
@@ -12,6 +13,7 @@ interface CompanySettings {
 }
 
 export const AppSettingsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [data, setData] = useState<CompanySettings | null>(null);
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -38,7 +40,7 @@ export const AppSettingsPage: React.FC = () => {
       .catch((e: any) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Ошибка загрузки настроек компании');
+        setError(e.message || t('crm.settings.app.errors.load'));
       })
       .finally(() => {
         if (!alive) return;
@@ -66,7 +68,7 @@ export const AppSettingsPage: React.FC = () => {
       setSaved(true);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка сохранения настроек');
+      setError(e.message || t('crm.settings.app.errors.save'));
     } finally {
       setSaving(false);
     }
@@ -79,10 +81,10 @@ export const AppSettingsPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] text-slate-500">
-              Общие настройки арендатора
+              {t('crm.settings.app.sectionLabel')}
             </div>
             <h1 className="text-lg font-semibold text-slate-50">
-              Настройки компании
+              {t('crm.settings.app.title')}
             </h1>
           </div>
         </div>
@@ -95,12 +97,14 @@ export const AppSettingsPage: React.FC = () => {
 
         {saved && (
           <div className="text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-700/60 rounded-xl px-3 py-2">
-            Настройки сохранены
+            {t('crm.settings.app.success')}
           </div>
         )}
 
         {loading && (
-          <div className="text-xs text-slate-400">Загружаем настройки…</div>
+          <div className="text-xs text-slate-400">
+            {t('crm.settings.app.loading')}
+          </div>
         )}
 
         {!loading && data && (
@@ -109,31 +113,31 @@ export const AppSettingsPage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               {/* Название */}
               <div className="space-y-1.5">
-                <div className="text-slate-400">Название компании</div>
+                <div className="text-slate-400">{t('crm.settings.app.fields.name')}</div>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none"
-                  placeholder="Например, Lumiva Agency"
+                  placeholder={t('crm.settings.app.fields.namePlaceholder')}
                 />
               </div>
 
               {/* Клиентский ключ (read-only) */}
               <div className="space-y-1.5">
-                <div className="text-slate-400">Клиентский ключ</div>
+                <div className="text-slate-400">{t('crm.settings.app.fields.clientKey')}</div>
                 <input
                   value={data.clientKey}
                   readOnly
                   className="w-full px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-800/80 text-sm outline-none text-slate-400"
                 />
                 <div className="text-[10px] text-slate-500">
-                  Используется для интеграций и идентификации тенанта.
+                  {t('crm.settings.app.fields.clientKeyHint')}
                 </div>
               </div>
 
               {/* Лого (URL) */}
               <div className="space-y-1.5">
-                <div className="text-slate-400">Логотип (URL)</div>
+                <div className="text-slate-400">{t('crm.settings.app.fields.logo')}</div>
                 <input
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
@@ -141,40 +145,24 @@ export const AppSettingsPage: React.FC = () => {
                   placeholder="https://example.com/logo.png"
                 />
                 <div className="text-[10px] text-slate-500">
-                  Пока только ссылка на изображение. Загрузка файлов будет позже.
+                  {t('crm.settings.app.fields.logoHint')}
                 </div>
               </div>
 
-              {/* Язык интерфейса */}
-              <div className="space-y-1.5">
-                <div className="text-slate-400">Основной язык интерфейса</div>
-                <select
-                  value={uiLanguage}
-                  onChange={(e) => setUiLanguage(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none"
-                >
-                  <option value="ru">Русский</option>
-                  <option value="tr">Türkçe</option>
-                  <option value="en">English</option>
-                </select>
-                <div className="text-[10px] text-slate-500">
-                  Пока только хранится в БД. Позже будем использовать для UI.
-                </div>
-              </div>
             </div>
 
             {/* Превью логотипа */}
             {logoUrl && (
               <div className="pt-3 border-t border-slate-800/70 mt-3">
                 <div className="text-[11px] text-slate-500 mb-2">
-                  Превью логотипа
+                  {t('crm.settings.app.fields.logoPreview')}
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="h-12 w-12 rounded-2xl bg-slate-950/80 border border-slate-800/80 flex items-center justify-center overflow-hidden">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={logoUrl}
-                      alt="Logo preview"
+                      alt={t('crm.settings.app.fields.logoAlt')}
                       className="max-h-12 max-w-12 object-contain"
                     />
                   </div>
@@ -193,7 +181,7 @@ export const AppSettingsPage: React.FC = () => {
                 disabled={saving}
                 className="px-4 py-2 rounded-xl bg-lumiva-accent text-slate-950 text-xs font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
               >
-                {saving ? 'Сохраняем…' : 'Сохранить изменения'}
+                {saving ? t('crm.settings.app.saving') : t('crm.settings.app.save')}
               </button>
             </div>
           </div>

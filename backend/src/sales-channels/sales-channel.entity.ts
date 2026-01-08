@@ -67,4 +67,8 @@ export class SalesChannel {
 
   @OneToMany(() => Sale, (sale) => sale.channel)
   sales: Sale[];
+
+  @Column({ type: 'uuid' })
+  tenantId: string;
+  
 }

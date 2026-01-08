@@ -1,5 +1,5 @@
 // src/integrations/integrations.service.ts
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -12,10 +12,7 @@ import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { Sale } from '../sales/sale.entity';
 
 import type { IntegrationKind } from './integration-kind.enum';
-import type {
-  TestConnectionResult,
-  SyncResult,
-} from './sales-integration.adapter';
+import type { TestConnectionResult, SyncResult } from './sales-integration.adapter';
 
 export interface IntegrationConnectionDto {
   id: string;
@@ -63,7 +60,7 @@ export class IntegrationsService {
         if (cfg.consumerKey) snippet = '…' + String(cfg.consumerKey).slice(-4);
         if (cfg.apiKey) snippet = '…' + String(cfg.apiKey).slice(-4);
       } catch {
-        // ignore JSON errors
+        // ignore
       }
     }
 
@@ -88,17 +85,23 @@ export class IntegrationsService {
   }
 
   /* ============================================================
-   * КАНАЛ ДЛЯ ИНТЕГРАЦИИ
+   * КАНАЛ ДЛЯ ИНТЕГРАЦИИ (tenant-safe)
    * ============================================================ */
-  private async ensureChannel(entity: IntegrationConnection): Promise<SalesChannel> {
-    // Если интеграция уже привязана к каналу
+  private async ensureChannel(
+    tenantId: string,
+    entity: IntegrationConnection,
+  ): Promise<SalesChannel> {
+    if (entity.tenantId && entity.tenantId !== tenantId) {
+      throw new ForbiddenException('Access denied');
+    }
+
+    // 1) Если интеграция уже привязана к каналу — проверим, что канал НАШЕГО tenant
     if (entity.channelId) {
       const existing = await this.channelsRepo.findOne({
-        where: { id: entity.channelId },
+        where: { id: entity.channelId, tenantId, isDeleted: false } as any,
       });
 
-      if (existing && !existing.isDeleted) {
-        // Обновляем обратную ссылку и имя интеграции в канале
+      if (existing) {
         let dirty = false;
 
         if (existing.integrationId !== entity.id) {
@@ -109,17 +112,24 @@ export class IntegrationsService {
           existing.integrationName = entity.name;
           dirty = true;
         }
-
-        if (dirty) {
-          await this.channelsRepo.save(existing);
+        if ((existing as any).currency !== (entity.currency || 'EUR')) {
+          (existing as any).currency = entity.currency || 'EUR';
+          dirty = true;
         }
 
+        if (dirty) await this.channelsRepo.save(existing);
         return existing;
       }
+
+      // channelId указывает на чужой tenant или удалённый канал — отвязываем
+      entity.channelId = null;
+      await this.repo.save(entity);
     }
 
-    // Создаём новый канал, если нет действующего
-    const channel = this.channelsRepo.create({
+    // 2) Создаём новый канал
+    // ВАЖНО: TypeORM typings иногда выбирают overload массива -> TS думает, что это SalesChannel[]
+    // Поэтому приводим через unknown.
+    const channel = (this.channelsRepo.create({
       name: entity.name,
       type: 'other',
       integrationId: entity.id,
@@ -127,120 +137,110 @@ export class IntegrationsService {
       currency: entity.currency || 'EUR',
       isEnabled: true,
       isDeleted: false,
-    });
+      tenantId,
+    } as any) as unknown) as SalesChannel;
 
-    const saved = await this.channelsRepo.save(channel);
+    const savedChannel = ((await this.channelsRepo.save(channel)) as unknown) as SalesChannel;
 
-    // Привязываем канал к интеграции
-    entity.channelId = saved.id;
+    // 3) Привязка канала к интеграции
+    entity.channelId = savedChannel.id;
+    entity.tenantId = tenantId;
     await this.repo.save(entity);
 
-    return saved;
+    return savedChannel;
   }
 
   /* ============================================================
-   * CRUD
+   * CRUD (tenant-safe)
    * ============================================================ */
-  async findAll(): Promise<IntegrationConnectionDto[]> {
+
+  async findAllForTenant(tenantId: string): Promise<IntegrationConnectionDto[]> {
     const list = await this.repo.find({
-      where: { isDeleted: false },
+      where: { tenantId, isDeleted: false } as any,
       order: { createdAt: 'DESC' },
     });
     return list.map((e) => this.toDto(e));
   }
 
-  async findOne(id: string): Promise<IntegrationConnectionDto> {
+  async findOneForTenant(
+    tenantId: string,
+    id: string,
+  ): Promise<IntegrationConnectionDto> {
     const entity = await this.repo.findOne({
-      where: { id, isDeleted: false },
+      where: { id, tenantId, isDeleted: false } as any,
     });
-    if (!entity) {
-      throw new NotFoundException('Интеграция не найдена');
-    }
+    if (!entity) throw new NotFoundException('Интеграция не найдена');
     return this.toDto(entity);
   }
 
-  async create(
+  async createForTenant(
+    tenantId: string,
     dto: CreateIntegrationConnectionDto,
   ): Promise<IntegrationConnectionDto> {
-    const entity = this.repo.create({
+    // Аналогично: typings иногда выбирают overload массива -> TS думает, что это IntegrationConnection[]
+    const entity = (this.repo.create({
+      tenantId,
       name: dto.name,
-      kind: dto.kind,
+      kind: dto.kind as any,
       description: dto.description ?? null,
       configJson: dto.config ? JSON.stringify(dto.config) : null,
       isEnabled: dto.isEnabled ?? true,
       isDeleted: false,
       lastSyncStatus: 'never',
       channelId: dto.channelId ?? null,
-    });
+    } as any) as unknown) as IntegrationConnection;
 
-    const saved = await this.repo.save(entity);
+    const saved = ((await this.repo.save(entity)) as unknown) as IntegrationConnection;
 
-    // Создаём или привязываем канал
-    await this.ensureChannel(saved);
-
+    await this.ensureChannel(tenantId, saved);
     return this.toDto(saved);
   }
 
-  async update(
+  async updateForTenant(
+    tenantId: string,
     id: string,
     dto: UpdateIntegrationConnectionDto,
   ): Promise<IntegrationConnectionDto> {
-    const entity = await this.repo.findOne({ where: { id } });
-    if (!entity) {
+    const entity = await this.repo.findOne({ where: { id, tenantId } as any });
+    if (!entity || entity.isDeleted) {
       throw new NotFoundException('Интеграция не найдена');
     }
 
-    // Обновляем поля, которые пришли
-    if (dto.name !== undefined) {
-      entity.name = dto.name;
-    }
-    if (dto.kind !== undefined) {
-      entity.kind = dto.kind as IntegrationKind;
-    }
-    if (dto.channelId !== undefined) {
-      entity.channelId = dto.channelId;
-    }
-    if (dto.description !== undefined) {
-      entity.description = dto.description;
-    }
-    if (dto.isEnabled !== undefined) {
-      entity.isEnabled = dto.isEnabled;
-    }
-    if (dto.isDeleted !== undefined) {
-      entity.isDeleted = dto.isDeleted;
-    }
+    if (dto.name !== undefined) entity.name = dto.name;
+    if (dto.kind !== undefined) entity.kind = dto.kind as any;
+    if (dto.channelId !== undefined) entity.channelId = dto.channelId;
+    if (dto.description !== undefined) entity.description = dto.description;
+    if (dto.isEnabled !== undefined) entity.isEnabled = dto.isEnabled;
+    if (dto.isDeleted !== undefined) entity.isDeleted = dto.isDeleted;
     if (dto.config !== undefined) {
-      entity.configJson =
-        dto.config === null ? null : JSON.stringify(dto.config);
+      entity.configJson = dto.config === null ? null : JSON.stringify(dto.config);
     }
 
-    const saved = await this.repo.save(entity);
+    const saved = ((await this.repo.save(entity)) as unknown) as IntegrationConnection;
 
-    // Гарантируем, что канал существует и привязан
-    await this.ensureChannel(saved);
-
+    await this.ensureChannel(tenantId, saved);
     return this.toDto(saved);
   }
 
-  async softDelete(id: string): Promise<void> {
-    const entity = await this.repo.findOne({ where: { id } });
-    if (!entity) {
-      throw new NotFoundException('Интеграция не найдена');
-    }
+  async softDeleteForTenant(tenantId: string, id: string): Promise<void> {
+    const entity = await this.repo.findOne({ where: { id, tenantId } as any });
+    if (!entity) throw new NotFoundException('Интеграция не найдена');
+
     entity.isDeleted = true;
     await this.repo.save(entity);
   }
 
   /* ============================================================
-   * ТЕСТ ПОДКЛЮЧЕНИЯ
+   * ТЕСТ ПОДКЛЮЧЕНИЯ (tenant-safe)
    * ============================================================ */
-  async testConnection(id: string): Promise<TestConnectionResult> {
+  async testConnectionForTenant(
+    tenantId: string,
+    id: string,
+  ): Promise<TestConnectionResult> {
     const entity = await this.repo.findOne({
-      where: { id, isDeleted: false },
+      where: { id, tenantId, isDeleted: false } as any,
     });
-    if (!entity) {
-      throw new NotFoundException('Интеграция не найдена');
-    }
+    if (!entity) throw new NotFoundException('Интеграция не найдена');
 
     const adapter = this.registry.getAdapter(entity.kind);
     if (!adapter) {
@@ -251,53 +251,48 @@ export class IntegrationsService {
   }
 
   /* ============================================================
-   * АГРЕГАТЫ ПО ПРОДАЖАМ
+   * АГРЕГАТЫ ПО ПРОДАЖАМ (tenant-safe)
    * ============================================================ */
-  private async refreshAggregates(entity: IntegrationConnection): Promise<void> {
-    if (!entity.channelId) return;
+  private async refreshAggregates(
+  tenantId: string,
+  entity: IntegrationConnection,
+  ): Promise<void> {
+  if (!entity.channelId) return;
 
-    const agg = await this.salesRepo
-      .createQueryBuilder('s')
-      .select('COUNT(*)', 'cnt')
-      .addSelect('COALESCE(SUM(s.amount),0)', 'sum')
-      .where('s.channelId = :cid', { cid: entity.channelId })
-      .getRawOne<{ cnt: string; sum: string }>();
+  const agg = await this.salesRepo
+    .createQueryBuilder('s')
+    .select('COUNT(*)', 'cnt')
+    .addSelect('COALESCE(SUM(s.amount),0)', 'sum')
+    // ВАЖНО: колонка в БД = channel_id
+    .where('s.channel_id = :cid', { cid: entity.channelId })
+    .getRawOne<{ cnt: string; sum: string }>();
 
-    const count = Number(agg?.cnt ?? 0);
-    const sum = Number(agg?.sum ?? 0);
+  entity.totalSalesCount = Number(agg?.cnt ?? 0);
+  entity.totalSalesAmount = Number(agg?.sum ?? 0);
 
-    entity.totalSalesCount = count;
-    entity.totalSalesAmount = sum;
+  const byCurrency = await this.salesRepo
+    .createQueryBuilder('s')
+    .select('s.currency', 'currency')
+    .addSelect('COUNT(*)', 'cnt')
+    .where('s.channel_id = :cid', { cid: entity.channelId })
+    .groupBy('s.currency')
+    .orderBy('cnt', 'DESC')
+    .limit(1)
+    .getRawMany<{ currency: string; cnt: string }>();
 
-    // валюта по самой популярной валюте
-    const byCurrency = await this.salesRepo
-      .createQueryBuilder('s')
-      .select('s.currency', 'currency')
-      .addSelect('COUNT(*)', 'cnt')
-      .where('s.channelId = :cid', { cid: entity.channelId })
-      .groupBy('s.currency')
-      .orderBy('cnt', 'DESC')
-      .limit(1)
-      .getRawMany<{ currency: string; cnt: string }>();
-
-    if (byCurrency.length) {
-      entity.currency = byCurrency[0].currency;
-    }
+  if (byCurrency.length) entity.currency = byCurrency[0].currency;
   }
 
   /* ============================================================
-   * СИНХРОНИЗАЦИЯ ПРОДАЖ
+   * СИНХРОНИЗАЦИЯ (tenant-safe)
    * ============================================================ */
-  async sync(id: string): Promise<SyncResult> {
+  async syncForTenant(tenantId: string, id: string): Promise<SyncResult> {
     const entity = await this.repo.findOne({
-      where: { id, isDeleted: false },
+      where: { id, tenantId, isDeleted: false } as any,
     });
-    if (!entity) {
-      throw new NotFoundException('Интеграция не найдена');
-    }
+    if (!entity) throw new NotFoundException('Интеграция не найдена');
 
-    // Создаём/восстанавливаем канал
-    await this.ensureChannel(entity);
+    await this.ensureChannel(tenantId, entity);
 
     const adapter = this.registry.getAdapter(entity.kind);
     if (!adapter) {
@@ -314,14 +309,13 @@ export class IntegrationsService {
     try {
       const result = await adapter.syncSales(entity);
 
-      await this.refreshAggregates(entity);
+      await this.refreshAggregates(tenantId, entity);
 
       entity.lastSyncAt = startedAt;
       entity.lastSyncStatus = result.ok ? 'ok' : 'error';
       entity.lastError = result.ok ? null : result.message ?? null;
 
       await this.repo.save(entity);
-
       return result;
     } catch (e) {
       const msg = (e as Error).message ?? 'Неизвестная ошибка';

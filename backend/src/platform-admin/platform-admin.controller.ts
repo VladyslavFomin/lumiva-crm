@@ -1,5 +1,5 @@
 // src/platform-admin/platform-admin.controller.ts
-import { Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, UseGuards } from '@nestjs/common';
 import { PlatformAdminService } from './platform-admin.service';
 import { PlatformAdminGuard } from './platform-admin.guard';
 
@@ -34,6 +34,21 @@ export class PlatformAdminController {
   @Patch('tenants/:id/api/off')
   async disableApi(@Param('id') id: string) {
     await this.service.setApiEnabled(id, false);
+    return { success: true };
+  }
+
+  @Get('tenants/:id/modules')
+  async getTenantModules(@Param('id') id: string) {
+    return this.service.getTenantModules(id);
+  }
+
+  @Patch('tenants/:id/modules/:moduleKey')
+  async toggleModule(
+    @Param('id') id: string,
+    @Param('moduleKey') moduleKey: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    await this.service.toggleTenantModule(id, moduleKey, body.enabled);
     return { success: true };
   }
 }

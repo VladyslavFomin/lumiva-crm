@@ -3,7 +3,12 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StaffRolePermission } from './staff-role-permission.entity';
-import type { PermissionKey, RoleMatrix } from './permission.types';
+import { StaffUserPermission } from './staff-user-permission.entity';
+import type {
+  PermissionKey,
+  RoleMatrix,
+  UserPermissionMatrix,
+} from './permission.types';
 import type { StaffRole } from '../staff/staff-user.entity';
 
 @Injectable()
@@ -11,6 +16,9 @@ export class RbacService {
   constructor(
     @InjectRepository(StaffRolePermission)
     private readonly repo: Repository<StaffRolePermission>,
+
+    @InjectRepository(StaffUserPermission)
+    private readonly userRepo: Repository<StaffUserPermission>,
   ) {}
 
   /**
@@ -89,5 +97,50 @@ export class RbacService {
       where: { tenantId, role, permission },
     });
     return !!row?.allowed;
+  }
+
+  /* ========= USER-LEVEL OVERRIDES ========= */
+
+  async getUserMatrixForTenant(
+    tenantId: string,
+  ): Promise<UserPermissionMatrix> {
+    const rows = await this.userRepo.find({ where: { tenantId, allowed: true } });
+    const result: UserPermissionMatrix = {};
+
+    for (const row of rows) {
+      if (!result[row.userId]) result[row.userId] = [];
+      if (!result[row.userId].includes(row.permission)) {
+        result[row.userId].push(row.permission);
+      }
+    }
+
+    return result;
+  }
+
+  async saveUserPermissions(
+    tenantId: string,
+    matrix: UserPermissionMatrix,
+  ): Promise<UserPermissionMatrix> {
+    // очистить старые записи по tenant
+    await this.userRepo.delete({ tenantId });
+
+    const toSave: StaffUserPermission[] = [];
+    Object.entries(matrix).forEach(([userId, perms]) => {
+      (perms || []).forEach((perm) => {
+        const row = this.userRepo.create({
+          tenantId,
+          userId,
+          permission: perm as PermissionKey,
+          allowed: true,
+        });
+        toSave.push(row);
+      });
+    });
+
+    if (toSave.length) {
+      await this.userRepo.save(toSave);
+    }
+
+    return this.getUserMatrixForTenant(tenantId);
   }
 }

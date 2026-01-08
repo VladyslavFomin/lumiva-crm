@@ -84,7 +84,11 @@ export class SalesService {
 
     // ищем интеграцию по channelId
     const integration = await this.integrationsRepo.findOne({
-      where: { channelId: sale.channelId, isDeleted: false } as any,
+    where: {
+    channelId: sale.channelId,
+    tenantId: sale.tenantId,
+    isDeleted: false,
+     } as any,
     });
     if (!integration) return;
 

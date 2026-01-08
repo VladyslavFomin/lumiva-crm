@@ -1,14 +1,23 @@
 // src/pages/projects/ProjectsListPage.tsx
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import type { Project } from './projectTypes';
 import { fetchProjects } from '../../api/projects';
 import { fetchLeadsList } from '../../api/leads';
 import type { Lead } from '../../api/leads';
+import { useTranslation } from 'react-i18next';
+
+function resolveLocale(lang: string) {
+  if (lang.startsWith('tr')) return 'tr-TR';
+  if (lang.startsWith('en')) return 'en-US';
+  return 'ru-RU';
+}
 
 export const ProjectsListPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const locale = resolveLocale(i18n.language);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,6 +27,28 @@ export const ProjectsListPage: React.FC = () => {
   const goBoard = () => navigate('/app/projects/board');
   const handleOpen = (id: string) => navigate(`/app/projects/${id}`);
   const handleCreate = () => navigate('/app/projects/new');
+  const statusLabels = useMemo<Record<string, string>>(
+    () => ({
+      Новый: t('crm.projects.statuses.new'),
+      'В работе': t('crm.projects.statuses.inProgress'),
+      'На проверке': t('crm.projects.statuses.review'),
+      Заморожен: t('crm.projects.statuses.paused'),
+      Закрыт: t('crm.projects.statuses.closed'),
+    }),
+    [t],
+  );
+  const formatStatus = (status?: string | null) => {
+    if (!status) return t('crm.projects.common.emptyValue');
+    return statusLabels[status] ?? status;
+  };
+  const formatAmount = (amount: number, currency?: string) => {
+    const formatted = new Intl.NumberFormat(locale).format(amount);
+    if (!currency) return formatted;
+    return t('crm.projects.common.amountWithCurrency', {
+      amount: formatted,
+      currency,
+    });
+  };
 
   useEffect(() => {
     let alive = true;
@@ -49,7 +80,7 @@ export const ProjectsListPage: React.FC = () => {
       .catch((e) => {
         if (!alive) return;
         console.error(e);
-        setError(e.message || 'Ошибка загрузки проектов');
+        setError(e.message || t('crm.projects.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
@@ -68,10 +99,10 @@ export const ProjectsListPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <h1 className="text-lg font-semibold text-slate-50">
-              Проекты · Таблица
+              {t('crm.projects.list.title')}
             </h1>
             <div className="text-[11px] text-slate-500">
-              Список проектов: статус, сумма, ответственный и дата создания
+              {t('crm.projects.list.subtitle')}
             </div>
           </div>
 
@@ -82,22 +113,22 @@ export const ProjectsListPage: React.FC = () => {
                 className="px-3 py-1.5 bg-slate-800 text-slate-50"
                 onClick={goTable}
               >
-                Таблица
+                {t('crm.projects.views.table')}
               </button>
               <button
                 type="button"
                 className="px-3 py-1.5 text-slate-400 hover:bg-slate-800/80"
                 onClick={goBoard}
               >
-                Канбан
+                {t('crm.projects.views.kanban')}
               </button>
             </div>
 
             <button
               onClick={handleCreate}
-              className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
+              className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-white font-semibold hover:bg-lumiva-accent-soft"
             >
-              + Новый проект
+              + {t('crm.projects.actions.newProject')}
             </button>
           </div>
         </div>
@@ -111,21 +142,36 @@ export const ProjectsListPage: React.FC = () => {
 
         {/* Лоадер */}
         {loading && (
-          <div className="text-[12px] text-slate-400">Загрузка проектов…</div>
+          <div className="text-[12px] text-slate-400">
+            {t('crm.projects.loading')}
+          </div>
         )}
 
         {/* Таблица проектов */}
         {!loading && (
           <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-            <table className="w-full text-xs border-separate border-spacing-y-1">
+            <div className="overflow-x-auto">
+              <table className="min-w-[760px] w-full text-xs border-separate border-spacing-y-1">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left px-3 py-1">Название проекта</th>
-                  <th className="text-left px-3 py-1">Ответственный</th>
-                  <th className="text-left px-3 py-1">Лид</th>
-                  <th className="text-left px-3 py-1">Статус</th>
-                  <th className="text-left px-3 py-1">Сумма</th>
-                  <th className="text-left px-3 py-1">Создан</th>
+                  <th className="text-left px-3 py-1">
+                    {t('crm.projects.list.headers.name')}
+                  </th>
+                  <th className="text-left px-3 py-1">
+                    {t('crm.projects.list.headers.owner')}
+                  </th>
+                  <th className="text-left px-3 py-1">
+                    {t('crm.projects.list.headers.lead')}
+                  </th>
+                  <th className="text-left px-3 py-1">
+                    {t('crm.projects.list.headers.status')}
+                  </th>
+                  <th className="text-left px-3 py-1">
+                    {t('crm.projects.list.headers.amount')}
+                  </th>
+                  <th className="text-left px-3 py-1">
+                    {t('crm.projects.list.headers.created')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -151,16 +197,18 @@ export const ProjectsListPage: React.FC = () => {
                       </div>
                     </td>
                     <td className="px-3 py-1.5 text-slate-400">
-                      {p.owner ?? '—'}
+                      {p.owner ?? t('crm.projects.common.emptyValue')}
                     </td>
                     <td className="px-3 py-1.5 text-slate-400">
                       {p.leadName
                         ? `${p.leadName} (${p.leadId?.slice(0, 6) ?? ''})`
-                        : '—'}
+                        : t('crm.projects.common.emptyValue')}
                     </td>
-                    <td className="px-3 py-1.5 text-slate-400">{p.status}</td>
                     <td className="px-3 py-1.5 text-slate-400">
-                      {p.amount.toLocaleString('ru-RU')} {p.currency}
+                      {formatStatus(p.status)}
+                    </td>
+                    <td className="px-3 py-1.5 text-slate-400">
+                      {formatAmount(p.amount, p.currency)}
                     </td>
                     <td className="px-3 py-1.5 text-slate-400">
                       {p.createdAt}
@@ -174,12 +222,13 @@ export const ProjectsListPage: React.FC = () => {
                       colSpan={6}
                       className="px-3 py-3 text-center text-[12px] text-slate-500"
                     >
-                      Проектов пока нет
+                      {t('crm.projects.list.empty')}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         )}
       </div>

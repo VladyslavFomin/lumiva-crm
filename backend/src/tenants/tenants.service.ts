@@ -18,6 +18,9 @@ import { User } from '../users/user.entity';
 import { Site } from '../sites/site.entity';
 import { Lead } from '../leads/lead.entity';
 import { StaffUser } from '../staff/staff-user.entity';
+import { TenantLogsService } from './tenant-logs.service';
+import { getTenantBlockReason } from './tenant-status.util';
+import { IntegrationConnection } from '../integrations/integration-connection.entity';
 
 @Injectable()
 export class TenantsService {
@@ -26,8 +29,13 @@ export class TenantsService {
   constructor(
     @InjectRepository(Tenant)
     private readonly repo: Repository<Tenant>,
+    @InjectRepository(Site)
+    private readonly sitesRepo: Repository<Site>,
+    @InjectRepository(IntegrationConnection)
+    private readonly integrationsRepo: Repository<IntegrationConnection>,
     private readonly staffUsers: StaffUsersService,
     private readonly mail: MailService,
+    private readonly tenantLogs: TenantLogsService,
   ) {}
 
   /**
@@ -41,6 +49,27 @@ export class TenantsService {
 
   async findOne(id: string) {
     return this.repo.findOne({ where: { id } });
+  }
+
+  /**
+   * Все сайты/интеграции по всем тенантам (для pl1)
+   */
+  async findAllSitesWithTenant(params?: { tenantId?: string }) {
+    const where = params?.tenantId ? { tenantId: params.tenantId } : {};
+    return this.sitesRepo.find({
+      where,
+      relations: ['tenant'],
+      order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findIntegrations(params?: { tenantId?: string }) {
+    const where: any = { isDeleted: false };
+    if (params?.tenantId) where.tenantId = params.tenantId;
+    return this.integrationsRepo.find({
+      where,
+      order: { createdAt: 'DESC' },
+    });
   }
 
   /**
@@ -158,7 +187,14 @@ export class TenantsService {
         .toLowerCase()
         .replace(/\s+/g, '-')
         .replace(/[^a-z0-9-]/g, '');
-    const clientKey = rawKey || `client-${randomUUID().slice(0, 8)}`;
+    const baseKey = rawKey || `client-${randomUUID().slice(0, 8)}`;
+    let clientKey = baseKey;
+    let attempts = 0;
+    while (await this.repo.findOne({ where: { clientKey } })) {
+      attempts += 1;
+      clientKey = `${baseKey}-${randomUUID().slice(0, 4)}`;
+      if (attempts > 5) break;
+    }
 
     const tenant = this.repo.create({
       clientKey,
@@ -188,6 +224,10 @@ export class TenantsService {
     });
 
     return tenant;
+  }
+
+  async findByClientKey(clientKey: string) {
+    return this.repo.findOne({ where: { clientKey } });
   }
 
   /**
@@ -326,6 +366,9 @@ export class TenantsService {
       throw new NotFoundException('Tenant not found');
     }
 
+    const prevStatus = tenant.status;
+    const prevActiveUntil = tenant.activeUntil;
+
     if (patch.name !== undefined && patch.name.trim()) {
       tenant.name = patch.name.trim();
     }
@@ -357,6 +400,26 @@ export class TenantsService {
     }
 
     await this.repo.save(tenant);
+
+    if (
+      this.tenantLogs &&
+      (prevStatus !== tenant.status ||
+        (prevActiveUntil?.getTime() || null) !==
+          (tenant.activeUntil?.getTime() || null))
+    ) {
+      await this.tenantLogs.record({
+        tenantId: tenant.id,
+        type: 'status_changed',
+        message: `Tenant status updated to ${tenant.status}`,
+        meta: {
+          prevStatus,
+          nextStatus: tenant.status,
+          prevActiveUntil,
+          nextActiveUntil: tenant.activeUntil,
+        },
+      });
+    }
+
     return tenant;
   }
 
@@ -428,5 +491,173 @@ export class TenantsService {
     this.logger.log(`Tenant ${id} deleted successfully`);
 
     return { ok: true };
+  }
+
+  async getTenantLogs(tenantId: string, limit = 50) {
+    return this.tenantLogs.findRecent(tenantId, limit);
+  }
+
+  async getAllLogs(params?: { tenantId?: string; limit?: number }) {
+    return this.tenantLogs.findRecentAll(params);
+  }
+
+  async pruneResetTokens() {
+    await this.staffUsers.pruneExpiredTokens();
+    return { ok: true };
+  }
+
+  async issueOwnerPasswordResetLink(id: string) {
+    const tenant = await this.repo.findOne({ where: { id } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+    if (!tenant.ownerEmail) {
+      throw new NotFoundException('Owner email is not set for this tenant');
+    }
+
+    const res = await this.staffUsers.issuePasswordResetToken({
+      tenantId: tenant.id,
+      email: tenant.ownerEmail,
+      fullName: tenant.ownerName ?? tenant.ownerEmail,
+      tenantName: tenant.name,
+      sendEmail: false,
+      actor: { source: 'pl1' },
+    });
+
+    return {
+      link: res.link,
+      expiresAt: res.expiresAt,
+      email: tenant.ownerEmail,
+    };
+  }
+
+  async sendOwnerPasswordResetEmail(id: string, to?: string) {
+    const tenant = await this.repo.findOne({ where: { id } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+    if (!tenant.ownerEmail) {
+      throw new NotFoundException('Owner email is not set for this tenant');
+    }
+
+    await this.staffUsers.issuePasswordResetToken({
+      tenantId: tenant.id,
+      email: tenant.ownerEmail,
+      fullName: tenant.ownerName ?? tenant.ownerEmail,
+      tenantName: tenant.name,
+      sendEmail: true,
+      sendTo: to || tenant.ownerEmail,
+      emailTemplate: 'reset',
+      actor: { source: 'pl1' },
+    });
+
+    return { ok: true, sentTo: to || tenant.ownerEmail };
+  }
+
+  async getTenantInfo(tenantId: string) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    return {
+      id: tenant.id,
+      clientKey: tenant.clientKey ?? null,
+      name: tenant.name ?? null,
+      status: tenant.status ?? null,
+      plan: tenant.plan ?? null,
+      apiEnabled: tenant.apiEnabled ?? null,
+      activeUntil: tenant.activeUntil ?? null,
+      ownerName: tenant.ownerName ?? null,
+      ownerEmail: tenant.ownerEmail ?? null,
+    };
+  }
+
+  async getTenantMeta(tenantId: string) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    return {
+      enabledModules: tenant.enabledModules ?? {},
+    };
+  }
+
+  /**
+   * ===== Управление модулями тенента =====
+   */
+
+  /**
+   * Получить список модулей тенента
+   */
+  async getTenantModules(tenantId: string) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    // Возвращаем все доступные модули с их статусом
+    const availableModules = [
+      'chat',
+      'marketing',
+      'analytics',
+      'woo',
+      'reputation',
+      'smm',
+      'clientcabinet',
+      'crm_connector',
+      'crm_dashboard',
+      'diagnostics',
+      'email_branding',
+      'polylang_ai',
+      'site_checker',
+      'crm_bridge',
+      'crm',
+    ];
+
+    const enabledModules = tenant.enabledModules || {};
+
+    return availableModules.map((key) => ({
+      key,
+      enabled: enabledModules[key] === true,
+    }));
+  }
+
+  /**
+   * Включить/выключить модуль у тенента
+   */
+  async toggleTenantModule(
+    tenantId: string,
+    moduleKey: string,
+    enabled: boolean,
+  ) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    const enabledModules = tenant.enabledModules || {};
+    enabledModules[moduleKey] = enabled;
+    tenant.enabledModules = enabledModules;
+
+    await this.repo.save(tenant);
+
+    return {
+      key: moduleKey,
+      enabled,
+    };
+  }
+
+  /**
+   * Получить модули тенента по clientKey (для публичного API)
+   */
+  async getTenantModulesByClientKey(clientKey: string) {
+    const tenant = await this.repo.findOne({ where: { clientKey } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    return this.getTenantModules(tenant.id);
   }
 }

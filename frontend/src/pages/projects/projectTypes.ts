@@ -61,8 +61,8 @@ export interface ProjectComment {
 }
 
 // В справочниках пока просто константы
-export const PROJECT_CATEGORIES = ['Аналитика', 'Разработка', 'Маркетинг'];
-export const PROJECT_TAGS = ['CRM', 'IT', 'WEB'];
+export const PROJECT_CATEGORIES = ['Аналитика', 'Разработка', 'Маркетинг', 'Реклама', 'SEO', 'SMM'];
+export const PROJECT_TAGS = ['CRM', 'IT', 'WEB', 'SEO', 'SMM', 'ADS'];
 
 // Пустой проект для "Новый проект"
 export function createEmptyProject(): Project {

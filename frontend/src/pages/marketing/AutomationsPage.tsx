@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchMarketingAutomations,
@@ -9,6 +10,7 @@ import {
 } from '../../api/marketing';
 
 export const AutomationsPage: React.FC = () => {
+  const { t } = useTranslation();
   const [items, setItems] = useState<MarketingAutomation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -23,14 +25,14 @@ export const AutomationsPage: React.FC = () => {
       .then(setItems)
       .catch((e: any) => {
         console.error(e);
-        setError(e?.message || 'Не удалось загрузить автоматизации');
+        setError(e?.message || t('crm.marketingAutomations.errors.load'));
       })
       .finally(() => setLoading(false));
   }, []);
 
   const onCreate = async () => {
     if (!name.trim()) {
-      alert('Введите название сценария');
+      alert(t('crm.marketingAutomations.errors.requiredName'));
       return;
     }
     setCreating(true);
@@ -46,7 +48,7 @@ export const AutomationsPage: React.FC = () => {
       setWebhookUrl('');
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Не удалось создать автоматизацию');
+      alert(e?.message || t('crm.marketingAutomations.errors.create'));
     } finally {
       setCreating(false);
     }
@@ -63,18 +65,19 @@ export const AutomationsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Не удалось обновить автоматизацию');
+      alert(e?.message || t('crm.marketingAutomations.errors.update'));
     }
   };
 
   const remove = async (item: MarketingAutomation) => {
-    if (!window.confirm(`Удалить сценарий «${item.name}»?`)) return;
+    if (!window.confirm(t('crm.marketingAutomations.confirmDelete', { name: item.name })))
+      return;
     try {
       await deleteMarketingAutomation(item.id);
       setItems((prev) => prev.filter((it) => it.id !== item.id));
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || 'Не удалось удалить автоматизацию');
+      alert(e?.message || t('crm.marketingAutomations.errors.delete'));
     }
   };
 
@@ -84,15 +87,13 @@ export const AutomationsPage: React.FC = () => {
         <section className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Маркетинг · Автоматизации
+              {t('crm.marketingAutomations.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Автоматизации маркетинга (n8n)
+              {t('crm.marketingAutomations.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Здесь можно зафиксировать все n8n-сценарии, которые связаны с
-              маркетингом: импорты трафика, рассылки, синхронизацию аудиторий.
-              Позже можно будет подтягивать статусы прямо из n8n API.
+              {t('crm.marketingAutomations.subtitle')}
             </p>
           </div>
         </section>
@@ -101,24 +102,24 @@ export const AutomationsPage: React.FC = () => {
           {/* Форма добавления */}
           <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5 space-y-3 text-xs">
             <h2 className="text-sm font-semibold text-slate-50 mb-1">
-              Новый сценарий
+              {t('crm.marketingAutomations.form.title')}
             </h2>
 
             <div>
               <label className="block text-[11px] text-slate-400 mb-1">
-                Название сценария
+                {t('crm.marketingAutomations.form.name')}
               </label>
               <input
                 className="w-full rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Импорт GA4 → CRM (ежедневно)"
+                placeholder={t('crm.marketingAutomations.form.namePlaceholder')}
               />
             </div>
 
             <div>
               <label className="block text-[11px] text-slate-400 mb-1">
-                Webhook URL (из n8n)
+                {t('crm.marketingAutomations.form.webhook')}
               </label>
               <input
                 className="w-full rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-xs text-slate-100 outline-none focus:border-sky-500"
@@ -134,12 +135,13 @@ export const AutomationsPage: React.FC = () => {
               disabled={creating}
               className="mt-2 w-full px-4 py-2 rounded-2xl bg-sky-500 text-slate-950 text-xs font-semibold hover:bg-sky-400 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {creating ? 'Создание…' : 'Создать сценарий'}
+              {creating
+                ? t('crm.marketingAutomations.actions.creating')
+                : t('crm.marketingAutomations.actions.create')}
             </button>
 
             <p className="mt-3 text-[10px] text-slate-500">
-              Для каждого сценария можно будет привязать токены (например,
-              токен импорта трафика), расписание и статусы запусков.
+              {t('crm.marketingAutomations.form.note')}
             </p>
           </div>
 
@@ -148,21 +150,22 @@ export const AutomationsPage: React.FC = () => {
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-semibold text-slate-50">
-                  Текущие автоматизации
+                  {t('crm.marketingAutomations.list.title')}
                 </h2>
                 <p className="mt-0.5 text-[11px] text-slate-500">
-                  Пока без связи с n8n API, но уже можно хранить описания и
-                  вебхуки по каждому тенанту.
+                  {t('crm.marketingAutomations.list.subtitle')}
                 </p>
               </div>
               <span className="text-[11px] text-slate-500">
-                Всего: {items.length}
+                {t('crm.marketingAutomations.list.total', {
+                  count: items.length,
+                })}
               </span>
             </div>
 
             {loading && (
               <div className="text-[11px] text-slate-400">
-                Загружаем автоматизации…
+                {t('crm.marketingAutomations.loading')}
               </div>
             )}
 
@@ -172,8 +175,7 @@ export const AutomationsPage: React.FC = () => {
 
             {!loading && !items.length && (
               <div className="text-[11px] text-slate-500">
-                Пока нет ни одного сценария. Добавьте хотя бы импорт
-                маркетингового трафика из n8n.
+                {t('crm.marketingAutomations.list.empty')}
               </div>
             )}
 
@@ -190,7 +192,11 @@ export const AutomationsPage: React.FC = () => {
                       </span>
                       <span className="text-[10px] text-slate-500">
                         {it.type} ·{' '}
-                        {it.lastStatus ? `Последний статус: ${it.lastStatus}` : 'Статус пока неизвестен'}
+                        {it.lastStatus
+                          ? t('crm.marketingAutomations.list.lastStatus', {
+                              status: it.lastStatus,
+                            })
+                          : t('crm.marketingAutomations.list.statusUnknown')}
                       </span>
                     </div>
                     <div className="flex items-center gap-2">
@@ -203,15 +209,17 @@ export const AutomationsPage: React.FC = () => {
                             ? 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10'
                             : 'border-slate-600 text-slate-400 bg-slate-800')
                         }
-                      >
-                        {it.isActive ? 'Включен' : 'Выключен'}
+                        >
+                        {it.isActive
+                          ? t('crm.marketingAutomations.status.enabled')
+                          : t('crm.marketingAutomations.status.disabled')}
                       </button>
                       <button
                         type="button"
                         onClick={() => remove(it)}
                         className="px-2 py-0.5 rounded-xl border border-rose-500/60 text-[10px] text-rose-300 hover:bg-rose-500/10"
                       >
-                        Удалить
+                        {t('crm.marketingAutomations.actions.delete')}
                       </button>
                     </div>
                   </div>

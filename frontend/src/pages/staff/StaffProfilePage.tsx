@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 
 import {
@@ -20,18 +21,9 @@ import { fetchProjects } from '../../api/projects';
 import type { Project, ProjectTask } from '../projects/projectTypes';
 import { getStoredUser } from '../../auth/session';
 import { adminProvisionUser } from '../../api/users';
+import { getLocale } from '../../i18n/utils';
 
 type TabId = 'overview' | 'leads' | 'projects' | 'tasks';
-
-const ROLE_LABEL: Record<StaffRole, string> = {
-  owner: 'Владелец',
-  manager: 'Менеджер',
-  viewer: 'Наблюдатель',
-  finance: 'Финансы',
-  sales: 'Продажи',
-  developer: 'Разработчик',
-  support: 'Поддержка',
-};
 
 interface TaskWithProject extends ProjectTask {
   projectId: string;
@@ -39,6 +31,7 @@ interface TaskWithProject extends ProjectTask {
 }
 
 export const StaffProfilePage: React.FC = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -64,6 +57,19 @@ export const StaffProfilePage: React.FC = () => {
 
   const currentUser = getStoredUser();
   const isOwner = currentUser?.role === 'owner';
+  const locale = getLocale();
+  const roleLabels = useMemo(
+    () => ({
+      owner: t('crm.staff.roles.owner'),
+      manager: t('crm.staff.roles.manager'),
+      viewer: t('crm.staff.roles.viewer'),
+      finance: t('crm.staff.roles.finance'),
+      sales: t('crm.staff.roles.sales'),
+      developer: t('crm.staff.roles.developer'),
+      support: t('crm.staff.roles.support'),
+    }),
+    [t],
+  );
 
   useEffect(() => {
     if (!id) return;
@@ -147,7 +153,7 @@ export const StaffProfilePage: React.FC = () => {
       } catch (e: any) {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Ошибка загрузки профиля сотрудника');
+        setError(e.message || t('crm.staff.profile.errors.load'));
       } finally {
         if (!alive) return;
         setLoading(false);
@@ -181,7 +187,7 @@ export const StaffProfilePage: React.FC = () => {
     return (
       <MainLayout>
         <div className="p-4 text-slate-200 text-sm">
-          Некорректный ID сотрудника
+          {t('crm.staff.profile.invalidId')}
         </div>
       </MainLayout>
     );
@@ -200,7 +206,7 @@ export const StaffProfilePage: React.FC = () => {
       setStaff(updated);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Не удалось изменить роль сотрудника');
+      setError(e.message || t('crm.staff.profile.errors.role'));
     } finally {
       setSavingRole(false);
     }
@@ -219,7 +225,7 @@ export const StaffProfilePage: React.FC = () => {
       setStaff(updated);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Не удалось изменить отдел');
+      setError(e.message || t('crm.staff.profile.errors.department'));
     } finally {
       setSavingDept(false);
     }
@@ -241,7 +247,7 @@ export const StaffProfilePage: React.FC = () => {
       }
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Не удалось изменить статус сотрудника');
+      setError(e.message || t('crm.staff.profile.errors.status'));
     } finally {
       setStatusLoading(false);
     }
@@ -249,7 +255,7 @@ export const StaffProfilePage: React.FC = () => {
 
   const handleDeleteStaff = async () => {
   if (!staff || !isOwner) return;
-  if (!window.confirm('Удалить этого сотрудника без возможности восстановления?')) {
+  if (!window.confirm(t('crm.staff.profile.deleteConfirm'))) {
     return;
   }
 
@@ -258,7 +264,7 @@ export const StaffProfilePage: React.FC = () => {
     navigate('/app/staff');
   } catch (e: any) {
     console.error(e);
-    setError(e.message || 'Не удалось удалить сотрудника');
+    setError(e.message || t('crm.staff.profile.errors.delete'));
   }
   };
 
@@ -267,7 +273,7 @@ export const StaffProfilePage: React.FC = () => {
     if (!staff?.email) return;
 
     if (!isOwner) {
-      window.alert('Только владелец может управлять логинами сотрудников');
+      window.alert(t('crm.staff.profile.access.onlyOwner'));
       return;
     }
 
@@ -286,12 +292,11 @@ export const StaffProfilePage: React.FC = () => {
       const { email, password } = payload;
 
       setLoginInfo(
-        `Логин: ${email}\nПароль: ${password}\n` +
-          `Передайте его сотруднику и попросите сменить после первого входа.`,
+        t('crm.staff.profile.access.message', { email, password }),
       );
     } catch (e: any) {
       console.error(e);
-      setLoginError(e.message || 'Не удалось создать/сбросить пароль');
+      setLoginError(e.message || t('crm.staff.profile.access.error'));
     } finally {
       setLoginLoading(false);
     }
@@ -309,7 +314,7 @@ export const StaffProfilePage: React.FC = () => {
                 onClick={handleBack}
                 className="text-[11px] text-slate-400 hover:text-slate-200 mb-1"
               >
-                ← Назад к сотрудникам
+                ← {t('crm.staff.profile.back')}
               </button>
               <div className="flex items-center gap-3">
                 <div className="h-12 w-12 rounded-full bg-slate-800 flex items-center justify-center text-sm font-semibold text-slate-100">
@@ -317,16 +322,16 @@ export const StaffProfilePage: React.FC = () => {
                 </div>
                 <div>
                   <div className="text-[11px] text-slate-500">
-                    Профиль сотрудника
+                    {t('crm.staff.profile.title')}
                   </div>
                   <h1 className="text-lg font-semibold text-slate-50">
-                    {staff?.fullName || staff?.email || 'Сотрудник'}
+                    {staff?.fullName || staff?.email || t('crm.staff.profile.fallbackName')}
                   </h1>
                   {staff && (
                     <div className="text-[11px] text-slate-500 flex items-center gap-2">
-                      <span>{ROLE_LABEL[staff.role]}</span>
+                      <span>{roleLabels[staff.role]}</span>
                       <span className="opacity-40">·</span>
-                      <span>ID {staff.id.slice(0, 8)}</span>
+                      <span>{t('crm.staff.profile.idShort', { id: staff.id.slice(0, 8) })}</span>
                     </div>
                   )}
                 </div>
@@ -341,7 +346,7 @@ export const StaffProfilePage: React.FC = () => {
               onClick={() => navigate('/app/profile')}
               className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-300 hover:bg-slate-900/70"
             >
-              Перейти в мой профиль
+              {t('crm.staff.profile.selfProfile')}
             </button>
           )}
         </div>
@@ -354,7 +359,7 @@ export const StaffProfilePage: React.FC = () => {
 
         {loading && (
           <div className="text-xs text-slate-400">
-            Загружаем профиль сотрудника…
+            {t('crm.staff.profile.loading')}
           </div>
         )}
 
@@ -364,37 +369,39 @@ export const StaffProfilePage: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="rounded-3xl bg-slate-900/80 border border-slate-800/80 px-4 py-3">
                 <div className="text-[11px] text-slate-500 mb-1">
-                  Лиды менеджера
+                  {t('crm.staff.profile.kpis.leadsTitle')}
                 </div>
                 <div className="text-2xl font-semibold text-slate-50">
                   {leadsCount}
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1">
-                  назначено на {staff.fullName || 'менеджера'}
+                  {t('crm.staff.profile.kpis.leadsHint', {
+                    name: staff.fullName || t('crm.staff.profile.kpis.managerFallback'),
+                  })}
                 </div>
               </div>
 
               <div className="rounded-3xl bg-slate-900/80 border border-slate-800/80 px-4 py-3">
                 <div className="text-[11px] text-slate-500 mb-1">
-                  Проекты в работе
+                  {t('crm.staff.profile.kpis.projectsTitle')}
                 </div>
                 <div className="text-2xl font-semibold text-slate-50">
                   {projectsCount}
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1">
-                  где он указан как ответственный
+                  {t('crm.staff.profile.kpis.projectsHint')}
                 </div>
               </div>
 
               <div className="rounded-3xl bg-slate-900/80 border border-slate-800/80 px-4 py-3">
                 <div className="text-[11px] text-slate-500 mb-1">
-                  Задачи
+                  {t('crm.staff.profile.kpis.tasksTitle')}
                 </div>
                 <div className="text-2xl font-semibold text-slate-50">
                   {tasksCount}
                 </div>
                 <div className="text-[11px] text-slate-500 mt-1">
-                  в чек-листах проектов
+                  {t('crm.staff.profile.kpis.tasksHint')}
                 </div>
               </div>
             </div>
@@ -411,7 +418,7 @@ export const StaffProfilePage: React.FC = () => {
                     : 'text-slate-400 hover:text-slate-100')
                 }
               >
-                Обзор
+                {t('crm.staff.profile.tabs.overview')}
               </button>
               <button
                 type="button"
@@ -423,7 +430,7 @@ export const StaffProfilePage: React.FC = () => {
                     : 'text-slate-400 hover:text-slate-100')
                 }
               >
-                Лиды
+                {t('crm.staff.profile.tabs.leads')}
               </button>
               <button
                 type="button"
@@ -435,7 +442,7 @@ export const StaffProfilePage: React.FC = () => {
                     : 'text-slate-400 hover:text-slate-100')
                 }
               >
-                Проекты
+                {t('crm.staff.profile.tabs.projects')}
               </button>
               <button
                 type="button"
@@ -447,7 +454,7 @@ export const StaffProfilePage: React.FC = () => {
                     : 'text-slate-400 hover:text-slate-100')
                 }
               >
-                Задачи
+                {t('crm.staff.profile.tabs.tasks')}
               </button>
             </div>
 
@@ -459,7 +466,7 @@ export const StaffProfilePage: React.FC = () => {
                   {/* Контакты */}
                   <div>
                     <div className="text-xs text-slate-400 mb-1">
-                      Контакты
+                      {t('crm.staff.profile.contacts.title')}
                     </div>
                     <div className="text-sm text-slate-50">
                       {staff.email}
@@ -474,7 +481,7 @@ export const StaffProfilePage: React.FC = () => {
                   {/* Роль и отдел */}
                   <div>
                     <div className="text-xs text-slate-400 mb-1">
-                      Роль и отдел
+                      {t('crm.staff.profile.roleAndDepartment')}
                     </div>
 
                     {/* Роль */}
@@ -488,7 +495,7 @@ export const StaffProfilePage: React.FC = () => {
                           }
                           className="w-full px-2 py-1 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-50 outline-none"
                         >
-                          {Object.entries(ROLE_LABEL).map(([k, v]) => (
+                          {Object.entries(roleLabels).map(([k, v]) => (
                             <option key={k} value={k}>
                               {v}
                             </option>
@@ -496,24 +503,26 @@ export const StaffProfilePage: React.FC = () => {
                         </select>
                       ) : (
                         <div className="text-sm text-slate-50">
-                          {ROLE_LABEL[staff.role]}
+                          {roleLabels[staff.role]}
                         </div>
                       )}
                     </div>
 
                     {/* Отдел */}
-                    <div className="text-xs text-slate-400 mb-1">Отдел</div>
+                    <div className="text-xs text-slate-400 mb-1">
+                      {t('crm.staff.profile.department')}
+                    </div>
                     {isOwner ? (
                       <input
                         defaultValue={staff.department || ''}
                         disabled={savingDept}
                         onBlur={(e) => handleDeptBlur(e.target.value)}
                         className="w-full px-2 py-1 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-50 outline-none"
-                        placeholder="не указан"
+                        placeholder={t('crm.staff.profile.departmentPlaceholder')}
                       />
                     ) : (
                       <div className="text-sm text-slate-50">
-                        {staff.department || 'не указан'}
+                        {staff.department || t('crm.staff.profile.departmentPlaceholder')}
                       </div>
                     )}
                   </div>
@@ -521,16 +530,16 @@ export const StaffProfilePage: React.FC = () => {
                   {/* Статус сотрудника */}
                   <div>
                     <div className="text-xs text-slate-400 mb-1">
-                      Статус сотрудника
+                      {t('crm.staff.profile.statusTitle')}
                     </div>
                     <div className="flex items-center gap-2">
                       {staff.isActive ? (
                         <span className="inline-flex px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300 text-[11px]">
-                          Активен
+                          {t('crm.staff.status.active')}
                         </span>
                       ) : (
                         <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[11px]">
-                          Отключён
+                          {t('crm.staff.status.disabled')}
                         </span>
                       )}
 
@@ -543,10 +552,10 @@ export const StaffProfilePage: React.FC = () => {
                             className="px-2 py-1 text-[11px] rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/70 disabled:opacity-60"
                           >
                             {statusLoading
-                              ? 'Меняем…'
+                              ? t('crm.staff.profile.statusChanging')
                               : staff.isActive
-                              ? 'Отключить'
-                              : 'Включить'}
+                              ? t('crm.staff.profile.statusDisable')
+                              : t('crm.staff.profile.statusEnable')}
                           </button>
 
                           <button
@@ -554,7 +563,7 @@ export const StaffProfilePage: React.FC = () => {
                             onClick={handleDeleteStaff}
                             className="px-2 py-1 text-[11px] rounded-xl border border-rose-700/80 text-rose-300 hover:bg-rose-900/40"
                           >
-                            Удалить
+                            {t('crm.staff.profile.delete')}
                           </button>
                         </div>
                       )}
@@ -565,7 +574,7 @@ export const StaffProfilePage: React.FC = () => {
                   {isOwner && staff.email && (
                     <div className="pt-3 border-t border-slate-800/70">
                       <div className="text-xs text-slate-400 mb-1">
-                        Доступ в CRM
+                        {t('crm.staff.profile.access.title')}
                       </div>
                       <button
                         type="button"
@@ -574,8 +583,8 @@ export const StaffProfilePage: React.FC = () => {
                         className="px-3 py-1.5 text-[11px] rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
                       >
                         {loginLoading
-                          ? 'Создаём…'
-                          : 'Создать / сбросить пароль'}
+                          ? t('crm.staff.profile.access.creating')
+                          : t('crm.staff.profile.access.createReset')}
                       </button>
 
                       {loginInfo && (
@@ -595,18 +604,19 @@ export const StaffProfilePage: React.FC = () => {
                   {/* Активность */}
                   <div>
                     <div className="text-xs text-slate-400 mb-1">
-                      Активность
+                      {t('crm.staff.profile.activity.title')}
                     </div>
                       <div className="text-sm text-slate-50">
                         {staff.lastActiveAt
-                          ? `Последняя активность: ${new Date(
-                              staff.lastActiveAt,
-                            ).toLocaleString('ru-RU')}`
-                          : 'Ни разу не заходил в систему'}
+                          ? t('crm.staff.profile.activity.last', {
+                              date: new Date(staff.lastActiveAt).toLocaleString(locale),
+                            })
+                          : t('crm.staff.profile.activity.never')}
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
-                        В системе с{' '}
-                        {new Date(staff.createdAt).toLocaleDateString('ru-RU')}
+                        {t('crm.staff.profile.activity.since', {
+                          date: new Date(staff.createdAt).toLocaleDateString(locale),
+                        })}
                       </div>
                   </div>
                 </div>
@@ -617,14 +627,14 @@ export const StaffProfilePage: React.FC = () => {
                   <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-xs text-slate-400">
-                        Последние лиды ({leadsCount})
+                        {t('crm.staff.profile.leads.recentTitle', { count: leadsCount })}
                       </div>
                       <button
                         type="button"
                         onClick={() => setTab('leads')}
                         className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
                       >
-                        Все лиды →
+                        {t('crm.staff.profile.leads.all')}
                       </button>
                     </div>
 
@@ -637,10 +647,10 @@ export const StaffProfilePage: React.FC = () => {
                           className="w-full text-left px-2 py-1.5 rounded-xl hover:bg-slate-950/70 text-xs"
                         >
                           <div className="text-slate-50">
-                            {l.name || 'Без имени'}
+                            {l.name || t('crm.staff.profile.leads.fallbackName')}
                           </div>
                           <div className="text-[11px] text-slate-500">
-                            {l.email || l.phone || 'контакты не указаны'} ·{' '}
+                            {l.email || l.phone || t('crm.staff.profile.leads.fallbackContact')} ·{' '}
                             {l.status}
                           </div>
                         </button>
@@ -648,7 +658,7 @@ export const StaffProfilePage: React.FC = () => {
 
                       {leadsCount === 0 && (
                         <div className="text-[11px] text-slate-500 italic">
-                          На этого менеджера пока нет лидов.
+                          {t('crm.staff.profile.leads.empty')}
                         </div>
                       )}
                     </div>
@@ -658,14 +668,14 @@ export const StaffProfilePage: React.FC = () => {
                   <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="text-xs text-slate-400">
-                        Последние проекты ({projectsCount})
+                        {t('crm.staff.profile.projects.recentTitle', { count: projectsCount })}
                       </div>
                       <button
                         type="button"
                         onClick={() => setTab('projects')}
                         className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
                       >
-                        Все проекты →
+                        {t('crm.staff.profile.projects.all')}
                       </button>
                     </div>
 
@@ -679,7 +689,7 @@ export const StaffProfilePage: React.FC = () => {
                         >
                           <div className="text-slate-50">{p.name}</div>
                           <div className="text-[11px] text-slate-500">
-                            {p.status} · {p.amount.toLocaleString('ru-RU')}{' '}
+                            {p.status} · {p.amount.toLocaleString(locale)}{' '}
                             {p.currency}
                           </div>
                         </button>
@@ -687,7 +697,7 @@ export const StaffProfilePage: React.FC = () => {
 
                       {projectsCount === 0 && (
                         <div className="text-[11px] text-slate-500 italic">
-                          У сотрудника пока нет проектов, где он ответственный.
+                          {t('crm.staff.profile.projects.empty')}
                         </div>
                       )}
                     </div>
@@ -700,17 +710,29 @@ export const StaffProfilePage: React.FC = () => {
             {tab === 'leads' && (
               <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
                 <div className="text-xs text-slate-400 mb-2">
-                  Лиды, назначенные на {staff.fullName || staff.email}
+                  {t('crm.staff.profile.leads.title', {
+                    name: staff.fullName || staff.email,
+                  })}
                 </div>
 
                 <table className="w-full text-xs border-separate border-spacing-y-1">
                   <thead className="text-slate-500">
                     <tr>
-                      <th className="text-left px-2 py-1">Имя</th>
-                      <th className="text-left px-2 py-1">Контакты</th>
-                      <th className="text-left px-2 py-1">Статус</th>
-                      <th className="text-left px-2 py-1">Канал</th>
-                      <th className="text-left px-2 py-1">Создан</th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.leads.table.headers.name')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.leads.table.headers.contacts')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.leads.table.headers.status')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.leads.table.headers.channel')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.leads.table.headers.created')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -721,10 +743,10 @@ export const StaffProfilePage: React.FC = () => {
                         onClick={() => navigate(`/app/leads/${l.id}`)}
                       >
                         <td className="px-2 py-1.5 text-slate-100">
-                          {l.name || 'Без имени'}
+                          {l.name || t('crm.staff.profile.leads.fallbackName')}
                         </td>
                         <td className="px-2 py-1.5 text-slate-400">
-                          {l.email || l.phone || '—'}
+                          {l.email || l.phone || t('crm.staff.profile.common.empty')}
                         </td>
                         <td className="px-2 py-1.5 text-slate-400">
                           {l.status}
@@ -733,7 +755,7 @@ export const StaffProfilePage: React.FC = () => {
                           {l.channel}
                         </td>
                         <td className="px-2 py-1.5 text-slate-500">
-                          {new Date(l.createdAt).toLocaleString('ru-RU')}
+                          {new Date(l.createdAt).toLocaleString(locale)}
                         </td>
                       </tr>
                     ))}
@@ -744,7 +766,7 @@ export const StaffProfilePage: React.FC = () => {
                           colSpan={5}
                           className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
                         >
-                          Лидов пока нет.
+                          {t('crm.staff.profile.leads.table.empty')}
                         </td>
                       </tr>
                     )}
@@ -757,17 +779,27 @@ export const StaffProfilePage: React.FC = () => {
             {tab === 'projects' && (
               <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
                 <div className="text-xs text-slate-400 mb-2">
-                  Проекты, где он ответственный
+                  {t('crm.staff.profile.projects.title')}
                 </div>
 
                 <table className="w-full text-xs border-separate border-spacing-y-1">
                   <thead className="text-slate-500">
                     <tr>
-                      <th className="text-left px-2 py-1">Проект</th>
-                      <th className="text-left px-2 py-1">Статус</th>
-                      <th className="text-left px-2 py-1">Сумма</th>
-                      <th className="text-left px-2 py-1">Лид</th>
-                      <th className="text-left px-2 py-1">Создан</th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.projects.table.headers.project')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.projects.table.headers.status')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.projects.table.headers.amount')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.projects.table.headers.lead')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.projects.table.headers.created')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -784,13 +816,13 @@ export const StaffProfilePage: React.FC = () => {
                           {p.status}
                         </td>
                         <td className="px-2 py-1.5 text-slate-400">
-                          {p.amount.toLocaleString('ru-RU')} {p.currency}
+                          {p.amount.toLocaleString(locale)} {p.currency}
                         </td>
                         <td className="px-2 py-1.5 text-slate-400">
-                          {p.leadName || '—'}
+                          {p.leadName || t('crm.staff.profile.common.empty')}
                         </td>
                         <td className="px-2 py-1.5 text-slate-500">
-                          {p.createdAt}
+                          {new Date(p.createdAt).toLocaleString(locale)}
                         </td>
                       </tr>
                     ))}
@@ -801,7 +833,7 @@ export const StaffProfilePage: React.FC = () => {
                           colSpan={5}
                           className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
                         >
-                          Проектов пока нет.
+                          {t('crm.staff.profile.projects.table.empty')}
                         </td>
                       </tr>
                     )}
@@ -814,17 +846,27 @@ export const StaffProfilePage: React.FC = () => {
             {tab === 'tasks' && (
               <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
                 <div className="text-xs text-slate-400 mb-2">
-                  Задачи в проектах (по чек-листам), где указано его имя
+                  {t('crm.staff.profile.tasks.title')}
                 </div>
 
                 <table className="w-full text-xs border-separate border-spacing-y-1">
                   <thead className="text-slate-500">
                     <tr>
-                      <th className="text-left px-2 py-1">Задача</th>
-                      <th className="text-left px-2 py-1">Проект</th>
-                      <th className="text-left px-2 py-1">Статус</th>
-                      <th className="text-left px-2 py-1">Приоритет</th>
-                      <th className="text-left px-2 py-1">Дедлайн</th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.tasks.table.headers.task')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.tasks.table.headers.project')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.tasks.table.headers.status')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.tasks.table.headers.priority')}
+                      </th>
+                      <th className="text-left px-2 py-1">
+                        {t('crm.staff.profile.tasks.table.headers.deadline')}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -837,7 +879,7 @@ export const StaffProfilePage: React.FC = () => {
                         }
                       >
                         <td className="px-2 py-1.5 text-slate-100">
-                          {t.title || 'Без названия'}
+                          {t.title || t('crm.staff.profile.tasks.fallbackTitle')}
                         </td>
                         <td className="px-2 py-1.5 text-slate-400">
                           {t.projectName}
@@ -849,7 +891,7 @@ export const StaffProfilePage: React.FC = () => {
                           {t.priority}
                         </td>
                         <td className="px-2 py-1.5 text-slate-500">
-                          {t.deadline || '—'}
+                          {t.deadline || t('crm.staff.profile.common.empty')}
                         </td>
                       </tr>
                     ))}
@@ -860,7 +902,7 @@ export const StaffProfilePage: React.FC = () => {
                           colSpan={5}
                           className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
                         >
-                          Для этого сотрудника пока нет задач в проектах.
+                          {t('crm.staff.profile.tasks.table.empty')}
                         </td>
                       </tr>
                     )}

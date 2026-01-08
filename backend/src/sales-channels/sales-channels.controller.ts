@@ -1,4 +1,3 @@
-// src/sales-channels/sales-channels.controller.ts
 import {
   Body,
   Controller,
@@ -6,43 +5,41 @@ import {
   Get,
   Param,
   Patch,
+  UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { SalesChannelsService } from './sales-channels.service';
 import { SalesChannelDto } from './dto/sales-channel.dto';
 
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+
+@UseGuards(JwtAuthGuard)
 @Controller('sales-channels')
 export class SalesChannelsController {
   constructor(private readonly service: SalesChannelsService) {}
 
-  /**
-   * Список каналов продаж с агрегатами из интеграций
-   * GET /v1/sales-channels
-   */
   @Get()
-  list(): Promise<SalesChannelDto[]> {
-    return this.service.findAll();
+  list(@CurrentUser() user: CurrentUserPayload): Promise<SalesChannelDto[]> {
+    return this.service.findAllForTenant(user.tenantId);
   }
 
-  /**
-   * Включить/выключить канал
-   * PATCH /v1/sales-channels/:id/enabled
-   * body: { isEnabled: boolean }
-   */
   @Patch(':id/enabled')
   toggleEnabled(
+    @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
     @Body('isEnabled') isEnabled: boolean,
   ): Promise<SalesChannelDto> {
-    return this.service.toggleEnabled(id, !!isEnabled);
+    return this.service.toggleEnabledForTenant(user.tenantId, id, !!isEnabled);
   }
 
-  /**
-   * Мягкое удаление канала
-   * DELETE /v1/sales-channels/:id
-   */
   @Delete(':id')
-  async remove(@Param('id') id: string): Promise<{ ok: boolean }> {
-    await this.service.softDelete(id);
+  async remove(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ): Promise<{ ok: boolean }> {
+    await this.service.softDeleteForTenant(user.tenantId, id);
     return { ok: true };
   }
 }

@@ -81,6 +81,12 @@ export class Tenant {
   @Column({ type: 'text', nullable: true })
   notes: string | null;
 
+  /**
+   * Включенные модули для тенента (JSON объект: { "chat": true, "marketing": false, ... })
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  enabledModules: Record<string, boolean> | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

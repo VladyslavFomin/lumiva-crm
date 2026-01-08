@@ -9,7 +9,7 @@ import {
 } from 'typeorm';
 import { SmmProfileStat } from './smm-profile-stat.entity';
 
-export type SmmPlatform = 'instagram' | 'facebook' | 'vk' | 'tiktok' | 'other';
+export type SmmPlatform = 'instagram' | 'facebook' | 'telegram' | 'vk' | 'tiktok' | 'other';
 
 @Entity('smm_profiles')
 export class SmmProfile {

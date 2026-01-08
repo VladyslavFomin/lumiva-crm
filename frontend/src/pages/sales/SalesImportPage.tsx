@@ -1,5 +1,6 @@
 // src/pages/sales/SalesImportPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   previewSalesImport,
@@ -11,24 +12,26 @@ import {
   fetchSalesChannels,
   type SalesChannel,
 } from '../../api/salesChannels';
+import { getLocale } from '../../i18n/utils';
 
-/* Системные поля, которые мы мапим на колонки файла */
-const SYSTEM_FIELDS: { key: ImportSystemField; label: string }[] = [
-  { key: 'purchaseDate', label: 'Дата покупки' },
-  { key: 'customerName', label: 'Имя клиента / агента' },
-  { key: 'quantity', label: 'Количество' },
-  { key: 'type', label: 'Тип' },
-  { key: 'category', label: 'Категория' },
-  { key: 'size', label: 'Размер' },
-  { key: 'color', label: 'Цвет' },
-  { key: 'url', label: 'Ссылка' },
-  { key: 'currency', label: 'Валюта' },
-  { key: 'country', label: 'Страна' },
+const SYSTEM_FIELDS: ImportSystemField[] = [
+  'purchaseDate',
+  'customerName',
+  'quantity',
+  'type',
+  'category',
+  'size',
+  'color',
+  'url',
+  'currency',
+  'country',
 ];
 
 type FieldMappingState = Record<ImportSystemField, string>;
 
 export const SalesImportPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const [file, setFile] = useState<File | null>(null);
   const [fileName, setFileName] = useState<string>('');
   const [preview, setPreview] = useState<ImportPreviewResponse | null>(null);
@@ -43,7 +46,18 @@ export const SalesImportPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
 
-  // Загрузка каналов для привязки импорта
+  const fieldLabels = useMemo(
+    () =>
+      Object.fromEntries(
+        SYSTEM_FIELDS.map((key) => [
+          key,
+          t(`crm.salesImport.fields.${key}`),
+        ]),
+      ) as Record<ImportSystemField, string>,
+    [t],
+  );
+
+  // Load channels for import mapping.
   useEffect(() => {
     let alive = true;
 
@@ -63,10 +77,10 @@ export const SalesImportPage: React.FC = () => {
 
   const columns = preview?.columns || [];
 
-  // Подсказка: сколько системных полей уже замаплено
+  // How many system fields are mapped.
   const mappedCount = useMemo(
     () =>
-      SYSTEM_FIELDS.filter((f) => mapping[f.key] && mapping[f.key] !== '').length,
+      SYSTEM_FIELDS.filter((key) => mapping[key] && mapping[key] !== '').length,
     [mapping],
   );
 
@@ -85,7 +99,7 @@ export const SalesImportPage: React.FC = () => {
 
   const handlePreview = async () => {
     if (!file) {
-      setError('Выберите файл CSV или XML для импорта.');
+      setError(t('crm.salesImport.errors.missingFile'));
       return;
     }
     setError(null);
@@ -97,26 +111,27 @@ export const SalesImportPage: React.FC = () => {
       const res = await previewSalesImport(file);
       setPreview(res);
 
-      // Инициализируем mapping: либо suggestedMapping, либо пусто
+      // Initialize mapping: use suggestedMapping when available.
       const initial: FieldMappingState = Object.fromEntries(
-        SYSTEM_FIELDS.map((f) => {
+        SYSTEM_FIELDS.map((key) => {
           const suggested =
-            res.suggestedMapping?.[f.key] ||
-            res.suggestedMapping?.[f.key.toString()] ||
+            res.suggestedMapping?.[key] ||
+            res.suggestedMapping?.[key.toString()] ||
             '';
-          return [f.key, suggested || ''];
+          return [key, suggested || ''];
         }),
       ) as FieldMappingState;
 
       setMapping(initial);
       setInfo(
-        `Предпросмотр: строк ${res.totalRows.toLocaleString(
-          'ru-RU',
-        )}, колонок ${res.columns.length}.`,
+        t('crm.salesImport.preview.summary', {
+          rows: res.totalRows.toLocaleString(locale),
+          columns: res.columns.length,
+        }),
       );
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Не удалось получить предпросмотр импорта.');
+      setError(e.message || t('crm.salesImport.errors.preview'));
     } finally {
       setLoadingPreview(false);
     }
@@ -131,7 +146,7 @@ export const SalesImportPage: React.FC = () => {
 
   const handleApply = async () => {
     if (!preview || !preview.importId) {
-      setError('Сначала выполните предпросмотр файла.');
+      setError(t('crm.salesImport.errors.previewRequired'));
       return;
     }
 
@@ -149,12 +164,15 @@ export const SalesImportPage: React.FC = () => {
       const res = await applySalesImport(payload);
       const msg =
         res.message ||
-        `Импорт выполнен: создано ${res.created}, пропущено ${res.skipped}.`;
+        t('crm.salesImport.apply.summary', {
+          created: res.created,
+          skipped: res.skipped,
+        });
 
       setInfo(msg);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка при применении импорта.');
+      setError(e.message || t('crm.salesImport.errors.apply'));
     } finally {
       setApplying(false);
     }
@@ -167,36 +185,39 @@ export const SalesImportPage: React.FC = () => {
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Импорт продаж
+              {t('crm.salesImport.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Загрузка продаж из CSV / XML
+              {t('crm.salesImport.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Загрузите файл с продажами, замапьте колонки на поля CRM и
-              импортируйте данные в выбранный канал. Подходит для выгрузок
-              из OTA, агентов или других систем.
+              {t('crm.salesImport.subtitle')}
             </p>
             <div className="flex flex-col items-stretch gap-2 md:items-end">
-    {/* тут могут быть твои чипы с количеством, если были */}
-    <button
-      type="button"
-      onClick={() => (window.location.href = '/app/sales/integrations/new')}
-      className="px-3 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft transition-colors"
-    >
-      Подключить новый канал
-    </button>
-  </div>
+              <button
+                type="button"
+                onClick={() =>
+                  (window.location.href = '/app/sales/integrations/new')
+                }
+                className="px-3 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft transition-colors"
+              >
+                {t('crm.salesImport.actions.newChannel')}
+              </button>
+            </div>
           </div>
 
           <div className="flex flex-col items-start gap-1 text-[11px] text-slate-300">
             <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-              Файл: {fileName || 'не выбран'}
+              {t('crm.salesImport.fileLabel', {
+                name: fileName || t('crm.salesImport.fileNone'),
+              })}
             </span>
             {preview && (
               <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                Строк: {preview.totalRows.toLocaleString('ru-RU')} · Колонок:{' '}
-                {preview.columns.length}
+                {t('crm.salesImport.previewMeta', {
+                  rows: preview.totalRows.toLocaleString(locale),
+                  columns: preview.columns.length,
+                })}
               </span>
             )}
           </div>
@@ -207,7 +228,7 @@ export const SalesImportPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)] gap-4">
             <div className="space-y-2">
               <label className="block text-[11px] text-slate-400 mb-1">
-                Файл для импорта (CSV или XML)
+                {t('crm.salesImport.fileInputLabel')}
               </label>
               <input
                 type="file"
@@ -221,13 +242,13 @@ export const SalesImportPage: React.FC = () => {
                            hover:file:bg-lumiva-accent-soft"
               />
               <p className="text-[10px] text-slate-500">
-                Рекомендуется UTF-8, первая строка — названия колонок.
+                {t('crm.salesImport.fileHint')}
               </p>
             </div>
 
             <div className="space-y-2">
               <label className="block text-[11px] text-slate-400 mb-1">
-                Канал продаж
+                {t('crm.salesImport.channelLabel')}
               </label>
               <select
                 value={selectedChannelId}
@@ -235,7 +256,7 @@ export const SalesImportPage: React.FC = () => {
                 className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
               >
                 <option value="">
-                  Определить автоматически / создать новый канал
+                  {t('crm.salesImport.channelPlaceholder')}
                 </option>
                 {channels.map((ch) => (
                   <option key={ch.id} value={ch.id}>
@@ -244,8 +265,7 @@ export const SalesImportPage: React.FC = () => {
                 ))}
               </select>
               <p className="text-[10px] text-slate-500">
-                Если канал не выбран, CRM может создать новый канал исходя из
-                настроек импорта.
+                {t('crm.salesImport.channelHint')}
               </p>
             </div>
           </div>
@@ -257,7 +277,9 @@ export const SalesImportPage: React.FC = () => {
               disabled={loadingPreview || !file}
               className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
             >
-              {loadingPreview ? 'Предпросмотр…' : 'Предпросмотр файла'}
+              {loadingPreview
+                ? t('crm.salesImport.actions.previewing')
+                : t('crm.salesImport.actions.preview')}
             </button>
           </div>
         </section>
@@ -268,16 +290,17 @@ export const SalesImportPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-sm font-semibold text-slate-100">
-                  Маппинг полей
+                  {t('crm.salesImport.mapping.title')}
                 </h2>
                 <p className="text-[11px] text-slate-500">
-                  Свяжите колонки файла с полями CRM. Можно импортировать не
-                  все поля — обязательна только дата покупки, сумма/валюта
-                  будут настраиваться позже на бэке.
+                  {t('crm.salesImport.mapping.subtitle')}
                 </p>
               </div>
               <div className="text-[11px] text-slate-300">
-                Замаплено полей: {mappedCount} из {SYSTEM_FIELDS.length}
+                {t('crm.salesImport.mapping.count', {
+                  mapped: mappedCount,
+                  total: SYSTEM_FIELDS.length,
+                })}
               </div>
             </div>
 
@@ -286,31 +309,33 @@ export const SalesImportPage: React.FC = () => {
                 <thead className="text-slate-500">
                   <tr>
                     <th className="text-left font-normal px-2 py-1">
-                      Поле CRM
+                      {t('crm.salesImport.mapping.headers.crmField')}
                     </th>
                     <th className="text-left font-normal px-2 py-1">
-                      Колонка файла
+                      {t('crm.salesImport.mapping.headers.fileColumn')}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {SYSTEM_FIELDS.map((field) => (
                     <tr
-                      key={field.key}
+                      key={field}
                       className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors"
                     >
                       <td className="px-2 py-1.5 text-slate-100 whitespace-nowrap">
-                        {field.label}
+                        {fieldLabels[field]}
                       </td>
                       <td className="px-2 py-1.5">
                         <select
-                          value={mapping[field.key] || ''}
+                          value={mapping[field] || ''}
                           onChange={(e) =>
-                            handleMappingChange(field.key, e.target.value)
+                            handleMappingChange(field, e.target.value)
                           }
                           className="w-full h-7 rounded-lg bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                         >
-                          <option value="">— Не импортировать —</option>
+                          <option value="">
+                            {t('crm.salesImport.mapping.skip')}
+                          </option>
                           {columns.map((col) => (
                             <option key={col} value={col}>
                               {col}
@@ -327,7 +352,7 @@ export const SalesImportPage: React.FC = () => {
             {/* Пример данных */}
             <div className="mt-3">
               <h3 className="text-[11px] font-semibold text-slate-200 mb-1">
-                Пример данных (первые строки)
+                {t('crm.salesImport.sample.title')}
               </h3>
               {preview.sample && preview.sample.length ? (
                 <div className="overflow-x-auto border border-slate-800/80 rounded-2xl">
@@ -369,7 +394,7 @@ export const SalesImportPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="text-[11px] text-slate-500 italic">
-                  Пример данных недоступен.
+                  {t('crm.salesImport.sample.empty')}
                 </div>
               )}
             </div>
@@ -380,12 +405,14 @@ export const SalesImportPage: React.FC = () => {
                 type="button"
                 onClick={handleApply}
                 disabled={applying}
-                className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
-              >
-                {applying ? 'Импортируем…' : 'Импортировать продажи'}
-              </button>
-            </div>
-          </section>
+              className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
+            >
+              {applying
+                ? t('crm.salesImport.actions.applying')
+                : t('crm.salesImport.actions.apply')}
+            </button>
+          </div>
+        </section>
         )}
 
         {/* уведомления */}

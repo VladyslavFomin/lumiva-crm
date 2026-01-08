@@ -11,6 +11,8 @@ import { Repository } from 'typeorm';
 
 import { ApiToken } from './api-token.entity';
 import { Tenant } from '../tenants/tenant.entity';
+import { getTenantBlockReason } from '../tenants/tenant-status.util';
+import { TenantLogsService } from '../tenants/tenant-logs.service';
 
 @Injectable()
 export class ApiTokenGuard implements CanActivate {
@@ -19,6 +21,7 @@ export class ApiTokenGuard implements CanActivate {
     private readonly apiTokensRepo: Repository<ApiToken>,
     @InjectRepository(Tenant)
     private readonly tenantsRepo: Repository<Tenant>,
+    private readonly tenantLogs: TenantLogsService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -55,8 +58,34 @@ export class ApiTokenGuard implements CanActivate {
       throw new ForbiddenException('Tenant not found for this token');
     }
 
-    if (!tenant.apiEnabled || tenant.status !== 'active') {
-      throw new ForbiddenException('Tenant API is disabled or tenant blocked');
+    const tenantBlockReason = getTenantBlockReason(tenant);
+    if (tenantBlockReason) {
+      await this.tenantLogs.record({
+        tenantId: tenant.id,
+        type: 'api_token_denied',
+        statusCode: 403,
+        method: req.method,
+        path: req.url,
+        message: `API token rejected: ${tenantBlockReason}`,
+        meta: {
+          tokenId: apiToken.id,
+          reason: tenantBlockReason,
+          activeUntil: tenant.activeUntil,
+        },
+      });
+      throw new ForbiddenException({
+        code: 'TENANT_INACTIVE',
+        reason: tenantBlockReason,
+        message:
+          tenantBlockReason === 'expired'
+            ? 'Срок использования CRM закончился'
+            : 'Тенант заблокирован',
+        activeUntil: tenant.activeUntil,
+      });
+    }
+
+    if (!tenant.apiEnabled) {
+      throw new ForbiddenException('Tenant API is disabled for this company');
     }
 
     (req as any).tenantId = tenant.id;

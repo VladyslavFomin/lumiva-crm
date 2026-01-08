@@ -7,13 +7,13 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        'lumiva-bg': '#050816',
-        'lumiva-card': '#0b1220',
-        'lumiva-accent': '#38bdf8',
-        'lumiva-accent-soft': '#0ea5e9',
+        'lumiva-bg': '#f6f7fb',
+        'lumiva-card': '#ffffff',
+        'lumiva-accent': '#222222',
+        'lumiva-accent-soft': '#303030',
       },
       boxShadow: {
-        'lumiva': '0 18px 45px rgba(15,23,42,0.85)',
+        'lumiva': '0 18px 45px rgba(17,24,39,0.12)',
       },
       borderRadius: {
         '3xl': '1.5rem',

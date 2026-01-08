@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  OnModuleInit,
+  OnModuleDestroy,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -12,6 +14,10 @@ import { User } from '../users/user.entity';
 import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { TenantLogsService } from '../tenants/tenant-logs.service';
+
+const RESET_TTL_MS = 1000 * 60 * 60 * 48; // 48h
+const RESET_PRUNE_AFTER_DAYS = 7;
 
 
 interface CreateStaffInput {
@@ -24,7 +30,8 @@ interface CreateStaffInput {
 }
 
 @Injectable()
-export class StaffUsersService {
+export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
+  private pruneTimer?: NodeJS.Timeout;
   constructor(
     @InjectRepository(StaffUser)
     private readonly repo: Repository<StaffUser>,
@@ -33,6 +40,7 @@ export class StaffUsersService {
     private readonly userRepo: Repository<User>,
 
     private readonly mail: MailService,
+    private readonly tenantLogs: TenantLogsService,
   ) {}
 
   listForTenant(tenantId: string) {
@@ -40,6 +48,21 @@ export class StaffUsersService {
       where: { tenantId },
       order: { fullName: 'ASC' },
     });
+  }
+
+  onModuleInit() {
+    // периодическая очистка токенов (раз в 12 часов)
+    this.pruneTimer = setInterval(() => {
+      this.pruneExpiredTokens().catch((err) =>
+        console.error('pruneExpiredTokens error', err),
+      );
+    }, 1000 * 60 * 60 * 12);
+  }
+
+  onModuleDestroy() {
+    if (this.pruneTimer) {
+      clearInterval(this.pruneTimer);
+    }
   }
 
   async getOneForTenant(tenantId: string, id: string) {
@@ -179,48 +202,14 @@ export class StaffUsersService {
     tenantName?: string;
   }) {
     const { tenantId, email, fullName, tenantName } = params;
-
-    let staff = await this.repo.findOne({
-      where: { tenantId, email },
-    });
-
-    if (!staff) {
-      staff = this.repo.create({
-        tenantId,
-        email,
-        fullName,
-        department: null,
-        role: 'owner',
-        avatarUrl: null,
-        inviteStatus: 'invited',
-        externalId: null,
-        isActive: true,
-      });
-    }
-
-    const token = randomBytes(32).toString('hex');
-    const expires = new Date(Date.now() + 1000 * 60 * 60 * 48); // 48 часов
-
-    staff.passwordResetToken = token;
-    staff.passwordResetTokenExpiresAt = expires;
-    staff.inviteStatus = 'invited';
-    staff.isActive = true;
-
-    await this.repo.save(staff);
-
-    const baseUrl =
-      process.env.PASSWORD_RESET_URL ||
-      'https://crm.lumiva.agency/set-password';
-    const link = `${baseUrl}?token=${encodeURIComponent(token)}`;
-
-    await this.mail.sendOwnerInviteEmail({
-      to: email,
+    const { link } = await this.issuePasswordResetToken({
+      tenantId,
+      email,
       fullName,
+      sendEmail: true,
       tenantName,
-      link,
     });
-
-    return { ok: true };
+    return { ok: true, link };
   }
 
   /**
@@ -289,6 +278,106 @@ export class StaffUsersService {
     staff.isActive = true;
 
     await this.repo.save(staff);
+  }
+
+  /**
+   * Создаёт/обновляет токен сброса пароля для указанного email и (опционально) отправляет письмо.
+   */
+  async issuePasswordResetToken(params: {
+    tenantId: string;
+    email: string;
+    fullName?: string;
+    tenantName?: string;
+    sendEmail?: boolean;
+    sendTo?: string;
+    emailTemplate?: 'owner-invite' | 'reset';
+    actor?: { source: string; userId?: string; email?: string };
+  }): Promise<{ link: string; expiresAt: Date }> {
+    const {
+      tenantId,
+      email,
+      fullName,
+      tenantName,
+      sendEmail = false,
+      sendTo,
+      emailTemplate = 'owner-invite',
+    } = params;
+
+    let staff = await this.repo.findOne({
+      where: { tenantId, email },
+    });
+
+    if (!staff) {
+      staff = this.repo.create({
+        tenantId,
+        email,
+        fullName: fullName ?? email,
+        department: null,
+        role: 'owner',
+        avatarUrl: null,
+        inviteStatus: 'invited',
+        externalId: null,
+        isActive: true,
+      });
+    } else if (fullName) {
+      staff.fullName = fullName;
+    }
+
+    const token = randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + RESET_TTL_MS); // 48 часов
+
+    staff.passwordResetToken = token;
+    staff.passwordResetTokenExpiresAt = expires;
+    staff.inviteStatus = 'invited';
+    staff.isActive = true;
+
+    await this.repo.save(staff);
+
+    const baseUrl =
+      process.env.PASSWORD_RESET_URL ||
+      'https://crm.lumiva.agency/set-password';
+    const link = `${baseUrl}?token=${encodeURIComponent(token)}`;
+
+    if (sendEmail) {
+      await this.mail.sendOwnerInviteEmail({
+        to: sendTo || email,
+        fullName: staff.fullName || email,
+        tenantName,
+        link,
+      });
+    }
+
+    // аудит лог
+    if (this.tenantLogs) {
+      await this.tenantLogs.record({
+        tenantId: staff.tenantId,
+        type: 'password_reset_token_issued',
+        statusCode: 200,
+        method: 'SYSTEM',
+        path: `sendEmail=${sendEmail ? 'yes' : 'no'}`,
+        message: `Token issued for ${email}`,
+        meta: {
+          sendEmail,
+          to: sendTo || email,
+          actor: params.actor,
+          expiresAt: expires.toISOString(),
+        },
+      });
+    }
+
+    return { link, expiresAt: expires };
+  }
+
+  /**
+   * Очистить просроченные токены.
+   */
+  async pruneExpiredTokens() {
+    await this.repo
+      .createQueryBuilder()
+      .update(StaffUser)
+      .set({ passwordResetToken: null, passwordResetTokenExpiresAt: null })
+      .where('password_reset_token_expires_at < :now', { now: new Date() })
+      .execute();
   }
     /**
    * Установка пароля по токену (инвайт/сброс).

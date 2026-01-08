@@ -38,6 +38,11 @@ export interface LeadDto {
   country: string | null;
   status: LeadStatusCode;
   source: string | null;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmContent?: string | null;
+  utmTerm?: string | null;
   assignedTo: string | null;      // отображаемое имя
   assignedUserId: string | null;  // ссылка на сотрудника
   meta: any;
@@ -54,6 +59,11 @@ export interface Lead {
   country: string;
   status: LeadStatus;
   channel: string;
+  utmSource?: string | null;
+  utmMedium?: string | null;
+  utmCampaign?: string | null;
+  utmContent?: string | null;
+  utmTerm?: string | null;
   assignedTo?: string | null;
   assignedUserId?: string | null;
   meta?: any;
@@ -88,11 +98,18 @@ function mapLeadDtoToLead(dto: LeadDto): Lead {
   const status: LeadStatus = STATUS_MAP[dto.status] ?? 'Новый клиент';
 
   const meta = dto.meta || {};
+  const utmSource = dto.utmSource ?? meta.utm_source ?? meta.utmSource ?? null;
+  const utmMedium = dto.utmMedium ?? meta.utm_medium ?? meta.utmMedium ?? null;
+  const utmCampaign =
+    dto.utmCampaign ?? meta.utm_campaign ?? meta.utmCampaign ?? null;
+  const utmContent =
+    dto.utmContent ?? meta.utm_content ?? meta.utmContent ?? null;
+  const utmTerm = dto.utmTerm ?? meta.utm_term ?? meta.utmTerm ?? null;
   const channel =
     dto.source ||
     meta.channel ||
     meta.form_name ||
-    meta.utm_source ||
+    utmSource ||
     meta.page ||
     'unknown';
 
@@ -104,6 +121,11 @@ function mapLeadDtoToLead(dto: LeadDto): Lead {
     country: dto.country ?? '',
     status,
     channel,
+    utmSource,
+    utmMedium,
+    utmCampaign,
+    utmContent,
+    utmTerm,
     assignedTo: dto.assignedTo,
     assignedUserId: dto.assignedUserId,
     meta,
@@ -182,7 +204,7 @@ export async function updateLeadStatus(
   status: LeadStatus,
 ): Promise<Lead> {
   const code = STATUS_REVERSE[status] ?? 'new';
-  const dto = await api.patch<LeadDto>(`/leads/${id}/status`, { status: code });
+  const dto = await api.patch<LeadDto>(`/leads/${id}`, { status: code });
   return mapLeadDtoToLead(dto);
 }
 
@@ -258,6 +280,30 @@ export interface LeadCountryStat {
   count: number;
 }
 
+// Утраченные лиды
+export interface LostLeadManagerStat {
+  manager: string;
+  lost: number;
+  amount: number;
+}
+
+export interface LostLeadItem {
+  leadId: string;
+  leadName: string | null;
+  manager: string | null;
+  amount: number;
+  currency: string;
+  createdAt: string;
+}
+
+export interface LostLeadsStats {
+  totalLost: number;
+  totalAmount: number;
+  currency: string;
+  byManager: LostLeadManagerStat[];
+  items: LostLeadItem[];
+}
+
 export interface LeadManagerStat {
   manager: string; // assignedTo или "Без ответственного"
   total: number;
@@ -287,6 +333,20 @@ export async function fetchLeadStats(params?: {
   return api.get<LeadStats>(url);
 }
 
+export async function fetchLostLeadsStats(params?: {
+  from?: string; // YYYY-MM-DD
+  to?: string;   // YYYY-MM-DD
+}): Promise<LostLeadsStats> {
+  const search = new URLSearchParams();
+  if (params?.from) search.append('from', params.from);
+  if (params?.to) search.append('to', params.to);
+
+  const qs = search.toString();
+  const url = `/leads/lost/stats${qs ? `?${qs}` : ''}`;
+
+  return api.get<LostLeadsStats>(url);
+}
+
 // ===== ROI по лидам =====
 
 export type LeadRoiMode = 'sales' | 'projects';
@@ -313,6 +373,10 @@ export interface LeadsRoiStats {
   from?: string | null;
   to?: string | null;
   items: LeadRoiRow[];
+}
+
+export async function deleteLead(id: string): Promise<void> {
+  await api.delete(`/leads/${id}`);
 }
 
 export async function fetchLeadRoi(params?: {

@@ -1,11 +1,13 @@
 // src/pages/marketing/CampaignsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchMarketingTraffic,
   type MarketingTrafficStats,
   type MarketingTrafficRow,
 } from '../../api/marketing';
+import { getLocale } from '../../i18n/utils';
 
 import {
   ResponsiveContainer,
@@ -34,13 +36,6 @@ const ROI_COLORS = [
   '#6366f1',
 ];
 
-const periodLabel: Record<PeriodPreset, string> = {
-  '7d': '7 дней',
-  '30d': '30 дней',
-  '90d': '90 дней',
-  all: 'Все время',
-};
-
 interface CampaignAgg {
   name: string;
   source: string | null;
@@ -59,7 +54,13 @@ interface CampaignAgg {
   cpc: number; // cost / clicks
 }
 
-const CampaignTooltip: React.FC<any> = ({ active, payload, label }) => {
+const CampaignTooltip: React.FC<{
+  active?: boolean;
+  payload?: Array<{ payload: CampaignAgg }>;
+  label?: string;
+  locale: string;
+  t: (key: string, options?: any) => string;
+}> = ({ active, payload, label, locale, t }) => {
   if (!active || !payload || !payload.length) return null;
   const row = payload[0].payload as CampaignAgg;
 
@@ -67,41 +68,52 @@ const CampaignTooltip: React.FC<any> = ({ active, payload, label }) => {
     <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl max-w-[260px]">
       <div className="font-medium truncate">{label}</div>
       <div className="mt-1 text-slate-300">
-        Доход:{' '}
+        {t('crm.marketingCampaigns.tooltip.revenue')}:{' '}
         <span className="font-mono">
-          {row.revenue.toLocaleString('ru-RU', {
+          {row.revenue.toLocaleString(locale, {
             maximumFractionDigits: 0,
           })}{' '}
           {row.currency}
         </span>
       </div>
       <div className="mt-0.5 text-slate-400">
-        Расход:{' '}
+        {t('crm.marketingCampaigns.tooltip.cost')}:{' '}
         <span className="font-mono">
-          {row.cost.toLocaleString('ru-RU', {
+          {row.cost.toLocaleString(locale, {
             maximumFractionDigits: 0,
           })}{' '}
           {row.currency}
         </span>
       </div>
       <div className="mt-0.5 text-slate-500">
-        Лиды: {row.leads} · Клики: {row.clicks} · Сессии: {row.sessions}
+        {t('crm.marketingCampaigns.tooltip.leads')}: {row.leads} ·{' '}
+        {t('crm.marketingCampaigns.tooltip.clicks')}: {row.clicks} ·{' '}
+        {t('crm.marketingCampaigns.tooltip.sessions')}: {row.sessions}
       </div>
       <div className="mt-0.5 text-slate-500">
-        ROAS:{' '}
-        {row.roas ? `${row.roas.toFixed(2)}×` : '—'} · CPL:{' '}
-        {row.cpl ? `${row.cpl.toFixed(2)} ${row.currency}` : '—'}
+        {t('crm.marketingCampaigns.tooltip.roas')}:{' '}
+        {row.roas ? `${row.roas.toFixed(2)}×` : t('crm.marketingCampaigns.common.empty')} ·{' '}
+        {t('crm.marketingCampaigns.tooltip.cpl')}:{' '}
+        {row.cpl ? `${row.cpl.toFixed(2)} ${row.currency}` : t('crm.marketingCampaigns.common.empty')}
       </div>
     </div>
   );
 };
 
 export const CampaignsPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const [preset, setPreset] = useState<PeriodPreset>('all');
   const [range, setRange] = useState<DateRange>({});
   const [stats, setStats] = useState<MarketingTrafficStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const periodLabel: Record<PeriodPreset, string> = {
+    '7d': t('crm.marketingCampaigns.periods.7d'),
+    '30d': t('crm.marketingCampaigns.periods.30d'),
+    '90d': t('crm.marketingCampaigns.periods.90d'),
+    all: t('crm.marketingCampaigns.periods.all'),
+  };
 
   // простой пересчёт диапазона при клике по пресетам
   const applyPreset = (p: PeriodPreset) => {
@@ -159,7 +171,7 @@ export const CampaignsPage: React.FC = () => {
       .then((res) => setStats(res))
       .catch((e: any) => {
         console.error(e);
-        setError(e.message || 'Не удалось загрузить данные по кампаниям');
+        setError(e.message || t('crm.marketingCampaigns.errors.load'));
       })
       .finally(() => setLoading(false));
   }, [range.from, range.to]);
@@ -228,13 +240,13 @@ export const CampaignsPage: React.FC = () => {
 
   const topCampaigns = campaigns.slice(0, 6);
 
-  const totalCostFmt = totalCost.toLocaleString('ru-RU', {
+  const totalCostFmt = totalCost.toLocaleString(locale, {
     maximumFractionDigits: 0,
   });
-  const totalRevenueFmt = totalRevenue.toLocaleString('ru-RU', {
+  const totalRevenueFmt = totalRevenue.toLocaleString(locale, {
     maximumFractionDigits: 0,
   });
-  const avgCplFmt = avgCpl.toLocaleString('ru-RU', {
+  const avgCplFmt = avgCpl.toLocaleString(locale, {
     maximumFractionDigits: 0,
   });
 
@@ -245,21 +257,22 @@ export const CampaignsPage: React.FC = () => {
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Маркетинг · Кампании
+              {t('crm.marketingCampaigns.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Эффективность кампаний (по UTM)
+              {t('crm.marketingCampaigns.title')}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Группировка по utm_campaign: расходы, выручка, лиды, ROAS и CPL.
-              Источник данных — сводный трафик из Google / Yandex / CRM.
+              {t('crm.marketingCampaigns.subtitle')}
             </p>
           </div>
 
           <div className="flex flex-col items-stretch md:items-end gap-2">
             {/* Период */}
-            <div className="inline-flex items-center gap-2 rounded-2xl bg-slate-950/60 border border-slate-800/80 px-2 py-1">
-              <span className="text-[11px] text-slate-500 pl-1">Период</span>
+            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
+              <span className="text-[11px] text-slate-600 pl-1">
+                {t('crm.marketingCampaigns.periodLabel')}
+              </span>
               {(['7d', '30d', '90d', 'all'] as PeriodPreset[]).map((p) => (
                 <button
                   key={p}
@@ -268,8 +281,8 @@ export const CampaignsPage: React.FC = () => {
                   className={
                     'px-3 py-1.5 rounded-xl text-[11px] transition ' +
                     (preset === p
-                      ? 'bg-sky-500 text-slate-950 font-semibold shadow-[0_0_0_1px_rgba(56,189,248,0.3)]'
-                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-900')
+                      ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
                   }
                 >
                   {periodLabel[p]}
@@ -281,7 +294,7 @@ export const CampaignsPage: React.FC = () => {
 
         {loading && (
           <div className="text-[11px] text-slate-400">
-            Загружаем данные по кампаниям…
+            {t('crm.marketingCampaigns.loading')}
           </div>
         )}
 
@@ -291,57 +304,60 @@ export const CampaignsPage: React.FC = () => {
           <>
             {/* KPI блоки */}
             <section className="grid grid-cols-1 gap-3 md:grid-cols-4 md:gap-4">
-              <div className="rounded-3xl bg-gradient-to-br from-slate-950/90 via-slate-900/90 to-slate-950/90 border border-slate-800/80 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-slate-400 mb-1">
-                  Количество кампаний
+              <div className="rounded-3xl bg-white border border-slate-200 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-slate-500 mb-1">
+                  {t('crm.marketingCampaigns.kpi.campaigns')}
                 </div>
-                <div className="text-2xl font-semibold text-slate-50">
-                  {totalCampaigns.toLocaleString('ru-RU')}
+                <div className="text-2xl font-semibold text-slate-900">
+                  {totalCampaigns.toLocaleString(locale)}
                 </div>
                 <div className="text-[11px] text-slate-500 mt-2">
-                  Число кампаний, по которым зафиксирован трафик / расходы.
+                  {t('crm.marketingCampaigns.kpi.campaignsHint')}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-sky-500/10 via-sky-500/5 to-slate-950 border border-sky-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-sky-300 mb-1">
-                  Расходы по кампаниям
+              <div className="rounded-3xl bg-sky-50 border border-sky-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-sky-600 mb-1">
+                  {t('crm.marketingCampaigns.kpi.cost')}
                 </div>
-                <div className="text-2xl font-semibold text-sky-300">
+                <div className="text-2xl font-semibold text-sky-700">
                   {totalCostFmt} {currency}
                 </div>
-                <div className="text-[11px] text-sky-100/70 mt-2">
-                  Суммарные маркетинговые расходы за выбранный период.
+                <div className="text-[11px] text-sky-700/70 mt-2">
+                  {t('crm.marketingCampaigns.kpi.costHint')}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-emerald-500/10 via-emerald-400/10 to-slate-950 border border-emerald-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-emerald-300 mb-1">
-                  Доход по кампаниям
+              <div className="rounded-3xl bg-emerald-50 border border-emerald-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-emerald-600 mb-1">
+                  {t('crm.marketingCampaigns.kpi.revenue')}
                 </div>
-                <div className="text-2xl font-semibold text-emerald-300">
+                <div className="text-2xl font-semibold text-emerald-700">
                   {totalRevenueFmt} {currency}
                 </div>
-                <div className="text-[11px] text-emerald-200/70 mt-2">
-                  Атрибутированный доход (по связанным лидам / продажам).
+                <div className="text-[11px] text-emerald-700/70 mt-2">
+                  {t('crm.marketingCampaigns.kpi.revenueHint')}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-gradient-to-br from-fuchsia-500/10 via-rose-500/5 to-slate-950 border border-fuchsia-500/40 px-4 py-4 flex flex-col justify-between">
-                <div className="text-[11px] text-fuchsia-300 mb-1">
-                  ROAS &amp; CPL
+              <div className="rounded-3xl bg-rose-50 border border-rose-100 px-4 py-4 flex flex-col justify-between shadow-sm">
+                <div className="text-[11px] text-rose-600 mb-1">
+                  {t('crm.marketingCampaigns.kpi.roasCpl')}
                 </div>
-                <div className="text-sm font-semibold text-fuchsia-100">
-                  ROAS:{' '}
+                <div className="text-sm font-semibold text-rose-700">
+                  {t('crm.marketingCampaigns.kpi.roas')}:{' '}
                   <span className="text-xl">
-                    {totalRoas ? totalRoas.toFixed(2) : '—'}×
+                    {totalRoas ? totalRoas.toFixed(2) : t('crm.marketingCampaigns.common.empty')}×
                   </span>
                 </div>
-                <div className="text-[11px] text-fuchsia-100/70 mt-1">
-                  CPL: {totalLeads > 0 ? `${avgCplFmt} ${currency}` : '—'}
+                <div className="text-[11px] text-rose-700/70 mt-1">
+                  {t('crm.marketingCampaigns.kpi.cpl')}:{' '}
+                  {totalLeads > 0
+                    ? `${avgCplFmt} ${currency}`
+                    : t('crm.marketingCampaigns.common.empty')}
                 </div>
-                <div className="text-[11px] text-fuchsia-100/60 mt-1">
-                  В совокупности по всем кампаниям.
+                <div className="text-[11px] text-rose-700/60 mt-1">
+                  {t('crm.marketingCampaigns.kpi.roasCplHint')}
                 </div>
               </div>
             </section>
@@ -353,14 +369,16 @@ export const CampaignsPage: React.FC = () => {
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-50">
-                      Топ кампаний по доходу
+                      {t('crm.marketingCampaigns.top.title')}
                     </h2>
                     <p className="mt-0.5 text-[11px] text-slate-500">
-                      Кампании с наибольшей суммарной выручкой.
+                      {t('crm.marketingCampaigns.top.subtitle')}
                     </p>
                   </div>
                   <span className="text-[11px] text-slate-500">
-                    Показано: {topCampaigns.length}
+                    {t('crm.marketingCampaigns.top.shown', {
+                      count: topCampaigns.length,
+                    })}
                   </span>
                 </div>
 
@@ -415,7 +433,11 @@ export const CampaignsPage: React.FC = () => {
                         tick={{ fontSize: 10, fill: '#9ca3af' }}
                         width={38}
                       />
-                      <Tooltip content={<CampaignTooltip />} />
+                      <Tooltip
+                        content={
+                          <CampaignTooltip locale={locale} t={t} />
+                        }
+                      />
                       <Bar
                         dataKey="revenue"
                         radius={[10, 10, 4, 4]}
@@ -438,14 +460,16 @@ export const CampaignsPage: React.FC = () => {
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-50">
-                      Кампании и эффективность
+                      {t('crm.marketingCampaigns.table.title')}
                     </h2>
                     <p className="mt-0.5 text-[11px] text-slate-500">
-                      Сводка по расходам, доходу и ключевым метрикам.
+                      {t('crm.marketingCampaigns.table.subtitle')}
                     </p>
                   </div>
                   <span className="text-[11px] text-slate-500">
-                    Кампаний: {campaigns.length}
+                    {t('crm.marketingCampaigns.table.count', {
+                      count: campaigns.length,
+                    })}
                   </span>
                 </div>
 
@@ -454,28 +478,28 @@ export const CampaignsPage: React.FC = () => {
                     <thead>
                       <tr className="border-b border-slate-800/80 text-slate-400">
                         <th className="py-1.5 pr-3 text-left font-normal">
-                          Кампания
+                          {t('crm.marketingCampaigns.table.headers.campaign')}
                         </th>
                         <th className="py-1.5 px-3 text-left font-normal">
-                          Источник
+                          {t('crm.marketingCampaigns.table.headers.source')}
                         </th>
                         <th className="py-1.5 px-3 text-left font-normal">
-                          Medium
+                          {t('crm.marketingCampaigns.table.headers.medium')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Расход
+                          {t('crm.marketingCampaigns.table.headers.cost')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Доход
+                          {t('crm.marketingCampaigns.table.headers.revenue')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          Лиды
+                          {t('crm.marketingCampaigns.table.headers.leads')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          ROAS
+                          {t('crm.marketingCampaigns.table.headers.roas')}
                         </th>
                         <th className="py-1.5 px-3 text-right font-normal">
-                          CPL
+                          {t('crm.marketingCampaigns.table.headers.cpl')}
                         </th>
                       </tr>
                     </thead>
@@ -486,7 +510,7 @@ export const CampaignsPage: React.FC = () => {
                             colSpan={8}
                             className="py-3 text-center text-slate-500"
                           >
-                            Пока нет данных по кампаниям за выбранный период.
+                            {t('crm.marketingCampaigns.table.empty')}
                           </td>
                         </tr>
                       )}
@@ -500,33 +524,33 @@ export const CampaignsPage: React.FC = () => {
                             {c.name}
                           </td>
                           <td className="py-1.5 px-3 text-slate-300">
-                            {c.source || '—'}
+                            {c.source || t('crm.marketingCampaigns.common.empty')}
                           </td>
                           <td className="py-1.5 px-3 text-slate-300">
-                            {c.medium || '—'}
+                            {c.medium || t('crm.marketingCampaigns.common.empty')}
                           </td>
                           <td className="py-1.5 px-3 text-right text-slate-100 font-mono">
-                            {c.cost.toLocaleString('ru-RU', {
+                            {c.cost.toLocaleString(locale, {
                               maximumFractionDigits: 0,
                             })}{' '}
                             {c.currency}
                           </td>
                           <td className="py-1.5 px-3 text-right text-emerald-300 font-mono">
-                            {c.revenue.toLocaleString('ru-RU', {
+                            {c.revenue.toLocaleString(locale, {
                               maximumFractionDigits: 0,
                             })}{' '}
                             {c.currency}
                           </td>
                           <td className="py-1.5 px-3 text-right text-slate-100">
-                            {c.leads.toLocaleString('ru-RU')}
+                            {c.leads.toLocaleString(locale)}
                           </td>
                           <td className="py-1.5 px-3 text-right text-sky-300">
-                            {c.roas ? `${c.roas.toFixed(2)}×` : '—'}
+                            {c.roas ? `${c.roas.toFixed(2)}×` : t('crm.marketingCampaigns.common.empty')}
                           </td>
                           <td className="py-1.5 px-3 text-right text-slate-300">
                             {c.cpl
                               ? `${c.cpl.toFixed(2)} ${c.currency}`
-                              : '—'}
+                              : t('crm.marketingCampaigns.common.empty')}
                           </td>
                         </tr>
                       ))}

@@ -70,4 +70,7 @@ export class IntegrationConnection {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'uuid' })
+  tenantId: string;
 }
