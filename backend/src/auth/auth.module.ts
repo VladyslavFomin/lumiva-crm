@@ -13,6 +13,7 @@ import { StaffUser } from '../staff/staff-user.entity';
 import { RolesGuard } from './roles.guard';
 import { StaffUsersModule } from '../staff/staff-users.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { TenantsModule } from '../tenants/tenants.module';
     // ⬇️ ВАЖНО! Без этого StaffUsersService будет undefined
     StaffUsersModule,
     TenantsModule,
+    MailModule,
 
     JwtModule.registerAsync({
       useFactory: () => ({

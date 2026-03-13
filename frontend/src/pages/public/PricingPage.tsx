@@ -1,0 +1,769 @@
+import React from 'react';
+import { PublicPageLayout } from './PublicPageLayout';
+import {
+  fetchBillingCatalog,
+  signup,
+  verifySignupCode,
+  type BillingCatalogPlan,
+} from '../../api/client';
+import { getAccessToken } from '../../auth/session';
+import { persistSession } from '../../auth/session';
+import { useTranslation } from 'react-i18next';
+
+type PlanCode = 'standard' | 'professional' | 'enterprise' | 'ultimate';
+type BillingPeriod = 'month' | 'year';
+type Lang = 'ru' | 'en' | 'tr';
+const YEARLY_DISCOUNT: Record<PlanCode, number> = {
+  standard: 0.1,
+  professional: 0.12,
+  enterprise: 0.15,
+  ultimate: 0.2,
+};
+
+const DEFAULT_PLANS: BillingCatalogPlan[] = [
+  {
+    code: 'standard',
+    title: 'Standard',
+    price: '€14',
+    subtitle: 'Для быстрого запуска команды',
+    description: 'Базовый контур CRM для ежедневной работы отдела продаж и маркетинга.',
+    features: [
+      'Правила распределения и workflow',
+      'Каденции',
+      'Аналитика продаж',
+      'Маркетинг',
+      'Аналитика лидов',
+      'Self-service киоски',
+      'Ведение клиентской базы и воронки',
+      'Базовые интеграции с каналами',
+    ],
+  },
+  {
+    code: 'professional',
+    title: 'Professional',
+    price: '€23',
+    subtitle: 'Для роста и автоматизации',
+    description: 'Подходит для масштабирования и усиления управляемости процессов.',
+    features: [
+      'Все из Standard',
+      'CPQ',
+      'Email intelligence',
+      'Автоматизация процессов',
+      'Сквозные сценарии продаж',
+      'Расширенные отчеты по эффективности',
+      'Контроль SLA и скорости ответа',
+    ],
+  },
+  {
+    code: 'enterprise',
+    title: 'Enterprise',
+    price: '€40',
+    subtitle: 'Для системных корпоративных команд',
+    description: 'Максимум контроля, безопасности и глубокой аналитики для руководителей.',
+    features: [
+      'Все из Professional',
+      'AI ассистент продаж',
+      'Порталы клиентов',
+      'Расширенные роли и матрица прав',
+      'Отделовые KPI-дашборды',
+      'Приоритетная поддержка',
+      'Гибкая модель согласований',
+    ],
+  },
+  {
+    code: 'ultimate',
+    title: 'Ultimate',
+    price: '€52',
+    subtitle: 'Для сложных внедрений и масштабирования',
+    description: 'Премиальный пакет с сопровождением, консалтингом и кастомизацией.',
+    features: [
+      'Все из Enterprise',
+      'Консалтинг',
+      'Помощь в миграции',
+      'Персональный roadmap внедрения',
+      'Глубокая кастомизация процессов',
+      'Выделенные архитектурные сессии',
+      'Поддержка релизного цикла',
+    ],
+  },
+] as const;
+
+const PLAN_FEATURES_BY_CODE: Record<PlanCode, string[]> = {
+  standard: [
+    'Лиды, контакты, компании и сделки',
+    'Воронка продаж и базовая аналитика',
+    'Маркетинг и UTM-метки',
+    'Email шаблоны и отправки',
+    'Проекты и задачи',
+    'Интеграции CF7 / WooCommerce',
+  ],
+  professional: [
+    'Все возможности Standard',
+    'Автоматизации и триггерные сценарии',
+    'Telegram и чат-модуль',
+    'SMM и расширенные интеграции',
+    'Sales pipeline + KPI аналитика',
+    'Расширенные права и процессы команд',
+  ],
+  enterprise: [
+    'Все возможности Professional',
+    'Client Accounts и клиентские порталы',
+    'Глубокая BI/аналитика по отделам',
+    'Планирование внедрения под ваш процесс',
+    'Консалтинг по оптимизации продаж',
+    'Поддержка 24/7 с SLA',
+  ],
+  ultimate: [
+    'Все возможности Enterprise',
+    'Индивидуальная архитектура под бизнес',
+    'Приоритетная техническая линия 24/7',
+    'Выделенный консалтинг и roadmap',
+    'Миграция и сопровождение релизов',
+    'Экспертная поддержка сложных интеграций',
+  ],
+};
+
+const PLAN_COPY: Record<
+  Exclude<Lang, 'ru'>,
+  Record<
+    PlanCode,
+    {
+      subtitle: string;
+      description: string;
+      features: string[];
+    }
+  >
+> = {
+  en: {
+    standard: {
+      subtitle: 'For quick team launch',
+      description: 'Core CRM setup for daily sales and marketing operations.',
+      features: [
+        'Lead routing rules and workflows',
+        'Cadences',
+        'Sales analytics',
+        'Marketing',
+        'Lead analytics',
+        'Self-service kiosks',
+        'Client base and pipeline management',
+        'Basic channel integrations',
+      ],
+    },
+    professional: {
+      subtitle: 'For growth and automation',
+      description: 'Designed for scaling and improving process control.',
+      features: [
+        'Everything in Standard',
+        'CPQ',
+        'Email intelligence',
+        'Process automation',
+        'Cross-channel sales scenarios',
+        'Advanced performance reports',
+        'SLA and response-time control',
+      ],
+    },
+    enterprise: {
+      subtitle: 'For enterprise teams',
+      description: 'Maximum control, security, and deep analytics for leadership.',
+      features: [
+        'Everything in Professional',
+        'AI sales assistant',
+        'Client portals',
+        'Advanced roles and permissions matrix',
+        'Department KPI dashboards',
+        'Priority support',
+        'Flexible approvals model',
+      ],
+    },
+    ultimate: {
+      subtitle: 'For complex implementations and scale',
+      description: 'Premium package with consulting and custom implementation support.',
+      features: [
+        'Everything in Enterprise',
+        'Consulting',
+        'Migration support',
+        'Personal implementation roadmap',
+        'Deep process customization',
+        'Dedicated architecture sessions',
+        'Release cycle support',
+      ],
+    },
+  },
+  tr: {
+    standard: {
+      subtitle: 'Ekip başlangıcı için',
+      description: 'Satış ve pazarlama ekiplerinin günlük çalışması için temel CRM yapısı.',
+      features: [
+        'Lead dağıtım kuralları ve workflow',
+        'Kadanslar',
+        'Satış analitiği',
+        'Pazarlama',
+        'Lead analitiği',
+        'Self-service kiosklar',
+        'Müşteri veritabanı ve pipeline',
+        'Temel kanal entegrasyonları',
+      ],
+    },
+    professional: {
+      subtitle: 'Büyüme ve otomasyon için',
+      description: 'Ölçeklenme ve süreç yönetimini güçlendirmek için uygundur.',
+      features: [
+        'Standard içindeki her şey',
+        'CPQ',
+        'Email intelligence',
+        'Süreç otomasyonu',
+        'Çapraz kanal satış senaryoları',
+        'Gelişmiş performans raporları',
+        'SLA ve yanıt süresi kontrolü',
+      ],
+    },
+    enterprise: {
+      subtitle: 'Kurumsal ekipler için',
+      description: 'Yönetim ekipleri için maksimum kontrol, güvenlik ve derin analitik.',
+      features: [
+        'Professional içindeki her şey',
+        'AI satış asistanı',
+        'Müşteri portalları',
+        'Gelişmiş rol ve yetki matrisi',
+        'Departman KPI panoları',
+        'Öncelikli destek',
+        'Esnek onay modeli',
+      ],
+    },
+    ultimate: {
+      subtitle: 'Karmaşık kurulum ve ölçekleme için',
+      description: 'Danışmanlık ve özelleştirme desteği içeren premium paket.',
+      features: [
+        'Enterprise içindeki her şey',
+        'Danışmanlık',
+        'Migrasyon desteği',
+        'Kişisel uygulama roadmapi',
+        'Derin süreç özelleştirme',
+        'Özel mimari oturumlar',
+        'Release döngüsü desteği',
+      ],
+    },
+  },
+};
+
+export default function PricingPage() {
+  const { i18n } = useTranslation();
+  const [plans, setPlans] = React.useState<BillingCatalogPlan[]>(DEFAULT_PLANS);
+  const [period, setPeriod] = React.useState<BillingPeriod>('month');
+  const [selectedPlanCode, setSelectedPlanCode] = React.useState<PlanCode | null>(null);
+  const [registerOpen, setRegisterOpen] = React.useState(false);
+  const [registerLoading, setRegisterLoading] = React.useState(false);
+  const [registerError, setRegisterError] = React.useState<string | null>(null);
+  const [registerMessage, setRegisterMessage] = React.useState<string | null>(null);
+  const [verifyContext, setVerifyContext] = React.useState<{
+    clientKey: string;
+    email: string;
+  } | null>(null);
+  const [verifyCode, setVerifyCode] = React.useState('');
+  const [registerForm, setRegisterForm] = React.useState({
+    companyName: '',
+    clientKey: '',
+    email: '',
+    password: '',
+    phone: '',
+  });
+  const isLoggedIn = Boolean(getAccessToken());
+  const lang = ((i18n.language || 'ru').slice(0, 2) as Lang) || 'ru';
+
+  const text =
+    lang === 'en'
+      ? {
+          title: 'Plans and connection terms',
+          subtitle:
+            'Choose your plan and billing period. Monthly and yearly options are available with an automatic discount.',
+          month: 'Month',
+          year: 'Year with discount',
+          tariff: 'Plan',
+          perMonth: 'per user / month',
+          perYear: 'per user / year',
+          yearDiscount: '12 months · discount',
+          choose: 'Choose',
+          recommended: 'Recommended',
+          howItWorks: 'How activation and renewal work',
+          howItWorksText:
+            'After registration, the account starts in limited mode. To activate working modules, select a plan and complete payment. When access period ends, renew for a month or a year with discount.',
+          registerKicker: 'Registration',
+          registerTitle: 'Create account for payment',
+          verifyKicker: 'Email verification',
+          verifyTitle: 'Enter code from email',
+          companyName: 'Company name',
+          clientKey: 'Client key',
+          generate: 'Generate',
+          phone: 'Phone',
+          email: 'Email',
+          password: 'Password',
+          close: 'Close',
+          signupAction: 'Sign up',
+          loadingWait: 'Please wait...',
+          verifyAction: 'Continue',
+          verifying: 'Verifying...',
+          requiredError: 'Fill all required fields',
+          signupError: 'Registration failed',
+          verifyError: 'Enter 6-digit code',
+          invalidCode: 'Invalid code',
+          codeSent: 'Code sent to your email',
+          codeSentTo: 'We sent a code to',
+        }
+      : lang === 'tr'
+        ? {
+            title: 'Tarifeler ve bağlantı koşulları',
+            subtitle:
+              'Planınızı ve ödeme dönemini seçin. Aylık ve yıllık (indirimli) seçenekler mevcuttur.',
+            month: 'Ay',
+            year: 'Yıllık indirimli',
+            tariff: 'Plan',
+            perMonth: 'kullanıcı / ay',
+            perYear: 'kullanıcı / yıl',
+            yearDiscount: '12 ay · indirim',
+            choose: 'Seç',
+            recommended: 'Önerilen',
+            howItWorks: 'Aktivasyon ve yenileme nasıl çalışır',
+            howItWorksText:
+              'Kayıttan sonra hesap sınırlı modda açılır. Modülleri aktifleştirmek için plan seçip ödemeyi tamamlayın. Erişim süresi bittiğinde aylık veya yıllık olarak yenileyebilirsiniz.',
+            registerKicker: 'Kayıt',
+            registerTitle: 'Ödeme için hesap oluşturun',
+            verifyKicker: 'E-posta doğrulama',
+            verifyTitle: 'E-postadaki kodu girin',
+            companyName: 'Şirket adı',
+            clientKey: 'Müşteri anahtarı',
+            generate: 'Oluştur',
+            phone: 'Telefon',
+            email: 'E-posta',
+            password: 'Şifre',
+            close: 'Kapat',
+            signupAction: 'Kayıt ol',
+            loadingWait: 'Lütfen bekleyin...',
+            verifyAction: 'Devam et',
+            verifying: 'Doğrulanıyor...',
+            requiredError: 'Zorunlu alanları doldurun',
+            signupError: 'Kayıt başarısız',
+            verifyError: '6 haneli kod girin',
+            invalidCode: 'Geçersiz kod',
+            codeSent: 'Kod e-postanıza gönderildi',
+            codeSentTo: 'Kodu şu adrese gönderdik',
+          }
+        : {
+            title: 'Тарифы и условия подключения',
+            subtitle:
+              'Выберите план и период оплаты. Доступно продление на месяц или на год с автоматической скидкой.',
+            month: 'Месяц',
+            year: 'Год со скидкой',
+            tariff: 'Тариф',
+            perMonth: 'за пользователя / месяц',
+            perYear: 'за пользователя / год',
+            yearDiscount: '12 месяцев · скидка',
+            choose: 'Выбрать',
+            recommended: 'Рекомендуем',
+            howItWorks: 'Как работает подключение и продление',
+            howItWorksText:
+              'После регистрации аккаунт создается в ограниченном режиме. Для активации рабочих модулей нужно выбрать тариф и завершить оплату. При окончании срока доступа выполняется продление: можно оплатить на месяц или на год со скидкой.',
+            registerKicker: 'Регистрация',
+            registerTitle: 'Создайте аккаунт для оплаты',
+            verifyKicker: 'Подтверждение email',
+            verifyTitle: 'Введите код из письма',
+            companyName: 'Название компании',
+            clientKey: 'Ключ клиента',
+            generate: 'Сформировать',
+            phone: 'Телефон',
+            email: 'Email',
+            password: 'Пароль',
+            close: 'Закрыть',
+            signupAction: 'Зарегистрироваться',
+            loadingWait: 'Подождите...',
+            verifyAction: 'Продолжить',
+            verifying: 'Проверяем...',
+            requiredError: 'Заполните обязательные поля',
+            signupError: 'Ошибка регистрации',
+            verifyError: 'Введите 6-значный код',
+            invalidCode: 'Неверный код',
+            codeSent: 'Код отправлен вам на почту',
+            codeSentTo: 'Мы отправили код на',
+          };
+
+  const getLocalizedPlanContent = (plan: BillingCatalogPlan) => {
+    if (lang === 'ru') {
+      return {
+        subtitle: plan.subtitle,
+        description: plan.description,
+        features: plan.features,
+      };
+    }
+    const locale = plan.i18n?.[lang];
+    return {
+      subtitle:
+        (locale?.subtitle && locale.subtitle.trim()) ||
+        PLAN_COPY[lang]?.[plan.code as PlanCode]?.subtitle ||
+        plan.subtitle,
+      description:
+        (locale?.description && locale.description.trim()) ||
+        PLAN_COPY[lang]?.[plan.code as PlanCode]?.description ||
+        plan.description,
+      features:
+        (Array.isArray(locale?.features) && locale!.features!.length
+          ? locale!.features!
+          : PLAN_COPY[lang]?.[plan.code as PlanCode]?.features) || plan.features,
+    };
+  };
+
+  const parseMonthlyPrice = (raw: string): number => {
+    const normalized = String(raw || '').replace(',', '.');
+    const match = normalized.match(/(\d+(\.\d+)?)/);
+    const v = match ? Number(match[1]) : NaN;
+    return Number.isFinite(v) && v > 0 ? v : 0;
+  };
+
+  React.useEffect(() => {
+    fetchBillingCatalog()
+      .then((list) => {
+        if (Array.isArray(list) && list.length) {
+          const merged = (list as BillingCatalogPlan[]).map((plan) => {
+            const code = plan.code as PlanCode;
+            const extra = PLAN_FEATURES_BY_CODE[code] || [];
+            const existing = Array.isArray(plan.features) ? plan.features : [];
+            const uniq = Array.from(new Set([...existing, ...extra]));
+            if ((code === 'enterprise' || code === 'ultimate') && !uniq.some((x) => x.includes('24/7'))) {
+              uniq.push('Поддержка 24/7');
+            }
+            if ((code === 'enterprise' || code === 'ultimate') && !uniq.some((x) => x.toLowerCase().includes('консалт'))) {
+              uniq.push('Консалтинг');
+            }
+            return { ...plan, features: uniq };
+          });
+          setPlans(merged);
+        }
+      })
+      .catch(() => {
+        // fallback to defaults
+      });
+  }, []);
+
+  const makeClientKey = () => {
+    const raw = registerForm.companyName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9а-яё\s-]/gi, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    const latin = raw
+      .replace(/а/g, 'a')
+      .replace(/б/g, 'b')
+      .replace(/в/g, 'v')
+      .replace(/г/g, 'g')
+      .replace(/д/g, 'd')
+      .replace(/е/g, 'e')
+      .replace(/ё/g, 'e')
+      .replace(/ж/g, 'zh')
+      .replace(/з/g, 'z')
+      .replace(/и/g, 'i')
+      .replace(/й/g, 'y')
+      .replace(/к/g, 'k')
+      .replace(/л/g, 'l')
+      .replace(/м/g, 'm')
+      .replace(/н/g, 'n')
+      .replace(/о/g, 'o')
+      .replace(/п/g, 'p')
+      .replace(/р/g, 'r')
+      .replace(/с/g, 's')
+      .replace(/т/g, 't')
+      .replace(/у/g, 'u')
+      .replace(/ф/g, 'f')
+      .replace(/х/g, 'h')
+      .replace(/ц/g, 'c')
+      .replace(/ч/g, 'ch')
+      .replace(/ш/g, 'sh')
+      .replace(/щ/g, 'sch')
+      .replace(/ы/g, 'y')
+      .replace(/э/g, 'e')
+      .replace(/ю/g, 'yu')
+      .replace(/я/g, 'ya');
+    setRegisterForm((s) => ({ ...s, clientKey: latin.slice(0, 64) }));
+  };
+
+  const openBilling = (plan: PlanCode) => {
+    window.location.href = `/app/billing?plan=${plan}${period === 'year' ? '&period=year' : ''}`;
+  };
+
+  const handleChoose = (plan: PlanCode) => {
+    if (isLoggedIn) {
+      openBilling(plan);
+      return;
+    }
+    setSelectedPlanCode(plan);
+    setRegisterOpen(true);
+    setRegisterError(null);
+    setRegisterMessage(null);
+  };
+
+  const handleSignupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setRegisterError(null);
+    setRegisterMessage(null);
+    if (!registerForm.companyName || !registerForm.clientKey || !registerForm.email || !registerForm.password) {
+      setRegisterError(text.requiredError);
+      return;
+    }
+    setRegisterLoading(true);
+    try {
+      const resp = await signup(registerForm);
+      setVerifyContext({
+        clientKey: resp.clientKey,
+        email: resp.email,
+      });
+      setRegisterMessage(resp.message || text.codeSent);
+      setVerifyCode('');
+    } catch (err: any) {
+      setRegisterError(err?.message || text.signupError);
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  const handleVerifySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verifyContext || !selectedPlanCode) return;
+    setRegisterError(null);
+    setRegisterMessage(null);
+    if (!/^\d{6}$/.test(verifyCode.trim())) {
+      setRegisterError(text.verifyError);
+      return;
+    }
+    setRegisterLoading(true);
+    try {
+      const resp = await verifySignupCode({
+        clientKey: verifyContext.clientKey,
+        email: verifyContext.email,
+        code: verifyCode.trim(),
+      });
+      persistSession(resp);
+      openBilling(selectedPlanCode);
+    } catch (err: any) {
+      setRegisterError(err?.message || text.invalidCode);
+    } finally {
+      setRegisterLoading(false);
+    }
+  };
+
+  return (
+    <PublicPageLayout
+      pageKey="pricing"
+      title={text.title}
+      subtitle={text.subtitle}
+    >
+      <div className="px-[20px]">
+        <div className="mb-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+          <button
+            type="button"
+            onClick={() => setPeriod('month')}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+              period === 'month' ? '!bg-slate-900 !text-white' : '!bg-transparent !text-slate-600'
+            }`}
+          >
+            {text.month}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPeriod('year')}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+              period === 'year' ? '!bg-indigo-600 !text-white' : '!bg-transparent !text-slate-600'
+            }`}
+          >
+            {text.year}
+          </button>
+        </div>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {plans.map((plan) => {
+            const localized = getLocalizedPlanContent(plan);
+            return (
+            <article
+              key={plan.code}
+              className={`relative flex h-full flex-col rounded-2xl border bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.06)] ${
+                plan.code === 'enterprise'
+                  ? 'border-indigo-300 ring-1 ring-indigo-200'
+                  : plan.highlighted
+                    ? 'border-indigo-300 ring-1 ring-indigo-200'
+                    : 'border-slate-200'
+              }`}
+            >
+              {plan.code === 'enterprise' ? (
+                <div className="absolute right-3 top-3 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-indigo-700">
+                  {text.recommended}
+                </div>
+              ) : null}
+              <div className="text-xs uppercase tracking-[0.18em] text-slate-500">{text.tariff}</div>
+              <h3 className="mt-1 text-lg font-semibold text-slate-900">{plan.title}</h3>
+              <p className="mt-1 text-xs text-slate-600">{localized.subtitle}</p>
+              <div className="mt-4 text-3xl font-semibold text-slate-900">
+                {period === 'year'
+                  ? `EUR ${Math.round(parseMonthlyPrice(plan.price) * 12 * (1 - YEARLY_DISCOUNT[plan.code as PlanCode]))}`
+                  : plan.price}
+              </div>
+              <div className="text-xs text-slate-500">
+                {period === 'year' ? text.perYear : text.perMonth}
+              </div>
+              {period === 'year' ? (
+                <div className="mt-1 text-xs text-indigo-700">
+                  {text.yearDiscount} {Math.round(YEARLY_DISCOUNT[plan.code as PlanCode] * 100)}%
+                </div>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => handleChoose(plan.code as PlanCode)}
+                className={`mt-3 w-full rounded-xl px-4 py-2 text-xs font-semibold !text-white ${
+                  plan.code === 'enterprise'
+                    ? '!border !border-indigo-600 !bg-indigo-600 hover:!bg-indigo-500'
+                    : '!border !border-slate-900 !bg-slate-900 hover:!bg-slate-800'
+                }`}
+                style={{
+                  color: '#fff',
+                  backgroundColor: plan.code === 'enterprise' ? '#4f46e5' : '#0f172a',
+                }}
+              >
+                {text.choose}
+              </button>
+              <p className="mt-2 text-xs text-slate-600">{localized.description}</p>
+              <ul className="mt-4 space-y-2 text-xs text-slate-600">
+                {localized.features.map((feature) => (
+                  <li key={feature} className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-slate-900" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+            );
+          })}
+        </section>
+
+        <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
+          <h4 className="text-sm font-semibold text-slate-900">{text.howItWorks}</h4>
+          <p className="mt-2">{text.howItWorksText}</p>
+        </section>
+      </div>
+      {registerOpen ? (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/35 backdrop-blur-sm px-4"
+          onClick={() => setRegisterOpen(false)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_24px_60px_rgba(15,23,42,0.25)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{verifyContext ? text.verifyKicker : text.registerKicker}</div>
+            <h3 className="mt-1 text-lg font-semibold text-slate-900">
+              {verifyContext ? text.verifyTitle : text.registerTitle}
+            </h3>
+            {!verifyContext ? (
+              <form onSubmit={handleSignupSubmit} className="mt-4 grid gap-2.5">
+                <input
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                  placeholder={text.companyName}
+                  value={registerForm.companyName}
+                  onChange={(e) => setRegisterForm((s) => ({ ...s, companyName: e.target.value }))}
+                />
+                <div className="flex gap-2">
+                  <input
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                    placeholder={text.clientKey}
+                    value={registerForm.clientKey}
+                    onChange={(e) => setRegisterForm((s) => ({ ...s, clientKey: e.target.value }))}
+                  />
+                  <button
+                    type="button"
+                    onClick={makeClientKey}
+                    className="shrink-0 rounded-xl border border-slate-300 px-3 text-xs font-semibold"
+                  >
+                    {text.generate}
+                  </button>
+                </div>
+                <input
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                  placeholder={text.phone}
+                  value={registerForm.phone}
+                  onChange={(e) => setRegisterForm((s) => ({ ...s, phone: e.target.value }))}
+                />
+                <input
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                  placeholder={text.email}
+                  type="email"
+                  value={registerForm.email}
+                  onChange={(e) => setRegisterForm((s) => ({ ...s, email: e.target.value }))}
+                />
+                <input
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"
+                  placeholder={text.password}
+                  type="password"
+                  value={registerForm.password}
+                  onChange={(e) => setRegisterForm((s) => ({ ...s, password: e.target.value }))}
+                />
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegisterOpen(false)}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                  >
+                    {text.close}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={registerLoading}
+                    className="rounded-lg !border !border-slate-900 !bg-slate-900 px-3 py-2 text-xs font-semibold !text-white hover:!bg-slate-800 disabled:opacity-70"
+                    style={{ color: '#fff', backgroundColor: '#0f172a' }}
+                  >
+                    {registerLoading ? text.loadingWait : text.signupAction}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifySubmit} className="mt-4 grid gap-2.5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  {text.codeSentTo} <span className="font-semibold">{verifyContext.email}</span>
+                </div>
+                <input
+                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm tracking-[0.35em] text-center"
+                  placeholder="000000"
+                  value={verifyCode}
+                  maxLength={6}
+                  onChange={(e) => setVerifyCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                />
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRegisterOpen(false)}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700"
+                  >
+                    {text.close}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={registerLoading}
+                    className="rounded-lg !border !border-slate-900 !bg-slate-900 px-3 py-2 text-xs font-semibold !text-white hover:!bg-slate-800 disabled:opacity-70"
+                    style={{ color: '#fff', backgroundColor: '#0f172a' }}
+                  >
+                    {registerLoading ? text.verifying : text.verifyAction}
+                  </button>
+                </div>
+              </form>
+            )}
+            {registerError && (
+              <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {registerError}
+              </div>
+            )}
+            {registerMessage && (
+              <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                {registerMessage || text.codeSent}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </PublicPageLayout>
+  );
+}

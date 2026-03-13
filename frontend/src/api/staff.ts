@@ -17,6 +17,7 @@ export interface StaffUser {
   fullName: string;
   role: StaffRole;
   department: string | null;
+  departmentId?: string | null;
   phone?: string | null;
   avatarUrl?: string | null;
   isActive: boolean;
@@ -57,6 +58,7 @@ export async function updateStaffUser(
     fullName: string;
     role: StaffRole;
     department: string | null;
+    departmentId: string | null;
     avatarUrl: string | null;
     isActive: boolean;
   }>,

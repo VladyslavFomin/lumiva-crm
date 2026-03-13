@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
@@ -15,6 +15,14 @@ export const MarketingIntegrationsPage: React.FC = () => {
   const [items, setItems] = useState<MarketingIntegration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
 
   // форма добавления
   const [provider, setProvider] = useState('google_analytics');
@@ -47,6 +55,45 @@ export const MarketingIntegrationsPage: React.FC = () => {
   const providerLabel = (value: string) =>
     t(`crm.marketingIntegrations.providers.${value}`, value);
 
+  const baseColumns = useMemo(
+    () => [
+      { id: 'name', label: t('crm.marketingIntegrations.table.headers.name') },
+      {
+        id: 'provider',
+        label: t('crm.marketingIntegrations.table.headers.provider'),
+      },
+      {
+        id: 'primaryId',
+        label: t('crm.marketingIntegrations.table.headers.primaryId'),
+      },
+      {
+        id: 'status',
+        label: t('crm.marketingIntegrations.table.headers.status'),
+      },
+      {
+        id: 'actions',
+        label: t('crm.marketingIntegrations.table.headers.actions'),
+      },
+    ],
+    [t],
+  );
+
+  const orderedColumns = useMemo(() => {
+    if (!baseColumns.length) return [];
+    const map = new Map(baseColumns.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : baseColumns.map((col) => col.id);
+    const result: typeof baseColumns = [];
+    order.forEach((id) => {
+      const col = map.get(id);
+      if (col) result.push(col);
+    });
+    baseColumns.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [baseColumns, columnOrder]);
+
   useEffect(() => {
     setLoading(true);
     fetchMarketingIntegrations()
@@ -59,6 +106,58 @@ export const MarketingIntegrationsPage: React.FC = () => {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('marketing_integrations_columns');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.widths && typeof parsed.widths === 'object')
+          setColumnWidths(parsed.widths);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'marketing_integrations_columns',
+        JSON.stringify({ order: columnOrder, widths: columnWidths }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder, columnWidths]);
+
+  useEffect(() => {
+    if (!baseColumns.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return baseColumns.map((c) => c.id);
+      const ids = baseColumns.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id));
+      const missing = ids.filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [baseColumns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX;
+      const next = Math.max(90, resizing.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
+    };
+    const handleUp = () => setResizing(null);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing]);
 
   const onCreate = async () => {
     if (!name.trim()) {
@@ -136,6 +235,89 @@ export const MarketingIntegrationsPage: React.FC = () => {
       );
     } finally {
       setCreating(false);
+    }
+  };
+
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      id,
+      startX: e.clientX,
+      startWidth: columnWidths[id] ?? 160,
+    });
+  };
+
+  const handleColumnDrop = (targetId: string) => {
+    if (!dragColumnId || dragColumnId === targetId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragColumnId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragColumnId);
+      return next;
+    });
+    setDragColumnId(null);
+  };
+
+  const renderCell = (it: MarketingIntegration, columnId: string) => {
+    switch (columnId) {
+      case 'name':
+        return <span className="text-slate-100">{it.name}</span>;
+      case 'provider':
+        return <span className="text-slate-300">{providerLabel(it.provider)}</span>;
+      case 'primaryId':
+        return (
+          <span className="text-slate-300">
+            {it.primaryId || t('crm.marketingIntegrations.common.empty')}
+          </span>
+        );
+      case 'status':
+        return (
+          <button
+            type="button"
+            onClick={() => toggleActive(it)}
+            className={
+              'px-2 py-0.5 rounded-full text-[10px] border ' +
+              (it.isActive
+                ? 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10'
+                : 'border-slate-600 text-slate-400 bg-slate-800')
+            }
+          >
+            {it.isActive
+              ? t('crm.marketingIntegrations.status.enabled')
+              : t('crm.marketingIntegrations.status.disabled')}
+          </button>
+        );
+      case 'actions':
+        return (
+          <div className="space-x-2 text-right">
+            {(it.provider === 'google_analytics' ||
+              it.provider === 'yandex_metrika') && (
+              <button
+                type="button"
+                onClick={() => sync(it)}
+                className="px-2 py-0.5 rounded-xl border border-sky-500/60 text-[10px] text-sky-300 hover:bg-sky-500/10"
+                disabled={syncingId === it.id}
+              >
+                {syncingId === it.id
+                  ? t('crm.marketingIntegrations.actions.syncing')
+                  : t('crm.marketingIntegrations.actions.sync')}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => remove(it)}
+              className="px-2 py-0.5 rounded-xl border border-rose-500/60 text-[10px] text-rose-300 hover:bg-rose-500/10"
+            >
+              {t('crm.marketingIntegrations.actions.delete')}
+            </button>
+          </div>
+        );
+      default:
+        return null;
     }
   };
 
@@ -579,24 +761,55 @@ export const MarketingIntegrationsPage: React.FC = () => {
             )}
 
             <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-[11px]">
+              <table className="min-w-full border-collapse text-[11px] table-fixed">
                 <thead>
                   <tr className="border-b border-slate-800/80 text-slate-400">
-                    <th className="py-1.5 pr-3 text-left font-normal">
-                      {t('crm.marketingIntegrations.table.headers.name')}
-                    </th>
-                    <th className="py-1.5 px-3 text-left font-normal">
-                      {t('crm.marketingIntegrations.table.headers.provider')}
-                    </th>
-                    <th className="py-1.5 px-3 text-left font-normal">
-                      {t('crm.marketingIntegrations.table.headers.primaryId')}
-                    </th>
-                    <th className="py-1.5 px-3 text-center font-normal">
-                      {t('crm.marketingIntegrations.table.headers.status')}
-                    </th>
-                    <th className="py-1.5 px-3 text-right font-normal">
-                      {t('crm.marketingIntegrations.table.headers.actions')}
-                    </th>
+                    {orderedColumns.map((col) => {
+                      const fallback =
+                        col.id === 'name'
+                          ? 200
+                          : col.id === 'provider'
+                            ? 160
+                            : col.id === 'primaryId'
+                              ? 180
+                              : col.id === 'status'
+                                ? 140
+                                : 180;
+                      const width = columnWidths[col.id] ?? fallback;
+                      const alignRight = col.id === 'actions';
+                      const alignCenter = col.id === 'status';
+                      return (
+                        <th
+                          key={col.id}
+                          draggable
+                          onDragStart={(e) => {
+                            setDragColumnId(col.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            e.dataTransfer.setData('text/plain', col.id);
+                          }}
+                          onDragEnd={() => setDragColumnId(null)}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={() => handleColumnDrop(col.id)}
+                          className={`py-1.5 px-3 font-normal relative group ${
+                            alignRight
+                              ? 'text-right'
+                              : alignCenter
+                                ? 'text-center'
+                                : 'text-left'
+                          }`}
+                          style={{ width, minWidth: width }}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="cursor-move">⋮⋮</span>
+                            <span>{col.label}</span>
+                          </div>
+                          <div
+                            className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                            onMouseDown={(e) => startResize(col.id, e)}
+                          />
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -605,53 +818,36 @@ export const MarketingIntegrationsPage: React.FC = () => {
                       key={it.id}
                       className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
                     >
-                      <td className="py-1.5 pr-3 text-slate-100">
-                        {it.name}
-                      </td>
-                      <td className="py-1.5 px-3 text-slate-300">
-                        {providerLabel(it.provider)}
-                      </td>
-                      <td className="py-1.5 px-3 text-slate-300">
-                        {it.primaryId || t('crm.marketingIntegrations.common.empty')}
-                      </td>
-                      <td className="py-1.5 px-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(it)}
-                          className={
-                            'px-2 py-0.5 rounded-full text-[10px] border ' +
-                            (it.isActive
-                              ? 'border-emerald-500/60 text-emerald-300 bg-emerald-500/10'
-                              : 'border-slate-600 text-slate-400 bg-slate-800')
-                          }
-                        >
-                          {it.isActive
-                            ? t('crm.marketingIntegrations.status.enabled')
-                            : t('crm.marketingIntegrations.status.disabled')}
-                        </button>
-                      </td>
-                      <td className="py-1.5 px-3 text-right space-x-2">
-                        {(it.provider === 'google_analytics' ||
-                          it.provider === 'yandex_metrika') && (
-                          <button
-                            type="button"
-                            onClick={() => sync(it)}
-                            className="px-2 py-0.5 rounded-xl border border-sky-500/60 text-[10px] text-sky-300 hover:bg-sky-500/10"
-                            disabled={syncingId === it.id}
+                      {orderedColumns.map((col) => {
+                        const fallback =
+                          col.id === 'name'
+                            ? 200
+                            : col.id === 'provider'
+                              ? 160
+                              : col.id === 'primaryId'
+                                ? 180
+                                : col.id === 'status'
+                                  ? 140
+                                  : 180;
+                        const width = columnWidths[col.id] ?? fallback;
+                        const alignRight = col.id === 'actions';
+                        const alignCenter = col.id === 'status';
+                        return (
+                          <td
+                            key={col.id}
+                            className={`py-1.5 px-3 ${
+                              alignRight
+                                ? 'text-right'
+                                : alignCenter
+                                  ? 'text-center'
+                                  : 'text-left'
+                            }`}
+                            style={{ width, minWidth: width }}
                           >
-                            {syncingId === it.id
-                              ? t('crm.marketingIntegrations.actions.syncing')
-                              : t('crm.marketingIntegrations.actions.sync')}
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => remove(it)}
-                          className="px-2 py-0.5 rounded-xl border border-rose-500/60 text-[10px] text-rose-300 hover:bg-rose-500/10"
-                        >
-                          {t('crm.marketingIntegrations.actions.delete')}
-                        </button>
-                      </td>
+                            {renderCell(it, col.id)}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>

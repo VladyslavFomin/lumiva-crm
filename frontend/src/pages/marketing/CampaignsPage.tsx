@@ -108,12 +108,53 @@ export const CampaignsPage: React.FC = () => {
   const [stats, setStats] = useState<MarketingTrafficStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   const periodLabel: Record<PeriodPreset, string> = {
     '7d': t('crm.marketingCampaigns.periods.7d'),
     '30d': t('crm.marketingCampaigns.periods.30d'),
     '90d': t('crm.marketingCampaigns.periods.90d'),
     all: t('crm.marketingCampaigns.periods.all'),
   };
+
+  const baseColumns = useMemo(
+    () => [
+      { id: 'campaign', label: t('crm.marketingCampaigns.table.headers.campaign') },
+      { id: 'source', label: t('crm.marketingCampaigns.table.headers.source') },
+      { id: 'medium', label: t('crm.marketingCampaigns.table.headers.medium') },
+      { id: 'cost', label: t('crm.marketingCampaigns.table.headers.cost') },
+      { id: 'revenue', label: t('crm.marketingCampaigns.table.headers.revenue') },
+      { id: 'leads', label: t('crm.marketingCampaigns.table.headers.leads') },
+      { id: 'roas', label: t('crm.marketingCampaigns.table.headers.roas') },
+      { id: 'cpl', label: t('crm.marketingCampaigns.table.headers.cpl') },
+    ],
+    [t],
+  );
+
+  const orderedColumns = useMemo(() => {
+    if (!baseColumns.length) return [];
+    const map = new Map(baseColumns.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : baseColumns.map((col) => col.id);
+    const result: typeof baseColumns = [];
+    order.forEach((id) => {
+      const col = map.get(id);
+      if (col) result.push(col);
+    });
+    baseColumns.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [baseColumns, columnOrder]);
+
+  const getColumnWidth = (id: string, fallback: number) =>
+    columnWidths[id] ?? fallback;
 
   // простой пересчёт диапазона при клике по пресетам
   const applyPreset = (p: PeriodPreset) => {
@@ -158,6 +199,121 @@ export const CampaignsPage: React.FC = () => {
     applyPreset('all');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('marketing_campaigns_columns');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.widths && typeof parsed.widths === 'object')
+          setColumnWidths(parsed.widths);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'marketing_campaigns_columns',
+        JSON.stringify({ order: columnOrder, widths: columnWidths }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder, columnWidths]);
+
+  useEffect(() => {
+    if (!baseColumns.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return baseColumns.map((c) => c.id);
+      const ids = baseColumns.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id));
+      const missing = ids.filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [baseColumns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX;
+      const next = Math.max(90, resizing.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
+    };
+    const handleUp = () => setResizing(null);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing]);
+
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      id,
+      startX: e.clientX,
+      startWidth: columnWidths[id] ?? 160,
+    });
+  };
+
+  const handleColumnDrop = (targetId: string) => {
+    if (!dragColumnId || dragColumnId === targetId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragColumnId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragColumnId);
+      return next;
+    });
+    setDragColumnId(null);
+  };
+
+  const renderCell = (row: CampaignAgg, columnId: string) => {
+    switch (columnId) {
+      case 'campaign':
+        return (
+          <span className="text-slate-100 max-w-[220px] truncate inline-block">
+            {row.name}
+          </span>
+        );
+      case 'source':
+        return row.source || t('crm.marketingCampaigns.common.empty');
+      case 'medium':
+        return row.medium || t('crm.marketingCampaigns.common.empty');
+      case 'cost':
+        return (
+          <span className="text-slate-100 font-mono">
+            {row.cost.toLocaleString(locale, { maximumFractionDigits: 0 })}{' '}
+            {row.currency}
+          </span>
+        );
+      case 'revenue':
+        return (
+          <span className="text-emerald-300 font-mono">
+            {row.revenue.toLocaleString(locale, { maximumFractionDigits: 0 })}{' '}
+            {row.currency}
+          </span>
+        );
+      case 'leads':
+        return row.leads.toLocaleString(locale);
+      case 'roas':
+        return row.roas ? `${row.roas.toFixed(2)}×` : t('crm.marketingCampaigns.common.empty');
+      case 'cpl':
+        return row.cpl
+          ? `${row.cpl.toFixed(2)} ${row.currency}`
+          : t('crm.marketingCampaigns.common.empty');
+      default:
+        return null;
+    }
+  };
 
   // загрузка трафика при изменении диапазона
   useEffect(() => {
@@ -474,40 +630,66 @@ export const CampaignsPage: React.FC = () => {
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse text-[11px]">
+                  <table className="min-w-full border-collapse text-[11px] table-fixed">
                     <thead>
                       <tr className="border-b border-slate-800/80 text-slate-400">
-                        <th className="py-1.5 pr-3 text-left font-normal">
-                          {t('crm.marketingCampaigns.table.headers.campaign')}
-                        </th>
-                        <th className="py-1.5 px-3 text-left font-normal">
-                          {t('crm.marketingCampaigns.table.headers.source')}
-                        </th>
-                        <th className="py-1.5 px-3 text-left font-normal">
-                          {t('crm.marketingCampaigns.table.headers.medium')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingCampaigns.table.headers.cost')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingCampaigns.table.headers.revenue')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingCampaigns.table.headers.leads')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingCampaigns.table.headers.roas')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingCampaigns.table.headers.cpl')}
-                        </th>
+                        {orderedColumns.map((col) => {
+                          const fallback =
+                            col.id === 'campaign'
+                              ? 220
+                              : col.id === 'source'
+                                ? 140
+                                : col.id === 'medium'
+                                  ? 140
+                                  : col.id === 'cost'
+                                    ? 120
+                                    : col.id === 'revenue'
+                                      ? 130
+                                      : col.id === 'leads'
+                                        ? 90
+                                        : col.id === 'roas'
+                                          ? 90
+                                          : 120;
+                          const width = getColumnWidth(col.id, fallback);
+                          const alignRight =
+                            ['cost', 'revenue', 'leads', 'roas', 'cpl'].includes(
+                              col.id,
+                            );
+                          return (
+                            <th
+                              key={col.id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDragColumnId(col.id);
+                                e.dataTransfer.effectAllowed = 'move';
+                                e.dataTransfer.setData('text/plain', col.id);
+                              }}
+                              onDragEnd={() => setDragColumnId(null)}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={() => handleColumnDrop(col.id)}
+                              className={`py-1.5 px-3 font-normal relative group ${
+                                alignRight ? 'text-right' : 'text-left'
+                              }`}
+                              style={{ width, minWidth: width }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="cursor-move">⋮⋮</span>
+                                <span>{col.label}</span>
+                              </div>
+                              <div
+                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                                onMouseDown={(e) => startResize(col.id, e)}
+                              />
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
                       {campaigns.length === 0 && (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={orderedColumns.length}
                             className="py-3 text-center text-slate-500"
                           >
                             {t('crm.marketingCampaigns.table.empty')}
@@ -520,38 +702,40 @@ export const CampaignsPage: React.FC = () => {
                           key={c.name}
                           className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
                         >
-                          <td className="py-1.5 pr-3 text-slate-100 max-w-[220px] truncate">
-                            {c.name}
-                          </td>
-                          <td className="py-1.5 px-3 text-slate-300">
-                            {c.source || t('crm.marketingCampaigns.common.empty')}
-                          </td>
-                          <td className="py-1.5 px-3 text-slate-300">
-                            {c.medium || t('crm.marketingCampaigns.common.empty')}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-100 font-mono">
-                            {c.cost.toLocaleString(locale, {
-                              maximumFractionDigits: 0,
-                            })}{' '}
-                            {c.currency}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-emerald-300 font-mono">
-                            {c.revenue.toLocaleString(locale, {
-                              maximumFractionDigits: 0,
-                            })}{' '}
-                            {c.currency}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-100">
-                            {c.leads.toLocaleString(locale)}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-sky-300">
-                            {c.roas ? `${c.roas.toFixed(2)}×` : t('crm.marketingCampaigns.common.empty')}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-300">
-                            {c.cpl
-                              ? `${c.cpl.toFixed(2)} ${c.currency}`
-                              : t('crm.marketingCampaigns.common.empty')}
-                          </td>
+                          {orderedColumns.map((col) => {
+                            const fallback =
+                              col.id === 'campaign'
+                                ? 220
+                                : col.id === 'source'
+                                  ? 140
+                                  : col.id === 'medium'
+                                    ? 140
+                                    : col.id === 'cost'
+                                      ? 120
+                                      : col.id === 'revenue'
+                                        ? 130
+                                        : col.id === 'leads'
+                                          ? 90
+                                          : col.id === 'roas'
+                                            ? 90
+                                            : 120;
+                            const width = getColumnWidth(col.id, fallback);
+                            const alignRight =
+                              ['cost', 'revenue', 'leads', 'roas', 'cpl'].includes(
+                                col.id,
+                              );
+                            return (
+                              <td
+                                key={col.id}
+                                className={`py-1.5 px-3 text-slate-300 ${
+                                  alignRight ? 'text-right' : 'text-left'
+                                }`}
+                                style={{ width, minWidth: width }}
+                              >
+                                {renderCell(c, col.id)}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                     </tbody>

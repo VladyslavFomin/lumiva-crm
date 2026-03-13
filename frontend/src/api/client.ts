@@ -1,5 +1,9 @@
 // src/api/client.ts
-import { clearSession, getAccessToken } from '../auth/session';
+import {
+  clearSession,
+  getAccessToken,
+  persistSessionExpired,
+} from '../auth/session';
 
 // БАЗОВЫЙ URL API:
 export const API_BASE =
@@ -23,6 +27,14 @@ export class ApiError extends Error {
 }
 
 const TENANT_INACTIVE_KEY = 'lumiva_tenant_inactive';
+
+function handleUnauthorized() {
+  clearSession();
+  persistSessionExpired('unauthorized');
+  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
 
 function persistTenantInactive(reason: any) {
   try {
@@ -80,6 +92,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers,
   });
 
+  if (res.status === 401) {
+    handleUnauthorized();
+    return new Promise<T>(() => {});
+  }
+
   // ✅ 204 No Content
   if (res.status === 204) {
     return undefined as T;
@@ -125,6 +142,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       });
       clearSession();
       window.location.href = '/tenant-inactive';
+      return new Promise<T>(() => {});
     }
 
     throw new ApiError(msg, res.status, data?.code, data);
@@ -147,6 +165,9 @@ export interface LoginResponse {
   user: any;
   clientKey?: string;
   tenantId?: string;
+  tenantPlan?: string;
+  billingLocked?: boolean;
+  tenantActiveUntil?: string | null;
 }
 
 export async function login(payload: LoginRequest): Promise<LoginResponse> {
@@ -177,12 +198,92 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
         activeUntil: data?.activeUntil,
         status: res.status,
       });
+      if (typeof window !== 'undefined') {
+        window.location.href = '/tenant-inactive';
+      }
     }
 
     throw new ApiError(msg, res.status, data?.code, data);
   }
 
   return data as LoginResponse;
+}
+
+export interface SignupRequest {
+  companyName: string;
+  clientKey: string;
+  email: string;
+  password: string;
+  phone?: string;
+}
+
+export interface SignupResponse {
+  verificationRequired: boolean;
+  clientKey: string;
+  email: string;
+  expiresAt?: string;
+  message?: string;
+}
+
+export async function signup(payload: SignupRequest): Promise<SignupResponse> {
+  const res = await fetch(`${API_BASE}/auth/signup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || `Signup error: ${res.status} ${res.statusText}`,
+      res.status,
+      data?.code,
+      data,
+    );
+  }
+  return data as SignupResponse;
+}
+
+export async function verifySignupCode(payload: {
+  clientKey: string;
+  email: string;
+  code: string;
+}): Promise<LoginResponse> {
+  const res = await fetch(`${API_BASE}/auth/verify-signup-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || `Verify error: ${res.status} ${res.statusText}`,
+      res.status,
+      data?.code,
+      data,
+    );
+  }
+  return data as LoginResponse;
+}
+
+export async function resendSignupCode(payload: {
+  clientKey: string;
+  email: string;
+}): Promise<{ ok: boolean; message?: string; expiresAt?: string }> {
+  const res = await fetch(`${API_BASE}/auth/resend-signup-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || `Resend error: ${res.status} ${res.statusText}`,
+      res.status,
+      data?.code,
+      data,
+    );
+  }
+  return data as { ok: boolean; message?: string; expiresAt?: string };
 }
 
 export async function requestPasswordReset(payload: {
@@ -205,6 +306,50 @@ export async function requestPasswordReset(payload: {
       msg?.message || `Reset error: ${res.status} ${res.statusText}`,
     );
   }
+}
+
+export interface BillingCatalogPlan {
+  code: 'standard' | 'professional' | 'enterprise' | 'ultimate';
+  title: string;
+  price: string;
+  subtitle: string;
+  description: string;
+  features: string[];
+  highlighted?: boolean;
+  i18n?: {
+    en?: {
+      subtitle?: string;
+      description?: string;
+      features?: string[];
+    };
+    tr?: {
+      subtitle?: string;
+      description?: string;
+      features?: string[];
+    };
+  };
+}
+
+export async function fetchBillingCatalog(): Promise<BillingCatalogPlan[]> {
+  return request('/billing/catalog', { method: 'GET' });
+}
+
+export async function createCheckoutSession(payload: {
+  plan: 'standard' | 'professional' | 'enterprise' | 'ultimate';
+  period?: 'month' | 'year';
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ id: string; url: string | null }> {
+  return request('/billing/checkout-session', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function confirmCheckoutSession(sessionId: string): Promise<{ ok: boolean }> {
+  return request(`/billing/checkout-confirm?session_id=${encodeURIComponent(sessionId)}`, {
+    method: 'GET',
+  });
 }
 
 // ---------- ОБЩИЙ API-ВРАППЕР ----------

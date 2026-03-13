@@ -1,6 +1,7 @@
 // backend/src/tenants/tenants.service.ts
 import {
   Injectable,
+  BadRequestException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
@@ -21,6 +22,12 @@ import { StaffUser } from '../staff/staff-user.entity';
 import { TenantLogsService } from './tenant-logs.service';
 import { getTenantBlockReason } from './tenant-status.util';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
+import {
+  buildPlanEntitlements,
+  isComponentAllowedByPlan,
+  isModuleAllowedByPlan,
+  normalizeTenantPlan,
+} from './plan-entitlements';
 
 @Injectable()
 export class TenantsService {
@@ -38,8 +45,19 @@ export class TenantsService {
     private readonly tenantLogs: TenantLogsService,
   ) {}
 
+  private applyPlanEntitlements(tenant: Tenant) {
+    const entitlements = buildPlanEntitlements({
+      plan: tenant.plan,
+      enabledModules: tenant.enabledModules,
+      enabledComponents: tenant.enabledComponents,
+    });
+    tenant.plan = entitlements.normalizedPlan;
+    tenant.enabledModules = entitlements.enabledModules;
+    tenant.enabledComponents = entitlements.enabledComponents;
+  }
+
   /**
-   * Список всех тенантов (для pl1 и т.п.)
+   * Список всех тенантов (для админ-панели и т.п.)
    */
   async findAll() {
     return this.repo.find({
@@ -52,7 +70,7 @@ export class TenantsService {
   }
 
   /**
-   * Все сайты/интеграции по всем тенантам (для pl1)
+   * Все сайты/интеграции по всем тенантам (для админ-панели)
    */
   async findAllSitesWithTenant(params?: { tenantId?: string }) {
     const where = params?.tenantId ? { tenantId: params.tenantId } : {};
@@ -124,6 +142,7 @@ export class TenantsService {
     if (patch.plan !== undefined) {
       tenant.plan = patch.plan;
     }
+    this.applyPlanEntitlements(tenant);
 
     if (patch.activeUntil !== undefined) {
       tenant.activeUntil = patch.activeUntil
@@ -200,10 +219,11 @@ export class TenantsService {
       clientKey,
       name: dto.name.trim(),
       status: 'active',
-      plan: 'basic',
+      plan: 'standard',
       logoUrl: dto.logoUrl ?? null,
       uiLanguage: dto.uiLanguage ?? 'ru',
     });
+    this.applyPlanEntitlements(tenant);
 
     await this.repo.save(tenant);
 
@@ -250,11 +270,11 @@ export class TenantsService {
   }
 
   /**
-   * ===== Админ-операции для pl1.lumiva.agency =====
+   * ===== Админ-операции =====
    */
 
   /**
-   * Создание тенанта из pl1.
+   * Создание тенанта из админ-панели.
    */
   async platformCreateTenant(dto: {
     name: string;
@@ -300,6 +320,7 @@ export class TenantsService {
       created.notes = dto.notes;
     }
 
+    this.applyPlanEntitlements(created);
     await this.repo.save(created);
 
     // 3) Отправляем инвайт владельцу
@@ -345,7 +366,7 @@ export class TenantsService {
   }
 
   /**
-   * Обновление тенанта из pl1.
+   * Обновление тенанта из админ-панели.
    */
   async platformUpdateTenant(
     id: string,
@@ -381,6 +402,7 @@ export class TenantsService {
     if (patch.plan !== undefined) {
       tenant.plan = patch.plan as any;
     }
+    this.applyPlanEntitlements(tenant);
     if (typeof patch.apiEnabled === 'boolean') {
       tenant.apiEnabled = patch.apiEnabled;
     }
@@ -521,7 +543,7 @@ export class TenantsService {
       fullName: tenant.ownerName ?? tenant.ownerEmail,
       tenantName: tenant.name,
       sendEmail: false,
-      actor: { source: 'pl1' },
+      actor: { source: 'admin' },
     });
 
     return {
@@ -548,7 +570,7 @@ export class TenantsService {
       sendEmail: true,
       sendTo: to || tenant.ownerEmail,
       emailTemplate: 'reset',
-      actor: { source: 'pl1' },
+      actor: { source: 'admin' },
     });
 
     return { ok: true, sentTo: to || tenant.ownerEmail };
@@ -581,6 +603,7 @@ export class TenantsService {
 
     return {
       enabledModules: tenant.enabledModules ?? {},
+      enabledComponents: tenant.enabledComponents ?? {},
     };
   }
 
@@ -621,6 +644,8 @@ export class TenantsService {
     return availableModules.map((key) => ({
       key,
       enabled: enabledModules[key] === true,
+      allowedByPlan: isModuleAllowedByPlan(key, tenant.plan),
+      plan: normalizeTenantPlan(tenant.plan),
     }));
   }
 
@@ -637,6 +662,12 @@ export class TenantsService {
       throw new NotFoundException('Tenant not found');
     }
 
+    if (enabled && !isModuleAllowedByPlan(moduleKey, tenant.plan)) {
+      throw new BadRequestException(
+        `Module "${moduleKey}" is not available on current plan "${normalizeTenantPlan(tenant.plan)}"`,
+      );
+    }
+
     const enabledModules = tenant.enabledModules || {};
     enabledModules[moduleKey] = enabled;
     tenant.enabledModules = enabledModules;
@@ -646,6 +677,8 @@ export class TenantsService {
     return {
       key: moduleKey,
       enabled,
+      allowedByPlan: isModuleAllowedByPlan(moduleKey, tenant.plan),
+      plan: normalizeTenantPlan(tenant.plan),
     };
   }
 
@@ -659,5 +692,98 @@ export class TenantsService {
     }
 
     return this.getTenantModules(tenant.id);
+  }
+
+  /**
+   * ===== Управление компонентами CRM =====
+   */
+
+  /**
+   * Получить список компонентов тенента
+   */
+  async getTenantComponents(tenantId: string) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    const availableComponents = [
+      'contacts',
+      'companies',
+      'notes',
+      'leads',
+      'projects',
+      'projects_analytics',
+      'projects_kanban',
+      'projects_calendar',
+      'sales',
+      'sales_pipeline',
+      'sales_analytics',
+      'marketing',
+      'marketing_campaigns',
+      'marketing_analytics',
+      'tools',
+      'tools_integrations',
+      'tools_automation',
+      'tools_settings',
+      'email',
+      'telegram',
+      'chat',
+      'client_accounts',
+    ];
+
+    const enabledComponents = tenant.enabledComponents || {};
+
+    return availableComponents.map((key) => ({
+      key,
+      enabled: enabledComponents[key] === true,
+      allowedByPlan: isComponentAllowedByPlan(key, tenant.plan),
+      plan: normalizeTenantPlan(tenant.plan),
+    }));
+  }
+
+  /**
+   * Включить/выключить компонент у тенента
+   */
+  async toggleTenantComponent(
+    tenantId: string,
+    componentKey: string,
+    enabled: boolean,
+  ) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    if (enabled && !isComponentAllowedByPlan(componentKey, tenant.plan)) {
+      throw new BadRequestException(
+        `Component "${componentKey}" is not available on current plan "${normalizeTenantPlan(tenant.plan)}"`,
+      );
+    }
+
+    const enabledComponents = tenant.enabledComponents || {};
+    enabledComponents[componentKey] = enabled;
+    tenant.enabledComponents = enabledComponents;
+
+    await this.repo.save(tenant);
+
+    return {
+      key: componentKey,
+      enabled,
+      allowedByPlan: isComponentAllowedByPlan(componentKey, tenant.plan),
+      plan: normalizeTenantPlan(tenant.plan),
+    };
+  }
+
+  /**
+   * Получить компоненты тенента по clientKey (для публичного API)
+   */
+  async getTenantComponentsByClientKey(clientKey: string) {
+    const tenant = await this.repo.findOne({ where: { clientKey } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    return this.getTenantComponents(tenant.id);
   }
 }

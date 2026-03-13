@@ -3,10 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import type { Project, ProjectStatus } from './projectTypes';
 import {
+  fetchProject,
   fetchProjects,
   changeProjectStatus,
 } from '../../api/projects';
 import { useTranslation } from 'react-i18next';
+import {
+  fetchCustomFields,
+  type CustomField,
+} from '../../api/custom-fields';
+import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
@@ -22,6 +28,15 @@ export const ProjectsBoardPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [dragProjectId, setDragProjectId] = useState<string | null>(null);
   const [changing, setChanging] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
+  const suggestedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    projects.forEach((p) => {
+      Object.keys(p.customFields ?? {}).forEach((key) => keys.add(key));
+    });
+    return Array.from(keys);
+  }, [projects]);
 
   const navigate = useNavigate();
   const statusLabels = useMemo<Record<ProjectStatus, string>>(
@@ -30,7 +45,8 @@ export const ProjectsBoardPage: React.FC = () => {
       'В работе': t('crm.projects.statuses.inProgress'),
       'На проверке': t('crm.projects.statuses.review'),
       Заморожен: t('crm.projects.statuses.paused'),
-      Закрыт: t('crm.projects.statuses.closed'),
+      Выиграно: t('crm.projects.statuses.won'),
+      Проиграно: t('crm.projects.statuses.lost'),
     }),
     [t],
   );
@@ -40,7 +56,8 @@ export const ProjectsBoardPage: React.FC = () => {
       { id: 'В работе', title: statusLabels['В работе'] },
       { id: 'На проверке', title: statusLabels['На проверке'] },
       { id: 'Заморожен', title: statusLabels.Заморожен },
-      { id: 'Закрыт', title: statusLabels.Закрыт },
+      { id: 'Выиграно', title: statusLabels.Выиграно },
+      { id: 'Проиграно', title: statusLabels.Проиграно },
     ],
     [statusLabels],
   );
@@ -63,9 +80,25 @@ export const ProjectsBoardPage: React.FC = () => {
     setError(null);
 
     fetchProjects()
-      .then((res) => {
+      .then(async (res) => {
         if (!alive) return;
         setProjects(res.items);
+        try {
+          const detailed = await Promise.all(
+            res.items.map((p) => fetchProject(p.id).catch(() => p)),
+          );
+          if (!alive) return;
+          const byId = new Map(detailed.map((p) => [p.id, p]));
+          setProjects((prev) =>
+            prev.map((p) => {
+              const full = byId.get(p.id);
+              if (!full) return p;
+              return { ...p, tasks: full.tasks ?? p.tasks };
+            }),
+          );
+        } catch (err) {
+          console.error(err);
+        }
       })
       .catch((e) => {
         if (!alive) return;
@@ -82,8 +115,77 @@ export const ProjectsBoardPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    let alive = true;
+    fetchCustomFields('project')
+      .then((items) => {
+        if (!alive) return;
+        setCustomFields([...items].sort((a, b) => a.order - b.order));
+      })
+      .catch((e) => console.error('Ошибка загрузки кастомных полей:', e));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const activeCustomFields = customFields.filter((field) => field.isActive);
+
+  const renderCustomPreview = (project: Project) => {
+    if (!activeCustomFields.length) return null;
+    const rows = activeCustomFields
+      .map((field) => {
+        const raw = project.customFields?.[field.key];
+        if (raw === null || raw === undefined || raw === '') return null;
+        const display = Array.isArray(raw)
+          ? raw.join(', ')
+          : typeof raw === 'boolean'
+            ? raw
+              ? 'Да'
+              : 'Нет'
+            : String(raw);
+        return `${field.label}: ${display}`;
+      })
+      .filter(Boolean)
+      .slice(0, 2);
+    if (!rows.length) return null;
+    return (
+      <div className="mt-2 space-y-0.5">
+        {rows.map((row, idx) => (
+          <div key={idx} className="text-[10px] text-slate-500 truncate">
+            {row}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const projectsByStatus = (status: ProjectStatus) =>
     projects.filter((p) => p.status === status);
+  const isDoneStatus = (status?: string | null) => {
+    if (!status) return false;
+    const normalized = status.toString().trim().toLowerCase();
+    return (
+      normalized.includes('готов') ||
+      normalized.includes('done') ||
+      normalized.includes('complete') ||
+      normalized.includes('completed') ||
+      normalized.includes('finished')
+    );
+  };
+  const progressValue = (project: Project) => {
+    const total = project.tasks?.length ?? 0;
+    if (!total) return 0;
+    const done = project.tasks.filter((t) => isDoneStatus(t.status)).length;
+    return Math.round((done / total) * 100);
+  };
+  const progressColor = (percent: number) => {
+    const clamped = Math.min(100, Math.max(0, percent));
+    const t = clamped / 100;
+    const r = Math.round(239 + (59 - 239) * t);
+    const g = Math.round(68 + (130 - 68) * t);
+    const b = Math.round(68 + (246 - 68) * t);
+    return `rgb(${r}, ${g}, ${b})`;
+  };
 
   const handleDragStart = (id: string) => {
     setDragProjectId(id);
@@ -151,6 +253,12 @@ export const ProjectsBoardPage: React.FC = () => {
             </div>
 
             <button
+              onClick={() => setCustomFieldsOpen(true)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
+            >
+              {t('crm.projects.list.columns.label')}
+            </button>
+            <button
               onClick={createProject}
               className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
             >
@@ -192,7 +300,10 @@ export const ProjectsBoardPage: React.FC = () => {
                   </div>
 
                   <div className="flex-1 space-y-2 overflow-y-auto">
-                    {columnProjects.map((project) => (
+                    {columnProjects.map((project) => {
+                      const percent = progressValue(project);
+                      const color = progressColor(percent);
+                      return (
                       <div
                         key={project.id}
                         draggable
@@ -220,6 +331,17 @@ export const ProjectsBoardPage: React.FC = () => {
                             {project.createdAt}
                           </span>
                         </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="flex-1 h-1.5 rounded-full bg-slate-800/80 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all"
+                              style={{ width: `${percent}%`, backgroundColor: color }}
+                            />
+                          </div>
+                          <span className="text-[10px] font-semibold" style={{ color }}>
+                            {percent}%
+                          </span>
+                        </div>
 
                         <div className="flex flex-wrap gap-1 mt-1">
                           {project.category && (
@@ -236,8 +358,10 @@ export const ProjectsBoardPage: React.FC = () => {
                             </span>
                           ))}
                         </div>
+                        {renderCustomPreview(project)}
                       </div>
-                    ))}
+                    );
+                    })}
 
                     {columnProjects.length === 0 && (
                       <div className="text-[11px] text-slate-500 italic px-1 py-2">
@@ -249,6 +373,17 @@ export const ProjectsBoardPage: React.FC = () => {
               );
             })}
           </div>
+        )}
+        {customFieldsOpen && (
+          <CustomFieldsManager
+            entityType="project"
+            title="Кастомные поля проектов"
+            suggestedKeys={suggestedKeys}
+            onClose={() => setCustomFieldsOpen(false)}
+            onUpdated={(items) =>
+              setCustomFields([...items].sort((a, b) => a.order - b.order))
+            }
+          />
         )}
       </div>
     </MainLayout>

@@ -3,6 +3,8 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, In } from 'typeorm';
@@ -13,6 +15,8 @@ import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
 import { Sale } from '../sales/sale.entity';
 import { Project } from '../projects/project.entity';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
 
 // Типы для статистики (форма ответа под фронт)
 export interface LeadStatusStat {
@@ -112,9 +116,42 @@ export class LeadsService {
 
     @InjectRepository(Project)
     private readonly projectsRepo: Repository<Project>,
+
+    @Inject(forwardRef(() => AutomationsService))
+    private readonly automationsService: AutomationsService,
   ) {}
 
   // ====== PRIVATE (CRM) ======
+
+  private normalizeAssignees(dto: {
+    assignedUserId?: string | null;
+    assignedUserIds?: string[] | null;
+    assignedTo?: string | null;
+    assignedToList?: string[] | null;
+  }) {
+    const idsFromList = Array.isArray(dto.assignedUserIds)
+      ? dto.assignedUserIds.filter(Boolean)
+      : [];
+    const namesFromList = Array.isArray(dto.assignedToList)
+      ? dto.assignedToList.filter(Boolean)
+      : [];
+    const ids = idsFromList.length
+      ? idsFromList
+      : dto.assignedUserId
+        ? [dto.assignedUserId]
+        : [];
+    const names = namesFromList.length
+      ? namesFromList
+      : dto.assignedTo
+        ? [dto.assignedTo]
+        : [];
+    return {
+      assignedUserIds: ids.length ? ids : null,
+      assignedToList: names.length ? names : null,
+      assignedUserId: ids.length ? ids[0] : dto.assignedUserId ?? null,
+      assignedTo: names.length ? names.join(', ') : dto.assignedTo ?? null,
+    };
+  }
 
   async listForTenant(tenantId: string): Promise<Lead[]> {
     return this.leadsRepo.find({
@@ -148,6 +185,7 @@ export class LeadsService {
     tenantId: string,
     dto: CreateLeadDto,
   ): Promise<Lead> {
+    const normalizedAssignees = this.normalizeAssignees(dto);
     const lead = this.leadsRepo.create({
       tenantId,
       siteId: dto.siteId ?? null,
@@ -167,13 +205,33 @@ export class LeadsService {
       utmTerm: dto.utmTerm ?? null,
 
       // ответственный
-      assignedUserId: dto.assignedUserId ?? null,
-      assignedTo: dto.assignedTo ?? null,
+      assignedUserId: normalizedAssignees.assignedUserId,
+      assignedUserIds: normalizedAssignees.assignedUserIds,
+      assignedTo: normalizedAssignees.assignedTo,
+      assignedToList: normalizedAssignees.assignedToList,
 
       meta: dto.meta ?? null,
+      customFields: dto.customFields ?? null,
     });
 
-    return this.leadsRepo.save(lead);
+    const saved = await this.leadsRepo.save(lead);
+
+    // Триггерим автоматизацию
+    try {
+      await this.automationsService.triggerAutomation(
+        tenantId,
+        TriggerEvent.LEAD_CREATED,
+        {
+          entityType: 'lead',
+          entityId: saved.id,
+          lead: saved,
+        },
+      );
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
+
+    return saved;
   }
 
   async updateForTenant(
@@ -196,17 +254,76 @@ export class LeadsService {
     if (dto.utmContent !== undefined) lead.utmContent = dto.utmContent;
     if (dto.utmTerm !== undefined) lead.utmTerm = dto.utmTerm;
     if (dto.meta !== undefined) lead.meta = dto.meta;
+    if (dto.customFields !== undefined) lead.customFields = dto.customFields;
     if (dto.siteId !== undefined) lead.siteId = dto.siteId;
 
     // ответственный
-    if (dto.assignedUserId !== undefined) {
-      lead.assignedUserId = dto.assignedUserId;
-    }
-    if (dto.assignedTo !== undefined) {
-      lead.assignedTo = dto.assignedTo;
+    const shouldUpdateAssignees =
+      dto.assignedUserId !== undefined ||
+      dto.assignedUserIds !== undefined ||
+      dto.assignedTo !== undefined ||
+      dto.assignedToList !== undefined;
+    if (shouldUpdateAssignees) {
+      const normalizedAssignees = this.normalizeAssignees(dto);
+      lead.assignedUserId = normalizedAssignees.assignedUserId;
+      lead.assignedUserIds = normalizedAssignees.assignedUserIds;
+      lead.assignedTo = normalizedAssignees.assignedTo;
+      lead.assignedToList = normalizedAssignees.assignedToList;
     }
 
-    return this.leadsRepo.save(lead);
+    const oldStatus = lead.status;
+    const saved = await this.leadsRepo.save(lead);
+
+    // Триггерим автоматизацию для обновления
+    try {
+      await this.automationsService.triggerAutomation(
+        tenantId,
+        TriggerEvent.LEAD_UPDATED,
+        {
+          entityType: 'lead',
+          entityId: saved.id,
+          lead: saved,
+          changes: dto,
+        },
+      );
+
+      // Если изменился статус, триггерим отдельное событие
+      if (dto.status !== undefined && dto.status !== oldStatus) {
+        await this.automationsService.triggerAutomation(
+          tenantId,
+          TriggerEvent.LEAD_STATUS_CHANGED,
+          {
+            entityType: 'lead',
+            entityId: saved.id,
+            lead: saved,
+            oldStatus,
+            newStatus: dto.status,
+          },
+        );
+      }
+
+      // Если изменился ответственный
+      if (
+        dto.assignedUserId !== undefined ||
+        dto.assignedUserIds !== undefined ||
+        dto.assignedTo !== undefined ||
+        dto.assignedToList !== undefined
+      ) {
+        await this.automationsService.triggerAutomation(
+          tenantId,
+          TriggerEvent.LEAD_ASSIGNED,
+          {
+            entityType: 'lead',
+            entityId: saved.id,
+            lead: saved,
+          },
+        );
+      }
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
+
+    return saved;
   }
 
   async removeForTenant(tenantId: string, id: string): Promise<void> {
@@ -290,7 +407,9 @@ export class LeadsService {
 
       // из публичных форм обычно ответственный не проставляется
       assignedUserId: null,
+      assignedUserIds: null,
       assignedTo: null,
+      assignedToList: null,
 
       meta,
     });

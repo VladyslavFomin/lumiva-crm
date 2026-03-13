@@ -35,6 +35,19 @@ export class PublicController {
     return { modules };
   }
 
+  // Получить компоненты тенента (для CRM)
+  @Get('tenant/components')
+  @UseGuards(ApiTokenGuard)
+  async getTenantComponents(@Req() req: Request) {
+    const tenantId = (req as any).tenantId as string | undefined;
+    if (!tenantId) {
+      return { components: [] };
+    }
+
+    const components = await this.tenantsService.getTenantComponents(tenantId);
+    return { components };
+  }
+
   @Get('tenant/info')
   @UseGuards(ApiTokenGuard)
   async getTenantInfo(@Req() req: Request) {

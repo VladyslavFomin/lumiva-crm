@@ -43,6 +43,16 @@ async function bootstrap() {
     }),
   );
 
+  // Увеличиваем таймауты для длительных операций (SMTP тесты, отправка email)
+  app.use((req, res, next) => {
+    // Увеличиваем таймаут для теста SMTP и отправки email
+    if (req.path.includes('/test-smtp') || req.path.includes('/email/send')) {
+      req.setTimeout(25000); // 25 секунд
+      res.setTimeout(25000);
+    }
+    next();
+  });
+
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port);
 

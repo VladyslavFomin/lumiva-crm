@@ -8,7 +8,10 @@ import {
 
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { SignupDto } from './dto/signup.dto';
 import { StaffUsersService } from '../staff/staff-users.service';
+import { VerifySignupCodeDto } from './dto/verify-signup-code.dto';
+import { ResendSignupCodeDto } from './dto/resend-signup-code.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -20,6 +23,21 @@ export class AuthController {
   @Post('login')
   async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('signup')
+  async signup(@Body() dto: SignupDto) {
+    return this.authService.signup(dto);
+  }
+
+  @Post('verify-signup-code')
+  async verifySignupCode(@Body() dto: VerifySignupCodeDto) {
+    return this.authService.verifySignupCode(dto);
+  }
+
+  @Post('resend-signup-code')
+  async resendSignupCode(@Body() dto: ResendSignupCodeDto) {
+    return this.authService.resendSignupCode(dto);
   }
 
   /**

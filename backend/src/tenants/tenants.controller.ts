@@ -37,6 +37,17 @@ export class TenantsController {
     return this.tenantsService.getCompanySettings(user.tenantId);
   }
 
+  // ---- Получить компоненты текущего тенанта ----
+  @UseGuards(JwtAuthGuard)
+  @Get('components')
+  async getComponents(@CurrentUser() user: CurrentUserPayload) {
+    if (!user?.tenantId) {
+      throw new BadRequestException('No tenant in auth payload');
+    }
+
+    return this.tenantsService.getTenantComponents(user.tenantId);
+  }
+
   // ---- Обновить настройки компании (только owner) ----
   @UseGuards(JwtAuthGuard)
   @Patch('settings')

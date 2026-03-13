@@ -1,8 +1,11 @@
 // src/pages/LandingPage.tsx
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useTranslation } from "react-i18next";
+import { Link, useNavigate } from "react-router-dom";
 import { setAppLanguage } from "../i18n";
+import { login, resendSignupCode, signup, verifySignupCode } from "../api/client";
+import { persistSession } from "../auth/session";
 
 const scrollToId = (id: string) => {
   const el = document.getElementById(id);
@@ -236,6 +239,21 @@ const Header: React.FC = () => {
           >
             {t("landing.nav.workspace")}
           </button>
+          <Link to="/development" className="hover:text-black transition-colors">
+            {t("publicPages.nav.development")}
+          </Link>
+          <Link to="/scenarios" className="hover:text-black transition-colors">
+            {t("publicPages.nav.scenarios")}
+          </Link>
+          <Link to="/api" className="hover:text-black transition-colors">
+            API
+          </Link>
+          <Link to="/solutions" className="hover:text-black transition-colors">
+            {t("publicPages.nav.solutions")}
+          </Link>
+          <Link to="/pricing" className="hover:text-black transition-colors">
+            Тарифы
+          </Link>
         </nav>
 
         {/* Contact */}
@@ -255,7 +273,8 @@ const Header: React.FC = () => {
           </span>
           <a
             href="/login"
-            className="rounded-full border border-black px-3 py-1.5 text-xs font-semibold tracking-wide uppercase bg-black text-white hover:bg-white hover:text-black transition-colors"
+            className="rounded-full !border !border-black px-3 py-1.5 text-xs font-semibold tracking-wide uppercase !bg-black !text-white no-underline hover:!bg-white hover:!text-black transition-colors"
+            style={{ color: '#fff', backgroundColor: '#000' }}
           >
             {t("landing.nav.login")}
           </a>
@@ -278,23 +297,6 @@ const Hero: React.FC<{ onOpenDemo: () => void }> = ({ onOpenDemo }) => {
   const titleY = useTransform(scrollYProgress, [0, 1], [0, -80]);
   const panelY = useTransform(scrollYProgress, [0, 1], [0, -40]);
   const bgScale = useTransform(scrollYProgress, [0, 1], [1, 1.06]);
-
-  // Точки для мини-графика в герое (линия + точки совпадают)
-  const heroPoints = [
-    { x: 12, y: 52 },
-    { x: 55, y: 38 },
-    { x: 100, y: 32 },
-    { x: 145, y: 30 },
-    { x: 185, y: 34 },
-    { x: 220, y: 30 },
-    { x: 246, y: 26 },
-  ];
-  const heroPath = `M${heroPoints
-    .map((p) => `${p.x},${p.y}`)
-    .join(" L ")}`;
-  const heroAreaPath = `${heroPath} L ${
-    heroPoints[heroPoints.length - 1].x
-  },70 L ${heroPoints[0].x},70 Z`;
 
   return (
     <section id="hero" ref={heroRef} className="relative">
@@ -366,111 +368,13 @@ const Hero: React.FC<{ onOpenDemo: () => void }> = ({ onOpenDemo }) => {
           </div>
         </motion.div>
 
-        {/* Правая панель: полезная «Live snapshot» */}
+        {/* Правая панель: вход и регистрация */}
         <motion.div
           style={{ y: panelY }}
           className="relative h-[320px] sm:h-[380px] lg:h-[420px]"
         >
-          <div className="absolute inset-0 rounded-[32px] border border-black/10 bg-gradient-to-b from-neutral-50 to-white shadow-[0_30px_70px_rgba(0,0,0,0.16)] overflow-hidden flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 pt-5 text-[10px] text-neutral-500">
-              <span>{t("landing.heroSnapshot.title")}</span>
-              <span className="rounded-full border border-neutral-300 px-2 py-0.5">
-                {t("landing.heroSnapshot.live")}
-              </span>
-            </div>
-
-            {/* KPIs */}
-            <div className="grid grid-cols-3 gap-3 px-6 pt-5 text-[11px] text-neutral-600">
-              <div>
-                <div className="text-neutral-500">
-                  {t("landing.heroSnapshot.newLeads")}
-                </div>
-                <div className="mt-1 text-lg font-semibold text-black">126</div>
-                <div className="mt-0.5 text-[10px] text-neutral-500">
-                  {t("landing.heroSnapshot.newLeadsDelta")}
-                </div>
-              </div>
-              <div>
-                <div className="text-neutral-500">
-                  {t("landing.heroSnapshot.conversion")}
-                </div>
-                <div className="mt-1 text-lg font-semibold text-black">
-                  18,7%
-                </div>
-                <div className="mt-0.5 text-[10px] text-neutral-500">
-                  {t("landing.heroSnapshot.conversionDelta")}
-                </div>
-              </div>
-              <div>
-                <div className="text-neutral-500">
-                  {t("landing.heroSnapshot.revenue")}
-                </div>
-                <div className="mt-1 text-lg font-semibold text-black">
-                  € 72K
-                </div>
-                <div className="mt-0.5 text-[10px] text-neutral-500">
-                  {t("landing.heroSnapshot.revenueRange")}
-                </div>
-              </div>
-            </div>
-
-            {/* Mini trend line */}
-            <div className="mt-5 px-6">
-              <div className="flex items-center justify-between mb-2 text-[10px] text-neutral-500">
-                <span>{t("landing.heroSnapshot.revenueTrend")}</span>
-                <span>{t("landing.heroSnapshot.allChannels")}</span>
-              </div>
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-3 py-3">
-                <svg viewBox="0 0 260 70" className="w-full">
-                  <defs>
-                    <linearGradient id="heroTrendFill" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="0%" stopColor="black" stopOpacity="0.16" />
-                      <stop offset="100%" stopColor="black" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                  <path d={heroAreaPath} fill="url(#heroTrendFill)" />
-                  <path
-                    d={heroPath}
-                    fill="none"
-                    stroke="black"
-                    strokeWidth={2.4}
-                    strokeLinecap="round"
-                  />
-                  {heroPoints.map((p, i) => (
-                    <circle key={i} cx={p.x} cy={p.y} r={3} fill="black" />
-                  ))}
-                </svg>
-              </div>
-            </div>
-
-            {/* Bottom list */}
-            <div className="mt-auto px-6 pb-6 pt-4 grid grid-cols-3 gap-3 text-[10px] text-neutral-500">
-              <div>
-                <div className="text-neutral-500">
-                  {t("landing.heroSnapshot.focus")}
-                </div>
-                <div className="mt-0.5 text-neutral-900 text-[11px]">
-                  {t("landing.heroSnapshot.focusValue")}
-                </div>
-              </div>
-              <div>
-                <div className="text-neutral-500">
-                  {t("landing.heroSnapshot.load")}
-                </div>
-                <div className="mt-1 h-1.5 rounded-full bg-neutral-200 overflow-hidden">
-                  <div className="h-full w-2/3 bg-black" />
-                </div>
-              </div>
-              <div>
-                <div className="text-neutral-500">
-                  {t("landing.heroSnapshot.response")}
-                </div>
-                <div className="mt-0.5 text-neutral-900 text-[11px]">
-                  {t("landing.heroSnapshot.responseValue")}
-                </div>
-              </div>
-            </div>
+          <div className="absolute inset-0 rounded-[32px] border border-black/10 bg-gradient-to-b from-neutral-50 to-white p-4 shadow-[0_30px_70px_rgba(0,0,0,0.16)]">
+            <LandingAuthPanel compact />
           </div>
         </motion.div>
       </div>
@@ -1443,12 +1347,534 @@ const Footer: React.FC = () => {
             })}
           </span>
           <div className="flex gap-4">
-            <span>{t("landing.footer.privacy")}</span>
-            <span>{t("landing.footer.terms")}</span>
+            <Link to="/privacy" className="hover:text-white">
+              {t("landing.footer.privacy")}
+            </Link>
+            <Link to="/blog" className="hover:text-white">
+              {t("publicPages.nav.blog")}
+            </Link>
+            <Link to="/development" className="hover:text-white">
+              {t("publicPages.nav.development")}
+            </Link>
+            <Link to="/api" className="hover:text-white">
+              API
+            </Link>
+            <Link to="/pricing" className="hover:text-white">
+              Тарифы
+            </Link>
           </div>
         </div>
       </div>
     </footer>
+  );
+};
+
+const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
+  const { i18n } = useTranslation();
+  const navigate = useNavigate();
+  const lang = (i18n.language || "ru").slice(0, 2);
+  const text =
+    lang === "en"
+      ? {
+          title: "Access account",
+          subtitle:
+            "Use login for existing tenants or create a new account and activate it after payment.",
+          loginTab: "Login",
+          signupTab: "Sign up",
+          loginClientKey: "Client key",
+          email: "Email",
+          password: "Password",
+          companyName: "Company name",
+          phone: "Phone",
+          makeKey: "Generate key",
+          submitLogin: "Enter account",
+          submitSignup: "Create account",
+          loading: "Please wait...",
+          needFields: "Fill required fields",
+          signupOk: "Account created. Redirecting to billing...",
+          loginOk: "Login successful",
+          verifyTitle: "Email confirmation",
+          verifyHint: "Enter the 6-digit code sent to your email.",
+          verifyCode: "Verification code",
+          verifySubmit: "Confirm code",
+          verifySent: "Code sent to your email",
+          verifyOk: "Email confirmed. Redirecting to billing...",
+          resendCode: "Send code again",
+          resendWait: "You can request again in",
+          verifyTapHint: "Tap to type code",
+        }
+      : lang === "tr"
+        ? {
+            title: "Hesap erişimi",
+            subtitle:
+              "Mevcut tenant için giriş yapın veya yeni hesap oluşturup ödemeden sonra etkinleştirin.",
+            loginTab: "Giriş",
+            signupTab: "Kayıt",
+            loginClientKey: "Müşteri anahtarı",
+            email: "E-posta",
+            password: "Şifre",
+            companyName: "Şirket adı",
+            phone: "Telefon",
+            makeKey: "Anahtar üret",
+            submitLogin: "Panele gir",
+            submitSignup: "Hesap oluştur",
+            loading: "Yükleniyor...",
+            needFields: "Zorunlu alanları doldurun",
+            signupOk: "Hesap oluşturuldu. Ödemeye yönlendiriliyor...",
+            loginOk: "Giriş başarılı",
+            verifyTitle: "E-posta doğrulama",
+            verifyHint: "E-postanıza gönderilen 6 haneli kodu girin.",
+            verifyCode: "Doğrulama kodu",
+            verifySubmit: "Kodu onayla",
+            verifySent: "Kod e-postanıza gönderildi",
+            verifyOk: "E-posta doğrulandı. Ödemeye yönlendiriliyor...",
+            resendCode: "Kodu tekrar gönder",
+            resendWait: "Tekrar isteme süresi",
+            verifyTapHint: "Kodu yazmak için dokunun",
+          }
+        : {
+            title: "Вход в аккаунт",
+            subtitle:
+              "Войдите в существующий аккаунт или зарегистрируйте новый и активируйте его после оплаты.",
+            loginTab: "Вход",
+            signupTab: "Регистрация",
+            loginClientKey: "Ключ клиента",
+            email: "Email",
+            password: "Пароль",
+            companyName: "Название компании",
+            phone: "Телефон",
+            makeKey: "Сформировать ключ",
+            submitLogin: "Войти в аккаунт",
+            submitSignup: "Создать аккаунт",
+            loading: "Подождите...",
+            needFields: "Заполните обязательные поля",
+            signupOk: "Аккаунт создан. Переходим к оплате...",
+            loginOk: "Вход выполнен",
+            verifyTitle: "Подтверждение email",
+            verifyHint: "Введите код из 6 цифр, отправленный на вашу почту.",
+            verifyCode: "Код подтверждения",
+            verifySubmit: "Подтвердить код",
+            verifySent: "Код отправлен вам на почту",
+            verifyOk: "Email подтвержден. Переходим к оплате...",
+            resendCode: "Отправить код повторно",
+            resendWait: "Повторная отправка через",
+            verifyTapHint: "Нажмите, чтобы ввести код",
+          };
+
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [loginForm, setLoginForm] = useState({
+    clientKey: "",
+    email: "",
+    password: "",
+  });
+  const [signupForm, setSignupForm] = useState({
+    companyName: "",
+    clientKey: "",
+    email: "",
+    password: "",
+    phone: "",
+  });
+  const [signupVerification, setSignupVerification] = useState<{
+    clientKey: string;
+    email: string;
+  } | null>(null);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [lastChangedDigit, setLastChangedDigit] = useState<number | null>(null);
+  const verifyInputRef = useRef<HTMLInputElement | null>(null);
+
+  const verificationDigits = useMemo(
+    () => Array.from({ length: 6 }, (_, index) => verificationCode[index] || ""),
+    [verificationCode],
+  );
+
+  const makeClientKey = () => {
+    const raw = signupForm.companyName
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9а-яё\\s-]/gi, "")
+      .replace(/\\s+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+    const latin = raw
+      .replace(/а/g, "a")
+      .replace(/б/g, "b")
+      .replace(/в/g, "v")
+      .replace(/г/g, "g")
+      .replace(/д/g, "d")
+      .replace(/е/g, "e")
+      .replace(/ё/g, "e")
+      .replace(/ж/g, "zh")
+      .replace(/з/g, "z")
+      .replace(/и/g, "i")
+      .replace(/й/g, "y")
+      .replace(/к/g, "k")
+      .replace(/л/g, "l")
+      .replace(/м/g, "m")
+      .replace(/н/g, "n")
+      .replace(/о/g, "o")
+      .replace(/п/g, "p")
+      .replace(/р/g, "r")
+      .replace(/с/g, "s")
+      .replace(/т/g, "t")
+      .replace(/у/g, "u")
+      .replace(/ф/g, "f")
+      .replace(/х/g, "h")
+      .replace(/ц/g, "c")
+      .replace(/ч/g, "ch")
+      .replace(/ш/g, "sh")
+      .replace(/щ/g, "sch")
+      .replace(/ы/g, "y")
+      .replace(/э/g, "e")
+      .replace(/ю/g, "yu")
+      .replace(/я/g, "ya");
+    setSignupForm((s) => ({ ...s, clientKey: latin.slice(0, 64) }));
+  };
+
+  useEffect(() => {
+    if (!resendCooldown) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    if (!loginForm.clientKey || !loginForm.email || !loginForm.password) {
+      setError(text.needFields);
+      return;
+    }
+    setLoading(true);
+    try {
+      const resp = await login(loginForm);
+      persistSession(resp);
+      setMessage(text.loginOk);
+      navigate(resp.billingLocked ? "/app/billing" : "/app", { replace: true });
+    } catch (err: any) {
+      setError(err?.message || "Error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSignup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    if (!signupForm.companyName || !signupForm.clientKey || !signupForm.email || !signupForm.password) {
+      setError(text.needFields);
+      return;
+    }
+    setLoading(true);
+    try {
+      const resp = await signup(signupForm);
+      setSignupVerification({
+        clientKey: resp.clientKey,
+        email: resp.email,
+      });
+      setVerificationCode("");
+      setResendCooldown(45);
+      setMessage(resp.message || text.verifySent);
+    } catch (err: any) {
+      setError(err?.message || "Error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setMessage(null);
+    if (!signupVerification) {
+      setError("Verification context is missing");
+      return;
+    }
+    if (!/^\d{6}$/.test(verificationCode.trim())) {
+      setError(text.verifyHint);
+      return;
+    }
+    setLoading(true);
+    try {
+      const resp = await verifySignupCode({
+        clientKey: signupVerification.clientKey,
+        email: signupVerification.email,
+        code: verificationCode.trim(),
+      });
+      persistSession(resp);
+      setMessage(text.verifyOk);
+      navigate("/app/billing", { replace: true });
+    } catch (err: any) {
+      setError(err?.message || "Error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (!signupVerification || resendCooldown > 0) return;
+    setError(null);
+    setMessage(null);
+    setLoading(true);
+    try {
+      const resp = await resendSignupCode({
+        clientKey: signupVerification.clientKey,
+        email: signupVerification.email,
+      });
+      setVerificationCode("");
+      setResendCooldown(45);
+      setMessage(resp.message || text.verifySent);
+      verifyInputRef.current?.focus();
+    } catch (err: any) {
+      setError(err?.message || "Error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formCols = compact ? "mt-4 grid gap-2.5" : "mt-5 grid gap-3 md:grid-cols-3";
+
+  return (
+    <section className={compact
+      ? "h-full overflow-y-auto rounded-[28px] border border-black/10 bg-white/95 p-4 shadow-[0_16px_50px_rgba(0,0,0,0.14)] backdrop-blur-sm sm:p-5"
+      : "rounded-3xl border border-neutral-200 bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.06)] md:p-8"}
+    >
+      <div className={compact ? "max-w-none" : "max-w-3xl"}>
+        <h2 className={compact ? "text-xl font-semibold" : "text-2xl font-semibold"}>{text.title}</h2>
+        <p className={compact ? "mt-1.5 text-xs text-neutral-600" : "mt-2 text-sm text-neutral-600"}>{text.subtitle}</p>
+      </div>
+
+      <div className={compact ? "mt-4 inline-flex rounded-full border border-neutral-200 bg-neutral-50 p-1" : "mt-5 inline-flex rounded-full border border-neutral-200 bg-neutral-50 p-1"}>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("login");
+            setSignupVerification(null);
+            setVerificationCode("");
+            setResendCooldown(0);
+          }}
+          className={`rounded-full px-4 py-1.5 text-xs font-semibold ${mode === "login" ? "bg-black text-white" : "text-neutral-600"}`}
+        >
+          {text.loginTab}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("signup");
+            setSignupVerification(null);
+            setVerificationCode("");
+            setResendCooldown(0);
+            setError(null);
+            setMessage(null);
+          }}
+          className={`rounded-full px-4 py-1.5 text-xs font-semibold ${mode === "signup" ? "bg-black text-white" : "text-neutral-600"}`}
+        >
+          {text.signupTab}
+        </button>
+      </div>
+
+      {mode === "login" ? (
+        <form onSubmit={handleLogin} className={formCols}>
+          <input
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+            placeholder={text.loginClientKey}
+            value={loginForm.clientKey}
+            onChange={(e) => setLoginForm((s) => ({ ...s, clientKey: e.target.value }))}
+          />
+          <input
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+            placeholder={text.email}
+            type="email"
+            value={loginForm.email}
+            onChange={(e) => setLoginForm((s) => ({ ...s, email: e.target.value }))}
+          />
+          <input
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+            placeholder={text.password}
+            type="password"
+            value={loginForm.password}
+            onChange={(e) => setLoginForm((s) => ({ ...s, password: e.target.value }))}
+          />
+          <div className={compact ? "" : "md:col-span-3"}>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${compact ? "w-full" : ""}`}
+            >
+              {loading ? text.loading : text.submitLogin}
+            </button>
+          </div>
+        </form>
+      ) : signupVerification ? (
+        <form onSubmit={handleVerifyCode} className={compact ? "mt-4 grid gap-3" : "mt-5 grid gap-4"}>
+          <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-cyan-50 p-4 sm:p-5 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
+            <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-cyan-300/35 blur-2xl" />
+            <div className="pointer-events-none absolute -left-10 -bottom-10 h-28 w-28 rounded-full bg-indigo-300/30 blur-2xl" />
+            <div className="relative">
+              <div className="inline-flex items-center rounded-full border border-slate-300/80 bg-white/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                Lumiva Secure
+              </div>
+              <div className="mt-2 text-[17px] sm:text-[19px] font-semibold text-slate-900">
+                {text.verifyTitle}
+              </div>
+              <div className="mt-1 text-xs sm:text-sm text-slate-600 leading-relaxed">
+                {text.verifyHint}
+              </div>
+              <div className="mt-2 text-xs text-slate-500">
+                {signupVerification.email}
+              </div>
+            </div>
+          </div>
+
+          <div className="relative">
+            <input
+              ref={verifyInputRef}
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              className="absolute inset-0 h-full w-full opacity-0"
+              value={verificationCode}
+              maxLength={6}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 6);
+                const prevLength = verificationCode.length;
+                const nextLength = digits.length;
+                if (nextLength > prevLength) {
+                  setLastChangedDigit(nextLength - 1);
+                } else if (nextLength < prevLength) {
+                  setLastChangedDigit(Math.max(nextLength, 0));
+                }
+                setVerificationCode(digits);
+              }}
+              onFocus={() => {
+                if (lastChangedDigit === null && verificationCode.length === 0) {
+                  setLastChangedDigit(0);
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => verifyInputRef.current?.focus()}
+              className="w-full"
+            >
+              <div className="grid grid-cols-6 gap-2 sm:gap-3">
+                {verificationDigits.map((digit, index) => {
+                  const active = index === Math.min(verificationCode.length, 5);
+                  const filled = Boolean(digit);
+                  return (
+                    <motion.div
+                      key={`${index}-${digit || "empty"}`}
+                      initial={false}
+                      animate={
+                        lastChangedDigit === index
+                          ? { y: [0, -3, 2, -1, 0], rotate: [0, -1.2, 1.2, 0], scale: [1, 1.05, 1] }
+                          : { y: 0, rotate: 0, scale: 1 }
+                      }
+                      transition={{ duration: 0.32, ease: "easeOut" }}
+                      className={`h-12 sm:h-14 rounded-2xl border text-lg sm:text-xl font-semibold flex items-center justify-center transition-all ${
+                        filled
+                          ? "border-cyan-400 bg-slate-900 text-cyan-300 shadow-[0_8px_22px_rgba(8,145,178,0.25)]"
+                          : active
+                            ? "border-slate-700 bg-slate-800 text-white shadow-[0_10px_24px_rgba(15,23,42,0.35)]"
+                            : "border-slate-200 bg-white text-slate-300"
+                      }`}
+                    >
+                      {digit || "•"}
+                    </motion.div>
+                  );
+                })}
+              </div>
+              <div className="mt-2 text-center text-[11px] text-slate-500">
+                {text.verifyTapHint}
+              </div>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <button
+              type="submit"
+              disabled={loading || verificationCode.length !== 6}
+              className={`rounded-xl bg-black px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60 ${compact ? "w-full" : ""}`}
+            >
+              {loading ? text.loading : text.verifySubmit}
+            </button>
+            <button
+              type="button"
+              onClick={handleResendCode}
+              disabled={loading || resendCooldown > 0}
+              className="rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:border-slate-400 disabled:opacity-60"
+            >
+              {resendCooldown > 0
+                ? `${text.resendWait} ${resendCooldown}s`
+                : text.resendCode}
+            </button>
+          </div>
+        </form>
+      ) : (
+        <form onSubmit={handleSignup} className={formCols}>
+          <input
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+            placeholder={text.companyName}
+            value={signupForm.companyName}
+            onChange={(e) => setSignupForm((s) => ({ ...s, companyName: e.target.value }))}
+          />
+          <div className="flex gap-2">
+            <input
+              className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+              placeholder={text.loginClientKey}
+              value={signupForm.clientKey}
+              onChange={(e) => setSignupForm((s) => ({ ...s, clientKey: e.target.value }))}
+            />
+            <button
+              type="button"
+              onClick={makeClientKey}
+              className="shrink-0 rounded-xl border border-neutral-300 px-3 text-xs font-semibold"
+            >
+              {text.makeKey}
+            </button>
+          </div>
+          <input
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+            placeholder={text.phone}
+            value={signupForm.phone}
+            onChange={(e) => setSignupForm((s) => ({ ...s, phone: e.target.value }))}
+          />
+          <input
+            className={`rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm ${compact ? "" : "md:col-span-2"}`}
+            placeholder={text.email}
+            type="email"
+            value={signupForm.email}
+            onChange={(e) => setSignupForm((s) => ({ ...s, email: e.target.value }))}
+          />
+          <input
+            className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+            placeholder={text.password}
+            type="password"
+            value={signupForm.password}
+            onChange={(e) => setSignupForm((s) => ({ ...s, password: e.target.value }))}
+          />
+          <div className={compact ? "" : "md:col-span-3"}>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white disabled:opacity-60 ${compact ? "w-full" : ""}`}
+            >
+              {loading ? text.loading : text.submitSignup}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {error && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>}
+      {message && <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{message}</div>}
+    </section>
   );
 };
 

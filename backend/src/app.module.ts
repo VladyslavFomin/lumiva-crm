@@ -11,8 +11,16 @@ import { TenantsModule } from './tenants/tenants.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { LeadsModule } from './leads/leads.module';
+import { ContactsModule } from './contacts/contacts.module';
+import { CompaniesModule } from './companies/companies.module';
+import { NotesModule } from './notes/notes.module';
+import { EmailModule } from './email/email.module';
+import { TelegramCrmModule } from './telegram-crm/telegram-crm.module';
+import { CustomFieldsModule } from './custom-fields/custom-fields.module';
+import { AutomationsModule } from './automations/automations.module';
 import { ProjectsModule } from './projects/projects.module';
 import { StaffUsersModule } from './staff/staff-users.module';
+import { DepartmentsModule } from './departments/departments.module';
 import { RbacModule } from './rbac/rbac.module';
 import { SalesModule } from './sales/sales.module';
 import { SalesChannelsModule } from './sales-channels/sales-channels.module';
@@ -25,6 +33,7 @@ import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { BillingModule } from './billing/billing.module';
 
 // --- CCP
 import { CcpModule } from './modules/ccp/ccp.module';
@@ -40,8 +49,22 @@ import { User } from './users/user.entity';
 import { Site } from './sites/site.entity';
 import { Lead } from './leads/lead.entity';
 import { LeadActivity } from './leads/lead-activity.entity';
+import { Contact } from './contacts/contact.entity';
+import { Company } from './companies/company.entity';
+import { CompanyTask } from './companies/company-task.entity';
+import { Note } from './notes/note.entity';
+import { EmailAccount } from './email/email-account.entity';
+import { EmailMessage } from './email/email-message.entity';
+import { EmailTemplate } from './email/email-template.entity';
+import { TelegramBot } from './telegram-crm/telegram-bot.entity';
+import { TelegramContact } from './telegram-crm/telegram-contact.entity';
+import { TelegramMessage } from './telegram-crm/telegram-message.entity';
+import { CustomField } from './custom-fields/custom-field.entity';
+import { Automation } from './automations/automation.entity';
+import { AutomationExecution } from './automations/automation-execution.entity';
 import { Project } from './projects/project.entity';
 import { StaffUser } from './staff/staff-user.entity';
+import { Department } from './departments/department.entity';
 import { StaffRolePermission } from './rbac/staff-role-permission.entity';
 import { Sale } from './sales/sale.entity';
 import { SalesChannel } from './sales-channels/sales-channel.entity';
@@ -97,8 +120,22 @@ import { PlatformSettings } from './platform-settings/platform-settings.entity';
         Site,
         Lead,
         LeadActivity,
+        Contact,
+        Company,
+        CompanyTask,
+        Note,
+        EmailAccount,
+        EmailMessage,
+        EmailTemplate,
+        TelegramBot,
+        TelegramContact,
+        TelegramMessage,
+        CustomField,
+        Automation,
+        AutomationExecution,
         Project,
         StaffUser,
+        Department,
         StaffRolePermission,
         Sale,
         SalesChannel,
@@ -138,9 +175,17 @@ import { PlatformSettings } from './platform-settings/platform-settings.entity';
     UsersModule,
     AuthModule,
     LeadsModule,
+    ContactsModule,
+    CompaniesModule,
+    NotesModule,
+    EmailModule,
+    TelegramCrmModule,
+    CustomFieldsModule,
+    AutomationsModule,
     SitesModule,
     ProjectsModule,
     StaffUsersModule,
+    DepartmentsModule,
     RbacModule,
     SalesModule,
     SalesChannelsModule,
@@ -153,6 +198,7 @@ import { PlatformSettings } from './platform-settings/platform-settings.entity';
     DemoRequestsModule,
     PlatformSettingsModule,
     TelegramModule,
+    BillingModule,
     OnlineChatModule,
     CcpModule,
     MailModule,

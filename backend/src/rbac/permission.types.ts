@@ -8,7 +8,10 @@ export type PermissionKey =
   | 'finance'
   | 'analytics'
   | 'settings'
-  | 'chat';
+  | 'chat'
+  | 'contacts'
+  | 'companies'
+  | 'tools_automation';
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
 

@@ -11,6 +11,7 @@ import {
 import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { Lead } from '../leads/lead.entity';
 import { Project } from '../projects/project.entity';
+import { Contact } from '../contacts/contact.entity';
 
 // если у тебя уже есть ./sale-status.enum.ts — можешь импортировать оттуда
 export type SaleStatus =
@@ -47,6 +48,13 @@ export class Sale {
   @ManyToOne(() => Project, { nullable: true })
   @JoinColumn({ name: 'project_id' })
   project: Project | null;
+
+  @ManyToOne(() => Contact, { nullable: true })
+  @JoinColumn({ name: 'contact_id' })
+  contact: Contact | null;
+
+  @Column({ type: 'uuid', name: 'contact_id', nullable: true })
+  contactId: string | null;
 
   @Column({ type: 'uuid', name: 'project_id', nullable: true })
   projectId: string | null;
@@ -154,6 +162,9 @@ export class Sale {
 
   @Column({ type: 'jsonb', nullable: true })
   rawPayload: any;
+
+  @Column({ type: 'jsonb', nullable: true })
+  customFields: Record<string, any> | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

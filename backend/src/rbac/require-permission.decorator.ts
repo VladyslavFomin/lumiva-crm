@@ -4,5 +4,17 @@ import type { PermissionKey } from './permission.types';
 
 export const PERMISSION_META_KEY = 'rbac_permission';
 
-export const RequirePermission = (...permissions: PermissionKey[]) =>
-  SetMetadata(PERMISSION_META_KEY, permissions);
+// Поддержка двух форматов:
+// 1. RequirePermission('leads') - старый формат
+// 2. RequirePermission('contacts', 'read') - новый формат (resource, action)
+export const RequirePermission = (
+  resource: PermissionKey | string,
+  action?: 'read' | 'write' | 'delete',
+) => {
+  if (action) {
+    // Новый формат: resource:action
+    return SetMetadata(PERMISSION_META_KEY, { resource, action });
+  }
+  // Старый формат: просто PermissionKey
+  return SetMetadata(PERMISSION_META_KEY, resource as PermissionKey);
+};

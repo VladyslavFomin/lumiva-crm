@@ -228,9 +228,19 @@
         "title": "Операции",
         "range": "Последние 24 часа",
         "items": [
-          { "label": "Успешные логины", "value": "1 284" },
-          { "label": "Блокировки", "value": "34", "muted": true },
-          { "label": "Запросы API", "value": "182K" }
+          {
+            "label": "Успешные логины",
+            "value": "1 284"
+          },
+          {
+            "label": "Блокировки",
+            "value": "34",
+            "muted": true
+          },
+          {
+            "label": "Запросы API",
+            "value": "182K"
+          }
         ],
         "mutedNote": "Автоблок + алерт"
       },
@@ -280,10 +290,26 @@
       "note": "Сопровождение внедрения, аудит и миграция из таблиц или чужих CRM.",
       "card": "CRM → маркетинг, бронирования, боты, отчёты. Связанные кампании и чаты без ручной склейки.",
       "items": [
-        { "name": "Selectum Hotels", "region": "TR • Resorts", "uplift": "+18% прямых продаж" },
-        { "name": "The Norm Hotels", "region": "EU • City stays", "uplift": "+12% конверсии" },
-        { "name": "Asteria Hotels", "region": "MENA • Leisure", "uplift": "+9% NPS" },
-        { "name": "Northwind Collection", "region": "B2B • Fictional", "uplift": "+15% загрузки" }
+        {
+          "name": "Selectum Hotels",
+          "region": "TR • Resorts",
+          "uplift": "+18% прямых продаж"
+        },
+        {
+          "name": "The Norm Hotels",
+          "region": "EU • City stays",
+          "uplift": "+12% конверсии"
+        },
+        {
+          "name": "Asteria Hotels",
+          "region": "MENA • Leisure",
+          "uplift": "+9% NPS"
+        },
+        {
+          "name": "Northwind Collection",
+          "region": "B2B • Fictional",
+          "uplift": "+15% загрузки"
+        }
       ]
     },
     "showcase": {
@@ -308,19 +334,63 @@
       },
       "leadChannel": "Лид‑канал: Paid · 43% · organic 31% · direct 26%",
       "channels": [
-        { "label": "Woo1", "current": 78, "prev": 54, "growth": "+24%", "orders": 1240, "revenue": "€ 82K" },
-        { "label": "Woo2", "current": 64, "prev": 46, "growth": "+18%", "orders": 980, "revenue": "€ 61K" },
-        { "label": "Ads", "current": 72, "prev": 50, "growth": "+22%", "orders": 1100, "revenue": "€ 74K" },
-        { "label": "Referral", "current": 58, "prev": 42, "growth": "+16%", "orders": 760, "revenue": "€ 49K" }
+        {
+          "label": "Woo1",
+          "current": 78,
+          "prev": 54,
+          "growth": "+24%",
+          "orders": 1240,
+          "revenue": "€ 82K"
+        },
+        {
+          "label": "Woo2",
+          "current": 64,
+          "prev": 46,
+          "growth": "+18%",
+          "orders": 980,
+          "revenue": "€ 61K"
+        },
+        {
+          "label": "Ads",
+          "current": 72,
+          "prev": 50,
+          "growth": "+22%",
+          "orders": 1100,
+          "revenue": "€ 74K"
+        },
+        {
+          "label": "Referral",
+          "current": 58,
+          "prev": 42,
+          "growth": "+16%",
+          "orders": 760,
+          "revenue": "€ 49K"
+        }
       ],
       "topChannels": {
         "title": "Топ каналов",
         "note": "Детали кампаний: объявления, стоимость заявки, связанный отдел продаж.",
         "items": [
-          { "name": "WooCommerce", "share": 43, "sales": 820 },
-          { "name": "Google Ads", "share": 28, "sales": 540 },
-          { "name": "Referral", "share": 17, "sales": 310 },
-          { "name": "Meta / Instagram", "share": 12, "sales": 240 }
+          {
+            "name": "WooCommerce",
+            "share": 43,
+            "sales": 820
+          },
+          {
+            "name": "Google Ads",
+            "share": 28,
+            "sales": 540
+          },
+          {
+            "name": "Referral",
+            "share": 17,
+            "sales": 310
+          },
+          {
+            "name": "Meta / Instagram",
+            "share": 12,
+            "sales": 240
+          }
         ],
         "sales": "{{count}} продаж"
       }
@@ -329,15 +399,30 @@
       "about": "Бело-чёрная операционная система для команд, которым нужен контроль над данными без хаоса таблиц и мессенджеров.",
       "product": {
         "title": "Продукт",
-        "items": ["Обзор платформы", "Модули", "Безопасность", "API и интеграции"]
+        "items": [
+          "Обзор платформы",
+          "Модули",
+          "Безопасность",
+          "API и интеграции"
+        ]
       },
       "company": {
         "title": "Компания",
-        "items": ["Lumiva Agency", "Партнёры", "Карьера", "Правовая информация"]
+        "items": [
+          "Lumiva Agency",
+          "Партнёры",
+          "Карьера",
+          "Правовая информация"
+        ]
       },
       "contacts": {
         "title": "Контакты",
-        "items": ["vlad@lumiva.agency", "@lumiva.agency", "LinkedIn", "Dribbble"]
+        "items": [
+          "vlad@lumiva.agency",
+          "@lumiva.agency",
+          "LinkedIn",
+          "Dribbble"
+        ]
       },
       "privacy": "Политика конфиденциальности",
       "terms": "Условия использования",
@@ -350,30 +435,35 @@
       "accept": "Согласен",
       "decline": "Отклонить"
     }
-
   },
   "crm": {
     "header": {
       "realtime": "Реальное время · подключено",
       "openMenu": "Открыть меню",
       "close": "Закрыть",
-      "newMessages": "Новые сообщения"
+      "newMessages": "Новые сообщения",
+      "notifications": "Уведомления"
     },
     "nav": {
       "dashboard": "Главная",
       "leads": "Лиды",
       "leadsNew": "Создать лид",
       "leadsLost": "Утраченные лиды",
+      "leadsArchive": "Архив лидов",
+      "leadsTrash": "Корзина лидов",
       "leadsAnalytics": "Аналитика",
       "leadsRoi": "ROI",
       "projects": "Проекты",
-      "projectsNew": "Новые проекты",
       "projectsClosed": "Закрытые проекты",
       "projectsInProgress": "Проекты в работе",
       "projectsTasks": "Задачи",
       "projectsOverdue": "Просроченные задачи",
       "projectsAnalytics": "Аналитика проектов",
+      "projectsArchive": "Архив проектов",
+      "projectsTrash": "Корзина проектов",
+      "projectsBulkEdit": "Массовое редактирование",
       "sales": "Продажи",
+      "salesAnalytics": "Аналитика продаж",
       "salesChannels": "Каналы продаж",
       "salesIntegrations": "Интеграции",
       "salesImport": "Импорт продаж",
@@ -388,14 +478,22 @@
       "marketingSmm": "SMM / соцсети",
       "marketingIntegrations": "Интеграции маркетинга",
       "marketingAutomations": "Автоматизации (n8n)",
+      "marketingEmailTemplates": "Письма",
+      "companies": "Компании",
+      "companiesAnalytics": "Аналитика компаний",
+      "contacts": "Контакты",
       "tools": "Инструменты",
+      "toolsAutomations": "Автоматизации",
+      "toolsEmail": "Email",
+      "toolsTelegram": "Telegram",
       "settingsCompany": "Настройки компании",
       "settingsApi": "API и интеграции",
       "chat": "Чат",
       "clientAccounts": "Счета клиентов",
       "staff": "Сотрудники",
       "staffList": "Список сотрудников",
-      "staffPermissions": "Права доступа"
+      "staffPermissions": "Права доступа",
+      "departments": "Отделы"
     },
     "common": {
       "logout": "Выйти",
@@ -403,12 +501,40 @@
       "language": "Язык",
       "adminLabel": "WP · CRM Админ",
       "empty": "—",
+      "selectAll": "Выбрать все",
       "save": "Сохранить",
       "saving": "Сохраняем...",
       "cancel": "Отмена",
       "close": "Закрыть",
       "ok": "Ок",
-      "edit": "Редактировать"
+      "edit": "Редактировать",
+      "loading": "Загрузка...",
+      "status": "Статус",
+      "statusOptions": {
+        "active": "Активен",
+        "inactive": "Неактивен",
+        "archived": "Архив"
+      }
+    },
+    "notifications": {
+      "title": "Уведомления по задачам",
+      "loading": "Загружаем уведомления…",
+      "empty": "Пока нет задач для вас.",
+      "assign": "Назначить",
+      "openTasks": "Открыть все задачи",
+      "overdue": "Просрочено",
+      "tabs": {
+        "assigned": "Назначенные",
+        "mentioned": "Упомянутые",
+        "all": "Все"
+      },
+      "filters": {
+        "project": "Проект",
+        "status": "Статус"
+      },
+      "sort": {
+        "overdue": "Сначала просроченные"
+      }
     },
     "errors": {
       "appFailedTitle": "Приложение не загрузилось",
@@ -435,6 +561,7 @@
         "password": "Пароль",
         "passwordPlaceholder": "password",
         "success": "Успешный вход. Сессия сохранена.",
+        "sessionExpired": "Сессия истекла. Войдите снова, чтобы продолжить.",
         "submit": "Войти в CRM",
         "submitting": "Входим...",
         "forgot": "Забыли пароль?",
@@ -824,7 +951,7 @@
         "title": "Лиды · Канбан",
         "subtitle": "Перетаскивайте карточки между статусами.",
         "viewKanban": "Канбан",
-        "viewList": "Список",
+        "viewList": "Таблица",
         "create": "Новый лид",
         "loading": "Загрузка лидов...",
         "empty": "Нет лидов в этом статусе.",
@@ -860,6 +987,71 @@
           "year1": "1 год",
           "all": "Все время",
           "custom": "Custom"
+        },
+        "reset": {
+          "button": "Сбросить блоки",
+          "title": "Сбросить дашборд?",
+          "message": "Мы вернём первоначальный вид аналитики. Настройки можно изменить снова.",
+          "cancel": "Отмена",
+          "confirm": "Сбросить"
+        },
+        "widgets": {
+          "type": {
+            "metric": "Метрика",
+            "donut": "Пончик",
+            "bar": "График",
+            "table": "Таблица",
+            "formula": "Формула"
+          }
+        },
+        "formula": {
+          "fn": {
+            "label": "Формула",
+            "sumif": "СУММЕСЛИ (условие)",
+            "count": "СЧЁТ",
+            "percent": "ПРОЦЕНТ",
+            "ratio": "ДОЛЯ",
+            "diff": "РАЗНИЦА"
+          },
+          "block": {
+            "sumif": "Условие",
+            "expression": "Выражение"
+          },
+          "scope": {
+            "label": "Срез формулы",
+            "status": "Статус",
+            "source": "Источник",
+            "manager": "Менеджер",
+            "country": "Страна"
+          },
+          "filter": {
+            "scope": "Срез условия",
+            "value": "Значение"
+          },
+          "condition": {
+            "label": "Условие",
+            "add": "Добавить условие",
+            "remove": "Удалить"
+          },
+          "left": {
+            "label": "Левая часть",
+            "value": "Значение слева"
+          },
+          "right": {
+            "label": "Правая часть",
+            "value": "Значение справа"
+          },
+          "value": {
+            "label": "Значение"
+          },
+          "output": {
+            "label": "Формат"
+          },
+          "mode": {
+            "label": "Результат",
+            "count": "Количество",
+            "percent": "Процент"
+          }
         },
         "summary": {
           "today": {
@@ -1027,25 +1219,76 @@
         }
       },
       "list": {
-        "title": "Лиды · Список",
+        "title": "Лиды · Таблица",
         "subtitle": "Табличный вид: удобно фильтровать и быстро искать",
         "viewKanban": "Канбан",
-        "viewList": "Список",
+        "viewList": "Таблица",
         "create": "Создать лид",
+        "groupByStatus": "Группировать по статусу",
+        "showArchived": "Показывать архив",
         "loading": "Загружаем лидов…",
         "empty": "Лидов пока нет",
         "open": "Открыть",
         "emptyValue": "—",
+        "summary": "Всего: {{count}}",
         "columns": {
+          "label": "Колонки",
+          "add": "Добавить колонку",
           "name": "Имя",
           "channel": "Канал",
           "utm": "UTM",
           "status": "Статус",
-          "created": "Создан",
-          "actions": "Действия"
+          "created": "Создан"
+        },
+        "bulk": {
+          "selected": "Выбрано: {{count}}",
+          "status": "Статус",
+          "apply": "Применить",
+          "archive": "Архивировать",
+          "delete": "Удалить",
+          "clear": "Очистить"
         },
         "errors": {
           "loadFailed": "Ошибка загрузки лидов"
+        }
+      },
+      "archive": {
+        "title": "Архив лидов",
+        "subtitle": "Все архивные лиды",
+        "loading": "Загружаем архив...",
+        "empty": "Архив пуст",
+        "columns": {
+          "name": "Лид",
+          "status": "Статус",
+          "created": "Создан",
+          "actions": "Действия"
+        },
+        "actions": {
+          "restore": "Восстановить",
+          "trash": "В корзину",
+          "delete": "Удалить навсегда"
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки архива"
+        }
+      },
+      "trash": {
+        "title": "Корзина лидов",
+        "subtitle": "Удалённые лиды",
+        "loading": "Загружаем корзину...",
+        "empty": "Корзина пуста",
+        "columns": {
+          "name": "Лид",
+          "status": "Статус",
+          "created": "Создан",
+          "actions": "Действия"
+        },
+        "actions": {
+          "restore": "Восстановить",
+          "delete": "Удалить навсегда"
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки корзины"
         }
       },
       "form": {
@@ -1145,7 +1388,11 @@
           "notesPlaceholder": "Текст лида / запрос клиента / важные детали...",
           "metaPlaceholder": "Сырые данные meta (utm, page, form_id...)",
           "commentPlaceholder": "Напишите комментарий…",
-          "projectStatus": "Статус: {{status}} — #{{id}}"
+          "projectStatus": "Статус: {{status}} — #{{id}}",
+          "company": "Компания",
+          "companyPlaceholder": "Выберите или создайте компанию...",
+          "createCompany": "Создать компанию",
+          "companyCreated": "Компания создана и привязана к лиду"
         }
       },
       "lost": {
@@ -1206,6 +1453,754 @@
         }
       }
     },
+    "companies": {
+      "list": {
+        "title": "Компании",
+        "subtitle": "Управление компаниями",
+        "create": "Создать компанию",
+        "createFirst": "Создать первую компанию",
+        "search": "Поиск компаний...",
+        "loading": "Загрузка...",
+        "empty": "Нет компаний",
+        "notFound": "Компании не найдены",
+        "selected": "выбрано",
+        "bulkOperations": "Массовые операции",
+        "tasks": "Задачи",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить компанию?",
+        "errors": {
+          "loadFailed": "Ошибка загрузки компаний",
+          "deleteFailed": "Ошибка удаления"
+        }
+      },
+      "analytics": {
+        "title": "Аналитика компаний",
+        "subtitle": "Общая статистика и метрики по компаниям",
+        "backToList": "К списку компаний",
+        "loading": "Загрузка аналитики...",
+        "noData": "Нет данных",
+        "errors": {
+          "loadFailed": "Ошибка загрузки аналитики"
+        },
+        "summary": {
+          "totalCompanies": "Всего компаний",
+          "totalLeads": "Всего лидов",
+          "totalProjects": "Всего проектов",
+          "totalRevenue": "Выручка",
+          "potentialRevenue": "Потенциальная выручка",
+          "avgConversion": "Средняя конверсия",
+          "avgRevenuePerCompany": "Средняя выручка на компанию"
+        },
+        "charts": {
+          "topByRevenue": "Топ компаний по выручке",
+          "topByProjects": "Топ компаний по проектам",
+          "revenue": "Выручка",
+          "projects": "Проекты"
+        },
+        "table": {
+          "topByRevenue": "Топ компаний по выручке",
+          "projects": "проектов",
+          "leads": "лидов"
+        }
+      },
+      "form": {
+        "titleNew": "Создать компанию",
+        "titleEdit": "Редактировать компанию",
+        "subtitle": "Основная информация о компании",
+        "sections": {
+          "basic": "Основная информация"
+        },
+        "tasks": "Задачи",
+        "actions": {
+          "save": "Сохранить",
+          "create": "Создать",
+          "saving": "Сохранение..."
+        },
+        "fields": {
+          "name": "Название компании *",
+          "legalName": "Юридическое название",
+          "taxId": "ИНН / Tax ID",
+          "email": "Email",
+          "phone": "Телефон",
+          "website": "Сайт",
+          "country": "Страна",
+          "city": "Город",
+          "address": "Адрес",
+          "industry": "Индустрия",
+          "size": "Размер компании",
+          "sizePlaceholder": "Выберите размер",
+          "status": "Статус",
+          "description": "Описание"
+        },
+        "sizeOptions": {
+          "1-10": "1-10 сотрудников",
+          "11-50": "11-50 сотрудников",
+          "51-200": "51-200 сотрудников",
+          "201-500": "201-500 сотрудников",
+          "500+": "500+ сотрудников"
+        },
+        "statuses": {
+          "active": "Активна",
+          "inactive": "Неактивна",
+          "archived": "Архив"
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки компании",
+          "saveFailed": "Ошибка сохранения"
+        },
+        "analytics": {
+          "title": "Аналитика по компаниям",
+          "subtitle": "ROI, метрики и статистика по компаниям",
+          "backToList": "К списку компаний",
+          "loading": "Загрузка аналитики...",
+          "noData": "Нет данных",
+          "errors": {
+            "loadFailed": "Ошибка загрузки аналитики"
+          },
+          "summary": {
+            "totalCompanies": "Всего компаний",
+            "totalLeads": "Всего лидов",
+            "totalProjects": "Всего проектов",
+            "totalRevenue": "Общая выручка",
+            "potentialRevenue": "Потенциальная выручка",
+            "avgConversion": "Средняя конверсия",
+            "avgRevenuePerCompany": "Средняя выручка на компанию"
+          },
+          "charts": {
+            "topByRevenue": "Топ компаний по выручке",
+            "topByProjects": "Топ компаний по проектам",
+            "revenue": "Выручка (€)",
+            "projects": "Проекты",
+            "noData": "Нет данных"
+          },
+          "table": {
+            "topByRevenue": "Топ компаний по выручке",
+            "projects": "проектов",
+            "leads": "лидов",
+            "noData": "Нет данных"
+          }
+        },
+        "common": {
+          "loading": "Загрузка...",
+          "nameRequired": "Название компании обязательно",
+          "createFailed": "Ошибка создания компании"
+        }
+      },
+      "details": {
+        "tabs": {
+          "main": "Основная",
+          "contacts": "Контакты",
+          "leads": "Лиды",
+          "projects": "Проекты",
+          "tasks": "Задачи",
+          "analytics": "Аналитика"
+        },
+        "contacts": {
+          "title": "Контакты компании",
+          "empty": "Нет контактов",
+          "create": "Создать контакт",
+          "view": "Просмотр"
+        },
+        "leads": {
+          "title": "Лиды компании",
+          "empty": "Нет лидов",
+          "view": "Просмотр"
+        },
+        "projects": {
+          "title": "Проекты компании",
+          "empty": "Нет проектов",
+          "view": "Просмотр"
+        },
+        "tasks": {
+          "title": "Задачи компании",
+          "empty": "Нет задач",
+          "create": "Создать задачу",
+          "viewBoard": "Канбан задач"
+        },
+        "analytics": {
+          "title": "Аналитика компании",
+          "loading": "Загрузка аналитики...",
+          "metrics": {
+            "contacts": "Контактов",
+            "leads": "Лидов",
+            "projects": "Проектов",
+            "revenue": "Выручка",
+            "conversion": "Конверсия",
+            "avgProjectValue": "Средний чек проекта"
+          }
+        }
+      },
+      "tasks": {
+        "title": "Задачи компании",
+        "create": "Создать задачу",
+        "edit": "Редактировать задачу",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить задачу?",
+        "statuses": {
+          "todo": "К выполнению",
+          "in_progress": "В работе",
+          "review": "На проверке",
+          "done": "Выполнено",
+          "cancelled": "Отменено"
+        },
+        "priorities": {
+          "low": "Низкий",
+          "medium": "Средний",
+          "high": "Высокий",
+          "urgent": "Срочный"
+        },
+        "filters": {
+          "priority": "Приоритет",
+          "assignee": "Ответственный",
+          "dueDate": "Срок",
+          "overdue": "Просроченные",
+          "today": "Сегодня",
+          "thisWeek": "На этой неделе"
+        },
+        "fields": {
+          "title": "Название задачи *",
+          "description": "Описание",
+          "status": "Статус",
+          "priority": "Приоритет",
+          "dueDate": "Срок выполнения",
+          "assignedTo": "Ответственный"
+        }
+      },
+      "analytics": {
+        "title": "Аналитика компаний",
+        "subtitle": "Общая статистика и метрики по компаниям",
+        "backToList": "К списку компаний",
+        "loading": "Загрузка аналитики...",
+        "noData": "Нет данных",
+        "errors": {
+          "loadFailed": "Ошибка загрузки аналитики"
+        },
+        "summary": {
+          "totalCompanies": "Всего компаний",
+          "totalLeads": "Всего лидов",
+          "totalProjects": "Всего проектов",
+          "totalRevenue": "Общая выручка",
+          "potentialRevenue": "Потенциальная выручка",
+          "avgConversion": "Средняя конверсия",
+          "avgRevenuePerCompany": "Средняя выручка на компанию"
+        },
+        "overview": {
+          "totalCompanies": "Всего компаний",
+          "totalLeads": "Всего лидов",
+          "totalProjects": "Всего проектов",
+          "totalRevenue": "Общая выручка",
+          "conversionRate": "Конверсия",
+          "avgProjectValue": "Средний чек проекта",
+          "potentialRevenue": "Потенциальная выручка"
+        },
+        "charts": {
+          "topByRevenue": "Топ компаний по выручке",
+          "topByProjects": "Топ компаний по проектам",
+          "revenue": "Выручка",
+          "projects": "Проекты"
+        },
+        "table": {
+          "topByRevenue": "Топ компаний по выручке",
+          "company": "Компания",
+          "revenue": "Выручка",
+          "projects": "Проекты",
+          "leads": "Лиды"
+        }
+      },
+      "bulk": {
+        "title": "Массовые операции",
+        "subtitle": "Обновление {{count}} компаний",
+        "assignedTo": "Ответственный",
+        "status": "Статус",
+        "tags": "Добавить теги (через запятую)",
+        "tagsPlaceholder": "tag1, tag2, tag3",
+        "noChange": "Не изменять",
+        "cancel": "Отмена",
+        "apply": "Применить",
+        "saving": "Сохранение...",
+        "success": "Обновлено {{count}} компаний",
+        "errors": {
+          "updateFailed": "Ошибка массового обновления"
+        }
+      }
+    },
+    "contacts": {
+      "list": {
+        "title": "Контакты",
+        "subtitle": "Управление контактами",
+        "create": "Создать контакт",
+        "createFirst": "Создать первый контакт",
+        "search": "Поиск контактов...",
+        "loading": "Загрузка...",
+        "empty": "Нет контактов",
+        "notFound": "Контакты не найдены",
+        "selected": "выбрано",
+        "bulkOperations": "Массовые операции",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить контакт?",
+        "errors": {
+          "loadFailed": "Ошибка загрузки контактов",
+          "deleteFailed": "Ошибка удаления"
+        }
+      },
+      "form": {
+        "titleNew": "Создать контакт",
+        "titleEdit": "Редактировать контакт",
+        "subtitle": "Основная информация о контакте",
+        "sections": {
+          "basic": "Основная информация"
+        },
+        "actions": {
+          "save": "Сохранить",
+          "create": "Создать",
+          "saving": "Сохранение..."
+        },
+        "fields": {
+          "firstName": "Имя",
+          "lastName": "Фамилия",
+          "email": "Email",
+          "phone": "Телефон",
+          "position": "Должность",
+          "company": "Компания",
+          "companyPlaceholder": "Выберите или создайте компанию...",
+          "country": "Страна",
+          "city": "Город",
+          "address": "Адрес",
+          "status": "Статус"
+        },
+        "statuses": {
+          "active": "Активен",
+          "inactive": "Неактивен",
+          "archived": "Архив"
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки контакта",
+          "saveFailed": "Ошибка сохранения"
+        }
+      },
+      "details": {
+        "tabs": {
+          "main": "Основная",
+          "company": "Компания",
+          "leads": "Лиды",
+          "projects": "Проекты"
+        },
+        "company": {
+          "title": "Компания контакта",
+          "empty": "Контакт не привязан к компании",
+          "view": "Просмотр компании"
+        },
+        "leads": {
+          "title": "Лиды контакта",
+          "empty": "Нет лидов",
+          "view": "Просмотр"
+        },
+        "projects": {
+          "title": "Проекты контакта",
+          "empty": "Нет проектов",
+          "view": "Просмотр"
+        }
+      },
+      "bulk": {
+        "title": "Массовые операции",
+        "subtitle": "Обновление {{count}} контактов",
+        "assignedTo": "Ответственный",
+        "status": "Статус",
+        "tags": "Добавить теги (через запятую)",
+        "tagsPlaceholder": "tag1, tag2, tag3",
+        "noChange": "Не изменять",
+        "cancel": "Отмена",
+        "apply": "Применить",
+        "saving": "Сохранение...",
+        "success": "Обновлено {{count}} контактов",
+        "errors": {
+          "updateFailed": "Ошибка массового обновления"
+        }
+      }
+    },
+    "email": {
+      "accounts": {
+        "title": "Email аккаунты",
+        "subtitle": "Управление email аккаунтами для отправки писем",
+        "create": "Создать аккаунт",
+        "createFirst": "Добавить первый аккаунт",
+        "loading": "Загрузка...",
+        "empty": "Нет email аккаунтов",
+        "emptyHint": "Добавьте email аккаунт для отправки писем через автоматизации",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить email аккаунт?",
+        "test": "Тест",
+        "edit": "Изменить",
+        "statusActive": "Активен",
+        "statusError": "Ошибка",
+        "error": "Ошибка",
+        "errors": {
+          "loadFailed": "Ошибка загрузки аккаунтов",
+          "deleteFailed": "Ошибка удаления"
+        }
+      },
+      "form": {
+        "titleNew": "Создать email аккаунт",
+        "titleEdit": "Редактировать email аккаунт",
+        "subtitle": "Настройка SMTP для отправки и IMAP для получения писем",
+        "sections": {
+          "basic": "Основная информация",
+          "smtp": "SMTP (отправка писем)",
+          "imap": "IMAP (получение писем) - опционально"
+        },
+        "fields": {
+          "name": "Название аккаунта *",
+          "email": "Email адрес *",
+          "smtpHost": "SMTP хост *",
+          "smtpPort": "SMTP порт *",
+          "smtpSecure": "Безопасное соединение",
+          "smtpUser": "SMTP пользователь *",
+          "smtpPassword": "SMTP пароль *",
+          "imapHost": "IMAP хост",
+          "imapPort": "IMAP порт",
+          "imapSecure": "Безопасное соединение",
+          "imapUser": "IMAP пользователь",
+          "imapPassword": "IMAP пароль"
+        },
+        "hints": {
+          "smtpPort": "Обычно 465 (SSL) или 587 (STARTTLS)",
+          "titanEmail": "Для Titan Email используйте порт 465 с SSL",
+          "secureRecommended": "Рекомендуется включить",
+          "passwordLeaveEmpty": "Оставьте пустым, чтобы не менять",
+          "passwordPlaceholder": "Пароль или App Password"
+        },
+        "actions": {
+          "test": "Тест соединения",
+          "testing": "Проверка...",
+          "save": "Сохранить",
+          "saving": "Сохранение...",
+          "cancel": "Отмена",
+          "create": "Создать"
+        },
+        "errors": {
+          "testFailed": "Ошибка теста соединения",
+          "saveFailed": "Ошибка сохранения",
+          "unknown": "Неизвестная ошибка",
+          "loadFailed": "Ошибка загрузки аккаунта"
+        },
+        "success": {
+          "testSuccess": "Соединение успешно",
+          "saved": "Аккаунт сохранён"
+        }
+      }
+    },
+    "telegram": {
+      "bots": {
+        "title": "Telegram боты",
+        "subtitle": "Управление Telegram ботами для приёма лидов",
+        "create": "Создать бота",
+        "createFirst": "Добавить первого бота",
+        "loading": "Загрузка...",
+        "empty": "Нет Telegram ботов",
+        "emptyHint": "Добавьте Telegram бота для интеграции с CRM",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить Telegram бота?",
+        "edit": "Редактировать",
+        "errors": {
+          "loadFailed": "Ошибка загрузки ботов",
+          "deleteFailed": "Ошибка удаления"
+        }
+      },
+      "form": {
+        "titleNew": "Создать Telegram бота",
+        "titleEdit": "Редактировать Telegram бота",
+        "subtitle": "Настройка Telegram бота для интеграции с CRM",
+        "sections": {
+          "basic": "Основная информация"
+        },
+        "fields": {
+          "name": "Название бота",
+          "botToken": "Bot Token *",
+          "botUsername": "Username бота",
+          "webhookUrl": "Webhook URL",
+          "welcomeMessage": "Приветственное сообщение",
+          "status": "Активен"
+        },
+        "statuses": {
+          "active": "Активен",
+          "inactive": "Ошибка"
+        },
+        "hints": {
+          "getFromBotFather": "Получите у @BotFather в Telegram",
+          "tokenLeaveEmpty": "Оставьте пустым, чтобы не менять",
+          "tokenPlaceholder": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+          "webhookAuto": "URL для получения обновлений от Telegram (настраивается автоматически)",
+          "activeOnly": "Бот будет обрабатывать сообщения только если включен"
+        },
+        "actions": {
+          "save": "Сохранить",
+          "saving": "Сохранение...",
+          "cancel": "Отмена",
+          "create": "Создать"
+        },
+        "errors": {
+          "saveFailed": "Ошибка сохранения",
+          "loadFailed": "Ошибка загрузки бота"
+        },
+        "success": {
+          "saved": "Бот сохранён"
+        }
+      }
+    },
+    "automations": {
+      "list": {
+        "title": "Автоматизации",
+        "subtitle": "Rule-based автоматизации (IF/THEN)",
+        "create": "Создать автоматизацию",
+        "loading": "Загрузка...",
+        "empty": "Нет автоматизаций",
+        "emptyHint": "Создайте первую автоматизацию для автоматизации ваших бизнес-процессов",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить автоматизацию?",
+        "edit": "Редактировать",
+        "active": "Активна",
+        "inactive": "Неактивна",
+        "errors": {
+          "loadFailed": "Ошибка загрузки автоматизаций",
+          "deleteFailed": "Ошибка удаления"
+        }
+      },
+      "panel": {
+        "button": "Автоматизация",
+        "kicker": "Автоматизации",
+        "subtitle": "Управляйте правилами IF/THEN",
+        "searchPlaceholder": "Поиск автоматизаций",
+        "filter": "Фильтр",
+        "edit": "Править",
+        "banner": "Откройте центр автоматизаций для полного контроля над сценариями.",
+        "bannerLink": "Подробнее",
+        "comingSoon": "Раздел в разработке",
+        "copySuffix": "(копия)",
+        "titleLeads": "Автоматизации лидов",
+        "titleProjects": "Автоматизации проектов",
+        "titleSales": "Автоматизации продаж",
+        "actions": {
+          "duplicate": "Дублировать",
+          "archive": "Архивировать"
+        },
+        "filters": {
+          "all": "Все",
+          "active": "Активные",
+          "inactive": "Неактивные"
+        },
+        "tabs": {
+          "automations": "Автоматизации",
+          "history": "История запусков",
+          "integrations": "Интеграции",
+          "usage": "Использование"
+        }
+      },
+      "form": {
+        "titleNew": "Создать автоматизацию",
+        "titleEdit": "Редактировать автоматизацию",
+        "subtitle": "Настройте правило IF/THEN для автоматизации процессов",
+        "sections": {
+          "basic": "Основная информация",
+          "actions": "Действия (THEN)"
+        },
+        "fields": {
+          "name": "Название *",
+          "description": "Описание",
+          "trigger": "Триггер (событие) *",
+          "actionType": "Тип действия",
+          "conditions": "Условия",
+          "active": "Активна"
+        },
+        "hints": {
+          "activeOnly": "Автоматизация будет выполняться только если включена",
+          "actionsDesc": "Что выполнить при срабатывании триггера"
+        },
+        "triggerGroups": {
+          "contacts": "Контакты",
+          "companies": "Компании",
+          "leads": "Лиды",
+          "sales": "Продажи",
+          "projects": "Проекты",
+          "tasks": "Задачи",
+          "reports": "Отчёты",
+          "email": "Email",
+          "telegram": "Telegram",
+          "notes": "Заметки"
+        },
+        "triggers": {
+          "LEAD_CREATED": "Лид создан",
+          "LEAD_UPDATED": "Лид обновлен",
+          "LEAD_STATUS_CHANGED": "Статус лида изменен",
+          "CONTACT_CREATED": "Контакт создан",
+          "CONTACT_UPDATED": "Контакт обновлен",
+          "COMPANY_CREATED": "Компания создана",
+          "COMPANY_UPDATED": "Компания обновлена",
+          "SALE_CREATED": "Продажа создана",
+          "SALE_UPDATED": "Продажа обновлена",
+          "SALE_STATUS_CHANGED": "Статус продажи изменен",
+          "PROJECT_CREATED": "Проект создан",
+          "PROJECT_STATUS_CHANGED": "Статус проекта изменен",
+          "TASK_CREATED": "Задача создана",
+          "TASK_UPDATED": "Задача обновлена",
+          "TASK_STATUS_CHANGED": "Статус задачи изменен",
+          "REPORT_SCHEDULED": "Отчёт по расписанию",
+          "EMAIL_SENT": "Email отправлен",
+          "EMAIL_RECEIVED": "Email получен",
+          "TELEGRAM_MESSAGE_RECEIVED": "Telegram сообщение получено",
+          "NOTE_CREATED": "Заметка создана"
+        },
+        "report": {
+          "type": "Тип отчёта",
+          "types": {
+            "sales": "Продажи",
+            "leads": "Лиды",
+            "projects": "Проекты",
+            "tasks": "Задачи"
+          },
+          "channel": "Канал отправки",
+          "channels": {
+            "email": "Email",
+            "telegram": "Telegram"
+          },
+          "frequency": "Частота",
+          "frequencies": {
+            "weekly": "Еженедельно",
+            "monthly": "Ежемесячно",
+            "quarterly": "Ежеквартально"
+          },
+          "time": "Время",
+          "dayOfWeek": "День недели",
+          "weekdays": {
+            "mon": "Понедельник",
+            "tue": "Вторник",
+            "wed": "Среда",
+            "thu": "Четверг",
+            "fri": "Пятница",
+            "sat": "Суббота",
+            "sun": "Воскресенье"
+          },
+          "dayOfMonth": "День месяца",
+          "timezone": "Часовой пояс",
+          "emails": "Email получателей",
+          "subject": "Тема письма",
+          "currencyMode": "Режим валют",
+          "currencyNative": "Только выбранная",
+          "currencyConverted": "Конвертировать",
+          "displayCurrency": "Валюта отображения",
+          "dateField": "Дата",
+          "dateSale": "Дата продажи",
+          "dateCreated": "Дата создания",
+          "rateFor": "Курс для {{currency}}"
+        },
+        "actions": {
+          "save": "Сохранить",
+          "saving": "Сохранение...",
+          "cancel": "Отмена",
+          "create": "Создать",
+          "addCondition": "Добавить условие",
+          "addAction": "Добавить действие",
+          "action": "Действие",
+          "removeAction": "Удалить"
+        },
+        "emailAction": {
+          "account": "Email аккаунт *",
+          "to": "Получатель",
+          "toPlaceholder": "email@example.com или оставьте пустым для использования email из лида",
+          "subject": "Тема",
+          "body": "Текст",
+          "template": "Шаблон письма",
+          "noTemplate": "Не использовать шаблон (ввести вручную)",
+          "bodyPlaceholder": "Текст письма. Переменные: {{lead.name}}, {{lead.email}}, {{lead.phone}}, {{lead.status}}, {{contact.email}}, {{contact.fullName}}",
+          "noAccounts": "Нет аккаунтов",
+          "add": "Добавить",
+          "addAccount": "Добавить аккаунт",
+          "selectAccount": "Выберите email аккаунт",
+          "loadingAccounts": "Загрузка аккаунтов...",
+          "noTemplates": "Нет шаблонов",
+          "create": "Создать",
+          "loadingTemplates": "Загрузка шаблонов...",
+          "templateHint": "Выберите шаблон для использования темы и текста из шаблона, или оставьте пустым для ручного ввода",
+          "templateUsed": "Используется шаблон",
+          "templateUsedHint": "Тема и текст будут взяты из шаблона с подстановкой переменных из триггера"
+        },
+        "webhookAction": {
+          "url": "URL *",
+          "method": "Метод",
+          "headers": "Заголовки (JSON)",
+          "body": "Тело запроса (JSON)"
+        },
+        "telegramAction": {
+          "botId": "Bot ID",
+          "userId": "Telegram User ID",
+          "text": "Текст сообщения"
+        },
+        "noteAction": {
+          "content": "Содержание заметки"
+        },
+        "errors": {
+          "saveFailed": "Ошибка сохранения",
+          "loadFailed": "Ошибка загрузки автоматизации"
+        },
+        "success": {
+          "saved": "Автоматизация сохранена"
+        }
+      }
+    },
+    "emailTemplates": {
+      "list": {
+        "title": "Письма",
+        "subtitle": "Создавайте и управляйте шаблонами email для маркетинговых кампаний",
+        "create": "Создать шаблон",
+        "createFirst": "Создать первый шаблон",
+        "loading": "Загрузка...",
+        "empty": "Нет шаблонов",
+        "delete": "Удалить",
+        "deleteConfirm": "Удалить шаблон письма?",
+        "edit": "Редактировать",
+        "preview": "Предпросмотр",
+        "errors": {
+          "loadFailed": "Ошибка загрузки шаблонов",
+          "deleteFailed": "Ошибка удаления"
+        }
+      },
+      "form": {
+        "titleNew": "Создать шаблон письма",
+        "titleEdit": "Редактировать шаблон письма",
+        "subtitle": "Создайте красивый шаблон письма с поддержкой переменных",
+        "fields": {
+          "name": "Название *",
+          "description": "Описание",
+          "subject": "Тема письма",
+          "htmlBody": "HTML содержимое",
+          "textBody": "Текстовая версия (plain text)",
+          "isActive": "Активен",
+          "variables": "Доступные переменные",
+          "preview": "Предпросмотр"
+        },
+        "hints": {
+          "activeAvailable": "Шаблон будет доступен для использования"
+        },
+        "variables": {
+          "lead": "Данные лида: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
+          "contact": "Данные контакта: {{contact.name}}, {{contact.email}}",
+          "company": "Данные компании: {{company.name}}, {{company.email}}"
+        },
+        "actions": {
+          "save": "Сохранить",
+          "saving": "Сохранение...",
+          "cancel": "Отмена",
+          "preview": "Предпросмотр",
+          "useTemplate": "Использовать шаблон"
+        },
+        "errors": {
+          "saveFailed": "Ошибка сохранения",
+          "loadFailed": "Ошибка загрузки шаблона"
+        },
+        "success": {
+          "saved": "Шаблон сохранён"
+        }
+      }
+    },
     "projects": {
       "board": {
         "title": "Проекты · Канбан",
@@ -1215,24 +2210,82 @@
       "list": {
         "title": "Проекты · Таблица",
         "subtitle": "Список проектов: статус, сумма, ответственный и дата создания",
+        "columns": {
+          "label": "Колонки",
+          "hide": "Скрыть колонку",
+          "add": "Добавить колонку"
+        },
+        "groupByStatus": "Группировать по статусу",
+        "groupSummary": "{{count}} проектов • {{amount}}",
+        "summary": "Всего: {{count}} • Сумма: {{amount}}",
+        "bulk": {
+          "selected": "Выбрано: {{count}}",
+          "status": "Статус",
+          "apply": "Применить",
+          "archive": "Архивировать",
+          "delete": "Удалить",
+          "clear": "Снять выбор"
+        },
+        "bulkHint": {
+          "title": "Окно массового редактирования проектов",
+          "subtitle": "Вы можете быстро менять статусы, архивировать или удалять выбранные проекты.",
+          "status": "Изменить статус",
+          "archive": "Архивировать проекты",
+          "delete": "Удалить проекты",
+          "ok": "Понятно"
+        },
+        "owner": {
+          "title": "Ответственные",
+          "search": "Поиск сотрудника",
+          "edit": "Изменить ответственных",
+          "empty": "Сотрудники не найдены"
+        },
         "headers": {
           "name": "Название проекта",
           "owner": "Ответственный",
           "lead": "Лид",
+          "company": "Компания",
           "status": "Статус",
+          "progress": "Этап",
           "amount": "Сумма",
           "created": "Создан"
         },
         "empty": "Проектов пока нет"
       },
+      "archive": {
+        "title": "Архив проектов",
+        "subtitle": "Проекты, которые были отправлены в архив.",
+        "empty": "В архиве пока нет проектов.",
+        "actions": {
+          "unarchive": "Разархивировать"
+        }
+      },
+      "trash": {
+      "bulkEdit": {
+        "title": "Массовое редактирование проектов",
+        "subtitle": "Выберите проекты и примените расширенные действия.",
+        "owner": "Ответственный",
+        "ownerEmpty": "Без ответственного",
+        "actions": {
+          "applyStatus": "Применить статус",
+          "applyOwner": "Назначить ответственного"
+        }
+      },
+        "title": "Корзина проектов",
+        "subtitle": "Проекты, которые были удалены.",
+        "empty": "В корзине пока нет проектов.",
+        "actions": {
+          "restore": "Восстановить"
+        }
+      },
       "closed": {
-        "kicker": "Проекты · Закрытые",
-        "title": "Закрытые проекты",
-        "subtitle": "Все проекты со статусом “Закрыт”. Здесь можно отследить итоговые суммы и ответственных.",
+        "kicker": "Проекты · Выиграно/Проиграно",
+        "title": "Завершённые проекты",
+        "subtitle": "Проекты со статусом “Выиграно” или “Проиграно”. Здесь можно отследить итоговые суммы и ответственных.",
         "loading": "Загружаем закрытые проекты…",
-        "empty": "Закрытых проектов пока нет.",
+        "empty": "Завершённых проектов пока нет.",
         "kpis": {
-          "count": "Закрытых проектов",
+          "count": "Завершённых проектов",
           "amount": "Сумма закрытых",
           "categories": "Категорий"
         },
@@ -1282,9 +2335,22 @@
       "tasks": {
         "kicker": "Проекты · Задачи",
         "title": "Задачи по проектам",
-        "subtitle": "Список всех задач по проектам. Owner видит всё, менеджеры — свои проекты (по текущей логике API).",
+        "subtitle": "Все задачи проектов. Owner видит всё, менеджеры — свои задачи.",
         "loading": "Загружаем задачи…",
         "empty": "Задач пока нет.",
+        "filters": {
+          "search": "Поиск задач",
+          "status": "Статус",
+          "project": "Проект"
+        },
+        "newTask": {
+          "title": "Новая задача",
+          "placeholder": "Название задачи",
+          "project": "Выберите проект",
+          "assignees": "Ответственные",
+          "deadline": "Дедлайн",
+          "add": "Добавить задачу"
+        },
         "table": {
           "title": "Все задачи",
           "total": "Всего: {{count}}",
@@ -1294,7 +2360,11 @@
             "owner": "Ответственный",
             "status": "Статус",
             "priority": "Приоритет",
-            "deadline": "Дедлайн"
+            "deadline": "Дедлайн",
+            "actions": "Действия"
+          },
+          "actions": {
+            "remove": "Удалить"
           }
         },
         "errors": {
@@ -1362,7 +2432,8 @@
         "inProgress": "В работе",
         "review": "На проверке",
         "paused": "Заморожен",
-        "closed": "Закрыт"
+        "won": "Выиграно",
+        "lost": "Проиграно"
       },
       "errors": {
         "loadFailed": "Ошибка загрузки проектов",
@@ -1397,20 +2468,48 @@
         "tabs": {
           "props": "Свойства",
           "tasks": "Задачи",
-          "comments": "Комментарии"
+          "comments": "Комментарии",
+          "history": "История"
         },
         "fields": {
           "name": "Название проекта",
           "ownerEmpty": "Ответственный не назначен",
+          "owner": "Ответственный",
           "description": "Описание проекта",
           "leadEmpty": "Без лида",
           "leadNameFallback": "Без имени",
           "leadName": "Имя лида (можно подправить вручную)",
           "leadEmail": "Email лида",
           "amount": "Сумма",
+          "currency": "Валюта",
+          "status": "Статус",
+          "company": "Компания",
+          "contact": "Контакт",
           "createdAt": "Создан: 24.09.2025, 03:00:00",
           "category": "Категория",
           "tags": "Метки"
+        },
+        "mentions": {
+          "notice": "Упоминаний: {{count}}",
+          "ok": "Понятно",
+          "inTask": "Вас упомянули в задаче"
+        },
+        "history": {
+          "loading": "Загружаем историю…",
+          "empty": "История изменений пуста.",
+          "loadFailed": "Не удалось загрузить историю",
+          "actions": {
+            "create": "Создан проект",
+            "update": "Обновление проекта",
+            "status": "Изменён статус",
+            "archive": "Проект архивирован",
+            "unarchive": "Проект разархивирован",
+            "delete": "Проект удалён",
+            "restore": "Проект восстановлен"
+          },
+          "fields": {
+            "tasks": "Задачи"
+          }
         },
         "files": {
           "title": "Файлы (ТЗ, смета, договор и т.д.)",
@@ -1418,8 +2517,10 @@
           "urlPlaceholder": "Ссылка на файл (Google Drive / Dropbox / медиа WP)"
         },
         "tasks": {
+          "title": "Задачи проекта",
+          "readOnly": "Только для просмотра",
           "newTitle": "Новая задача: заголовок",
-          "newAssignees": "Исполнители (через запятую)…",
+          "newAssignees": "Исполнители",
           "add": "Добавить",
           "empty": "Задач пока нет",
           "subtask": "Подзадача…",
@@ -1435,6 +2536,9 @@
           "status": {
             "todo": "К выполнению",
             "inProgress": "В работе",
+            "review": "На проверке",
+            "blocked": "Заблокировано",
+            "deferred": "Отложено",
             "done": "Готово"
           },
           "priority": {
@@ -1470,22 +2574,26 @@
       "analytics": {
         "kicker": "Проекты · Аналитика",
         "title": "Аналитика проектов",
-        "subtitle": "Быстрый обзор по статусам, категориям и сумме проектов.",
+        "subtitle": "Гибкий дашборд по статусам, категориям, менеджерам и суммам.",
         "noCategory": "Без категории",
         "shown": "Показано: {{count}}",
         "kpis": {
           "total": "Всего проектов",
-          "amount": "Суммарная сумма",
-          "categories": "Категорий"
+          "amount": "Сумма",
+          "categories": "Категории",
+          "avgAmount": "Средняя сумма",
+          "owners": "Ответственные",
+          "tags": "Теги",
+          "statuses": "Статусы"
         },
         "statusChart": {
-          "title": "Статусы проектов"
+          "title": "Проекты по статусам"
         },
         "categoryChart": {
-          "title": "Категории проектов"
+          "title": "Проекты по категориям"
         },
         "table": {
-          "title": "Все проекты",
+          "title": "Таблица проектов",
           "total": "Всего: {{count}}",
           "loading": "Загружаем проекты…",
           "headers": {
@@ -1497,7 +2605,139 @@
           }
         },
         "errors": {
-          "loadFailed": "Не удалось загрузить аналитику проектов"
+          "loadFailed": "Не удалось загрузить аналитику по проектам"
+        },
+        "hero": {
+          "note": "Все проекты"
+        },
+        "period": {
+          "label": "Период",
+          "days7": "7 дней",
+          "days30": "30 дней",
+          "year1": "1 год",
+          "all": "Все время",
+          "custom": "Custom"
+        },
+        "addBlock": "Добавить блок",
+        "empty": "Пока нет блоков. Добавьте первый через кнопку выше.",
+        "unknownOwner": "Без ответственного",
+        "tooltips": {
+          "unknown": "Неизвестно"
+        },
+        "ownerChart": {
+          "title": "Проекты по менеджерам"
+        },
+        "tagChart": {
+          "title": "Проекты по тегам"
+        },
+        "constructor": {
+          "kicker": "Конструктор",
+          "title": "Конструктор аналитики",
+          "subtitle": "Соберите дашборд: метрики, графики, таблицы."
+        },
+        "widgets": {
+          "defaultTitle": "Новый блок",
+          "type": {
+            "metric": "Метрика",
+            "donut": "Пончик",
+            "bar": "График",
+            "table": "Таблица",
+            "formula": "Формула"
+          }
+        },
+        "ownersTable": {
+          "title": "Ответственные",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "owner": "Ответственный",
+            "projects": "Проектов"
+          }
+        },
+        "categoriesTable": {
+          "title": "Категории",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "category": "Категория",
+            "projects": "Проектов"
+          }
+        },
+        "actions": {
+          "edit": "Настроить",
+          "remove": "Удалить",
+          "cancel": "Отмена",
+          "save": "Сохранить",
+          "add": "Добавить"
+        },
+        "resize": {
+          "height": "Тяните, чтобы изменить высоту",
+          "width": "Тяните, чтобы изменить ширину",
+          "both": "Тяните, чтобы изменить размер"
+        },
+        "modal": {
+          "type": "Тип блока",
+          "data": "Что показываем",
+          "theme": "Цветовая тема",
+          "showLabels": "Показывать метки",
+          "title": "Название блока",
+          "size": "Размер",
+          "editTitle": "Настройки блока",
+          "addTitle": "Новый блок аналитики"
+        },
+        "sizes": {
+          "sm": "Компактный",
+          "md": "Средний",
+          "lg": "Широкий"
+        },
+        "formula": {
+          "scope": {
+            "status": "Статус",
+            "category": "Категория",
+            "owner": "Менеджер",
+            "tag": "Тег"
+          },
+          "fn": {
+            "label": "Формула",
+            "sumif": "СУММЕСЛИ (условие)",
+            "count": "СЧЁТ",
+            "percent": "ПРОЦЕНТ",
+            "ratio": "ДОЛЯ",
+            "diff": "РАЗНИЦА"
+          },
+          "block": {
+            "sumif": "Условие",
+            "expression": "Выражение"
+          },
+          "filter": {
+            "scope": "Срез условия",
+            "value": "Значение"
+          },
+          "condition": {
+            "label": "Условие",
+            "add": "Добавить условие",
+            "remove": "Удалить"
+          },
+          "left": {
+            "label": "Левая часть",
+            "value": "Значение слева"
+          },
+          "right": {
+            "label": "Правая часть",
+            "value": "Значение справа"
+          },
+          "output": {
+            "label": "Формат"
+          },
+          "mode": {
+            "count": "Количество",
+            "percent": "Процент"
+          }
+        },
+        "reset": {
+          "button": "Сбросить блоки",
+          "title": "Сбросить дашборд?",
+          "message": "Мы вернём первоначальный вид аналитики. Настройки можно изменить снова.",
+          "cancel": "Отмена",
+          "confirm": "Сбросить"
         }
       }
     },
@@ -1724,6 +2964,62 @@
         }
       }
     },
+    "departments": {
+      "title": "Отделы",
+      "subtitle": "Управление структурой отделов компании с древовидной иерархией",
+      "create": "Создать отдел",
+      "createFirst": "Создать первый отдел",
+      "loading": "Загрузка...",
+      "empty": "Нет отделов",
+      "emptyHint": "Создайте структуру отделов для организации работы компании",
+      "edit": "Редактировать",
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить отдел?",
+      "manager": "Руководитель",
+      "staff": "Сотрудники",
+      "noStaff": "Нет сотрудников",
+      "inactive": "Неактивен",
+      "errors": {
+        "loadFailed": "Ошибка загрузки отделов",
+        "deleteFailed": "Ошибка удаления"
+      },
+      "form": {
+        "titleNew": "Создать отдел",
+        "titleEdit": "Редактировать отдел",
+        "subtitle": "Настройка отдела и его структуры",
+        "sections": {
+          "basic": "Основная информация"
+        },
+        "fields": {
+          "name": "Название отдела *",
+          "namePlaceholder": "Например: Отдел продаж",
+          "description": "Описание",
+          "descriptionPlaceholder": "Описание отдела и его функций",
+          "parent": "Родительский отдел",
+          "parentNone": "Нет (корневой отдел)",
+          "manager": "Руководитель отдела",
+          "managerNone": "Не назначен",
+          "staff": "Сотрудники отдела",
+          "noStaffAvailable": "Нет доступных сотрудников",
+          "sortOrder": "Порядок сортировки",
+          "isActive": "Активен"
+        },
+        "hints": {
+          "parent": "Выберите родительский отдел для создания иерархии",
+          "staff": "Выберите сотрудников, которые будут работать в этом отделе",
+          "active": "Неактивные отделы не отображаются в списке"
+        },
+        "actions": {
+          "save": "Сохранить",
+          "create": "Создать",
+          "saving": "Сохранение..."
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки отдела",
+          "saveFailed": "Ошибка сохранения"
+        }
+      }
+    },
     "inactive": {
       "badge": "Подписка приостановлена",
       "title": "Доступ к CRM сейчас недоступен",
@@ -1947,6 +3243,199 @@
         "cancelled": "Отменён",
         "refunded": "Возврат",
         "other": "Другое"
+      },
+      "analytics": {
+        "kicker": "Продажи · Аналитика",
+        "title": "Аналитика продаж",
+        "subtitle": "Конструктор виджетов и сравнения по каналам, статусам и кастомным полям.",
+        "hero": {
+          "note": "Обновляется на лету"
+        },
+        "period": {
+          "label": "Период",
+          "days7": "7 дней",
+          "days30": "30 дней",
+          "year1": "12 месяцев",
+          "all": "Все время",
+          "custom": "Произвольно",
+          "range": "Диапазон"
+        },
+        "settings": {
+          "title": "Настройки аналитики",
+          "subtitle": "Выберите дату для аналитики и параметры валюты.",
+          "dateField": "Дата",
+          "saleDate": "Дата продажи",
+          "createdAt": "Дата создания",
+          "currencyMode": "Режим валют",
+          "currencyNative": "Только выбранная",
+          "currencyConverted": "Конвертировать",
+          "displayCurrency": "Валюта отображения",
+          "ratesButton": "Курс",
+          "rateFor": "Курс для {{currency}}"
+        },
+        "kpis": {
+          "total": "Всего продаж",
+          "amount": "Сумма продаж",
+          "avgAmount": "Средний чек",
+          "channels": "Каналы",
+          "products": "Продукты",
+          "markets": "Рынки",
+          "managers": "Менеджеры",
+          "statuses": "Статусы",
+          "currencies": "Валюты"
+        },
+        "charts": {
+          "status": "Статусы продаж",
+          "channel": "Продажи по каналам",
+          "product": "Продажи по продуктам",
+          "market": "Продажи по рынкам",
+          "manager": "Продажи по менеджерам",
+          "currency": "Продажи по валютам",
+          "timeline": "Динамика по месяцам"
+        },
+        "customField": "Кастомное поле",
+        "table": {
+          "sales": "Таблица продаж",
+          "channels": "Сводка по каналам",
+          "products": "Сводка по продуктам",
+          "markets": "Сводка по рынкам",
+          "managers": "Сводка по менеджерам",
+          "customField": "Кастомное поле",
+          "total": "Всего: {{count}}",
+          "headers": {
+            "date": "Дата",
+            "channel": "Канал",
+            "product": "Продукт",
+            "customer": "Клиент",
+            "amount": "Сумма",
+            "status": "Статус",
+            "segment": "Сегмент",
+            "count": "Кол-во"
+          }
+        },
+        "widgets": {
+          "type": {
+            "metric": "Метрика",
+            "donut": "Пончик",
+            "bar": "График",
+            "table": "Таблица",
+            "formula": "Формула"
+          },
+          "defaultTitle": "Новый блок",
+          "addTitle": "Добавить блок",
+          "editTitle": "Редактировать блок",
+          "modalTitle": "Настройка блока",
+          "fields": {
+            "type": "Тип",
+            "title": "Название",
+            "chart": "График",
+            "table": "Таблица",
+            "valueMode": "Метрика",
+            "compareChannels": "Сравнение каналов",
+            "compareHint": "Выберите каналы для сравнения",
+            "metric": "Метрика",
+            "theme": "Тема",
+            "statusFilter": "Фильтр по статусам",
+            "currencyMode": "Валюта",
+            "displayCurrency": "Валюта отображения"
+          },
+          "value": {
+            "count": "Количество",
+            "amount": "Сумма"
+          }
+        },
+        "actions": {
+          "edit": "Редактировать",
+          "remove": "Удалить"
+        },
+        "constructor": {
+          "title": "Конструктор блоков",
+          "subtitle": "Соберите персональную дашборд-ленту из метрик и графиков."
+        },
+        "addBlock": "Добавить блок",
+        "empty": "Блоков пока нет.",
+        "loading": "Загружаем аналитику...",
+        "reset": {
+          "button": "Сбросить",
+          "title": "Сбросить блоки?",
+          "subtitle": "Вернём стандартный набор аналитических блоков.",
+          "confirm": "Сбросить"
+        },
+        "resize": {
+          "height": "Изменить высоту",
+          "width": "Изменить ширину",
+          "both": "Изменить размер"
+        },
+        "export": {
+          "csv": "CSV",
+          "excel": "Excel"
+        },
+        "formula": {
+          "secondary": "Дополнительно:",
+          "scope": {
+            "status": "Статус",
+            "channel": "Канал",
+            "product": "Продукт",
+            "market": "Рынок",
+            "manager": "Менеджер",
+            "currency": "Валюта",
+            "custom": "Кастомное поле"
+          },
+          "fn": {
+            "label": "Функция",
+            "sumif": "SUMIF",
+            "count": "COUNT",
+            "percent": "PERCENT",
+            "ratio": "RATIO",
+            "diff": "DIFF"
+          },
+          "mode": {
+            "label": "Режим",
+            "count": "Количество",
+            "percent": "Проценты"
+          },
+          "block": {
+            "sumif": "Фильтры",
+            "expression": "Операнды"
+          },
+          "filter": {
+            "scope": "Категория",
+            "value": "Значение",
+            "customField": "Кастомное поле"
+          },
+          "condition": {
+            "add": "Добавить условие"
+          },
+          "left": {
+            "label": "Левая часть",
+            "value": "Значение"
+          },
+          "right": {
+            "label": "Правая часть",
+            "value": "Значение"
+          }
+        },
+        "common": {
+          "close": "Закрыть",
+          "cancel": "Отмена",
+          "add": "Добавить",
+          "save": "Сохранить"
+        },
+        "tooltips": {
+          "unknown": "Неизвестно"
+        },
+        "unknown": "Неизвестно",
+        "unknownChannel": "Без канала",
+        "unknownProduct": "Без продукта",
+        "unknownMarket": "Без рынка",
+        "unknownManager": "Без менеджера",
+        "timeline": "Динамика",
+        "count": "Количество",
+        "totalCount": "{{count}} шт.",
+        "amountWithCurrency": "{{amount}} {{currency}}",
+        "errors": {
+          "loadFailed": "Не удалось загрузить аналитику"
+        }
       }
     },
     "salesChannels": {
@@ -2850,6 +4339,8 @@
         "title": "Маппинг полей",
         "subtitle": "Свяжите колонки файла с полями CRM. Обязательна только дата покупки.",
         "count": "Замаплено полей: {{mapped}} из {{total}}",
+        "manageFields": "Настроить поля",
+        "manageFieldsTitle": "Поля продаж",
         "headers": {
           "crmField": "Поле CRM",
           "fileColumn": "Колонка файла"
@@ -2861,14 +4352,23 @@
         "empty": "Пример данных недоступен."
       },
       "fields": {
+        "orderId": "Заказ",
+        "productId": "ID продукта",
         "purchaseDate": "Дата покупки",
+        "updatedAt": "Дата изменения",
+        "status": "Статус",
+        "amount": "Стоимость",
+        "channel": "Канал",
+        "integration": "Интеграция",
         "customerName": "Имя клиента / агента",
+        "managerName": "Ответственный менеджер",
+        "productName": "Название продукта",
+        "productUrl": "Ссылка на продукт",
         "quantity": "Количество",
         "type": "Тип",
         "category": "Категория",
         "size": "Размер",
         "color": "Цвет",
-        "url": "Ссылка",
         "currency": "Валюта",
         "country": "Страна"
       },
@@ -2884,6 +4384,124 @@
       "apply": {
         "summary": "Импорт выполнен: создано {{created}}, пропущено {{skipped}}."
       }
+    }
+  },
+  "publicPages": {
+    "nav": {
+      "development": "Разработка",
+      "scenarios": "Сценарии",
+      "api": "API",
+      "solutions": "Решения",
+      "pricing": "Тарифы",
+      "blog": "Блог",
+      "privacy": "Конфиденциальность"
+    },
+    "common": {
+      "kicker": "Публичные страницы",
+      "primaryCta": "Войти в CRM",
+      "secondaryCta": "Вернуться на главную"
+    },
+    "development": {
+      "title": "Разработка CRM под ваш процесс",
+      "subtitle": "Проектируем архитектуру CRM под реальные этапы продаж, сервиса и маркетинга, с KPI и прозрачной ответственностью.",
+      "cards": [
+        {
+          "title": "Аудит процесса и воронки",
+          "text": "Фиксируем текущий путь клиента, точки потерь, узкие места команды и целевые метрики внедрения."
+        },
+        {
+          "title": "Модель ролей и регламентов",
+          "text": "Строим систему прав доступа, маршрутизацию задач и контроль SLA по подразделениям."
+        },
+        {
+          "title": "Интеграционный контур",
+          "text": "Подключаем телефонию, мессенджеры, рекламу, сайт, ERP и вебхуки без потери данных."
+        }
+      ],
+      "timelineTitle": "Этапы внедрения",
+      "timeline": [
+        "Discovery и карта процессов",
+        "Проектирование и прототип",
+        "Интеграции и миграция данных",
+        "Запуск + обучение команды"
+      ]
+    },
+    "scenarios": {
+      "title": "Сценарии использования",
+      "subtitle": "Прикладные сценарии для B2B, eCommerce и сервисных компаний с распределёнными командами.",
+      "items": [
+        {
+          "title": "Lead scoring и автоназначение",
+          "text": "Каждый лид получает приоритет и автоматически направляется ответственному менеджеру по правилам."
+        },
+        {
+          "title": "Контроль SLA и коммуникаций",
+          "text": "Система отслеживает первый ответ, повторные касания и эскалации на каждом этапе воронки."
+        },
+        {
+          "title": "Реактивация потерянных сделок",
+          "text": "Автоматические цепочки возвращают уснувшие сегменты в активную работу с персональными офферами."
+        },
+        {
+          "title": "Сквозная аналитика каналов",
+          "text": "UTM, источники и выручка связываются в единую модель для маркетинга и продаж."
+        }
+      ]
+    },
+    "api": {
+      "title": "API и интеграции",
+      "subtitle": "Открытый API для синхронизации лидов, сделок, статусов, задач и отчётности с внешними системами.",
+      "blocks": {
+        "endpointsTitle": "Ключевые endpoint-ы",
+        "endpoints": [
+          "GET /v1/leads — список и фильтрация лидов",
+          "POST /v1/leads — создание заявки из внешнего источника",
+          "PATCH /v1/leads/:id — обновление статуса и атрибутов",
+          "POST /v1/billing/checkout-session — запуск оплаты тарифа"
+        ],
+        "requestExample": "Пример запроса"
+      }
+    },
+    "solutions": {
+      "title": "Решения по отрасли",
+      "subtitle": "Подбираем набор модулей и доступов под цикл продаж: от первого касания до удержания и LTV.",
+      "items": [
+        {
+          "title": "B2B и длинные сделки",
+          "text": "Контроль этапов, задач и прогноза выручки по каждому аккаунту, включая multi-contact логику."
+        },
+        {
+          "title": "Маркетинг + продажи в одной модели",
+          "text": "UTM-атрибуция и единая отчётность для CMO, Head of Sales и руководителя бизнеса."
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Политика конфиденциальности",
+      "subtitle": "Как мы обрабатываем персональные данные, логируем события и защищаем доступ к аккаунтам.",
+      "items": [
+        "Мы обрабатываем только данные, необходимые для работы CRM, поддержки клиентов и выставления счетов.",
+        "Доступ к данным ограничен ролями, а критичные действия фиксируются в журнале аудита.",
+        "По запросу клиента доступен экспорт или удаление данных в согласованные сроки."
+      ]
+    },
+    "blog": {
+      "title": "Блог Lumiva CRM",
+      "subtitle": "Материалы для руководителей продаж, маркетинга и операционных команд.",
+      "posts": [
+        {
+          "title": "Как сократить цикл сделки без потери маржинальности",
+          "text": "Методика приоритизации, контроль касаний и внедрение SLA для менеджеров."
+        },
+        {
+          "title": "UTM-архитектура для прозрачной аналитики CRM",
+          "text": "Практика построения структуры меток и отчётов для маркетинга и отдела продаж."
+        },
+        {
+          "title": "Как внедрять CRM, чтобы команда реально работала в системе",
+          "text": "Подход к запуску, регламентам и адаптации сотрудников без сопротивления."
+        }
+      ]
     }
   }
 }

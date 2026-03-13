@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Tenant } from '../tenants/tenant.entity';
+import { Department } from '../departments/department.entity';
 
 export type StaffRole =
   | 'owner'
@@ -37,9 +38,17 @@ export class StaffUser {
   @Column({ name: 'full_name', type: 'varchar', length: 190 })
   fullName!: string;
 
-  // ВАЖНО: Чёткий строковый тип, НЕ Object
+  // ВАЖНО: Чёткий строковый тип, НЕ Object (для обратной совместимости)
   @Column({ type: 'varchar', length: 120, nullable: true })
   department!: string | null;
+
+  // Связь с отделом через entity
+  @ManyToOne(() => Department, { nullable: true })
+  @JoinColumn({ name: 'department_id' })
+  departmentEntity!: Department | null;
+
+  @Column({ name: 'department_id', type: 'uuid', nullable: true })
+  departmentId!: string | null;
 
   @Column({ type: 'varchar', length: 32 })
   role!: StaffRole;

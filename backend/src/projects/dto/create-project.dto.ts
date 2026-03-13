@@ -5,6 +5,8 @@ import {
   IsIn,
   IsUUID,
   IsArray,
+  IsObject,
+  IsBoolean,
 } from 'class-validator';
 import type { ProjectStatus } from '../project.entity';
 
@@ -23,7 +25,15 @@ export class CreateProjectDto {
   @IsString()
   currency?: string; // EUR / TRY etc.
 
-  @IsIn(['Новый', 'В работе', 'На проверке', 'Заморожен', 'Закрыт'])
+  @IsIn([
+    'Новый',
+    'В работе',
+    'На проверке',
+    'Заморожен',
+    'Закрыт',
+    'Выиграно',
+    'Проиграно',
+  ])
   status: ProjectStatus;
 
   @IsOptional()
@@ -43,8 +53,21 @@ export class CreateProjectDto {
   ownerUserId?: string;
 
   @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  ownerUserIds?: string[];
+
+  @IsOptional()
   @IsUUID()
   leadId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  companyId?: string;
+
+  @IsOptional()
+  @IsUUID()
+  contactId?: string;
 
   @IsOptional()
   @IsArray()
@@ -66,4 +89,12 @@ export class CreateProjectDto {
   @IsOptional()
   @IsArray()
   comments?: any[];
+
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, any>;
+
+  @IsOptional()
+  @IsBoolean()
+  isArchived?: boolean;
 }

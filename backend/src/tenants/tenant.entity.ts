@@ -76,7 +76,7 @@ export class Tenant {
   ownerEmail: string | null;
 
   /**
-   * Внутренние заметки по тенанту (видны только в панели pl1)
+   * Внутренние заметки по тенанту (видны только в админ-панели)
    */
   @Column({ type: 'text', nullable: true })
   notes: string | null;
@@ -86,6 +86,15 @@ export class Tenant {
    */
   @Column({ type: 'jsonb', nullable: true })
   enabledModules: Record<string, boolean> | null;
+
+  /**
+   * Включенные компоненты интерфейса для тенента
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  enabledComponents: Record<string, boolean> | null;
+
+  @Column({ type: 'text', nullable: true })
+  lastBillingSessionId: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

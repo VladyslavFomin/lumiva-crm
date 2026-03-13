@@ -104,6 +104,12 @@ export const TenantInactivePage: React.FC = () => {
               <div className="flex flex-wrap items-center gap-3">
                 <a
                   className="btn-primary"
+                  href="/pricing?renew=1"
+                >
+                  Продлить доступ
+                </a>
+                <a
+                  className="btn-primary"
                   href={`mailto:support@lumiva.agency?subject=${supportSubject}`}
                 >
                   {t('crm.inactive.contact.write')}

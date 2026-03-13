@@ -6,6 +6,11 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Lead, LeadStatus } from '../../api/leads';
 import { fetchLeads, updateLeadStatus } from '../../api/leads';
+import {
+  fetchCustomFields,
+  type CustomField,
+} from '../../api/custom-fields';
+import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 
 // ВАЖНО: здесь используем именно текстовые статусы,
 // которые описаны в api/leads.ts (Новый клиент, В работе, ...)
@@ -23,6 +28,8 @@ export const LeadsBoardPage: React.FC = () => {
   const [dragLeadId, setDragLeadId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const navigate = useNavigate();
 
   // загрузка лидов с бэка
@@ -50,6 +57,57 @@ export const LeadsBoardPage: React.FC = () => {
       alive = false;
     };
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetchCustomFields('lead')
+      .then((items) => {
+        if (!alive) return;
+        setCustomFields([...items].sort((a, b) => a.order - b.order));
+      })
+      .catch((e) => console.error('Ошибка загрузки кастомных полей:', e));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const activeCustomFields = customFields.filter((field) => field.isActive);
+  const suggestedKeys = React.useMemo(() => {
+    const keys = new Set<string>();
+    leads.forEach((lead) => {
+      Object.keys(lead.customFields ?? {}).forEach((key) => keys.add(key));
+    });
+    return Array.from(keys);
+  }, [leads]);
+
+  const renderCustomPreview = (lead: Lead) => {
+    if (!activeCustomFields.length) return null;
+    const rows = activeCustomFields
+      .map((field) => {
+        const raw = lead.customFields?.[field.key];
+        if (raw === null || raw === undefined || raw === '') return null;
+        const display = Array.isArray(raw)
+          ? raw.join(', ')
+          : typeof raw === 'boolean'
+            ? raw
+              ? 'Да'
+              : 'Нет'
+            : String(raw);
+        return `${field.label}: ${display}`;
+      })
+      .filter(Boolean)
+      .slice(0, 2);
+    if (!rows.length) return null;
+    return (
+      <div className="mt-2 space-y-0.5">
+        {rows.map((row, idx) => (
+          <div key={idx} className="text-[10px] text-slate-500 truncate">
+            {row}
+          </div>
+        ))}
+      </div>
+    );
+  };
 
   const handleDragStart = (leadId: string) => {
     setDragLeadId(leadId);
@@ -79,7 +137,7 @@ export const LeadsBoardPage: React.FC = () => {
 
   const handleCreateLead = () => navigate('/app/leads/new');
   const handleOpenLead = (id: string) => navigate(`/app/leads/${id}`);
-  const goList = () => navigate('/app/leads/list');
+  const goList = () => navigate('/app/leads');
 
   return (
     <MainLayout>
@@ -105,7 +163,7 @@ export const LeadsBoardPage: React.FC = () => {
                 {t('crm.leads.board.viewKanban')}
               </button>
               <button
-                className="px-3 py-1.5 text-slate-400 hover:bg-slate-800/80"
+                className="px-3 py-1.5 text-slate-300 hover:bg-lumiva-accent/10 hover:text-slate-100 transition-colors"
                 type="button"
                 onClick={goList}
               >
@@ -113,6 +171,12 @@ export const LeadsBoardPage: React.FC = () => {
               </button>
             </div>
 
+            <button
+              onClick={() => setCustomFieldsOpen(true)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
+            >
+              Настроить поля
+            </button>
             <button
               onClick={handleCreateLead}
               className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
@@ -140,7 +204,7 @@ export const LeadsBoardPage: React.FC = () => {
               return (
                 <div
                   key={col.id}
-                  className="flex-1 min-w-[230px] max-w-xs bg-slate-950/80 border border-slate-800/80 rounded-3xl p-3 flex flex-col"
+                  className="flex-1 min-w-[230px] max-w-xs bg-slate-950/80 border border-slate-800/80 rounded-3xl p-3 flex flex-col shadow-[0_16px_40px_rgba(15,23,42,0.14)] overflow-hidden"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleDropTo(col.id)}
                 >
@@ -161,7 +225,7 @@ export const LeadsBoardPage: React.FC = () => {
                         draggable
                         onDragStart={() => handleDragStart(lead.id)}
                         onClick={() => handleOpenLead(lead.id)}
-                        className="cursor-move rounded-2xl bg-slate-900/90 border border-slate-800/80 px-3 py-2 text-xs text-slate-100 hover:border-lumiva-accent-soft hover:bg-slate-900 transition-colors"
+                        className="cursor-move rounded-2xl bg-slate-900/90 border border-slate-800/80 px-3 py-2 text-xs text-slate-100 shadow-[0_8px_18px_rgba(15,23,42,0.12)] overflow-hidden hover:border-lumiva-accent-soft hover:bg-slate-900 transition-colors"
                       >
                         <div className="flex items-center justify-between mb-1">
                           <div className="font-medium truncate">
@@ -179,6 +243,7 @@ export const LeadsBoardPage: React.FC = () => {
                             {lead.createdAt}
                           </span>
                         </div>
+                        {renderCustomPreview(lead)}
                       </div>
                     ))}
 
@@ -192,6 +257,17 @@ export const LeadsBoardPage: React.FC = () => {
               );
             })}
           </div>
+        )}
+        {customFieldsOpen && (
+          <CustomFieldsManager
+            entityType="lead"
+            title="Кастомные поля лидов"
+            suggestedKeys={suggestedKeys}
+            onClose={() => setCustomFieldsOpen(false)}
+            onUpdated={(items) =>
+              setCustomFields([...items].sort((a, b) => a.order - b.order))
+            }
+          />
         )}
       </div>
     </MainLayout>

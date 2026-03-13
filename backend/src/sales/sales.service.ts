@@ -2,6 +2,8 @@
 import {
   Injectable,
   NotFoundException,
+  Inject,
+  forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
@@ -10,12 +12,16 @@ import {
   LessThanOrEqual,
   MoreThanOrEqual,
   Repository,
+  In,
+  IsNull,
 } from 'typeorm';
 
 import { Sale } from './sale.entity';
 import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
 import { IntegrationKind } from '../integrations/integration-kind.enum';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
 
 import { ListSalesQueryDto } from './dto/list-sales-query.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
@@ -25,6 +31,11 @@ import {
   SalesByCurrencyDto,
 } from './dto/sales-stats.dto';
 import { SaleDetailDto } from './dto/sale-detail.dto';
+import { SalesAnalyticsQueryDto } from './dto/sales-analytics-query.dto';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import { FieldType } from '../custom-fields/custom-field.entity';
+import { AnalyticsPreset } from './sales-analytics-preset.entity';
+import { SaveAnalyticsPresetDto } from './dto/save-analytics-preset.dto';
 
 // строковый тип статуса из сущности
 type SaleStatusString = Sale['status'];
@@ -40,6 +51,14 @@ export class SalesService {
 
     @InjectRepository(IntegrationConnection)
     private readonly integrationsRepo: Repository<IntegrationConnection>,
+
+    @InjectRepository(AnalyticsPreset)
+    private readonly presetsRepo: Repository<AnalyticsPreset>,
+
+    @Inject(forwardRef(() => AutomationsService))
+    private readonly automationsService: AutomationsService,
+
+    private readonly customFieldsService: CustomFieldsService,
   ) {}
 
   /* ───────────────────── helpers ───────────────────── */
@@ -54,6 +73,65 @@ export class SalesService {
     if (start) return MoreThanOrEqual(start);
     if (end) return LessThanOrEqual(end);
     return undefined;
+  }
+
+  private parseIsoDate(value?: string | null) {
+    if (!value) return null;
+    const ts = Date.parse(value);
+    if (!Number.isFinite(ts)) return null;
+    return new Date(ts);
+  }
+
+  private getMonthKey(date: Date) {
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${date.getFullYear()}-${month}`;
+  }
+
+  private parseNumber(value: any): number | null {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value === 'string') {
+      const normalized = value.replace(',', '.');
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    return null;
+  }
+
+  private coerceArray(value: any): string[] {
+    if (Array.isArray(value)) return value.map((v) => String(v));
+    if (value === null || value === undefined) return [];
+    const raw = String(value).trim();
+    if (!raw) return [];
+    if (raw.includes(',')) {
+      return raw
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean);
+    }
+    return [raw];
+  }
+
+  private bucketizeNumbers(values: number[]) {
+    if (!values.length) return [];
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    if (min === max) {
+      return [{ label: `${min}`, values }];
+    }
+    const step = (max - min) / 5;
+    const buckets = Array.from({ length: 5 }, (_, idx) => {
+      const start = min + step * idx;
+      const end = idx === 4 ? max : min + step * (idx + 1);
+      return { start, end, values: [] as number[] };
+    });
+    values.forEach((value) => {
+      const index = Math.min(4, Math.floor((value - min) / step));
+      buckets[index].values.push(value);
+    });
+    return buckets.map((bucket) => ({
+      label: `${Math.round(bucket.start)}–${Math.round(bucket.end)}`,
+      values: bucket.values,
+    }));
   }
 
   // маппинг наших статусов → WooCommerce
@@ -144,96 +222,99 @@ export class SalesService {
   /**
    * Список продаж конкретного арендатора
    */
-async list(tenantId: string, query: ListSalesQueryDto) {
-  const {
-    page = 1,
-    pageSize = 25,
-    from,
-    to,
-    status,
-    channelId,
-    search,
-  } = query;
+  async list(tenantId: string, query: ListSalesQueryDto) {
+    const {
+      page = 1,
+      pageSize = 25,
+      from,
+      to,
+      status,
+      channelId,
+      search,
+    } = query;
 
-  // базовый фильтр: только свой тенант
-  const where: any = {
-    tenantId,
-  };
+    // базовый фильтр: только свой тенант
+    const where: any = {
+      tenantId,
+    };
 
-  const dateRange = this.buildDateRange(from, to);
-  if (dateRange) {
-    where.saleDate = dateRange;
+    const dateRange = this.buildDateRange(from, to);
+    if (dateRange) {
+      where.saleDate = dateRange;
+    }
+
+    if (channelId) {
+      where.channelId = channelId;
+    }
+
+    if (status) {
+      where.status = status;
+    }
+
+    const searchConditions: any[] = [];
+    if (search && search.trim()) {
+      const s = search.trim();
+      searchConditions.push(
+        { ...where, id: ILike(`%${s}%`) },
+        { ...where, externalId: ILike(`%${s}%`) },
+        { ...where, agentName: ILike(`%${s}%`) },
+        { ...where, hotel: ILike(`%${s}%`) },
+        { ...where, market: ILike(`%${s}%`) },
+      );
+    }
+
+    const [items, total] = await this.saleRepo.findAndCount({
+      where: searchConditions.length ? searchConditions : where,
+      order: { saleDate: 'DESC', createdAt: 'DESC' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    });
+
+    return {
+      items,
+      total,
+      page,
+      pageSize,
+    };
   }
-
-  if (channelId) {
-    where.channelId = channelId;
-  }
-
-  if (status) {
-    where.status = status;
-  }
-
-  const searchConditions: any[] = [];
-  if (search && search.trim()) {
-    const s = search.trim();
-    searchConditions.push(
-      { ...where, id: ILike(`%${s}%`) },
-      { ...where, externalId: ILike(`%${s}%`) },
-      { ...where, agentName: ILike(`%${s}%`) },
-      { ...where, hotel: ILike(`%${s}%`) },
-      { ...where, market: ILike(`%${s}%`) },
-    );
-  }
-
-  const [items, total] = await this.saleRepo.findAndCount({
-    where: searchConditions.length ? searchConditions : where,
-    order: { saleDate: 'DESC', createdAt: 'DESC' },
-    skip: (page - 1) * pageSize,
-    take: pageSize,
-  });
-
-  return {
-    items,
-    total,
-    page,
-    pageSize,
-  };
-}
 
   /**
    * Статистика по продажам арендатора
    */
-async getStats(tenantId: string, query: ListSalesQueryDto): Promise<SalesStatsDto> {
-  const { from, to, status, channelId, search } = query;
+  async getStats(
+    tenantId: string,
+    query: ListSalesQueryDto,
+  ): Promise<SalesStatsDto> {
+    const { from, to, status, channelId, search } = query;
 
-  const qb = this.saleRepo.createQueryBuilder('s');
+    const qb = this.saleRepo.createQueryBuilder('s');
 
-  // 👇 первый фильтр — свой тенант
-  qb.where('s."tenantId" = :tenantId', { tenantId });
+    // 👇 первый фильтр — свой тенант
+    qb.where('s."tenantId" = :tenantId', { tenantId });
 
-  if (from) {
-    qb.andWhere('s.saleDate >= :from', {
-      from: from + 'T00:00:00.000Z',
-    });
-  }
-  if (to) {
-    qb.andWhere('s.saleDate <= :to', {
-      to: to + 'T23:59:59.999Z',
-    });
-  }
-  if (channelId) {
-    qb.andWhere('s.channelId = :channelId', { channelId });
-  }
-  if (status) {
-    qb.andWhere('s.status = :status', { status });
-  }
-  if (search && search.trim()) {
-    const s = `%${search.trim()}%`;
-    qb.andWhere(
-      '(s.id ILIKE :s OR s.externalId ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
-      { s },
-    );
-  }
+    if (from) {
+      qb.andWhere('s.saleDate >= :from', {
+        from: from + 'T00:00:00.000Z',
+      });
+    }
+    if (to) {
+      qb.andWhere('s.saleDate <= :to', {
+        to: to + 'T23:59:59.999Z',
+      });
+    }
+    if (channelId) {
+      qb.andWhere('s.channelId = :channelId', { channelId });
+    }
+    if (status) {
+      qb.andWhere('s.status = :status', { status });
+    }
+    if (search && search.trim()) {
+      const s = `%${search.trim()}%`;
+      qb.andWhere(
+        '(s.id ILIKE :s OR s.externalId ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
+        { s },
+      );
+    }
 
     // total + avg
     const baseAgg = await qb
@@ -287,35 +368,603 @@ async getStats(tenantId: string, query: ListSalesQueryDto): Promise<SalesStatsDt
     };
   }
 
-  /* ───────────────────── детальная карточка ───────────────────── */
-  async findOneDetailed(tenantId: string, id: string): Promise<SaleDetailDto> {
-  const sale = await this.saleRepo.findOne({
-    where: { id, tenantId } as any,
-  });
-  if (!sale) {
-    throw new NotFoundException('Sale not found');
-  }
+  /* ───────────────────── analytics ───────────────────── */
 
-  let channelShort: SaleDetailDto['channel'] = null;
-  let integrationShort: SaleDetailDto['integration'] = null;
+  async getAnalytics(tenantId: string, query: SalesAnalyticsQueryDto) {
+    const {
+      from,
+      to,
+      dateField = 'saleDate',
+      channelIds,
+      status,
+      search,
+      currencyMode = 'converted',
+      displayCurrency = 'EUR',
+      rates,
+      sampleLimit = 200,
+    } = query;
 
-  // Канал тоже, скорее всего, мультитенантный
-  if (sale.channelId) {
-    const channel = await this.channelRepo.findOne({
-      where: {
-        id: sale.channelId,
-        tenantId,
-        isDeleted: false,
-      } as any,
+    const channelIdList = channelIds
+      ? channelIds.split(',').map((id) => id.trim()).filter(Boolean)
+      : [];
+
+    let rateMap: Record<string, number> = {};
+    if (rates) {
+      try {
+        rateMap = JSON.parse(rates);
+      } catch {
+        rateMap = {};
+      }
+    }
+
+    const qb = this.saleRepo.createQueryBuilder('s');
+    qb.where('s.\"tenantId\" = :tenantId', { tenantId });
+
+    if (channelIdList.length > 0) {
+      qb.andWhere('s.\"channelId\" IN (:...channelIds)', {
+        channelIds: channelIdList,
+      });
+    }
+    if (status) {
+      qb.andWhere('s.status = :status', { status });
+    }
+    if (search && search.trim()) {
+      const s = `%${search.trim()}%`;
+      qb.andWhere(
+        '(s.id ILIKE :s OR s.externalId ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
+        { s },
+      );
+    }
+
+    qb.select([
+      's.id',
+      's.channelId',
+      's.status',
+      's.amount',
+      's.currency',
+      's.hotel',
+      's.market',
+      's.managerName',
+      's.agentName',
+      's.saleDate',
+      's.createdAt',
+      's.customFields',
+      's.guestName',
+    ]);
+
+    const sales = await qb.getMany();
+
+    const getSaleDate = (sale: Sale) => {
+      const primary = this.parseIsoDate((sale as any)[dateField]);
+      if (primary) return primary;
+      const fallback = dateField === 'saleDate' ? 'createdAt' : 'saleDate';
+      return this.parseIsoDate((sale as any)[fallback]);
+    };
+
+    const fromDate = from ? this.parseIsoDate(from + 'T00:00:00.000Z') : null;
+    const toDate = to ? this.parseIsoDate(to + 'T23:59:59.999Z') : null;
+
+    const filtered = sales.filter((sale) => {
+      const d = getSaleDate(sale);
+      if (!d) return false;
+      if (fromDate && d < fromDate) return false;
+      if (toDate && d > toDate) return false;
+      return true;
     });
 
-    if (channel) {
-      channelShort = {
-        id: channel.id,
-        name: channel.name,
-        type: (channel as any).type ?? 'other',
+    const convertAmount = (sale: Sale) => {
+      if (currencyMode === 'native') {
+        return sale.currency === displayCurrency ? sale.amount : 0;
+      }
+      const rate =
+        rateMap[sale.currency] ??
+        (sale.currency === displayCurrency ? 1 : 0);
+      return rate ? sale.amount * rate : 0;
+    };
+
+    const totalCount = filtered.length;
+    const totalAmount = filtered.reduce(
+      (sum, sale) => sum + convertAmount(sale),
+      0,
+    );
+    const avgCheck = totalCount > 0 ? totalAmount / totalCount : 0;
+
+    const byStatusMap = new Map<string, { status: string; count: number; amount: number }>();
+    const byChannelMap = new Map<string, { channelId: string | null; label: string; count: number; amount: number }>();
+    const byProductMap = new Map<string, { label: string; count: number; amount: number }>();
+    const byMarketMap = new Map<string, { label: string; count: number; amount: number }>();
+    const byManagerMap = new Map<string, { label: string; count: number; amount: number }>();
+    const byCurrencyMap = new Map<string, { label: string; count: number; amount: number }>();
+
+    const channelIdsUsed = new Set<string>();
+
+    filtered.forEach((sale) => {
+      const amount = convertAmount(sale);
+      const statusKey = sale.status || 'other';
+      const statusRow = byStatusMap.get(statusKey) ?? {
+        status: statusKey,
+        count: 0,
+        amount: 0,
       };
+      statusRow.count += 1;
+      statusRow.amount += amount;
+      byStatusMap.set(statusKey, statusRow);
+
+      const channelKey = sale.channelId || 'unknown';
+      if (sale.channelId) {
+        channelIdsUsed.add(sale.channelId);
+      }
+      const channelRow = byChannelMap.get(channelKey) ?? {
+        channelId: sale.channelId,
+        label: channelKey,
+        count: 0,
+        amount: 0,
+      };
+      channelRow.count += 1;
+      channelRow.amount += amount;
+      byChannelMap.set(channelKey, channelRow);
+
+      const productKey = sale.hotel || '—';
+      const productRow = byProductMap.get(productKey) ?? {
+        label: productKey,
+        count: 0,
+        amount: 0,
+      };
+      productRow.count += 1;
+      productRow.amount += amount;
+      byProductMap.set(productKey, productRow);
+
+      const marketKey = sale.market || '—';
+      const marketRow = byMarketMap.get(marketKey) ?? {
+        label: marketKey,
+        count: 0,
+        amount: 0,
+      };
+      marketRow.count += 1;
+      marketRow.amount += amount;
+      byMarketMap.set(marketKey, marketRow);
+
+      const managerKey = sale.managerName || sale.agentName || '—';
+      const managerRow = byManagerMap.get(managerKey) ?? {
+        label: managerKey,
+        count: 0,
+        amount: 0,
+      };
+      managerRow.count += 1;
+      managerRow.amount += amount;
+      byManagerMap.set(managerKey, managerRow);
+
+      const currencyKey = sale.currency || '—';
+      const currencyRow = byCurrencyMap.get(currencyKey) ?? {
+        label: currencyKey,
+        count: 0,
+        amount: 0,
+      };
+      currencyRow.count += 1;
+      currencyRow.amount += sale.amount;
+      byCurrencyMap.set(currencyKey, currencyRow);
+    });
+
+    const channelMeta = channelIdsUsed.size
+      ? await this.channelRepo.find({
+          where: { tenantId, id: In(Array.from(channelIdsUsed)) } as any,
+        })
+      : [];
+    const channelNameMap = new Map(
+      channelMeta.map((ch) => [ch.id, ch.name]),
+    );
+    byChannelMap.forEach((row, key) => {
+      if (row.channelId && channelNameMap.has(row.channelId)) {
+        row.label = channelNameMap.get(row.channelId) as string;
+      } else if (key === 'unknown') {
+        row.label = '—';
+      }
+    });
+
+    const limitTop = <T extends { count: number; amount: number }>(
+      rows: T[],
+      limit = 12,
+    ) => {
+      if (rows.length <= limit) return rows;
+      const sorted = [...rows].sort((a, b) => b.count - a.count);
+      const top = sorted.slice(0, limit - 1);
+      const rest = sorted.slice(limit - 1);
+      const restCount = rest.reduce((sum, item) => sum + item.count, 0);
+      const restAmount = rest.reduce((sum, item) => sum + item.amount, 0);
+      return [...top, { ...(top[0] as any), label: 'Other', count: restCount, amount: restAmount }];
+    };
+
+    const timelineCountMap = new Map<string, Record<string, any>>();
+    const timelineAmountMap = new Map<string, Record<string, any>>();
+
+    filtered.forEach((sale) => {
+      const date = getSaleDate(sale);
+      if (!date) return;
+      const month = this.getMonthKey(date);
+      const channelKey = sale.channelId || 'unknown';
+
+      const countRow = timelineCountMap.get(month) ?? { month };
+      countRow[channelKey] = (countRow[channelKey] || 0) + 1;
+      timelineCountMap.set(month, countRow);
+
+      const amountRow = timelineAmountMap.get(month) ?? { month };
+      amountRow[channelKey] = (amountRow[channelKey] || 0) + convertAmount(sale);
+      timelineAmountMap.set(month, amountRow);
+    });
+
+    const timelineCount = Array.from(timelineCountMap.values()).sort((a, b) =>
+      String(a.month).localeCompare(String(b.month)),
+    );
+    const timelineAmount = Array.from(timelineAmountMap.values()).sort((a, b) =>
+      String(a.month).localeCompare(String(b.month)),
+    );
+
+    const customFields = await this.customFieldsService.findByEntityType(
+      tenantId,
+      'sale',
+    );
+
+    const customFieldStats: Record<
+      string,
+      { key: string; label: string; type: string; items: Array<{ label: string; count: number; amount: number }> }
+    > = {};
+
+    customFields.forEach((field) => {
+      if (!field.isActive) return;
+
+      if (field.type === FieldType.NUMBER) {
+        const numbers = filtered
+          .map((sale) => this.parseNumber((sale.customFields || {})[field.key]))
+          .filter((v): v is number => v !== null);
+        const buckets = this.bucketizeNumbers(numbers);
+        const rows = buckets.map((bucket) => ({
+          label: bucket.label,
+          count: 0,
+          amount: 0,
+        }));
+        filtered.forEach((sale) => {
+          const numeric = this.parseNumber((sale.customFields || {})[field.key]);
+          if (numeric === null) return;
+          const bucketIndex = buckets.findIndex((b) => b.values.includes(numeric));
+          if (bucketIndex === -1) return;
+          rows[bucketIndex].count += 1;
+          rows[bucketIndex].amount += convertAmount(sale);
+        });
+        customFieldStats[field.key] = {
+          key: field.key,
+          label: field.label,
+          type: field.type,
+          items: limitTop(rows, 12),
+        };
+        return;
+      }
+
+      if (field.type === FieldType.DATE || field.type === FieldType.DATETIME) {
+        const map = new Map<string, { label: string; count: number; amount: number }>();
+        filtered.forEach((sale) => {
+          const raw = (sale.customFields || {})[field.key];
+          const date = this.parseIsoDate(raw ? String(raw) : null);
+          if (!date) return;
+          const label = this.getMonthKey(date);
+          const row = map.get(label) ?? { label, count: 0, amount: 0 };
+          row.count += 1;
+          row.amount += convertAmount(sale);
+          map.set(label, row);
+        });
+        const items = Array.from(map.values()).sort((a, b) =>
+          a.label.localeCompare(b.label),
+        );
+        customFieldStats[field.key] = {
+          key: field.key,
+          label: field.label,
+          type: field.type,
+          items: limitTop(items, 12),
+        };
+        return;
+      }
+
+      const map = new Map<string, { label: string; count: number; amount: number }>();
+      filtered.forEach((sale) => {
+        const raw = (sale.customFields || {})[field.key];
+        if (raw === undefined || raw === null || raw === '') return;
+        const values =
+          field.type === FieldType.MULTISELECT
+            ? this.coerceArray(raw)
+            : [String(raw)];
+        values.forEach((value) => {
+          const label = value || '—';
+          const row = map.get(label) ?? { label, count: 0, amount: 0 };
+          row.count += 1;
+          row.amount += convertAmount(sale);
+          map.set(label, row);
+        });
+      });
+      customFieldStats[field.key] = {
+        key: field.key,
+        label: field.label,
+        type: field.type,
+        items: limitTop(Array.from(map.values()), 12),
+      };
+    });
+
+    const sampleSales = [...filtered]
+      .sort((a, b) => {
+        const da = getSaleDate(a)?.getTime() ?? 0;
+        const db = getSaleDate(b)?.getTime() ?? 0;
+        return db - da;
+      })
+      .slice(0, sampleLimit);
+
+    return {
+      totalCount,
+      totalAmount,
+      avgCheck,
+      displayCurrency,
+      currencyMode,
+      byStatus: Array.from(byStatusMap.values()),
+      byChannel: limitTop(Array.from(byChannelMap.values()), 12),
+      byProduct: limitTop(Array.from(byProductMap.values()), 12),
+      byMarket: limitTop(Array.from(byMarketMap.values()), 12),
+      byManager: limitTop(Array.from(byManagerMap.values()), 12),
+      byCurrency: limitTop(Array.from(byCurrencyMap.values()), 12),
+      timeline: {
+        count: timelineCount,
+        amount: timelineAmount,
+      },
+      customFields: customFieldStats,
+      sampleSales,
+    };
+  }
+
+  async exportAnalytics(
+    tenantId: string,
+    query: SalesAnalyticsQueryDto,
+    format: 'csv' | 'xls' | 'xlsx' | 'excel' = 'csv',
+  ): Promise<{ filename: string; contentType: string; body: string }> {
+    const {
+      from,
+      to,
+      dateField = 'saleDate',
+      channelIds,
+      status,
+      search,
+      currencyMode = 'converted',
+      displayCurrency = 'EUR',
+      rates,
+    } = query;
+
+    const channelIdList = channelIds
+      ? channelIds.split(',').map((id) => id.trim()).filter(Boolean)
+      : [];
+
+    let rateMap: Record<string, number> = {};
+    if (rates) {
+      try {
+        rateMap = JSON.parse(rates);
+      } catch {
+        rateMap = {};
+      }
     }
+
+    const qb = this.saleRepo.createQueryBuilder('s');
+    qb.where('s."tenantId" = :tenantId', { tenantId });
+
+    if (channelIdList.length > 0) {
+      qb.andWhere('s."channelId" IN (:...channelIds)', {
+        channelIds: channelIdList,
+      });
+    }
+    if (status) {
+      qb.andWhere('s.status = :status', { status });
+    }
+    if (search && search.trim()) {
+      const s = `%${search.trim()}%`;
+      qb.andWhere(
+        '(s.id ILIKE :s OR s.externalId ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
+        { s },
+      );
+    }
+
+    const sales = await qb.getMany();
+
+    const getSaleDate = (sale: Sale) => {
+      const primary = this.parseIsoDate((sale as any)[dateField]);
+      if (primary) return primary;
+      const fallback = dateField === 'saleDate' ? 'createdAt' : 'saleDate';
+      return this.parseIsoDate((sale as any)[fallback]);
+    };
+
+    const fromDate = from ? this.parseIsoDate(from + 'T00:00:00.000Z') : null;
+    const toDate = to ? this.parseIsoDate(to + 'T23:59:59.999Z') : null;
+
+    const filtered = sales.filter((sale) => {
+      const d = getSaleDate(sale);
+      if (!d) return false;
+      if (fromDate && d < fromDate) return false;
+      if (toDate && d > toDate) return false;
+      return true;
+    });
+
+    const channelMeta = channelIdList.length
+      ? await this.channelRepo.find({
+          where: { tenantId, id: In(channelIdList) } as any,
+        })
+      : await this.channelRepo.find({ where: { tenantId } as any });
+    const channelNameMap = new Map(channelMeta.map((ch) => [ch.id, ch.name]));
+
+    const customFields = await this.customFieldsService.findByEntityType(
+      tenantId,
+      'sale',
+    );
+
+    const convertAmount = (sale: Sale) => {
+      if (currencyMode === 'native') {
+        return sale.currency === displayCurrency ? sale.amount : 0;
+      }
+      const rate =
+        rateMap[sale.currency] ??
+        (sale.currency === displayCurrency ? 1 : 0);
+      return rate ? sale.amount * rate : 0;
+    };
+
+    const headers = [
+      'id',
+      'saleDate',
+      'createdAt',
+      'channelId',
+      'channelName',
+      'status',
+      'amount',
+      'currency',
+      'amountConverted',
+      'displayCurrency',
+      'guestName',
+      'managerName',
+      'agentName',
+      'hotel',
+      'market',
+      'externalId',
+      'externalOrderNo',
+      'checkInAt',
+      'checkOutAt',
+      'notes',
+    ];
+
+    customFields.forEach((field) => {
+      headers.push(`custom:${field.key}`);
+    });
+
+    const escapeCsv = (value: any) => {
+      if (value === null || value === undefined) return '';
+      const text = String(value);
+      if (/[\",\n]/.test(text)) {
+        return `"${text.replace(/\"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const lines = [headers.join(',')];
+
+    filtered.forEach((sale) => {
+      const row: string[] = [];
+      row.push(sale.id);
+      row.push(sale.saleDate ? sale.saleDate.toISOString() : '');
+      row.push(sale.createdAt ? sale.createdAt.toISOString() : '');
+      row.push(sale.channelId || '');
+      row.push(
+        sale.channelId ? channelNameMap.get(sale.channelId) || '' : '',
+      );
+      row.push(sale.status || '');
+      row.push(String(sale.amount ?? 0));
+      row.push(sale.currency || '');
+      row.push(String(convertAmount(sale)));
+      row.push(displayCurrency);
+      row.push(sale.guestName || '');
+      row.push(sale.managerName || '');
+      row.push(sale.agentName || '');
+      row.push(sale.hotel || '');
+      row.push(sale.market || '');
+      row.push(sale.externalId || '');
+      row.push(sale.externalOrderNo || '');
+      row.push(sale.checkInAt ? sale.checkInAt.toISOString() : '');
+      row.push(sale.checkOutAt ? sale.checkOutAt.toISOString() : '');
+      row.push(sale.notes || '');
+
+      const customValues = sale.customFields || {};
+      customFields.forEach((field) => {
+        const raw = customValues[field.key];
+        row.push(
+          raw === null || raw === undefined
+            ? ''
+            : typeof raw === 'object'
+              ? JSON.stringify(raw)
+              : String(raw),
+        );
+      });
+
+      lines.push(row.map(escapeCsv).join(','));
+    });
+
+    const csv = lines.join('\n');
+    const safeFormat = format === 'excel' ? 'xls' : format;
+    const extension = safeFormat === 'csv' ? 'csv' : 'xls';
+    const contentType =
+      extension === 'csv'
+        ? 'text/csv; charset=utf-8'
+        : 'application/vnd.ms-excel; charset=utf-8';
+    const filename = `sales-analytics-export.${extension}`;
+
+    return { filename, contentType, body: csv };
+  }
+
+  /* ───────────────────── presets ───────────────────── */
+
+  async getAnalyticsPreset(tenantId: string, userId?: string | null) {
+    const where: any = { tenantId, scope: 'sales' };
+    where.userId = userId ? userId : IsNull();
+
+    const preset = await this.presetsRepo.findOne({
+      where,
+    });
+    return preset?.payload ?? null;
+  }
+
+  async saveAnalyticsPreset(
+    tenantId: string,
+    userId: string | null,
+    dto: SaveAnalyticsPresetDto,
+  ) {
+    const where: any = { tenantId, scope: 'sales' };
+    where.userId = userId ? userId : IsNull();
+
+    let preset = await this.presetsRepo.findOne({
+      where,
+    });
+
+    if (!preset) {
+      preset = this.presetsRepo.create({
+        tenantId,
+        userId,
+        scope: 'sales',
+        payload: dto.payload,
+      });
+    } else {
+      preset.payload = dto.payload;
+    }
+
+    const saved = await this.presetsRepo.save(preset);
+    return { id: saved.id, payload: saved.payload };
+  }
+
+  /* ───────────────────── детальная карточка ───────────────────── */
+  async findOneDetailed(tenantId: string, id: string): Promise<SaleDetailDto> {
+    const sale = await this.saleRepo.findOne({
+      where: { id, tenantId } as any,
+    });
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
+
+    let channelShort: SaleDetailDto['channel'] = null;
+    let integrationShort: SaleDetailDto['integration'] = null;
+
+    // Канал тоже, скорее всего, мультитенантный
+    if (sale.channelId) {
+      const channel = await this.channelRepo.findOne({
+        where: {
+          id: sale.channelId,
+          tenantId,
+          isDeleted: false,
+        } as any,
+      });
+
+      if (channel) {
+        channelShort = {
+          id: channel.id,
+          name: channel.name,
+          type: (channel as any).type ?? 'other',
+        };
+      }
 
       // Интеграция по channelId
       const integration = await this.integrationsRepo.findOne({
@@ -330,8 +979,7 @@ async getStats(tenantId: string, query: ListSalesQueryDto): Promise<SalesStatsDt
         integrationShort = {
           id: integration.id,
           name: integration.name,
-          kind: ((integration as any).kind ??
-            'other') as IntegrationKind,
+          kind: ((integration as any).kind ?? 'other') as IntegrationKind,
         };
       }
     }
@@ -341,10 +989,7 @@ async getStats(tenantId: string, query: ListSalesQueryDto): Promise<SalesStatsDt
     const rawMeta = (sale as any).metaJson;
     if (rawMeta) {
       try {
-        meta =
-          typeof rawMeta === 'string'
-            ? JSON.parse(rawMeta)
-            : rawMeta;
+        meta = typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta;
       } catch {
         meta = null;
       }
@@ -369,12 +1014,12 @@ async getStats(tenantId: string, query: ListSalesQueryDto): Promise<SalesStatsDt
     id: string,
     dto: UpdateSaleDto,
   ): Promise<Sale> {
-  const sale = await this.saleRepo.findOne({
-    where: { id, tenantId } as any,
-  });
-  if (!sale) {
-    throw new NotFoundException('Sale not found');
-  }
+    const sale = await this.saleRepo.findOne({
+      where: { id, tenantId } as any,
+    });
+    if (!sale) {
+      throw new NotFoundException('Sale not found');
+    }
 
     if (dto.status !== undefined) {
       // DTO использует enum, в сущности — строка; берём raw значение
@@ -390,8 +1035,43 @@ async getStats(tenantId: string, query: ListSalesQueryDto): Promise<SalesStatsDt
       // можно хранить как UUID либо null
       (sale as any).leadId = dto.leadId || null;
     }
+    if (dto.customFields !== undefined) {
+      (sale as any).customFields = dto.customFields;
+    }
 
+    const oldStatus = sale.status;
     const saved = await this.saleRepo.save(sale);
+
+    // Триггерим автоматизацию
+    try {
+      await this.automationsService.triggerAutomation(
+        tenantId,
+        TriggerEvent.SALE_UPDATED,
+        {
+          entityType: 'sale',
+          entityId: saved.id,
+          sale: saved,
+          changes: dto,
+        },
+      );
+
+      // Если изменился статус, триггерим отдельное событие
+      if (dto.status !== undefined && dto.status !== oldStatus) {
+        await this.automationsService.triggerAutomation(
+          tenantId,
+          TriggerEvent.SALE_STATUS_CHANGED,
+          {
+            entityType: 'sale',
+            entityId: saved.id,
+            sale: saved,
+            oldStatus,
+            newStatus: dto.status,
+          },
+        );
+      }
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
 
     // синхронизируем статус с WooCommerce (где это применимо)
     try {

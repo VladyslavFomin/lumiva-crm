@@ -6,7 +6,9 @@ export type ProjectStatus =
   | 'В работе'
   | 'На проверке'
   | 'Заморожен'
-  | 'Закрыт';
+  | 'Закрыт'
+  | 'Выиграно'
+  | 'Проиграно';
 
 // Фронтовый тип проекта — уже «удобный» для UI
 export interface Project {
@@ -23,16 +25,28 @@ export interface Project {
   leadName: string | null;
   leadEmail: string | null;
   ownerUserId?: string | null;
+  ownerUserIds?: string[] | null;
   briefFileName?: string | null;
   briefFileUrl?: string | null;
+  customFields?: Record<string, any> | null;
   tasks: ProjectTask[];
   comments: ProjectComment[];
   createdAt: string;         // уже отформатированная дата
   updatedAt?: string;
+  isArchived?: boolean;
+  isDeleted?: boolean;
+  archivedAt?: string | null;
+  deletedAt?: string | null;
 }
 
 // Задачи / чеклист / комментарии пока живут только на фронте
-export type TaskStatus = 'К выполнению' | 'В работе' | 'Готово';
+export type TaskStatus =
+  | 'К выполнению'
+  | 'В работе'
+  | 'На проверке'
+  | 'Заблокировано'
+  | 'Отложено'
+  | 'Готово';
 export type TaskPriority = 'Обычный' | 'Высокий' | 'Низкий';
 
 export interface ProjectTaskChecklistItem {
@@ -58,6 +72,7 @@ export interface ProjectComment {
   author: string;
   createdAt: string;
   text: string;
+  mentions?: string[];
 }
 
 // В справочниках пока просто константы
@@ -76,9 +91,11 @@ export function createEmptyProject(): Project {
     category: null,
     tags: [],
     owner: null,
+    ownerUserIds: [],
     leadId: null,
     leadName: null,
     leadEmail: null,
+    customFields: {},
     createdAt: '',
     tasks: [],
     comments: [], 

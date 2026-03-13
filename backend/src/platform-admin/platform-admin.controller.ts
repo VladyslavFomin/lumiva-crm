@@ -42,13 +42,26 @@ export class PlatformAdminController {
     return this.service.getTenantModules(id);
   }
 
+  @Get('tenants/:id/components')
+  async getTenantComponents(@Param('id') id: string) {
+    return this.service.getTenantComponents(id);
+  }
+
   @Patch('tenants/:id/modules/:moduleKey')
   async toggleModule(
     @Param('id') id: string,
     @Param('moduleKey') moduleKey: string,
     @Body() body: { enabled: boolean },
   ) {
-    await this.service.toggleTenantModule(id, moduleKey, body.enabled);
-    return { success: true };
+    return this.service.toggleTenantModule(id, moduleKey, body.enabled);
+  }
+
+  @Patch('tenants/:id/components/:componentKey')
+  async toggleComponent(
+    @Param('id') id: string,
+    @Param('componentKey') componentKey: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    return this.service.toggleTenantComponent(id, componentKey, body.enabled);
   }
 }

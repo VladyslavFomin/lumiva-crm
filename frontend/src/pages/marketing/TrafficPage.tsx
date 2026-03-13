@@ -38,6 +38,14 @@ export const TrafficPage: React.FC = () => {
   const [stats, setStats] = useState<MarketingTrafficStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   const formatNumber = (v: number) =>
     v.toLocaleString(locale, { maximumFractionDigits: 0 });
   const periodLabel: Record<PeriodPreset, string> = {
@@ -46,6 +54,34 @@ export const TrafficPage: React.FC = () => {
     '90d': t('crm.marketingTraffic.periods.90d'),
     all: t('crm.marketingTraffic.periods.all'),
   };
+
+  const baseColumns = useMemo(
+    () => [
+      { id: 'source', label: t('crm.marketingTraffic.table.headers.source') },
+      { id: 'type', label: t('crm.marketingTraffic.table.headers.type') },
+      { id: 'sessions', label: t('crm.marketingTraffic.table.headers.sessions') },
+      { id: 'conversions', label: t('crm.marketingTraffic.table.headers.conversions') },
+      { id: 'cr', label: t('crm.marketingTraffic.table.headers.cr') },
+      { id: 'revenue', label: t('crm.marketingTraffic.table.headers.revenue') },
+    ],
+    [t],
+  );
+
+  const orderedColumns = useMemo(() => {
+    if (!baseColumns.length) return [];
+    const map = new Map(baseColumns.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : baseColumns.map((col) => col.id);
+    const result: typeof baseColumns = [];
+    order.forEach((id) => {
+      const col = map.get(id);
+      if (col) result.push(col);
+    });
+    baseColumns.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [baseColumns, columnOrder]);
 
   // Пересчёт диапазона по пресетам
   const applyPreset = (p: PeriodPreset) => {
@@ -81,6 +117,58 @@ export const TrafficPage: React.FC = () => {
     applyPreset('all');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('marketing_traffic_columns');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.widths && typeof parsed.widths === 'object')
+          setColumnWidths(parsed.widths);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'marketing_traffic_columns',
+        JSON.stringify({ order: columnOrder, widths: columnWidths }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder, columnWidths]);
+
+  useEffect(() => {
+    if (!baseColumns.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return baseColumns.map((c) => c.id);
+      const ids = baseColumns.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id));
+      const missing = ids.filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [baseColumns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX;
+      const next = Math.max(90, resizing.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
+    };
+    const handleUp = () => setResizing(null);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing]);
 
   // загрузка данных
   useEffect(() => {
@@ -157,6 +245,65 @@ export const TrafficPage: React.FC = () => {
     0,
   );
   const totalRevenue = channels.reduce((s, c) => s + c.revenue, 0);
+
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      id,
+      startX: e.clientX,
+      startWidth: columnWidths[id] ?? 160,
+    });
+  };
+
+  const handleColumnDrop = (targetId: string) => {
+    if (!dragColumnId || dragColumnId === targetId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragColumnId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragColumnId);
+      return next;
+    });
+    setDragColumnId(null);
+  };
+
+  const renderCell = (ch: ChannelAgg, columnId: string) => {
+    const type = (() => {
+      const m = (ch.medium || '').toLowerCase();
+      if (m === 'cpc' || m === 'paid') return t('crm.marketingTraffic.types.paid');
+      if (m === 'organic') return t('crm.marketingTraffic.types.organic');
+      if (m === 'email') return t('crm.marketingTraffic.types.email');
+      if (m === 'social' || m === 'paid_social')
+        return t('crm.marketingTraffic.types.social');
+      if (m === '(none)' || m === 'direct')
+        return t('crm.marketingTraffic.types.direct');
+      return m || t('crm.marketingTraffic.types.other');
+    })();
+
+    switch (columnId) {
+      case 'source':
+        return <span className="text-slate-100">{ch.key}</span>;
+      case 'type':
+        return <span className="text-slate-300">{type}</span>;
+      case 'sessions':
+        return formatNumber(ch.sessions);
+      case 'conversions':
+        return formatNumber(ch.conversions);
+      case 'cr':
+        return ch.sessions > 0
+          ? `${(ch.cr * 100).toFixed(1)}%`
+          : t('crm.marketingTraffic.common.empty');
+      case 'revenue':
+        return ch.revenue
+          ? `${formatNumber(ch.revenue)} ${ch.currency}`
+          : t('crm.marketingTraffic.common.empty');
+      default:
+        return null;
+    }
+  };
 
   const globalCr =
     totalSessions > 0 ? (totalConversions / totalSessions) * 100 : 0;
@@ -283,34 +430,59 @@ export const TrafficPage: React.FC = () => {
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-0 text-[11px]">
+                <table className="min-w-full border-separate border-spacing-0 text-[11px] table-fixed">
                   <thead>
                     <tr className="border-b border-slate-800/80 text-slate-400">
-                      <th className="py-1.5 pr-3 text-left font-normal">
-                        {t('crm.marketingTraffic.table.headers.source')}
-                      </th>
-                      <th className="py-1.5 px-3 text-left font-normal">
-                        {t('crm.marketingTraffic.table.headers.type')}
-                      </th>
-                      <th className="py-1.5 px-3 text-right font-normal">
-                        {t('crm.marketingTraffic.table.headers.sessions')}
-                      </th>
-                      <th className="py-1.5 px-3 text-right font-normal">
-                        {t('crm.marketingTraffic.table.headers.conversions')}
-                      </th>
-                      <th className="py-1.5 px-3 text-right font-normal">
-                        {t('crm.marketingTraffic.table.headers.cr')}
-                      </th>
-                      <th className="py-1.5 px-3 text-right font-normal">
-                        {t('crm.marketingTraffic.table.headers.revenue')}
-                      </th>
+                      {orderedColumns.map((col) => {
+                        const fallback =
+                          col.id === 'source'
+                            ? 180
+                            : col.id === 'type'
+                              ? 140
+                              : col.id === 'sessions'
+                                ? 120
+                                : col.id === 'conversions'
+                                  ? 130
+                                  : col.id === 'cr'
+                                    ? 100
+                                    : 140;
+                        const width = columnWidths[col.id] ?? fallback;
+                        const alignRight = !['source', 'type'].includes(col.id);
+                        return (
+                          <th
+                            key={col.id}
+                            draggable
+                            onDragStart={(e) => {
+                              setDragColumnId(col.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              e.dataTransfer.setData('text/plain', col.id);
+                            }}
+                            onDragEnd={() => setDragColumnId(null)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => handleColumnDrop(col.id)}
+                            className={`py-1.5 px-3 font-normal relative group ${
+                              alignRight ? 'text-right' : 'text-left'
+                            }`}
+                            style={{ width, minWidth: width }}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="cursor-move">⋮⋮</span>
+                              <span>{col.label}</span>
+                            </div>
+                            <div
+                              className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                              onMouseDown={(e) => startResize(col.id, e)}
+                            />
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
                     {channels.length === 0 && (
                       <tr>
                         <td
-                          colSpan={6}
+                          colSpan={orderedColumns.length}
                           className="py-3 text-center text-slate-500"
                         >
                           {t('crm.marketingTraffic.table.empty')}
@@ -318,51 +490,40 @@ export const TrafficPage: React.FC = () => {
                       </tr>
                     )}
 
-                    {channels.map((ch) => {
-                      const type = (() => {
-                        const m = (ch.medium || '').toLowerCase();
-                        if (m === 'cpc' || m === 'paid')
-                          return t('crm.marketingTraffic.types.paid');
-                        if (m === 'organic')
-                          return t('crm.marketingTraffic.types.organic');
-                        if (m === 'email') return t('crm.marketingTraffic.types.email');
-                        if (m === 'social' || m === 'paid_social')
-                          return t('crm.marketingTraffic.types.social');
-                        if (m === '(none)' || m === 'direct')
-                          return t('crm.marketingTraffic.types.direct');
-                        return m || t('crm.marketingTraffic.types.other');
-                      })();
-
-                      return (
-                        <tr
-                          key={ch.key}
-                          className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
-                        >
-                          <td className="py-1.5 pr-3 text-slate-100">
-                            {ch.key}
-                          </td>
-                          <td className="py-1.5 px-3 text-slate-300">
-                            {type}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-100">
-                            {formatNumber(ch.sessions)}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-slate-100">
-                            {formatNumber(ch.conversions)}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-sky-300">
-                            {ch.sessions > 0
-                              ? `${(ch.cr * 100).toFixed(1)}%`
-                              : t('crm.marketingTraffic.common.empty')}
-                          </td>
-                          <td className="py-1.5 px-3 text-right text-emerald-300 font-mono">
-                            {ch.revenue
-                              ? `${formatNumber(ch.revenue)} ${ch.currency}`
-                              : t('crm.marketingTraffic.common.empty')}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {channels.map((ch) => (
+                      <tr
+                        key={ch.key}
+                        className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
+                      >
+                        {orderedColumns.map((col) => {
+                          const fallback =
+                            col.id === 'source'
+                              ? 180
+                              : col.id === 'type'
+                                ? 140
+                                : col.id === 'sessions'
+                                  ? 120
+                                  : col.id === 'conversions'
+                                    ? 130
+                                    : col.id === 'cr'
+                                      ? 100
+                                      : 140;
+                          const width = columnWidths[col.id] ?? fallback;
+                          const alignRight = !['source', 'type'].includes(col.id);
+                          return (
+                            <td
+                              key={col.id}
+                              className={`py-1.5 px-3 ${
+                                alignRight ? 'text-right' : 'text-left'
+                              }`}
+                              style={{ width, minWidth: width }}
+                            >
+                              {renderCell(ch, col.id)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

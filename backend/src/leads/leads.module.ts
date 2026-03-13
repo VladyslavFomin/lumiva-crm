@@ -16,6 +16,7 @@ import { StaffUsersModule } from '../staff/staff-users.module';
 import { User } from '../users/user.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { AuthModule } from '../auth/auth.module';
+import { AutomationsModule } from '../automations/automations.module';
 
 // 👇 сущность продаж — для ROI по лидам
 import { Sale } from '../sales/sale.entity';
@@ -38,6 +39,7 @@ import { Project } from '../projects/project.entity';
     forwardRef(() => TenantsModule),
     forwardRef(() => StaffUsersModule),
     forwardRef(() => AuthModule),
+    forwardRef(() => AutomationsModule),
   ],
   controllers: [LeadsController],
   providers: [LeadsService, LeadActivityService],

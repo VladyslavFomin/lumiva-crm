@@ -1,5 +1,5 @@
 // src/pages/sales/SaleDetailsPage.tsx
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchSaleDetail,
@@ -8,11 +8,16 @@ import {
   type SaleStatus,
 } from '../../api/sales';
 import {
+  fetchCustomFields,
+  type CustomField,
+} from '../../api/custom-fields';
+import {
   searchLeadsQuick,
   createLead,
   type Lead,
 } from '../../api/leads';
 import { MainLayout } from '../../layout/MainLayout';
+import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 
 export const SaleDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +32,9 @@ export const SaleDetailsPage: React.FC = () => {
   const [formManager, setFormManager] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [formLeadId, setFormLeadId] = useState(''); // привязка к лиду
+  const [formCustomFields, setFormCustomFields] = useState<Record<string, any>>(
+    {},
+  );
   const [saving, setSaving] = useState(false);
 
   // создание лида из заказа
@@ -39,6 +47,11 @@ export const SaleDetailsPage: React.FC = () => {
   const [leadSearching, setLeadSearching] = useState(false);
   const [leadDropdownOpen, setLeadDropdownOpen] = useState(false);
   const leadSearchTimeout = useRef<number | undefined>(undefined);
+
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldsLoading, setCustomFieldsLoading] = useState(false);
+  const [customFieldsError, setCustomFieldsError] = useState<string | null>(null);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -58,6 +71,7 @@ export const SaleDetailsPage: React.FC = () => {
         setFormManager((sale.managerName as string) || '');
         setFormNotes((sale.notes as string) || '');
         setFormLeadId((sale.leadId as string) || '');
+        setFormCustomFields((sale.customFields as Record<string, any>) || {});
       })
       .catch((e: any) => {
         console.error(e);
@@ -163,6 +177,7 @@ export const SaleDetailsPage: React.FC = () => {
         'checkOutAt',      // не используем
         'externalOrderNo', // дубль
         'guestName',       // дублирует agentName
+        'customFields',    // показываем отдельно
       ].includes(key),
     )
     .sort(([a], [b]) => a.localeCompare(b));
@@ -180,6 +195,174 @@ export const SaleDetailsPage: React.FC = () => {
     other: 'Другое',
   };
 
+  const activeCustomFields = useMemo(
+    () => customFields.filter((field) => field.isActive),
+    [customFields],
+  );
+
+  const getCustomFieldValue = (field: CustomField) =>
+    (formCustomFields ?? {})[field.key];
+
+  const setCustomFieldValue = (field: CustomField, value: any) => {
+    setFormCustomFields((prev) => ({
+      ...(prev ?? {}),
+      [field.key]: value,
+    }));
+  };
+
+  const renderCustomFieldInput = (field: CustomField) => {
+    const value = getCustomFieldValue(field);
+    const commonClass =
+      'w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none';
+    const label = (
+      <div className="text-[11px] text-slate-400 mb-1">
+        {field.label}
+        {field.required && <span className="text-rose-400 ml-1">*</span>}
+      </div>
+    );
+
+    if (field.type === 'boolean') {
+      return (
+        <label
+          key={field.id}
+          className="flex items-center gap-2 text-[11px] text-slate-300"
+        >
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => setCustomFieldValue(field, e.target.checked)}
+          />
+          {field.label}
+        </label>
+      );
+    }
+
+    if (field.type === 'textarea') {
+      return (
+        <div key={field.id}>
+          {label}
+          <textarea
+            value={value ?? ''}
+            onChange={(e) => setCustomFieldValue(field, e.target.value)}
+            placeholder={field.placeholder || ''}
+            className="w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 py-2 outline-none resize-y"
+            rows={3}
+          />
+        </div>
+      );
+    }
+
+    if (field.type === 'select') {
+      return (
+        <div key={field.id}>
+          {label}
+          <select
+            value={value ?? ''}
+            onChange={(e) => setCustomFieldValue(field, e.target.value)}
+            className={commonClass}
+          >
+            <option value="">{field.placeholder || 'Выберите значение'}</option>
+            {(field.options || []).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (field.type === 'multiselect') {
+      const arrayValue = Array.isArray(value)
+        ? value.map(String)
+        : typeof value === 'string' && value
+          ? value.split(',').map((v) => v.trim())
+          : [];
+      return (
+        <div key={field.id}>
+          {label}
+          <select
+            multiple
+            value={arrayValue}
+            onChange={(e) =>
+              setCustomFieldValue(
+                field,
+                Array.from(e.target.selectedOptions).map((o) => o.value),
+              )
+            }
+            className={commonClass}
+          >
+            {(field.options || []).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    const inputType =
+      field.type === 'number'
+        ? 'number'
+        : field.type === 'email'
+          ? 'email'
+          : field.type === 'phone'
+            ? 'tel'
+            : field.type === 'date'
+              ? 'date'
+              : field.type === 'datetime'
+                ? 'datetime-local'
+                : field.type === 'url'
+                  ? 'url'
+                  : 'text';
+
+    return (
+      <div key={field.id}>
+        {label}
+        <input
+          type={inputType}
+          value={value ?? ''}
+          onChange={(e) => {
+            const next =
+              field.type === 'number'
+                ? e.target.value === ''
+                  ? null
+                  : Number(e.target.value)
+                : e.target.value;
+            setCustomFieldValue(field, next);
+          }}
+          placeholder={field.placeholder || ''}
+          className={commonClass}
+        />
+      </div>
+    );
+  };
+
+  useEffect(() => {
+    let alive = true;
+    setCustomFieldsLoading(true);
+    setCustomFieldsError(null);
+    fetchCustomFields('sale')
+      .then((items) => {
+        if (!alive) return;
+        const sorted = [...items].sort((a, b) => a.order - b.order);
+        setCustomFields(sorted);
+      })
+      .catch((e) => {
+        console.error('Ошибка загрузки кастомных полей:', e);
+        if (!alive) return;
+        setCustomFieldsError('Не удалось загрузить кастомные поля');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setCustomFieldsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const handleSave = async () => {
     if (!id) return;
     setSaving(true);
@@ -191,6 +374,7 @@ export const SaleDetailsPage: React.FC = () => {
         managerName: formManager.trim() || undefined,
         notes: formNotes.trim() || undefined,
         leadId: formLeadId.trim() || null,
+        customFields: formCustomFields,
       });
 
       setData((prev) =>
@@ -203,6 +387,7 @@ export const SaleDetailsPage: React.FC = () => {
                 managerName: updated.managerName,
                 notes: updated.notes,
                 leadId: updated.leadId,
+                customFields: updated.customFields,
               },
             }
           : prev,
@@ -560,6 +745,47 @@ export const SaleDetailsPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Кастомные поля */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-[11px] text-slate-400">
+                    Кастомные поля
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCustomFieldsOpen(true)}
+                    className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
+                  >
+                    Настроить
+                  </button>
+                </div>
+
+                {customFieldsLoading && (
+                  <div className="text-[11px] text-slate-500">
+                    Загружаем кастомные поля…
+                  </div>
+                )}
+                {customFieldsError && (
+                  <div className="text-[11px] text-red-400">
+                    {customFieldsError}
+                  </div>
+                )}
+                {!customFieldsLoading &&
+                  !customFieldsError &&
+                  activeCustomFields.length === 0 && (
+                    <div className="text-[11px] text-slate-500">
+                      Нет активных кастомных полей
+                    </div>
+                  )}
+                {activeCustomFields.length > 0 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {activeCustomFields.map((field) =>
+                      renderCustomFieldInput(field),
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
                   Комментарий (внутренние заметки)
@@ -675,6 +901,16 @@ export const SaleDetailsPage: React.FC = () => {
           </>
         )}
       </div>
+      {customFieldsOpen && (
+        <CustomFieldsManager
+          entityType="sale"
+          title="Кастомные поля продаж"
+          onClose={() => setCustomFieldsOpen(false)}
+          onUpdated={(list) =>
+            setCustomFields([...list].sort((a, b) => a.order - b.order))
+          }
+        />
+      )}
     </MainLayout>
   );
 };

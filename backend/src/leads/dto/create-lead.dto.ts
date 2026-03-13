@@ -4,6 +4,7 @@ import {
   IsString,
   IsUUID,
   IsObject,
+  IsArray,
 } from 'class-validator';
 
 export class CreateLeadDto {
@@ -61,13 +62,37 @@ export class CreateLeadDto {
   assignedUserId?: string | null;
 
   @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  assignedUserIds?: string[] | null;
+
+  @IsOptional()
   @IsString()
   assignedTo?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  assignedToList?: string[] | null;
+
+  // ---- связи ----
+  @IsOptional()
+  @IsUUID()
+  contactId?: string | null;
+
+  @IsOptional()
+  @IsUUID()
+  companyId?: string | null;
 
   // meta
   @IsOptional()
   @IsObject()
   meta?: any;
+
+  // custom fields
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, any>;
 
   // для истории (если прилетает comment при создании)
   @IsOptional()

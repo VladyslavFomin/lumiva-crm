@@ -41,6 +41,15 @@ export class User {
   @Column({ type: 'varchar', length: 512, nullable: true })
   avatarUrl: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  emailVerificationRequired: boolean;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  emailVerificationCodeHash: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  emailVerificationExpiresAt: Date | null;
+
   // ------------ РОЛЬ + СТАТУС ------------
   @Column({ type: 'varchar', length: 32, default: 'user' })
   role: string; // owner / manager / viewer / ...

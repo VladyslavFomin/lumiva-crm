@@ -42,7 +42,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       : null;
 
     const tenantBlockReason = getTenantBlockReason(tenant);
-    if (tenantBlockReason) {
+    if (tenantBlockReason === 'blocked') {
       await this.tenantLogs.record({
         tenantId: tenant?.id || user.tenantId,
         type: 'jwt_denied',
@@ -59,10 +59,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new ForbiddenException({
         code: 'TENANT_INACTIVE',
         reason: tenantBlockReason,
-        message:
-          tenantBlockReason === 'expired'
-            ? 'Срок использования CRM закончился'
-            : 'Тенант заблокирован',
+        message: 'Тенант заблокирован',
         activeUntil: tenant?.activeUntil,
       });
     }

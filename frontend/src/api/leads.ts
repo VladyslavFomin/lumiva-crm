@@ -38,6 +38,7 @@ export interface LeadDto {
   country: string | null;
   status: LeadStatusCode;
   source: string | null;
+  customFields?: Record<string, any> | null;
   utmSource?: string | null;
   utmMedium?: string | null;
   utmCampaign?: string | null;
@@ -45,6 +46,10 @@ export interface LeadDto {
   utmTerm?: string | null;
   assignedTo: string | null;      // отображаемое имя
   assignedUserId: string | null;  // ссылка на сотрудника
+  assignedUserIds?: string[] | null;
+  assignedToList?: string[] | null;
+  contactId: string | null;
+  companyId: string | null;
   meta: any;
   createdAt: string;
   updatedAt: string;
@@ -59,6 +64,7 @@ export interface Lead {
   country: string;
   status: LeadStatus;
   channel: string;
+  customFields?: Record<string, any> | null;
   utmSource?: string | null;
   utmMedium?: string | null;
   utmCampaign?: string | null;
@@ -66,6 +72,10 @@ export interface Lead {
   utmTerm?: string | null;
   assignedTo?: string | null;
   assignedUserId?: string | null;
+  assignedUserIds?: string[] | null;
+  assignedToList?: string[] | null;
+  contactId?: string | null;
+  companyId?: string | null;
   meta?: any;
   createdAt: string;
   updatedAt: string;
@@ -113,6 +123,19 @@ function mapLeadDtoToLead(dto: LeadDto): Lead {
     meta.page ||
     'unknown';
 
+  const assignedUserIds =
+    dto.assignedUserIds && dto.assignedUserIds.length
+      ? dto.assignedUserIds
+      : dto.assignedUserId
+        ? [dto.assignedUserId]
+        : [];
+  const assignedToList =
+    dto.assignedToList && dto.assignedToList.length
+      ? dto.assignedToList
+      : dto.assignedTo
+        ? dto.assignedTo.split(/[,;/]+/).map((v) => v.trim()).filter(Boolean)
+        : [];
+
   return {
     id: dto.id,
     name: dto.name ?? '',
@@ -121,6 +144,7 @@ function mapLeadDtoToLead(dto: LeadDto): Lead {
     country: dto.country ?? '',
     status,
     channel,
+    customFields: dto.customFields ?? null,
     utmSource,
     utmMedium,
     utmCampaign,
@@ -128,6 +152,10 @@ function mapLeadDtoToLead(dto: LeadDto): Lead {
     utmTerm,
     assignedTo: dto.assignedTo,
     assignedUserId: dto.assignedUserId,
+    assignedUserIds,
+    assignedToList,
+    contactId: dto.contactId ?? null,
+    companyId: dto.companyId ?? null,
     meta,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
@@ -144,6 +172,11 @@ export interface LeadPayload {
   source?: string | null;
   assignedTo?: string | null;
   assignedUserId?: string | null;
+  assignedUserIds?: string[] | null;
+  assignedToList?: string[] | null;
+  contactId?: string | null;
+  companyId?: string | null;
+  customFields?: Record<string, any> | null;
   meta?: any;
 }
 
@@ -158,6 +191,14 @@ function buildLeadRequestBody(payload: LeadPayload) {
   if (payload.assignedTo !== undefined) body.assignedTo = payload.assignedTo;
   if (payload.assignedUserId !== undefined)
     body.assignedUserId = payload.assignedUserId;
+  if (payload.assignedUserIds !== undefined)
+    body.assignedUserIds = payload.assignedUserIds;
+  if (payload.assignedToList !== undefined)
+    body.assignedToList = payload.assignedToList;
+  if (payload.contactId !== undefined) body.contactId = payload.contactId;
+  if (payload.companyId !== undefined) body.companyId = payload.companyId;
+  if (payload.customFields !== undefined)
+    body.customFields = payload.customFields;
   if (payload.meta !== undefined) body.meta = payload.meta;
 
   if (payload.status !== undefined) {

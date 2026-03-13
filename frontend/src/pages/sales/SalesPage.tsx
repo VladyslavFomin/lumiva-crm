@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   fetchSales,
   fetchSalesStats,
+  updateSale,
   type Sale,
   type SaleStatus,
   type SalesStats,
@@ -17,6 +18,12 @@ import {
   type SalesChannel,
 } from '../../api/salesChannels';
 import { getLocale } from '../../i18n/utils';
+import {
+  fetchCustomFields,
+  type CustomField,
+} from '../../api/custom-fields';
+import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import { AutomationPanel } from '../../components/AutomationPanel';
 
 /* ─────────────────────────────── */
 /* Локальные типы для фильтров     */
@@ -79,6 +86,17 @@ export const SalesPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [loadingStats, setLoadingStats] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
+  const [automationOpen, setAutomationOpen] = useState(false);
 
   // первая загрузка каналов
   useEffect(() => {
@@ -183,6 +201,385 @@ export const SalesPage: React.FC = () => {
     setFilters((f: SalesFilters) => ({ ...f, page }));
   };
 
+  const activeCustomFields = useMemo(
+    () => customFields.filter((field) => field.isActive),
+    [customFields],
+  );
+
+  const baseColumns = useMemo(
+    () => [
+      { id: 'date', label: t('crm.sales.list.headers.date') },
+      { id: 'id', label: t('crm.sales.list.headers.id') },
+      { id: 'channel', label: t('crm.sales.list.headers.channel') },
+      { id: 'product', label: t('crm.sales.list.headers.product') },
+      { id: 'customer', label: t('crm.sales.list.headers.customer') },
+      { id: 'amount', label: t('crm.sales.list.headers.amount') },
+      { id: 'status', label: t('crm.sales.list.headers.status') },
+      { id: 'purchaseDate', label: t('crm.sales.list.headers.purchaseDate') },
+      { id: 'productLink', label: t('crm.sales.list.headers.productLink') },
+    ],
+    [t],
+  );
+
+  const columns = useMemo(() => {
+    const customCols = activeCustomFields.map((field) => ({
+      id: `cf:${field.id}`,
+      label: field.label,
+      field,
+    }));
+    return [...baseColumns, ...customCols];
+  }, [activeCustomFields, baseColumns]);
+
+  const orderedColumns = useMemo(() => {
+    if (!columns.length) return [];
+    const map = new Map(columns.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : columns.map((col) => col.id);
+    const result: typeof columns = [];
+    order.forEach((id) => {
+      const col = map.get(id);
+      if (col) result.push(col);
+    });
+    columns.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [columns, columnOrder]);
+
+  const getColumnWidth = (id: string, fallback: number) =>
+    columnWidths[id] ?? fallback;
+
+  const updateSaleInline = async (
+    id: string,
+    patch: Partial<Sale>,
+    apiPatch: any,
+  ) => {
+    setList((prev) =>
+      prev
+        ? {
+            ...prev,
+            items: prev.items.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+          }
+        : prev,
+    );
+    try {
+      const updated = await updateSale(id, apiPatch);
+      setList((prev) =>
+        prev
+          ? {
+              ...prev,
+              items: prev.items.map((s) => (s.id === id ? updated : s)),
+            }
+          : prev,
+      );
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || t('crm.sales.errors.load'));
+    }
+  };
+
+  useEffect(() => {
+    fetchCustomFields('sale')
+      .then((items) =>
+        setCustomFields([...items].sort((a, b) => a.order - b.order)),
+      )
+      .catch((e) => console.error('Ошибка загрузки кастомных полей:', e));
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sales_table_columns');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.widths && typeof parsed.widths === 'object')
+          setColumnWidths(parsed.widths);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'sales_table_columns',
+        JSON.stringify({ order: columnOrder, widths: columnWidths }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder, columnWidths]);
+
+  useEffect(() => {
+    if (!columns.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return columns.map((c) => c.id);
+      const ids = columns.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id));
+      const missing = ids.filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [columns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX;
+      const next = Math.max(90, resizing.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
+    };
+    const handleUp = () => setResizing(null);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing]);
+
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      id,
+      startX: e.clientX,
+      startWidth: columnWidths[id] ?? 160,
+    });
+  };
+
+  const handleColumnDrop = (targetId: string) => {
+    if (!dragColumnId || dragColumnId === targetId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragColumnId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragColumnId);
+      return next;
+    });
+    setDragColumnId(null);
+  };
+
+  const renderCustomFieldCell = (sale: Sale, field: CustomField) => {
+    const value = sale.customFields?.[field.key];
+    const commonClass =
+      'w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-200 outline-none focus:border-lumiva-accent-soft';
+
+    if (field.type === 'boolean') {
+      return (
+        <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => {
+              const next = {
+                ...(sale.customFields ?? {}),
+                [field.key]: e.target.checked,
+              };
+              updateSaleInline(sale.id, { customFields: next }, { customFields: next });
+            }}
+            onClick={(e) => e.stopPropagation()}
+          />
+          {Boolean(value) ? 'Да' : 'Нет'}
+        </label>
+      );
+    }
+
+    if (field.type === 'select') {
+      return (
+        <select
+          className={commonClass}
+          value={value ?? ''}
+          onChange={(e) => {
+            const next = {
+              ...(sale.customFields ?? {}),
+              [field.key]: e.target.value || null,
+            };
+            updateSaleInline(sale.id, { customFields: next }, { customFields: next });
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <option value="">—</option>
+          {(field.options || []).map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <input
+        className={commonClass}
+        value={value ?? ''}
+        onChange={(e) =>
+          setList((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  items: prev.items.map((s) =>
+                    s.id === sale.id
+                      ? {
+                          ...s,
+                          customFields: {
+                            ...(s.customFields ?? {}),
+                            [field.key]: e.target.value,
+                          },
+                        }
+                      : s,
+                  ),
+                }
+              : prev,
+          )
+        }
+        onBlur={(e) => {
+          const next = {
+            ...(sale.customFields ?? {}),
+            [field.key]: e.target.value,
+          };
+          updateSaleInline(sale.id, { customFields: next }, { customFields: next });
+        }}
+        onClick={(e) => e.stopPropagation()}
+      />
+    );
+  };
+
+  const renderCell = (sale: Sale, column: any) => {
+    const created = sale.saleDate || sale.createdAt;
+    const fmtDateTime = created
+      ? new Date(created).toLocaleString(locale)
+      : t('crm.sales.common.empty');
+
+    const channelLabel =
+      (sale as any).channelName || sale.channelId || t('crm.sales.common.empty');
+    const productName = sale.hotel || t('crm.sales.common.empty');
+    const marketLabel = sale.market;
+    const clientName =
+      sale.guestName || sale.agentName || t('crm.sales.common.empty');
+    const clientCompany =
+      sale.guestName && sale.agentName ? sale.agentName : null;
+    const notes =
+      typeof sale.notes === 'string' ? sale.notes.trim() : '';
+    const productUrl =
+      notes && /^https?:\/\//i.test(notes) ? notes : undefined;
+
+    switch (column.id) {
+      case 'date':
+        return <span className="text-slate-100">{fmtDateTime}</span>;
+      case 'id':
+        return (
+          <div className="flex flex-col">
+            <span className="font-mono text-[11px] text-slate-300">{sale.id}</span>
+            {sale.externalId && (
+              <span className="font-mono text-[10px] text-slate-500">
+                {sale.externalId}
+              </span>
+            )}
+          </div>
+        );
+      case 'channel':
+        return (
+          <div className="flex flex-col text-slate-300">
+            <span>{channelLabel}</span>
+            {sale.managerName && (
+              <input
+                value={sale.managerName}
+                onChange={(e) =>
+                  updateSaleInline(
+                    sale.id,
+                    { managerName: e.target.value },
+                    { managerName: e.target.value || null },
+                  )
+                }
+                onClick={(e) => e.stopPropagation()}
+                className="mt-1 w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[10px] text-slate-400"
+                placeholder={t('crm.sales.list.manager')}
+              />
+            )}
+          </div>
+        );
+      case 'product':
+        return (
+          <div className="flex flex-col text-slate-300">
+            <span>{productName}</span>
+            {marketLabel && (
+              <span className="text-[10px] text-slate-500">
+                {t('crm.sales.list.market')}: {marketLabel}
+              </span>
+            )}
+          </div>
+        );
+      case 'customer':
+        return (
+          <div className="flex flex-col text-slate-300">
+            <span>{clientName}</span>
+            {clientCompany && (
+              <span className="text-[10px] text-slate-500">
+                {t('crm.sales.list.company')}: {clientCompany}
+              </span>
+            )}
+          </div>
+        );
+      case 'amount':
+        return (
+          <span className="text-slate-100">
+            {sale.amount.toLocaleString(locale, { maximumFractionDigits: 0 })}{' '}
+            <span className="text-slate-400">{sale.currency}</span>
+          </span>
+        );
+      case 'status':
+        return (
+          <select
+            value={sale.status}
+            onChange={(e) =>
+              updateSaleInline(
+                sale.id,
+                { status: e.target.value as SaleStatus },
+                { status: e.target.value as SaleStatus },
+              )
+            }
+            onClick={(e) => e.stopPropagation()}
+            className="w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-200"
+          >
+            {(['new', 'pending', 'confirmed', 'cancelled', 'refunded', 'other'] as SaleStatus[]).map(
+              (s) => (
+                <option key={s} value={s}>
+                  {statusLabels[s]}
+                </option>
+              ),
+            )}
+          </select>
+        );
+      case 'purchaseDate':
+        return <span className="text-slate-400">{fmtDateTime}</span>;
+      case 'productLink':
+        return productUrl ? (
+          <a
+            href={productUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-lumiva-accent hover:underline truncate inline-block max-w-[190px]"
+            title={productUrl}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {t('crm.sales.list.openProduct')}
+          </a>
+        ) : notes ? (
+          <span className="truncate inline-block max-w-[190px]" title={notes}>
+            {notes}
+          </span>
+        ) : (
+          t('crm.sales.common.empty')
+        );
+      default:
+        if (column.field) return renderCustomFieldCell(sale, column.field);
+        return null;
+    }
+  };
+
   return (
     <MainLayout>
       <div className="space-y-4 md:space-y-6 pb-8">
@@ -205,34 +602,64 @@ export const SalesPage: React.FC = () => {
               </p>
             )}
           </div>
-          {stats && (
-            <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
-              <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                {t('crm.sales.summary.totalSales')}:{' '}
-                <span className="font-semibold">
-                  {stats.totalCount.toLocaleString(locale)}
+          <div className="flex flex-wrap items-center gap-2">
+            {stats && (
+              <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
+                <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
+                  {t('crm.sales.summary.totalSales')}:{' '}
+                  <span className="font-semibold">
+                    {stats.totalCount.toLocaleString(locale)}
+                  </span>
                 </span>
-              </span>
-              <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                {t('crm.sales.summary.revenue')}:{' '}
-                <span className="font-semibold">
-                  {stats.totalAmount.toLocaleString(locale, {
-                    maximumFractionDigits: 0,
-                  })}{' '}
-                  €
+                <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
+                  {t('crm.sales.summary.revenue')}:{' '}
+                  <span className="font-semibold">
+                    {stats.totalAmount.toLocaleString(locale, {
+                      maximumFractionDigits: 0,
+                    })}{' '}
+                    €
+                  </span>
                 </span>
-              </span>
-              <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                {t('crm.sales.summary.avgCheck')}:{' '}
-                <span className="font-semibold">
-                  {stats.avgCheck.toLocaleString(locale, {
-                    maximumFractionDigits: 0,
-                  })}{' '}
-                  €
+                <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
+                  {t('crm.sales.summary.avgCheck')}:{' '}
+                  <span className="font-semibold">
+                    {stats.avgCheck.toLocaleString(locale, {
+                      maximumFractionDigits: 0,
+                    })}{' '}
+                    €
+                  </span>
                 </span>
-              </span>
-            </div>
-          )}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setAutomationOpen(true)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80 inline-flex items-center gap-2"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M12 2v4" />
+                <path d="M12 18v4" />
+                <path d="M4 12h4" />
+                <path d="M16 12h4" />
+                <path d="M7.8 7.8l2.8 2.8" />
+                <path d="M13.4 13.4l2.8 2.8" />
+                <path d="M16.2 7.8l-2.8 2.8" />
+                <path d="M10.6 13.4l-2.8 2.8" />
+                <circle cx="12" cy="12" r="2.5" />
+              </svg>
+              {t('crm.automations.panel.button')}
+            </button>
+          </div>
         </section>
 
         {/* Фильтры */}
@@ -361,62 +788,125 @@ export const SalesPage: React.FC = () => {
             <h2 className="text-sm font-semibold text-slate-100">
               {t('crm.sales.list.title')}
             </h2>
-            {list && (
-              <span className="text-[11px] text-slate-500">
-                {t('crm.sales.list.shown', {
-                  shown: list.items.length,
-                  total: list.total.toLocaleString(locale),
-                })}
-              </span>
-            )}
+            <div className="flex items-center gap-3">
+              {list && (
+                <span className="text-[11px] text-slate-500">
+                  {t('crm.sales.list.shown', {
+                    shown: list.items.length,
+                    total: list.total.toLocaleString(locale),
+                  })}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setCustomFieldsOpen(true)}
+                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
+              >
+                + Колонка
+              </button>
+            </div>
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
+            <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1 table-fixed">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.date')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.id')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.channel')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.product')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.customer')}
-                  </th>
-                  <th className="text-right font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.amount')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.status')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.purchaseDate')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.sales.list.headers.productLink')}
-                  </th>
+                  {orderedColumns.map((col) => {
+                    const fallback =
+                      col.id === 'date'
+                        ? 170
+                        : col.id === 'id'
+                          ? 180
+                          : col.id === 'channel'
+                            ? 200
+                            : col.id === 'product'
+                              ? 200
+                              : col.id === 'customer'
+                                ? 200
+                                : col.id === 'amount'
+                                  ? 140
+                                  : col.id === 'status'
+                                    ? 160
+                                    : col.id === 'purchaseDate'
+                                      ? 170
+                                      : col.id === 'productLink'
+                                        ? 200
+                                        : 180;
+                    const width = getColumnWidth(col.id, fallback);
+                    return (
+                      <th
+                        key={col.id}
+                        draggable
+                        onDragStart={(e) => {
+                          setDragColumnId(col.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', col.id);
+                        }}
+                        onDragEnd={() => setDragColumnId(null)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleColumnDrop(col.id)}
+                        className="text-left font-normal px-2 py-1 relative group"
+                        style={{ width, minWidth: width }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="cursor-move">⋮⋮</span>
+                          <span>{col.label}</span>
+                        </div>
+                        <div
+                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                          onMouseDown={(e) => startResize(col.id, e)}
+                        />
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {list?.items.map((s: Sale) => (
-                  <SalesRow
+                  <tr
                     key={s.id}
-                    sale={s}
-                    onOpen={() => navigate(`/app/sales/${s.id}`)}
-                  />
+                    className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/app/sales/${s.id}`)}
+                  >
+                    {orderedColumns.map((col) => {
+                      const fallback =
+                        col.id === 'date'
+                          ? 170
+                          : col.id === 'id'
+                            ? 180
+                            : col.id === 'channel'
+                              ? 200
+                              : col.id === 'product'
+                                ? 200
+                                : col.id === 'customer'
+                                  ? 200
+                                  : col.id === 'amount'
+                                    ? 140
+                                    : col.id === 'status'
+                                      ? 160
+                                      : col.id === 'purchaseDate'
+                                        ? 170
+                                        : col.id === 'productLink'
+                                          ? 200
+                                          : 180;
+                      const width = getColumnWidth(col.id, fallback);
+                      return (
+                        <td
+                          key={col.id}
+                          className="px-2 py-1.5 text-slate-400"
+                          style={{ width, minWidth: width }}
+                        >
+                          {renderCell(s, col)}
+                        </td>
+                      );
+                    })}
+                  </tr>
                 ))}
 
                 {(!list || list.items.length === 0) && !loading && (
                   <tr>
                     <td
-                      colSpan={9}
+                      colSpan={orderedColumns.length}
                       className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
                     >
                       {t('crm.sales.list.empty')}
@@ -457,6 +947,21 @@ export const SalesPage: React.FC = () => {
             </div>
           )}
         </section>
+        {customFieldsOpen && (
+          <CustomFieldsManager
+            entityType="sale"
+            title="Кастомные поля продаж"
+            onClose={() => setCustomFieldsOpen(false)}
+            onUpdated={(list) =>
+              setCustomFields([...list].sort((a, b) => a.order - b.order))
+            }
+          />
+        )}
+        <AutomationPanel
+          open={automationOpen}
+          onClose={() => setAutomationOpen(false)}
+          entityType="sale"
+        />
 
         {loading && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">

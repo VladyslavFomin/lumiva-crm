@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { login } from '../api/client';
-import { getAccessToken, persistSession } from '../auth/session';
+import {
+  clearSessionExpired,
+  getAccessToken,
+  persistSession,
+  readSessionExpired,
+} from '../auth/session';
 
 export const LoginPage: React.FC = () => {
   const { t } = useTranslation();
@@ -13,6 +18,7 @@ export const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [info, setInfo] = useState<string | null>(null);
 
   const existingToken = getAccessToken();
 
@@ -21,6 +27,14 @@ export const LoginPage: React.FC = () => {
       navigate('/app', { replace: true });
     }
   }, [existingToken, navigate]);
+
+  React.useEffect(() => {
+    const expired = readSessionExpired();
+    if (expired) {
+      setInfo(t('crm.auth.login.sessionExpired'));
+      clearSessionExpired();
+    }
+  }, [t]);
 
   if (existingToken) {
     return <Navigate to="/app" replace />;
@@ -152,6 +166,12 @@ export const LoginPage: React.FC = () => {
               {error && (
                 <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
                   {error}
+                </div>
+              )}
+
+              {info && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  {info}
                 </div>
               )}
 

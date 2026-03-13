@@ -92,6 +92,14 @@ export const SmmPage: React.FC = () => {
   const [compareLoading, setCompareLoading] = useState(false);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
   const [form, setForm] = useState<{
     platform: SmmPlatform;
     handle: string;
@@ -127,6 +135,38 @@ export const SmmPage: React.FC = () => {
   const metaConnected = Boolean(metaAssets && !metaError);
   const [hiddenMetaPages, setHiddenMetaPages] = useState<Set<string>>(new Set());
 
+  const baseColumns = useMemo(
+    () => [
+      { id: 'profile', label: t('crm.marketingSmm.profiles.table.headers.profile') },
+      { id: 'platform', label: t('crm.marketingSmm.profiles.table.headers.platform') },
+      { id: 'followers', label: t('crm.marketingSmm.profiles.table.headers.followers') },
+      {
+        id: 'reachLikesComments',
+        label: t('crm.marketingSmm.profiles.table.headers.reachLikesComments'),
+      },
+      { id: 'erViews', label: t('crm.marketingSmm.profiles.table.headers.erViews') },
+      { id: 'date', label: t('crm.marketingSmm.profiles.table.headers.date') },
+      { id: 'actions', label: t('crm.marketingSmm.profiles.table.headers.actions') },
+    ],
+    [t],
+  );
+
+  const orderedColumns = useMemo(() => {
+    if (!baseColumns.length) return [];
+    const map = new Map(baseColumns.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : baseColumns.map((col) => col.id);
+    const result: typeof baseColumns = [];
+    order.forEach((id) => {
+      const col = map.get(id);
+      if (col) result.push(col);
+    });
+    baseColumns.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [baseColumns, columnOrder]);
+
   // ------ helpers: период
 
   const applyPreset = (p: PeriodPreset) => {
@@ -156,6 +196,58 @@ export const SmmPage: React.FC = () => {
     applyPreset('30d');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('marketing_smm_profiles_columns');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.widths && typeof parsed.widths === 'object')
+          setColumnWidths(parsed.widths);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'marketing_smm_profiles_columns',
+        JSON.stringify({ order: columnOrder, widths: columnWidths }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder, columnWidths]);
+
+  useEffect(() => {
+    if (!baseColumns.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return baseColumns.map((c) => c.id);
+      const ids = baseColumns.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id));
+      const missing = ids.filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [baseColumns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX;
+      const next = Math.max(90, resizing.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
+    };
+    const handleUp = () => setResizing(null);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing]);
 
   useEffect(() => {
     const raw = window.localStorage.getItem('smm.meta.hiddenPages');
@@ -280,6 +372,73 @@ export const SmmPage: React.FC = () => {
       setMetaStatus(t('crm.marketingSmm.meta.profileRemoved'));
     } catch (err: any) {
       setMetaError(err?.message || t('crm.marketingSmm.errors.metaRemove'));
+    }
+  };
+
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      id,
+      startX: e.clientX,
+      startWidth: columnWidths[id] ?? 160,
+    });
+  };
+
+  const handleColumnDrop = (targetId: string) => {
+    if (!dragColumnId || dragColumnId === targetId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragColumnId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragColumnId);
+      return next;
+    });
+    setDragColumnId(null);
+  };
+
+  const renderProfileCell = (
+    p: SmmProfile,
+    s: SmmProfileLastStat | null | undefined,
+    columnId: string,
+  ) => {
+    switch (columnId) {
+      case 'profile':
+        return <span className="text-slate-100">@{p.handle}</span>;
+      case 'platform':
+        return <span className="text-slate-300">{platformLabel(p.platform)}</span>;
+      case 'followers':
+        return s
+          ? s.followers.toLocaleString(locale)
+          : t('crm.marketingSmm.compare.dash');
+      case 'reachLikesComments':
+        return s
+          ? `${s.reach.toLocaleString(locale)} / ${s.likes.toLocaleString(
+              locale,
+            )} / ${s.comments.toLocaleString(locale)}`
+          : t('crm.marketingSmm.compare.dash');
+      case 'erViews':
+        return s
+          ? `${s.reach ? (((s.likes + s.comments) / s.reach) * 100).toFixed(2) : '0.00'}% / ${s.videoViews.toLocaleString(
+              locale,
+            )}`
+          : t('crm.marketingSmm.compare.dash');
+      case 'date':
+        return s?.date || t('crm.marketingSmm.compare.dash');
+      case 'actions':
+        return (
+          <button
+            type="button"
+            onClick={() => handleDeleteProfile(p)}
+            className="text-[10px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300"
+          >
+            {t('crm.marketingSmm.profiles.delete')}
+          </button>
+        );
+      default:
+        return null;
     }
   };
 
@@ -1188,37 +1347,61 @@ export const SmmPage: React.FC = () => {
                 </form>
 
                 <div className="overflow-x-auto">
-                  <table className="min-w-full border-collapse text-[11px]">
+                  <table className="min-w-full border-collapse text-[11px] table-fixed">
                     <thead>
                       <tr className="border-b border-slate-800/80 text-slate-400">
-                        <th className="py-1.5 pr-3 text-left font-normal">
-                          {t('crm.marketingSmm.profiles.table.headers.profile')}
-                        </th>
-                        <th className="py-1.5 px-3 text-left font-normal">
-                          {t('crm.marketingSmm.profiles.table.headers.platform')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingSmm.profiles.table.headers.followers')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingSmm.profiles.table.headers.reachLikesComments')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingSmm.profiles.table.headers.erViews')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingSmm.profiles.table.headers.date')}
-                        </th>
-                        <th className="py-1.5 px-3 text-right font-normal">
-                          {t('crm.marketingSmm.profiles.table.headers.actions')}
-                        </th>
+                        {orderedColumns.map((col) => {
+                          const fallback =
+                            col.id === 'profile'
+                              ? 200
+                              : col.id === 'platform'
+                                ? 140
+                                : col.id === 'followers'
+                                  ? 120
+                                  : col.id === 'reachLikesComments'
+                                    ? 220
+                                    : col.id === 'erViews'
+                                      ? 180
+                                      : col.id === 'date'
+                                        ? 140
+                                        : 140;
+                          const width = columnWidths[col.id] ?? fallback;
+                          const alignRight = !['profile', 'platform'].includes(col.id);
+                          return (
+                            <th
+                              key={col.id}
+                              draggable
+                              onDragStart={(e) => {
+                                setDragColumnId(col.id);
+                                e.dataTransfer.effectAllowed = 'move';
+                                e.dataTransfer.setData('text/plain', col.id);
+                              }}
+                              onDragEnd={() => setDragColumnId(null)}
+                              onDragOver={(e) => e.preventDefault()}
+                              onDrop={() => handleColumnDrop(col.id)}
+                              className={`py-1.5 px-3 font-normal relative group ${
+                                alignRight ? 'text-right' : 'text-left'
+                              }`}
+                              style={{ width, minWidth: width }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className="cursor-move">⋮⋮</span>
+                                <span>{col.label}</span>
+                              </div>
+                              <div
+                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                                onMouseDown={(e) => startResize(col.id, e)}
+                              />
+                            </th>
+                          );
+                        })}
                       </tr>
                     </thead>
                     <tbody>
                       {loadingProfiles && (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={orderedColumns.length}
                             className="py-3 text-center text-slate-500"
                           >
                             {t('crm.marketingSmm.profiles.table.loading')}
@@ -1229,7 +1412,7 @@ export const SmmPage: React.FC = () => {
                       {!loadingProfiles && filteredProfiles.length === 0 && (
                         <tr>
                           <td
-                            colSpan={7}
+                            colSpan={orderedColumns.length}
                             className="py-3 text-center text-slate-500"
                           >
                             {t('crm.marketingSmm.profiles.table.empty')}
@@ -1251,43 +1434,35 @@ export const SmmPage: React.FC = () => {
                               key={p.id}
                               className="border-b border-slate-800/40 last:border-none hover:bg-slate-900/50 transition-colors"
                             >
-                              <td className="py-1.5 pr-3 text-slate-100 max-w-[200px] truncate">
-                                @{p.handle}
-                              </td>
-                              <td className="py-1.5 px-3 text-slate-300">
-                                {platformLabel(p.platform)}
-                              </td>
-                              <td className="py-1.5 px-3 text-right text-slate-100">
-                                {s
-                                  ? s.followers.toLocaleString(locale)
-                                  : t('crm.marketingSmm.compare.dash')}
-                              </td>
-                              <td className="py-1.5 px-3 text-right text-slate-300">
-                                {s
-                                  ? `${s.reach.toLocaleString(locale)} / ${s.likes.toLocaleString(
-                                      locale,
-                                    )} / ${s.comments.toLocaleString(locale)}`
-                                  : t('crm.marketingSmm.compare.dash')}
-                              </td>
-                              <td className="py-1.5 px-3 text-right text-slate-300">
-                                {s
-                                  ? `${s.reach
-                                      ? (((s.likes + s.comments) / s.reach) * 100).toFixed(2)
-                                      : '0.00'}% / ${s.videoViews.toLocaleString(locale)}`
-                                  : t('crm.marketingSmm.compare.dash')}
-                              </td>
-                              <td className="py-1.5 px-3 text-right text-slate-400">
-                                {s?.date || t('crm.marketingSmm.compare.dash')}
-                              </td>
-                              <td className="py-1.5 px-3 text-right text-slate-400">
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteProfile(p)}
-                                  className="text-[10px] px-2 py-1 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300"
-                                >
-                                  {t('crm.marketingSmm.profiles.delete')}
-                                </button>
-                              </td>
+                              {orderedColumns.map((col) => {
+                                const fallback =
+                                  col.id === 'profile'
+                                    ? 200
+                                    : col.id === 'platform'
+                                      ? 140
+                                      : col.id === 'followers'
+                                        ? 120
+                                        : col.id === 'reachLikesComments'
+                                          ? 220
+                                          : col.id === 'erViews'
+                                            ? 180
+                                            : col.id === 'date'
+                                              ? 140
+                                              : 140;
+                                const width = columnWidths[col.id] ?? fallback;
+                                const alignRight = !['profile', 'platform'].includes(col.id);
+                                return (
+                                  <td
+                                    key={col.id}
+                                    className={`py-1.5 px-3 ${
+                                      alignRight ? 'text-right' : 'text-left'
+                                    }`}
+                                    style={{ width, minWidth: width }}
+                                  >
+                                    {renderProfileCell(p, s, col.id)}
+                                  </td>
+                                );
+                              })}
                             </tr>
                           );
                         })}

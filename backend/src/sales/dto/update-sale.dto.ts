@@ -1,5 +1,12 @@
 // src/sales/dto/update-sale.dto.ts
-import { IsEnum, IsOptional, IsString, MaxLength, IsUUID } from 'class-validator';
+import {
+  IsEnum,
+  IsOptional,
+  IsString,
+  MaxLength,
+  IsUUID,
+  IsObject,
+} from 'class-validator';
 import { SaleStatus } from '../sale-status.enum';
 
 export class UpdateSaleDto {
@@ -21,4 +28,8 @@ export class UpdateSaleDto {
   @IsOptional()
   @IsUUID('4')
   leadId?: string | null;
+
+  @IsOptional()
+  @IsObject()
+  customFields?: Record<string, any>;
 }

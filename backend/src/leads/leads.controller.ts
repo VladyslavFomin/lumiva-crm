@@ -76,6 +76,32 @@ export class LeadsController {
     return staff ?? null;
   }
 
+  private isLeadMine(lead: any, staff: StaffUser | null): boolean {
+    if (!staff) return false;
+    const staffId = staff.id;
+    const fullName = staff.fullName?.trim();
+    if (
+      Array.isArray(lead.assignedUserIds) &&
+      lead.assignedUserIds.includes(staffId)
+    ) {
+      return true;
+    }
+    if (
+      Array.isArray(lead.assignedToList) &&
+      fullName &&
+      lead.assignedToList.includes(fullName)
+    ) {
+      return true;
+    }
+    if (lead.assignedUserId && lead.assignedUserId === staffId) {
+      return true;
+    }
+    if (fullName && lead.assignedTo && lead.assignedTo === fullName) {
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Фильтрация лидов по доступу сотрудника (кроме owner).
    */
@@ -84,19 +110,7 @@ export class LeadsController {
     staff: StaffUser | null,
   ): Lead[] {
     if (!staff) return [];
-
-    const staffId = staff.id;
-    const fullName = staff.fullName?.trim();
-
-    return leads.filter((lead: any) => {
-      if (lead.assignedUserId && lead.assignedUserId === staffId) {
-        return true;
-      }
-      if (fullName && lead.assignedTo && lead.assignedTo === fullName) {
-        return true;
-      }
-      return false;
-    });
+    return leads.filter((lead: any) => this.isLeadMine(lead, staff));
   }
 
   // ====================== GET /leads ======================
@@ -234,12 +248,7 @@ console.log('ROI controller: query.source =', source);
         );
       }
 
-      const staffId = staff.id;
-      const fullName = staff.fullName?.trim();
-
-      const isMine =
-        (lead as any).assignedUserId === staffId ||
-        (!!fullName && (lead as any).assignedTo === fullName);
+      const isMine = this.isLeadMine(lead as any, staff);
 
       if (!isMine) {
         throw new ForbiddenException(
@@ -281,12 +290,7 @@ console.log('ROI controller: query.source =', source);
       throw new ForbiddenException('Недостаточно прав для просмотра лида');
     }
 
-    const staffId = staff.id;
-    const fullName = staff.fullName?.trim();
-
-    const isMine =
-      (lead as any).assignedUserId === staffId ||
-      (!!fullName && (lead as any).assignedTo === fullName);
+    const isMine = this.isLeadMine(lead as any, staff);
 
     if (!isMine) {
       throw new ForbiddenException('Недостаточно прав для просмотра лида');
@@ -347,12 +351,7 @@ console.log('ROI controller: query.source =', source);
       throw new ForbiddenException('Недостаточно прав для изменения лида');
     }
 
-    const staffId = staff.id;
-    const fullName = staff.fullName?.trim();
-
-    const isMine =
-      (lead as any).assignedUserId === staffId ||
-      (!!fullName && (lead as any).assignedTo === fullName);
+    const isMine = this.isLeadMine(lead as any, staff);
 
     if (!isMine) {
       throw new ForbiddenException('Можно изменять только свои лиды');

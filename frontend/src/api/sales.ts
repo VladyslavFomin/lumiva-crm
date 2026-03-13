@@ -1,5 +1,6 @@
 // src/api/sales.ts
-import { api } from './client';
+import { api, API_BASE } from './client';
+import { getAccessToken } from '../auth/session';
 
 /* ─────────────────────────────
  * Базовые типы
@@ -42,6 +43,7 @@ export interface Sale {
 
   managerName: string | null;
   notes: string | null;
+  customFields?: Record<string, any> | null;
 
   // Привязанный лид (опционально)
   leadId?: string | null;
@@ -118,6 +120,38 @@ export interface SalesStats {
   byCurrency: SalesByCurrencyDto[];
 }
 
+export interface SalesAnalyticsSeriesRow {
+  month: string;
+  [channelId: string]: number | string;
+}
+
+export interface SalesAnalyticsCustomField {
+  key: string;
+  label: string;
+  type: string;
+  items: Array<{ label: string; count: number; amount: number }>;
+}
+
+export interface SalesAnalyticsResponse {
+  totalCount: number;
+  totalAmount: number;
+  avgCheck: number;
+  displayCurrency: string;
+  currencyMode: 'native' | 'converted';
+  byStatus: Array<{ status: SaleStatus; count: number; amount: number }>;
+  byChannel: Array<{ channelId: string | null; label: string; count: number; amount: number }>;
+  byProduct: Array<{ label: string; count: number; amount: number }>;
+  byMarket: Array<{ label: string; count: number; amount: number }>;
+  byManager: Array<{ label: string; count: number; amount: number }>;
+  byCurrency: Array<{ label: string; count: number; amount: number }>;
+  timeline: {
+    count: SalesAnalyticsSeriesRow[];
+    amount: SalesAnalyticsSeriesRow[];
+  };
+  customFields: Record<string, SalesAnalyticsCustomField>;
+  sampleSales: Sale[];
+}
+
 /* ─────────────────────────────
  * Payload для обновления продажи
  * ───────────────────────────── */
@@ -127,6 +161,7 @@ export interface UpdateSalePayload {
   managerName?: string | null;
   notes?: string | null;
   leadId?: string | null;
+  customFields?: Record<string, any> | null;
 }
 
 /* ───────────────────── helpers ───────────────────── */
@@ -161,6 +196,67 @@ export async function fetchSalesStats(
   const qs = buildQuery(params);
   const url = `/sales/stats${qs}`;
   return api.get<SalesStats>(url);
+}
+
+export async function fetchSalesAnalytics(params: {
+  from?: string;
+  to?: string;
+  dateField?: 'saleDate' | 'createdAt';
+  channelIds?: string[];
+  status?: SaleStatus;
+  search?: string;
+  currencyMode?: 'native' | 'converted';
+  displayCurrency?: string;
+  rates?: Record<string, number>;
+  sampleLimit?: number;
+}): Promise<SalesAnalyticsResponse> {
+  const payload: Record<string, any> = {
+    ...params,
+    channelIds: params.channelIds?.join(','),
+    rates: params.rates ? JSON.stringify(params.rates) : undefined,
+  };
+  const qs = buildQuery(payload);
+  const url = `/sales/analytics${qs}`;
+  return api.get<SalesAnalyticsResponse>(url);
+}
+
+export async function exportSalesAnalytics(params: {
+  from?: string;
+  to?: string;
+  dateField?: 'saleDate' | 'createdAt';
+  channelIds?: string[];
+  status?: SaleStatus;
+  search?: string;
+  currencyMode?: 'native' | 'converted';
+  displayCurrency?: string;
+  rates?: Record<string, number>;
+  format?: 'csv' | 'xls' | 'xlsx' | 'excel';
+}): Promise<Blob> {
+  const payload: Record<string, any> = {
+    ...params,
+    channelIds: params.channelIds?.join(','),
+    rates: params.rates ? JSON.stringify(params.rates) : undefined,
+  };
+  const qs = buildQuery(payload);
+  const url = `${API_BASE}/sales/analytics/export${qs}`;
+  const token = getAccessToken();
+  const res = await fetch(url, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Export failed: ${res.status}`);
+  }
+  return res.blob();
+}
+
+export async function fetchSalesAnalyticsPreset(): Promise<any | null> {
+  return api.get<any | null>('/sales/analytics/preset');
+}
+
+export async function saveSalesAnalyticsPreset(payload: Record<string, any>) {
+  return api.patch('/sales/analytics/preset', { payload });
 }
 
 /** Обновление продажи (статус, менеджер, заметки, лид) */

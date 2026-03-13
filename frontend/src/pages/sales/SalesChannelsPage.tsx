@@ -24,6 +24,14 @@ export const SalesChannelsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -58,6 +66,191 @@ export const SalesChannelsPage: React.FC = () => {
     () => channels.reduce((s, c) => s + (c.totalSalesCount || 0), 0),
     [channels],
   );
+
+  const baseColumns = useMemo(
+    () => [
+      { id: 'channel', label: t('crm.salesChannels.table.headers.channel') },
+      { id: 'type', label: t('crm.salesChannels.table.headers.type') },
+      { id: 'integration', label: t('crm.salesChannels.table.headers.integration') },
+      { id: 'apiKey', label: t('crm.salesChannels.table.headers.apiKey') },
+      { id: 'connected', label: t('crm.salesChannels.table.headers.connected') },
+      { id: 'sales', label: t('crm.salesChannels.table.headers.sales') },
+      { id: 'amount', label: t('crm.salesChannels.table.headers.amount') },
+      { id: 'status', label: t('crm.salesChannels.table.headers.status') },
+      { id: 'lastSync', label: t('crm.salesChannels.table.headers.lastSync') },
+      { id: 'actions', label: t('crm.salesChannels.table.headers.actions') },
+    ],
+    [t],
+  );
+
+  const orderedColumns = useMemo(() => {
+    if (!baseColumns.length) return [];
+    const map = new Map(baseColumns.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : baseColumns.map((col) => col.id);
+    const result: typeof baseColumns = [];
+    order.forEach((id) => {
+      const col = map.get(id);
+      if (col) result.push(col);
+    });
+    baseColumns.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [baseColumns, columnOrder]);
+
+  const getColumnWidth = (id: string, fallback: number) =>
+    columnWidths[id] ?? fallback;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sales_channels_columns');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.widths && typeof parsed.widths === 'object')
+          setColumnWidths(parsed.widths);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'sales_channels_columns',
+        JSON.stringify({ order: columnOrder, widths: columnWidths }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder, columnWidths]);
+
+  useEffect(() => {
+    if (!baseColumns.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return baseColumns.map((c) => c.id);
+      const ids = baseColumns.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id));
+      const missing = ids.filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [baseColumns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX;
+      const next = Math.max(90, resizing.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
+    };
+    const handleUp = () => setResizing(null);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing]);
+
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      id,
+      startX: e.clientX,
+      startWidth: columnWidths[id] ?? 160,
+    });
+  };
+
+  const handleColumnDrop = (targetId: string) => {
+    if (!dragColumnId || dragColumnId === targetId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragColumnId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragColumnId);
+      return next;
+    });
+    setDragColumnId(null);
+  };
+
+  const renderCell = (ch: SalesChannel, columnId: string) => {
+    switch (columnId) {
+      case 'channel':
+        return (
+          <div className="flex flex-col">
+            <span className="text-slate-100">{ch.name}</span>
+            {ch.description && (
+              <span className="text-[10px] text-slate-500">{ch.description}</span>
+            )}
+          </div>
+        );
+      case 'type':
+        return typeLabels[ch.type] || ch.type;
+      case 'integration':
+        return ch.integrationName || t('crm.salesChannels.common.empty');
+      case 'apiKey':
+        return ch.apiKeyMasked || t('crm.salesChannels.common.empty');
+      case 'connected':
+        return ch.isConnected
+          ? t('crm.salesChannels.common.connected')
+          : t('crm.salesChannels.common.disconnected');
+      case 'sales':
+        return ch.totalSalesCount?.toLocaleString(locale) || '0';
+      case 'amount':
+        return (
+          <>
+            {(ch.totalSalesAmount || 0).toLocaleString(locale, {
+              maximumFractionDigits: 0,
+            })}{' '}
+            €
+          </>
+        );
+      case 'status':
+        return ch.isEnabled
+          ? t('crm.salesChannels.status.enabled')
+          : t('crm.salesChannels.status.disabled');
+      case 'lastSync':
+        return ch.lastSyncAt
+          ? new Date(ch.lastSyncAt).toLocaleString(locale)
+          : t('crm.salesChannels.common.empty');
+      case 'actions':
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggle(ch);
+              }}
+              className="px-2 py-1 rounded-lg border border-slate-700/80 text-[11px] text-slate-200 hover:bg-slate-900/80"
+              disabled={savingId === ch.id}
+            >
+              {ch.isEnabled
+                ? t('crm.salesChannels.actions.disable')
+                : t('crm.salesChannels.actions.enable')}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete(ch);
+              }}
+              className="px-2 py-1 rounded-lg border border-rose-700/60 text-[11px] text-rose-200 hover:bg-rose-950/60"
+              disabled={savingId === ch.id}
+            >
+              {t('crm.salesChannels.actions.delete')}
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
 
   const handleToggle = async (ch: SalesChannel) => {
     setSavingId(ch.id);
@@ -178,56 +371,104 @@ export const SalesChannelsPage: React.FC = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
+            <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1 table-fixed">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.channel')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.type')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.integration')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.apiKey')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.connected')}
-                  </th>
-                  <th className="text-right font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.sales')}
-                  </th>
-                  <th className="text-right font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.amount')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.status')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.lastSync')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesChannels.table.headers.actions')}
-                  </th>
+                  {orderedColumns.map((col) => {
+                    const fallback =
+                      col.id === 'channel'
+                        ? 220
+                        : col.id === 'type'
+                          ? 140
+                          : col.id === 'integration'
+                            ? 180
+                            : col.id === 'apiKey'
+                              ? 180
+                              : col.id === 'connected'
+                                ? 140
+                                : col.id === 'sales'
+                                  ? 120
+                                  : col.id === 'amount'
+                                    ? 140
+                                    : col.id === 'status'
+                                      ? 120
+                                      : col.id === 'lastSync'
+                                        ? 170
+                                        : 200;
+                    const width = getColumnWidth(col.id, fallback);
+                    return (
+                      <th
+                        key={col.id}
+                        draggable
+                        onDragStart={(e) => {
+                          setDragColumnId(col.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', col.id);
+                        }}
+                        onDragEnd={() => setDragColumnId(null)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleColumnDrop(col.id)}
+                        className="text-left font-normal px-2 py-1 relative group"
+                        style={{ width, minWidth: width }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="cursor-move">⋮⋮</span>
+                          <span>{col.label}</span>
+                        </div>
+                        <div
+                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                          onMouseDown={(e) => startResize(col.id, e)}
+                        />
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {channels.map((ch) => (
-                  <ChannelRow
+                  <tr
                     key={ch.id}
-                    channel={ch}
-                    saving={savingId === ch.id}
-                    onToggle={() => handleToggle(ch)}
-                    onDelete={() => handleDelete(ch)}
-                  />
+                    className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors"
+                  >
+                    {orderedColumns.map((col) => {
+                      const fallback =
+                        col.id === 'channel'
+                          ? 220
+                          : col.id === 'type'
+                            ? 140
+                            : col.id === 'integration'
+                              ? 180
+                              : col.id === 'apiKey'
+                                ? 180
+                                : col.id === 'connected'
+                                  ? 140
+                                  : col.id === 'sales'
+                                    ? 120
+                                    : col.id === 'amount'
+                                      ? 140
+                                      : col.id === 'status'
+                                        ? 120
+                                        : col.id === 'lastSync'
+                                          ? 170
+                                          : 200;
+                      const width = getColumnWidth(col.id, fallback);
+                      return (
+                        <td
+                          key={col.id}
+                          className="px-2 py-1.5 text-slate-300"
+                          style={{ width, minWidth: width }}
+                        >
+                          {renderCell(ch, col.id)}
+                        </td>
+                      );
+                    })}
+                  </tr>
                 ))}
 
                 {!channels.length && !loading && (
                   <tr>
                     <td
-                      colSpan={10}
+                      colSpan={orderedColumns.length}
                       className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
                     >
                       {t('crm.salesChannels.table.empty')}

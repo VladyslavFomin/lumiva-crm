@@ -8,11 +8,15 @@ import {
   Body,
   ParseUUIDPipe,
   UseGuards,
+  Res,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { SalesService } from './sales.service';
 import { ListSalesQueryDto } from './dto/list-sales-query.dto';
 import { UpdateSaleDto } from './dto/update-sale.dto';
 import { SaleDetailDto } from './dto/sale-detail.dto';
+import { SalesAnalyticsQueryDto } from './dto/sales-analytics-query.dto';
+import { SaveAnalyticsPresetDto } from './dto/save-analytics-preset.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'; // путь как у других контроллеров
@@ -36,6 +40,49 @@ export class SalesController {
     @Query() query: ListSalesQueryDto,
   ) {
     return this.salesService.getStats(user.tenantId, query);
+  }
+
+  @Get('analytics')
+  async analytics(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: SalesAnalyticsQueryDto,
+  ) {
+    return this.salesService.getAnalytics(user.tenantId, query);
+  }
+
+  @Get('analytics/preset')
+  async getAnalyticsPreset(@CurrentUser() user: CurrentUserPayload) {
+    const userId = user.userId || user.id || user.sub || null;
+    return this.salesService.getAnalyticsPreset(user.tenantId, userId);
+  }
+
+  @Patch('analytics/preset')
+  async saveAnalyticsPreset(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() dto: SaveAnalyticsPresetDto,
+  ) {
+    const userId = user.userId || user.id || user.sub || null;
+    return this.salesService.saveAnalyticsPreset(user.tenantId, userId, dto);
+  }
+
+  @Get('analytics/export')
+  async exportAnalytics(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query() query: SalesAnalyticsQueryDto,
+    @Query('format') format: 'csv' | 'xls' | 'xlsx' | 'excel' = 'csv',
+    @Res() res: Response,
+  ) {
+    const result = await this.salesService.exportAnalytics(
+      user.tenantId,
+      query,
+      format,
+    );
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=\"${result.filename}\"`,
+    );
+    return res.send(result.body);
   }
 
   @Get(':id')

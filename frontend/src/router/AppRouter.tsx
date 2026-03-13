@@ -8,8 +8,16 @@ import {
 } from 'react-router-dom';
 
 import { LoginPage } from '../pages/LoginPage';
+import { BillingPage } from '../pages/BillingPage';
 import { DashboardPage } from '../pages/DashboardPage';
 import LandingPage from "../pages/LandingPage";
+import DevelopmentPage from '../pages/public/DevelopmentPage';
+import ScenariosPage from '../pages/public/ScenariosPage';
+import ApiPage from '../pages/public/ApiPage';
+import SolutionsPage from '../pages/public/SolutionsPage';
+import PrivacyPage from '../pages/public/PrivacyPage';
+import BlogPage from '../pages/public/BlogPage';
+import PricingPage from '../pages/public/PricingPage';
 import { AccessDeniedPage } from '../pages/AccessDeniedPage';
 import TenantInactivePage from '../pages/TenantInactivePage';
 import ForgotPasswordPage from "../pages/ForgotPasswordPage";
@@ -20,8 +28,13 @@ import { StaffListPage } from '../pages/staff/StaffListPage';
 import { StaffProfilePage } from '../pages/staff/StaffProfilePage';
 import { StaffPermissionsPage } from '../pages/staff/StaffPermissionsPage';
 
+// DEPARTMENTS
+import { DepartmentsPage } from '../pages/departments/DepartmentsPage';
+import { DepartmentFormPage } from '../pages/departments/DepartmentFormPage';
+
 // SALES
 import { SalesPage } from '../pages/sales/SalesPage';
+import { SalesAnalyticsPage } from '../pages/sales/SalesAnalyticsPage';
 import { SalesChannelsPage } from '../pages/sales/SalesChannelsPage';
 import { SalesIntegrationsPage } from '../pages/sales/SalesIntegrationsPage';
 import { SalesImportPage } from '../pages/sales/SalesImportPage';
@@ -41,13 +54,18 @@ import { LeadsListPage } from '../pages/leads/LeadsListPage';
 import { LeadFormPage } from '../pages/leads/LeadFormPage';
 import { LeadsAnalyticsPage } from '../pages/analytics/LeadsAnalyticsPage';
 import { LeadsRoiPage } from '../pages/analytics/LeadsRoiPage';
+import { CompaniesAnalyticsPage } from '../pages/analytics/CompaniesAnalyticsPage';
 import { LostLeadsPage } from '../pages/leads/LostLeadsPage';
+import { LeadsArchivePage } from '../pages/leads/LeadsArchivePage';
+import { LeadsTrashPage } from '../pages/leads/LeadsTrashPage';
 
 // Проекты
 import { ProjectsListPage } from '../pages/projects/ProjectsListPage';
 import { ProjectsBoardPage } from '../pages/projects/ProjectsBoardPage';
+import { ProjectsArchivePage } from '../pages/projects/ProjectsArchivePage';
+import { ProjectsTrashPage } from '../pages/projects/ProjectsTrashPage';
+import { ProjectsBulkEditPage } from '../pages/projects/ProjectsBulkEditPage';
 import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
-import { NewProjectsPage } from '../pages/projects/NewProjectsPage';
 import { ClosedProjectsPage } from '../pages/projects/ClosedProjectsPage';
 import { InProgressProjectsPage } from '../pages/projects/InProgressProjectsPage';
 import { ProjectTasksPage } from '../pages/projects/ProjectTasksPage';
@@ -68,9 +86,26 @@ import { AutomationsPage } from '../pages/marketing/AutomationsPage';
 import { SmmPage } from '../pages/marketing/SmmPage';
 import { ChannelsPage } from '../pages/marketing/ChannelsPage';
 import { SeoPage } from '../pages/marketing/SeoPage';
+import { EmailTemplatesPage } from '../pages/marketing/EmailTemplatesPage';
+import { EmailTemplateFormPage } from '../pages/marketing/EmailTemplateFormPage';
 import  OnlineChatPage  from '../pages/online-chat/OnlineChatPage'; // или default export
 import { getAccessToken } from '../auth/session';
 import SetPasswordPage from '../pages/SetPasswordPage';
+
+// NEW MODULES
+import { ContactsListPage } from '../pages/contacts/ContactsListPage';
+import { ContactFormPage } from '../pages/contacts/ContactFormPage';
+import { ContactDetailsPage } from '../pages/contacts/ContactDetailsPage';
+import { CompaniesListPage } from '../pages/companies/CompaniesListPage';
+import { CompanyFormPage } from '../pages/companies/CompanyFormPage';
+import { CompanyDetailsPage } from '../pages/companies/CompanyDetailsPage';
+import { CompanyTasksBoardPage } from '../pages/companies/CompanyTasksBoardPage';
+import { AutomationsPage as AutomationsPageNew } from '../pages/automations/AutomationsPage';
+import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
+import { EmailAccountsPage } from '../pages/email/EmailAccountsPage';
+import { EmailAccountFormPage } from '../pages/email/EmailAccountFormPage';
+import { TelegramBotsPage } from '../pages/telegram-crm/TelegramBotsPage';
+import { TelegramBotFormPage } from '../pages/telegram-crm/TelegramBotFormPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -88,6 +123,13 @@ export const AppRouter: React.FC = () => {
       <Routes>
         {/* Публичный лендинг CRM на корне */}
         <Route path="/" element={<LandingPage />} />
+        <Route path="/development" element={<DevelopmentPage />} />
+        <Route path="/scenarios" element={<ScenariosPage />} />
+        <Route path="/api" element={<ApiPage />} />
+        <Route path="/solutions" element={<SolutionsPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/blog" element={<BlogPage />} />
 
         {/* ПУБЛИЧНЫЕ РОУТЫ */}
         <Route path="/login" element={<LoginPage />} />
@@ -96,6 +138,15 @@ export const AppRouter: React.FC = () => {
         <Route path="/tenant-inactive" element={<TenantInactivePage />} />
 
         {/* DASHBOARD */}
+        <Route
+          path="/app/billing"
+          element={
+            <ProtectedRoute>
+              <BillingPage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/app"
           element={
@@ -119,7 +170,7 @@ export const AppRouter: React.FC = () => {
           path="/app/leads"
           element={
             <ProtectedRoute>
-              <LeadsBoardPage />
+              <LeadsListPage />
             </ProtectedRoute>
           }
         />
@@ -136,6 +187,22 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <LeadsListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/leads/archive"
+          element={
+            <ProtectedRoute>
+              <LeadsArchivePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/leads/trash"
+          element={
+            <ProtectedRoute>
+              <LeadsTrashPage />
             </ProtectedRoute>
           }
         />
@@ -190,10 +257,26 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/new-projects"
+          path="/app/projects/archive"
           element={
             <ProtectedRoute>
-              <NewProjectsPage />
+              <ProjectsArchivePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/trash"
+          element={
+            <ProtectedRoute>
+              <ProjectsTrashPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/projects/bulk-edit"
+          element={
+            <ProtectedRoute>
+              <ProjectsBulkEditPage />
             </ProtectedRoute>
           }
         />
@@ -314,6 +397,32 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        {/* -------- ОТДЕЛЫ -------- */}
+        <Route
+          path="/app/departments"
+          element={
+            <ProtectedRoute>
+              <DepartmentsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/departments/new"
+          element={
+            <ProtectedRoute>
+              <DepartmentFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/departments/:id"
+          element={
+            <ProtectedRoute>
+              <DepartmentFormPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* -------- ПРОФИЛЬ -------- */}
         <Route
           path="/app/profile"
@@ -358,6 +467,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <SalesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/sales/analytics"
+          element={
+            <ProtectedRoute>
+              <SalesAnalyticsPage />
             </ProtectedRoute>
           }
         />
@@ -483,6 +600,200 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AutomationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/marketing/email-templates"
+          element={
+            <ProtectedRoute>
+              <EmailTemplatesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/marketing/email-templates/new"
+          element={
+            <ProtectedRoute>
+              <EmailTemplateFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/marketing/email-templates/:id"
+          element={
+            <ProtectedRoute>
+              <EmailTemplateFormPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* -------- КОНТАКТЫ -------- */}
+        <Route
+          path="/app/contacts"
+          element={
+            <ProtectedRoute>
+              <ContactsListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/contacts/new"
+          element={
+            <ProtectedRoute>
+              <ContactFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/contacts/:id"
+          element={
+            <ProtectedRoute>
+              <ContactDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/contacts/:id/edit"
+          element={
+            <ProtectedRoute>
+              <ContactFormPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* -------- КОМПАНИИ -------- */}
+        <Route
+          path="/app/companies"
+          element={
+            <ProtectedRoute>
+              <CompaniesListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/companies/new"
+          element={
+            <ProtectedRoute>
+              <CompanyFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/companies/:id"
+          element={
+            <ProtectedRoute>
+              <CompanyDetailsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/companies/:id/edit"
+          element={
+            <ProtectedRoute>
+              <CompanyFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/companies/analytics"
+          element={
+            <ProtectedRoute>
+              <CompaniesAnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/companies/:companyId/tasks"
+          element={
+            <ProtectedRoute>
+              <CompanyTasksBoardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/analytics/companies"
+          element={
+            <ProtectedRoute>
+              <CompaniesAnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* -------- АВТОМАТИЗАЦИИ (новый модуль) -------- */}
+        <Route
+          path="/app/automations"
+          element={
+            <ProtectedRoute>
+              <AutomationsPageNew />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/automations/new"
+          element={
+            <ProtectedRoute>
+              <AutomationFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/automations/:id"
+          element={
+            <ProtectedRoute>
+              <AutomationFormPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* -------- EMAIL -------- */}
+        <Route
+          path="/app/email"
+          element={
+            <ProtectedRoute>
+              <EmailAccountsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/email/accounts/new"
+          element={
+            <ProtectedRoute>
+              <EmailAccountFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/email/accounts/:id"
+          element={
+            <ProtectedRoute>
+              <EmailAccountFormPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* -------- TELEGRAM CRM -------- */}
+        <Route
+          path="/app/telegram"
+          element={
+            <ProtectedRoute>
+              <TelegramBotsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/telegram/bots/new"
+          element={
+            <ProtectedRoute>
+              <TelegramBotFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/app/telegram/bots/:id"
+          element={
+            <ProtectedRoute>
+              <TelegramBotFormPage />
             </ProtectedRoute>
           }
         />

@@ -14,6 +14,13 @@ import {
 import type { Lead, LeadStatus, LeadActivity } from '../../api/leads';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { ccpApi, type CcpSite } from '../../api/ccp';
+import { fetchCompanies, createCompany, type Company } from '../../api/companies';
+import { CompanySelect } from '../../components/CompanySelect';
+import {
+  fetchCustomFields,
+  type CustomField,
+} from '../../api/custom-fields';
+import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 
 type TabId = 'main' | 'history';
 
@@ -43,6 +50,7 @@ function createEmptyLead(): Lead {
     country: '',
     status: 'Новый клиент', // человекочитаемый статус
     channel: 'manual',
+    customFields: {},
     utmSource: '',
     utmMedium: '',
     utmCampaign: '',
@@ -50,6 +58,8 @@ function createEmptyLead(): Lead {
     utmTerm: '',
     assignedTo: null,
     assignedUserId: null,
+    assignedUserIds: [],
+    assignedToList: [],
     meta: {},
     createdAt: now,
     updatedAt: now,
@@ -71,6 +81,15 @@ export const LeadFormPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [customFieldsLoading, setCustomFieldsLoading] = useState(false);
+  const [customFieldsError, setCustomFieldsError] = useState<string | null>(null);
+  const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
+  const suggestedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    Object.keys(lead.customFields ?? {}).forEach((key) => keys.add(key));
+    return Array.from(keys);
+  }, [lead.customFields]);
 
   // история лида
   const [history, setHistory] = useState<LeadActivity[]>([]);
@@ -88,6 +107,22 @@ export const LeadFormPage: React.FC = () => {
   const [accountPassword, setAccountPassword] = useState('');
   const [accountBalanceEur, setAccountBalanceEur] = useState('');
   const [accountBalanceUsd, setAccountBalanceUsd] = useState('');
+
+  // Модальное окно создания компании
+  const [companyModalOpen, setCompanyModalOpen] = useState(false);
+  const [companyBusy, setCompanyBusy] = useState(false);
+  const [companyError, setCompanyError] = useState<string | null>(null);
+  const [companyName, setCompanyName] = useState('');
+  const [companyEmail, setCompanyEmail] = useState('');
+  const [companyPhone, setCompanyPhone] = useState('');
+  const [companyWebsite, setCompanyWebsite] = useState('');
+  const [companyCountry, setCompanyCountry] = useState('');
+  const [companyCity, setCompanyCity] = useState('');
+  const [companyAddress, setCompanyAddress] = useState('');
+  const [companyIndustry, setCompanyIndustry] = useState('');
+  const [companySize, setCompanySize] = useState('');
+  const [companies, setCompanies] = useState<Company[]>([]);
+  const [loadingCompanies, setLoadingCompanies] = useState(false);
 
   // аккуратный helper для показа тостов
   const showSuccess = (msg: string) => {
@@ -128,6 +163,230 @@ export const LeadFormPage: React.FC = () => {
         return a.type;
     }
   };
+
+  const activeCustomFields = useMemo(
+    () => customFields.filter((field) => field.isActive),
+    [customFields],
+  );
+
+  const renderCustomFieldInput = (field: CustomField) => {
+    const value = getCustomFieldValue(field);
+    const commonClass =
+      'px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft';
+    const label = (
+      <div className="text-[11px] text-slate-400 mb-1">
+        {field.label}
+        {field.required && <span className="text-rose-400 ml-1">*</span>}
+      </div>
+    );
+
+    if (field.type === 'boolean') {
+      return (
+        <label
+          key={field.id}
+          className="flex items-center gap-2 text-xs text-slate-300"
+        >
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => setCustomFieldValue(field, e.target.checked)}
+          />
+          {field.label}
+        </label>
+      );
+    }
+
+    if (field.type === 'textarea') {
+      return (
+        <div key={field.id}>
+          {label}
+          <textarea
+            value={value ?? ''}
+            onChange={(e) => setCustomFieldValue(field, e.target.value)}
+            placeholder={field.placeholder || ''}
+            className={commonClass}
+            rows={3}
+          />
+        </div>
+      );
+    }
+
+    if (field.type === 'select') {
+      return (
+        <div key={field.id}>
+          {label}
+          <select
+            value={value ?? ''}
+            onChange={(e) => setCustomFieldValue(field, e.target.value)}
+            className={commonClass}
+          >
+            <option value="">
+              {field.placeholder || 'Выберите значение'}
+            </option>
+            {(field.options || []).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    if (field.type === 'multiselect') {
+      const arrayValue = Array.isArray(value)
+        ? value.map(String)
+        : typeof value === 'string' && value
+          ? value.split(',').map((v) => v.trim())
+          : [];
+      return (
+        <div key={field.id}>
+          {label}
+          <select
+            multiple
+            value={arrayValue}
+            onChange={(e) =>
+              setCustomFieldValue(
+                field,
+                Array.from(e.target.selectedOptions).map((o) => o.value),
+              )
+            }
+            className={commonClass}
+          >
+            {(field.options || []).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      );
+    }
+
+    const inputType =
+      field.type === 'number'
+        ? 'number'
+        : field.type === 'email'
+          ? 'email'
+          : field.type === 'phone'
+            ? 'tel'
+            : field.type === 'date'
+              ? 'date'
+              : field.type === 'datetime'
+                ? 'datetime-local'
+                : field.type === 'url'
+                  ? 'url'
+                  : 'text';
+
+    return (
+      <div key={field.id}>
+        {label}
+        <input
+          type={inputType}
+          value={value ?? ''}
+          onChange={(e) => {
+            const next =
+              field.type === 'number'
+                ? e.target.value === ''
+                  ? null
+                  : Number(e.target.value)
+                : e.target.value;
+            setCustomFieldValue(field, next);
+          }}
+          placeholder={field.placeholder || ''}
+          className={commonClass}
+        />
+      </div>
+    );
+  };
+
+  const getCustomFieldValue = (field: CustomField) =>
+    (lead.customFields ?? {})[field.key];
+
+  const setCustomFieldValue = (field: CustomField, value: any) => {
+    setLead((prev) => ({
+      ...prev,
+      customFields: {
+        ...(prev.customFields ?? {}),
+        [field.key]: value,
+      },
+    }));
+  };
+
+  // загрузка компаний
+  useEffect(() => {
+    let alive = true;
+    setLoadingCompanies(true);
+    fetchCompanies({ limit: 100 })
+      .then((data) => {
+        if (!alive) return;
+        setCompanies(data.items);
+      })
+      .catch((e) => {
+        console.error('Ошибка загрузки компаний:', e);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLoadingCompanies(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // загрузка кастомных полей лида
+  useEffect(() => {
+    let alive = true;
+    setCustomFieldsLoading(true);
+    setCustomFieldsError(null);
+    fetchCustomFields('lead')
+      .then((items) => {
+        if (!alive) return;
+        const sorted = [...items].sort((a, b) => a.order - b.order);
+        setCustomFields(sorted);
+      })
+      .catch((e) => {
+        if (!alive) return;
+        console.error(e);
+        setCustomFieldsError(e.message || 'Не удалось загрузить кастомные поля');
+      })
+      .finally(() => {
+        if (!alive) return;
+        setCustomFieldsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!customFields.length) return;
+    setLead((prev) => {
+      const existing = prev.customFields ?? {};
+      let changed = false;
+      const next: Record<string, any> = { ...existing };
+      customFields.forEach((field) => {
+        if (next[field.key] !== undefined) return;
+        if (field.defaultValue === null || field.defaultValue === undefined)
+          return;
+        if (field.type === 'boolean') {
+          next[field.key] = field.defaultValue === 'true';
+        } else if (field.type === 'number') {
+          next[field.key] = Number(field.defaultValue);
+        } else if (field.type === 'multiselect') {
+          next[field.key] = String(field.defaultValue)
+            .split(',')
+            .map((v) => v.trim())
+            .filter(Boolean);
+        } else {
+          next[field.key] = field.defaultValue;
+        }
+        changed = true;
+      });
+      if (!changed) return prev;
+      return { ...prev, customFields: next };
+    });
+  }, [customFields]);
 
   // загрузка лида + сотрудников + истории
   useEffect(() => {
@@ -215,15 +474,21 @@ export const LeadFormPage: React.FC = () => {
     setLead((prev) => ({ ...prev, status: value }));
   };
 
-  // выбор ответственного из справочника сотрудников
+  // выбор ответственных из справочника сотрудников
   const handleAssigneeSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedId = e.target.value || null;
-    const user = staff.find((u) => u.id === selectedId);
+    const selectedIds = Array.from(e.target.selectedOptions)
+      .map((opt) => opt.value)
+      .filter(Boolean);
+    const names = staff
+      .filter((u) => selectedIds.includes(u.id))
+      .map((u) => u.fullName);
 
     setLead((prev) => ({
       ...prev,
-      assignedUserId: selectedId,
-      assignedTo: user ? user.fullName : null,
+      assignedUserIds: selectedIds,
+      assignedUserId: selectedIds[0] ?? null,
+      assignedToList: names,
+      assignedTo: names.length ? names.join(', ') : null,
     }));
   };
 
@@ -240,9 +505,13 @@ export const LeadFormPage: React.FC = () => {
           phone: lead.phone,
           country: lead.country,
           status: lead.status, // русская строка — в api/leads будет замаплена на код
-          source: 'manual',
+          source: lead.channel || 'manual',
           assignedTo: lead.assignedTo ?? undefined,
+          assignedToList: lead.assignedToList ?? undefined,
           assignedUserId: lead.assignedUserId ?? undefined,
+          assignedUserIds: lead.assignedUserIds ?? undefined,
+          companyId: lead.companyId ?? undefined,
+          customFields: lead.customFields ?? {},
           meta: lead.meta ?? {},
         });
         setLead(saved);
@@ -255,8 +524,13 @@ export const LeadFormPage: React.FC = () => {
           phone: lead.phone,
           country: lead.country,
           status: lead.status,
+          source: lead.channel || undefined,
           assignedTo: lead.assignedTo ?? undefined,
+          assignedToList: lead.assignedToList ?? undefined,
           assignedUserId: lead.assignedUserId ?? undefined,
+          assignedUserIds: lead.assignedUserIds ?? undefined,
+          companyId: lead.companyId ?? undefined,
+          customFields: lead.customFields ?? {},
           meta: lead.meta ?? {},
         });
         setLead(saved);
@@ -282,6 +556,69 @@ export const LeadFormPage: React.FC = () => {
 
   const handleBack = () => {
     navigate('/app/leads');
+  };
+
+  // Создание компании из лида
+  const handleCreateCompany = async () => {
+    setCompanyError(null);
+    setCompanyModalOpen(true);
+    setCompanyName(lead.name || '');
+    setCompanyEmail(lead.email || '');
+    setCompanyPhone(lead.phone || '');
+    setCompanyWebsite('');
+    setCompanyCountry(lead.country || '');
+    setCompanyCity('');
+    setCompanyAddress('');
+    setCompanyIndustry('');
+    setCompanySize('');
+  };
+
+  const handleCompanySave = async () => {
+    setCompanyError(null);
+    if (!companyName.trim()) {
+      setCompanyError(t('crm.companies.form.errors.nameRequired'));
+      return;
+    }
+
+    setCompanyBusy(true);
+    try {
+      const newCompany = await createCompany({
+        name: companyName.trim(),
+        email: companyEmail.trim() || undefined,
+        phone: companyPhone.trim() || undefined,
+        website: companyWebsite.trim() || undefined,
+        country: companyCountry.trim() || undefined,
+        city: companyCity.trim() || undefined,
+        address: companyAddress.trim() || undefined,
+        industry: companyIndustry.trim() || undefined,
+        size: companySize.trim() || undefined,
+      });
+      
+      // Обновляем список компаний
+      setCompanies([...companies, newCompany]);
+      
+      // Привязываем компанию к лиду
+      setLead((prev) => ({ ...prev, companyId: newCompany.id, companyName: newCompany.name }));
+      
+      showSuccess(t('crm.leads.form.fields.companyCreated'));
+      setCompanyModalOpen(false);
+      
+      // Очищаем форму
+      setCompanyName('');
+      setCompanyEmail('');
+      setCompanyPhone('');
+      setCompanyWebsite('');
+      setCompanyCountry('');
+      setCompanyCity('');
+      setCompanyAddress('');
+      setCompanyIndustry('');
+      setCompanySize('');
+    } catch (e: any) {
+      console.error(e);
+      setCompanyError(e.message || t('crm.companies.form.errors.createFailed'));
+    } finally {
+      setCompanyBusy(false);
+    }
   };
 
   // (пока) заглушка для "Создать аккаунт"
@@ -426,6 +763,13 @@ export const LeadFormPage: React.FC = () => {
               <>
                 <button
                   type="button"
+                  onClick={handleCreateCompany}
+                  className="px-3 py-1.5 text-xs rounded-xl border border-lumiva-accent-soft text-lumiva-accent hover:bg-slate-900/80"
+                >
+                  Создать Компанию
+                </button>
+                <button
+                  type="button"
                   onClick={handleCreateAccount}
                   className="px-3 py-1.5 text-xs rounded-xl border border-lumiva-accent-soft text-lumiva-accent hover:bg-slate-900/80"
                 >
@@ -440,6 +784,13 @@ export const LeadFormPage: React.FC = () => {
                 </button>
               </>
             )}
+            <button
+              type="button"
+              onClick={() => setCustomFieldsOpen(true)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
+            >
+              Настроить поля
+            </button>
             <button
               type="button"
               onClick={handleSave}
@@ -520,6 +871,41 @@ export const LeadFormPage: React.FC = () => {
                   />
                 </div>
 
+                {/* Компания */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[11px] text-slate-400">{t('crm.leads.form.fields.company')}</label>
+                    <button
+                      type="button"
+                      onClick={handleCreateCompany}
+                      className="px-2 py-1 text-[10px] rounded-lg border border-lumiva-accent-soft text-lumiva-accent hover:bg-slate-900/80 transition-colors"
+                    >
+                      + {t('crm.leads.form.fields.createCompany')}
+                    </button>
+                  </div>
+                  <CompanySelect
+                    value={lead.companyId}
+                    onChange={(companyId, company) => {
+                      setLead((prev) => ({
+                        ...prev,
+                        companyId,
+                        companyName: company?.name || null,
+                      }));
+                    }}
+                    placeholder={t('crm.leads.form.fields.companyPlaceholder')}
+                    className="w-full"
+                    allowCreate={true}
+                    onCompanyCreated={(company) => {
+                      setCompanies([company, ...companies]);
+                      setLead((prev) => ({
+                        ...prev,
+                        companyId: company.id,
+                        companyName: company.name,
+                      }));
+                    }}
+                  />
+                </div>
+
                 {/* Связанные проекты */}
                 {Array.isArray((lead as any).projects) &&
                   (lead as any).projects.length > 0 && (
@@ -567,11 +953,11 @@ export const LeadFormPage: React.FC = () => {
 
                   {/* Ответственный (выбор из сотрудников) */}
                   <select
-                    value={lead.assignedUserId || ''}
+                    multiple
+                    value={lead.assignedUserIds ?? []}
                     onChange={handleAssigneeSelect}
-                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft min-h-[44px]"
                   >
-                    <option value="">{t('crm.leads.form.fields.assigneePlaceholder')}</option>
                     {staff.map((u) => (
                       <option key={u.id} value={u.id}>
                         {u.fullName} {u.email ? `· ${u.email}` : ''}
@@ -604,6 +990,42 @@ export const LeadFormPage: React.FC = () => {
                     value={new Date(lead.createdAt).toLocaleString(locale)}
                     className="px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-800/80 text-xs text-slate-500"
                   />
+                </div>
+
+                {/* Кастомные поля */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs text-slate-400">Кастомные поля</div>
+                    <button
+                      type="button"
+                      onClick={() => setCustomFieldsOpen(true)}
+                      className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
+                    >
+                      Настроить
+                    </button>
+                  </div>
+                  {customFieldsError && (
+                    <div className="text-[11px] text-red-400">
+                      {customFieldsError}
+                    </div>
+                  )}
+                  {customFieldsLoading && (
+                    <div className="text-[11px] text-slate-500">
+                      Загрузка полей...
+                    </div>
+                  )}
+                  {!customFieldsLoading && activeCustomFields.length === 0 && (
+                    <div className="text-[11px] text-slate-500 italic">
+                      Полей нет. Добавьте через настройку.
+                    </div>
+                  )}
+                  {activeCustomFields.length > 0 && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {activeCustomFields.map((field) =>
+                        renderCustomFieldInput(field),
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* UTM поля */}
@@ -918,6 +1340,176 @@ export const LeadFormPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Модальное окно создания компании */}
+      {companyModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-950 p-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <div className="text-xs font-semibold text-slate-50">
+                  Создать Компанию
+                </div>
+                <div className="mt-1 text-[11px] text-slate-500">
+                  {t('crm.leads.form.fields.companyCreated')}
+                </div>
+              </div>
+              <button
+                onClick={() => setCompanyModalOpen(false)}
+                className="text-slate-400 hover:text-white text-xl leading-none"
+                aria-label="Закрыть"
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+
+            {companyError && (
+              <div className="mb-4 text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+                {companyError}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              {/* Основная информация */}
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1.5">
+                  {t('crm.companies.form.fields.name')}
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                  placeholder={t('crm.companies.form.fields.name')}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1.5">Email</label>
+                  <input
+                    type="email"
+                    value={companyEmail}
+                    onChange={(e) => setCompanyEmail(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                    placeholder="email@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1.5">Телефон</label>
+                  <input
+                    type="tel"
+                    value={companyPhone}
+                    onChange={(e) => setCompanyPhone(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                    placeholder="+7 (999) 123-45-67"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1.5">Сайт</label>
+                <input
+                  type="url"
+                  value={companyWebsite}
+                  onChange={(e) => setCompanyWebsite(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                  placeholder="https://example.com"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1.5">Страна</label>
+                  <input
+                    type="text"
+                    value={companyCountry}
+                    onChange={(e) => setCompanyCountry(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                    placeholder="Страна"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1.5">Город</label>
+                  <input
+                    type="text"
+                    value={companyCity}
+                    onChange={(e) => setCompanyCity(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                    placeholder="Город"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] text-slate-400 mb-1.5">Адрес</label>
+                <input
+                  type="text"
+                  value={companyAddress}
+                  onChange={(e) => setCompanyAddress(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                  placeholder="Адрес"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1.5">Индустрия</label>
+                  <input
+                    type="text"
+                    value={companyIndustry}
+                    onChange={(e) => setCompanyIndustry(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                    placeholder="Индустрия"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] text-slate-400 mb-1.5">Размер компании</label>
+                  <input
+                    type="text"
+                    value={companySize}
+                    onChange={(e) => setCompanySize(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+                    placeholder="Например: 1-10, 11-50, 51-200"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCompanyModalOpen(false)}
+                className="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-300 hover:text-slate-50 hover:bg-slate-900 transition-colors"
+              >
+                {t('crm.companies.form.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={handleCompanySave}
+                className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                disabled={companyBusy || !companyName.trim()}
+              >
+                {companyBusy ? t('crm.companies.form.saving') : t('crm.companies.form.save')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {customFieldsOpen && (
+        <CustomFieldsManager
+          entityType="lead"
+          title="Кастомные поля лидов"
+          suggestedKeys={suggestedKeys}
+          onClose={() => setCustomFieldsOpen(false)}
+          onUpdated={(items) => {
+            const sorted = [...items].sort((a, b) => a.order - b.order);
+            setCustomFields(sorted);
+          }}
+        />
       )}
     </MainLayout>
   );

@@ -29,6 +29,30 @@ export class PlatformSettings {
   @Column({ type: 'text', nullable: true })
   vkOauthClientSecret: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  stripeSecretKey: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripePublishableKey: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripeWebhookSecret: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripePriceStandard: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripePriceProfessional: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripePriceEnterprise: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripePriceUltimate: string | null;
+
+  @Column({ type: 'jsonb', nullable: true })
+  billingPlans: unknown[] | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

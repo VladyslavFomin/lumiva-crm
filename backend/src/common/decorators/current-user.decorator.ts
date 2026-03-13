@@ -3,10 +3,13 @@
 import { createParamDecorator, ExecutionContext, Logger } from '@nestjs/common';
 
 export type CurrentUserPayload = {
-  userId: string;
+  userId?: string;
+  id?: string; // Альтернативное имя для userId
+  sub?: string; // JWT sub claim
   tenantId: string;
   role: string;
   email?: string;
+  name?: string;
 };
 
 export const CurrentUser = createParamDecorator(

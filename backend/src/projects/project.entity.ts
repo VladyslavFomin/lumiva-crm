@@ -10,13 +10,17 @@ import {
 } from 'typeorm';
 import { Tenant } from '../tenants/tenant.entity';
 import { Lead } from '../leads/lead.entity';
+import { Company } from '../companies/company.entity';
+import { Contact } from '../contacts/contact.entity';
 
 export type ProjectStatus =
   | 'Новый'
   | 'В работе'
   | 'На проверке'
   | 'Заморожен'
-  | 'Закрыт';
+  | 'Закрыт'
+  | 'Выиграно'
+  | 'Проиграно';
 
 @Entity('crm_projects')
 export class Project {
@@ -38,6 +42,28 @@ export class Project {
 
   @Column({ name: 'lead_id', nullable: true })
   leadId: string | null;
+
+  // ==== СВЯЗЬ С КОМПАНИЕЙ ====
+  @Column({ name: 'company_id', type: 'uuid', nullable: true })
+  companyId: string | null;
+
+  @ManyToOne(() => Company, (company) => company.projects, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'company_id' })
+  company: Company | null;
+
+  // ==== СВЯЗЬ С КОНТАКТОМ ====
+  @Column({ name: 'contact_id', type: 'uuid', nullable: true })
+  contactId: string | null;
+
+  @ManyToOne(() => Contact, (contact) => contact.projects, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'contact_id' })
+  contact: Contact | null;
 
   // ==== ОСНОВНЫЕ ПОЛЯ ====
   @Column({ length: 255 })
@@ -69,6 +95,9 @@ export class Project {
   @Column({ type: 'uuid', nullable: true })
   ownerUserId: string | null; // В будущем связь с таблицей пользователей
 
+  @Column({ type: 'uuid', array: true, nullable: true })
+  ownerUserIds: string[] | null; // Multiple owners
+
   // ==== СВЯЗАННЫЕ ПРОЕКТЫ (простая реализация) ====
   @Column({ type: 'simple-array', nullable: true })
   relatedProjectIds: string[] | null; // id других проектов
@@ -86,6 +115,10 @@ export class Project {
 
   @Column({ type: 'jsonb', nullable: true })
   comments: any[] | null;
+
+  // ==== CUSTOM FIELDS ====
+  @Column({ type: 'jsonb', nullable: true })
+  customFields: Record<string, any> | null;
   
   // ==== AUDIT ====
   @CreateDateColumn({ name: 'created_at' })
@@ -93,6 +126,13 @@ export class Project {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  // archive
+  @Column({ type: 'boolean', default: false, name: 'is_archived' })
+  isArchived: boolean;
+
+  @Column({ type: 'timestamp', name: 'archived_at', nullable: true })
+  archivedAt: Date | null;
 
   // soft delete
   @Column({ type: 'boolean', default: false, name: 'is_deleted' })

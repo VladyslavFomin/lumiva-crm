@@ -24,6 +24,7 @@ interface CreateStaffInput {
   email: string;
   fullName: string;
   department?: string | null;
+  departmentId?: string | null;
   role: StaffRole;
   avatarUrl?: string | null;
   externalId?: string | null; // связь с users.id (если нужно)
@@ -46,6 +47,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
   listForTenant(tenantId: string) {
     return this.repo.find({
       where: { tenantId },
+      relations: ['departmentEntity'],
       order: { fullName: 'ASC' },
     });
   }
@@ -66,7 +68,10 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getOneForTenant(tenantId: string, id: string) {
-    const user = await this.repo.findOne({ where: { id, tenantId } });
+    const user = await this.repo.findOne({
+      where: { id, tenantId },
+      relations: ['departmentEntity'],
+    });
     if (!user) throw new NotFoundException('Staff user not found');
     return user;
   }
@@ -77,6 +82,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       email: data.email,
       fullName: data.fullName,
       department: data.department ?? null,
+      departmentId: data.departmentId ?? null,
       role: data.role,
       avatarUrl: data.avatarUrl ?? null,
       inviteStatus: 'active',
@@ -90,13 +96,18 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
   async updateForTenant(
     tenantId: string,
     id: string,
-    patch: Partial<StaffUser>,
+    patch: Partial<StaffUser & { departmentId?: string | null }>,
   ) {
     const user = await this.getOneForTenant(tenantId, id);
 
     // нельзя поменять роль владельца на кого-то другого
     if (user.role === 'owner' && patch.role && patch.role !== 'owner') {
       throw new BadRequestException('Нельзя менять роль владельца');
+    }
+
+    // Обновляем departmentId отдельно, если он передан
+    if ('departmentId' in patch) {
+      user.departmentId = patch.departmentId ?? null;
     }
 
     Object.assign(user, patch);
@@ -126,6 +137,14 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     department: string | null,
   ) {
     return this.updateForTenant(tenantId, id, { department });
+  }
+
+  async updateDepartmentIdForTenant(
+    tenantId: string,
+    id: string,
+    departmentId: string | null,
+  ) {
+    return this.updateForTenant(tenantId, id, { departmentId });
   }
 
   async deactivateForTenant(tenantId: string, id: string) {

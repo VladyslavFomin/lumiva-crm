@@ -228,9 +228,19 @@
         "title": "Operations",
         "range": "Last 24 hours",
         "items": [
-          { "label": "Successful logins", "value": "1 284" },
-          { "label": "Blocks", "value": "34", "muted": true },
-          { "label": "API requests", "value": "182K" }
+          {
+            "label": "Successful logins",
+            "value": "1 284"
+          },
+          {
+            "label": "Blocks",
+            "value": "34",
+            "muted": true
+          },
+          {
+            "label": "API requests",
+            "value": "182K"
+          }
         ],
         "mutedNote": "Auto-block + alert"
       },
@@ -280,10 +290,26 @@
       "note": "Implementation support, audit and migration from spreadsheets or other CRMs.",
       "card": "CRM → marketing, bookings, bots, reports. Connected campaigns and chats without manual stitching.",
       "items": [
-        { "name": "Selectum Hotels", "region": "TR • Resorts", "uplift": "+18% direct sales" },
-        { "name": "The Norm Hotels", "region": "EU • City stays", "uplift": "+12% conversion" },
-        { "name": "Asteria Hotels", "region": "MENA • Leisure", "uplift": "+9% NPS" },
-        { "name": "Northwind Collection", "region": "B2B • Fictional", "uplift": "+15% occupancy" }
+        {
+          "name": "Selectum Hotels",
+          "region": "TR • Resorts",
+          "uplift": "+18% direct sales"
+        },
+        {
+          "name": "The Norm Hotels",
+          "region": "EU • City stays",
+          "uplift": "+12% conversion"
+        },
+        {
+          "name": "Asteria Hotels",
+          "region": "MENA • Leisure",
+          "uplift": "+9% NPS"
+        },
+        {
+          "name": "Northwind Collection",
+          "region": "B2B • Fictional",
+          "uplift": "+15% occupancy"
+        }
       ]
     },
     "showcase": {
@@ -308,19 +334,63 @@
       },
       "leadChannel": "Lead channel: Paid · 43% · organic 31% · direct 26%",
       "channels": [
-        { "label": "Woo1", "current": 78, "prev": 54, "growth": "+24%", "orders": 1240, "revenue": "€ 82K" },
-        { "label": "Woo2", "current": 64, "prev": 46, "growth": "+18%", "orders": 980, "revenue": "€ 61K" },
-        { "label": "Ads", "current": 72, "prev": 50, "growth": "+22%", "orders": 1100, "revenue": "€ 74K" },
-        { "label": "Referral", "current": 58, "prev": 42, "growth": "+16%", "orders": 760, "revenue": "€ 49K" }
+        {
+          "label": "Woo1",
+          "current": 78,
+          "prev": 54,
+          "growth": "+24%",
+          "orders": 1240,
+          "revenue": "€ 82K"
+        },
+        {
+          "label": "Woo2",
+          "current": 64,
+          "prev": 46,
+          "growth": "+18%",
+          "orders": 980,
+          "revenue": "€ 61K"
+        },
+        {
+          "label": "Ads",
+          "current": 72,
+          "prev": 50,
+          "growth": "+22%",
+          "orders": 1100,
+          "revenue": "€ 74K"
+        },
+        {
+          "label": "Referral",
+          "current": 58,
+          "prev": 42,
+          "growth": "+16%",
+          "orders": 760,
+          "revenue": "€ 49K"
+        }
       ],
       "topChannels": {
         "title": "Top channels",
         "note": "Campaign details: creatives, lead cost, connected sales team.",
         "items": [
-          { "name": "WooCommerce", "share": 43, "sales": 820 },
-          { "name": "Google Ads", "share": 28, "sales": 540 },
-          { "name": "Referral", "share": 17, "sales": 310 },
-          { "name": "Meta / Instagram", "share": 12, "sales": 240 }
+          {
+            "name": "WooCommerce",
+            "share": 43,
+            "sales": 820
+          },
+          {
+            "name": "Google Ads",
+            "share": 28,
+            "sales": 540
+          },
+          {
+            "name": "Referral",
+            "share": 17,
+            "sales": 310
+          },
+          {
+            "name": "Meta / Instagram",
+            "share": 12,
+            "sales": 240
+          }
         ],
         "sales": "{{count}} sales"
       }
@@ -329,15 +399,30 @@
       "about": "A black-and-white operating system for teams that need control of data without spreadsheet chaos.",
       "product": {
         "title": "Product",
-        "items": ["Platform overview", "Modules", "Security", "APIs & integrations"]
+        "items": [
+          "Platform overview",
+          "Modules",
+          "Security",
+          "APIs & integrations"
+        ]
       },
       "company": {
         "title": "Company",
-        "items": ["Lumiva Agency", "Partners", "Careers", "Legal"]
+        "items": [
+          "Lumiva Agency",
+          "Partners",
+          "Careers",
+          "Legal"
+        ]
       },
       "contacts": {
         "title": "Contacts",
-        "items": ["vlad@lumiva.agency", "@lumiva.agency", "LinkedIn", "Dribbble"]
+        "items": [
+          "vlad@lumiva.agency",
+          "@lumiva.agency",
+          "LinkedIn",
+          "Dribbble"
+        ]
       },
       "privacy": "Privacy policy",
       "terms": "Terms of use",
@@ -350,30 +435,35 @@
       "accept": "Accept",
       "decline": "Decline"
     }
-
   },
   "crm": {
     "header": {
       "realtime": "Real-time · connected",
       "openMenu": "Open menu",
       "close": "Close",
-      "newMessages": "New messages"
+      "newMessages": "New messages",
+      "notifications": "Notifications"
     },
     "nav": {
       "dashboard": "Dashboard",
       "leads": "Leads",
       "leadsNew": "Create lead",
       "leadsLost": "Lost leads",
+      "leadsArchive": "Leads archive",
+      "leadsTrash": "Leads trash",
       "leadsAnalytics": "Analytics",
       "leadsRoi": "ROI",
       "projects": "Projects",
-      "projectsNew": "New projects",
       "projectsClosed": "Closed projects",
       "projectsInProgress": "In progress",
       "projectsTasks": "Tasks",
       "projectsOverdue": "Overdue tasks",
       "projectsAnalytics": "Project analytics",
+      "projectsArchive": "Projects archive",
+      "projectsTrash": "Projects trash",
+      "projectsBulkEdit": "Bulk edit",
       "sales": "Sales",
+      "salesAnalytics": "Sales analytics",
       "salesChannels": "Sales channels",
       "salesIntegrations": "Integrations",
       "salesImport": "Sales import",
@@ -388,14 +478,22 @@
       "marketingSmm": "SMM / social",
       "marketingIntegrations": "Marketing integrations",
       "marketingAutomations": "Automations (n8n)",
+      "marketingEmailTemplates": "Email Templates",
+      "companies": "Companies",
+      "companiesAnalytics": "Companies Analytics",
+      "contacts": "Contacts",
       "tools": "Tools",
+      "toolsAutomations": "Automations",
+      "toolsEmail": "Email",
+      "toolsTelegram": "Telegram",
       "settingsCompany": "Company settings",
       "settingsApi": "API & integrations",
       "chat": "Chat",
       "clientAccounts": "Client accounts",
       "staff": "Staff",
       "staffList": "Staff list",
-      "staffPermissions": "Access rights"
+      "staffPermissions": "Access rights",
+      "departments": "Departments"
     },
     "common": {
       "logout": "Log out",
@@ -403,12 +501,33 @@
       "language": "Language",
       "adminLabel": "WP · CRM Admin",
       "empty": "—",
+      "selectAll": "Select all",
       "save": "Save",
       "saving": "Saving...",
       "cancel": "Cancel",
       "close": "Close",
       "ok": "OK",
       "edit": "Edit"
+    },
+    "notifications": {
+      "title": "Task notifications",
+      "loading": "Loading notifications…",
+      "empty": "No tasks for you yet.",
+      "assign": "Assign",
+      "openTasks": "Open all tasks",
+      "overdue": "Overdue",
+      "tabs": {
+        "assigned": "Assigned",
+        "mentioned": "Mentioned",
+        "all": "All"
+      },
+      "filters": {
+        "project": "Project",
+        "status": "Status"
+      },
+      "sort": {
+        "overdue": "Overdue first"
+      }
     },
     "errors": {
       "appFailedTitle": "The app failed to load",
@@ -435,6 +554,7 @@
         "password": "Password",
         "passwordPlaceholder": "password",
         "success": "Signed in successfully. Session saved.",
+        "sessionExpired": "Session expired. Please sign in again.",
         "submit": "Sign in to CRM",
         "submitting": "Signing in...",
         "forgot": "Forgot password?",
@@ -824,7 +944,7 @@
         "title": "Leads · Kanban",
         "subtitle": "Drag cards between stages.",
         "viewKanban": "Kanban",
-        "viewList": "List",
+        "viewList": "Table",
         "create": "New lead",
         "loading": "Loading leads...",
         "empty": "No leads in this stage.",
@@ -860,6 +980,71 @@
           "year1": "1 year",
           "all": "All time",
           "custom": "Custom"
+        },
+        "reset": {
+          "button": "Reset blocks",
+          "title": "Reset dashboard?",
+          "message": "This will restore the default analytics layout. You can customize it again later.",
+          "cancel": "Cancel",
+          "confirm": "Reset"
+        },
+        "widgets": {
+          "type": {
+            "metric": "Metric",
+            "donut": "Donut",
+            "bar": "Chart",
+            "table": "Table",
+            "formula": "Formula"
+          }
+        },
+        "formula": {
+          "fn": {
+            "label": "Formula",
+            "sumif": "SUMIF (condition)",
+            "count": "COUNT",
+            "percent": "PERCENT",
+            "ratio": "RATIO",
+            "diff": "DIFFERENCE"
+          },
+          "block": {
+            "sumif": "Conditional",
+            "expression": "Expression"
+          },
+          "scope": {
+            "label": "Formula scope",
+            "status": "Status",
+            "source": "Source",
+            "manager": "Manager",
+            "country": "Country"
+          },
+          "filter": {
+            "scope": "Filter scope",
+            "value": "Filter value"
+          },
+          "condition": {
+            "label": "Condition",
+            "add": "Add condition",
+            "remove": "Remove"
+          },
+          "left": {
+            "label": "Left operand",
+            "value": "Left value"
+          },
+          "right": {
+            "label": "Right operand",
+            "value": "Right value"
+          },
+          "value": {
+            "label": "Value"
+          },
+          "output": {
+            "label": "Output"
+          },
+          "mode": {
+            "label": "Result",
+            "count": "Count",
+            "percent": "Percent"
+          }
         },
         "summary": {
           "today": {
@@ -1027,25 +1212,76 @@
         }
       },
       "list": {
-        "title": "Leads · List",
+        "title": "Leads · Table",
         "subtitle": "Table view for quick filtering and search",
         "viewKanban": "Kanban",
-        "viewList": "List",
+        "viewList": "Table",
         "create": "Create lead",
+        "groupByStatus": "Group by status",
+        "showArchived": "Show archived",
         "loading": "Loading leads…",
         "empty": "No leads yet",
         "open": "Open",
         "emptyValue": "—",
+        "summary": "Total: {{count}}",
         "columns": {
+          "label": "Columns",
+          "add": "Add column",
           "name": "Name",
           "channel": "Channel",
           "utm": "UTM",
           "status": "Status",
-          "created": "Created",
-          "actions": "Actions"
+          "created": "Created"
+        },
+        "bulk": {
+          "selected": "Selected: {{count}}",
+          "status": "Status",
+          "apply": "Apply",
+          "archive": "Archive",
+          "delete": "Delete",
+          "clear": "Clear"
         },
         "errors": {
           "loadFailed": "Failed to load leads"
+        }
+      },
+      "archive": {
+        "title": "Leads archive",
+        "subtitle": "All archived leads",
+        "loading": "Loading archive...",
+        "empty": "Archive is empty",
+        "columns": {
+          "name": "Lead",
+          "status": "Status",
+          "created": "Created",
+          "actions": "Actions"
+        },
+        "actions": {
+          "restore": "Restore",
+          "trash": "Move to trash",
+          "delete": "Delete permanently"
+        },
+        "errors": {
+          "loadFailed": "Failed to load archive"
+        }
+      },
+      "trash": {
+        "title": "Leads trash",
+        "subtitle": "Deleted leads",
+        "loading": "Loading trash...",
+        "empty": "Trash is empty",
+        "columns": {
+          "name": "Lead",
+          "status": "Status",
+          "created": "Created",
+          "actions": "Actions"
+        },
+        "actions": {
+          "restore": "Restore",
+          "delete": "Delete permanently"
+        },
+        "errors": {
+          "loadFailed": "Failed to load trash"
         }
       },
       "form": {
@@ -1145,7 +1381,11 @@
           "notesPlaceholder": "Lead text / customer request / important details...",
           "metaPlaceholder": "Raw meta data (utm, page, form_id...)",
           "commentPlaceholder": "Write a comment…",
-          "projectStatus": "Status: {{status}} — #{{id}}"
+          "projectStatus": "Status: {{status}} — #{{id}}",
+          "company": "Company",
+          "companyPlaceholder": "Select or create a company...",
+          "createCompany": "Create company",
+          "companyCreated": "Company created and linked to lead"
         }
       },
       "lost": {
@@ -1206,6 +1446,692 @@
         }
       }
     },
+    "companies": {
+      "list": {
+        "title": "Companies",
+        "subtitle": "Company management",
+        "create": "Create company",
+        "createFirst": "Create first company",
+        "search": "Search companies...",
+        "loading": "Loading...",
+        "empty": "No companies",
+        "notFound": "Companies not found",
+        "selected": "selected",
+        "bulkOperations": "Bulk operations",
+        "tasks": "Tasks",
+        "delete": "Delete",
+        "deleteConfirm": "Delete company?"
+      },
+      "analytics": {
+        "title": "Company analytics",
+        "subtitle": "Overall statistics and metrics by companies",
+        "backToList": "Back to companies",
+        "loading": "Loading analytics...",
+        "noData": "No data",
+        "errors": {
+          "loadFailed": "Failed to load analytics"
+        },
+        "summary": {
+          "totalCompanies": "Total companies",
+          "totalLeads": "Total leads",
+          "totalProjects": "Total projects",
+          "totalRevenue": "Revenue",
+          "potentialRevenue": "Potential revenue",
+          "avgConversion": "Average conversion",
+          "avgRevenuePerCompany": "Average revenue per company"
+        },
+        "charts": {
+          "topByRevenue": "Top companies by revenue",
+          "topByProjects": "Top companies by projects",
+          "revenue": "Revenue",
+          "projects": "Projects"
+        },
+        "table": {
+          "topByRevenue": "Top companies by revenue",
+          "projects": "projects",
+          "leads": "leads"
+        }
+      },
+      "form": {
+        "titleNew": "Create company",
+        "titleEdit": "Edit company",
+        "subtitle": "Company basic information",
+        "tasks": "Tasks",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving...",
+        "fields": {
+          "name": "Company name *",
+          "legalName": "Legal name",
+          "taxId": "Tax ID",
+          "email": "Email",
+          "phone": "Phone",
+          "website": "Website",
+          "country": "Country",
+          "city": "City",
+          "address": "Address",
+          "industry": "Industry",
+          "size": "Company size",
+          "status": "Status",
+          "description": "Description"
+        },
+        "statuses": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "archived": "Archived"
+        },
+        "errors": {
+          "loadFailed": "Failed to load company",
+          "saveFailed": "Failed to save"
+        }
+      },
+      "details": {
+        "tabs": {
+          "main": "Main",
+          "contacts": "Contacts",
+          "leads": "Leads",
+          "projects": "Projects",
+          "tasks": "Tasks",
+          "analytics": "Analytics"
+        },
+        "contacts": {
+          "title": "Company contacts",
+          "empty": "No contacts",
+          "create": "Create contact",
+          "view": "View"
+        },
+        "leads": {
+          "title": "Company leads",
+          "empty": "No leads",
+          "view": "View"
+        },
+        "projects": {
+          "title": "Company projects",
+          "empty": "No projects",
+          "view": "View"
+        },
+        "tasks": {
+          "title": "Company tasks",
+          "empty": "No tasks",
+          "create": "Create task",
+          "viewBoard": "Tasks board"
+        },
+        "analytics": {
+          "title": "Company analytics",
+          "loading": "Loading analytics...",
+          "metrics": {
+            "contacts": "Contacts",
+            "leads": "Leads",
+            "projects": "Projects",
+            "revenue": "Revenue",
+            "conversion": "Conversion",
+            "avgProjectValue": "Avg project value"
+          }
+        }
+      },
+      "tasks": {
+        "title": "Company tasks",
+        "create": "Create task",
+        "edit": "Edit task",
+        "delete": "Delete",
+        "deleteConfirm": "Delete task?",
+        "statuses": {
+          "todo": "To do",
+          "in_progress": "In progress",
+          "review": "Review",
+          "done": "Done",
+          "cancelled": "Cancelled"
+        },
+        "priorities": {
+          "low": "Low",
+          "medium": "Medium",
+          "high": "High",
+          "urgent": "Urgent"
+        },
+        "filters": {
+          "priority": "Priority",
+          "assignee": "Assignee",
+          "dueDate": "Due date",
+          "overdue": "Overdue",
+          "today": "Today",
+          "thisWeek": "This week"
+        },
+        "fields": {
+          "title": "Task title *",
+          "description": "Description",
+          "status": "Status",
+          "priority": "Priority",
+          "dueDate": "Due date",
+          "assignedTo": "Assignee"
+        }
+      },
+      "analytics": {
+        "title": "Company analytics",
+        "subtitle": "Overall statistics and metrics by companies",
+        "backToList": "Back to companies",
+        "loading": "Loading analytics...",
+        "noData": "No data",
+        "errors": {
+          "loadFailed": "Failed to load analytics"
+        },
+        "summary": {
+          "totalCompanies": "Total companies",
+          "totalLeads": "Total leads",
+          "totalProjects": "Total projects",
+          "totalRevenue": "Revenue",
+          "potentialRevenue": "Potential revenue",
+          "avgConversion": "Average conversion",
+          "avgRevenuePerCompany": "Average revenue per company"
+        },
+        "overview": {
+          "totalCompanies": "Total companies",
+          "totalLeads": "Total leads",
+          "totalProjects": "Total projects",
+          "totalRevenue": "Total revenue",
+          "conversionRate": "Conversion rate",
+          "avgProjectValue": "Avg project value",
+          "potentialRevenue": "Potential revenue"
+        },
+        "charts": {
+          "topByRevenue": "Top companies by revenue",
+          "topByProjects": "Top companies by projects",
+          "revenue": "Revenue",
+          "projects": "Projects"
+        },
+        "table": {
+          "topByRevenue": "Top companies by revenue",
+          "company": "Company",
+          "revenue": "Revenue",
+          "projects": "Projects",
+          "leads": "Leads"
+        }
+      },
+      "bulk": {
+        "title": "Bulk operations",
+        "subtitle": "Updating {{count}} companies",
+        "assignedTo": "Assignee",
+        "status": "Status",
+        "tags": "Add tags (comma-separated)",
+        "tagsPlaceholder": "tag1, tag2, tag3",
+        "noChange": "Don't change",
+        "cancel": "Cancel",
+        "apply": "Apply",
+        "saving": "Saving...",
+        "success": "Updated {{count}} companies"
+      }
+    },
+    "contacts": {
+      "list": {
+        "title": "Contacts",
+        "subtitle": "Contact management",
+        "create": "Create contact",
+        "createFirst": "Create first contact",
+        "search": "Search contacts...",
+        "loading": "Loading...",
+        "empty": "No contacts",
+        "notFound": "Contacts not found",
+        "selected": "selected",
+        "bulkOperations": "Bulk operations",
+        "delete": "Delete",
+        "deleteConfirm": "Delete contact?"
+      },
+      "form": {
+        "titleNew": "Create contact",
+        "titleEdit": "Edit contact",
+        "subtitle": "Contact basic information",
+        "cancel": "Cancel",
+        "save": "Save",
+        "saving": "Saving...",
+        "fields": {
+          "firstName": "First name",
+          "lastName": "Last name",
+          "email": "Email",
+          "phone": "Phone",
+          "position": "Position",
+          "company": "Company",
+          "country": "Country",
+          "city": "City",
+          "address": "Address",
+          "status": "Status"
+        },
+        "statuses": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "archived": "Archived"
+        },
+        "errors": {
+          "loadFailed": "Failed to load contact",
+          "saveFailed": "Failed to save"
+        }
+      },
+      "details": {
+        "tabs": {
+          "main": "Main",
+          "company": "Company",
+          "leads": "Leads",
+          "projects": "Projects"
+        },
+        "company": {
+          "title": "Contact company",
+          "empty": "Contact not linked to company",
+          "view": "View company"
+        },
+        "leads": {
+          "title": "Contact leads",
+          "empty": "No leads",
+          "view": "View"
+        },
+        "projects": {
+          "title": "Contact projects",
+          "empty": "No projects",
+          "view": "View"
+        }
+      },
+      "bulk": {
+        "title": "Bulk operations",
+        "subtitle": "Updating {{count}} contacts",
+        "assignedTo": "Assignee",
+        "status": "Status",
+        "tags": "Add tags (comma-separated)",
+        "tagsPlaceholder": "tag1, tag2, tag3",
+        "noChange": "Don't change",
+        "cancel": "Cancel",
+        "apply": "Apply",
+        "saving": "Saving...",
+        "success": "Updated {{count}} contacts"
+      }
+    },
+    "email": {
+      "accounts": {
+        "title": "Email accounts",
+        "subtitle": "Manage email accounts for sending emails",
+        "create": "Create account",
+        "createFirst": "Add first account",
+        "loading": "Loading...",
+        "empty": "No email accounts",
+        "emptyHint": "Add an email account to send emails through automations",
+        "delete": "Delete",
+        "deleteConfirm": "Delete email account?",
+        "test": "Test",
+        "edit": "Edit",
+        "statusActive": "Active",
+        "statusError": "Error",
+        "error": "Error",
+        "errors": {
+          "loadFailed": "Failed to load accounts",
+          "deleteFailed": "Failed to delete"
+        }
+      },
+      "form": {
+        "titleNew": "Create email account",
+        "titleEdit": "Edit email account",
+        "subtitle": "Configure SMTP for sending and IMAP for receiving emails",
+        "sections": {
+          "basic": "Basic information",
+          "smtp": "SMTP (sending emails)",
+          "imap": "IMAP (receiving emails) - optional"
+        },
+        "fields": {
+          "name": "Account name *",
+          "email": "Email address *",
+          "smtpHost": "SMTP host *",
+          "smtpPort": "SMTP port *",
+          "smtpSecure": "Secure connection",
+          "smtpUser": "SMTP user *",
+          "smtpPassword": "SMTP password *",
+          "imapHost": "IMAP host",
+          "imapPort": "IMAP port",
+          "imapSecure": "Secure connection",
+          "imapUser": "IMAP user",
+          "imapPassword": "IMAP password"
+        },
+        "hints": {
+          "smtpPort": "Usually 465 (SSL) or 587 (STARTTLS)",
+          "titanEmail": "For Titan Email use port 465 with SSL",
+          "secureRecommended": "Recommended to enable",
+          "passwordLeaveEmpty": "Leave empty to keep unchanged",
+          "passwordPlaceholder": "Password or App Password"
+        },
+        "actions": {
+          "test": "Test connection",
+          "testing": "Testing...",
+          "save": "Save",
+          "saving": "Saving...",
+          "cancel": "Cancel",
+          "create": "Create"
+        },
+        "errors": {
+          "testFailed": "Connection test failed",
+          "saveFailed": "Failed to save",
+          "unknown": "Unknown error",
+          "loadFailed": "Failed to load account"
+        },
+        "success": {
+          "testSuccess": "Connection successful",
+          "saved": "Account saved"
+        }
+      }
+    },
+    "telegram": {
+      "bots": {
+        "title": "Telegram bots",
+        "subtitle": "Manage Telegram bots for receiving leads",
+        "create": "Create bot",
+        "createFirst": "Add first bot",
+        "loading": "Loading...",
+        "empty": "No Telegram bots",
+        "emptyHint": "Add a Telegram bot for CRM integration",
+        "delete": "Delete",
+        "deleteConfirm": "Delete Telegram bot?",
+        "edit": "Edit",
+        "errors": {
+          "loadFailed": "Failed to load bots",
+          "deleteFailed": "Failed to delete"
+        }
+      },
+      "form": {
+        "titleNew": "Create Telegram bot",
+        "titleEdit": "Edit Telegram bot",
+        "subtitle": "Configure Telegram bot for CRM integration",
+        "sections": {
+          "basic": "Basic information"
+        },
+        "fields": {
+          "name": "Bot name",
+          "botToken": "Bot Token *",
+          "botUsername": "Bot username",
+          "webhookUrl": "Webhook URL",
+          "welcomeMessage": "Welcome message",
+          "status": "Active"
+        },
+        "statuses": {
+          "active": "Active",
+          "inactive": "Error"
+        },
+        "hints": {
+          "getFromBotFather": "Get from @BotFather in Telegram",
+          "tokenLeaveEmpty": "Leave empty to keep unchanged",
+          "tokenPlaceholder": "123456789:ABCdefGHIjklMNOpqrsTUVwxyz",
+          "webhookAuto": "URL for receiving updates from Telegram (configured automatically)",
+          "activeOnly": "Bot will process messages only if enabled"
+        },
+        "actions": {
+          "save": "Save",
+          "saving": "Saving...",
+          "cancel": "Cancel",
+          "create": "Create"
+        },
+        "errors": {
+          "saveFailed": "Failed to save",
+          "loadFailed": "Failed to load bot"
+        },
+        "success": {
+          "saved": "Bot saved"
+        }
+      }
+    },
+    "automations": {
+      "list": {
+        "title": "Automations",
+        "subtitle": "Rule-based automations (IF/THEN)",
+        "create": "Create automation",
+        "loading": "Loading...",
+        "empty": "No automations",
+        "emptyHint": "Create your first automation to automate your business processes",
+        "delete": "Delete",
+        "deleteConfirm": "Delete automation?",
+        "edit": "Edit",
+        "active": "Active",
+        "inactive": "Inactive",
+        "errors": {
+          "loadFailed": "Failed to load automations",
+          "deleteFailed": "Failed to delete"
+        }
+      },
+      "panel": {
+        "button": "Automation",
+        "kicker": "Automations",
+        "subtitle": "Manage IF/THEN rules",
+        "searchPlaceholder": "Search automations",
+        "filter": "Filter",
+        "edit": "Edit",
+        "banner": "Open the automation hub to get full visibility into your scenarios.",
+        "bannerLink": "Learn more",
+        "comingSoon": "Section is under construction",
+        "copySuffix": "(copy)",
+        "titleLeads": "Lead automations",
+        "titleProjects": "Project automations",
+        "titleSales": "Sales automations",
+        "actions": {
+          "duplicate": "Duplicate",
+          "archive": "Archive"
+        },
+        "filters": {
+          "all": "All",
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "tabs": {
+          "automations": "Automations",
+          "history": "Run history",
+          "integrations": "Integrations",
+          "usage": "Usage"
+        }
+      },
+      "form": {
+        "titleNew": "Create automation",
+        "titleEdit": "Edit automation",
+        "subtitle": "Configure IF/THEN rule for process automation",
+        "sections": {
+          "basic": "Basic information",
+          "actions": "Actions (THEN)"
+        },
+        "fields": {
+          "name": "Name *",
+          "description": "Description",
+          "trigger": "Trigger (event) *",
+          "actionType": "Action type",
+          "conditions": "Conditions",
+          "active": "Active"
+        },
+        "triggerGroups": {
+          "contacts": "Contacts",
+          "companies": "Companies",
+          "leads": "Leads",
+          "sales": "Sales",
+          "projects": "Projects",
+          "tasks": "Tasks",
+          "reports": "Reports",
+          "email": "Email",
+          "telegram": "Telegram",
+          "notes": "Notes"
+        },
+        "triggers": {
+          "LEAD_CREATED": "Lead created",
+          "LEAD_UPDATED": "Lead updated",
+          "LEAD_STATUS_CHANGED": "Lead status changed",
+          "CONTACT_CREATED": "Contact created",
+          "CONTACT_UPDATED": "Contact updated",
+          "COMPANY_CREATED": "Company created",
+          "COMPANY_UPDATED": "Company updated",
+          "SALE_CREATED": "Sale created",
+          "SALE_UPDATED": "Sale updated",
+          "SALE_STATUS_CHANGED": "Sale status changed",
+          "PROJECT_CREATED": "Project created",
+          "PROJECT_STATUS_CHANGED": "Project status changed",
+          "TASK_CREATED": "Task created",
+          "TASK_UPDATED": "Task updated",
+          "TASK_STATUS_CHANGED": "Task status changed",
+          "REPORT_SCHEDULED": "Scheduled report",
+          "EMAIL_SENT": "Email sent",
+          "EMAIL_RECEIVED": "Email received",
+          "TELEGRAM_MESSAGE_RECEIVED": "Telegram message received",
+          "NOTE_CREATED": "Note created"
+        },
+        "report": {
+          "type": "Report type",
+          "types": {
+            "sales": "Sales",
+            "leads": "Leads",
+            "projects": "Projects",
+            "tasks": "Tasks"
+          },
+          "channel": "Delivery channel",
+          "channels": {
+            "email": "Email",
+            "telegram": "Telegram"
+          },
+          "frequency": "Frequency",
+          "frequencies": {
+            "weekly": "Weekly",
+            "monthly": "Monthly",
+            "quarterly": "Quarterly"
+          },
+          "time": "Time",
+          "dayOfWeek": "Day of week",
+          "weekdays": {
+            "mon": "Monday",
+            "tue": "Tuesday",
+            "wed": "Wednesday",
+            "thu": "Thursday",
+            "fri": "Friday",
+            "sat": "Saturday",
+            "sun": "Sunday"
+          },
+          "dayOfMonth": "Day of month",
+          "timezone": "Timezone",
+          "emails": "Recipients",
+          "subject": "Email subject",
+          "currencyMode": "Currency mode",
+          "currencyNative": "Selected only",
+          "currencyConverted": "Convert",
+          "displayCurrency": "Display currency",
+          "dateField": "Date field",
+          "dateSale": "Sale date",
+          "dateCreated": "Created at",
+          "rateFor": "Rate for {{currency}}"
+        },
+        "hints": {
+          "activeOnly": "Automation will run only if enabled",
+          "actionsDesc": "What to execute when trigger fires"
+        },
+        "actions": {
+          "send_email": "Send Email",
+          "call_webhook": "Call Webhook",
+          "send_telegram": "Send Telegram",
+          "create_note": "Create note",
+          "update_field": "Update field",
+          "add_tag": "Add tag",
+          "change_status": "Change status",
+          "create_task": "Create task",
+          "save": "Save",
+          "saving": "Saving...",
+          "cancel": "Cancel",
+          "create": "Create",
+          "addCondition": "Add condition",
+          "addAction": "Add action",
+          "action": "Action",
+          "removeAction": "Delete"
+        },
+        "emailAction": {
+          "account": "Email account *",
+          "to": "Recipient",
+          "toPlaceholder": "email@example.com or leave empty to use email from lead",
+          "subject": "Subject",
+          "body": "Text",
+          "template": "Email template",
+          "noTemplate": "Don't use template (enter manually)",
+          "bodyPlaceholder": "Email text. Variables: {{lead.name}}, {{lead.email}}, {{lead.phone}}, {{lead.status}}, {{contact.email}}, {{contact.fullName}}",
+          "noAccounts": "No accounts",
+          "add": "Add",
+          "addAccount": "Add account",
+          "selectAccount": "Select email account",
+          "loadingAccounts": "Loading accounts...",
+          "noTemplates": "No templates",
+          "create": "Create",
+          "loadingTemplates": "Loading templates...",
+          "templateHint": "Select template to use subject and text from template, or leave empty for manual entry",
+          "templateUsed": "Using template",
+          "templateUsedHint": "Subject and text will be taken from template with variable substitution from trigger"
+        },
+        "webhookAction": {
+          "url": "URL *",
+          "method": "Method",
+          "headers": "Headers (JSON)",
+          "body": "Request body (JSON)"
+        },
+        "telegramAction": {
+          "botId": "Bot ID",
+          "userId": "Telegram User ID",
+          "text": "Message text"
+        },
+        "noteAction": {
+          "content": "Note content"
+        },
+        "errors": {
+          "saveFailed": "Failed to save",
+          "loadFailed": "Failed to load automation"
+        },
+        "success": {
+          "saved": "Automation saved"
+        }
+      }
+    },
+    "emailTemplates": {
+      "list": {
+        "title": "Email Templates",
+        "subtitle": "Create and manage email templates for marketing campaigns",
+        "create": "Create template",
+        "createFirst": "Create first template",
+        "loading": "Loading...",
+        "empty": "No templates",
+        "delete": "Delete",
+        "deleteConfirm": "Delete email template?",
+        "edit": "Edit",
+        "preview": "Preview",
+        "errors": {
+          "loadFailed": "Failed to load templates",
+          "deleteFailed": "Failed to delete"
+        }
+      },
+      "form": {
+        "titleNew": "Create email template",
+        "titleEdit": "Edit email template",
+        "subtitle": "Create a beautiful email template with variable support",
+        "fields": {
+          "name": "Name *",
+          "description": "Description",
+          "subject": "Email subject",
+          "htmlBody": "HTML content",
+          "textBody": "Text version",
+          "isActive": "Active",
+          "variables": "Available variables",
+          "preview": "Preview"
+        },
+        "variables": {
+          "lead": "Lead data: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
+          "contact": "Contact data: {{contact.name}}, {{contact.email}}",
+          "company": "Company data: {{company.name}}, {{company.email}}"
+        },
+        "hints": {
+          "activeAvailable": "Template will be available for use"
+        },
+        "actions": {
+          "save": "Save",
+          "saving": "Saving...",
+          "cancel": "Cancel",
+          "preview": "Preview",
+          "useTemplate": "Use template"
+        },
+        "errors": {
+          "saveFailed": "Failed to save",
+          "loadFailed": "Failed to load template"
+        },
+        "success": {
+          "saved": "Template saved"
+        }
+      }
+    },
     "projects": {
       "board": {
         "title": "Projects · Kanban",
@@ -1215,24 +2141,82 @@
       "list": {
         "title": "Projects · Table",
         "subtitle": "Project list: status, amount, owner, and created date",
+        "columns": {
+          "label": "Columns",
+          "hide": "Hide column",
+          "add": "Add column"
+        },
+        "groupByStatus": "Group by status",
+        "groupSummary": "{{count}} projects • {{amount}}",
+        "summary": "Total: {{count}} • Amount: {{amount}}",
+        "bulk": {
+          "selected": "Selected: {{count}}",
+          "status": "Status",
+          "apply": "Apply",
+          "archive": "Archive",
+          "delete": "Delete",
+          "clear": "Clear"
+        },
+        "bulkHint": {
+          "title": "Bulk edit projects",
+          "subtitle": "Quickly update statuses, archive, or delete selected projects.",
+          "status": "Change status",
+          "archive": "Archive projects",
+          "delete": "Delete projects",
+          "ok": "Got it"
+        },
+        "owner": {
+          "title": "Project owners",
+          "search": "Search staff",
+          "edit": "Edit owners",
+          "empty": "No staff found"
+        },
         "headers": {
           "name": "Project name",
           "owner": "Owner",
           "lead": "Lead",
+          "company": "Company",
           "status": "Status",
+          "progress": "Stage",
           "amount": "Amount",
           "created": "Created"
         },
         "empty": "No projects yet"
       },
+      "archive": {
+        "title": "Projects archive",
+        "subtitle": "Projects that were archived.",
+        "empty": "No archived projects yet.",
+        "actions": {
+          "unarchive": "Unarchive"
+        }
+      },
+      "trash": {
+      "bulkEdit": {
+        "title": "Bulk edit projects",
+        "subtitle": "Select projects and apply advanced actions.",
+        "owner": "Owner",
+        "ownerEmpty": "No owner",
+        "actions": {
+          "applyStatus": "Apply status",
+          "applyOwner": "Assign owner"
+        }
+      },
+        "title": "Projects trash",
+        "subtitle": "Projects that were deleted.",
+        "empty": "No deleted projects yet.",
+        "actions": {
+          "restore": "Restore"
+        }
+      },
       "closed": {
-        "kicker": "Projects · Closed",
-        "title": "Closed projects",
-        "subtitle": "All projects with “Closed” status. Track final amounts and owners.",
+        "kicker": "Projects · Won/Lost",
+        "title": "Won/Lost projects",
+        "subtitle": "All projects with “Won” or “Lost” status. Track final amounts and owners.",
         "loading": "Loading closed projects…",
-        "empty": "No closed projects yet.",
+        "empty": "No won or lost projects yet.",
         "kpis": {
-          "count": "Closed projects",
+          "count": "Won/Lost projects",
           "amount": "Closed amount",
           "categories": "Categories"
         },
@@ -1282,9 +2266,22 @@
       "tasks": {
         "kicker": "Projects · Tasks",
         "title": "Project tasks",
-        "subtitle": "All project tasks. Owner sees everything, managers see their projects (current API logic).",
+        "subtitle": "All project tasks. Owner sees everything, managers see their tasks.",
         "loading": "Loading tasks…",
         "empty": "No tasks yet.",
+        "filters": {
+          "search": "Search tasks",
+          "status": "Status",
+          "project": "Project"
+        },
+        "newTask": {
+          "title": "New task",
+          "placeholder": "Task title",
+          "project": "Select project",
+          "assignees": "Assignees",
+          "deadline": "Deadline",
+          "add": "Add task"
+        },
         "table": {
           "title": "All tasks",
           "total": "Total: {{count}}",
@@ -1294,7 +2291,11 @@
             "owner": "Owner",
             "status": "Status",
             "priority": "Priority",
-            "deadline": "Deadline"
+            "deadline": "Deadline",
+            "actions": "Actions"
+          },
+          "actions": {
+            "remove": "Remove"
           }
         },
         "errors": {
@@ -1362,7 +2363,8 @@
         "inProgress": "In progress",
         "review": "Review",
         "paused": "Paused",
-        "closed": "Closed"
+        "won": "Won",
+        "lost": "Lost"
       },
       "errors": {
         "loadFailed": "Failed to load projects",
@@ -1397,20 +2399,48 @@
         "tabs": {
           "props": "Properties",
           "tasks": "Tasks",
-          "comments": "Comments"
+          "comments": "Comments",
+          "history": "History"
         },
         "fields": {
           "name": "Project name",
           "ownerEmpty": "Owner not assigned",
+          "owner": "Owner",
           "description": "Project description",
           "leadEmpty": "No lead",
           "leadNameFallback": "No name",
           "leadName": "Lead name (can be edited)",
           "leadEmail": "Lead email",
           "amount": "Amount",
+          "currency": "Currency",
+          "status": "Status",
+          "company": "Company",
+          "contact": "Contact",
           "createdAt": "Created: 24.09.2025, 03:00:00",
           "category": "Category",
           "tags": "Tags"
+        },
+        "mentions": {
+          "notice": "Mentions: {{count}}",
+          "ok": "Got it",
+          "inTask": "You were mentioned in a task"
+        },
+        "history": {
+          "loading": "Loading history…",
+          "empty": "No changes yet.",
+          "loadFailed": "Failed to load history",
+          "actions": {
+            "create": "Project created",
+            "update": "Project updated",
+            "status": "Status changed",
+            "archive": "Project archived",
+            "unarchive": "Project unarchived",
+            "delete": "Project deleted",
+            "restore": "Project restored"
+          },
+          "fields": {
+            "tasks": "Tasks"
+          }
         },
         "files": {
           "title": "Files (brief, estimate, contract, etc.)",
@@ -1418,8 +2448,10 @@
           "urlPlaceholder": "File link (Google Drive / Dropbox / WP media)"
         },
         "tasks": {
+          "title": "Project tasks",
+          "readOnly": "Read-only",
           "newTitle": "New task: title",
-          "newAssignees": "Assignees (comma separated)…",
+          "newAssignees": "Assignees",
           "add": "Add",
           "empty": "No tasks yet",
           "subtask": "Subtask…",
@@ -1435,6 +2467,9 @@
           "status": {
             "todo": "To do",
             "inProgress": "In progress",
+            "review": "Review",
+            "blocked": "Blocked",
+            "deferred": "Deferred",
             "done": "Done"
           },
           "priority": {
@@ -1469,23 +2504,27 @@
       },
       "analytics": {
         "kicker": "Projects · Analytics",
-        "title": "Project analytics",
-        "subtitle": "Quick overview of statuses, categories, and total amounts.",
+        "title": "Projects analytics",
+        "subtitle": "Customizable dashboard for project status, categories, owners, and amounts.",
         "noCategory": "No category",
         "shown": "Shown: {{count}}",
         "kpis": {
           "total": "Total projects",
           "amount": "Total amount",
-          "categories": "Categories"
+          "categories": "Categories",
+          "avgAmount": "Average amount",
+          "owners": "Owners",
+          "tags": "Tags",
+          "statuses": "Statuses"
         },
         "statusChart": {
-          "title": "Project statuses"
+          "title": "Projects by status"
         },
         "categoryChart": {
-          "title": "Project categories"
+          "title": "Projects by category"
         },
         "table": {
-          "title": "All projects",
+          "title": "Projects table",
           "total": "Total: {{count}}",
           "loading": "Loading projects…",
           "headers": {
@@ -1497,7 +2536,139 @@
           }
         },
         "errors": {
-          "loadFailed": "Failed to load project analytics"
+          "loadFailed": "Failed to load projects analytics"
+        },
+        "hero": {
+          "note": "All projects"
+        },
+        "period": {
+          "label": "Period",
+          "days7": "7 days",
+          "days30": "30 days",
+          "year1": "1 year",
+          "all": "All time",
+          "custom": "Custom"
+        },
+        "addBlock": "Add block",
+        "empty": "No blocks yet. Add the first one with the button above.",
+        "unknownOwner": "Unassigned",
+        "tooltips": {
+          "unknown": "Unknown"
+        },
+        "ownerChart": {
+          "title": "Projects by owner"
+        },
+        "tagChart": {
+          "title": "Projects by tags"
+        },
+        "constructor": {
+          "kicker": "Constructor",
+          "title": "Analytics constructor",
+          "subtitle": "Build a dashboard: metrics, charts, tables."
+        },
+        "widgets": {
+          "defaultTitle": "New block",
+          "type": {
+            "metric": "Metric",
+            "donut": "Donut",
+            "bar": "Chart",
+            "table": "Table",
+            "formula": "Formula"
+          }
+        },
+        "ownersTable": {
+          "title": "Owners",
+          "total": "Total: {{count}}",
+          "headers": {
+            "owner": "Owner",
+            "projects": "Projects"
+          }
+        },
+        "categoriesTable": {
+          "title": "Categories",
+          "total": "Total: {{count}}",
+          "headers": {
+            "category": "Category",
+            "projects": "Projects"
+          }
+        },
+        "actions": {
+          "edit": "Edit",
+          "remove": "Remove",
+          "cancel": "Cancel",
+          "save": "Save",
+          "add": "Add"
+        },
+        "resize": {
+          "height": "Drag to resize height",
+          "width": "Drag to resize width",
+          "both": "Drag to resize"
+        },
+        "modal": {
+          "type": "Block type",
+          "data": "Data",
+          "theme": "Theme",
+          "showLabels": "Show labels",
+          "title": "Block title",
+          "size": "Size",
+          "editTitle": "Edit block",
+          "addTitle": "New analytics block"
+        },
+        "sizes": {
+          "sm": "Compact",
+          "md": "Medium",
+          "lg": "Wide"
+        },
+        "formula": {
+          "scope": {
+            "status": "Status",
+            "category": "Category",
+            "owner": "Owner",
+            "tag": "Tag"
+          },
+          "fn": {
+            "label": "Formula",
+            "sumif": "SUMIF (condition)",
+            "count": "COUNT",
+            "percent": "PERCENT",
+            "ratio": "RATIO",
+            "diff": "DIFFERENCE"
+          },
+          "block": {
+            "sumif": "Conditional",
+            "expression": "Expression"
+          },
+          "filter": {
+            "scope": "Filter scope",
+            "value": "Filter value"
+          },
+          "condition": {
+            "label": "Condition",
+            "add": "Add condition",
+            "remove": "Remove"
+          },
+          "left": {
+            "label": "Left operand",
+            "value": "Left value"
+          },
+          "right": {
+            "label": "Right operand",
+            "value": "Right value"
+          },
+          "output": {
+            "label": "Output"
+          },
+          "mode": {
+            "count": "Count",
+            "percent": "Percent"
+          }
+        },
+        "reset": {
+          "button": "Reset blocks",
+          "title": "Reset dashboard?",
+          "message": "This will restore the default analytics layout. You can customize it again later.",
+          "cancel": "Cancel",
+          "confirm": "Reset"
         }
       }
     },
@@ -1724,6 +2895,62 @@
         }
       }
     },
+    "departments": {
+      "title": "Departments",
+      "subtitle": "Manage company department structure with tree hierarchy",
+      "create": "Create department",
+      "createFirst": "Create first department",
+      "loading": "Loading...",
+      "empty": "No departments",
+      "emptyHint": "Create department structure to organize company work",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteConfirm": "Delete department?",
+      "manager": "Manager",
+      "staff": "Staff",
+      "noStaff": "No staff",
+      "inactive": "Inactive",
+      "errors": {
+        "loadFailed": "Failed to load departments",
+        "deleteFailed": "Failed to delete"
+      },
+      "form": {
+        "titleNew": "Create department",
+        "titleEdit": "Edit department",
+        "subtitle": "Department settings and structure",
+        "sections": {
+          "basic": "Basic information"
+        },
+        "fields": {
+          "name": "Department name *",
+          "namePlaceholder": "e.g. Sales Department",
+          "description": "Description",
+          "descriptionPlaceholder": "Department description and functions",
+          "parent": "Parent department",
+          "parentNone": "None (root department)",
+          "manager": "Department manager",
+          "managerNone": "Not assigned",
+          "staff": "Department staff",
+          "noStaffAvailable": "No staff available",
+          "sortOrder": "Sort order",
+          "isActive": "Active"
+        },
+        "hints": {
+          "parent": "Select parent department to create hierarchy",
+          "staff": "Select staff members who will work in this department",
+          "active": "Inactive departments are not shown in the list"
+        },
+        "actions": {
+          "save": "Save",
+          "create": "Create",
+          "saving": "Saving..."
+        },
+        "errors": {
+          "loadFailed": "Failed to load department",
+          "saveFailed": "Failed to save"
+        }
+      }
+    },
     "inactive": {
       "badge": "Subscription paused",
       "title": "CRM access is currently unavailable",
@@ -1947,6 +3174,199 @@
         "cancelled": "Cancelled",
         "refunded": "Refunded",
         "other": "Other"
+      },
+      "analytics": {
+        "kicker": "Sales · Analytics",
+        "title": "Sales analytics",
+        "subtitle": "Widget builder with comparisons by channels, statuses, and custom fields.",
+        "hero": {
+          "note": "Live updates"
+        },
+        "period": {
+          "label": "Period",
+          "days7": "7 days",
+          "days30": "30 days",
+          "year1": "12 months",
+          "all": "All time",
+          "custom": "Custom",
+          "range": "Range"
+        },
+        "settings": {
+          "title": "Analytics settings",
+          "subtitle": "Choose date field and currency settings.",
+          "dateField": "Date",
+          "saleDate": "Sale date",
+          "createdAt": "Created at",
+          "currencyMode": "Currency mode",
+          "currencyNative": "Selected only",
+          "currencyConverted": "Convert",
+          "displayCurrency": "Display currency",
+          "ratesButton": "Rates",
+          "rateFor": "Rate for {{currency}}"
+        },
+        "kpis": {
+          "total": "Total sales",
+          "amount": "Sales amount",
+          "avgAmount": "Average check",
+          "channels": "Channels",
+          "products": "Products",
+          "markets": "Markets",
+          "managers": "Managers",
+          "statuses": "Statuses",
+          "currencies": "Currencies"
+        },
+        "charts": {
+          "status": "Sales statuses",
+          "channel": "Sales by channel",
+          "product": "Sales by product",
+          "market": "Sales by market",
+          "manager": "Sales by manager",
+          "currency": "Sales by currency",
+          "timeline": "Monthly trend"
+        },
+        "customField": "Custom field",
+        "table": {
+          "sales": "Sales table",
+          "channels": "Channels summary",
+          "products": "Products summary",
+          "markets": "Markets summary",
+          "managers": "Managers summary",
+          "customField": "Custom field",
+          "total": "Total: {{count}}",
+          "headers": {
+            "date": "Date",
+            "channel": "Channel",
+            "product": "Product",
+            "customer": "Customer",
+            "amount": "Amount",
+            "status": "Status",
+            "segment": "Segment",
+            "count": "Count"
+          }
+        },
+        "widgets": {
+          "type": {
+            "metric": "Metric",
+            "donut": "Donut",
+            "bar": "Chart",
+            "table": "Table",
+            "formula": "Formula"
+          },
+          "defaultTitle": "New block",
+          "addTitle": "Add block",
+          "editTitle": "Edit block",
+          "modalTitle": "Block settings",
+          "fields": {
+            "type": "Type",
+            "title": "Title",
+            "chart": "Chart",
+            "table": "Table",
+            "valueMode": "Metric",
+            "compareChannels": "Channel comparison",
+            "compareHint": "Select channels to compare",
+            "metric": "Metric",
+            "theme": "Theme",
+            "statusFilter": "Status filter",
+            "currencyMode": "Currency",
+            "displayCurrency": "Display currency"
+          },
+          "value": {
+            "count": "Count",
+            "amount": "Amount"
+          }
+        },
+        "actions": {
+          "edit": "Edit",
+          "remove": "Remove"
+        },
+        "constructor": {
+          "title": "Widget builder",
+          "subtitle": "Assemble your own analytics feed."
+        },
+        "addBlock": "Add block",
+        "empty": "No blocks yet.",
+        "loading": "Loading analytics...",
+        "reset": {
+          "button": "Reset",
+          "title": "Reset blocks?",
+          "subtitle": "Restore the default analytics widgets.",
+          "confirm": "Reset"
+        },
+        "resize": {
+          "height": "Resize height",
+          "width": "Resize width",
+          "both": "Resize"
+        },
+        "export": {
+          "csv": "CSV",
+          "excel": "Excel"
+        },
+        "formula": {
+          "secondary": "Secondary:",
+          "scope": {
+            "status": "Status",
+            "channel": "Channel",
+            "product": "Product",
+            "market": "Market",
+            "manager": "Manager",
+            "currency": "Currency",
+            "custom": "Custom field"
+          },
+          "fn": {
+            "label": "Function",
+            "sumif": "SUMIF",
+            "count": "COUNT",
+            "percent": "PERCENT",
+            "ratio": "RATIO",
+            "diff": "DIFF"
+          },
+          "mode": {
+            "label": "Mode",
+            "count": "Count",
+            "percent": "Percent"
+          },
+          "block": {
+            "sumif": "Filters",
+            "expression": "Operands"
+          },
+          "filter": {
+            "scope": "Scope",
+            "value": "Value",
+            "customField": "Custom field"
+          },
+          "condition": {
+            "add": "Add condition"
+          },
+          "left": {
+            "label": "Left operand",
+            "value": "Value"
+          },
+          "right": {
+            "label": "Right operand",
+            "value": "Value"
+          }
+        },
+        "common": {
+          "close": "Close",
+          "cancel": "Cancel",
+          "add": "Add",
+          "save": "Save"
+        },
+        "tooltips": {
+          "unknown": "Unknown"
+        },
+        "unknown": "Unknown",
+        "unknownChannel": "No channel",
+        "unknownProduct": "No product",
+        "unknownMarket": "No market",
+        "unknownManager": "No manager",
+        "timeline": "Timeline",
+        "count": "Count",
+        "totalCount": "{{count}} items",
+        "amountWithCurrency": "{{amount}} {{currency}}",
+        "errors": {
+          "loadFailed": "Failed to load analytics"
+        }
       }
     },
     "salesChannels": {
@@ -2850,6 +4270,8 @@
         "title": "Field mapping",
         "subtitle": "Link file columns to CRM fields. Only purchase date is required; amount and currency are set later in the backend.",
         "count": "Mapped fields: {{mapped}} of {{total}}",
+        "manageFields": "Manage fields",
+        "manageFieldsTitle": "Sales fields",
         "headers": {
           "crmField": "CRM field",
           "fileColumn": "File column"
@@ -2861,14 +4283,23 @@
         "empty": "Sample data is not available."
       },
       "fields": {
+        "orderId": "Order",
+        "productId": "Product ID",
         "purchaseDate": "Purchase date",
+        "updatedAt": "Updated date",
+        "status": "Status",
+        "amount": "Amount",
+        "channel": "Channel",
+        "integration": "Integration",
         "customerName": "Customer / agent name",
+        "managerName": "Responsible manager",
+        "productName": "Product name",
+        "productUrl": "Product URL",
         "quantity": "Quantity",
         "type": "Type",
         "category": "Category",
         "size": "Size",
         "color": "Color",
-        "url": "Link",
         "currency": "Currency",
         "country": "Country"
       },
@@ -2884,6 +4315,124 @@
       "apply": {
         "summary": "Import complete: created {{created}}, skipped {{skipped}}."
       }
+    }
+  },
+  "publicPages": {
+    "nav": {
+      "development": "Development",
+      "scenarios": "Scenarios",
+      "api": "API",
+      "solutions": "Solutions",
+      "pricing": "Pricing",
+      "blog": "Blog",
+      "privacy": "Privacy"
+    },
+    "common": {
+      "kicker": "Public pages",
+      "primaryCta": "Enter CRM",
+      "secondaryCta": "Back to landing"
+    },
+    "development": {
+      "title": "CRM development for your workflow",
+      "subtitle": "We design CRM architecture around real sales, service and marketing stages with measurable KPI and clear ownership.",
+      "cards": [
+        {
+          "title": "Process and funnel audit",
+          "text": "We map current customer paths, loss points, team bottlenecks and target implementation metrics."
+        },
+        {
+          "title": "Role model and operating rules",
+          "text": "We build access rights, task routing and SLA control by departments."
+        },
+        {
+          "title": "Integration landscape",
+          "text": "We connect telephony, messengers, ads, website, ERP and webhooks without data loss."
+        }
+      ],
+      "timelineTitle": "Implementation stages",
+      "timeline": [
+        "Discovery and process mapping",
+        "Architecture and prototype",
+        "Integrations and data migration",
+        "Go-live and team enablement"
+      ]
+    },
+    "scenarios": {
+      "title": "Usage scenarios",
+      "subtitle": "Practical playbooks for B2B, eCommerce and service teams with distributed operations.",
+      "items": [
+        {
+          "title": "Lead scoring and auto-assignment",
+          "text": "Every lead gets a priority score and is routed to the right manager by predefined rules."
+        },
+        {
+          "title": "SLA and communication control",
+          "text": "The system tracks first response, follow-ups and escalation at each funnel stage."
+        },
+        {
+          "title": "Reactivation of lost pipeline",
+          "text": "Automated journeys return sleeping segments to active work with relevant offers."
+        },
+        {
+          "title": "End-to-end channel analytics",
+          "text": "UTM, source and revenue are connected in one model for marketing and sales."
+        }
+      ]
+    },
+    "api": {
+      "title": "API and integrations",
+      "subtitle": "Open API to sync leads, deals, statuses, tasks and reporting with external systems.",
+      "blocks": {
+        "endpointsTitle": "Key endpoints",
+        "endpoints": [
+          "GET /v1/leads — list and filter leads",
+          "POST /v1/leads — create lead from external source",
+          "PATCH /v1/leads/:id — update status and attributes",
+          "POST /v1/billing/checkout-session — start plan checkout"
+        ],
+        "requestExample": "Request example"
+      }
+    },
+    "solutions": {
+      "title": "Industry solutions",
+      "subtitle": "We tailor modules and entitlements to your sales cycle from first touch to retention and LTV.",
+      "items": [
+        {
+          "title": "B2B and long-cycle deals",
+          "text": "Control stages, tasks and revenue forecast per account, including multi-contact logic."
+        },
+        {
+          "title": "One model for marketing and sales",
+          "text": "UTM attribution and shared reporting for CMO, Head of Sales and business leadership."
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy policy",
+      "subtitle": "How we process personal data, log events and protect account access.",
+      "items": [
+        "We process only the data required for CRM operation, customer support and billing.",
+        "Data access is role-based, and critical actions are recorded in audit logs.",
+        "On request, customers can export or delete data within agreed timelines."
+      ]
+    },
+    "blog": {
+      "title": "Lumiva CRM blog",
+      "subtitle": "Insights for sales, marketing and operations leaders.",
+      "posts": [
+        {
+          "title": "How to shorten sales cycle without hurting margin",
+          "text": "A practical framework for prioritization, touchpoint control and SLA discipline."
+        },
+        {
+          "title": "UTM architecture for transparent CRM analytics",
+          "text": "How to build a robust tagging and reporting structure for marketing and sales."
+        },
+        {
+          "title": "How to implement CRM so teams actually use it",
+          "text": "Go-live, operating model and adoption practices that reduce internal resistance."
+        }
+      ]
     }
   }
 }

@@ -13,6 +13,8 @@ import { Tenant } from '../tenants/tenant.entity';
 import { Site } from '../sites/site.entity';
 import { LeadActivity } from './lead-activity.entity';
 import { Project } from '../projects/project.entity';
+import { Company } from '../companies/company.entity';
+import { Contact } from '../contacts/contact.entity';
 
 @Entity('leads')
 export class Lead {
@@ -39,6 +41,28 @@ export class Lead {
   })
   @JoinColumn({ name: 'siteId' })
   site: Site | null;
+
+  // ==== СВЯЗЬ С КОНТАКТОМ ====
+  @Column({ type: 'uuid', nullable: true })
+  contactId: string | null;
+
+  @ManyToOne(() => Contact, (contact) => contact.leads, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'contactId' })
+  contact: Contact | null;
+
+  // ==== СВЯЗЬ С КОМПАНИЕЙ ====
+  @Column({ type: 'uuid', nullable: true })
+  companyId: string | null;
+
+  @ManyToOne(() => Company, (company) => company.leads, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'companyId' })
+  company: Company | null;
 
   // ==== СВЯЗЬ С ПРОЕКТАМИ ====
   @OneToMany(() => Project, (p) => p.lead, { cascade: false })
@@ -84,13 +108,25 @@ export class Lead {
   @Column({ type: 'uuid', nullable: true })
   assignedUserId: string | null;
 
+  // IDs сотрудников (multiple assignees)
+  @Column({ type: 'uuid', array: true, nullable: true })
+  assignedUserIds: string[] | null;
+
   // Читаемое имя ответственного (для быстрых списков)
   @Column({ type: 'varchar', length: 255, nullable: true })
   assignedTo: string | null;
 
+  // Список имён ответственных (для детальных форм)
+  @Column({ type: 'jsonb', nullable: true })
+  assignedToList: string[] | null;
+
   // ==== META ====
   @Column({ type: 'jsonb', nullable: true })
   meta: any | null;
+
+  // ==== CUSTOM FIELDS ====
+  @Column({ type: 'jsonb', nullable: true })
+  customFields: Record<string, any> | null;
 
   // ==== ACTIVITY ====
   @OneToMany(() => LeadActivity, (a) => a.lead)

@@ -39,6 +39,7 @@ export class StaffUsersController {
       fullName: body.fullName,
       role: body.role as StaffRole,
       department: body.department ?? null,
+      departmentId: body.departmentId ?? null,
       avatarUrl: body.avatarUrl ?? null,
       externalId: body.externalId ?? null,
     });

@@ -10,11 +10,15 @@ import {
   Post,
   NotFoundException,
   Query,
+  UseGuards,
 } from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { Tenant } from './tenant.entity';
+import { PlatformAdminGuard } from '../platform-admin/platform-admin.guard';
+import { normalizeTenantPlan } from './plan-entitlements';
 
 @Controller('platform/tenants')
+@UseGuards(PlatformAdminGuard)
 export class PlatformTenantsController {
   constructor(private readonly tenants: TenantsService) {}
 
@@ -27,7 +31,7 @@ export class PlatformTenantsController {
       clientKey: t.clientKey,
       name: t.name,
       status: t.status,
-      plan: t.plan,
+      plan: normalizeTenantPlan(t.plan),
       apiEnabled: t.apiEnabled,
       activeUntil: t.activeUntil,
       ownerName: t.ownerName,
@@ -152,6 +156,29 @@ export class PlatformTenantsController {
       throw new NotFoundException('Tenant not found');
     }
     return this.mapTenant(tenant);
+  }
+
+  /**
+   * Компоненты тенанта (для админ-панели)
+   */
+  @Get(':id/components')
+  async getComponents(@Param('id', new ParseUUIDPipe()) id: string) {
+    console.log(`[PlatformTenantsController] GET components for tenant: ${id}`);
+    const components = await this.tenants.getTenantComponents(id);
+    console.log(`[PlatformTenantsController] Returning ${components.length} components`);
+    return components;
+  }
+
+  /**
+   * Включить/выключить компонент для тенанта
+   */
+  @Patch(':id/components/:componentKey')
+  async toggleComponent(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('componentKey') componentKey: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    return this.tenants.toggleTenantComponent(id, componentKey, body.enabled);
   }
 
   /**

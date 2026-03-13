@@ -5,8 +5,12 @@ import {
   UseInterceptors,
   UploadedFile,
   Body,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { SalesImportService } from './sales-import.service';
 import type {
   ImportPreviewResponse,
@@ -14,6 +18,7 @@ import type {
   ImportApplyResult,
 } from './sales-import.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('sales/import')
 export class SalesImportController {
   constructor(private readonly importService: SalesImportService) {}
@@ -48,7 +53,8 @@ export class SalesImportController {
   @Post('apply')
   async apply(
     @Body() payload: ImportApplyPayload,
+    @CurrentUser() user: CurrentUserPayload,
   ): Promise<ImportApplyResult> {
-    return this.importService.apply(payload);
+    return this.importService.apply(payload, user?.tenantId || null);
   }
 }

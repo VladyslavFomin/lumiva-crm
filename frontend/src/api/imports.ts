@@ -17,17 +17,7 @@ export interface ImportPreviewResponse {
 /**
  * Поля, которые мы умеем импортировать (системные ключи).
  */
-export type ImportSystemField =
-  | 'purchaseDate'
-  | 'customerName'
-  | 'quantity'
-  | 'type'
-  | 'category'
-  | 'size'
-  | 'color'
-  | 'url'
-  | 'currency'
-  | 'country';
+export type ImportSystemField = string;
 
 export interface ImportApplyPayload {
   importId: string;
@@ -40,6 +30,7 @@ export interface ImportApplyResult {
   created: number;
   skipped: number;
   message?: string;
+  errors?: Array<{ row: number; reason: string }>;
 }
 
 /**

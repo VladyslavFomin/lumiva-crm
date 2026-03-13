@@ -51,6 +51,14 @@ export const SalesIntegrationsPage: React.FC = () => {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startWidth: number;
+  } | null>(null);
 
   const [newOpen, setNewOpen] = useState(false);
   const [newKind] = useState<IntegrationKind>('woocommerce'); // only Woo for now
@@ -79,6 +87,39 @@ export const SalesIntegrationsPage: React.FC = () => {
     }),
     [t],
   );
+
+  const baseColumns = useMemo(
+    () => [
+      { id: 'connection', label: t('crm.salesIntegrations.list.headers.connection') },
+      { id: 'type', label: t('crm.salesIntegrations.list.headers.type') },
+      { id: 'channel', label: t('crm.salesIntegrations.list.headers.channel') },
+      { id: 'status', label: t('crm.salesIntegrations.list.headers.status') },
+      { id: 'lastSync', label: t('crm.salesIntegrations.list.headers.lastSync') },
+      { id: 'sales', label: t('crm.salesIntegrations.list.headers.sales') },
+      { id: 'amount', label: t('crm.salesIntegrations.list.headers.amount') },
+      { id: 'actions', label: t('crm.salesIntegrations.list.headers.actions') },
+    ],
+    [t],
+  );
+
+  const orderedColumns = useMemo(() => {
+    if (!baseColumns.length) return [];
+    const map = new Map(baseColumns.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : baseColumns.map((col) => col.id);
+    const result: typeof baseColumns = [];
+    order.forEach((id) => {
+      const col = map.get(id);
+      if (col) result.push(col);
+    });
+    baseColumns.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [baseColumns, columnOrder]);
+
+  const getColumnWidth = (id: string, fallback: number) =>
+    columnWidths[id] ?? fallback;
 
   // ─── Редактирование интеграции ────────────────────────────
 
@@ -129,6 +170,58 @@ export const SalesIntegrationsPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('sales_integrations_columns');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+        if (parsed.widths && typeof parsed.widths === 'object')
+          setColumnWidths(parsed.widths);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'sales_integrations_columns',
+        JSON.stringify({ order: columnOrder, widths: columnWidths }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder, columnWidths]);
+
+  useEffect(() => {
+    if (!baseColumns.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return baseColumns.map((c) => c.id);
+      const ids = baseColumns.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id));
+      const missing = ids.filter((id) => !filtered.includes(id));
+      return [...filtered, ...missing];
+    });
+  }, [baseColumns]);
+
+  useEffect(() => {
+    if (!resizing) return;
+    const handleMove = (e: MouseEvent) => {
+      const delta = e.clientX - resizing.startX;
+      const next = Math.max(90, resizing.startWidth + delta);
+      setColumnWidths((prev) => ({ ...prev, [resizing.id]: next }));
+    };
+    const handleUp = () => setResizing(null);
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleUp);
+    };
+  }, [resizing]);
+
   /* ─────────────────────────────── */
   /* Агрегаты                        */
   /* ─────────────────────────────── */
@@ -159,6 +252,168 @@ export const SalesIntegrationsPage: React.FC = () => {
     if (!channelId) return t('crm.salesIntegrations.common.empty');
     const ch = channels.find((c: SalesChannel) => c.id === channelId);
     return ch?.name || t('crm.salesIntegrations.common.empty');
+  };
+
+  const startResize = (id: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizing({
+      id,
+      startX: e.clientX,
+      startWidth: columnWidths[id] ?? 160,
+    });
+  };
+
+  const handleColumnDrop = (targetId: string) => {
+    if (!dragColumnId || dragColumnId === targetId) return;
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragColumnId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragColumnId);
+      return next;
+    });
+    setDragColumnId(null);
+  };
+
+  const renderCell = (
+    conn: IntegrationConnectionDto,
+    columnId: string,
+  ) => {
+    const channelName = findChannelName(conn.channelId);
+    const lastSync =
+      conn.lastSyncAt && conn.lastSyncAt !== null
+        ? new Date(conn.lastSyncAt).toLocaleString(locale)
+        : t('crm.salesIntegrations.common.none');
+    const statusBase =
+      conn.lastSyncStatus && statusLabels[conn.lastSyncStatus]
+        ? statusLabels[conn.lastSyncStatus]
+        : conn.lastSyncStatus || t('crm.salesIntegrations.common.none');
+    const statusColor =
+      conn.lastSyncStatus === 'ok'
+        ? 'bg-emerald-900/60 text-emerald-300'
+        : conn.lastSyncStatus === 'error'
+          ? 'bg-rose-900/60 text-rose-300'
+          : 'bg-slate-800 text-slate-300';
+    const enabledColor = conn.isEnabled
+      ? 'bg-emerald-900/60 text-emerald-300'
+      : 'bg-slate-800 text-slate-400';
+
+    switch (columnId) {
+      case 'connection':
+        return (
+          <div className="flex flex-col">
+            <span className="text-slate-100">{conn.name}</span>
+            {conn.description && (
+              <span className="text-[10px] text-slate-500 truncate max-w-[220px]">
+                {conn.description}
+              </span>
+            )}
+          </div>
+        );
+      case 'type':
+        return kindLabels[conn.kind];
+      case 'channel':
+        return channelName;
+      case 'status':
+        return (
+          <div className="flex flex-col gap-0.5">
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${enabledColor}`}
+            >
+              {conn.isEnabled
+                ? t('crm.salesIntegrations.status.enabled')
+                : t('crm.salesIntegrations.status.disabled')}
+            </span>
+            <span
+              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${statusColor}`}
+            >
+              {statusBase}
+            </span>
+          </div>
+        );
+      case 'lastSync':
+        return (
+          <div className="flex flex-col">
+            <span>{lastSync}</span>
+            {conn.lastError && (
+              <span className="text-[10px] text-rose-300 truncate max-w-[220px]">
+                {t('crm.salesIntegrations.list.lastError')} {conn.lastError}
+              </span>
+            )}
+          </div>
+        );
+      case 'sales':
+        return conn.totalSalesCount.toLocaleString(locale);
+      case 'amount':
+        return (
+          <>
+            {conn.totalSalesAmount.toLocaleString(locale, {
+              maximumFractionDigits: 0,
+            })}{' '}
+            <span className="text-slate-400 text-[10px]">
+              {conn.currency}
+            </span>
+          </>
+        );
+      case 'actions':
+        return (
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => handleTest(conn)}
+              disabled={testingId === conn.id || deletingId === conn.id}
+              className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
+            >
+              {testingId === conn.id
+                ? t('crm.salesIntegrations.common.testing')
+                : t('crm.salesIntegrations.common.test')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSync(conn)}
+              disabled={syncingId === conn.id || deletingId === conn.id}
+              className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
+            >
+              {syncingId === conn.id
+                ? t('crm.salesIntegrations.common.syncing')
+                : t('crm.salesIntegrations.common.sync')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleToggleEnabled(conn)}
+              disabled={savingId === conn.id || deletingId === conn.id}
+              className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
+            >
+              {conn.isEnabled
+                ? t('crm.salesIntegrations.common.disable')
+                : t('crm.salesIntegrations.common.enable')}
+            </button>
+            <button
+              type="button"
+              onClick={() => openEdit(conn)}
+              disabled={deletingId === conn.id}
+              className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
+            >
+              {t('crm.salesIntegrations.common.edit')}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleDelete(conn)}
+              disabled={deletingId === conn.id}
+              className="px-2 py-0.5 rounded-lg text-[10px] border border-rose-700/80 text-rose-300 bg-rose-950/40 hover:bg-rose-900/50 disabled:opacity-50"
+            >
+              {deletingId === conn.id
+                ? t('crm.salesIntegrations.common.deleting')
+                : t('crm.salesIntegrations.common.delete')}
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
   };
 
   const handleToggleEnabled = async (conn: IntegrationConnectionDto) => {
@@ -726,57 +981,96 @@ export const SalesIntegrationsPage: React.FC = () => {
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
+            <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1 table-fixed">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.connection')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.type')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.channel')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.status')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.lastSync')}
-                  </th>
-                  <th className="text-right font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.sales')}
-                  </th>
-                  <th className="text-right font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.amount')}
-                  </th>
-                  <th className="text-left font-normal px-2 py-1">
-                    {t('crm.salesIntegrations.list.headers.actions')}
-                  </th>
+                  {orderedColumns.map((col) => {
+                    const fallback =
+                      col.id === 'connection'
+                        ? 220
+                        : col.id === 'type'
+                          ? 140
+                          : col.id === 'channel'
+                            ? 180
+                            : col.id === 'status'
+                              ? 170
+                              : col.id === 'lastSync'
+                                ? 200
+                                : col.id === 'sales'
+                                  ? 120
+                                  : col.id === 'amount'
+                                    ? 140
+                                    : 240;
+                    const width = getColumnWidth(col.id, fallback);
+                    return (
+                      <th
+                        key={col.id}
+                        draggable
+                        onDragStart={(e) => {
+                          setDragColumnId(col.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', col.id);
+                        }}
+                        onDragEnd={() => setDragColumnId(null)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={() => handleColumnDrop(col.id)}
+                        className="text-left font-normal px-2 py-1 relative group"
+                        style={{ width, minWidth: width }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="cursor-move">⋮⋮</span>
+                          <span>{col.label}</span>
+                        </div>
+                        <div
+                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                          onMouseDown={(e) => startResize(col.id, e)}
+                        />
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
                 {connections.map((conn) => (
-                  <IntegrationRow
+                  <tr
                     key={conn.id}
-                    conn={conn}
-                    channelName={findChannelName(conn.channelId)}
-                    onToggle={() => handleToggleEnabled(conn)}
-                    onDelete={() => handleDelete(conn)}
-                    onTest={() => handleTest(conn)}
-                    onSync={() => handleSync(conn)}
-                    onEdit={() => openEdit(conn)}
-                    testing={testingId === conn.id}
-                    syncing={syncingId === conn.id}
-                    saving={savingId === conn.id}
-                    deleting={deletingId === conn.id}
-                  />
+                    className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors"
+                  >
+                    {orderedColumns.map((col) => {
+                      const fallback =
+                        col.id === 'connection'
+                          ? 220
+                          : col.id === 'type'
+                            ? 140
+                            : col.id === 'channel'
+                              ? 180
+                              : col.id === 'status'
+                                ? 170
+                                : col.id === 'lastSync'
+                                  ? 200
+                                  : col.id === 'sales'
+                                    ? 120
+                                    : col.id === 'amount'
+                                      ? 140
+                                      : 240;
+                      const width = getColumnWidth(col.id, fallback);
+                      return (
+                        <td
+                          key={col.id}
+                          className="px-2 py-1.5 text-slate-300"
+                          style={{ width, minWidth: width }}
+                        >
+                          {renderCell(conn, col.id)}
+                        </td>
+                      );
+                    })}
+                  </tr>
                 ))}
 
                 {!connections.length && !loading && (
                   <tr>
                     <td
-                      colSpan={8}
+                      colSpan={orderedColumns.length}
                       className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
                     >
                       {t('crm.salesIntegrations.list.empty')}
@@ -806,181 +1100,3 @@ export const SalesIntegrationsPage: React.FC = () => {
   );
 };
 
-/* ─────────────────────────────── */
-/* Строка интеграции              */
-/* ─────────────────────────────── */
-
-const IntegrationRow: React.FC<{
-  conn: IntegrationConnectionDto;
-  channelName: string;
-  testing: boolean;
-  syncing: boolean;
-  saving: boolean;
-  deleting: boolean;
-  onToggle: () => void;
-  onDelete: () => void;
-  onTest: () => void;
-  onSync: () => void;
-  onEdit: () => void;
-}> = ({
-  conn,
-  channelName,
-  testing,
-  syncing,
-  saving,
-  deleting,
-  onToggle,
-  onDelete,
-  onTest,
-  onSync,
-  onEdit,
-}) => {
-  const { t } = useTranslation();
-  const locale = getLocale();
-  const kindLabels = useMemo(
-    () => ({
-      woocommerce: t('crm.salesIntegrations.kinds.woocommerce'),
-      'manual-import': t('crm.salesIntegrations.kinds.manualImport'),
-      other: t('crm.salesIntegrations.kinds.other'),
-    }),
-    [t],
-  );
-  const statusLabels = useMemo(
-    () => ({
-      never: t('crm.salesIntegrations.status.never'),
-      ok: t('crm.salesIntegrations.status.ok'),
-      error: t('crm.salesIntegrations.status.error'),
-    }),
-    [t],
-  );
-  const lastSync =
-    conn.lastSyncAt && conn.lastSyncAt !== null
-      ? new Date(conn.lastSyncAt).toLocaleString(locale)
-      : t('crm.salesIntegrations.common.none');
-
-  const statusBase =
-    conn.lastSyncStatus && statusLabels[conn.lastSyncStatus]
-      ? statusLabels[conn.lastSyncStatus]
-      : conn.lastSyncStatus || t('crm.salesIntegrations.common.none');
-
-  const statusColor =
-    conn.lastSyncStatus === 'ok'
-      ? 'bg-emerald-900/60 text-emerald-300'
-      : conn.lastSyncStatus === 'error'
-      ? 'bg-rose-900/60 text-rose-300'
-      : 'bg-slate-800 text-slate-300';
-
-  const enabledColor = conn.isEnabled
-    ? 'bg-emerald-900/60 text-emerald-300'
-    : 'bg-slate-800 text-slate-400';
-
-  return (
-    <tr className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors">
-      <td className="px-2 py-1.5 text-slate-100 whitespace-nowrap">
-        <div className="flex flex-col">
-          <span>{conn.name}</span>
-          {conn.description && (
-            <span className="text-[10px] text-slate-500 truncate max-w-[220px]">
-              {conn.description}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {kindLabels[conn.kind]}
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {channelName}
-      </td>
-      <td className="px-2 py-1.5 whitespace-nowrap">
-        <div className="flex flex-col gap-0.5">
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${enabledColor}`}
-          >
-            {conn.isEnabled
-              ? t('crm.salesIntegrations.status.enabled')
-              : t('crm.salesIntegrations.status.disabled')}
-          </span>
-          <span
-            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${statusColor}`}
-          >
-            {statusBase}
-          </span>
-        </div>
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        <div className="flex flex-col">
-          <span>{lastSync}</span>
-          {conn.lastError && (
-            <span className="text-[10px] text-rose-300 truncate max-w-[220px]">
-              {t('crm.salesIntegrations.list.lastError')} {conn.lastError}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {conn.totalSalesCount.toLocaleString(locale)}
-      </td>
-      <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {conn.totalSalesAmount.toLocaleString(locale, {
-          maximumFractionDigits: 0,
-        })}{' '}
-        <span className="text-slate-400 text-[10px]">
-          {conn.currency}
-        </span>
-      </td>
-      <td className="px-2 py-1.5 whitespace-nowrap">
-        <div className="flex flex-wrap gap-1">
-          <button
-            type="button"
-            onClick={onTest}
-            disabled={testing || deleting}
-            className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
-          >
-            {testing
-              ? t('crm.salesIntegrations.common.testing')
-              : t('crm.salesIntegrations.common.test')}
-          </button>
-          <button
-            type="button"
-            onClick={onSync}
-            disabled={syncing || deleting}
-            className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
-          >
-            {syncing
-              ? t('crm.salesIntegrations.common.syncing')
-              : t('crm.salesIntegrations.common.sync')}
-          </button>
-          <button
-            type="button"
-            onClick={onToggle}
-            disabled={saving || deleting}
-            className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
-          >
-            {conn.isEnabled
-              ? t('crm.salesIntegrations.common.disable')
-              : t('crm.salesIntegrations.common.enable')}
-          </button>
-          <button
-            type="button"
-            onClick={onEdit}
-            disabled={deleting}
-            className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
-          >
-            {t('crm.salesIntegrations.common.edit')}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting}
-            className="px-2 py-0.5 rounded-lg text-[10px] border border-rose-700/80 text-rose-300 bg-rose-950/40 hover:bg-rose-900/50 disabled:opacity-50"
-          >
-            {deleting
-              ? t('crm.salesIntegrations.common.deleting')
-              : t('crm.salesIntegrations.common.delete')}
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-};

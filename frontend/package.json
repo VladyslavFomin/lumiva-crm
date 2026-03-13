@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/check-analytics-layout.mjs --source",
     "build": "vite build",
+    "postbuild": "node scripts/check-analytics-layout.mjs --dist",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
     "preview": "vite preview"

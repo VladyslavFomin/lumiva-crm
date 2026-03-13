@@ -93,10 +93,22 @@ export class RbacService {
     role: StaffRole,
     permission: PermissionKey,
   ): Promise<boolean> {
+    // Owner всегда имеет доступ
+    if (role === 'owner') {
+      return true;
+    }
+    
     const row = await this.repo.findOne({
       where: { tenantId, role, permission },
     });
-    return !!row?.allowed;
+    
+    // Если права не найдены в базе, возвращаем false
+    // (RbacGuard сам решит, разрешать ли доступ для новых модулей)
+    if (!row) {
+      return false;
+    }
+    
+    return !!row.allowed;
   }
 
   /* ========= USER-LEVEL OVERRIDES ========= */
