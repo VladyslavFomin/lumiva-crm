@@ -344,7 +344,7 @@ export const CampaignsPage: React.FC = () => {
       const r: any = row; // utm-поля живут здесь как any
 
       const nameRaw =
-        (r.campaign as string | undefined) || '(без utm_campaign)';
+        (r.campaign as string | undefined) || t('crm.marketingCampaigns.common.noCampaign');
       const name = String(nameRaw);
       const key = name;
 
@@ -384,7 +384,7 @@ export const CampaignsPage: React.FC = () => {
     list.sort((a, b) => b.revenue - a.revenue);
 
     return list;
-  }, [stats, currency]);
+  }, [stats, currency, t]);
 
   const totalCampaigns = campaigns.length;
   const totalCost = campaigns.reduce((s, c) => s + c.cost, 0);

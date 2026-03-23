@@ -1,10 +1,10 @@
 // src/pages/companies/CompanyDetailsPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchCompany, type Company } from '../../api/companies';
+import { fetchCompany, updateCompany, type Company } from '../../api/companies';
 import { fetchContacts, type Contact } from '../../api/contacts';
-import { fetchLeads, type Lead } from '../../api/leads';
+import { fetchLeads, isLeadInTrash, type Lead } from '../../api/leads';
 import { fetchProjects, type Project } from '../../api/projects';
 import {
   fetchCompanyTasks,
@@ -12,10 +12,13 @@ import {
   type CompanyTaskStatus,
 } from '../../api/companies';
 import { fetchCompanyAnalytics, type CompanyAnalytics } from '../../api/companies';
+import { fetchStaff, type StaffUser } from '../../api/staff';
+import { useTranslation } from 'react-i18next';
 
 type TabId = 'main' | 'contacts' | 'leads' | 'projects' | 'tasks' | 'analytics';
 
 export const CompanyDetailsPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabId>('main');
@@ -27,10 +30,18 @@ export const CompanyDetailsPage: React.FC = () => {
   const [analytics, setAnalytics] = useState<CompanyAnalytics | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
+  const [assignedSaving, setAssignedSaving] = useState(false);
+  const locale = i18n.language?.startsWith('en')
+    ? 'en-US'
+    : i18n.language?.startsWith('tr')
+      ? 'tr-TR'
+      : 'ru-RU';
 
   useEffect(() => {
     if (!id) {
-      setError('ID компании не указан');
+      setError(t('crm.companies.details.page.errors.idMissing'));
       setLoading(false);
       return;
     }
@@ -44,97 +55,212 @@ export const CompanyDetailsPage: React.FC = () => {
       .then((data) => {
         if (!alive) return;
         setCompany(data);
+        const fromCustom = Array.isArray(data.customFields?.assignedUserIds)
+          ? data.customFields?.assignedUserIds
+          : [];
+        const normalized = fromCustom.filter((value: unknown): value is string =>
+          typeof value === 'string' && value.trim().length > 0,
+        );
+        setAssignedUserIds(
+          normalized.length
+            ? normalized
+            : data.assignedUserId
+              ? [data.assignedUserId]
+              : [],
+        );
       })
       .catch((e) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Ошибка загрузки компании');
+        setError(e.message || t('crm.companies.form.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
         setLoading(false);
       });
-  }, [id]);
+    fetchCompanyAnalytics(id)
+      .then((data) => {
+        if (!alive) return;
+        setAnalytics(data);
+      })
+      .catch((e) => console.error('Failed to load company analytics:', e));
+    fetchStaff()
+      .then((items) => {
+        if (!alive) return;
+        setStaff(items);
+      })
+      .catch((e) => console.error('Failed to load staff list:', e));
+  }, [id, t]);
 
-  // Загружаем данные для активной вкладки
+  // Базовые связанные данные компании (контакты/лиды/проекты)
   useEffect(() => {
     if (!id || loading) return;
 
     let alive = true;
+    fetchContacts({ companyId: id, limit: 100 })
+      .then((data) => {
+        if (!alive) return;
+        setContacts(data.items);
+      })
+      .catch((e) => console.error('Failed to load contacts:', e));
 
-    switch (tab) {
-      case 'contacts':
-        fetchContacts({ companyId: id, limit: 100 })
-          .then((data) => {
-            if (!alive) return;
-            setContacts(data.items);
-          })
-          .catch((e) => console.error('Ошибка загрузки контактов:', e));
-        break;
+    Promise.all([fetchContacts({ companyId: id, limit: 100 }), fetchLeads(), fetchProjects()])
+      .then(([contactsData, leadsData, projectsData]) => {
+        if (!alive) return;
+        const companyContactIds = new Set(contactsData.items.map((contact) => contact.id));
+        const companyLeads = leadsData.filter(
+          (lead) =>
+            !isLeadInTrash(lead) &&
+            (lead.companyId === id ||
+              (lead.contactId ? companyContactIds.has(lead.contactId) : false)),
+        );
+        const leadIds = new Set(companyLeads.map((lead) => lead.id));
+        setContacts(contactsData.items);
+        setLeads(companyLeads);
+        setProjects(
+          projectsData.items.filter((project) =>
+            project.leadId ? leadIds.has(project.leadId) : false,
+          ),
+        );
+      })
+      .catch((e) => console.error('Failed to load company relations:', e));
 
-      case 'leads':
-        fetchLeads()
-          .then((data) => {
-            if (!alive) return;
-            // Фильтруем лиды по компании
-            const companyLeads = data.filter((lead) => lead.companyId === id);
-            setLeads(companyLeads);
-          })
-          .catch((e) => console.error('Ошибка загрузки лидов:', e));
-        break;
+    return () => {
+      alive = false;
+    };
+  }, [id, loading]);
 
-      case 'projects':
-        // Сначала загружаем лиды, потом проекты
-        fetchLeads()
-          .then((leadsData) => {
-            if (!alive) return;
-            const companyLeads = leadsData.filter((lead) => lead.companyId === id);
-            const leadIds = companyLeads.map((l) => l.id);
-            
-            if (leadIds.length === 0) {
-              setProjects([]);
-              return;
-            }
-
-            return fetchProjects().then((data) => {
-              if (!alive) return;
-              const companyProjects = data.items.filter((project) =>
-                leadIds.includes(project.leadId || ''),
-              );
-              setProjects(companyProjects);
-            });
-          })
-          .catch((e) => console.error('Ошибка загрузки проектов:', e));
-        break;
-
-      case 'tasks':
-        fetchCompanyTasks(id)
-          .then((data) => {
-            if (!alive) return;
-            setTasks(data);
-          })
-          .catch((e) => console.error('Ошибка загрузки задач:', e));
-        break;
-
-      case 'analytics':
-        fetchCompanyAnalytics(id)
-          .then((data) => {
-            if (!alive) return;
-            setAnalytics(data);
-          })
-          .catch((e) => console.error('Ошибка загрузки аналитики:', e));
-        break;
+  // Догружаем тяжёлые вкладки отдельно
+  useEffect(() => {
+    if (!id || loading) return;
+    let alive = true;
+    if (tab === 'tasks') {
+      fetchCompanyTasks(id)
+        .then((data) => {
+          if (!alive) return;
+          setTasks(data);
+        })
+        .catch((e) => console.error('Failed to load tasks:', e));
     }
-
+    if (tab === 'analytics') {
+      fetchCompanyAnalytics(id)
+        .then((data) => {
+          if (!alive) return;
+          setAnalytics(data);
+        })
+        .catch((e) => console.error('Failed to load analytics:', e));
+    }
     return () => {
       alive = false;
     };
   }, [id, tab, loading]);
 
+  const contactCustomFieldKeys = useMemo(() => {
+    const keys = new Set<string>();
+    contacts.forEach((contact) => {
+      Object.keys(contact.customFields || {}).forEach((key) => keys.add(key));
+    });
+    return Array.from(keys).slice(0, 4);
+  }, [contacts]);
+  const projectNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    projects.forEach((project) => map.set(project.id, project.name));
+    return map;
+  }, [projects]);
+  const tasksGroupedByProject = useMemo(() => {
+    return tasks.reduce<Record<string, CompanyTask[]>>((acc, task) => {
+      const meta = task.meta || {};
+      const projectId = typeof meta.projectId === 'string' ? meta.projectId : '';
+      const projectName =
+        (typeof meta.projectName === 'string' && meta.projectName) ||
+        (typeof meta.project === 'object' && typeof meta.project?.name === 'string'
+          ? meta.project.name
+          : '') ||
+        (projectId ? projectNameById.get(projectId) : '') ||
+        t('crm.companies.details.page.noProject');
+      if (!acc[projectName]) acc[projectName] = [];
+      acc[projectName].push(task);
+      return acc;
+    }, {});
+  }, [tasks, projectNameById]);
+  const ownerAssignableStaff = useMemo(
+    () =>
+      staff
+        .filter((u) => u.isActive)
+        .sort((a, b) => (a.fullName || a.email).localeCompare(b.fullName || b.email)),
+    [staff],
+  );
+  const ownerDepartmentGroups = useMemo(() => {
+    const groups = new Map<string, StaffUser[]>();
+    ownerAssignableStaff.forEach((user) => {
+      const department = (user.department || '').trim() || t('crm.companies.details.page.noDepartment');
+      const list = groups.get(department) || [];
+      list.push(user);
+      groups.set(department, list);
+    });
+    return Array.from(groups.entries())
+      .map(([department, users]) => ({
+        department,
+        users: users.slice().sort((a, b) => (a.fullName || a.email).localeCompare(b.fullName || b.email)),
+      }))
+      .sort((a, b) => {
+        const noDepartment = t('crm.companies.details.page.noDepartment');
+        if (a.department === noDepartment) return 1;
+        if (b.department === noDepartment) return -1;
+        return a.department.localeCompare(b.department, locale);
+      });
+  }, [ownerAssignableStaff, t, locale]);
+  const assignedNames = useMemo(
+    () =>
+      ownerAssignableStaff
+        .filter((user) => assignedUserIds.includes(user.id))
+        .map((user) => user.fullName || user.email),
+    [assignedUserIds, ownerAssignableStaff],
+  );
+
+  const saveAssignedManager = async () => {
+    if (!company || assignedSaving) return;
+    setAssignedSaving(true);
+    try {
+      const updated = await updateCompany(company.id, {
+        assignedUserId: assignedUserIds[0] || undefined,
+        assignedTo: assignedNames.length ? assignedNames.join(', ') : undefined,
+        customFields: {
+          ...(company.customFields || {}),
+          assignedUserIds,
+          assignedToList: assignedNames,
+        },
+      });
+      setCompany(updated);
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || t('crm.companies.details.page.errors.assignFailed'));
+    } finally {
+      setAssignedSaving(false);
+    }
+  };
+  const toggleOwnerUser = (userId: string, checked: boolean) => {
+    setAssignedUserIds((prev) =>
+      checked ? Array.from(new Set([...prev, userId])) : prev.filter((id) => id !== userId),
+    );
+  };
+  const toggleOwnerDepartment = (department: string, checked: boolean) => {
+    const group = ownerDepartmentGroups.find((item) => item.department === department);
+    if (!group) return;
+    const groupIds = group.users.map((user) => user.id);
+    setAssignedUserIds((prev) =>
+      checked
+        ? Array.from(new Set([...prev, ...groupIds]))
+        : prev.filter((id) => !groupIds.includes(id)),
+    );
+  };
+
   if (loading) {
     return (
       <MainLayout>
-        <div className="text-center py-12 text-xs text-slate-400">Загрузка...</div>
+        <div className="text-center py-12 text-xs text-slate-400">
+          {t('crm.common.loading')}
+        </div>
       </MainLayout>
     );
   }
@@ -143,7 +269,7 @@ export const CompanyDetailsPage: React.FC = () => {
     return (
       <MainLayout>
         <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
-          {error || 'Компания не найдена'}
+          {error || t('crm.companies.details.page.errors.notFound')}
         </div>
       </MainLayout>
     );
@@ -153,42 +279,62 @@ export const CompanyDetailsPage: React.FC = () => {
     <MainLayout>
       <div className="space-y-4">
         {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div>
             <button
-              onClick={() => navigate('/app/companies')}
-              className="text-[11px] text-slate-400 hover:text-slate-200 mb-1"
+              onClick={() => navigate('/companies')}
+              className="text-[11px] text-slate-500 hover:text-slate-700 mb-1"
             >
-              ← К списку компаний
+              {t('crm.companies.analytics.backToList')}
             </button>
-            <h1 className="text-lg font-semibold text-slate-50">{company.name}</h1>
-            <div className="text-[11px] text-slate-500">Детальная информация о компании</div>
+            <h1 className="text-lg font-semibold text-slate-900">{company.name}</h1>
+            <div className="text-[11px] text-slate-500">
+              {t('crm.companies.details.page.subtitle')}
+            </div>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => navigate(`/app/companies/${id}/tasks`)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
+              onClick={() => navigate('/contacts/new')}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
             >
-              Задачи
+              {t('crm.companies.details.page.actions.addContact')}
             </button>
             <button
-              onClick={() => navigate(`/app/companies/${id}/edit`)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
+              onClick={() => navigate('/leads/new')}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
             >
-              Редактировать
+              {t('crm.companies.details.page.actions.addLead')}
+            </button>
+            <button
+              onClick={() => navigate('/projects/new')}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              {t('crm.companies.details.page.actions.addProject')}
+            </button>
+            <button
+              onClick={() => navigate(`/companies/${id}/tasks`)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              {t('crm.companies.details.tabs.tasks')}
+            </button>
+            <button
+              onClick={() => navigate(`/companies/${id}/edit`)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+            >
+              {t('crm.companies.form.titleEdit')}
             </button>
           </div>
         </div>
 
         {/* Вкладки */}
-        <div className="inline-flex bg-slate-900/70 border border-slate-800/80 rounded-2xl p-1 text-[13px]">
+        <div className="inline-flex bg-white border border-slate-200 rounded-2xl p-1 text-[13px]">
           {[
-            { id: 'main', label: 'Основная' },
-            { id: 'contacts', label: `Контакты` },
-            { id: 'leads', label: `Лиды` },
-            { id: 'projects', label: `Проекты` },
-            { id: 'tasks', label: 'Задачи' },
-            { id: 'analytics', label: 'Аналитика' },
+            { id: 'main', label: t('crm.companies.details.tabs.main') },
+            { id: 'contacts', label: t('crm.companies.details.tabs.contacts') },
+            { id: 'leads', label: t('crm.companies.details.tabs.leads') },
+            { id: 'projects', label: t('crm.companies.details.tabs.projects') },
+            { id: 'tasks', label: t('crm.companies.details.tabs.tasks') },
+            { id: 'analytics', label: t('crm.companies.details.tabs.analytics') },
           ].map((t) => (
             <button
               key={t.id}
@@ -197,8 +343,8 @@ export const CompanyDetailsPage: React.FC = () => {
               className={
                 'px-4 py-1.5 rounded-xl transition-colors ' +
                 (tab === t.id
-                  ? 'bg-slate-800 text-slate-50'
-                  : 'text-slate-400 hover:text-slate-100')
+                  ? 'bg-slate-100 text-slate-900'
+                  : 'text-slate-500 hover:text-slate-800')
               }
             >
               {t.label}
@@ -207,31 +353,73 @@ export const CompanyDetailsPage: React.FC = () => {
         </div>
 
         {/* Контент вкладок */}
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+        <div className="bg-white border border-slate-200 rounded-3xl p-4">
           {tab === 'main' && (
             <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.details.analytics.metrics.contacts')}
+                  </div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    {analytics?.contacts.total ?? contacts.length}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.details.analytics.metrics.leads')}
+                  </div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    {analytics?.leads.total ?? leads.length}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.details.analytics.metrics.projects')}
+                  </div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    {analytics?.projects.total ?? projects.length}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-emerald-50 p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.analytics.summary.potentialRevenue')}
+                  </div>
+                  <div className="text-lg font-semibold text-emerald-400">
+                    {new Intl.NumberFormat(locale, {
+                      style: 'currency',
+                      currency: 'EUR',
+                      minimumFractionDigits: 0,
+                    }).format(analytics?.metrics.potentialRevenue ?? 0)}
+                  </div>
+                </div>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {company.email && (
                   <div>
                     <div className="text-[10px] text-slate-500 mb-1">Email</div>
-                    <div className="text-xs text-slate-50">{company.email}</div>
+                    <div className="text-xs text-slate-700">{company.email}</div>
                   </div>
                 )}
                 {company.phone && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Телефон</div>
-                    <div className="text-xs text-slate-50">{company.phone}</div>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.phone')}
+                    </div>
+                    <div className="text-xs text-slate-700">{company.phone}</div>
                   </div>
                 )}
                 {company.website && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Сайт</div>
-                    <div className="text-xs text-slate-50">
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.website')}
+                    </div>
+                    <div className="text-xs text-slate-700">
                       <a
                         href={company.website}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300"
+                        className="text-blue-600 hover:text-blue-500"
                       >
                         {company.website}
                       </a>
@@ -240,62 +428,218 @@ export const CompanyDetailsPage: React.FC = () => {
                 )}
                 {(company.city || company.country) && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Адрес</div>
-                    <div className="text-xs text-slate-50">
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.address')}
+                    </div>
+                    <div className="text-xs text-slate-700">
                       {[company.city, company.country].filter(Boolean).join(', ') || '-'}
                     </div>
                   </div>
                 )}
                 {company.industry && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Отрасль</div>
-                    <div className="text-xs text-slate-50">{company.industry}</div>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.industry')}
+                    </div>
+                    <div className="text-xs text-slate-700">{company.industry}</div>
                   </div>
                 )}
                 {company.size && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Размер</div>
-                    <div className="text-xs text-slate-50">{company.size}</div>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.size')}
+                    </div>
+                    <div className="text-xs text-slate-700">{company.size}</div>
                   </div>
                 )}
+                <div>
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.bulk.assignedTo')}
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-[11px] text-slate-600">
+                        {t('crm.companies.details.page.assigneesByDepartment')}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        {t('crm.companies.details.page.selectedCount', {
+                          count: assignedUserIds.length,
+                        })}
+                      </div>
+                    </div>
+                    <div className="max-h-44 space-y-2 overflow-y-auto pr-1">
+                      {ownerDepartmentGroups.map((group) => {
+                        const ids = group.users.map((user) => user.id);
+                        const selectedInGroup = ids.filter((id) =>
+                          assignedUserIds.includes(id),
+                        ).length;
+                        const allChecked = selectedInGroup > 0 && selectedInGroup === ids.length;
+                        return (
+                          <div
+                            key={group.department}
+                            className="rounded-lg border border-slate-200 bg-white p-2"
+                          >
+                            <div className="mb-1.5 flex items-center justify-between gap-2">
+                              <div className="truncate text-[11px] font-semibold text-slate-700">
+                                {group.department}
+                              </div>
+                              <label className="flex items-center gap-1 text-[10px] text-slate-500">
+                                <input
+                                  type="checkbox"
+                                  checked={allChecked}
+                                  onChange={(e) =>
+                                    toggleOwnerDepartment(group.department, e.target.checked)
+                                  }
+                                />
+                                {t('crm.companies.details.page.selectDepartment')}
+                              </label>
+                            </div>
+                            <div className="space-y-1">
+                              {group.users.map((user) => {
+                                const checked = assignedUserIds.includes(user.id);
+                                return (
+                                  <label
+                                    key={user.id}
+                                    className="flex items-center gap-2 text-[11px] text-slate-700"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={(e) => toggleOwnerUser(user.id, e.target.checked)}
+                                    />
+                                    <span className="truncate">
+                                      {user.fullName || user.email}
+                                      {user.email ? ` · ${user.email}` : ''}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    {assignedNames.length > 0 && (
+                      <div className="mt-2 text-[11px] text-slate-600">
+                        {assignedNames.join(', ')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={saveAssignedManager}
+                      disabled={assignedSaving}
+                      className="px-2.5 py-1.5 text-[11px] rounded-lg bg-[#222222] text-white hover:bg-black disabled:opacity-60"
+                    >
+                      {assignedSaving
+                        ? t('crm.companies.details.page.actions.saving')
+                        : t('crm.common.save')}
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.form.fields.status')}
+                  </div>
+                  <span className="inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-700">
+                    {company.status || 'active'}
+                  </span>
+                </div>
               </div>
               {company.description && (
                 <div>
-                  <div className="text-[10px] text-slate-500 mb-1">Описание</div>
-                  <div className="text-xs text-slate-50">{company.description}</div>
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.form.fields.description')}
+                  </div>
+                  <div className="text-xs text-slate-700">{company.description}</div>
+                </div>
+              )}
+              {company.tags?.length > 0 && (
+                <div>
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.projects.detail.fields.tags')}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {company.tags.map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600"
+                      >
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
           )}
 
           {tab === 'contacts' && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {contacts.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-400">
-                  Нет контактов
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {t('crm.companies.details.contacts.empty')}
                 </div>
               ) : (
-                contacts.map((contact) => {
-                  const fullName =
-                    contact.fullName ||
-                    `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
-                    'Без имени';
-                  return (
-                    <div
-                      key={contact.id}
-                      onClick={() => navigate(`/app/contacts/${contact.id}/edit`)}
-                      className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3 cursor-pointer hover:border-slate-600/80 transition-colors"
-                    >
-                      <div className="text-xs font-medium text-slate-50">{fullName}</div>
-                      {contact.email && (
-                        <div className="text-[11px] text-slate-400 mt-1">{contact.email}</div>
-                      )}
-                      {contact.phone && (
-                        <div className="text-[11px] text-slate-400">{contact.phone}</div>
-                      )}
-                    </div>
-                  );
-                })
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.firstName')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.position')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">Email</th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.phone')}
+                        </th>
+                        {contactCustomFieldKeys.map((key) => (
+                          <th key={key} className="px-3 py-2 text-left font-medium">
+                            {key}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {contacts.map((contact) => {
+                        const fullName =
+                          contact.fullName ||
+                          `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
+                          contact.email ||
+                          contact.phone ||
+                          `${t('crm.contacts.list.title')} ${contact.id.slice(0, 6)}`;
+                        return (
+                          <tr
+                            key={contact.id}
+                            onClick={() => navigate(`/contacts/${contact.id}/edit`)}
+                            className="cursor-pointer hover:bg-sky-50/50"
+                          >
+                            <td className="px-3 py-2 text-slate-800 font-medium">{fullName}</td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {contact.position || t('crm.projects.common.emptyValue')}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {contact.email || t('crm.projects.common.emptyValue')}
+                            </td>
+                            <td className="px-3 py-2 text-slate-600">
+                              {contact.phone || t('crm.projects.common.emptyValue')}
+                            </td>
+                            {contactCustomFieldKeys.map((key) => (
+                              <td key={key} className="px-3 py-2 text-slate-600">
+                                {contact.customFields?.[key] != null
+                                  ? String(contact.customFields?.[key])
+                                  : t('crm.projects.common.emptyValue')}
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
@@ -303,30 +647,57 @@ export const CompanyDetailsPage: React.FC = () => {
           {tab === 'leads' && (
             <div className="space-y-2">
               {leads.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-400">Нет лидов</div>
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {t('crm.companies.details.leads.empty')}
+                </div>
               ) : (
-                leads.map((lead) => (
-                  <div
-                    key={lead.id}
-                    onClick={() => navigate(`/app/leads/${lead.id}`)}
-                    className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3 cursor-pointer hover:border-slate-600/80 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-medium text-slate-50">
-                        {lead.name || 'Без имени'}
-                      </div>
-                      <span className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-[10px]">
-                        {lead.status}
-                      </span>
-                    </div>
-                    {lead.email && (
-                      <div className="text-[11px] text-slate-400 mt-1">{lead.email}</div>
-                    )}
-                    {lead.phone && (
-                      <div className="text-[11px] text-slate-400">{lead.phone}</div>
-                    )}
-                  </div>
-                ))
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.companies.details.page.tables.leads.lead')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">Email</th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.phone')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.status')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.companies.details.page.tables.leads.owner')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {leads.map((lead) => (
+                        <tr
+                          key={lead.id}
+                          onClick={() => navigate(`/leads/${lead.id}`)}
+                          className="cursor-pointer hover:bg-sky-50/50"
+                        >
+                          <td className="px-3 py-2 font-medium text-slate-800">
+                            {lead.name ||
+                              lead.email ||
+                              lead.phone ||
+                              `${t('crm.companies.details.page.tables.leads.lead')} ${lead.id.slice(0, 6)}`}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {lead.email || t('crm.projects.common.emptyValue')}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {lead.phone || t('crm.projects.common.emptyValue')}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{lead.status}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {lead.assignedTo || t('crm.projects.common.emptyValue')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
@@ -334,67 +705,132 @@ export const CompanyDetailsPage: React.FC = () => {
           {tab === 'projects' && (
             <div className="space-y-2">
               {projects.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-400">Нет проектов</div>
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {t('crm.companies.details.projects.empty')}
+                </div>
               ) : (
-                projects.map((project) => (
-                  <div
-                    key={project.id}
-                    onClick={() => navigate(`/app/projects/${project.id}`)}
-                    className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3 cursor-pointer hover:border-slate-600/80 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-medium text-slate-50">{project.name}</div>
-                      <span className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-[10px]">
-                        {project.status}
-                      </span>
-                    </div>
-                    {project.amount && (
-                      <div className="text-[11px] text-slate-400 mt-1">
-                        {new Intl.NumberFormat('ru-RU', {
-                          style: 'currency',
-                          currency: project.currency || 'EUR',
-                        }).format(parseFloat(project.amount))}
-                      </div>
-                    )}
-                  </div>
-                ))
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.companies.details.page.tables.projects.project')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.status')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.companies.details.page.tables.projects.owner')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.companies.details.page.tables.projects.budget')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.companies.details.page.tables.projects.updated')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {projects.map((project) => (
+                        <tr
+                          key={project.id}
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="cursor-pointer hover:bg-sky-50/50"
+                        >
+                          <td className="px-3 py-2 font-medium text-slate-800">{project.name}</td>
+                          <td className="px-3 py-2 text-slate-600">{project.status}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {project.owner || t('crm.projects.common.emptyValue')}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {new Intl.NumberFormat(locale, {
+                              style: 'currency',
+                              currency: project.currency || 'EUR',
+                              minimumFractionDigits: 0,
+                            }).format(Number(project.amount || 0))}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {project.updatedAt || t('crm.projects.common.emptyValue')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
 
           {tab === 'tasks' && (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {tasks.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-400">Нет задач</div>
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {t('crm.companies.details.tasks.empty')}
+                </div>
               ) : (
-                tasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-medium text-slate-50">{task.title}</div>
-                      <span
-                        className="px-2 py-0.5 rounded text-[10px]"
-                        style={{
-                          backgroundColor: STATUS_COLORS[task.status] + '40',
-                          color: STATUS_COLORS[task.status],
-                        }}
-                      >
-                        {STATUSES.find((s) => s.id === task.status)?.label || task.status}
-                      </span>
+                Object.entries(tasksGroupedByProject).map(([projectName, groupedTasks]) => (
+                  <div key={projectName} className="space-y-2">
+                    <div className="text-xs font-semibold text-slate-700">{projectName}</div>
+                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                      <table className="min-w-full divide-y divide-slate-200 text-xs">
+                        <thead className="bg-slate-50 text-slate-600">
+                          <tr>
+                            <th className="px-3 py-2 text-left font-medium">
+                              {t('crm.companies.tasks.fields.title')}
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium">
+                              {t('crm.companies.tasks.fields.status')}
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium">
+                              {t('crm.companies.tasks.fields.priority')}
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium">
+                              {t('crm.companies.tasks.fields.assignedTo')}
+                            </th>
+                            <th className="px-3 py-2 text-left font-medium">
+                              {t('crm.companies.tasks.fields.dueDate')}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {groupedTasks.map((task) => (
+                            <tr key={task.id} className="hover:bg-sky-50/50">
+                              <td className="px-3 py-2 text-slate-800 font-medium">{task.title}</td>
+                              <td className="px-3 py-2">
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                  style={{
+                                    backgroundColor: STATUS_COLORS[task.status] + '20',
+                                    color: STATUS_COLORS[task.status],
+                                  }}
+                                >
+                                  {t(`crm.companies.tasks.statuses.${task.status}`)}
+                                </span>
+                              </td>
+                              <td className="px-3 py-2 text-slate-600">
+                                {task.priority || t('crm.projects.common.emptyValue')}
+                              </td>
+                              <td className="px-3 py-2 text-slate-600">
+                                {task.assignedTo || t('crm.projects.common.emptyValue')}
+                              </td>
+                              <td className="px-3 py-2 text-slate-600">
+                                {task.dueDate
+                                  ? new Date(task.dueDate).toLocaleDateString(locale)
+                                  : t('crm.projects.common.emptyValue')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    {task.description && (
-                      <div className="text-[11px] text-slate-400 mt-1">{task.description}</div>
-                    )}
                   </div>
                 ))
               )}
               <button
-                onClick={() => navigate(`/app/companies/${id}/tasks`)}
-                className="w-full mt-4 px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft transition-colors"
+                onClick={() => navigate(`/companies/${id}/tasks`)}
+                className="w-full mt-2 px-4 py-2 text-xs rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition-colors"
               >
-                Открыть канбан задач
+                {t('crm.companies.details.tasks.viewBoard')}
               </button>
             </div>
           )}
@@ -402,28 +838,36 @@ export const CompanyDetailsPage: React.FC = () => {
           {tab === 'analytics' && analytics && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3">
-                  <div className="text-[10px] text-slate-500 mb-1">Контакты</div>
-                  <div className="text-xl font-semibold text-slate-50">
+                <div className="bg-sky-50 border border-sky-100 rounded-xl p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.details.analytics.metrics.contacts')}
+                  </div>
+                  <div className="text-xl font-semibold text-slate-900">
                     {analytics.contacts.total}
                   </div>
                 </div>
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3">
-                  <div className="text-[10px] text-slate-500 mb-1">Лиды</div>
-                  <div className="text-xl font-semibold text-slate-50">
+                <div className="bg-violet-50 border border-violet-100 rounded-xl p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.details.analytics.metrics.leads')}
+                  </div>
+                  <div className="text-xl font-semibold text-slate-900">
                     {analytics.leads.total}
                   </div>
                 </div>
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3">
-                  <div className="text-[10px] text-slate-500 mb-1">Проекты</div>
-                  <div className="text-xl font-semibold text-slate-50">
+                <div className="bg-amber-50 border border-amber-100 rounded-xl p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.details.analytics.metrics.projects')}
+                  </div>
+                  <div className="text-xl font-semibold text-slate-900">
                     {analytics.projects.total}
                   </div>
                 </div>
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3">
-                  <div className="text-[10px] text-slate-500 mb-1">Выручка</div>
-                  <div className="text-xl font-semibold text-emerald-400">
-                    {new Intl.NumberFormat('ru-RU', {
+                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3">
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.companies.details.analytics.metrics.revenue')}
+                  </div>
+                  <div className="text-xl font-semibold text-emerald-700">
+                    {new Intl.NumberFormat(locale, {
                       style: 'currency',
                       currency: 'EUR',
                       minimumFractionDigits: 0,
@@ -433,16 +877,20 @@ export const CompanyDetailsPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3">
-                  <div className="text-[10px] text-slate-500 mb-2">Конверсия</div>
-                  <div className="text-lg font-semibold text-slate-50">
+                <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3">
+                  <div className="text-[10px] text-slate-500 mb-2">
+                    {t('crm.companies.details.analytics.metrics.conversion')}
+                  </div>
+                  <div className="text-lg font-semibold text-indigo-700">
                     {analytics.metrics.conversionRate.toFixed(2)}%
                   </div>
                 </div>
-                <div className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3">
-                  <div className="text-[10px] text-slate-500 mb-2">Средняя стоимость проекта</div>
-                  <div className="text-lg font-semibold text-slate-50">
-                    {new Intl.NumberFormat('ru-RU', {
+                <div className="bg-cyan-50 border border-cyan-100 rounded-xl p-3">
+                  <div className="text-[10px] text-slate-500 mb-2">
+                    {t('crm.companies.details.analytics.metrics.avgProjectValue')}
+                  </div>
+                  <div className="text-lg font-semibold text-cyan-700">
+                    {new Intl.NumberFormat(locale, {
                       style: 'currency',
                       currency: 'EUR',
                       minimumFractionDigits: 0,
@@ -457,15 +905,6 @@ export const CompanyDetailsPage: React.FC = () => {
     </MainLayout>
   );
 };
-
-// Константы для задач (дублируем из CompanyTasksBoardPage)
-const STATUSES: { id: CompanyTaskStatus; label: string }[] = [
-  { id: 'todo', label: 'К выполнению' },
-  { id: 'in_progress', label: 'В работе' },
-  { id: 'review', label: 'На проверке' },
-  { id: 'done', label: 'Выполнено' },
-  { id: 'cancelled', label: 'Отменено' },
-];
 
 const STATUS_COLORS: Record<CompanyTaskStatus, string> = {
   todo: '#64748b',

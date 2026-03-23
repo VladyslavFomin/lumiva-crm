@@ -32,7 +32,7 @@ export class RbacGuard implements CanActivate {
       const resource = required.resource as PermissionKey;
       
       // Для новых модулей разрешаем доступ по умолчанию
-      const newModules = ['contacts', 'companies', 'tools_automation', 'email', 'telegram'];
+      const newModules = ['contacts', 'companies', 'tools_automation', 'custom_objects', 'email', 'telegram'];
       if (newModules.includes(resource)) {
         // Для owner всегда разрешаем
         if (user.role === 'owner') {
@@ -65,7 +65,7 @@ export class RbacGuard implements CanActivate {
 
     for (const perm of perms) {
       // Для новых модулей разрешаем доступ по умолчанию
-      const newModules = ['contacts', 'companies', 'tools_automation', 'email', 'telegram'];
+      const newModules = ['contacts', 'companies', 'tools_automation', 'custom_objects', 'email', 'telegram'];
       if (newModules.includes(perm)) {
         // Для owner всегда разрешаем
         if (user.role === 'owner') {

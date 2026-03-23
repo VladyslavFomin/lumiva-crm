@@ -51,6 +51,15 @@ const STATUS_OPTIONS: ProjectTask['status'][] = [
 ];
 const PRIORITY_OPTIONS: ProjectTask['priority'][] = ['Обычный', 'Высокий', 'Низкий'];
 
+function isProjectTasksRowDragBlockedTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      'input, textarea, select, button, a[href], [data-no-task-drag]',
+    ),
+  );
+}
+
 export const ProjectTasksPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const locale = getLocale(i18n.language);
@@ -76,6 +85,28 @@ export const ProjectTasksPage: React.FC = () => {
   const [newAssigneesOpen, setNewAssigneesOpen] = useState(false);
   const assigneeMenuRef = useRef<HTMLDivElement | null>(null);
   const newAssigneesRef = useRef<HTMLDivElement | null>(null);
+  const [taskDragId, setTaskDragId] = useState<string | null>(null);
+  const [taskDragProjectId, setTaskDragProjectId] = useState<string | null>(null);
+  const [taskDragOverId, setTaskDragOverId] = useState<string | null>(null);
+  const taskStatusLabels = useMemo<Record<ProjectTask['status'], string>>(
+    () => ({
+      'К выполнению': t('crm.projects.detail.tasks.status.todo'),
+      'В работе': t('crm.projects.detail.tasks.status.inProgress'),
+      'На проверке': t('crm.projects.detail.tasks.status.review'),
+      Заблокировано: t('crm.projects.detail.tasks.status.blocked'),
+      Отложено: t('crm.projects.detail.tasks.status.deferred'),
+      Готово: t('crm.projects.detail.tasks.status.done'),
+    }),
+    [t],
+  );
+  const taskPriorityLabels = useMemo<Record<ProjectTask['priority'], string>>(
+    () => ({
+      Обычный: t('crm.projects.detail.tasks.priority.normal'),
+      Высокий: t('crm.projects.detail.tasks.priority.high'),
+      Низкий: t('crm.projects.detail.tasks.priority.low'),
+    }),
+    [t],
+  );
 
   const normalize = (value?: string | null) =>
     (value ?? '').toString().trim().toLowerCase();
@@ -184,7 +215,7 @@ export const ProjectTasksPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -302,6 +333,72 @@ export const ProjectTasksPage: React.FC = () => {
           p.id === projectId ? { ...saved, tasks: resolved } : p,
         ),
       );
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || t('crm.projects.tasks.errors.loadFailed'));
+    }
+  };
+
+  const toggleTaskDone = (projectId: string, taskId: string) => {
+    const project = projects.find((p) => p.id === projectId);
+    const tsk = project?.tasks?.find((t) => t.id === taskId);
+    if (!tsk) return;
+    const next: ProjectTask['status'] = isDoneStatus(tsk.status)
+      ? 'К выполнению'
+      : 'Готово';
+    void updateTask(projectId, taskId, { status: next });
+  };
+
+  const reorderTasksInProject = async (
+    projectId: string,
+    fromId: string,
+    toId: string,
+  ) => {
+    if (fromId === toId) return;
+    const project = projects.find((p) => p.id === projectId);
+    if (!project) return;
+    const targetTask = (project.tasks || []).find((t) => t.id === fromId);
+    if (!targetTask) return;
+    if (
+      !canEditTask(
+        {
+          ...targetTask,
+          projectId,
+          projectName: project.name,
+          projectOwner: project.owner ?? null,
+        },
+        project,
+      )
+    ) {
+      return;
+    }
+    const nextTasks = [...(project.tasks || [])];
+    const fromIdx = nextTasks.findIndex((t) => t.id === fromId);
+    const toIdx = nextTasks.findIndex((t) => t.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [removed] = nextTasks.splice(fromIdx, 1);
+    nextTasks.splice(toIdx, 0, removed);
+    lastProjectTasksRef.current[projectId] = JSON.stringify(nextTasks);
+    writeTasksCache(projectId, nextTasks);
+    setProjects((prev) =>
+      prev.map((p) => (p.id === projectId ? { ...p, tasks: nextTasks } : p)),
+    );
+    try {
+      const saved = await updateProject(
+        { ...project, tasks: nextTasks },
+        { includeEmptyTasks: true },
+      );
+      const resolved = resolveSavedTasks(saved.tasks, nextTasks);
+      const snapshot = lastProjectTasksRef.current[projectId];
+      if (snapshot && snapshot !== JSON.stringify(resolved)) {
+        return;
+      }
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === projectId ? { ...saved, tasks: resolved } : p,
+        ),
+      );
+      writeTasksCache(projectId, resolved);
     } catch (e: any) {
       console.error(e);
       setError(e.message || t('crm.projects.tasks.errors.loadFailed'));
@@ -435,12 +532,12 @@ export const ProjectTasksPage: React.FC = () => {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('crm.projects.tasks.filters.search')}
-              className="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-slate-200 text-xs outline-none focus:border-slate-400"
+              className="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-xs text-slate-800 outline-none focus:border-slate-400 focus:bg-white"
             />
             <select
               value={filterProjectId}
               onChange={(e) => setFilterProjectId(e.target.value)}
-              className="px-3 py-2 rounded-xl border border-slate-200 text-xs"
+              className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-xs font-medium text-slate-800"
             >
               <option value="">{t('crm.projects.tasks.filters.project')}</option>
               {projects.map((p) => (
@@ -452,12 +549,12 @@ export const ProjectTasksPage: React.FC = () => {
             <select
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value as ProjectTask['status'] | '')}
-              className="px-3 py-2 rounded-xl border border-slate-200 text-xs"
+              className="px-3 py-2 rounded-xl border border-slate-300 bg-slate-100 text-xs font-medium text-slate-800"
             >
               <option value="">{t('crm.projects.tasks.filters.status')}</option>
               {STATUS_OPTIONS.map((status) => (
                 <option key={status} value={status}>
-                  {status}
+                  {taskStatusLabels[status] ?? status}
                 </option>
               ))}
             </select>
@@ -471,7 +568,7 @@ export const ProjectTasksPage: React.FC = () => {
               <select
                 value={newTaskProjectId}
                 onChange={(e) => setNewTaskProjectId(e.target.value)}
-                className="min-w-[180px] px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                className="min-w-[180px] px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium bg-slate-100 text-slate-800"
               >
                 <option value="">{t('crm.projects.tasks.newTask.project')}</option>
                 {projects.map((p) => (
@@ -484,13 +581,13 @@ export const ProjectTasksPage: React.FC = () => {
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 placeholder={t('crm.projects.tasks.newTask.placeholder')}
-                className="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                className="flex-1 min-w-[200px] px-3 py-2 rounded-xl border border-slate-300 text-xs bg-slate-100 text-slate-800 placeholder:text-slate-500"
               />
               <div className="relative" ref={newAssigneesRef}>
                 <button
                   type="button"
                   onClick={() => setNewAssigneesOpen((prev) => !prev)}
-                  className="min-w-[180px] px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white flex items-center justify-between gap-2"
+                  className="min-w-[180px] px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium bg-slate-100 text-slate-800 flex items-center justify-between gap-2"
                 >
                   <span>{t('crm.projects.tasks.newTask.assignees')}</span>
                   <span className="text-[10px] text-slate-500">
@@ -526,11 +623,11 @@ export const ProjectTasksPage: React.FC = () => {
                 onChange={(e) =>
                   setNewTaskStatus(e.target.value as ProjectTask['status'])
                 }
-                className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium bg-slate-100 text-slate-800"
               >
                 {STATUS_OPTIONS.map((status) => (
                   <option key={status} value={status}>
-                    {status}
+                    {taskStatusLabels[status] ?? status}
                   </option>
                 ))}
               </select>
@@ -539,11 +636,11 @@ export const ProjectTasksPage: React.FC = () => {
                 onChange={(e) =>
                   setNewTaskPriority(e.target.value as ProjectTask['priority'])
                 }
-                className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                className="px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium bg-slate-100 text-slate-800"
               >
                 {PRIORITY_OPTIONS.map((priority) => (
                   <option key={priority} value={priority}>
-                    {priority}
+                    {taskPriorityLabels[priority] ?? priority}
                   </option>
                 ))}
               </select>
@@ -551,12 +648,12 @@ export const ProjectTasksPage: React.FC = () => {
                 type="date"
                 value={newTaskDeadline}
                 onChange={(e) => setNewTaskDeadline(e.target.value)}
-                className="px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white"
+                className="px-3 py-2 rounded-xl border border-slate-300 text-xs bg-slate-100 text-slate-800"
               />
               <button
                 type="button"
                 onClick={createTask}
-                className="px-3 py-2 text-xs rounded-xl bg-lumiva-accent text-white font-semibold hover:bg-lumiva-accent-soft"
+                className="px-3 py-2 text-xs rounded-xl border border-lumiva-accent bg-lumiva-accent text-white font-semibold shadow-sm hover:opacity-90"
               >
                 {t('crm.projects.tasks.newTask.add')}
               </button>
@@ -576,92 +673,165 @@ export const ProjectTasksPage: React.FC = () => {
                 </span>
               </div>
 
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                <table className="min-w-[1100px] w-full text-xs">
-                  <thead className="bg-slate-50 sticky top-0 z-10">
-                    <tr className="text-[11px] uppercase tracking-wide text-slate-500">
-                      <th className="px-3 py-2 text-left">
-                        {t('crm.projects.tasks.table.headers.task')}
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        {t('crm.projects.tasks.table.headers.project')}
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        {t('crm.projects.tasks.table.headers.owner')}
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        {t('crm.projects.tasks.table.headers.status')}
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        {t('crm.projects.tasks.table.headers.priority')}
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        {t('crm.projects.tasks.table.headers.deadline')}
-                      </th>
-                      <th className="px-3 py-2 text-left">
-                        {t('crm.projects.tasks.table.headers.actions')}
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {!filteredTasks.length ? (
-                      <tr>
-                        <td
-                          colSpan={7}
-                          className="px-3 py-6 text-center text-xs text-slate-500"
+              <div className="overflow-hidden rounded-2xl border border-slate-300 bg-white shadow-sm">
+                <ul className="divide-y divide-slate-200">
+                  {!filteredTasks.length ? (
+                    <li className="px-4 py-8 text-center text-xs text-slate-500">
+                      {t('crm.projects.tasks.empty')}
+                    </li>
+                  ) : (
+                    filteredTasks.map((task) => {
+                      const project = projects.find((p) => p.id === task.projectId);
+                      if (!project) return null;
+                      const editable = canEditTask(task, project);
+                      const assignees = resolveAssignees(task);
+                      const projectPercent = projectProgress.get(project.id) ?? 0;
+                      const done = isDoneStatus(task.status);
+                      const mentions = extractMentions(task.title || '');
+                      const hasMention = mentions.some((m) =>
+                        currentLabels.includes(normalize(m)),
+                      );
+                      const ctl =
+                        'rounded-lg border border-slate-300 bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-lumiva-accent/25';
+                      return (
+                        <li
+                          key={`${task.projectId}-${task.id}`}
+                          draggable={editable}
+                          onDragStart={(e) => {
+                            if (!editable) {
+                              e.preventDefault();
+                              return;
+                            }
+                            if (isProjectTasksRowDragBlockedTarget(e.target)) {
+                              e.preventDefault();
+                              return;
+                            }
+                            e.dataTransfer.setData('text/plain', task.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            setTaskDragId(task.id);
+                            setTaskDragProjectId(task.projectId);
+                          }}
+                          onDragEnd={() => {
+                            setTaskDragId(null);
+                            setTaskDragProjectId(null);
+                            setTaskDragOverId(null);
+                          }}
+                          className={`bg-white transition-colors hover:bg-slate-50/90 ${
+                            editable ? 'cursor-grab active:cursor-grabbing' : ''
+                          } ${
+                            taskDragOverId === task.id &&
+                            taskDragId &&
+                            taskDragId !== task.id &&
+                            taskDragProjectId === task.projectId
+                              ? 'ring-2 ring-inset ring-lumiva-accent/40'
+                              : ''
+                          } ${taskDragId === task.id ? 'opacity-60' : ''}`}
+                          onDragOver={(e) => {
+                            if (!editable || !taskDragId || !taskDragProjectId) return;
+                            if (taskDragProjectId !== task.projectId) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            setTaskDragOverId(task.id);
+                          }}
+                          onDragLeave={(e) => {
+                            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                              setTaskDragOverId(null);
+                            }
+                          }}
+                          onDrop={(e) => {
+                            if (!editable) return;
+                            e.preventDefault();
+                            setTaskDragOverId(null);
+                            const fromId = taskDragId;
+                            const fromProject = taskDragProjectId;
+                            setTaskDragId(null);
+                            setTaskDragProjectId(null);
+                            if (!fromId || !fromProject || fromProject !== task.projectId) return;
+                            void reorderTasksInProject(fromProject, fromId, task.id);
+                          }}
                         >
-                          {t('crm.projects.tasks.empty')}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredTasks.map((task) => {
-                        const project = projects.find((p) => p.id === task.projectId);
-                        if (!project) return null;
-                        const editable = canEditTask(task, project);
-                        const assignees = resolveAssignees(task);
-                        const projectPercent = projectProgress.get(project.id) ?? 0;
-                        const done = isDoneStatus(task.status);
-                        const mentions = extractMentions(task.title || '');
-                        const hasMention = mentions.some((m) =>
-                          currentLabels.includes(normalize(m)),
-                        );
-                        return (
-                          <tr
-                            key={task.id}
-                            className="border-t border-slate-100 hover:bg-slate-50"
-                          >
-                            <td className="px-3 py-2">
+                          <div className="flex items-start gap-2 px-3 py-3 sm:gap-3 sm:px-4">
+                            <div
+                              className="pointer-events-none mt-0.5 shrink-0 select-none pt-1 text-slate-400"
+                              aria-hidden
+                            >
+                              <svg
+                                className="h-4 w-4"
+                                viewBox="0 0 16 16"
+                                fill="currentColor"
+                                aria-hidden
+                              >
+                                <circle cx="4" cy="4" r="1.25" />
+                                <circle cx="4" cy="8" r="1.25" />
+                                <circle cx="4" cy="12" r="1.25" />
+                                <circle cx="9" cy="4" r="1.25" />
+                                <circle cx="9" cy="8" r="1.25" />
+                                <circle cx="9" cy="12" r="1.25" />
+                              </svg>
+                            </div>
+                            <button
+                              type="button"
+                              draggable={false}
+                              disabled={!editable}
+                              onClick={() => toggleTaskDone(task.projectId, task.id)}
+                              className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors disabled:cursor-not-allowed ${
+                                done
+                                  ? 'border-lumiva-accent bg-lumiva-accent text-white'
+                                  : 'border-slate-400 bg-white hover:border-slate-500'
+                              }`}
+                              aria-pressed={done}
+                            >
+                              {done && (
+                                <svg
+                                  className="h-3 w-3"
+                                  viewBox="0 0 12 12"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden
+                                >
+                                  <path d="M2 6l3 3 5-6" />
+                                </svg>
+                              )}
+                            </button>
+                            <div className="min-w-0 flex-1 space-y-2">
                               {editable ? (
                                 <input
+                                  draggable={false}
                                   value={task.title}
                                   onChange={(e) =>
                                     updateTask(project.id, task.id, {
                                       title: e.target.value,
                                     })
                                   }
-                                  className="w-full px-2 py-1 rounded-lg border border-slate-200 text-xs"
+                                  className={`w-full cursor-text border-0 bg-transparent text-[13px] font-semibold outline-none ring-0 focus:ring-0 ${
+                                    done
+                                      ? 'text-slate-400 line-through decoration-slate-400'
+                                      : 'text-slate-900'
+                                  }`}
                                 />
                               ) : (
                                 <div
                                   className={`text-sm font-semibold ${
-                                    done ? 'text-slate-400 line-through' : 'text-slate-800'
+                                    done ? 'text-slate-400 line-through' : 'text-slate-900'
                                   }`}
                                 >
                                   {task.title}
                                 </div>
                               )}
                               {hasMention && (
-                                <div className="mt-1 text-[10px] text-sky-500">
+                                <div className="text-[10px] text-sky-600">
                                   {t('crm.projects.detail.mentions.inTask')}
                                 </div>
                               )}
-                            </td>
-                            <td className="px-3 py-2">
-                              <div className="flex flex-col">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <button
                                   type="button"
+                                  draggable={false}
                                   onClick={() => navigate(`/app/projects/${project.id}`)}
-                                  className="text-[12px] text-lumiva-accent hover:underline text-left"
+                                  className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-lumiva-accent hover:bg-slate-100"
                                 >
                                   {project.name}
                                 </button>
@@ -669,168 +839,179 @@ export const ProjectTasksPage: React.FC = () => {
                                   {t('crm.projects.list.headers.progress')}: {projectPercent}%
                                 </span>
                               </div>
-                            </td>
-                            <td className="px-3 py-2">
-                              <div className="flex items-center gap-2">
-                                {assignees.length ? (
-                                  assignees.map((owner) => {
-                                    const label =
-                                      typeof owner === 'string' ? owner : owner.fullName;
-                                    const avatarUrl =
-                                      typeof owner === 'string' ? null : owner.avatarUrl;
-                                    return (
-                                      <div
-                                        key={label}
-                                        className="h-6 w-6 rounded-full border border-slate-200 bg-slate-100 flex items-center justify-center text-[10px] text-slate-700"
-                                        title={label}
+                              <div className="flex flex-wrap items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  {assignees.length ? (
+                                    assignees.map((owner) => {
+                                      const label =
+                                        typeof owner === 'string' ? owner : owner.fullName;
+                                      const avatarUrl =
+                                        typeof owner === 'string' ? null : owner.avatarUrl;
+                                      return (
+                                        <div
+                                          key={label}
+                                          className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-[10px] font-medium text-slate-700"
+                                          title={label}
+                                        >
+                                          {avatarUrl ? (
+                                            <img
+                                              draggable={false}
+                                              src={avatarUrl}
+                                              alt={label}
+                                              className="h-full w-full rounded-full object-cover"
+                                            />
+                                          ) : (
+                                            label
+                                              .split(' ')
+                                              .filter(Boolean)
+                                              .slice(0, 2)
+                                              .map((p) => p[0])
+                                              .join('')
+                                              .toUpperCase()
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <span className="text-[11px] text-slate-500">
+                                      {t('crm.projects.common.emptyValue')}
+                                    </span>
+                                  )}
+                                  {editable && (
+                                    <div
+                                      className="relative"
+                                      ref={
+                                        assigneeMenuTaskId === task.id ? assigneeMenuRef : null
+                                      }
+                                    >
+                                      <button
+                                        type="button"
+                                        draggable={false}
+                                        onClick={() =>
+                                          setAssigneeMenuTaskId((prev) =>
+                                            prev === task.id ? null : task.id,
+                                          )
+                                        }
+                                        className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-400 bg-slate-100 text-[13px] font-medium text-slate-700 hover:bg-slate-200"
+                                        title={t('crm.projects.tasks.newTask.assignees')}
                                       >
-                                        {avatarUrl ? (
-                                          <img
-                                            src={avatarUrl}
-                                            alt={label}
-                                            className="h-full w-full rounded-full object-cover"
-                                          />
-                                        ) : (
-                                          label
-                                            .split(' ')
-                                            .filter(Boolean)
-                                            .slice(0, 2)
-                                            .map((p) => p[0])
-                                            .join('')
-                                            .toUpperCase()
-                                        )}
-                                      </div>
-                                    );
-                                  })
+                                        +
+                                      </button>
+                                      {assigneeMenuTaskId === task.id && (
+                                        <div
+                                          className="absolute z-20 mt-2 w-56 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl"
+                                          data-no-task-drag
+                                        >
+                                          {staffForTasks.map((u) => (
+                                            <label
+                                              key={u.id}
+                                              className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={(task.assignees || []).includes(
+                                                  u.fullName,
+                                                )}
+                                                onChange={() =>
+                                                  updateTask(project.id, task.id, {
+                                                    assignees: toggleAssigneeSelection(
+                                                      task.assignees || [],
+                                                      u.fullName,
+                                                    ),
+                                                  })
+                                                }
+                                              />
+                                              <span className="text-xs text-slate-800">
+                                                {u.fullName}
+                                              </span>
+                                            </label>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                                {editable ? (
+                                  <select
+                                    draggable={false}
+                                    value={task.status}
+                                    onChange={(e) =>
+                                      updateTask(project.id, task.id, {
+                                        status: e.target.value as ProjectTask['status'],
+                                      })
+                                    }
+                                    className={ctl}
+                                  >
+                                    {STATUS_OPTIONS.map((status) => (
+                                      <option key={status} value={status}>
+                                        {taskStatusLabels[status] ?? status}
+                                      </option>
+                                    ))}
+                                  </select>
                                 ) : (
-                                  <span>{t('crm.projects.common.emptyValue')}</span>
+                                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+                                    {taskStatusLabels[task.status] ?? task.status}
+                                  </span>
+                                )}
+                                {editable ? (
+                                  <select
+                                    draggable={false}
+                                    value={task.priority}
+                                    onChange={(e) =>
+                                      updateTask(project.id, task.id, {
+                                        priority: e.target.value as ProjectTask['priority'],
+                                      })
+                                    }
+                                    className={ctl}
+                                  >
+                                    {PRIORITY_OPTIONS.map((priority) => (
+                                      <option key={priority} value={priority}>
+                                        {taskPriorityLabels[priority] ?? priority}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-700">
+                                    {taskPriorityLabels[task.priority] ?? task.priority}
+                                  </span>
+                                )}
+                                {editable ? (
+                                  <input
+                                    draggable={false}
+                                    type="date"
+                                    value={task.deadline || ''}
+                                    onChange={(e) =>
+                                      updateTask(project.id, task.id, {
+                                        deadline: e.target.value || null,
+                                      })
+                                    }
+                                    className={ctl}
+                                  />
+                                ) : (
+                                  <span className="text-[11px] text-slate-600">
+                                    {task.deadline
+                                      ? new Date(task.deadline).toLocaleDateString(locale)
+                                      : t('crm.projects.common.emptyValue')}
+                                  </span>
                                 )}
                                 {editable && (
-                                  <div
-                                    className="relative"
-                                    ref={assigneeMenuTaskId === task.id ? assigneeMenuRef : null}
+                                  <button
+                                    type="button"
+                                    draggable={false}
+                                    onClick={() => removeTask(project.id, task.id)}
+                                    className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-800 hover:bg-rose-100"
                                   >
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setAssigneeMenuTaskId((prev) =>
-                                          prev === task.id ? null : task.id,
-                                        )
-                                      }
-                                      className="h-6 w-6 rounded-full border border-slate-200 text-[12px] text-slate-500 hover:text-slate-700"
-                                      title={t('crm.projects.tasks.newTask.assignees')}
-                                    >
-                                      +
-                                    </button>
-                                    {assigneeMenuTaskId === task.id && (
-                                      <div className="absolute z-20 mt-2 w-56 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white shadow-lg p-2">
-                                        {staffForTasks.map((u) => (
-                                          <label
-                                            key={u.id}
-                                            className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-50"
-                                          >
-                                            <input
-                                              type="checkbox"
-                                              checked={(task.assignees || []).includes(u.fullName)}
-                                              onChange={() =>
-                                                updateTask(project.id, task.id, {
-                                                  assignees: toggleAssigneeSelection(
-                                                    task.assignees || [],
-                                                    u.fullName,
-                                                  ),
-                                                })
-                                              }
-                                            />
-                                            <span className="text-xs text-slate-700">
-                                              {u.fullName}
-                                            </span>
-                                          </label>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
+                                    {t('crm.projects.tasks.table.actions.remove')}
+                                  </button>
                                 )}
                               </div>
-                            </td>
-                            <td className="px-3 py-2">
-                              {editable ? (
-                                <select
-                                  value={task.status}
-                                  onChange={(e) =>
-                                    updateTask(project.id, task.id, {
-                                      status: e.target.value as ProjectTask['status'],
-                                    })
-                                  }
-                                  className="px-2 py-1 rounded-lg border border-slate-200 text-[11px]"
-                                >
-                                  {STATUS_OPTIONS.map((status) => (
-                                    <option key={status} value={status}>
-                                      {status}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span>{task.status}</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              {editable ? (
-                                <select
-                                  value={task.priority}
-                                  onChange={(e) =>
-                                    updateTask(project.id, task.id, {
-                                      priority: e.target.value as ProjectTask['priority'],
-                                    })
-                                  }
-                                  className="px-2 py-1 rounded-lg border border-slate-200 text-[11px]"
-                                >
-                                  {PRIORITY_OPTIONS.map((priority) => (
-                                    <option key={priority} value={priority}>
-                                      {priority}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <span>{task.priority}</span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              {editable ? (
-                                <input
-                                  type="date"
-                                  value={task.deadline || ''}
-                                  onChange={(e) =>
-                                    updateTask(project.id, task.id, {
-                                      deadline: e.target.value || null,
-                                    })
-                                  }
-                                  className="px-2 py-1 rounded-lg border border-slate-200 text-[11px]"
-                                />
-                              ) : (
-                                <span>
-                                  {task.deadline
-                                    ? new Date(task.deadline).toLocaleDateString(locale)
-                                    : t('crm.projects.common.emptyValue')}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-3 py-2">
-                              {editable && (
-                                <button
-                                  type="button"
-                                  onClick={() => removeTask(project.id, task.id)}
-                                  className="text-[11px] text-rose-500 hover:text-rose-600"
-                                >
-                                  {t('crm.projects.tasks.table.actions.remove')}
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })
+                  )}
+                </ul>
               </div>
             </div>
           )}

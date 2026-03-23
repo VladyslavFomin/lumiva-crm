@@ -23,7 +23,10 @@ export type TriggerEvent =
   | 'email.received'
   | 'email.sent'
   | 'telegram.message_received'
-  | 'note.created';
+  | 'note.created'
+  | 'custom_object.record_created'
+  | 'custom_object.record_updated'
+  | 'custom_object.status_changed';
 
 export type ActionType =
   | 'create_task'

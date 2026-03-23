@@ -1,6 +1,7 @@
 // src/pages/sales/SaleDetailsPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import {
   fetchSaleDetail,
   updateSale,
@@ -18,8 +19,11 @@ import {
 } from '../../api/leads';
 import { MainLayout } from '../../layout/MainLayout';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import { getLocale } from '../../i18n/utils';
 
 export const SaleDetailsPage: React.FC = () => {
+  const { t } = useTranslation();
+  const locale = getLocale();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -75,10 +79,10 @@ export const SaleDetailsPage: React.FC = () => {
       })
       .catch((e: any) => {
         console.error(e);
-        setError(e.message || 'Не удалось загрузить заказ');
+        setError(e.message || t('crm.sales.details.errors.load'));
       })
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, t]);
 
   // дебаунс-поиск лида
   useEffect(() => {
@@ -121,7 +125,7 @@ export const SaleDetailsPage: React.FC = () => {
   const amount = (sale.amount as number | undefined) ?? null;
 
   const currency =
-    (sale.currency as string | undefined) ?? '—';
+    (sale.currency as string | undefined) ?? t('crm.sales.common.empty');
 
   // Даты: покупка и изменение
   const purchaseDateRaw =
@@ -129,17 +133,16 @@ export const SaleDetailsPage: React.FC = () => {
     (sale.createdAt as string | undefined);
 
   const purchaseDate = purchaseDateRaw
-    ? new Date(purchaseDateRaw).toLocaleString('ru-RU')
-    : '—';
+    ? new Date(purchaseDateRaw).toLocaleString(locale)
+    : t('crm.sales.common.empty');
 
   const updatedAtRaw = sale.updatedAt as string | undefined;
   const updatedAt = updatedAtRaw
-    ? new Date(updatedAtRaw).toLocaleString('ru-RU')
-    : '—';
+    ? new Date(updatedAtRaw).toLocaleString(locale)
+    : t('crm.sales.common.empty');
 
   // Статус (как есть в CRM)
-  const statusValue =
-    (sale.status as string | undefined) || '—';
+  const rawStatus = sale.status as SaleStatus | undefined;
 
   // Клиент
   const clientName =
@@ -166,7 +169,7 @@ export const SaleDetailsPage: React.FC = () => {
     (sale.market as string | undefined) || null;
 
   // Канал — показываем красивое имя
-  const channelLabel = data?.channel?.name || sale.channelId || '—';
+  const channelLabel = data?.channel?.name || sale.channelId || t('crm.sales.common.empty');
 
   // Все поля продажи, кроме "сырого" JSON и явно лишних дублей
   const pairsSale = Object.entries(sale)
@@ -187,13 +190,14 @@ export const SaleDetailsPage: React.FC = () => {
     : [];
 
   const STATUS_LABEL: Record<SaleStatus, string> = {
-    new: 'Новый',
-    pending: 'Ожидает',
-    confirmed: 'Подтверждён',
-    cancelled: 'Отменён',
-    refunded: 'Возврат',
-    other: 'Другое',
+    new: t('crm.sales.status.new'),
+    pending: t('crm.sales.status.pending'),
+    confirmed: t('crm.sales.status.confirmed'),
+    cancelled: t('crm.sales.status.cancelled'),
+    refunded: t('crm.sales.status.refunded'),
+    other: t('crm.sales.status.other'),
   };
+  const statusValue = rawStatus ? STATUS_LABEL[rawStatus] || rawStatus : t('crm.sales.common.empty');
 
   const activeCustomFields = useMemo(
     () => customFields.filter((field) => field.isActive),
@@ -261,7 +265,7 @@ export const SaleDetailsPage: React.FC = () => {
             onChange={(e) => setCustomFieldValue(field, e.target.value)}
             className={commonClass}
           >
-            <option value="">{field.placeholder || 'Выберите значение'}</option>
+            <option value="">{field.placeholder || t('crm.sales.details.placeholders.selectValue')}</option>
             {(field.options || []).map((opt) => (
               <option key={opt.value} value={opt.value}>
                 {opt.label}
@@ -350,9 +354,9 @@ export const SaleDetailsPage: React.FC = () => {
         setCustomFields(sorted);
       })
       .catch((e) => {
-        console.error('Ошибка загрузки кастомных полей:', e);
+        console.error('Failed to load sale custom fields:', e);
         if (!alive) return;
-        setCustomFieldsError('Не удалось загрузить кастомные поля');
+        setCustomFieldsError(t('crm.sales.details.errors.loadCustomFields'));
       })
       .finally(() => {
         if (!alive) return;
@@ -361,7 +365,7 @@ export const SaleDetailsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [t]);
 
   const handleSave = async () => {
     if (!id) return;
@@ -394,7 +398,7 @@ export const SaleDetailsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Не удалось сохранить изменения заказа');
+      setError(e.message || t('crm.sales.details.errors.save'));
     } finally {
       setSaving(false);
     }
@@ -429,7 +433,7 @@ export const SaleDetailsPage: React.FC = () => {
         '';
 
       const payload = {
-        name: clientName || 'Клиент из заказа',
+        name: clientName || t('crm.sales.details.lead.defaultName'),
         phone: phoneFromMeta,
         email: emailFromMeta,
         country: country || '',
@@ -470,9 +474,7 @@ export const SaleDetailsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      setCreateLeadError(
-        e?.message || 'Не удалось создать лид из заказа',
-      );
+      setCreateLeadError(e?.message || t('crm.sales.details.errors.createLead'));
     } finally {
       setCreatingLead(false);
     }
@@ -485,15 +487,13 @@ export const SaleDetailsPage: React.FC = () => {
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              Продажи
+              {t('crm.sales.kicker')}
             </div>
             <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              Заказ {id?.slice(0, 8)}…
+              {t('crm.sales.details.title', { id: id?.slice(0, 8) })}
             </h1>
             <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              Детальная информация по заказу из любых источников
-              (интернет-магазин, внешние интеграции и др.). Отображаются все
-              поля, переданные в CRM.
+              {t('crm.sales.details.subtitle')}
             </p>
           </div>
 
@@ -503,13 +503,13 @@ export const SaleDetailsPage: React.FC = () => {
               onClick={() => navigate(-1)}
               className="inline-flex items-center gap-1 px-3 py-1 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 bg-slate-950/80 hover:bg-slate-900/80"
             >
-              ← Назад к списку
+              {`← ${t('crm.sales.details.back')}`}
             </button>
           </div>
         </section>
 
         {loading && (
-          <div className="text-[11px] text-slate-400">Загружаем заказ…</div>
+          <div className="text-[11px] text-slate-400">{t('crm.sales.details.loading')}</div>
         )}
 
         {error && (
@@ -524,7 +524,7 @@ export const SaleDetailsPage: React.FC = () => {
                 {/* Блок "Заказ" */}
                 <div>
                   <div className="text-[11px] text-slate-400 mb-1">
-                    Заказ
+                    {t('crm.sales.details.sections.order')}
                   </div>
                   <div className="text-slate-100 font-mono text-[11px] break-all">
                     {sale.id || data.id}
@@ -532,7 +532,7 @@ export const SaleDetailsPage: React.FC = () => {
 
                   {productId && (
                     <div className="text-[11px] text-slate-400 mt-1">
-                      ID продукта:{' '}
+                      {t('crm.sales.details.fields.productId')}:{' '}
                       <span className="font-mono text-slate-100">
                         {productId}
                       </span>
@@ -540,15 +540,15 @@ export const SaleDetailsPage: React.FC = () => {
                   )}
 
                   <div className="text-[11px] text-slate-400 mt-1">
-                    Дата покупки:{' '}
+                    {t('crm.sales.details.fields.purchaseDate')}:{' '}
                     <span className="text-slate-100">{purchaseDate}</span>
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    Дата изменения:{' '}
+                    {t('crm.sales.details.fields.updatedAt')}:{' '}
                     <span className="text-slate-100">{updatedAt}</span>
                   </div>
                   <div className="text-[11px] text-slate-400">
-                    Статус:{' '}
+                    {t('crm.sales.details.fields.status')}:{' '}
                     <span className="text-slate-100">{statusValue}</span>
                   </div>
                 </div>
@@ -556,24 +556,24 @@ export const SaleDetailsPage: React.FC = () => {
                 {/* Блок "Финансы + канал" */}
                 <div>
                   <div className="text-[11px] text-slate-400 mb-1">
-                    Стоимость и канал
+                    {t('crm.sales.details.sections.amountAndChannel')}
                   </div>
                   <div className="text-slate-100 text-sm font-semibold">
                     {amount != null
-                      ? `${amount.toLocaleString('ru-RU', {
+                      ? `${amount.toLocaleString(locale, {
                           maximumFractionDigits: 2,
                         })} ${currency}`
-                      : '—'}
+                      : t('crm.sales.common.empty')}
                   </div>
                   <div className="text-[11px] text-slate-400 mt-2">
-                    Канал:{' '}
+                    {t('crm.sales.details.fields.channel')}:{' '}
                     <span className="text-slate-100">
                       {channelLabel}
                     </span>
                   </div>
                   {data.integration && (
                     <div className="text-[11px] text-slate-400">
-                      Интеграция:{' '}
+                      {t('crm.sales.details.fields.integration')}:{' '}
                       <span className="text-slate-100">
                         {data.integration.name} · {data.integration.kind}
                       </span>
@@ -584,15 +584,15 @@ export const SaleDetailsPage: React.FC = () => {
                 {/* Блок "Клиент" */}
                 <div>
                   <div className="text-[11px] text-slate-400 mb-1">
-                    Клиент
+                    {t('crm.sales.details.sections.client')}
                   </div>
                   <div className="space-y-0.5">
                     <div className="text-slate-100">
-                      {clientName || '—'}
+                      {clientName || t('crm.sales.common.empty')}
                     </div>
                     {country && (
                       <div className="text-[11px] text-slate-400">
-                        Страна покупки:{' '}
+                        {t('crm.sales.details.fields.country')}:{' '}
                         <span className="text-slate-100">{country}</span>
                       </div>
                     )}
@@ -605,11 +605,11 @@ export const SaleDetailsPage: React.FC = () => {
             <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 text-xs space-y-3">
               <div className="flex items-center justify-between mb-1">
                 <h2 className="text-sm font-semibold text-slate-100">
-                  Управление заказом
+                  {t('crm.sales.details.sections.management')}
                 </h2>
                 {saving && (
                   <span className="text-[11px] text-slate-400">
-                    Сохраняем…
+                    {t('crm.sales.details.actions.saving')}
                   </span>
                 )}
               </div>
@@ -617,7 +617,7 @@ export const SaleDetailsPage: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Статус заказа
+                    {t('crm.sales.details.fields.orderStatus')}
                   </label>
                   <select
                     value={formStatus}
@@ -638,30 +638,30 @@ export const SaleDetailsPage: React.FC = () => {
 
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Ответственный менеджер
+                    {t('crm.sales.details.fields.manager')}
                   </label>
                   <input
                     type="text"
                     value={formManager}
                     onChange={(e) => setFormManager(e.target.value)}
-                    placeholder="Например: Анна Иванова"
+                    placeholder={t('crm.sales.details.placeholders.manager')}
                     className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                   />
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Позже можно будет выбрать менеджера из списка сотрудников.
+                    {t('crm.sales.details.hints.manager')}
                   </p>
                 </div>
 
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1">
-                    Лид (ID)
+                    {t('crm.sales.details.fields.leadId')}
                   </label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={formLeadId}
                       onChange={(e) => setFormLeadId(e.target.value)}
-                      placeholder="UUID лида или пусто"
+                      placeholder={t('crm.sales.details.placeholders.leadId')}
                       className="flex-1 h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
                     />
                     <button
@@ -670,7 +670,7 @@ export const SaleDetailsPage: React.FC = () => {
                       onClick={handleOpenLead}
                       className="px-3 py-1 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-40"
                     >
-                      Открыть
+                      {t('crm.sales.details.actions.open')}
                     </button>
                     <button
                       type="button"
@@ -678,12 +678,11 @@ export const SaleDetailsPage: React.FC = () => {
                       onClick={handleCreateLeadFromSale}
                       className="px-3 py-1 rounded-xl border border-lumiva-accent-soft text-[11px] text-slate-900 bg-lumiva-accent hover:bg-lumiva-accent-soft disabled:opacity-50"
                     >
-                      {creatingLead ? 'Создаём…' : 'Создать лид'}
+                      {creatingLead ? t('crm.sales.details.actions.creatingLead') : t('crm.sales.details.actions.createLead')}
                     </button>
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    Можно вручную вставить ID лида, выбрать через поиск ниже
-                    или создать нового из данных заказа.
+                    {t('crm.sales.details.hints.lead')}
                   </p>
                   {createLeadError && (
                     <p className="text-[10px] text-red-400 mt-1">
@@ -694,14 +693,14 @@ export const SaleDetailsPage: React.FC = () => {
                   {/* Быстрый поиск лида */}
                   <div className="mt-2">
                     <label className="block text-[11px] text-slate-400 mb-1">
-                      Поиск лида (имя, телефон, email)
+                      {t('crm.sales.details.fields.searchLead')}
                     </label>
                     <div className="relative">
                       <input
                         type="text"
                         value={leadQuery}
                         onChange={(e) => setLeadQuery(e.target.value)}
-                        placeholder="Начните вводить для поиска"
+                        placeholder={t('crm.sales.details.placeholders.searchLead')}
                         className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 pr-7 outline-none"
                       />
                       {leadSearching && (
@@ -721,10 +720,10 @@ export const SaleDetailsPage: React.FC = () => {
                                 className="w-full text-left px-2 py-1.5 text-[11px] hover:bg-slate-900/90"
                               >
                                 <div className="text-slate-100 truncate">
-                                  {lead.name || 'Без имени'}
+                                  {lead.name || t('crm.sales.details.fallbacks.noName')}
                                 </div>
                                 <div className="text-[10px] text-slate-400 truncate">
-                                  {lead.phone || lead.email || 'Контакты не указаны'}
+                                  {lead.phone || lead.email || t('crm.sales.details.fallbacks.noContacts')}
                                 </div>
                                 <div className="text-[9px] text-slate-500 font-mono truncate">
                                   {lead.id}
@@ -734,7 +733,7 @@ export const SaleDetailsPage: React.FC = () => {
                           ) : (
                             !leadSearching && (
                               <div className="px-2 py-1.5 text-[11px] text-slate-500">
-                                Ничего не найдено
+                                {t('crm.sales.details.fallbacks.noResults')}
                               </div>
                             )
                           )}
@@ -749,20 +748,20 @@ export const SaleDetailsPage: React.FC = () => {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <div className="text-[11px] text-slate-400">
-                    Кастомные поля
+                    {t('crm.sales.details.sections.customFields')}
                   </div>
                   <button
                     type="button"
                     onClick={() => setCustomFieldsOpen(true)}
                     className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
                   >
-                    Настроить
+                    {t('crm.sales.details.actions.configure')}
                   </button>
                 </div>
 
                 {customFieldsLoading && (
                   <div className="text-[11px] text-slate-500">
-                    Загружаем кастомные поля…
+                    {t('crm.sales.details.loadingCustomFields')}
                   </div>
                 )}
                 {customFieldsError && (
@@ -774,7 +773,7 @@ export const SaleDetailsPage: React.FC = () => {
                   !customFieldsError &&
                   activeCustomFields.length === 0 && (
                     <div className="text-[11px] text-slate-500">
-                      Нет активных кастомных полей
+                      {t('crm.sales.details.fallbacks.noActiveCustomFields')}
                     </div>
                   )}
                 {activeCustomFields.length > 0 && (
@@ -788,13 +787,13 @@ export const SaleDetailsPage: React.FC = () => {
 
               <div>
                 <label className="block text-[11px] text-slate-400 mb-1">
-                  Комментарий (внутренние заметки)
+                  {t('crm.sales.details.fields.notes')}
                 </label>
                 <textarea
                   rows={3}
                   value={formNotes}
                   onChange={(e) => setFormNotes(e.target.value)}
-                  placeholder="Любая дополнительная информация по заказу, видимая только менеджерам."
+                  placeholder={t('crm.sales.details.placeholders.notes')}
                   className="w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 py-2 outline-none resize-y"
                 />
               </div>
@@ -806,7 +805,7 @@ export const SaleDetailsPage: React.FC = () => {
                   disabled={saving}
                   className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
                 >
-                  {saving ? 'Сохраняем…' : 'Сохранить изменения'}
+                  {saving ? t('crm.sales.details.actions.saving') : t('crm.sales.details.actions.save')}
                 </button>
               </div>
             </section>
@@ -815,28 +814,28 @@ export const SaleDetailsPage: React.FC = () => {
             {(productName || productId || productUrl) && (
               <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 text-xs space-y-2">
                 <div className="text-sm font-semibold text-slate-100 mb-1">
-                  Продукт
+                  {t('crm.sales.details.sections.product')}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <div className="text-[11px] text-slate-400 mb-1">
-                      Название продукта
+                      {t('crm.sales.details.fields.productName')}
                     </div>
                     <div className="text-slate-100">
-                      {productName || '—'}
+                      {productName || t('crm.sales.common.empty')}
                     </div>
                   </div>
                   <div>
                     <div className="text-[11px] text-slate-400 mb-1">
-                      ID продукта
+                      {t('crm.sales.details.fields.productId')}
                     </div>
                     <div className="text-slate-100 font-mono text-[11px]">
-                      {productId || '—'}
+                      {productId || t('crm.sales.common.empty')}
                     </div>
                   </div>
                   <div>
                     <div className="text-[11px] text-slate-400 mb-1">
-                      Ссылка на продукт
+                      {t('crm.sales.details.fields.productLink')}
                     </div>
                     {productUrl ? (
                       <a
@@ -848,7 +847,7 @@ export const SaleDetailsPage: React.FC = () => {
                         {productUrl}
                       </a>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-slate-400">{t('crm.sales.common.empty')}</span>
                     )}
                   </div>
                 </div>
@@ -858,7 +857,7 @@ export const SaleDetailsPage: React.FC = () => {
             {/* Все поля заказа */}
             <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 text-xs">
               <div className="text-sm font-semibold text-slate-100 mb-2">
-                Все поля заказа (Sale)
+                {t('crm.sales.details.sections.allSaleFields')}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                 {pairsSale.map(([key, value]) => (
@@ -880,7 +879,7 @@ export const SaleDetailsPage: React.FC = () => {
             {pairsMeta.length > 0 && (
               <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 text-xs">
                 <div className="text-sm font-semibold text-slate-100 mb-2">
-                  Дополнительные данные (meta)
+                  {t('crm.sales.details.sections.metaFields')}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                   {pairsMeta.map(([key, value]) => (
@@ -904,7 +903,7 @@ export const SaleDetailsPage: React.FC = () => {
       {customFieldsOpen && (
         <CustomFieldsManager
           entityType="sale"
-          title="Кастомные поля продаж"
+          title={t('crm.sales.list.customFieldsTitle')}
           onClose={() => setCustomFieldsOpen(false)}
           onUpdated={(list) =>
             setCustomFields([...list].sort((a, b) => a.order - b.order))

@@ -3,11 +3,12 @@ import {
   IsOptional,
   IsString,
   MaxLength,
-  IsUrl,
   IsIn,
   IsBoolean,
   IsEmail,
   IsDateString,
+  Matches,
+  ValidateIf,
 } from 'class-validator';
 
 export class UpdateTenantSettingsDto {
@@ -17,7 +18,11 @@ export class UpdateTenantSettingsDto {
   name?: string;
 
   @IsOptional()
-  @IsUrl({}, { message: 'logoUrl должен быть валидным URL' })
+  @ValidateIf((_, v) => v != null && String(v).trim() !== '')
+  @Matches(
+    /^(\/v1\/uploads\/\S+|https?:\/\/\S+)$/,
+    { message: 'logoUrl: /v1/uploads/... или полный http(s) URL' },
+  )
   @MaxLength(512)
   logoUrl?: string | null;
 

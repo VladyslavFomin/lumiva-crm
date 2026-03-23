@@ -1,7 +1,7 @@
 // src/pages/projects/ProjectFormPage.tsx
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
 
@@ -33,6 +33,10 @@ import {
   type CustomField,
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import {
+  readProjectTasksCache,
+  writeProjectTasksCache,
+} from './projectTasksCache';
 
 type TabId = 'props' | 'tasks' | 'comments' | 'history';
 
@@ -51,25 +55,6 @@ const TASK_STATUS_OPTIONS: ProjectTask['status'][] = [
   'Отложено',
   'Готово',
 ];
-const tasksCacheKey = (projectId: string) => `project_tasks_${projectId}`;
-const readTasksCache = (projectId: string): ProjectTask[] | null => {
-  try {
-    const raw = localStorage.getItem(tasksCacheKey(projectId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-    return parsed as ProjectTask[];
-  } catch {
-    return null;
-  }
-};
-const writeTasksCache = (projectId: string, tasks: ProjectTask[]) => {
-  try {
-    localStorage.setItem(tasksCacheKey(projectId), JSON.stringify(tasks));
-  } catch {
-    // ignore
-  }
-};
 
 // фиксированный набор статусов проекта
 const PROJECT_STATUSES: ProjectStatus[] = [
@@ -87,6 +72,16 @@ function resolveLocale(lang: string) {
   return 'ru-RU';
 }
 
+/** Не начинать drag строки с полей, кнопок и зон с data-no-task-drag */
+function isProjectTaskRowDragBlockedTarget(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      'input, textarea, select, button, a[href], [data-no-task-drag]',
+    ),
+  );
+}
+
 export const ProjectFormPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
@@ -94,8 +89,23 @@ export const ProjectFormPage: React.FC = () => {
   const isNew = !id || id === 'new';
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [tab, setTab] = useState<TabId>('props');
+  const [tab, setTab] = useState<TabId>(() => {
+    const q = searchParams.get('tab');
+    if (q === 'props' || q === 'tasks' || q === 'comments' || q === 'history') {
+      return q;
+    }
+    return 'props';
+  });
+
+  useEffect(() => {
+    const q = searchParams.get('tab');
+    if (q === 'props' || q === 'tasks' || q === 'comments' || q === 'history') {
+      setTab(q);
+    }
+  }, [searchParams]);
+
   const [project, setProject] = useState<Project>(createEmptyProject());
   const [loading, setLoading] = useState<boolean>(!isNew);
   const [saving, setSaving] = useState<boolean>(false);
@@ -141,6 +151,8 @@ export const ProjectFormPage: React.FC = () => {
   const [newTaskDeadline, setNewTaskDeadline] = useState<string>('');
   const [taskAssigneesMenuId, setTaskAssigneesMenuId] = useState<string | null>(null);
   const [newAssigneesOpen, setNewAssigneesOpen] = useState(false);
+  const [taskDragId, setTaskDragId] = useState<string | null>(null);
+  const [taskDragOverId, setTaskDragOverId] = useState<string | null>(null);
   const taskAssigneesRef = useRef<HTMLDivElement | null>(null);
   const newAssigneesRef = useRef<HTMLDivElement | null>(null);
 
@@ -203,9 +215,18 @@ export const ProjectFormPage: React.FC = () => {
       briefFileUrl: t('crm.projects.detail.files.urlPlaceholder'),
       tags: t('crm.projects.detail.fields.tags'),
       tasks: t('crm.projects.detail.history.fields.tasks'),
+      'customFields.projectNotes': t('crm.projects.detail.notes.title'),
     }),
     [t],
   );
+  const formatHistoryValue = (value: unknown) => {
+    if (value === null || value === undefined || value === '') {
+      return t('crm.projects.common.emptyValue');
+    }
+    if (Array.isArray(value)) return value.join(', ');
+    if (typeof value === 'object') return JSON.stringify(value);
+    return String(value);
+  };
   const user = getStoredUser();
   const normalizeUser = (value?: string | null) =>
     (value ?? '').toString().trim().toLowerCase();
@@ -277,6 +298,57 @@ export const ProjectFormPage: React.FC = () => {
         .sort((a, b) => a.fullName.localeCompare(b.fullName)),
     [staff],
   );
+  const ownerAssignableStaff = useMemo(() => {
+    if (managerStaff.length) return managerStaff;
+    return staff.filter((u) => u.isActive).sort((a, b) => a.fullName.localeCompare(b.fullName));
+  }, [managerStaff, staff]);
+  const ownerDepartmentGroups = useMemo(() => {
+    const groups = new Map<string, StaffUser[]>();
+    ownerAssignableStaff.forEach((u) => {
+      const key = (u.department || '').trim() || t('crm.projects.detail.owner.noDepartment');
+      const list = groups.get(key) || [];
+      list.push(u);
+      groups.set(key, list);
+    });
+    return Array.from(groups.entries())
+      .map(([department, users]) => ({
+        department,
+        users: users.slice().sort((a, b) => a.fullName.localeCompare(b.fullName)),
+      }))
+      .sort((a, b) => {
+        if (a.department === t('crm.projects.detail.owner.noDepartment')) return 1;
+        if (b.department === t('crm.projects.detail.owner.noDepartment')) return -1;
+        return a.department.localeCompare(b.department, locale);
+      });
+  }, [ownerAssignableStaff, t, locale]);
+  const projectNotes = useMemo(
+    () => String(project.customFields?.projectNotes ?? ''),
+    [project.customFields],
+  );
+  const projectPriority = useMemo(() => {
+    const raw = String(project.customFields?.priority || '').trim();
+    if (raw === 'Высокий' || raw === 'Низкий' || raw === 'Обычный') return raw;
+    return 'Обычный';
+  }, [project.customFields]);
+  const amountHistory = useMemo(() => {
+    return activities.flatMap((activity) => {
+      const changes = Array.isArray((activity.payload as any)?.changes)
+        ? ((activity.payload as any).changes as Array<any>)
+        : [];
+      return changes
+        .filter((change) => change?.field === 'amount')
+        .map((change) => ({
+          id: `${activity.id}-${change.field}`,
+          actor:
+            activity.actorName ||
+            activity.actorEmail ||
+            t('crm.projects.detail.fallbacks.user'),
+          at: activity.createdAt,
+          from: change.from,
+          to: change.to,
+        }));
+    });
+  }, [activities, t]);
   const staffForTasks = managerStaff.length ? managerStaff : staff;
   const canEditTask = (task: ProjectTask) =>
     isOwnerRole ||
@@ -296,6 +368,13 @@ export const ProjectFormPage: React.FC = () => {
       normalized.includes('finished')
     );
   };
+  const tasksDoneCount = useMemo(
+    () => tasks.filter((task) => isDoneStatus(task.status)).length,
+    [tasks],
+  );
+  const tasksCompletionPercent = tasks.length
+    ? Math.round((tasksDoneCount / tasks.length) * 100)
+    : 0;
   const resolveAssignees = (task: ProjectTask) =>
     (task.assignees || []).map((name) => staff.find((u) => u.fullName === name) || name);
   const normalizeTasks = (list: ProjectTask[]) =>
@@ -414,7 +493,7 @@ export const ProjectFormPage: React.FC = () => {
             className={commonClass}
           >
             <option value="">
-              {field.placeholder || 'Выберите значение'}
+              {field.placeholder || t('crm.projects.detail.customFields.selectValue')}
             </option>
             {(field.options || []).map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -544,12 +623,12 @@ export const ProjectFormPage: React.FC = () => {
         .then((p) => {
           if (!alive) return;
           setProject(p);
-          const cached = readTasksCache(p.id);
+          const cached = readProjectTasksCache(p.id);
           const source =
             (p.tasks && p.tasks.length > 0) ? p.tasks : cached ?? [];
           const normalizedTasks = normalizeTasks(source);
           setTasks(normalizedTasks);
-          writeTasksCache(p.id, normalizedTasks);
+          writeProjectTasksCache(p.id, normalizedTasks);
           lastTasksSnapshotRef.current = JSON.stringify(normalizedTasks);
           setComments(p.comments || []);
         })
@@ -568,13 +647,13 @@ export const ProjectFormPage: React.FC = () => {
     Promise.all([fetchLeadsList(), fetchStaff(), fetchCompanies({ limit: 100 })])
       .then(([leads, users, companiesRes]) => {
         if (!alive) return;
-        setAllLeads(leads);
+        setAllLeads(leads.filter((lead) => !Boolean(lead.meta?.deleted)));
         setStaff(users);
         setCompanies(companiesRes.items);
       })
       .catch((e) => {
         if (!alive) return;
-        console.error('Ошибка загрузки данных для проектов', e);
+        console.error('Project form data load error', e);
       });
 
     return () => {
@@ -619,7 +698,9 @@ export const ProjectFormPage: React.FC = () => {
       .catch((e) => {
         if (!alive) return;
         console.error(e);
-        setCustomFieldsError(e.message || 'Не удалось загрузить кастомные поля');
+        setCustomFieldsError(
+          e.message || t('crm.projects.detail.customFields.loadFailed'),
+        );
       })
       .finally(() => {
         if (!alive) return;
@@ -628,7 +709,7 @@ export const ProjectFormPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     if (!customFields.length) return;
@@ -708,6 +789,41 @@ export const ProjectFormPage: React.FC = () => {
         : t('crm.projects.detail.titleExisting', { id: project.id }),
     [isNew, project.id],
   );
+  const withLeadPresentation = useCallback(
+    (nextProject: Project, source?: Project): Project => {
+      if (!nextProject.leadId) {
+        return {
+          ...nextProject,
+          leadName: null,
+          leadEmail: null,
+        };
+      }
+      const lead = allLeads.find((item) => item.id === nextProject.leadId);
+      return {
+        ...nextProject,
+        leadName: source?.leadName ?? lead?.name ?? null,
+        leadEmail: source?.leadEmail ?? lead?.email ?? null,
+      };
+    },
+    [allLeads],
+  );
+
+  useEffect(() => {
+    if (!project.leadId || !allLeads.length) return;
+    const lead = allLeads.find((item) => item.id === project.leadId);
+    if (!lead) return;
+    setProject((prev) => {
+      if (prev.leadId !== lead.id) return prev;
+      const nextName = prev.leadName || lead.name || null;
+      const nextEmail = prev.leadEmail || lead.email || null;
+      if (nextName === prev.leadName && nextEmail === prev.leadEmail) return prev;
+      return {
+        ...prev,
+        leadName: nextName,
+        leadEmail: nextEmail,
+      };
+    });
+  }, [allLeads, project.leadId]);
 
   // ---------------- Сохранение / удаление ----------------
 
@@ -730,10 +846,10 @@ export const ProjectFormPage: React.FC = () => {
           includeEmptyComments: true,
         });
       }
-      setProject(saved);
+      setProject(withLeadPresentation(saved, payload));
       const resolvedTasks = normalizeTasks(resolveSavedTasks(saved.tasks, tasks));
       setTasks(resolvedTasks);
-      writeTasksCache(saved.id, resolvedTasks);
+      writeProjectTasksCache(saved.id, resolvedTasks);
       setComments(saved.comments || []);
       navigate('/app/projects');
     } catch (e: any) {
@@ -763,17 +879,17 @@ export const ProjectFormPage: React.FC = () => {
           return;
         }
         const resolved = resolveSavedTasks(saved.tasks, nextTasks);
-        setProject(saved);
+        setProject(withLeadPresentation(saved, payload));
         const normalized = normalizeTasks(resolved);
         setTasks(normalized);
-        writeTasksCache(saved.id, normalized);
+        writeProjectTasksCache(saved.id, normalized);
         setComments(saved.comments || commentsRef.current);
       } catch (e: any) {
         console.error(e);
         setError(e.message || t('crm.projects.detail.errors.saveFailed'));
       }
     },
-    [isNew, saving, t],
+    [isNew, saving, t, withLeadPresentation],
   );
 
   useEffect(() => {
@@ -855,21 +971,34 @@ export const ProjectFormPage: React.FC = () => {
     }));
   };
 
-  // выбор ответственных из справочника сотрудников
-  const handleOwnerSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedIds = Array.from(e.target.selectedOptions)
-      .map((opt) => opt.value)
-      .filter(Boolean);
-    const names = staff
-      .filter((u) => selectedIds.includes(u.id))
-      .map((u) => u.fullName);
-
+  const setOwnerIds = (selectedIds: string[]) => {
+    const uniqIds = Array.from(new Set(selectedIds));
+    const names = ownerAssignableStaff
+      .filter((u) => uniqIds.includes(u.id))
+      .map((u) => u.fullName || u.email);
     setProject((prev) => ({
       ...prev,
-      ownerUserIds: selectedIds,
-      ownerUserId: selectedIds[0] ?? null,
+      ownerUserIds: uniqIds,
+      ownerUserId: uniqIds[0] ?? null,
       owner: names.length ? names.join(', ') : null,
     }));
+  };
+  const toggleOwnerUser = (userId: string, checked: boolean) => {
+    const current = project.ownerUserIds || [];
+    const next = checked
+      ? [...current, userId]
+      : current.filter((id) => id !== userId);
+    setOwnerIds(next);
+  };
+  const toggleOwnerDepartment = (department: string, checked: boolean) => {
+    const group = ownerDepartmentGroups.find((item) => item.department === department);
+    if (!group) return;
+    const ids = group.users.map((u) => u.id);
+    const current = project.ownerUserIds || [];
+    const next = checked
+      ? Array.from(new Set([...current, ...ids]))
+      : current.filter((id) => !ids.includes(id));
+    setOwnerIds(next);
   };
 
   // ---------------- Задачи ----------------
@@ -931,6 +1060,28 @@ export const ProjectFormPage: React.FC = () => {
       prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
       );
     };
+
+  const toggleTaskDone = (taskId: string) => {
+    const target = tasks.find((task) => task.id === taskId);
+    if (!target || !canEditTask(target)) return;
+    const next: ProjectTask['status'] = isDoneStatus(target.status)
+      ? 'К выполнению'
+      : 'Готово';
+    setTaskStatus(taskId, next);
+  };
+
+  const reorderTasks = (fromId: string, toId: string) => {
+    if (fromId === toId || !isProjectOwner) return;
+    setTasks((prev) => {
+      const fromIdx = prev.findIndex((t) => t.id === fromId);
+      const toIdx = prev.findIndex((t) => t.id === toId);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const next = [...prev];
+      const [removed] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, removed);
+      return next;
+    });
+  };
 
   const updateTaskDeadline =
     (taskId: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1065,12 +1216,20 @@ export const ProjectFormPage: React.FC = () => {
     <MainLayout>
       <div className="space-y-4">
         {/* Верхняя панель проекта */}
-        <div className="flex items-center justify-between gap-3">
-          <div>
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
             <div className="text-[11px] text-slate-500">{title}</div>
-            <h1 className="text-lg font-semibold text-slate-50">
-              {project.name || t('crm.projects.detail.fallbacks.untitled')}
-            </h1>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <input
+                value={project.name}
+                onChange={handleChange('name')}
+                placeholder={t('crm.projects.detail.fields.name')}
+                className="w-full md:w-[420px] px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700/80 text-sm text-slate-50 outline-none focus:border-lumiva-accent-soft"
+              />
+              <span className="inline-flex items-center rounded-full border border-slate-700/80 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
+                {statusLabels[project.status]}
+              </span>
+            </div>
             {loading && (
               <div className="text-[11px] text-slate-500 mt-1">
                 {t('crm.projects.detail.loading')}
@@ -1101,7 +1260,7 @@ export const ProjectFormPage: React.FC = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start">
             {!isNew && (
               <button
                 type="button"
@@ -1117,14 +1276,13 @@ export const ProjectFormPage: React.FC = () => {
               onClick={() => setCustomFieldsOpen(true)}
               className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
             >
-              Настроить поля
+              {t('crm.projects.detail.customFields.configure')}
             </button>
             <button
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="px-3 py-1.5 text-xs rounded-xl !bg-slate-900 !text-white font-semibold hover:!bg-slate-800 disabled:opacity-60"
-              style={{ backgroundColor: '#0f172a', color: '#fff' }}
+              className="px-3 py-1.5 text-xs rounded-xl border border-lumiva-accent bg-lumiva-accent font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
             >
               {saving
                 ? t('crm.projects.detail.actions.saving')
@@ -1187,41 +1345,73 @@ export const ProjectFormPage: React.FC = () => {
 
         {/* Контент вкладок */}
         {tab === 'props' && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            {/* Название + ответственный */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <input
-                value={project.name}
-                onChange={handleChange('name')}
-                placeholder={t('crm.projects.detail.fields.name')}
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-              />
-
-              <select
-                multiple
-                value={project.ownerUserIds ?? []}
-                onChange={handleOwnerSelect}
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft min-h-[44px]"
-              >
-                {staff.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.fullName}
-                    {u.email ? ` · ${u.email}` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Описание + лид */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <textarea
-                value={project.description}
-                onChange={handleChange('description')}
-                placeholder={t('crm.projects.detail.fields.description')}
-                rows={4}
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
-              />
-
+          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-5 space-y-5">
+            {/* Ответственные + лид */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+              <div className="rounded-xl bg-slate-950/80 border border-slate-800/80 p-2 self-start">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="text-[11px] text-slate-400">
+                    {t('crm.projects.detail.owner.byDepartment')}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    {t('crm.projects.detail.owner.selected', {
+                      count: (project.ownerUserIds || []).length,
+                    })}
+                  </div>
+                </div>
+              <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
+                  {ownerDepartmentGroups.map((group) => {
+                    const groupIds = group.users.map((u) => u.id);
+                    const selectedInGroup = groupIds.filter((id) =>
+                      (project.ownerUserIds || []).includes(id),
+                    ).length;
+                    const allChecked = selectedInGroup > 0 && selectedInGroup === groupIds.length;
+                    return (
+                      <div
+                        key={group.department}
+                        className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-2"
+                      >
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <div className="text-[11px] font-semibold text-slate-200 truncate">
+                            {group.department}
+                          </div>
+                          <label className="flex items-center gap-1 text-[10px] text-slate-400">
+                            <input
+                              type="checkbox"
+                              checked={allChecked}
+                              onChange={(e) =>
+                                toggleOwnerDepartment(group.department, e.target.checked)
+                              }
+                            />
+                            {t('crm.projects.detail.owner.wholeDepartment')}
+                          </label>
+                        </div>
+                        <div className="space-y-1">
+                          {group.users.map((u) => {
+                            const checked = (project.ownerUserIds || []).includes(u.id);
+                            return (
+                              <label
+                                key={u.id}
+                                className="flex items-center gap-2 text-[11px] text-slate-300"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => toggleOwnerUser(u.id, e.target.checked)}
+                                />
+                                <span className="truncate">
+                                  {u.fullName}
+                                  {u.email ? ` · ${u.email}` : ''}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="space-y-2">
                 <select
                   value={project.leadId || ''}
@@ -1264,6 +1454,15 @@ export const ProjectFormPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Описание */}
+            <textarea
+              value={project.description}
+              onChange={handleChange('description')}
+              placeholder={t('crm.projects.detail.fields.description')}
+              rows={4}
+              className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
+            />
+
             {/* Компания (только для чтения, через лид) */}
             {project.leadId && (() => {
               const lead = allLeads.find((l) => l.id === project.leadId);
@@ -1273,7 +1472,7 @@ export const ProjectFormPage: React.FC = () => {
               return company ? (
                 <div>
                   <label className="block text-[11px] text-slate-400 mb-1.5">
-                    Компания
+                    {t('crm.projects.detail.fields.company')}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -1284,18 +1483,18 @@ export const ProjectFormPage: React.FC = () => {
                     />
                     <button
                       type="button"
-                      onClick={() => navigate(`/app/companies/${company.id}`)}
+                      onClick={() => navigate(`/companies/${company.id}`)}
                       className="px-3 py-2 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 hover:border-slate-600 transition-colors"
                     >
-                      Открыть
+                      {t('crm.projects.detail.fields.open')}
                     </button>
                   </div>
                 </div>
               ) : null;
             })()}
 
-            {/* Стоимость, дата, статус, категория */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Стоимость, дата, статус, категория, срочность */}
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
               <input
                 type="number"
                 value={project.amount || ''}
@@ -1334,6 +1533,89 @@ export const ProjectFormPage: React.FC = () => {
                   </option>
                 ))}
               </select>
+              <select
+                value={projectPriority}
+                onChange={(e) =>
+                  setProject((prev) => ({
+                    ...prev,
+                    customFields: {
+                      ...(prev.customFields ?? {}),
+                      priority: e.target.value as 'Обычный' | 'Высокий' | 'Низкий',
+                    },
+                  }))
+                }
+                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+              >
+                <option value="Низкий">{t('crm.projects.detail.priority.lowUrgency')}</option>
+                <option value="Обычный">{t('crm.projects.detail.priority.normalUrgency')}</option>
+                <option value="Высокий">{t('crm.projects.detail.priority.highUrgency')}</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/70 p-3 space-y-2">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                  {t('crm.projects.detail.metrics.title')}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+                    <div className="text-[10px] text-slate-500">
+                      {t('crm.projects.detail.metrics.budget')}
+                    </div>
+                    <div className="text-sm font-semibold text-slate-100">
+                      {new Intl.NumberFormat(locale).format(Number(project.amount) || 0)} {project.currency || 'EUR'}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+                    <div className="text-[10px] text-slate-500">
+                      {t('crm.projects.detail.metrics.taskProgress')}
+                    </div>
+                    <div className="text-sm font-semibold text-slate-100">
+                      {tasksDoneCount}/{tasks.length} ({tasksCompletionPercent}%)
+                    </div>
+                  </div>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
+                  <span>{t('crm.projects.detail.metrics.urgency')}</span>
+                  <span
+                    className={
+                      projectPriority === 'Высокий'
+                        ? 'text-rose-400'
+                        : projectPriority === 'Низкий'
+                          ? 'text-emerald-400'
+                          : 'text-sky-400'
+                    }
+                  >
+                    {projectPriority}
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-sky-400 transition-all"
+                    style={{ width: `${tasksCompletionPercent}%` }}
+                  />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-[11px] text-slate-400">
+                  {t('crm.projects.detail.notes.title')}
+                </div>
+                <textarea
+                  value={projectNotes}
+                  onChange={(e) =>
+                    setProject((prev) => ({
+                      ...prev,
+                      customFields: {
+                        ...(prev.customFields ?? {}),
+                        projectNotes: e.target.value,
+                      },
+                    }))
+                  }
+                  rows={5}
+                  placeholder={t('crm.projects.detail.notes.placeholder')}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
+                />
+              </div>
             </div>
 
             {/* Метки */}
@@ -1366,13 +1648,15 @@ export const ProjectFormPage: React.FC = () => {
             {/* Кастомные поля */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-xs text-slate-400">Кастомные поля</div>
+                <div className="text-xs text-slate-400">
+                  {t('crm.projects.detail.customFields.title')}
+                </div>
                 <button
                   type="button"
                   onClick={() => setCustomFieldsOpen(true)}
                   className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
                 >
-                  Настроить
+                  {t('crm.projects.detail.customFields.configure')}
                 </button>
               </div>
               {customFieldsError && (
@@ -1382,12 +1666,12 @@ export const ProjectFormPage: React.FC = () => {
               )}
               {customFieldsLoading && (
                 <div className="text-[11px] text-slate-500">
-                  Загрузка полей...
+                  {t('crm.projects.detail.customFields.loading')}
                 </div>
               )}
               {!customFieldsLoading && activeCustomFields.length === 0 && (
                 <div className="text-[11px] text-slate-500 italic">
-                  Полей нет. Добавьте через настройку.
+                  {t('crm.projects.detail.customFields.empty')}
                 </div>
               )}
               {activeCustomFields.length > 0 && (
@@ -1430,25 +1714,29 @@ export const ProjectFormPage: React.FC = () => {
           </div>
         )}
 
-        {/* Вкладка Задачи */}
+        {/* Вкладка Задачи — список в духе Notion */}
         {tab === 'tasks' && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            <div className="flex items-center justify-between gap-4">
+          <div className="rounded-3xl border border-slate-700/50 bg-slate-900/50 p-4 sm:p-5 space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
                   {t('crm.projects.detail.tasks.title')}
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="mt-1 text-[12px] text-slate-500">
                   {tasks.filter((task) => isDoneStatus(task.status)).length}/
-                  {tasks.length} ·{' '}
-                  {tasks.length
-                    ? Math.round(
+                  {tasks.length}
+                  {tasks.length > 0 && (
+                    <>
+                      {' '}
+                      ·{' '}
+                      {Math.round(
                         (tasks.filter((task) => isDoneStatus(task.status)).length /
                           tasks.length) *
                           100,
-                      )
-                    : 0}
-                  %
+                      )}
+                      %
+                    </>
+                  )}
                 </div>
               </div>
               {!isProjectOwner && (
@@ -1458,36 +1746,42 @@ export const ProjectFormPage: React.FC = () => {
               )}
             </div>
 
-            <div className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3 space-y-2">
-              <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+            <div className="rounded-2xl border border-slate-300/90 bg-slate-50 p-3 sm:p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
                 {t('crm.projects.detail.tasks.newTitle')}
               </div>
-              <div className="flex flex-wrap gap-2 items-center">
-              <input
-                placeholder={t('crm.projects.detail.tasks.newTitle')}
-                value={newTaskTitle}
-                onChange={(e) => setNewTaskTitle(e.target.value)}
+              <div className="mt-2 flex gap-2">
+                <div
+                  className="mt-1.5 h-5 w-5 shrink-0 rounded border-2 border-slate-300 bg-white opacity-40"
+                  aria-hidden
+                />
+                <input
+                  placeholder={t('crm.projects.detail.tasks.newTitle')}
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
                   disabled={!isProjectOwner}
-                  className="flex-1 min-w-[220px] px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-sm outline-none disabled:opacity-60"
-              />
+                  className="flex-1 min-w-0 border-0 bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:opacity-60"
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200/90 pt-3 pl-0 sm:pl-7">
                 <div className="relative" ref={newAssigneesRef}>
                   <button
                     type="button"
                     onClick={() => setNewAssigneesOpen((prev) => !prev)}
                     disabled={!isProjectOwner}
-                    className="min-w-[180px] px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-sm outline-none disabled:opacity-60 flex items-center justify-between gap-2"
+                    className="min-w-[160px] rounded-lg border border-slate-300 bg-slate-200/90 px-3 py-2 text-left text-[12px] font-medium text-slate-800 shadow-sm outline-none hover:bg-slate-200 disabled:opacity-60 flex items-center justify-between gap-2"
                   >
                     <span>{t('crm.projects.detail.tasks.newAssignees')}</span>
-                    <span className="text-[10px] text-slate-400">
+                    <span className="text-[10px] text-slate-600">
                       {newTaskAssignees.length}
                     </span>
                   </button>
                   {newAssigneesOpen && (
-                    <div className="absolute z-20 mt-2 w-60 max-h-64 overflow-auto rounded-xl border border-slate-800/80 bg-slate-950 shadow-lg p-2">
+                    <div className="absolute z-20 mt-2 w-60 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
                       {staffForTasks.map((u) => (
                         <label
                           key={u.id}
-                          className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-900/60"
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100"
                         >
                           <input
                             type="checkbox"
@@ -1500,298 +1794,425 @@ export const ProjectFormPage: React.FC = () => {
                               )
                             }
                           />
-                          <span className="text-xs text-slate-200">{u.fullName}</span>
+                          <span className="text-xs text-slate-800">{u.fullName}</span>
                         </label>
                       ))}
                     </div>
                   )}
                 </div>
-              <select
-                value={newTaskStatus}
-                onChange={(e) =>
-                  setNewTaskStatus(e.target.value as ProjectTask['status'])
-                }
-                disabled={!isProjectOwner}
-                className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-sm disabled:opacity-60"
-              >
-                {TASK_STATUS_OPTIONS.map((status) => (
-                  <option key={status} value={status}>
-                    {taskStatusLabels[status]}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={newTaskPriority}
-                onChange={(e) =>
-                  setNewTaskPriority(
-                    e.target.value as ProjectTask['priority'],
-                  )
-                }
+                <select
+                  value={newTaskStatus}
+                  onChange={(e) =>
+                    setNewTaskStatus(e.target.value as ProjectTask['status'])
+                  }
                   disabled={!isProjectOwner}
-                  className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-sm disabled:opacity-60"
-              >
-                <option value="Обычный">
-                  {taskPriorityLabels.Обычный}
-                </option>
-                <option value="Высокий">
-                  {taskPriorityLabels.Высокий}
-                </option>
-                <option value="Низкий">{taskPriorityLabels.Низкий}</option>
-              </select>
-              <input
-                type="date"
-                value={newTaskDeadline}
-                onChange={(e) => setNewTaskDeadline(e.target.value)}
+                  className="rounded-lg border border-slate-300 bg-slate-200/90 px-3 py-2 text-[12px] font-medium text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-lumiva-accent/30 disabled:opacity-60"
+                >
+                  {TASK_STATUS_OPTIONS.map((status) => (
+                    <option key={status} value={status}>
+                      {taskStatusLabels[status]}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={newTaskPriority}
+                  onChange={(e) =>
+                    setNewTaskPriority(e.target.value as ProjectTask['priority'])
+                  }
                   disabled={!isProjectOwner}
-                  className="px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-800/80 text-sm disabled:opacity-60"
-              />
-              <button
-                type="button"
-                onClick={addTask}
+                  className="rounded-lg border border-slate-300 bg-slate-200/90 px-3 py-2 text-[12px] font-medium text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-lumiva-accent/30 disabled:opacity-60"
+                >
+                  <option value="Обычный">{taskPriorityLabels.Обычный}</option>
+                  <option value="Высокий">{taskPriorityLabels.Высокий}</option>
+                  <option value="Низкий">{taskPriorityLabels.Низкий}</option>
+                </select>
+                <input
+                  type="date"
+                  value={newTaskDeadline}
+                  onChange={(e) => setNewTaskDeadline(e.target.value)}
                   disabled={!isProjectOwner}
-                  className="px-3 py-2 text-xs rounded-xl !bg-slate-900 !text-white font-semibold hover:!bg-slate-800 disabled:opacity-60"
-              >
-                {t('crm.projects.detail.tasks.add')}
-              </button>
-                </div>
+                  className="rounded-lg border border-slate-300 bg-slate-200/90 px-3 py-2 text-[12px] text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-lumiva-accent/30 disabled:opacity-60"
+                />
+                <button
+                  type="button"
+                  onClick={addTask}
+                  disabled={!isProjectOwner}
+                  className="rounded-lg border border-lumiva-accent bg-lumiva-accent px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
+                >
+                  {t('crm.projects.detail.tasks.add')}
+                </button>
               </div>
+            </div>
 
-            <div className="space-y-3">
-              {tasks.map((task) => {
-                const editable = canEditTask(task);
-                const assignees = resolveAssignees(task);
-                const done = isDoneStatus(task.status);
-                const taskMentions = extractMentions(task.title || '');
-                const hasMention = taskMentions.length > 0 && isMentioned(taskMentions);
-                const checklistTotal = task.checklist.length;
-                const checklistDone = task.checklist.filter((c) => c.done).length;
-                return (
-                  <div
-                    key={task.id}
-                    className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3"
-                  >
-                    <div className="flex flex-wrap items-start gap-3">
-                      <div className="flex-1 min-w-[220px]">
-                        {editable ? (
-                    <input
-                            value={task.title}
-                            onChange={updateTask(task.id, 'title')}
-                            className="w-full px-2 py-1.5 rounded-xl bg-slate-900/80 border border-slate-800/80 text-xs outline-none"
-                    />
-                        ) : (
-                          <div className="text-sm text-slate-100 font-semibold">
-                            {task.title}
-                          </div>
-                        )}
-                        {hasMention && (
-                          <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-sky-300">
-                            <span>@</span>
-                            {t('crm.projects.detail.mentions.inTask')}
-                          </div>
-                        )}
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                          <div className="flex items-center gap-2">
-                            {assignees.length ? (
-                              assignees.map((owner) => {
-                                const label =
-                                  typeof owner === 'string'
-                                    ? owner
-                                    : owner.fullName;
-                                const avatarUrl =
-                                  typeof owner === 'string'
-                                    ? null
-                                    : owner.avatarUrl;
-                                return (
-                                  <div
-                                    key={label}
-                                    className="h-6 w-6 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center text-[10px] text-slate-200"
-                                    title={label}
-                                  >
-                                    {avatarUrl ? (
-                                      <img
-                                        src={avatarUrl}
-                                        alt={label}
-                                        className="h-full w-full rounded-full object-cover"
-                                      />
-                                    ) : (
-                                      label
-                                        .split(' ')
-                                        .filter(Boolean)
-                                        .slice(0, 2)
-                                        .map((p) => p[0])
-                                        .join('')
-                                        .toUpperCase()
-                                    )}
-                                  </div>
-                                );
-                              })
-                            ) : (
-                              <span>{t('crm.projects.common.emptyValue')}</span>
-                            )}
-                            {editable && (
-                              <div
-                                className="relative"
-                                ref={taskAssigneesMenuId === task.id ? taskAssigneesRef : null}
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setTaskAssigneesMenuId((prev) =>
-                                      prev === task.id ? null : task.id,
-                                    )
-                                  }
-                                  className="h-6 w-6 rounded-full border border-slate-700 text-[12px] text-slate-300 hover:text-white"
-                                  title={t('crm.projects.detail.tasks.newAssignees')}
-                                >
-                                  +
-                                </button>
-                                {taskAssigneesMenuId === task.id && (
-                                  <div className="absolute z-20 mt-2 w-60 max-h-64 overflow-auto rounded-xl border border-slate-800/80 bg-slate-950 shadow-lg p-2">
-                                    {staffForTasks.map((u) => (
-                                      <label
-                                        key={u.id}
-                                        className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-900/60"
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={(task.assignees || []).includes(u.fullName)}
-                                          onChange={() =>
-                                            toggleTaskAssignee(task.id, u.fullName)
-                                          }
-                                        />
-                                        <span className="text-xs text-slate-200">
-                                          {u.fullName}
-                                        </span>
-                                      </label>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                          {editable ? (
-                            <select
-                              value={task.status}
-                              onChange={updateTask(task.id, 'status')}
-                              className="px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[11px]"
-                            >
-                              {TASK_STATUS_OPTIONS.map((status) => (
-                                <option key={status} value={status}>
-                                  {taskStatusLabels[status]}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <span>{taskStatusLabels[task.status]}</span>
-                          )}
-                          {editable ? (
-                    <select
-                              value={task.priority}
-                              onChange={updateTask(task.id, 'priority')}
-                              className="px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[11px]"
+            <div className="overflow-hidden rounded-2xl border border-slate-300/90 bg-white shadow-sm">
+              <ul className="divide-y divide-slate-200">
+                {tasks.map((task) => {
+                  const editable = canEditTask(task);
+                  const assignees = resolveAssignees(task);
+                  const done = isDoneStatus(task.status);
+                  const taskMentions = extractMentions(task.title || '');
+                  const hasMention =
+                    taskMentions.length > 0 && isMentioned(taskMentions);
+                  const checklistTotal = task.checklist.length;
+                  const checklistDone = task.checklist.filter((c) => c.done).length;
+                  const taskCtl =
+                    'rounded-lg border border-slate-300 bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-lumiva-accent/25 disabled:opacity-60';
+                  return (
+                    <li
+                      key={task.id}
+                      draggable={isProjectOwner}
+                      onDragStart={(e) => {
+                        if (!isProjectOwner) {
+                          e.preventDefault();
+                          return;
+                        }
+                        if (isProjectTaskRowDragBlockedTarget(e.target)) {
+                          e.preventDefault();
+                          return;
+                        }
+                        e.dataTransfer.setData('text/plain', task.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                        setTaskDragId(task.id);
+                      }}
+                      onDragEnd={() => {
+                        setTaskDragId(null);
+                        setTaskDragOverId(null);
+                      }}
+                      className={`bg-white transition-colors hover:bg-slate-50/90 ${
+                        isProjectOwner ? 'cursor-grab active:cursor-grabbing' : ''
+                      } ${
+                        taskDragOverId === task.id &&
+                        taskDragId &&
+                        taskDragId !== task.id
+                          ? 'ring-2 ring-inset ring-lumiva-accent/40'
+                          : ''
+                      } ${taskDragId === task.id ? 'opacity-60' : ''}`}
+                      onDragOver={(e) => {
+                        if (!isProjectOwner || !taskDragId) return;
+                        e.preventDefault();
+                        e.dataTransfer.dropEffect = 'move';
+                        setTaskDragOverId(task.id);
+                      }}
+                      onDragLeave={(e) => {
+                        if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                          setTaskDragOverId(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        if (!isProjectOwner) return;
+                        e.preventDefault();
+                        const fromId = e.dataTransfer.getData('text/plain');
+                        setTaskDragOverId(null);
+                        setTaskDragId(null);
+                        if (fromId) reorderTasks(fromId, task.id);
+                      }}
                     >
-                      <option value="Обычный">
-                        {taskPriorityLabels.Обычный}
-                      </option>
-                      <option value="Высокий">
-                        {taskPriorityLabels.Высокий}
-                      </option>
-                      <option value="Низкий">
-                        {taskPriorityLabels.Низкий}
-                      </option>
-                    </select>
-                          ) : (
-                            <span>{taskPriorityLabels[task.priority]}</span>
-                          )}
-                          {editable ? (
-                    <input
-                      type="date"
-                              value={task.deadline || ''}
-                              onChange={updateTaskDeadline(task.id)}
-                              className="px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-[11px]"
-                    />
-                          ) : (
-                            <span>
-                              {task.deadline
-                                ? new Date(task.deadline).toLocaleDateString(locale)
-                                : t('crm.projects.common.emptyValue')}
-                            </span>
-                          )}
-                          {checklistTotal > 0 && (
-                            <span>
-                              {checklistDone}/{checklistTotal}
-                            </span>
-                          )}
-                          {editable && (
-                      <button
-                        type="button"
-                        className="text-[11px] text-sky-400 hover:text-sky-300"
-                              onClick={() => addChecklistItem(task.id)}
-                      >
-                        {t('crm.projects.detail.tasks.checklist')}
-                      </button>
-                          )}
-                          {editable && (
-                      <button
-                        type="button"
-                        className="text-[11px] text-rose-400 hover:text-rose-300"
-                              onClick={() => removeTask(task.id)}
-                      >
-                        {t('crm.projects.detail.actions.remove')}
-                      </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {task.checklist.length > 0 && (
-                      <div className="mt-3 space-y-1">
-                        {task.checklist.map((c) => (
-                          <div
-                            key={c.id}
-                            className="flex items-center gap-2 text-[11px] text-slate-400"
+                      <div className="flex items-start gap-2 px-3 py-3 sm:gap-3 sm:px-4">
+                        <div
+                          className="pointer-events-none mt-0.5 shrink-0 select-none pt-1 text-slate-400"
+                          aria-hidden
+                        >
+                          <svg
+                            className="h-4 w-4"
+                            viewBox="0 0 16 16"
+                            fill="currentColor"
+                            aria-hidden
                           >
-                            <input
-                              type="checkbox"
-                              checked={c.done}
-                              onChange={() => toggleChecklistDone(task.id, c.id)}
+                            <circle cx="4" cy="4" r="1.25" />
+                            <circle cx="4" cy="8" r="1.25" />
+                            <circle cx="4" cy="12" r="1.25" />
+                            <circle cx="9" cy="4" r="1.25" />
+                            <circle cx="9" cy="8" r="1.25" />
+                            <circle cx="9" cy="12" r="1.25" />
+                          </svg>
+                        </div>
+                        <button
+                          type="button"
+                          draggable={false}
+                          disabled={!editable}
+                          onClick={() => toggleTaskDone(task.id)}
+                          className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors disabled:cursor-not-allowed ${
+                            done
+                              ? 'border-lumiva-accent bg-lumiva-accent text-white'
+                              : 'border-slate-400 bg-white hover:border-slate-500'
+                          }`}
+                          aria-pressed={done}
+                          title={taskStatusLabels[task.status]}
+                        >
+                          {done && (
+                            <svg
                               className="h-3 w-3"
-                              disabled={!editable}
-                            />
+                              viewBox="0 0 12 12"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              aria-hidden
+                            >
+                              <path d="M2 6l3 3 5-6" />
+                            </svg>
+                          )}
+                        </button>
+                        <div className="min-w-0 flex-1">
+                          {editable ? (
                             <input
-                              value={c.title}
-                              onChange={updateChecklistTitle(task.id, c.id)}
-                              className="flex-1 px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 outline-none disabled:opacity-60"
-                              placeholder={t('crm.projects.detail.tasks.subtask')}
-                              disabled={!editable}
+                              draggable={false}
+                              value={task.title}
+                              onChange={updateTask(task.id, 'title')}
+                              className={`w-full cursor-text border-0 bg-transparent text-[13px] font-medium outline-none ring-0 focus:ring-0 ${
+                                done
+                                  ? 'text-slate-400 line-through decoration-slate-400'
+                                  : 'text-slate-900'
+                              }`}
                             />
-                            {c.done && (
-                              <span className="text-slate-500">
-                                {c.doneBy} · {c.doneAt}
+                          ) : (
+                            <div
+                              className={`text-sm font-semibold ${
+                                done ? 'text-slate-400 line-through' : 'text-slate-900'
+                              }`}
+                            >
+                              {task.title}
+                            </div>
+                          )}
+                          {hasMention && (
+                            <div className="mt-1 inline-flex items-center gap-1 text-[10px] text-sky-600">
+                              <span>@</span>
+                              {t('crm.projects.detail.mentions.inTask')}
+                            </div>
+                          )}
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              {assignees.length ? (
+                                assignees.map((owner) => {
+                                  const label =
+                                    typeof owner === 'string'
+                                      ? owner
+                                      : owner.fullName;
+                                  const avatarUrl =
+                                    typeof owner === 'string' ? null : owner.avatarUrl;
+                                  return (
+                                    <div
+                                      key={label}
+                                      className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-[10px] font-medium text-slate-700"
+                                      title={label}
+                                    >
+                                      {avatarUrl ? (
+                                        <img
+                                          draggable={false}
+                                          src={avatarUrl}
+                                          alt={label}
+                                          className="h-full w-full rounded-full object-cover"
+                                        />
+                                      ) : (
+                                        label
+                                          .split(' ')
+                                          .filter(Boolean)
+                                          .slice(0, 2)
+                                          .map((p) => p[0])
+                                          .join('')
+                                          .toUpperCase()
+                                      )}
+                                    </div>
+                                  );
+                                })
+                              ) : (
+                                <span className="text-[11px] text-slate-500">
+                                  {t('crm.projects.common.emptyValue')}
+                                </span>
+                              )}
+                              {editable && (
+                                <div
+                                  className="relative"
+                                  ref={
+                                    taskAssigneesMenuId === task.id
+                                      ? taskAssigneesRef
+                                      : null
+                                  }
+                                >
+                                  <button
+                                    type="button"
+                                    draggable={false}
+                                    onClick={() =>
+                                      setTaskAssigneesMenuId((prev) =>
+                                        prev === task.id ? null : task.id,
+                                      )
+                                    }
+                                    className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-400 bg-slate-100 text-[13px] font-medium text-slate-700 hover:bg-slate-200"
+                                    title={t('crm.projects.detail.tasks.newAssignees')}
+                                  >
+                                    +
+                                  </button>
+                                  {taskAssigneesMenuId === task.id && (
+                                    <div
+                                      className="absolute z-20 mt-2 w-60 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl"
+                                      data-no-task-drag
+                                    >
+                                      {staffForTasks.map((u) => (
+                                        <label
+                                          key={u.id}
+                                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-100"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={(task.assignees || []).includes(
+                                              u.fullName,
+                                            )}
+                                            onChange={() =>
+                                              toggleTaskAssignee(task.id, u.fullName)
+                                            }
+                                          />
+                                          <span className="text-xs text-slate-800">
+                                            {u.fullName}
+                                          </span>
+                                        </label>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {editable ? (
+                              <select
+                                draggable={false}
+                                value={task.status}
+                                onChange={updateTask(task.id, 'status')}
+                                className={taskCtl}
+                              >
+                                {TASK_STATUS_OPTIONS.map((status) => (
+                                  <option key={status} value={status}>
+                                    {taskStatusLabels[status]}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700">
+                                {taskStatusLabels[task.status]}
+                              </span>
+                            )}
+                            {editable ? (
+                              <select
+                                draggable={false}
+                                value={task.priority}
+                                onChange={updateTask(task.id, 'priority')}
+                                className={taskCtl}
+                              >
+                                <option value="Обычный">
+                                  {taskPriorityLabels.Обычный}
+                                </option>
+                                <option value="Высокий">
+                                  {taskPriorityLabels.Высокий}
+                                </option>
+                                <option value="Низкий">
+                                  {taskPriorityLabels.Низкий}
+                                </option>
+                              </select>
+                            ) : (
+                              <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-700">
+                                {taskPriorityLabels[task.priority]}
+                              </span>
+                            )}
+                            {editable ? (
+                              <input
+                                draggable={false}
+                                type="date"
+                                value={task.deadline || ''}
+                                onChange={updateTaskDeadline(task.id)}
+                                className={taskCtl}
+                              />
+                            ) : (
+                              <span className="text-[11px] text-slate-600">
+                                {task.deadline
+                                  ? new Date(task.deadline).toLocaleDateString(locale)
+                                  : t('crm.projects.common.emptyValue')}
+                              </span>
+                            )}
+                            {checklistTotal > 0 && (
+                              <span className="rounded-md border border-slate-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-900">
+                                {checklistDone}/{checklistTotal}
                               </span>
                             )}
                             {editable && (
-                            <button
-                              type="button"
-                              className="text-rose-400"
-                                onClick={() => removeChecklistItem(task.id, c.id)}
-                            >
-                              ×
-                            </button>
+                              <button
+                                type="button"
+                                draggable={false}
+                                className="rounded-md border border-sky-300 bg-sky-50 px-2 py-1 text-[11px] font-medium text-sky-800 hover:bg-sky-100"
+                                onClick={() => addChecklistItem(task.id)}
+                              >
+                                {t('crm.projects.detail.tasks.checklist')}
+                              </button>
+                            )}
+                            {editable && (
+                              <button
+                                type="button"
+                                draggable={false}
+                                className="rounded-md border border-rose-300 bg-rose-50 px-2 py-1 text-[11px] font-medium text-rose-800 hover:bg-rose-100"
+                                onClick={() => removeTask(task.id)}
+                              >
+                                {t('crm.projects.detail.actions.remove')}
+                              </button>
                             )}
                           </div>
-                        ))}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
 
-                {tasks.length === 0 && (
-                  <div className="text-[11px] text-slate-500 italic px-1 py-2">
-                    {t('crm.projects.detail.tasks.empty')}
-                  </div>
-                )}
+                      {task.checklist.length > 0 && (
+                        <div
+                          className="border-t border-slate-100 bg-slate-50/80 px-3 py-2 sm:px-4 sm:pl-[4.25rem]"
+                          data-no-task-drag
+                        >
+                          <div className="space-y-1.5">
+                            {task.checklist.map((c) => (
+                              <div
+                                key={c.id}
+                                className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-[11px]"
+                              >
+                                <input
+                                  type="checkbox"
+                                  draggable={false}
+                                  checked={c.done}
+                                  onChange={() => toggleChecklistDone(task.id, c.id)}
+                                  className="h-3.5 w-3.5 rounded border-slate-400 text-lumiva-accent"
+                                  disabled={!editable}
+                                />
+                                <input
+                                  draggable={false}
+                                  value={c.title}
+                                  onChange={updateChecklistTitle(task.id, c.id)}
+                                  className="min-w-0 flex-1 border-0 bg-transparent text-[12px] text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
+                                  placeholder={t('crm.projects.detail.tasks.subtask')}
+                                  disabled={!editable}
+                                />
+                                {c.done && (
+                                  <span className="shrink-0 text-[10px] text-slate-500">
+                                    {c.doneBy} · {c.doneAt}
+                                  </span>
+                                )}
+                                {editable && (
+                                  <button
+                                    type="button"
+                                    draggable={false}
+                                    className="shrink-0 rounded border border-transparent px-1.5 text-rose-600 hover:border-rose-200 hover:bg-rose-50"
+                                    onClick={() => removeChecklistItem(task.id, c.id)}
+                                    aria-label={t('crm.projects.detail.actions.remove')}
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+              {tasks.length === 0 && (
+                <div className="px-4 py-8 text-center text-[12px] text-slate-500 italic">
+                  {t('crm.projects.detail.tasks.empty')}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1880,6 +2301,44 @@ export const ProjectFormPage: React.FC = () => {
         {/* Вкладка История */}
         {tab === 'history' && (
           <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
+            {!!activities.length && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                  <div className="text-[10px] text-slate-500">
+                    {t('crm.projects.detail.history.summary.events')}
+                  </div>
+                  <div className="text-sm font-semibold text-slate-100">{activities.length}</div>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                  <div className="text-[10px] text-slate-500">
+                    {t('crm.projects.detail.history.summary.amountChanges')}
+                  </div>
+                  <div className="text-sm font-semibold text-slate-100">{amountHistory.length}</div>
+                </div>
+                <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
+                  <div className="text-[10px] text-slate-500">
+                    {t('crm.projects.detail.history.summary.lastUpdate')}
+                  </div>
+                  <div className="text-sm font-semibold text-slate-100">
+                    {new Date(activities[0]?.createdAt).toLocaleString(locale)}
+                  </div>
+                </div>
+              </div>
+            )}
+            {!!amountHistory.length && (
+              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3 space-y-1.5">
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                  {t('crm.projects.detail.history.amountTitle')}
+                </div>
+                {amountHistory.slice(0, 5).map((entry) => (
+                  <div key={entry.id} className="text-[11px] text-slate-300">
+                    {new Date(entry.at).toLocaleString(locale)} · {entry.actor}: {' '}
+                    <span className="text-slate-400">{formatHistoryValue(entry.from)}</span> →{' '}
+                    <span className="text-slate-100">{formatHistoryValue(entry.to)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
             {activitiesLoading && (
               <div className="text-[11px] text-slate-500">
                 {t('crm.projects.detail.history.loading')}
@@ -1922,8 +2381,8 @@ export const ProjectFormPage: React.FC = () => {
                             <span className="text-slate-300">
                               {activityFieldLabels[change.field] ?? change.field}:
                             </span>{' '}
-                            <span>{String(change.from ?? '')}</span> →{' '}
-                            <span>{String(change.to ?? '')}</span>
+                            <span>{formatHistoryValue(change.from)}</span> →{' '}
+                            <span>{formatHistoryValue(change.to)}</span>
                           </div>
                         ))}
                       </div>
@@ -1937,7 +2396,7 @@ export const ProjectFormPage: React.FC = () => {
         {customFieldsOpen && (
           <CustomFieldsManager
             entityType="project"
-            title="Кастомные поля проектов"
+            title={t('crm.projects.detail.customFields.managerTitle')}
             suggestedKeys={suggestedKeys}
             onClose={() => setCustomFieldsOpen(false)}
             onUpdated={(items) => {

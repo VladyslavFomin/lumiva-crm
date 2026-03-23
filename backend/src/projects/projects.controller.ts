@@ -435,6 +435,33 @@ export class ProjectsController {
     });
   }
 
+  // ================== DELETE /projects/:id/permanent ==================
+  @Delete(':id/permanent')
+  async permanentDelete(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    const { tenantId, role } = user;
+
+    if (role !== 'owner') {
+      throw new ForbiddenException('Полностью удалять проекты может только владелец');
+    }
+
+    return this.projectsService.hardDeleteForTenant(tenantId, id);
+  }
+
+  // ================== DELETE /projects/trash/empty ==================
+  @Delete('trash/empty')
+  async emptyTrash(@CurrentUser() user: CurrentUserPayload) {
+    const { tenantId, role } = user;
+
+    if (role !== 'owner') {
+      throw new ForbiddenException('Очищать корзину может только владелец');
+    }
+
+    return this.projectsService.emptyTrashForTenant(tenantId);
+  }
+
   // ================== GET /projects/:id/activities ==================
   @Get(':id/activities')
   async activities(

@@ -283,7 +283,7 @@ export const SalesPage: React.FC = () => {
       .then((items) =>
         setCustomFields([...items].sort((a, b) => a.order - b.order)),
       )
-      .catch((e) => console.error('Ошибка загрузки кастомных полей:', e));
+      .catch((e) => console.error('Failed to load sale custom fields:', e));
   }, []);
 
   useEffect(() => {
@@ -382,7 +382,7 @@ export const SalesPage: React.FC = () => {
             }}
             onClick={(e) => e.stopPropagation()}
           />
-          {Boolean(value) ? 'Да' : 'Нет'}
+          {Boolean(value) ? t('crm.sales.list.boolean.yes') : t('crm.sales.list.boolean.no')}
         </label>
       );
     }
@@ -802,7 +802,7 @@ export const SalesPage: React.FC = () => {
                 onClick={() => setCustomFieldsOpen(true)}
                 className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
               >
-                + Колонка
+                {`+ ${t('crm.sales.list.addColumn')}`}
               </button>
             </div>
           </div>
@@ -950,7 +950,7 @@ export const SalesPage: React.FC = () => {
         {customFieldsOpen && (
           <CustomFieldsManager
             entityType="sale"
-            title="Кастомные поля продаж"
+          title={t('crm.sales.list.customFieldsTitle')}
             onClose={() => setCustomFieldsOpen(false)}
             onUpdated={(list) =>
               setCustomFields([...list].sort((a, b) => a.order - b.order))

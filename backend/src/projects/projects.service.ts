@@ -1,7 +1,7 @@
 // backend/src/projects/projects.service.ts
 import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, In } from 'typeorm';
 import { Project, ProjectStatus } from './project.entity';
 import { ProjectActivity } from './project-activity.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -527,7 +527,12 @@ export class ProjectsService {
     id: string,
     actor?: { userId?: string; email?: string; name?: string },
   ) {
-    const project = await this.findOneForTenant(tenantId, id);
+    const project = await this.repo.findOne({
+      where: { id, tenantId },
+    });
+    if (!project) {
+      throw new NotFoundException('Project not found');
+    }
     project.isDeleted = false;
     project.deletedAt = null;
     const saved = await this.repo.save(project);
@@ -538,5 +543,38 @@ export class ProjectsService {
       actor,
     });
     return saved;
+  }
+
+  // ===== Полностью удалить проект из корзины =====
+  async hardDeleteForTenant(tenantId: string, id: string) {
+    const project = await this.repo.findOne({
+      where: { id, tenantId, isDeleted: true },
+      select: ['id'],
+    });
+    if (!project) {
+      throw new NotFoundException('Project not found in trash');
+    }
+    await this.activityRepo.delete({ tenantId, projectId: id });
+    await this.repo.delete({ id, tenantId, isDeleted: true });
+    return { ok: true };
+  }
+
+  // ===== Очистить корзину проектов =====
+  async emptyTrashForTenant(tenantId: string) {
+    const deletedProjects = await this.repo.find({
+      where: { tenantId, isDeleted: true },
+      select: ['id'],
+    });
+    const projectIds = deletedProjects.map((project) => project.id);
+
+    if (projectIds.length) {
+      await this.activityRepo.delete({
+        tenantId,
+        projectId: In(projectIds),
+      } as any);
+    }
+
+    await this.repo.delete({ tenantId, isDeleted: true } as any);
+    return { ok: true };
   }
 }

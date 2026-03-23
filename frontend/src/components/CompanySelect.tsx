@@ -9,6 +9,7 @@ interface CompanySelectProps {
   className?: string;
   allowCreate?: boolean;
   onCompanyCreated?: (company: Company) => void;
+  theme?: 'light' | 'dark';
 }
 
 export const CompanySelect: React.FC<CompanySelectProps> = ({
@@ -18,6 +19,7 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
   className = '',
   allowCreate = true,
   onCompanyCreated,
+  theme = 'light',
 }) => {
   const [search, setSearch] = useState<string>('');
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -139,6 +141,26 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
     search.trim() &&
     !filteredCompanies.some((c) => c.name.toLowerCase() === search.toLowerCase().trim());
 
+  const inputClassName =
+    theme === 'dark'
+      ? 'w-full px-3 py-2 text-xs bg-slate-950/80 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lumiva-accent-soft focus:ring-2 focus:ring-lumiva-accent-soft/20 transition-colors'
+      : 'w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors';
+
+  const dropdownClassName =
+    theme === 'dark'
+      ? 'absolute z-50 w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-lg max-h-60 overflow-auto'
+      : 'absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-xl shadow-lg max-h-60 overflow-auto';
+
+  const clearButtonClassName =
+    theme === 'dark'
+      ? 'absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 text-lg leading-none'
+      : 'absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none';
+
+  const optionClassName =
+    theme === 'dark'
+      ? 'w-full text-left px-3 py-2 text-xs hover:bg-slate-900 transition-colors border-b border-slate-800 last:border-b-0'
+      : 'w-full text-left px-3 py-2 text-xs hover:bg-slate-100 transition-colors border-b border-slate-100 last:border-b-0';
+
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
       <div className="relative">
@@ -151,13 +173,13 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
           }}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+          className={inputClassName}
         />
         {selectedCompany && (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none"
+            className={clearButtonClassName}
           >
             ×
           </button>
@@ -165,7 +187,7 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-xl shadow-lg max-h-60 overflow-auto">
+        <div className={dropdownClassName}>
           {loading ? (
             <div className="px-3 py-2 text-xs text-slate-500">Загрузка...</div>
           ) : filteredCompanies.length === 0 && !showCreateOption ? (
@@ -177,9 +199,11 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
                   key={company.id}
                   type="button"
                   onClick={() => handleSelect(company)}
-                  className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 transition-colors border-b border-slate-100 last:border-b-0"
+                  className={optionClassName}
                 >
-                  <div className="font-medium text-slate-900">{company.name}</div>
+                  <div className={theme === 'dark' ? 'font-medium text-slate-100' : 'font-medium text-slate-900'}>
+                    {company.name}
+                  </div>
                   {company.email && (
                     <div className="text-[10px] text-slate-500">{company.email}</div>
                   )}
@@ -190,14 +214,22 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
                   type="button"
                   onClick={handleCreate}
                   disabled={creating}
-                  className="w-full text-left px-3 py-2 text-xs bg-slate-50 hover:bg-slate-100 border-t border-slate-200 transition-colors disabled:opacity-50"
+                  className={
+                    theme === 'dark'
+                      ? 'w-full text-left px-3 py-2 text-xs bg-slate-900 hover:bg-slate-800 border-t border-slate-800 transition-colors disabled:opacity-50'
+                      : 'w-full text-left px-3 py-2 text-xs bg-slate-50 hover:bg-slate-100 border-t border-slate-200 transition-colors disabled:opacity-50'
+                  }
                 >
                   {creating ? (
                     <span className="text-slate-500">Создание...</span>
                   ) : (
                     <>
-                      <span className="text-slate-900">+ Создать компанию: </span>
-                      <span className="font-medium text-slate-900">{search.trim()}</span>
+                      <span className={theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}>
+                        + Создать компанию:{' '}
+                      </span>
+                      <span className={theme === 'dark' ? 'font-medium text-slate-100' : 'font-medium text-slate-900'}>
+                        {search.trim()}
+                      </span>
                     </>
                   )}
                 </button>

@@ -110,6 +110,8 @@ body {
   box-shadow: 0 20px 60px rgba(17, 24, 39, 0.06);
 }
 
+/* bg-slate-900 + text-white becomes white-on-white — use bg-lumiva-accent or arbitrary bg-[#111827] for primary actions */
+
 .border-slate-900,
 .border-slate-900\/60,
 .border-slate-900\/70,

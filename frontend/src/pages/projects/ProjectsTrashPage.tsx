@@ -1,7 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
-import { fetchProjects, restoreProject } from '../../api/projects';
+import {
+  emptyProjectsTrash,
+  fetchProjects,
+  permanentlyDeleteProject,
+  restoreProject,
+} from '../../api/projects';
 import type { Project } from './projectTypes';
 
 export const ProjectsTrashPage: React.FC = () => {
@@ -9,6 +14,12 @@ export const ProjectsTrashPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<
+    | { mode: 'single'; project: Project }
+    | { mode: 'all' }
+    | null
+  >(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -39,6 +50,32 @@ export const ProjectsTrashPage: React.FC = () => {
       setError(e.message || t('crm.projects.errors.loadFailed'));
     }
   };
+  const handlePermanentDelete = async (id: string) => {
+    try {
+      setActionLoading(true);
+      await permanentlyDeleteProject(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || t('crm.projects.errors.loadFailed'));
+    } finally {
+      setActionLoading(false);
+      setConfirmState(null);
+    }
+  };
+  const handleEmptyTrash = async () => {
+    try {
+      setActionLoading(true);
+      await emptyProjectsTrash();
+      setProjects([]);
+    } catch (e: any) {
+      console.error(e);
+      setError(e.message || t('crm.projects.errors.loadFailed'));
+    } finally {
+      setActionLoading(false);
+      setConfirmState(null);
+    }
+  };
 
   return (
     <MainLayout>
@@ -50,6 +87,16 @@ export const ProjectsTrashPage: React.FC = () => {
           <div className="text-[11px] text-slate-500">
             {t('crm.projects.trash.subtitle')}
           </div>
+        </div>
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setConfirmState({ mode: 'all' })}
+            disabled={!projects.length || actionLoading}
+            className="px-3 py-1.5 text-xs rounded-xl border border-rose-500/60 text-rose-300 hover:bg-rose-950/50 disabled:opacity-50"
+          >
+            {t('crm.projects.trash.actions.emptyTrash')}
+          </button>
         </div>
 
         {error && (
@@ -101,13 +148,22 @@ export const ProjectsTrashPage: React.FC = () => {
                       </td>
                       <td className="px-3 py-1.5 text-slate-400">{p.createdAt}</td>
                       <td className="px-3 py-1.5">
-                        <button
-                          type="button"
-                          onClick={() => handleRestore(p.id)}
-                          className="text-[11px] text-sky-300 hover:text-sky-200"
-                        >
-                          {t('crm.projects.trash.actions.restore')}
-                        </button>
+                        <div className="flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleRestore(p.id)}
+                            className="text-[11px] text-sky-300 hover:text-sky-200"
+                          >
+                            {t('crm.projects.trash.actions.restore')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmState({ mode: 'single', project: p })}
+                            className="text-[11px] text-rose-300 hover:text-rose-200"
+                          >
+                            {t('crm.projects.trash.actions.deletePermanently')}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -127,6 +183,60 @@ export const ProjectsTrashPage: React.FC = () => {
           )}
         </div>
       </div>
+      {confirmState && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 px-4">
+          <div className="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-50">
+                  {confirmState.mode === 'all'
+                    ? t('crm.projects.trash.confirm.emptyTitle')
+                    : t('crm.projects.trash.confirm.singleTitle')}
+                </div>
+                <div className="mt-1 text-xs text-slate-400">
+                  {confirmState.mode === 'all'
+                    ? t('crm.projects.trash.confirm.emptyDescription')
+                    : t('crm.projects.trash.confirm.singleDescription', {
+                        name: confirmState.project.name,
+                      })}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfirmState(null)}
+                className="text-slate-500 hover:text-slate-200 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmState(null)}
+                className="px-4 py-2 rounded-full border border-slate-700 text-slate-300 text-sm hover:bg-slate-800"
+                disabled={actionLoading}
+              >
+                {t('crm.common.cancel')}
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  confirmState.mode === 'all'
+                    ? handleEmptyTrash()
+                    : handlePermanentDelete(confirmState.project.id)
+                }
+                className="px-4 py-2 rounded-full bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 disabled:opacity-50"
+                disabled={actionLoading}
+              >
+                {actionLoading
+                  ? t('crm.projects.trash.confirm.deleting')
+                  : t('crm.projects.trash.actions.deletePermanently')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };

@@ -1,7 +1,15 @@
 // src/layout/MainLayout.tsx
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { getStoredUser, clearSession, isBillingLocked } from '../auth/session';
+import {
+  getStoredUser,
+  clearSession,
+  isBillingLocked,
+  getStoredTenantName,
+  updateStoredTenantName,
+} from '../auth/session';
+import { WorkspaceSidebarBlock } from '../components/layout/WorkspaceSidebarBlock';
+import { NAV_ICON_MAP, NavChevronDown, type NavIconKey } from '../components/layout/NavSidebarIcons';
 import { fetchChatSessions } from '../api/onlineChat';
 import {
   fetchProject,
@@ -10,35 +18,103 @@ import {
 } from '../api/projects';
 import { fetchStaff, type StaffUser } from '../api/staff';
 import type { Project, ProjectTask } from '../pages/projects/projectTypes';
+import {
+  readProjectTasksCache,
+  writeProjectTasksCache,
+} from '../pages/projects/projectTasksCache';
 import { fetchStaffPermissions, fetchUserPermissions, type PermissionKey, type RolePermissionMatrix, type UserPermissionMatrix } from '../api/rbac';
 import { fetchTenantComponents, type TenantComponent } from '../api/tenants';
+import {
+  fetchCompanySettings,
+  TENANT_BRANDING_EVENT,
+} from '../api/settings';
+import { resolvePublicAssetUrl } from '../api/client';
+
+const DEFAULT_SIDEBAR_LOGO = '/lumiva-default-logo.svg';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from '../i18n';
 import { BillingPage } from '../pages/BillingPage';
+import {
+  DASHBOARD_ADD_WIDGET_EVENT,
+  DASHBOARD_LAYOUT_CHANGED_EVENT,
+  applyDashboardAddWidgetDetail,
+  type DashboardAddWidgetDetail,
+  type DashboardLayoutChangedDetail,
+} from '../dashboard/dashboardLayout';
 
 interface MainLayoutProps {
   children: React.ReactNode;
 }
 
-const tasksCacheKey = (projectId: string) => `project_tasks_${projectId}`;
-const readTasksCache = (projectId: string): ProjectTask[] | null => {
-  try {
-    const raw = localStorage.getItem(tasksCacheKey(projectId));
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return null;
-    return parsed as ProjectTask[];
-  } catch {
-    return null;
-  }
+type NavChild = { label: string; path: string };
+type NavItem = {
+  label: string;
+  path: string;
+  icon: NavIconKey;
+  children?: NavChild[];
+  matchPaths?: string[];
 };
-const writeTasksCache = (projectId: string, tasks: ProjectTask[]) => {
-  try {
-    localStorage.setItem(tasksCacheKey(projectId), JSON.stringify(tasks));
-  } catch {
-    // ignore
+
+function normalizeLayoutPath(pathname: string): string {
+  if (pathname.startsWith('/app/')) return pathname.slice(4);
+  if (pathname === '/app' || pathname === '/app/') return '/dashboard';
+  return pathname;
+}
+
+function toLegacyNavPath(navPath: string): string {
+  if (navPath === '/app' || navPath === '/app/') return '/dashboard';
+  if (navPath.startsWith('/app/')) return navPath.slice(4);
+  return navPath;
+}
+
+function matchesNavPath(pathname: string, navPath: string): boolean {
+  const candidates = [navPath, toLegacyNavPath(navPath)].filter(
+    (v, i, a) => a.indexOf(v) === i,
+  );
+  return candidates.some(
+    (c) => pathname === c || pathname.startsWith(`${c}/`),
+  );
+}
+
+/** Сегменты /projects/:x, которые не являются карточкой одного проекта (списки, формы). */
+const PROJECT_ROUTE_PREFIXES = new Set([
+  'archive',
+  'trash',
+  'closed',
+  'in-progress',
+  'tasks',
+  'analytics',
+  'board',
+  'calendar',
+  'new',
+  'create',
+]);
+
+function isProjectDetailPath(pathname: string): boolean {
+  const m = pathname.match(/^\/projects\/([^/]+)/);
+  if (!m) return false;
+  return !PROJECT_ROUTE_PREFIXES.has(m[1]);
+}
+
+function itemMatchScore(pathname: string, item: NavItem): number {
+  let best = 0;
+  const paths = [
+    item.path,
+    ...(item.matchPaths ?? []),
+    ...(item.children?.map((c) => c.path) ?? []),
+  ];
+  for (const p of paths) {
+    if (!matchesNavPath(pathname, p)) continue;
+    const leg = toLegacyNavPath(p);
+    const candidates = [p, leg].filter((v, i, a) => a.indexOf(v) === i);
+    for (const c of candidates) {
+      if (pathname === c || pathname.startsWith(`${c}/`)) {
+        if (c.length > best) best = c.length;
+      }
+    }
   }
-};
+  return best;
+}
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation();
@@ -84,8 +160,85 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const componentsLoadedRef = useRef<{ userId: string | null; loaded: boolean }>({ userId: null, loaded: false });
   const loadingInProgressRef = useRef(false);
 
-  // какой root-раздел раскрыт (для подменю)
-  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  /** Подменю: явное сворачивание стрелкой (иначе activeRoot снова раскрывает раздел) */
+  const [sectionExpanded, setSectionExpanded] = useState<Record<string, boolean>>({});
+  const SIDEBAR_COLLAPSED_KEY = 'lumiva_sidebar_rail_v1';
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [sidebarEdgeHover, setSidebarEdgeHover] = useState(false);
+  const [tenantLogoUrl, setTenantLogoUrl] = useState<string | null>(null);
+  const [tenantLogoFailed, setTenantLogoFailed] = useState(false);
+  const [tenantNameDisplay, setTenantNameDisplay] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTenantLogoFailed(false);
+  }, [tenantLogoUrl]);
+
+  const sidebarBrandLogoSrc = useMemo(() => {
+    if (!tenantLogoUrl?.trim()) return DEFAULT_SIDEBAR_LOGO;
+    if (tenantLogoFailed) return DEFAULT_SIDEBAR_LOGO;
+    return resolvePublicAssetUrl(tenantLogoUrl) || DEFAULT_SIDEBAR_LOGO;
+  }, [tenantLogoUrl, tenantLogoFailed]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadBranding = async () => {
+      try {
+        const s = await fetchCompanySettings();
+        if (!cancelled) {
+          setTenantLogoUrl(s.logoUrl ?? null);
+          const n = s.name?.trim();
+          setTenantNameDisplay(n || null);
+          if (n) updateStoredTenantName(n);
+        }
+      } catch {
+        if (!cancelled) {
+          setTenantLogoUrl(null);
+          setTenantNameDisplay(null);
+        }
+      }
+    };
+    void loadBranding();
+    const onBranding = () => void loadBranding();
+    window.addEventListener(TENANT_BRANDING_EVENT, onBranding);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(TENANT_BRANDING_EVENT, onBranding);
+    };
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed ? '1' : '0');
+    } catch {
+      /* ignore */
+    }
+  }, [sidebarCollapsed]);
+
+  useEffect(() => {
+    setSectionExpanded({});
+  }, [location.pathname]);
+
+  /** «Добавить на главную» из аналитики: Dashboard не смонтирован — пишем layout здесь */
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<DashboardAddWidgetDetail>).detail;
+      if (applyDashboardAddWidgetDetail(d)) {
+        window.dispatchEvent(
+          new CustomEvent<DashboardLayoutChangedDetail>(DASHBOARD_LAYOUT_CHANGED_EVENT, {
+            detail: { addedWidget: true },
+          }),
+        );
+      }
+    };
+    window.addEventListener(DASHBOARD_ADD_WIDGET_EVENT, h);
+    return () => window.removeEventListener(DASHBOARD_ADD_WIDGET_EVENT, h);
+  }, []);
 
   const handleLogout = () => {
     clearSession();
@@ -180,10 +333,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         project: Project;
       }> = [];
       detailed.forEach((project) => {
-        const cached = readTasksCache(project.id);
+        const cached = readProjectTasksCache(project.id);
         const source =
           project.tasks && project.tasks.length > 0 ? project.tasks : cached ?? [];
-        if (source.length > 0) writeTasksCache(project.id, source);
+        if (source.length > 0) writeProjectTasksCache(project.id, source);
         tasksByProjectRef.current[project.id] = source;
         projectsByIdRef.current[project.id] = project as Project;
         source.forEach((task) => {
@@ -277,7 +430,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   ) => {
     const target =
       projectsByIdRef.current[projectId] ?? (await fetchProject(projectId));
-    writeTasksCache(projectId, nextTasks);
+    writeProjectTasksCache(projectId, nextTasks);
     await updateProject({ ...target, tasks: nextTasks }, { includeEmptyTasks: true });
     tasksByProjectRef.current[projectId] = nextTasks;
     projectsByIdRef.current[projectId] = {
@@ -323,7 +476,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   const closeMobile = () => setMobileOpen(false);
-  const shouldForceNavFallback = location.pathname.startsWith('/app/projects/');
+  /** Со страниц карточки проекта (в т.ч. после автосохранения задач) переход по меню иногда «залипал»; ведём на канонические пути через navigate. */
+  const shouldForceNavFallback =
+    location.pathname.startsWith('/app/projects/') || isProjectDetailPath(location.pathname);
   const navigateWithFallback = (path: string) => {
     if (location.pathname === path) return;
     navigate(path);
@@ -341,10 +496,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1) {
       return;
     }
+    const target = toLegacyNavPath(path);
     if (shouldForceNavFallback) {
       event.preventDefault();
       if (closeAfter) closeAfter();
-      window.location.href = path;
+      // Полная перезагрузка по каноническому пути: иначе в RR v7 иногда рассинхрон
+      // адресной строки и внутреннего location (страница «замирает» на карточке проекта).
+      if (window.location.pathname !== target) {
+        window.location.assign(target);
+      }
       return;
     }
     if (closeAfter) closeAfter();
@@ -455,12 +615,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   }, [user?.id, user?.sub]); // Зависим только от ID пользователя
 
   const NAV = useMemo(
-    () => [
-      { label: t('crm.nav.dashboard'), path: '/app' },
+    (): NavItem[] => [
+      {
+        label: t('crm.nav.dashboard'),
+        path: '/dashboard',
+        icon: 'home',
+        matchPaths: ['/app'],
+      },
 
       {
         label: t('crm.nav.leads'),
         path: '/app/leads',
+        icon: 'leads',
         children: [
           { label: t('crm.nav.leadsNew'), path: '/app/leads/new' },
           { label: t('crm.nav.leadsLost'), path: '/app/leads/lost' },
@@ -471,11 +637,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         ],
       },
 
-      { label: t('crm.nav.contacts'), path: '/app/contacts' },
       {
-        label: t('crm.nav.companies'),
-        path: '/app/companies',
+        label: t('crm.nav.contacts'),
+        path: '/app/contacts',
+        icon: 'contacts',
+        matchPaths: ['/app/contacts', '/contacts', '/app/companies', '/companies'],
         children: [
+          { label: t('crm.nav.companies'), path: '/app/companies' },
           { label: t('crm.nav.companiesAnalytics'), path: '/app/companies/analytics' },
         ],
       },
@@ -483,12 +651,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {
         label: t('crm.nav.projects'),
         path: '/app/projects',
+        icon: 'projects',
         children: [
           { label: t('crm.nav.projectsClosed'), path: '/app/projects/closed' },
           { label: t('crm.nav.projectsInProgress'), path: '/app/projects/in-progress' },
           { label: t('crm.nav.projectsTasks'), path: '/app/projects/tasks' },
           { label: t('crm.nav.projectsOverdue'), path: '/app/projects/tasks/overdue' },
-          { label: t('crm.nav.projectsBulkEdit'), path: '/app/projects/bulk-edit' },
           { label: t('crm.nav.projectsArchive'), path: '/app/projects/archive' },
           { label: t('crm.nav.projectsTrash'), path: '/app/projects/trash' },
           { label: t('crm.nav.projectsAnalytics'), path: '/app/projects/analytics' },
@@ -498,6 +666,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {
         label: t('crm.nav.sales'),
         path: '/app/sales',
+        icon: 'sales',
         children: [
           { label: t('crm.nav.sales'), path: '/app/sales' },
           { label: t('crm.nav.salesAnalytics'), path: '/app/sales/analytics' },
@@ -510,6 +679,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       {
         label: t('crm.nav.marketing'),
         path: '/app/marketing',
+        icon: 'marketing',
         children: [
           { label: t('crm.nav.marketingTraffic'), path: '/app/marketing/traffic' },
           { label: t('crm.nav.marketingCampaigns'), path: '/app/marketing/campaigns' },
@@ -526,23 +696,46 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {
         label: t('crm.nav.tools'),
-        path: '/app/settings',
+        path: '/app/automations',
+        icon: 'tools',
+        matchPaths: [
+          '/app/automations',
+          '/automations',
+          '/app/email',
+          '/email',
+          '/app/telegram',
+          '/telegram',
+        ],
         children: [
-          { label: t('crm.nav.settingsCompany'), path: '/app/settings' },
-          { label: t('crm.nav.settingsApi'), path: '/app/settings/api' },
           { label: t('crm.nav.toolsAutomations'), path: '/app/automations' },
           { label: t('crm.nav.toolsEmail'), path: '/app/email' },
           { label: t('crm.nav.toolsTelegram'), path: '/app/telegram' },
         ],
       },
 
-      { label: t('crm.nav.chat'), path: '/app/chat' },
-      { label: t('crm.nav.clientAccounts'), path: '/app/client-accounts' },
+      { label: t('crm.nav.chat'), path: '/app/chat', icon: 'chat' },
+      { label: t('crm.nav.clientAccounts'), path: '/app/client-accounts', icon: 'invoice' },
 
       {
-        label: t('crm.nav.staff'),
-        path: '/app/staff',
+        label: t('crm.nav.settings'),
+        path: '/app/settings',
+        icon: 'settings',
+        matchPaths: [
+          '/app/settings',
+          '/settings',
+          '/app/staff',
+          '/staff',
+          '/app/departments',
+          '/departments',
+          '/app/profile',
+          '/profile',
+          '/app/staff/permissions',
+          '/staff/permissions',
+        ],
         children: [
+          { label: t('crm.nav.settingsCompany'), path: '/app/settings' },
+          { label: t('crm.nav.settingsApi'), path: '/app/settings/api' },
+          { label: t('crm.nav.settingsAccount'), path: '/app/profile' },
           { label: t('crm.nav.staffList'), path: '/app/staff' },
           { label: t('crm.nav.staffPermissions'), path: '/app/staff/permissions' },
           { label: t('crm.nav.departments'), path: '/app/departments' },
@@ -552,46 +745,25 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     [t],
   );
 
-  // Маппинг путей к ключам компонентов (проверяем более специфичные пути первыми)
+  // Маппинг путей к ключам компонентов (после редиректа /app → короткие пути)
   const componentKeyForPath = (path: string): string | null => {
-    // Лиды
-    if (path.startsWith('/app/leads')) return 'leads';
-    
-    // Проекты - подменю
-    if (path.startsWith('/app/projects/analytics')) return 'projects_analytics';
-    if (path.startsWith('/app/projects')) return 'projects';
-    
-    // Продажи - подменю
-    if (path.startsWith('/app/sales')) return 'sales';
-    
-    // Маркетинг - подменю
-    if (path.startsWith('/app/marketing/campaigns')) return 'marketing_campaigns';
-    if (path.startsWith('/app/marketing')) return 'marketing';
-    
-    // Контакты
-    if (path.startsWith('/app/contacts')) return 'contacts';
-    
-    // Компании
-    if (path.startsWith('/app/companies')) return 'companies';
-    
-    // Автоматизации
-    if (path.startsWith('/app/automations')) return 'tools_automation';
-    
-    // Email
-    if (path.startsWith('/app/email')) return 'email';
-    
-    // Telegram
-    if (path.startsWith('/app/telegram')) return 'telegram';
-    
-    // Инструменты - подменю
-    if (path.startsWith('/app/settings')) return 'tools_settings';
-    
-    // Чат
-    if (path.startsWith('/app/chat')) return 'chat';
-    
-    // Счета клиентов
-    if (path.startsWith('/app/client-accounts')) return 'client_accounts';
-    
+    const p = normalizeLayoutPath(path);
+    if (p.startsWith('/leads')) return 'leads';
+    if (p.startsWith('/projects/analytics')) return 'projects_analytics';
+    if (p.startsWith('/projects')) return 'projects';
+    if (p.startsWith('/sales')) return 'sales';
+    if (p.startsWith('/marketing/campaigns')) return 'marketing_campaigns';
+    if (p.startsWith('/marketing')) return 'marketing';
+    if (p.startsWith('/contacts')) return 'contacts';
+    if (p.startsWith('/companies')) return 'companies';
+    if (p.startsWith('/automations')) return 'tools_automation';
+    if (p.startsWith('/email')) return 'email';
+    if (p.startsWith('/telegram')) return 'telegram';
+    if (p.startsWith('/settings')) return 'tools_settings';
+    if (p.startsWith('/profile')) return 'tools_settings';
+    if (p.startsWith('/chat')) return 'chat';
+    if (p.startsWith('/client-accounts')) return 'client_accounts';
+    if (p.startsWith('/workspace')) return 'custom_objects';
     return null;
   };
 
@@ -604,26 +776,29 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     // Если компонент не найден в списке, разрешаем доступ (новый компонент)
     // Если найден, проверяем его статус
     // Для новых модулей (contacts, companies, automations) разрешаем доступ по умолчанию
-    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes'].includes(componentKey)) {
+    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects'].includes(componentKey)) {
       return true;
     }
     return component ? component.enabled : true;
   };
 
-  // выбираем самый "глубокий" root-route
   const permissionForPath = (path: string): PermissionKey | null => {
-    if (path.startsWith('/app/leads')) return 'leads';
-    if (path.startsWith('/app/projects')) return 'projects';
-    if (path.startsWith('/app/staff')) return 'staff';
-    if (path.startsWith('/app/settings')) return 'settings';
-    if (path.startsWith('/app/contacts')) return 'contacts';
-    if (path.startsWith('/app/companies')) return 'companies';
-    if (path.startsWith('/app/automations')) return 'tools_automation';
-    if (path.startsWith('/app/email')) return 'email';
-    if (path.startsWith('/app/telegram')) return 'telegram';
-    if (path.startsWith('/app/chat')) return 'chat';
-    if (path.startsWith('/app/analytics')) return 'analytics';
-    if (path.startsWith('/app/sales')) return 'finance';
+    const p = normalizeLayoutPath(path);
+    if (p.startsWith('/leads')) return 'leads';
+    if (p.startsWith('/projects')) return 'projects';
+    if (p.startsWith('/staff')) return 'staff';
+    if (p.startsWith('/departments')) return 'staff';
+    if (p.startsWith('/settings')) return 'settings';
+    if (p.startsWith('/profile')) return 'settings';
+    if (p.startsWith('/contacts')) return 'contacts';
+    if (p.startsWith('/companies')) return 'companies';
+    if (p.startsWith('/automations')) return 'tools_automation';
+    if (p.startsWith('/email')) return 'tools_automation';
+    if (p.startsWith('/telegram')) return 'tools_automation';
+    if (p.startsWith('/chat')) return 'chat';
+    if (p.startsWith('/analytics')) return 'analytics';
+    if (p.startsWith('/sales')) return 'finance';
+    if (p.startsWith('/workspace')) return 'custom_objects';
     return null;
   };
 
@@ -632,7 +807,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (user?.role === 'owner') return true;
     
     // Для новых модулей разрешаем доступ по умолчанию (пока не настроены права)
-    const newModules = ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes'];
+    const newModules = ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects'];
     if (newModules.includes(perm)) {
       return true;
     }
@@ -666,28 +841,39 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     }
 
     return { ...item, children };
-  }).filter(Boolean) as typeof NAV;
+  }).filter(Boolean) as NavItem[];
 
-  const activeRoot =
-    [...filteredNav]
-      .sort((a, b) => b.path.length - a.path.length)
-      .find((item) => location.pathname.startsWith(item.path)) || filteredNav[0] || NAV[0];
+  const pathname = location.pathname;
+  const scored = filteredNav
+    .map((item) => ({ item, score: itemMatchScore(pathname, item) }))
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score);
+  const activeRoot = scored[0]?.item ?? filteredNav[0] ?? NAV[0];
 
-  const isSectionOpen = (path: string) =>
-    openGroup ? openGroup === path : activeRoot?.path === path;
+  const isSectionOpen = (path: string) => {
+    if (Object.prototype.hasOwnProperty.call(sectionExpanded, path)) {
+      return sectionExpanded[path];
+    }
+    return activeRoot?.path === path;
+  };
 
-  const toggleSection = (path: string) =>
-    setOpenGroup((prev) => (prev === path ? null : path));
+  const toggleSection = (path: string) => {
+    setSectionExpanded((prev) => {
+      const defaultOpen = activeRoot?.path === path;
+      const current = path in prev ? prev[path] : defaultOpen;
+      return { ...prev, [path]: !current };
+    });
+  };
 
-  // ищем активный дочерний пункт (например, "Аналитика" у "Лиды")
   const activeChild =
     activeRoot.children?.find((child) =>
-      location.pathname.startsWith(child.path),
+      matchesNavPath(pathname, child.path),
     ) || null;
 
   const headerSubtitle = activeChild
     ? `${activeRoot.label} · ${activeChild.label}`
     : activeRoot.label;
+  const canOpenWorkspace = isComponentEnabled('custom_objects');
 
   // инициалы для аватарки
   const initials = (() => {
@@ -702,47 +888,86 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       .join('');
   })();
 
+  const sidebarTenantName = tenantNameDisplay ?? getStoredTenantName();
+
+  const isCrmShellPath = (pathname: string): boolean => {
+    if (pathname.startsWith('/app')) return true;
+    const roots = [
+      '/dashboard',
+      '/workspace',
+      '/leads',
+      '/contacts',
+      '/companies',
+      '/projects',
+      '/sales',
+      '/marketing',
+      '/automations',
+      '/email',
+      '/telegram',
+      '/settings',
+      '/staff',
+      '/departments',
+      '/profile',
+      '/chat',
+      '/client-accounts',
+      '/billing',
+      '/forbidden',
+    ];
+    return roots.some((r) => pathname === r || pathname.startsWith(`${r}/`));
+  };
+
   // редирект на forbidden если нет доступа или компонент отключен
   useEffect(() => {
     if (!componentsLoaded || !permsLoaded) return;
-    
-    if (location.pathname.startsWith('/app')) {
-      // Проверка компонента
+
+    if (isCrmShellPath(location.pathname)) {
       const componentKey = componentKeyForPath(location.pathname);
       if (!isComponentEnabled(componentKey)) {
-        navigate('/app/forbidden', { replace: true });
+        navigate('/forbidden', { replace: true });
         return;
       }
 
-      // Проверка прав доступа
       const perm = permissionForPath(location.pathname);
       if (!canAccess(perm)) {
-        navigate('/app/forbidden', { replace: true });
+        navigate('/forbidden', { replace: true });
       }
     }
   }, [location.pathname, permsLoaded, componentsLoaded, tenantComponents]);
 
   return (
     <div key={location.pathname} className="h-full flex bg-lumiva-bg text-lumiva-accent">
-      {/* SIDEBAR — только на md+ */}
-      <aside className="hidden md:flex md:flex-col w-64 bg-white/95 border-r border-slate-200 px-4 py-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)] backdrop-blur">
-        {/* Лого / заголовок */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="h-9 w-9 rounded-2xl bg-lumiva-accent flex items-center justify-center text-white font-bold text-sm shadow-[0_10px_30px_rgba(34,34,34,0.18)]">
-            C
-          </div>
-          <div>
-            <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
-              Lumiva
+      {/* SIDEBAR — только на md+ (узкий режим: только иконки + кнопка на грани) */}
+      <div
+        className="relative hidden md:flex shrink-0"
+        onMouseLeave={() => setSidebarEdgeHover(false)}
+      >
+        <aside
+          className={`flex flex-col h-full min-h-0 bg-white/95 border-r border-slate-200 py-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)] backdrop-blur transition-[width,padding] duration-200 ease-out ${
+            sidebarCollapsed ? 'w-[4.5rem] px-2' : 'w-64 px-4'
+          }`}
+        >
+        {/* Компания */}
+        <div
+          className={`flex items-center gap-3 mb-6 shrink-0 ${sidebarCollapsed ? 'justify-center' : ''}`}
+        >
+          <img
+            src={sidebarBrandLogoSrc}
+            alt=""
+            onError={() => {
+              if (tenantLogoUrl?.trim()) setTenantLogoFailed(true);
+            }}
+            className="h-9 w-9 rounded-2xl object-cover shadow-[0_10px_30px_rgba(34,34,34,0.18)] ring-1 ring-slate-200/80 bg-white"
+          />
+          <div className={`min-w-0 flex-1 ${sidebarCollapsed ? 'hidden' : ''}`}>
+            <div className="text-sm font-semibold text-slate-900 truncate">
+              {sidebarTenantName || t('crm.sidebar.brandFallback')}
             </div>
-            <div className="text-[11px] text-slate-400">
-              {t('crm.common.adminLabel')}
-            </div>
+            <div className="text-[11px] text-slate-400">{t('crm.common.adminLabel')}</div>
           </div>
         </div>
 
         {/* Навигация (desktop) */}
-        <nav className="space-y-1 text-[13px]">
+        <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 text-[13px] pr-0.5">
           {(!componentsLoaded || !permsLoaded) ? (
             // Показываем скелетон загрузки вместо меню
             <div className="space-y-2">
@@ -757,49 +982,62 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             filteredNav.map((item) => {
             const hasChildren = !!item.children?.length;
             const open = hasChildren && isSectionOpen(item.path);
+            const sectionActive = activeRoot.path === item.path;
+            const Icon = NAV_ICON_MAP[item.icon];
 
             return (
               <div key={item.path}>
                 <NavLink
                   to={item.path}
+                  title={sidebarCollapsed ? item.label : undefined}
                   onClick={(event) => handleNavClick(event, item.path)}
-                  className={({ isActive }) =>
+                  className={() =>
                     [
-                      'w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between transition-all',
-                      isActive || location.pathname.startsWith(item.path)
+                      'w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 transition-all',
+                      sidebarCollapsed ? 'justify-center' : 'justify-between',
+                      sectionActive
                         ? 'bg-slate-100 text-lumiva-accent shadow-sm'
                         : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
                     ].join(' ')
                   }
                 >
-                  <span>{item.label}</span>
-                  {hasChildren && (
+                  <span
+                    className={`flex items-center gap-2 min-w-0 ${sidebarCollapsed ? 'justify-center' : 'flex-1'}`}
+                  >
+                    <Icon
+                      className={
+                        sectionActive ? 'text-lumiva-accent' : 'text-slate-400'
+                      }
+                    />
+                    <span className={sidebarCollapsed ? 'sr-only' : 'truncate'}>{item.label}</span>
+                  </span>
+                  {hasChildren && !sidebarCollapsed && (
                     <button
                       type="button"
-                      className="ml-2 text-[10px] text-slate-400 hover:text-lumiva-accent"
+                      className="ml-1 shrink-0 inline-flex items-center justify-center rounded-md p-0.5 text-emerald-800 hover:bg-emerald-50"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         toggleSection(item.path);
                       }}
+                      aria-expanded={open}
                     >
-                      {open ? '▲' : '▼'}
+                      <NavChevronDown expanded={open} />
                     </button>
                   )}
                 </NavLink>
 
-                {/* Подменю — только если раздел открыт */}
-                {hasChildren && open && (
+                {hasChildren && open && !sidebarCollapsed && (
                   <div className="mt-1 mb-1 ml-3 space-y-0.5">
                     {item.children!.map((child) => (
                       <NavLink
                         key={child.path}
                         to={child.path}
                         onClick={(event) => handleNavClick(event, child.path)}
-                        className={({ isActive }) =>
+                        className={() =>
                           [
                             'block text-[12px] px-2 py-1 rounded-lg',
-                            isActive
+                            matchesNavPath(pathname, child.path)
                               ? 'bg-slate-100 text-lumiva-accent shadow-sm'
                               : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
                           ].join(' ')
@@ -816,26 +1054,95 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           )}
         </nav>
 
-        <div className="mt-auto pt-6 border-t border-slate-200 text-[11px] text-slate-500">
-          <div className="flex items-center justify-between mb-2">
+        {canOpenWorkspace && <WorkspaceSidebarBlock enabled compact={sidebarCollapsed} />}
+
+        <div
+          className={`mt-auto pt-6 shrink-0 border-t border-slate-200 text-[11px] text-slate-500 ${
+            sidebarCollapsed ? 'flex flex-col items-center gap-2' : ''
+          }`}
+        >
+          {!sidebarCollapsed && (
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => (window.location.href = '/app/profile')}
+                className="text-lumiva-accent hover:text-black"
+              >
+                {user?.name ?? t('crm.common.user')}
+              </button>
+              <span className="px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] uppercase tracking-[0.16em] text-slate-500">
+                {user?.role ?? 'owner'}
+              </span>
+            </div>
+          )}
+          {sidebarCollapsed && (
             <button
+              type="button"
+              title={user?.name ?? t('crm.common.user')}
               onClick={() => (window.location.href = '/app/profile')}
-              className="text-lumiva-accent hover:text-black"
+              className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-lumiva-accent border border-slate-200 hover:bg-slate-200"
             >
-              {user?.name ?? t('crm.common.user')}
+              {initials.slice(0, 2) || 'U'}
             </button>
-            <span className="px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] uppercase tracking-[0.16em] text-slate-500">
-              {user?.role ?? 'owner'}
-            </span>
-          </div>
+          )}
           <button
+            type="button"
             onClick={handleLogout}
-            className="text-slate-500 hover:text-lumiva-accent transition-colors"
+            title={t('crm.common.logout')}
+            aria-label={t('crm.common.logout')}
+            className={`text-slate-500 hover:text-lumiva-accent transition-colors ${
+              sidebarCollapsed
+                ? 'inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white hover:bg-slate-50'
+                : ''
+            }`}
           >
-            {t('crm.common.logout')}
+            {sidebarCollapsed ? (
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                />
+              </svg>
+            ) : (
+              t('crm.common.logout')
+            )}
           </button>
         </div>
       </aside>
+
+        <div
+          className="absolute top-0 right-0 bottom-0 z-50 flex w-5 translate-x-1/2 items-center justify-center"
+          onMouseEnter={() => setSidebarEdgeHover(true)}
+        >
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed((c) => !c)}
+            title={
+              sidebarCollapsed
+                ? t('crm.sidebar.expandSidebar')
+                : t('crm.sidebar.collapseSidebar')
+            }
+            aria-label={
+              sidebarCollapsed
+                ? t('crm.sidebar.expandSidebar')
+                : t('crm.sidebar.collapseSidebar')
+            }
+            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-sky-200 bg-white text-slate-600 shadow-md transition-opacity hover:bg-sky-50 ${
+              sidebarCollapsed || sidebarEdgeHover ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            }`}
+          >
+            {sidebarCollapsed ? (
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+              </svg>
+            ) : (
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -1247,15 +1554,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[80%] bg-white border-r border-slate-200 px-4 py-4 flex flex-col shadow-[0_20px_60px_rgba(17,24,39,0.12)]">
               {/* шапка меню */}
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-2xl bg-lumiva-accent flex items-center justify-center text-white text-xs font-bold shadow-[0_10px_30px_rgba(34,34,34,0.18)]">
-                    C
-                  </div>
-                  <div>
-                    <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                      Lumiva CRM
+                <div className="flex items-center gap-2 min-w-0">
+                  <img
+                    src={sidebarBrandLogoSrc}
+                    alt=""
+                    onError={() => {
+                      if (tenantLogoUrl?.trim()) setTenantLogoFailed(true);
+                    }}
+                    className="h-8 w-8 shrink-0 rounded-2xl object-cover shadow-[0_10px_30px_rgba(34,34,34,0.18)] ring-1 ring-slate-200/80 bg-white"
+                  />
+                  <div className="min-w-0">
+                    <div className="text-[13px] font-semibold text-slate-900 truncate">
+                      {sidebarTenantName || t('crm.sidebar.brandFallback')}
                     </div>
-                    <div className="text-[11px] text-slate-400">
+                    <div className="text-[11px] text-slate-400 truncate">
                       {user?.name || user?.email || t('crm.common.user')}
                     </div>
                   </div>
@@ -1271,7 +1583,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </div>
 
               {/* Навигация (mobile) */}
-              <nav className="flex-1 overflow-y-auto text-[13px] space-y-1">
+              <nav className="flex-1 min-h-0 overflow-y-auto text-[13px] space-y-1">
                 {(!componentsLoaded || !permsLoaded) ? (
                   // Показываем скелетон загрузки вместо меню
                   <div className="space-y-2">
@@ -1286,34 +1598,43 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   filteredNav.map((item) => {
                     const hasChildren = !!item.children?.length;
                     const open = hasChildren && isSectionOpen(item.path);
+                    const sectionActive = activeRoot.path === item.path;
+                    const Icon = NAV_ICON_MAP[item.icon];
 
                     return (
                       <div key={item.path}>
                         <NavLink
                           to={item.path}
-                      onClick={(event) => handleNavClick(event, item.path, closeMobile)}
-                          className={({ isActive }) =>
+                          onClick={(event) => handleNavClick(event, item.path, closeMobile)}
+                          className={() =>
                             [
-                              'w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between transition-all',
-                              isActive ||
-                              location.pathname.startsWith(item.path)
+                              'w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 transition-all',
+                              sectionActive
                                 ? 'bg-slate-100 text-lumiva-accent shadow-sm'
                                 : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
                             ].join(' ')
                           }
                         >
-                          <span>{item.label}</span>
+                          <span className="flex items-center gap-2 min-w-0 flex-1">
+                            <Icon
+                              className={
+                                sectionActive ? 'text-lumiva-accent' : 'text-slate-400'
+                              }
+                            />
+                            <span className="truncate">{item.label}</span>
+                          </span>
                           {hasChildren && (
                             <button
                               type="button"
-                              className="ml-2 text-[10px] text-slate-400 hover:text-lumiva-accent"
+                              className="ml-1 shrink-0 inline-flex items-center justify-center rounded-md p-0.5 text-emerald-800 hover:bg-emerald-50"
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 toggleSection(item.path);
                               }}
+                              aria-expanded={open}
                             >
-                              {open ? '▲' : '▼'}
+                              <NavChevronDown expanded={open} />
                             </button>
                           )}
                         </NavLink>
@@ -1321,23 +1642,23 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         {hasChildren && open && (
                           <div className="mt-1 mb-1 ml-3 space-y-0.5">
                             {item.children!.map((child) => (
-                            <NavLink
-                              key={child.path}
-                              to={child.path}
-                              onClick={(event) =>
-                                handleNavClick(event, child.path, closeMobile)
-                              }
-                              className={({ isActive }) =>
-                                [
-                                  'block text-[12px] px-2 py-1 rounded-lg',
-                                  isActive
-                                    ? 'bg-slate-100 text-lumiva-accent shadow-sm'
-                                    : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
-                                ].join(' ')
-                              }
-                            >
-                              {child.label}
-                            </NavLink>
+                              <NavLink
+                                key={child.path}
+                                to={child.path}
+                                onClick={(event) =>
+                                  handleNavClick(event, child.path, closeMobile)
+                                }
+                                className={() =>
+                                  [
+                                    'block text-[12px] px-2 py-1 rounded-lg',
+                                    matchesNavPath(pathname, child.path)
+                                      ? 'bg-slate-100 text-lumiva-accent shadow-sm'
+                                      : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
+                                  ].join(' ')
+                                }
+                              >
+                                {child.label}
+                              </NavLink>
                             ))}
                           </div>
                         )}
@@ -1346,6 +1667,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   })
                 )}
               </nav>
+
+              {canOpenWorkspace && (
+                <WorkspaceSidebarBlock enabled onMobileNavigate={closeMobile} />
+              )}
 
               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
@@ -1402,7 +1727,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </div>
               {billingLocked && location.pathname !== '/app/billing' && (
                 <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/45 px-3 py-6 backdrop-blur-sm md:items-center md:px-6">
-                  <div className="max-h-[96vh] w-full max-w-[99vw] overflow-auto rounded-3xl 2xl:max-w-[1700px]">
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    aria-label={t('crm.common.logout') || 'Выйти'}
+                    className="absolute right-4 top-4 z-20 h-9 w-9 rounded-full border border-white/70 bg-white/90 text-xl leading-none text-slate-700 shadow-[0_10px_24px_rgba(15,23,42,0.18)] transition hover:bg-white"
+                  >
+                    ×
+                  </button>
+                  <div className="relative max-h-[96vh] w-full max-w-[99vw] overflow-x-hidden overflow-y-auto rounded-[28px] bg-white/20 p-2 shadow-[0_28px_90px_rgba(15,23,42,0.35)] 2xl:max-w-[1700px] md:p-3">
                     <BillingPage embedded />
                   </div>
                 </div>

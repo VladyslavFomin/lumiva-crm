@@ -5,6 +5,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from 'react-router-dom';
 
 import { LoginPage } from '../pages/LoginPage';
@@ -14,7 +15,11 @@ import LandingPage from "../pages/LandingPage";
 import DevelopmentPage from '../pages/public/DevelopmentPage';
 import ScenariosPage from '../pages/public/ScenariosPage';
 import ApiPage from '../pages/public/ApiPage';
+import IntegrationsPage from '../pages/public/IntegrationsPage';
 import SolutionsPage from '../pages/public/SolutionsPage';
+import AnalyticsPage from '../pages/public/AnalyticsPage';
+import MarketingPage from '../pages/public/MarketingPage';
+import SalesSolutionsPage from '../pages/public/SalesSolutionsPage';
 import PrivacyPage from '../pages/public/PrivacyPage';
 import BlogPage from '../pages/public/BlogPage';
 import PricingPage from '../pages/public/PricingPage';
@@ -34,7 +39,7 @@ import { DepartmentFormPage } from '../pages/departments/DepartmentFormPage';
 
 // SALES
 import { SalesPage } from '../pages/sales/SalesPage';
-import { SalesAnalyticsPage } from '../pages/sales/SalesAnalyticsPage';
+import { SalesAnalyticsPage } from '../pages/sales/SalesAnalyticsPageV2';
 import { SalesChannelsPage } from '../pages/sales/SalesChannelsPage';
 import { SalesIntegrationsPage } from '../pages/sales/SalesIntegrationsPage';
 import { SalesImportPage } from '../pages/sales/SalesImportPage';
@@ -51,8 +56,9 @@ import { ProfilePage } from '../pages/profile/ProfilePage';
 // Лиды
 import { LeadsBoardPage } from '../pages/leads/LeadsBoardPage';
 import { LeadsListPage } from '../pages/leads/LeadsListPage';
+import { LeadsCalendarPage } from '../pages/leads/LeadsCalendarPage';
 import { LeadFormPage } from '../pages/leads/LeadFormPage';
-import { LeadsAnalyticsPage } from '../pages/analytics/LeadsAnalyticsPage';
+import { LeadsAnalyticsPage } from '../pages/analytics/LeadsAnalyticsPageV2';
 import { LeadsRoiPage } from '../pages/analytics/LeadsRoiPage';
 import { CompaniesAnalyticsPage } from '../pages/analytics/CompaniesAnalyticsPage';
 import { LostLeadsPage } from '../pages/leads/LostLeadsPage';
@@ -64,13 +70,13 @@ import { ProjectsListPage } from '../pages/projects/ProjectsListPage';
 import { ProjectsBoardPage } from '../pages/projects/ProjectsBoardPage';
 import { ProjectsArchivePage } from '../pages/projects/ProjectsArchivePage';
 import { ProjectsTrashPage } from '../pages/projects/ProjectsTrashPage';
-import { ProjectsBulkEditPage } from '../pages/projects/ProjectsBulkEditPage';
 import { ProjectFormPage } from '../pages/projects/ProjectFormPage';
 import { ClosedProjectsPage } from '../pages/projects/ClosedProjectsPage';
 import { InProgressProjectsPage } from '../pages/projects/InProgressProjectsPage';
 import { ProjectTasksPage } from '../pages/projects/ProjectTasksPage';
 import { OverdueTasksPage } from '../pages/projects/OverdueTasksPage';
 import { ProjectsAnalyticsPage } from '../pages/projects/ProjectsAnalyticsPage';
+import { ProjectsCalendarPage } from '../pages/projects/ProjectsCalendarPage';
 
 // CCP
 import ClientAccountsPage from '../pages/client-accounts/ClientAccountsPage';
@@ -106,6 +112,14 @@ import { EmailAccountsPage } from '../pages/email/EmailAccountsPage';
 import { EmailAccountFormPage } from '../pages/email/EmailAccountFormPage';
 import { TelegramBotsPage } from '../pages/telegram-crm/TelegramBotsPage';
 import { TelegramBotFormPage } from '../pages/telegram-crm/TelegramBotFormPage';
+import { WorkspaceTablesPage } from '../pages/workspace/WorkspaceTablesPage';
+import { WorkspaceNewTablePage } from '../pages/workspace/WorkspaceNewTablePage';
+import { WorkspaceTableViewPage } from '../pages/workspace/WorkspaceTableViewPage';
+import { WorkspaceKanbanViewPage } from '../pages/workspace/WorkspaceKanbanViewPage';
+import { WorkspaceCalendarViewPage } from '../pages/workspace/WorkspaceCalendarViewPage';
+import { WorkspaceAnalyticsPage } from '../pages/workspace/WorkspaceAnalyticsPage';
+import { WorkspaceSettingsPage } from '../pages/workspace/WorkspaceSettingsPage';
+import { WorkspaceImportPage } from '../pages/workspace/WorkspaceImportPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -117,6 +131,20 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   return children;
 };
 
+const LegacyAppRedirect: React.FC = () => {
+  const location = useLocation();
+  const nextPath =
+    location.pathname === '/app' || location.pathname === '/app/'
+      ? '/dashboard'
+      : location.pathname.replace(/^\/app/, '') || '/dashboard';
+  return (
+    <Navigate
+      to={`${nextPath}${location.search}${location.hash}`}
+      replace
+    />
+  );
+};
+
 export const AppRouter: React.FC = () => {
   return (
     <BrowserRouter>
@@ -125,8 +153,13 @@ export const AppRouter: React.FC = () => {
         <Route path="/" element={<LandingPage />} />
         <Route path="/development" element={<DevelopmentPage />} />
         <Route path="/scenarios" element={<ScenariosPage />} />
-        <Route path="/api" element={<ApiPage />} />
+        <Route path="/api-integration" element={<ApiPage />} />
+        <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/solutions" element={<SolutionsPage />} />
+        <Route path="/solutions/analytics" element={<AnalyticsPage />} />
+        <Route path="/solutions/marketing" element={<MarketingPage />} />
+        <Route path="/solutions/sales" element={<SalesSolutionsPage />} />
+        <Route path="/analytics" element={<Navigate to="/solutions/analytics" replace />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/blog" element={<BlogPage />} />
@@ -139,7 +172,7 @@ export const AppRouter: React.FC = () => {
 
         {/* DASHBOARD */}
         <Route
-          path="/app/billing"
+          path="/billing"
           element={
             <ProtectedRoute>
               <BillingPage />
@@ -148,7 +181,7 @@ export const AppRouter: React.FC = () => {
         />
 
         <Route
-          path="/app"
+          path="/dashboard"
           element={
             <ProtectedRoute>
               <DashboardPage />
@@ -157,7 +190,7 @@ export const AppRouter: React.FC = () => {
         />
 
         <Route
-          path="/app/forbidden"
+          path="/forbidden"
           element={
             <ProtectedRoute>
               <AccessDeniedPage />
@@ -167,7 +200,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- ЛИДЫ -------- */}
         <Route
-          path="/app/leads"
+          path="/leads"
           element={
             <ProtectedRoute>
               <LeadsListPage />
@@ -175,7 +208,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/board"
+          path="/leads/board"
           element={
             <ProtectedRoute>
               <LeadsBoardPage />
@@ -183,7 +216,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/list"
+          path="/leads/list"
           element={
             <ProtectedRoute>
               <LeadsListPage />
@@ -191,7 +224,15 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/archive"
+          path="/leads/calendar"
+          element={
+            <ProtectedRoute>
+              <LeadsCalendarPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leads/archive"
           element={
             <ProtectedRoute>
               <LeadsArchivePage />
@@ -199,7 +240,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/trash"
+          path="/leads/trash"
           element={
             <ProtectedRoute>
               <LeadsTrashPage />
@@ -207,7 +248,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/new"
+          path="/leads/new"
           element={
             <ProtectedRoute>
               <LeadFormPage />
@@ -215,7 +256,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/analytics"
+          path="/leads/analytics"
           element={
             <ProtectedRoute>
               <LeadsAnalyticsPage />
@@ -223,7 +264,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/lost"
+          path="/leads/lost"
           element={
             <ProtectedRoute>
               <LostLeadsPage />
@@ -231,7 +272,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/roi"
+          path="/leads/roi"
           element={
             <ProtectedRoute>
               <LeadsRoiPage />
@@ -239,7 +280,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/leads/:id"
+          path="/leads/:id"
           element={
             <ProtectedRoute>
               <LeadFormPage />
@@ -249,7 +290,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- ПРОЕКТЫ -------- */}
         <Route
-          path="/app/projects"
+          path="/projects"
           element={
             <ProtectedRoute>
               <ProjectsListPage />
@@ -257,7 +298,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/archive"
+          path="/projects/archive"
           element={
             <ProtectedRoute>
               <ProjectsArchivePage />
@@ -265,7 +306,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/trash"
+          path="/projects/trash"
           element={
             <ProtectedRoute>
               <ProjectsTrashPage />
@@ -273,15 +314,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/bulk-edit"
-          element={
-            <ProtectedRoute>
-              <ProjectsBulkEditPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/app/projects/closed"
+          path="/projects/closed"
           element={
             <ProtectedRoute>
               <ClosedProjectsPage />
@@ -289,7 +322,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/in-progress"
+          path="/projects/in-progress"
           element={
             <ProtectedRoute>
               <InProgressProjectsPage />
@@ -297,7 +330,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/tasks"
+          path="/projects/tasks"
           element={
             <ProtectedRoute>
               <ProjectTasksPage />
@@ -305,7 +338,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/tasks/overdue"
+          path="/projects/tasks/overdue"
           element={
             <ProtectedRoute>
               <OverdueTasksPage />
@@ -313,7 +346,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/analytics"
+          path="/projects/analytics"
           element={
             <ProtectedRoute>
               <ProjectsAnalyticsPage />
@@ -321,7 +354,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/board"
+          path="/projects/board"
           element={
             <ProtectedRoute>
               <ProjectsBoardPage />
@@ -329,7 +362,15 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/new"
+          path="/projects/calendar"
+          element={
+            <ProtectedRoute>
+              <ProjectsCalendarPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/projects/new"
           element={
             <ProtectedRoute>
               <ProjectFormPage />
@@ -337,7 +378,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/create"
+          path="/projects/create"
           element={
             <ProtectedRoute>
               <ProjectFormPage />
@@ -345,7 +386,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/projects/:id"
+          path="/projects/:id"
           element={
             <ProtectedRoute>
               <ProjectFormPage />
@@ -355,7 +396,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- Глобальная аналитика -------- */}
         <Route
-          path="/app/analytics/leads"
+          path="/analytics/leads"
           element={
             <ProtectedRoute>
               <LeadsAnalyticsPage />
@@ -363,7 +404,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/analytics/roi"
+          path="/analytics/roi"
           element={
             <ProtectedRoute>
               <LeadsRoiPage />
@@ -373,7 +414,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- СОТРУДНИКИ -------- */}
         <Route
-          path="/app/staff"
+          path="/staff"
           element={
             <ProtectedRoute>
               <StaffListPage />
@@ -381,7 +422,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/staff/:id/profile"
+          path="/staff/:id/profile"
           element={
             <ProtectedRoute>
               <StaffProfilePage />
@@ -389,7 +430,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/staff/:id"
+          path="/staff/:id"
           element={
             <ProtectedRoute>
               <StaffDetailPage />
@@ -399,7 +440,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- ОТДЕЛЫ -------- */}
         <Route
-          path="/app/departments"
+          path="/departments"
           element={
             <ProtectedRoute>
               <DepartmentsPage />
@@ -407,7 +448,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/departments/new"
+          path="/departments/new"
           element={
             <ProtectedRoute>
               <DepartmentFormPage />
@@ -415,7 +456,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/departments/:id"
+          path="/departments/:id"
           element={
             <ProtectedRoute>
               <DepartmentFormPage />
@@ -425,7 +466,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- ПРОФИЛЬ -------- */}
         <Route
-          path="/app/profile"
+          path="/profile"
           element={
             <ProtectedRoute>
               <ProfilePage />
@@ -435,7 +476,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- НАСТРОЙКИ -------- */}
         <Route
-          path="/app/settings"
+          path="/settings"
           element={
             <ProtectedRoute>
               <SettingsCompanyPage />
@@ -443,7 +484,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/settings/api"
+          path="/settings/api"
           element={
             <ProtectedRoute>
               <SettingsApiPage />
@@ -453,7 +494,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- ПРАВА ДОСТУПА -------- */}
         <Route
-          path="/app/staff/permissions"
+          path="/staff/permissions"
           element={
             <ProtectedRoute>
               <StaffPermissionsPage />
@@ -463,7 +504,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- ПРОДАЖИ -------- */}
         <Route
-          path="/app/sales"
+          path="/sales"
           element={
             <ProtectedRoute>
               <SalesPage />
@@ -471,7 +512,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/sales/analytics"
+          path="/sales/analytics"
           element={
             <ProtectedRoute>
               <SalesAnalyticsPage />
@@ -479,7 +520,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/sales/:id"
+          path="/sales/:id"
           element={
             <ProtectedRoute>
               <SaleDetailsPage />
@@ -487,7 +528,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/sales/channels"
+          path="/sales/channels"
           element={
             <ProtectedRoute>
               <SalesChannelsPage />
@@ -495,7 +536,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/sales/integrations"
+          path="/sales/integrations"
           element={
             <ProtectedRoute>
               <SalesIntegrationsPage />
@@ -503,7 +544,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/sales/integrations/new"
+          path="/sales/integrations/new"
           element={
             <ProtectedRoute>
               <SalesIntegrationNewPage />
@@ -511,7 +552,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/sales/import"
+          path="/sales/import"
           element={
             <ProtectedRoute>
               <SalesImportPage />
@@ -521,18 +562,18 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- МАРКЕТИНГ -------- */}
 
-        {/* корень маркетинга: /app/marketing → сразу на трафик */}
+        {/* корень маркетинга: /marketing → сразу на трафик */}
         <Route
-          path="/app/marketing"
+          path="/marketing"
           element={
             <ProtectedRoute>
-              <Navigate to="/app/marketing/traffic" replace />
+              <Navigate to="/marketing/traffic" replace />
             </ProtectedRoute>
           }
         />
 
         <Route
-          path="/app/marketing/traffic"
+          path="/marketing/traffic"
           element={
             <ProtectedRoute>
               <TrafficPage />
@@ -540,7 +581,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/campaigns"
+          path="/marketing/campaigns"
           element={
             <ProtectedRoute>
               <CampaignsPage />
@@ -548,7 +589,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/smm"
+          path="/marketing/smm"
           element={
             <ProtectedRoute>
               <SmmPage />
@@ -556,7 +597,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/utms"
+          path="/marketing/utms"
           element={
             <ProtectedRoute>
               <UtmsPage />
@@ -564,7 +605,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/segments"
+          path="/marketing/segments"
           element={
             <ProtectedRoute>
               <SegmentsPage />
@@ -572,7 +613,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/channels"
+          path="/marketing/channels"
           element={
             <ProtectedRoute>
               <ChannelsPage />
@@ -580,7 +621,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/seo"
+          path="/marketing/seo"
           element={
             <ProtectedRoute>
               <SeoPage />
@@ -588,7 +629,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/integrations"
+          path="/marketing/integrations"
           element={
             <ProtectedRoute>
               <MarketingIntegrationsPage />
@@ -596,7 +637,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/automations"
+          path="/marketing/automations"
           element={
             <ProtectedRoute>
               <AutomationsPage />
@@ -604,7 +645,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/email-templates"
+          path="/marketing/email-templates"
           element={
             <ProtectedRoute>
               <EmailTemplatesPage />
@@ -612,7 +653,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/email-templates/new"
+          path="/marketing/email-templates/new"
           element={
             <ProtectedRoute>
               <EmailTemplateFormPage />
@@ -620,7 +661,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/marketing/email-templates/:id"
+          path="/marketing/email-templates/:id"
           element={
             <ProtectedRoute>
               <EmailTemplateFormPage />
@@ -630,7 +671,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- КОНТАКТЫ -------- */}
         <Route
-          path="/app/contacts"
+          path="/contacts"
           element={
             <ProtectedRoute>
               <ContactsListPage />
@@ -638,7 +679,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/contacts/new"
+          path="/contacts/new"
           element={
             <ProtectedRoute>
               <ContactFormPage />
@@ -646,7 +687,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/contacts/:id"
+          path="/contacts/:id"
           element={
             <ProtectedRoute>
               <ContactDetailsPage />
@@ -654,7 +695,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/contacts/:id/edit"
+          path="/contacts/:id/edit"
           element={
             <ProtectedRoute>
               <ContactFormPage />
@@ -664,7 +705,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- КОМПАНИИ -------- */}
         <Route
-          path="/app/companies"
+          path="/companies"
           element={
             <ProtectedRoute>
               <CompaniesListPage />
@@ -672,7 +713,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/companies/new"
+          path="/companies/new"
           element={
             <ProtectedRoute>
               <CompanyFormPage />
@@ -680,7 +721,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/companies/:id"
+          path="/companies/:id"
           element={
             <ProtectedRoute>
               <CompanyDetailsPage />
@@ -688,7 +729,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/companies/:id/edit"
+          path="/companies/:id/edit"
           element={
             <ProtectedRoute>
               <CompanyFormPage />
@@ -696,7 +737,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/companies/analytics"
+          path="/companies/analytics"
           element={
             <ProtectedRoute>
               <CompaniesAnalyticsPage />
@@ -704,7 +745,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/companies/:companyId/tasks"
+          path="/companies/:companyId/tasks"
           element={
             <ProtectedRoute>
               <CompanyTasksBoardPage />
@@ -712,7 +753,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/analytics/companies"
+          path="/analytics/companies"
           element={
             <ProtectedRoute>
               <CompaniesAnalyticsPage />
@@ -722,7 +763,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- АВТОМАТИЗАЦИИ (новый модуль) -------- */}
         <Route
-          path="/app/automations"
+          path="/automations"
           element={
             <ProtectedRoute>
               <AutomationsPageNew />
@@ -730,7 +771,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/automations/new"
+          path="/automations/new"
           element={
             <ProtectedRoute>
               <AutomationFormPage />
@@ -738,7 +779,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/automations/:id"
+          path="/automations/:id"
           element={
             <ProtectedRoute>
               <AutomationFormPage />
@@ -748,7 +789,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- EMAIL -------- */}
         <Route
-          path="/app/email"
+          path="/email"
           element={
             <ProtectedRoute>
               <EmailAccountsPage />
@@ -756,7 +797,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/email/accounts/new"
+          path="/email/accounts/new"
           element={
             <ProtectedRoute>
               <EmailAccountFormPage />
@@ -764,7 +805,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/email/accounts/:id"
+          path="/email/accounts/:id"
           element={
             <ProtectedRoute>
               <EmailAccountFormPage />
@@ -774,7 +815,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- TELEGRAM CRM -------- */}
         <Route
-          path="/app/telegram"
+          path="/telegram"
           element={
             <ProtectedRoute>
               <TelegramBotsPage />
@@ -782,7 +823,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/telegram/bots/new"
+          path="/telegram/bots/new"
           element={
             <ProtectedRoute>
               <TelegramBotFormPage />
@@ -790,7 +831,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/telegram/bots/:id"
+          path="/telegram/bots/:id"
           element={
             <ProtectedRoute>
               <TelegramBotFormPage />
@@ -800,7 +841,7 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- ПРОЧЕЕ -------- */}
         <Route
-          path="/app/tools"
+          path="/tools"
           element={
             <ProtectedRoute>
               <div className="text-slate-200 p-10">
@@ -810,7 +851,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/chat"
+          path="/chat"
           element={
             <ProtectedRoute>
               <OnlineChatPage />
@@ -818,7 +859,7 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/app/client-accounts"
+          path="/client-accounts"
           element={
             <ProtectedRoute>
               <ClientAccountsPage />
@@ -827,13 +868,82 @@ export const AppRouter: React.FC = () => {
         />
 
         <Route
-          path="/app/client-accounts/:clientId"
+          path="/client-accounts/:clientId"
           element={
             <ProtectedRoute>
               <ClientAccountDetailsPage />
             </ProtectedRoute>
           }
         />
+
+        {/* -------- WORKSPACE (NO-CODE) -------- */}
+        <Route
+          path="/workspace"
+          element={
+            <ProtectedRoute>
+              <WorkspaceTablesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/new"
+          element={
+            <ProtectedRoute>
+              <WorkspaceNewTablePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/:objectId/table"
+          element={
+            <ProtectedRoute>
+              <WorkspaceTableViewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/:objectId/kanban"
+          element={
+            <ProtectedRoute>
+              <WorkspaceKanbanViewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/:objectId/calendar"
+          element={
+            <ProtectedRoute>
+              <WorkspaceCalendarViewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/:objectId/analytics"
+          element={
+            <ProtectedRoute>
+              <WorkspaceAnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/:objectId/settings"
+          element={
+            <ProtectedRoute>
+              <WorkspaceSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/:objectId/import"
+          element={
+            <ProtectedRoute>
+              <WorkspaceImportPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Legacy prefix compatibility: /app/* -> clean paths */}
+        <Route path="/app/*" element={<LegacyAppRedirect />} />
 
         {/* CATCH-ALL */}
         <Route path="*" element={<Navigate to="/" replace />} />

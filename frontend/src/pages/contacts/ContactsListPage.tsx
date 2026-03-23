@@ -1,5 +1,5 @@
 // src/pages/contacts/ContactsListPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,17 @@ import {
   type BulkUpdateContactsDto,
 } from '../../api/contacts';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { fetchCompanies, type Company } from '../../api/companies';
+import { fetchLeads, isLeadInTrash, type Lead } from '../../api/leads';
+
+type ContactsCustomGroup = {
+  id: string;
+  name: string;
+  order: number;
+};
+
+const CONTACTS_GROUPS_KEY = 'contacts_custom_groups_v1';
+const CONTACTS_GROUP_ASSIGNMENTS_KEY = 'contacts_custom_group_assignments_v1';
 
 export const ContactsListPage: React.FC = () => {
   const { t } = useTranslation();
@@ -22,9 +33,19 @@ export const ContactsListPage: React.FC = () => {
   const [bulkModalOpen, setBulkModalOpen] = useState<boolean>(false);
   const [bulkSaving, setBulkSaving] = useState<boolean>(false);
   const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [companiesMap, setCompaniesMap] = useState<Record<string, Company>>({});
+  const [leadByContactId, setLeadByContactId] = useState<Record<string, Lead>>({});
   const [bulkAssignedUserId, setBulkAssignedUserId] = useState<string>('');
   const [bulkStatus, setBulkStatus] = useState<string>('');
   const [bulkTags, setBulkTags] = useState<string>('');
+  const [groupMode, setGroupMode] = useState<'none' | 'company' | 'status' | 'manager' | 'custom'>('company');
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  const [customGroups, setCustomGroups] = useState<ContactsCustomGroup[]>([]);
+  const [contactGroupMap, setContactGroupMap] = useState<Record<string, string>>({});
+  const [draggingContactId, setDraggingContactId] = useState<string | null>(null);
+  const [dragOverGroupKey, setDragOverGroupKey] = useState<string | null>(null);
+  const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
+  const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -35,11 +56,24 @@ export const ContactsListPage: React.FC = () => {
     Promise.all([
       fetchContacts({ search: search || undefined, limit: 100 }),
       fetchStaff(),
+      fetchCompanies({ limit: 500 }),
+      fetchLeads(),
     ])
-      .then(([contactsData, staffData]) => {
+      .then(([contactsData, staffData, companiesData, leadsData]) => {
         if (!alive) return;
         setContacts(contactsData.items);
         setStaff(staffData);
+        const map: Record<string, Company> = {};
+        companiesData.items.forEach((company) => {
+          map[company.id] = company;
+        });
+        setCompaniesMap(map);
+        const leadMap: Record<string, Lead> = {};
+        leadsData.forEach((lead) => {
+          if (!lead.contactId || isLeadInTrash(lead)) return;
+          if (!leadMap[lead.contactId]) leadMap[lead.contactId] = lead;
+        });
+        setLeadByContactId(leadMap);
       })
       .catch((e) => {
         console.error(e);
@@ -138,6 +172,176 @@ export const ContactsListPage: React.FC = () => {
     }
   };
 
+  const managerLabelById = useMemo(() => {
+    const map = new Map<string, string>();
+    staff.forEach((member) => map.set(member.id, member.fullName || member.email));
+    return map;
+  }, [staff]);
+
+  useEffect(() => {
+    try {
+      const rawGroups = localStorage.getItem(CONTACTS_GROUPS_KEY);
+      const rawAssignments = localStorage.getItem(CONTACTS_GROUP_ASSIGNMENTS_KEY);
+      if (rawGroups) {
+        const parsed = JSON.parse(rawGroups);
+        if (Array.isArray(parsed)) {
+          setCustomGroups(
+            parsed
+              .filter((item) => item && typeof item.id === 'string' && typeof item.name === 'string')
+              .map((item, index) => ({
+                id: item.id,
+                name: item.name,
+                order: typeof item.order === 'number' ? item.order : index,
+              })),
+          );
+        }
+      }
+      if (rawAssignments) {
+        const parsed = JSON.parse(rawAssignments);
+        if (parsed && typeof parsed === 'object') {
+          setContactGroupMap(parsed);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONTACTS_GROUPS_KEY, JSON.stringify(customGroups));
+      localStorage.setItem(CONTACTS_GROUP_ASSIGNMENTS_KEY, JSON.stringify(contactGroupMap));
+    } catch {
+      // ignore
+    }
+  }, [customGroups, contactGroupMap]);
+
+  const customGroupsOrdered = useMemo(
+    () => [...customGroups].sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'ru')),
+    [customGroups],
+  );
+
+  const createCustomGroup = () => {
+    const name = window.prompt(t('crm.contacts.list.groups.prompts.newName'));
+    if (!name || !name.trim()) return;
+    setCustomGroups((prev) => [
+      ...prev,
+      {
+        id: `cg_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
+        name: name.trim(),
+        order: prev.length,
+      },
+    ]);
+  };
+
+  const renameCustomGroup = (groupId: string) => {
+    const current = customGroups.find((group) => group.id === groupId);
+    if (!current) return;
+    const next = window.prompt(t('crm.contacts.list.groups.prompts.rename'), current.name);
+    if (!next || !next.trim()) return;
+    setCustomGroups((prev) =>
+      prev.map((group) => (group.id === groupId ? { ...group, name: next.trim() } : group)),
+    );
+  };
+
+  const deleteCustomGroup = (groupId: string) => {
+    if (!window.confirm(t('crm.contacts.list.groups.confirmDelete'))) return;
+    setCustomGroups((prev) => prev.filter((group) => group.id !== groupId));
+    setContactGroupMap((prev) => {
+      const next: Record<string, string> = {};
+      Object.entries(prev).forEach(([contactId, assignedGroupId]) => {
+        if (assignedGroupId !== groupId) next[contactId] = assignedGroupId;
+      });
+      return next;
+    });
+    setCollapsedGroups((prev) => prev.filter((item) => item !== groupId));
+  };
+
+  const assignContactGroup = (contactId: string, groupId: string) => {
+    setContactGroupMap((prev) => {
+      if (!groupId) {
+        const next = { ...prev };
+        delete next[contactId];
+        return next;
+      }
+      return { ...prev, [contactId]: groupId };
+    });
+  };
+
+  const moveCustomGroup = (groupId: string, direction: 'up' | 'down') => {
+    const ordered = [...customGroupsOrdered];
+    const index = ordered.findIndex((group) => group.id === groupId);
+    if (index === -1) return;
+    const nextIndex = direction === 'up' ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= ordered.length) return;
+    const next = [...ordered];
+    const [moved] = next.splice(index, 1);
+    next.splice(nextIndex, 0, moved);
+    setCustomGroups(next.map((group, order) => ({ ...group, order })));
+  };
+
+  const reorderCustomGroups = (sourceGroupId: string, targetGroupId: string) => {
+    if (sourceGroupId === targetGroupId) return;
+    const ordered = [...customGroupsOrdered];
+    const sourceIndex = ordered.findIndex((group) => group.id === sourceGroupId);
+    const targetIndex = ordered.findIndex((group) => group.id === targetGroupId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+    const next = [...ordered];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    setCustomGroups(next.map((group, order) => ({ ...group, order })));
+  };
+
+  const groupedContacts = useMemo(() => {
+    if (groupMode === 'none') {
+      return [{ key: 'all', label: t('crm.common.all'), items: contacts }];
+    }
+    if (groupMode === 'custom') {
+      const grouped = customGroupsOrdered.map((group) => ({
+        key: group.id,
+        label: group.name,
+        items: contacts.filter((contact) => contactGroupMap[contact.id] === group.id),
+      }));
+      const ungrouped = contacts.filter((contact) => !contactGroupMap[contact.id]);
+      return [
+        ...grouped,
+        { key: 'ungrouped', label: t('crm.contacts.list.groups.ungrouped'), items: ungrouped },
+      ];
+    }
+    const map = new Map<string, Contact[]>();
+    const getGroup = (contact: Contact) => {
+      if (groupMode === 'company') {
+        if (contact.companyId && companiesMap[contact.companyId]?.name) {
+          return companiesMap[contact.companyId].name;
+        }
+        return contact.company || t('crm.contacts.list.groups.noCompany');
+      }
+      if (groupMode === 'status') return contact.status || t('crm.contacts.list.groups.noStatus');
+      if (groupMode === 'manager') {
+        if (contact.assignedUserId && managerLabelById.has(contact.assignedUserId)) {
+          return managerLabelById.get(contact.assignedUserId) as string;
+        }
+        return contact.assignedTo || t('crm.contacts.list.groups.noManager');
+      }
+      return t('crm.common.all');
+    };
+    contacts.forEach((contact) => {
+      const key = getGroup(contact).trim() || t('crm.contacts.list.groups.ungrouped');
+      const list = map.get(key) || [];
+      list.push(contact);
+      map.set(key, list);
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[0].localeCompare(b[0], 'ru'))
+      .map(([key, items]) => ({ key, label: key, items }));
+  }, [contacts, groupMode, managerLabelById, companiesMap, t, customGroupsOrdered, contactGroupMap]);
+
+  const toggleGroup = (key: string) => {
+    setCollapsedGroups((prev) =>
+      prev.includes(key) ? prev.filter((item) => item !== key) : [...prev, key],
+    );
+  };
+
   return (
     <MainLayout>
       <div className="space-y-4">
@@ -172,15 +376,105 @@ export const ContactsListPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Поиск */}
+        {/* Поиск + группировка */}
         <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-          <input
-            type="text"
-            placeholder={t('crm.contacts.list.search')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-          />
+          <div className="grid gap-2 md:grid-cols-[1fr_220px]">
+            <input
+              type="text"
+              placeholder={t('crm.contacts.list.search')}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+            />
+            <select
+              value={groupMode}
+              onChange={(e) => setGroupMode(e.target.value as 'none' | 'company' | 'status' | 'manager' | 'custom')}
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-500"
+            >
+              <option value="company">{t('crm.contacts.list.groupMode.company')}</option>
+              <option value="status">{t('crm.contacts.list.groupMode.status')}</option>
+              <option value="manager">{t('crm.contacts.list.groupMode.manager')}</option>
+              <option value="custom">{t('crm.contacts.list.groupMode.custom')}</option>
+              <option value="none">{t('crm.contacts.list.groupMode.none')}</option>
+            </select>
+          </div>
+          {groupMode === 'custom' && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={createCustomGroup}
+                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-900/80"
+              >
+                + {t('crm.contacts.list.groups.new')}
+              </button>
+              {customGroupsOrdered.map((group) => (
+                <div
+                  key={group.id}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggingGroupId(group.id);
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', group.id);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverGroupId(group.id);
+                  }}
+                  onDragLeave={() => {
+                    setDragOverGroupId((prev) => (prev === group.id ? null : prev));
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (!draggingGroupId) return;
+                    reorderCustomGroups(draggingGroupId, group.id);
+                    setDraggingGroupId(null);
+                    setDragOverGroupId(null);
+                  }}
+                  onDragEnd={() => {
+                    setDraggingGroupId(null);
+                    setDragOverGroupId(null);
+                  }}
+                  className={`inline-flex items-center gap-1 rounded-xl border px-2 py-1 ${
+                    dragOverGroupId === group.id
+                      ? 'border-lumiva-accent bg-slate-900/80'
+                      : 'border-slate-700'
+                  }`}
+                >
+                  <span className="text-[11px] text-slate-300">{group.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => moveCustomGroup(group.id, 'up')}
+                    className="text-[10px] text-slate-400 hover:text-slate-200"
+                    aria-label="move up"
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => moveCustomGroup(group.id, 'down')}
+                    className="text-[10px] text-slate-400 hover:text-slate-200"
+                    aria-label="move down"
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => renameCustomGroup(group.id)}
+                    className="text-[10px] text-slate-400 hover:text-slate-200"
+                  >
+                    {t('crm.contacts.list.groups.renameShort')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteCustomGroup(group.id)}
+                    className="text-[10px] text-rose-400 hover:text-rose-300"
+                  >
+                    {t('crm.contacts.list.groups.deleteShort')}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Ошибка */}
@@ -224,97 +518,198 @@ export const ContactsListPage: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              {contacts.map((contact) => {
-                const fullName =
-                  contact.fullName ||
-                  `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
-                  'Без имени';
-
-                return (
-                  <div
-                    key={contact.id}
-                    className={`bg-slate-900/70 border rounded-3xl p-4 transition-colors ${
-                      selectedIds.has(contact.id)
-                        ? 'border-lumiva-accent bg-slate-800/80'
-                        : 'border-slate-800/80 hover:border-slate-700/80'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2 mb-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(contact.id)}
-                        onChange={() => handleToggleSelect(contact.id)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-lumiva-accent focus:ring-lumiva-accent flex-shrink-0"
-                      />
-                      <div className="flex-1">
-                        <h3
-                          className="text-sm font-semibold text-slate-50 line-clamp-2 cursor-pointer hover:text-lumiva-accent transition-colors"
-                          onClick={() => navigate(`/app/contacts/${contact.id}`)}
+            <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-3 overflow-x-auto">
+              <table className="min-w-[900px] w-full text-xs border-separate border-spacing-y-1">
+                <thead className="text-slate-500">
+                  <tr>
+                    <th className="px-2 py-1 w-10" />
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.contact')}</th>
+                    <th className="px-2 py-1 text-left">E-mail</th>
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.form.fields.phone')}</th>
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.form.fields.company')}</th>
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.manager')}</th>
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.form.fields.status')}</th>
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.lead')}</th>
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.group')}</th>
+                    <th className="px-2 py-1 text-left">{t('crm.contacts.bulk.tags')}</th>
+                    <th className="px-2 py-1 text-right">{t('crm.projects.tasks.table.headers.actions')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedContacts.map((group) => {
+                    const collapsed = collapsedGroups.includes(group.key);
+                    return (
+                      <React.Fragment key={group.key}>
+                        <tr
+                          className={`bg-slate-900/80 ${groupMode === 'custom' && dragOverGroupKey === group.key ? 'ring-1 ring-lumiva-accent/70' : ''}`}
+                          onDragOver={(e) => {
+                            if (groupMode !== 'custom' || !draggingContactId) return;
+                            e.preventDefault();
+                            setDragOverGroupKey(group.key);
+                          }}
+                          onDragLeave={() => {
+                            if (groupMode !== 'custom') return;
+                            setDragOverGroupKey((prev) => (prev === group.key ? null : prev));
+                          }}
+                          onDrop={(e) => {
+                            if (groupMode !== 'custom' || !draggingContactId) return;
+                            e.preventDefault();
+                            assignContactGroup(
+                              draggingContactId,
+                              group.key === 'ungrouped' ? '' : group.key,
+                            );
+                            setDraggingContactId(null);
+                            setDragOverGroupKey(null);
+                          }}
                         >
-                          {fullName}
-                        </h3>
-                      </div>
-                      <button
-                        onClick={(e) => handleDelete(contact.id, e)}
-                        className="text-red-400 hover:text-red-300 text-[10px] px-2 py-1 hover:bg-red-950/30 rounded-lg transition-colors flex-shrink-0"
-                      >
-                        {t('crm.contacts.list.delete')}
-                      </button>
-                    </div>
-
-                    {contact.position && (
-                      <div className="mb-2 text-[11px] text-slate-400">{contact.position}</div>
-                    )}
-
-                    <div className="space-y-2">
-                      {contact.email && (
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                          <span className="text-[10px]">📧</span>
-                          <span className="truncate">{contact.email}</span>
-                        </div>
-                      )}
-                      {contact.phone && (
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                          <span className="text-[10px]">📞</span>
-                          <span>{contact.phone}</span>
-                        </div>
-                      )}
-                      {contact.company && (
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                          <span className="text-[10px]">🏢</span>
-                          <span className="truncate">{contact.company}</span>
-                        </div>
-                      )}
-                      {(contact.city || contact.country) && (
-                        <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                          <span className="text-[10px]">📍</span>
-                          <span>
-                            {[contact.city, contact.country].filter(Boolean).join(', ') || '-'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="mt-3 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                      <span className="px-2 py-0.5 bg-slate-800/50 text-slate-300 rounded text-[10px]">
-                        {contact.status || 'active'}
-                      </span>
-                      {contact.tags && contact.tags.length > 0 && (
-                        <div className="flex gap-1 flex-wrap">
-                          {contact.tags.slice(0, 2).map((tag, idx) => (
-                            <span key={idx} className="text-[10px] text-slate-500">
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-              );
-            })}
+                          <td colSpan={11} className="px-3 py-2 text-slate-200">
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(group.key)}
+                              className="flex items-center gap-2 text-[12px]"
+                            >
+                              <span className="text-[10px]">{collapsed ? '▶' : '▼'}</span>
+                              <span>{group.label}</span>
+                              <span className="text-slate-400">{group.items.length}</span>
+                            </button>
+                          </td>
+                        </tr>
+                        {!collapsed &&
+                          group.items.map((contact) => {
+                            const fullName =
+                              contact.fullName ||
+                              `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
+                              t('crm.projects.detail.fields.leadNameFallback');
+                            return (
+                              <tr
+                                key={contact.id}
+                                className={`cursor-pointer ${
+                                  selectedIds.has(contact.id)
+                                    ? 'bg-slate-800/90'
+                                    : 'bg-slate-950/80 hover:bg-slate-900/80'
+                                }`}
+                                onClick={() => handleOpen(contact.id)}
+                                draggable={groupMode === 'custom'}
+                                onDragStart={(e) => {
+                                  if (groupMode !== 'custom') return;
+                                  setDraggingContactId(contact.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  e.dataTransfer.setData('text/plain', contact.id);
+                                }}
+                                onDragEnd={() => {
+                                  setDraggingContactId(null);
+                                  setDragOverGroupKey(null);
+                                }}
+                              >
+                                <td className="px-2 py-1.5">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(contact.id)}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleToggleSelect(contact.id);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </td>
+                                <td className="px-2 py-1.5 text-slate-100">{fullName}</td>
+                                <td className="px-2 py-1.5 text-slate-400">{contact.email || '-'}</td>
+                                <td className="px-2 py-1.5 text-slate-400">{contact.phone || '-'}</td>
+                                <td className="px-2 py-1.5 text-slate-400">
+                                  {contact.companyId ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/app/companies/${contact.companyId}`);
+                                      }}
+                                      className="text-sky-300 hover:text-sky-200 hover:underline"
+                                    >
+                                      {companiesMap[contact.companyId]?.name ||
+                                        contact.company ||
+                                        t('crm.contacts.list.groups.noCompany')}
+                                    </button>
+                                  ) : (
+                                    contact.company || '-'
+                                  )}
+                                </td>
+                                <td className="px-2 py-1.5 text-slate-400">
+                                  {contact.assignedTo ||
+                                    (contact.assignedUserId
+                                      ? managerLabelById.get(contact.assignedUserId) || '-'
+                                      : '-')}
+                                </td>
+                                <td className="px-2 py-1.5 text-slate-300">{contact.status || '-'}</td>
+                                <td className="px-2 py-1.5 text-slate-400">
+                                  {leadByContactId[contact.id] ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        navigate(`/app/leads/${leadByContactId[contact.id].id}`);
+                                      }}
+                                      className="text-sky-300 hover:text-sky-200 hover:underline"
+                                    >
+                                      {leadByContactId[contact.id].name ||
+                                        t('crm.contacts.list.table.openLead')}
+                                    </button>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td className="px-2 py-1.5 text-slate-400">
+                                  {groupMode === 'custom' ? (
+                                    <select
+                                      value={contactGroupMap[contact.id] || ''}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        assignContactGroup(contact.id, e.target.value);
+                                      }}
+                                      className="w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-200 outline-none"
+                                    >
+                                      <option value="">{t('crm.contacts.list.groups.ungrouped')}</option>
+                                      {customGroupsOrdered.map((group) => (
+                                        <option key={group.id} value={group.id}>
+                                          {group.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  ) : (
+                                    '-'
+                                  )}
+                                </td>
+                                <td className="px-2 py-1.5 text-slate-500">
+                                  {contact.tags?.length ? contact.tags.join(', ') : '-'}
+                                </td>
+                                <td className="px-2 py-1.5 text-right">
+                                  <button
+                                    onClick={(e) => handleDelete(contact.id, e)}
+                                    className="text-red-400 hover:text-red-300 text-[10px] px-2 py-1 hover:bg-red-950/30 rounded-lg transition-colors"
+                                  >
+                                    {t('crm.contacts.list.delete')}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
+          </div>
+        )}
+        {groupMode === 'custom' && draggingContactId && (
+          <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-slate-700 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-200 shadow-xl">
+            {dragOverGroupKey
+              ? t('crm.contacts.list.groups.dragToGroup', {
+                  group:
+                    groupedContacts.find((g) => g.key === dragOverGroupKey)?.label ||
+                    t('crm.contacts.list.groups.ungrouped'),
+                })
+              : t('crm.contacts.list.groups.dragHint')}
           </div>
         )}
 
@@ -350,7 +745,7 @@ export const ContactsListPage: React.FC = () => {
                     onChange={(e) => setBulkAssignedUserId(e.target.value)}
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
                   >
-                    <option value="">Не изменять</option>
+                    <option value="">{t('crm.contacts.bulk.noChange')}</option>
                     {staff.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.fullName || s.email}

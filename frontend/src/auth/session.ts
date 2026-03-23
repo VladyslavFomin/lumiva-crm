@@ -8,6 +8,8 @@ export interface StoredSession {
   user: any | null;
   clientKey?: string;
   tenantId?: string;
+  /** Название компании (из tenant.name при регистрации / логине) */
+  tenantName?: string | null;
   tenantPlan?: string | null;
   billingLocked?: boolean;
   tenantActiveUntil?: string | null;
@@ -84,17 +86,22 @@ export function persistSession(resp: {
   user: any;
   clientKey?: string;
   tenantId?: string;
+  tenant?: { name?: string };
   tenantPlan?: string;
   billingLocked?: boolean;
   tenantActiveUntil?: string | null;
 }) {
   const token = resp.token || resp.accessToken || null;
+  const tenantName =
+    (resp as any).tenantName ??
+    (typeof (resp as any).tenant?.name === 'string' ? (resp as any).tenant.name : null);
 
   const session: StoredSession = {
     token,
     user: resp.user ?? null,
     clientKey: resp.clientKey,
     tenantId: resp.tenantId,
+    tenantName: tenantName ?? null,
     tenantPlan: resp.tenantPlan ?? null,
     tenantActiveUntil: resp.tenantActiveUntil ?? null,
     billingLocked:
@@ -138,6 +145,29 @@ export function getStoredUser(): any | null {
   return s?.user ?? null;
 }
 
+/** Название компании для шапки сайдбара */
+export function getStoredTenantName(): string | null {
+  const s = getSession();
+  const n = s?.tenantName;
+  return typeof n === 'string' && n.trim() ? n.trim() : null;
+}
+
+/** Синхронизировать название в localStorage с актуальным именем тенанта (настройки компании). */
+export function updateStoredTenantName(name: string | null | undefined) {
+  const s = getSession();
+  if (!s) return;
+  const trimmed = typeof name === 'string' ? name.trim() : '';
+  try {
+    const next: StoredSession = {
+      ...s,
+      tenantName: trimmed ? trimmed : s.tenantName ?? null,
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch (e) {
+    console.error('Cannot update tenant name in session', e);
+  }
+}
+
 export function clearSession() {
   try {
     localStorage.removeItem(STORAGE_KEY);
@@ -163,6 +193,7 @@ export function markBillingUnlocked(nextPlan?: string) {
     user: s.user,
     clientKey: s.clientKey,
     tenantId: s.tenantId,
+    tenant: s.tenantName ? { name: s.tenantName } : undefined,
     tenantPlan: nextPlan || s.tenantPlan || 'standard',
     billingLocked: false,
     tenantActiveUntil: s.tenantActiveUntil || null,

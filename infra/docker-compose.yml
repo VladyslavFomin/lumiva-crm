@@ -8,8 +8,13 @@ services:
     container_name: lumiva_crm_api
     env_file:
       - ../backend/.env
+    environment:
+      # Согласовано с volume ниже — иначе логотип и вложения теряются при пересборке контейнера (404 на /v1/uploads/...).
+      UPLOADS_ROOT: /app/uploads
     ports:
       - "3000:3000"
+    volumes:
+      - lumiva_crm_uploads:/app/uploads
     depends_on:
       - db
     restart: unless-stopped
@@ -27,3 +32,4 @@ services:
 
 volumes:
   lumiva_crm_db_data:
+  lumiva_crm_uploads:

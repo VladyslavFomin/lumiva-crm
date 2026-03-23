@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { Lead } from './lead.entity';
 import { LeadsService } from './leads.service';
 import { LeadsController } from './leads.controller';
+import { LeadsMeetingsReminderService } from './leads-meetings-reminder.service';
 
 import { Site } from '../sites/site.entity';
 import { LeadActivity } from './lead-activity.entity';
@@ -17,6 +18,7 @@ import { User } from '../users/user.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { AuthModule } from '../auth/auth.module';
 import { AutomationsModule } from '../automations/automations.module';
+import { EmailModule } from '../email/email.module';
 
 // 👇 сущность продаж — для ROI по лидам
 import { Sale } from '../sales/sale.entity';
@@ -40,9 +42,10 @@ import { Project } from '../projects/project.entity';
     forwardRef(() => StaffUsersModule),
     forwardRef(() => AuthModule),
     forwardRef(() => AutomationsModule),
+    forwardRef(() => EmailModule),
   ],
   controllers: [LeadsController],
-  providers: [LeadsService, LeadActivityService],
+  providers: [LeadsService, LeadActivityService, LeadsMeetingsReminderService],
   exports: [LeadsService, LeadActivityService],
 })
 export class LeadsModule {}

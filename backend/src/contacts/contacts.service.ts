@@ -9,6 +9,7 @@ import { BulkUpdateContactsDto } from './dto/bulk-update-contacts.dto';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
 import { Lead } from '../leads/lead.entity';
+import { excludeTrashedLeads } from '../leads/lead-relations.util';
 import { Project } from '../projects/project.entity';
 import { Company } from '../companies/company.entity';
 
@@ -112,11 +113,12 @@ export class ContactsService {
       });
     }
 
-    // Лиды контакта (через contactId)
-    const leads = await this.leadRepo.find({
+    // Лиды контакта (через contactId); исключаем корзину (meta.deleted)
+    const leadsRaw = await this.leadRepo.find({
       where: { tenantId, contactId: id },
       order: { createdAt: 'DESC' },
     });
+    const leads = excludeTrashedLeads(leadsRaw);
 
     // Проекты контакта (через лиды)
     const leadIds = leads.map((l) => l.id);

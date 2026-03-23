@@ -13,14 +13,10 @@ import {
 } from '../../api/companies';
 import { fetchCompany, type Company } from '../../api/companies';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { useTranslation } from 'react-i18next';
+import { getLocale } from '../../i18n/utils';
 
-const STATUSES: { id: CompanyTaskStatus; label: string }[] = [
-  { id: 'todo', label: 'К выполнению' },
-  { id: 'in_progress', label: 'В работе' },
-  { id: 'review', label: 'На проверке' },
-  { id: 'done', label: 'Выполнено' },
-  { id: 'cancelled', label: 'Отменено' },
-];
+const STATUSES: CompanyTaskStatus[] = ['todo', 'in_progress', 'review', 'done', 'cancelled'];
 
 const STATUS_COLORS: Record<CompanyTaskStatus, string> = {
   todo: '#64748b',
@@ -31,8 +27,10 @@ const STATUS_COLORS: Record<CompanyTaskStatus, string> = {
 };
 
 export const CompanyTasksBoardPage: React.FC = () => {
+  const { t } = useTranslation();
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
+  const locale = getLocale();
   const [company, setCompany] = useState<Company | null>(null);
   const [tasks, setTasks] = useState<CompanyTask[]>([]);
   const [allTasks, setAllTasks] = useState<CompanyTask[]>([]); // Все задачи без фильтров
@@ -63,7 +61,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
   useEffect(() => {
     if (!companyId) {
-      setError('ID компании не указан');
+      setError(t('crm.companies.details.page.errors.idMissing'));
       setLoading(false);
       return;
     }
@@ -87,7 +85,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
       .catch((e) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Ошибка загрузки данных');
+        setError(e.message || t('crm.companies.tasks.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
@@ -97,7 +95,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [companyId]);
+  }, [companyId, t]);
 
   // Применение фильтров
   useEffect(() => {
@@ -178,7 +176,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
       }
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка изменения статуса');
+      setError(e.message || t('crm.companies.tasks.errors.statusChangeFailed'));
       // Перезагружаем задачи
       if (companyId) {
         fetchCompanyTasks(companyId)
@@ -202,7 +200,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
       setNewTaskTitle('');
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка создания задачи');
+      setError(e.message || t('crm.companies.tasks.errors.createFailed'));
     } finally {
       setCreating(false);
     }
@@ -210,14 +208,14 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
   const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm('Удалить задачу?')) return;
+    if (!confirm(t('crm.companies.tasks.deleteConfirm'))) return;
 
     try {
       await deleteCompanyTask(taskId);
       setAllTasks(allTasks.filter((t) => t.id !== taskId));
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка удаления задачи');
+      setError(e.message || t('crm.companies.tasks.errors.deleteFailed'));
     }
   };
 
@@ -248,7 +246,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
       setEditingTask(null);
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка сохранения задачи');
+      setError(e.message || t('crm.companies.tasks.errors.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -257,7 +255,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
   if (loading) {
     return (
       <MainLayout>
-        <div className="text-center py-12 text-xs text-slate-400">Загрузка...</div>
+        <div className="text-center py-12 text-xs text-slate-400">{t('crm.common.loading')}</div>
       </MainLayout>
     );
   }
@@ -279,21 +277,23 @@ export const CompanyTasksBoardPage: React.FC = () => {
         <div className="flex items-center justify-between gap-3">
           <div>
             <button
-              onClick={() => navigate('/app/companies')}
+              onClick={() => navigate('/companies')}
               className="text-[11px] text-slate-400 hover:text-slate-200 mb-1"
             >
-              ← К списку компаний
+              {t('crm.companies.analytics.backToList')}
             </button>
             <h1 className="text-lg font-semibold text-slate-50">
-              Задачи: {company?.name || 'Компания'}
+              {t('crm.companies.tasks.title')}: {company?.name || t('crm.companies.details.page.noCompany')}
             </h1>
-            <div className="text-[11px] text-slate-500">Канбан задач компании</div>
+            <div className="text-[11px] text-slate-500">
+              {t('crm.companies.details.tasks.viewBoard')}
+            </div>
           </div>
           <button
-            onClick={() => companyId && navigate(`/app/companies/${companyId}/edit`)}
+            onClick={() => companyId && navigate(`/companies/${companyId}/edit`)}
             className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
           >
-            К компании
+            {t('crm.companies.details.page.noCompany')}
           </button>
         </div>
 
@@ -311,7 +311,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Поиск задач..."
+              placeholder={t('crm.companies.tasks.filters.search')}
               className="flex-1 px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
             />
           </div>
@@ -321,18 +321,18 @@ export const CompanyTasksBoardPage: React.FC = () => {
               onChange={(e) => setFilterPriority(e.target.value || null)}
               className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
             >
-              <option value="">Все приоритеты</option>
-              <option value="low">Низкий</option>
-              <option value="medium">Средний</option>
-              <option value="high">Высокий</option>
-              <option value="urgent">Срочный</option>
+              <option value="">{t('crm.companies.tasks.filters.priority')}</option>
+              <option value="low">{t('crm.companies.tasks.priorities.low')}</option>
+              <option value="medium">{t('crm.companies.tasks.priorities.medium')}</option>
+              <option value="high">{t('crm.companies.tasks.priorities.high')}</option>
+              <option value="urgent">{t('crm.companies.tasks.priorities.urgent')}</option>
             </select>
             <select
               value={filterAssignedTo || ''}
               onChange={(e) => setFilterAssignedTo(e.target.value || null)}
               className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
             >
-              <option value="">Все ответственные</option>
+              <option value="">{t('crm.companies.tasks.filters.assignee')}</option>
               {staff.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.fullName || s.email}
@@ -344,10 +344,10 @@ export const CompanyTasksBoardPage: React.FC = () => {
               onChange={(e) => setFilterDueDate(e.target.value as any)}
               className="px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
             >
-              <option value="all">Все сроки</option>
-              <option value="overdue">Просроченные</option>
-              <option value="today">Сегодня</option>
-              <option value="week">На неделе</option>
+              <option value="all">{t('crm.companies.tasks.filters.dueDate')}</option>
+              <option value="overdue">{t('crm.companies.tasks.filters.overdue')}</option>
+              <option value="today">{t('crm.companies.tasks.filters.today')}</option>
+              <option value="week">{t('crm.companies.tasks.filters.thisWeek')}</option>
             </select>
             {(filterPriority || filterAssignedTo || filterDueDate || searchQuery) && (
               <button
@@ -359,7 +359,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                 }}
                 className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
               >
-                Сбросить
+                {t('crm.companies.tasks.filters.reset')}
               </button>
             )}
           </div>
@@ -377,7 +377,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                   handleCreateTask();
                 }
               }}
-              placeholder="Название задачи..."
+              placeholder={t('crm.companies.tasks.fields.title')}
               className="flex-1 px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
             />
             <button
@@ -385,31 +385,31 @@ export const CompanyTasksBoardPage: React.FC = () => {
               disabled={creating || !newTaskTitle.trim()}
               className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {creating ? 'Создание...' : '+ Создать'}
+              {creating ? t('crm.companies.tasks.actions.creating') : `+ ${t('crm.companies.tasks.create')}`}
             </button>
           </div>
         </div>
 
         {/* Канбан доска */}
         <div className="flex gap-3 overflow-x-auto pb-1">
-          {STATUSES.map((col) => {
-            const columnTasks = tasksByStatus(col.id);
+          {STATUSES.map((status) => {
+            const columnTasks = tasksByStatus(status);
             return (
               <div
-                key={col.id}
+                key={status}
                 className="flex-1 min-w-[260px] max-w-xs bg-slate-950/80 border border-slate-800/80 rounded-3xl p-3 flex flex-col"
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDropTo(col.id)}
+                onDrop={() => handleDropTo(status)}
               >
                 {/* Шапка колонки */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <div
                       className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: STATUS_COLORS[col.id] }}
+                      style={{ backgroundColor: STATUS_COLORS[status] }}
                     />
                     <div className="text-xs text-slate-300 font-medium">
-                      {col.label}
+                      {t(`crm.companies.tasks.statuses.${status}`)}
                     </div>
                   </div>
                   <div className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded">
@@ -438,14 +438,14 @@ export const CompanyTasksBoardPage: React.FC = () => {
                               handleEditTask(task);
                             }}
                             className="text-blue-400 hover:text-blue-300 text-[10px]"
-                            title="Редактировать"
+                            title={t('crm.common.edit')}
                           >
                             ✏️
                           </button>
                           <button
                             onClick={(e) => handleDeleteTask(task.id, e)}
                             className="text-red-400 hover:text-red-300 text-[10px]"
-                            title="Удалить"
+                            title={t('crm.companies.tasks.delete')}
                           >
                             ×
                           </button>
@@ -467,7 +467,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                           const isToday = due >= today && due < new Date(today.getTime() + 24 * 60 * 60 * 1000);
                           return (
                             <div className={`text-[10px] ${isOverdue ? 'text-red-400 font-semibold' : isToday ? 'text-yellow-400' : 'text-slate-500'}`}>
-                              📅 {due.toLocaleDateString('ru-RU', {
+                              📅 {due.toLocaleDateString(locale, {
                                 day: '2-digit',
                                 month: '2-digit',
                               })}
@@ -496,12 +496,12 @@ export const CompanyTasksBoardPage: React.FC = () => {
                             }`}
                           >
                             {task.priority === 'urgent'
-                              ? 'Срочно'
+                              ? t('crm.companies.tasks.priorities.urgent')
                               : task.priority === 'high'
-                              ? 'Высокий'
+                              ? t('crm.companies.tasks.priorities.high')
                               : task.priority === 'medium'
-                              ? 'Средний'
-                              : 'Низкий'}
+                              ? t('crm.companies.tasks.priorities.medium')
+                              : t('crm.companies.tasks.priorities.low')}
                           </span>
                         )}
                       </div>
@@ -521,10 +521,10 @@ export const CompanyTasksBoardPage: React.FC = () => {
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
                 <div className="text-xs font-semibold text-slate-50">
-                  Редактировать задачу
+                  {t('crm.companies.tasks.edit')}
                 </div>
                 <div className="mt-1 text-[11px] text-slate-500">
-                  Изменение данных задачи
+                  {t('crm.companies.tasks.actions.editSubtitle')}
                 </div>
               </div>
               <button
@@ -538,7 +538,9 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1.5">Название *</label>
+                <label className="block text-[10px] text-slate-500 mb-1.5">
+                  {t('crm.companies.tasks.fields.title')}
+                </label>
                 <input
                   type="text"
                   value={editTitle}
@@ -548,7 +550,9 @@ export const CompanyTasksBoardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1.5">Описание</label>
+                <label className="block text-[10px] text-slate-500 mb-1.5">
+                  {t('crm.companies.tasks.fields.description')}
+                </label>
                 <textarea
                   value={editDescription}
                   onChange={(e) => setEditDescription(e.target.value)}
@@ -559,22 +563,26 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">Приоритет</label>
+                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                    {t('crm.companies.tasks.fields.priority')}
+                  </label>
                   <select
                     value={editPriority}
                     onChange={(e) => setEditPriority(e.target.value)}
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
                   >
-                    <option value="">Не указан</option>
-                    <option value="low">Низкий</option>
-                    <option value="medium">Средний</option>
-                    <option value="high">Высокий</option>
-                    <option value="urgent">Срочный</option>
+                    <option value="">{t('crm.companies.bulk.noChange')}</option>
+                    <option value="low">{t('crm.companies.tasks.priorities.low')}</option>
+                    <option value="medium">{t('crm.companies.tasks.priorities.medium')}</option>
+                    <option value="high">{t('crm.companies.tasks.priorities.high')}</option>
+                    <option value="urgent">{t('crm.companies.tasks.priorities.urgent')}</option>
                   </select>
                 </div>
 
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">Срок выполнения</label>
+                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                    {t('crm.companies.tasks.fields.dueDate')}
+                  </label>
                   <input
                     type="date"
                     value={editDueDate}
@@ -585,7 +593,9 @@ export const CompanyTasksBoardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1.5">Ответственный</label>
+                <label className="block text-[10px] text-slate-500 mb-1.5">
+                  {t('crm.companies.tasks.fields.assignedTo')}
+                </label>
                 <select
                   value={editAssignedUserId}
                   onChange={(e) => {
@@ -595,7 +605,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                   }}
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500"
                 >
-                  <option value="">Не назначен</option>
+                  <option value="">{t('crm.companies.tasks.filters.anyAssignee')}</option>
                   {staff.map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.fullName || s.email}
@@ -611,7 +621,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                 onClick={() => setEditingTask(null)}
                 className="px-4 py-2 text-xs text-slate-400 hover:text-slate-50 transition-colors"
               >
-                Отмена
+                {t('crm.common.cancel')}
               </button>
               <button
                 type="button"
@@ -619,7 +629,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                 disabled={saving || !editTitle.trim()}
                 className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {saving ? 'Сохранение...' : 'Сохранить'}
+                {saving ? t('crm.common.saving') : t('crm.common.save')}
               </button>
             </div>
           </div>

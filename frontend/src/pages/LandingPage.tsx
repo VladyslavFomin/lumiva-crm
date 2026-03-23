@@ -1,6 +1,6 @@
 // src/pages/LandingPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router-dom";
 import { setAppLanguage } from "../i18n";
@@ -200,63 +200,72 @@ const OutlineIcon: React.FC<{ kind: "marketing" | "sales" | "projects" | "leads"
 const Header: React.FC = () => {
   const { t, i18n } = useTranslation();
   const currentLang = (i18n.language || "ru").slice(0, 2);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSolutionsOpen, setMobileSolutionsOpen] = useState(false);
+  const desktopPrimaryItems = [
+    { key: "development", to: "/development" },
+    { key: "scenarios", to: "/scenarios" },
+    { key: "api", to: "/api-integration" },
+    { key: "integrations", to: "/integrations" },
+  ] as const;
+  const solutionItems = [
+    { key: "analytics", to: "/solutions/analytics" },
+    { key: "marketing", to: "/solutions/marketing" },
+    { key: "sales", to: "/solutions/sales" },
+  ] as const;
+  const desktopTailItems = [
+    { key: "pricing", to: "/pricing" },
+    { key: "blog", to: "/blog" },
+    { key: "privacy", to: "/privacy" },
+  ] as const;
   return (
     <header className="sticky top-0 z-40 mb-8 sm:mb-10">
       <div className="backdrop-blur-xl bg-white/70 border border-black/5 rounded-3xl mt-2 sm:mt-3 px-4 sm:px-6 py-2.5 sm:py-3 shadow-[0_10px_40px_rgba(0,0,0,0.06)] flex items-center justify-between gap-3">
-        {/* Logo */}
-        <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-xl border border-black bg-black flex items-center justify-center">
-            <div className="h-3 w-3 rounded-full bg-white" />
-          </div>
-          <span className="text-sm font-semibold tracking-[0.16em] uppercase text-black">
+        <Link to="/" className="text-sm font-semibold uppercase tracking-[0.14em] text-black">
             Lumiva CRM
-          </span>
-        </div>
+        </Link>
 
-        {/* Nav */}
-        <nav className="hidden md:flex items-center gap-8 text-xs font-medium text-neutral-600">
-          <button
-            onClick={() => scrollToId("hero")}
-            className="hover:text-black transition-colors"
+        <nav className="hidden md:flex items-center gap-2 text-xs font-medium text-neutral-600">
+          {desktopPrimaryItems.map((item) => (
+            <Link
+              key={item.key}
+              to={item.to}
+              className="rounded-full border border-transparent px-3 py-1.5 hover:border-neutral-300 hover:bg-white hover:text-black"
           >
-            {t("landing.nav.overview")}
-          </button>
+              {t(`publicPages.nav.${item.key}`)}
+            </Link>
+          ))}
+          <div className="relative group">
           <button
-            onClick={() => scrollToId("features")}
-            className="hover:text-black transition-colors"
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full border border-transparent px-3 py-1.5 hover:border-neutral-300 hover:bg-white hover:text-black"
           >
-            {t("landing.nav.features")}
+              {t("publicPages.nav.solutions")}
+              <span className="text-[10px]">▾</span>
           </button>
-          <button
-            onClick={() => scrollToId("analytics")}
-            className="hover:text-black transition-colors"
+            <div className="invisible absolute left-0 top-full z-50 mt-2 w-48 rounded-2xl border border-slate-200 bg-white p-2 opacity-0 shadow-[0_16px_40px_rgba(15,23,42,0.12)] transition-all group-hover:visible group-hover:opacity-100">
+              {solutionItems.map((item) => (
+                <Link
+                  key={item.key}
+                  to={item.to}
+                  className="block rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
           >
-            {t("landing.nav.analytics")}
-          </button>
-          <button
-            onClick={() => scrollToId("dashboard")}
-            className="hover:text-black transition-colors"
-          >
-            {t("landing.nav.workspace")}
-          </button>
-          <Link to="/development" className="hover:text-black transition-colors">
-            {t("publicPages.nav.development")}
+                  {t(`publicPages.nav.${item.key}`)}
+                </Link>
+              ))}
+            </div>
+          </div>
+          {desktopTailItems.map((item) => (
+            <Link
+              key={item.key}
+              to={item.to}
+              className="rounded-full border border-transparent px-3 py-1.5 hover:border-neutral-300 hover:bg-white hover:text-black"
+            >
+              {t(`publicPages.nav.${item.key}`)}
           </Link>
-          <Link to="/scenarios" className="hover:text-black transition-colors">
-            {t("publicPages.nav.scenarios")}
-          </Link>
-          <Link to="/api" className="hover:text-black transition-colors">
-            API
-          </Link>
-          <Link to="/solutions" className="hover:text-black transition-colors">
-            {t("publicPages.nav.solutions")}
-          </Link>
-          <Link to="/pricing" className="hover:text-black transition-colors">
-            Тарифы
-          </Link>
+          ))}
         </nav>
 
-        {/* Contact */}
         <div className="flex items-center gap-3">
           <select
             value={currentLang}
@@ -268,18 +277,151 @@ const Header: React.FC = () => {
             <option value="en">{t("lang.en")}</option>
             <option value="tr">{t("lang.tr")}</option>
           </select>
-          <span className="hidden sm:inline text-xs font-medium text-neutral-500">
+          <span className="hidden text-xs font-medium text-neutral-500 md:inline">
             vlad@lumiva.agency
           </span>
           <a
             href="/login"
-            className="rounded-full !border !border-black px-3 py-1.5 text-xs font-semibold tracking-wide uppercase !bg-black !text-white no-underline hover:!bg-white hover:!text-black transition-colors"
+            className="hidden rounded-full !border !border-black px-3 py-1.5 text-xs font-semibold tracking-wide uppercase !bg-black !text-white no-underline hover:!bg-white hover:!text-black transition-colors md:inline-flex"
             style={{ color: '#fff', backgroundColor: '#000' }}
           >
             {t("landing.nav.login")}
           </a>
+          <button
+            type="button"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-900 shadow-[0_8px_24px_rgba(15,23,42,0.12)] md:hidden"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 7H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              <path d="M4 12H20" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              <path d="M4 17H16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {mobileMenuOpen ? (
+          <motion.div
+            className="fixed inset-0 z-[80] md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <button
+              type="button"
+              className="absolute inset-0 bg-slate-950/55 backdrop-blur-md"
+              onClick={() => setMobileMenuOpen(false)}
+              aria-label="Close menu"
+            />
+            <motion.aside
+              className="absolute right-0 top-0 h-full w-[88vw] max-w-sm border-l border-white/50 bg-gradient-to-b from-white via-slate-50 to-slate-100 p-5 shadow-[0_28px_70px_rgba(15,23,42,0.28)]"
+              initial={{ x: 56, opacity: 0.7 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: 56, opacity: 0.7 }}
+              transition={{ type: "spring", stiffness: 280, damping: 28 }}
+            >
+              <div className="pointer-events-none absolute -left-10 top-20 h-32 w-32 rounded-full bg-indigo-300/25 blur-2xl" />
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <Link
+                    to="/"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-900 no-underline"
+                  >
+                    Lumiva CRM
+                  </Link>
+                  <div className="mt-1 text-[10px] uppercase tracking-[0.14em] text-slate-500">Navigation</div>
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white/90 text-slate-700 shadow-[0_8px_20px_rgba(15,23,42,0.12)]"
+                  onClick={() => setMobileMenuOpen(false)}
+                  aria-label="Close menu"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="mb-4 rounded-xl border border-white/70 bg-white/75 px-3 py-2 text-[10px] uppercase tracking-[0.14em] text-slate-500 shadow-[0_6px_16px_rgba(15,23,42,0.08)]">
+                Premium navigation
+              </div>
+
+              <nav className="grid gap-2.5 text-sm">
+                {desktopPrimaryItems.map((item) => (
+                  <Link
+                    key={item.key}
+                    to={item.to}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="group flex items-center justify-between rounded-xl border border-slate-200/90 bg-white/75 px-3.5 py-2.5 font-semibold tracking-[0.01em] !text-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.05)]"
+                  >
+                    <span>{t(`publicPages.nav.${item.key}`)}</span>
+                  </Link>
+                ))}
+                <div className="mt-1">
+                  <div className="flex items-center justify-between rounded-xl border border-slate-200/90 bg-white/75 px-3 py-2">
+                    <Link
+                      to="/solutions"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="text-sm font-semibold tracking-[0.01em] no-underline !text-slate-700"
+                    >
+                      {t("publicPages.nav.solutions")}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setMobileSolutionsOpen((prev) => !prev)}
+                      aria-label={t("publicPages.nav.solutions")}
+                      className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-xs text-slate-600 transition"
+                    >
+                      {mobileSolutionsOpen ? "▴" : "▾"}
+                    </button>
+                  </div>
+                  {mobileSolutionsOpen ? (
+                    <div className="mt-2 grid gap-1 rounded-xl border border-slate-200/90 bg-white/70 p-2 shadow-[0_6px_18px_rgba(15,23,42,0.06)]">
+                      {solutionItems.map((item) => (
+                        <Link
+                          key={item.key}
+                          to={item.to}
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="flex items-center justify-between rounded-lg px-3 py-2 text-xs font-semibold tracking-[0.01em] !text-slate-700 hover:bg-white"
+                        >
+                          <span>{t(`publicPages.nav.${item.key}`)}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+                {desktopTailItems.map((item) => (
+                  <Link
+                    key={item.key}
+                    to={item.to}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between rounded-xl border border-slate-200/90 bg-white/75 px-3.5 py-2.5 font-semibold tracking-[0.01em] !text-slate-700 shadow-[0_4px_12px_rgba(15,23,42,0.05)]"
+                  >
+                    <span>{t(`publicPages.nav.${item.key}`)}</span>
+                  </Link>
+                ))}
+              </nav>
+
+              <div className="absolute bottom-5 left-5 right-5 space-y-2.5">
+                <div className="rounded-xl border border-slate-200/90 bg-white/80 px-3 py-2 text-xs text-slate-600">
+                  vlad@lumiva.agency
+                </div>
+                <a
+                  href="/login"
+                  className="block rounded-xl !border !border-slate-900 !bg-gradient-to-r !from-slate-950 !to-indigo-950 px-3 py-2.5 text-center text-xs font-semibold uppercase tracking-[0.12em] !text-white no-underline shadow-[0_10px_24px_rgba(15,23,42,0.28)] hover:!from-slate-900 hover:!to-indigo-900"
+                  style={{ color: "#fff", backgroundColor: "#0f172a" }}
+                >
+                  {t("landing.nav.login")}
+                </a>
+              </div>
+            </motion.aside>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </header>
   );
 };
@@ -371,9 +513,9 @@ const Hero: React.FC<{ onOpenDemo: () => void }> = ({ onOpenDemo }) => {
         {/* Правая панель: вход и регистрация */}
         <motion.div
           style={{ y: panelY }}
-          className="relative h-[320px] sm:h-[380px] lg:h-[420px]"
+          className="relative sm:h-[460px] lg:h-[420px]"
         >
-          <div className="absolute inset-0 rounded-[32px] border border-black/10 bg-gradient-to-b from-neutral-50 to-white p-4 shadow-[0_30px_70px_rgba(0,0,0,0.16)]">
+          <div className="rounded-[32px] border border-black/10 bg-gradient-to-b from-neutral-50 to-white p-4 shadow-[0_30px_70px_rgba(0,0,0,0.16)] sm:absolute sm:inset-0">
             <LandingAuthPanel compact />
           </div>
         </motion.div>
@@ -577,9 +719,12 @@ const AnalyticsSection: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <button className="rounded-full border border-black bg-black px-4 py-2 text-xs font-semibold text-white uppercase tracking-[0.16em]">
+          <Link
+            to="/solutions/analytics"
+            className="rounded-full border border-black bg-black px-4 py-2 text-xs font-semibold text-white uppercase tracking-[0.16em]"
+          >
             {t("landing.analytics.cta")}
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -1356,7 +1501,7 @@ const Footer: React.FC = () => {
             <Link to="/development" className="hover:text-white">
               {t("publicPages.nav.development")}
             </Link>
-            <Link to="/api" className="hover:text-white">
+            <Link to="/api-integration" className="hover:text-white">
               API
             </Link>
             <Link to="/pricing" className="hover:text-white">
@@ -1476,7 +1621,8 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
     clientKey: "",
     email: "",
     password: "",
-    phone: "",
+    phoneCountry: "+7",
+    phoneNumber: "",
   });
   const [signupVerification, setSignupVerification] = useState<{
     clientKey: string;
@@ -1574,7 +1720,14 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
     }
     setLoading(true);
     try {
-      const resp = await signup(signupForm);
+      const phone = `${signupForm.phoneCountry} ${signupForm.phoneNumber}`.trim();
+      const resp = await signup({
+        companyName: signupForm.companyName,
+        clientKey: signupForm.clientKey,
+        email: signupForm.email,
+        password: signupForm.password,
+        phone,
+      });
       setSignupVerification({
         clientKey: resp.clientKey,
         email: resp.email,
@@ -1643,7 +1796,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
 
   return (
     <section className={compact
-      ? "h-full overflow-y-auto rounded-[28px] border border-black/10 bg-white/95 p-4 shadow-[0_16px_50px_rgba(0,0,0,0.14)] backdrop-blur-sm sm:p-5"
+      ? "h-full overflow-y-auto overflow-x-hidden rounded-[28px] border border-black/10 bg-white/95 p-4 shadow-[0_16px_50px_rgba(0,0,0,0.14)] backdrop-blur-sm sm:p-5"
       : "rounded-3xl border border-neutral-200 bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.06)] md:p-8"}
     >
       <div className={compact ? "max-w-none" : "max-w-3xl"}>
@@ -1713,7 +1866,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
           </div>
         </form>
       ) : signupVerification ? (
-        <form onSubmit={handleVerifyCode} className={compact ? "mt-4 grid gap-3" : "mt-5 grid gap-4"}>
+        <form onSubmit={handleVerifyCode} className={compact ? "mt-4 grid gap-3" : "mt-5 grid gap-4"} autoComplete="off" data-lpignore="true">
           <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-slate-50 to-cyan-50 p-4 sm:p-5 shadow-[0_16px_45px_rgba(15,23,42,0.14)]">
             <div className="pointer-events-none absolute -right-8 -top-10 h-28 w-28 rounded-full bg-cyan-300/35 blur-2xl" />
             <div className="pointer-events-none absolute -left-10 -bottom-10 h-28 w-28 rounded-full bg-indigo-300/30 blur-2xl" />
@@ -1739,6 +1892,9 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
+              name="one-time-code"
+              spellCheck={false}
+              data-lpignore="true"
               className="absolute inset-0 h-full w-full opacity-0"
               value={verificationCode}
               maxLength={6}
@@ -1818,38 +1974,65 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
           </div>
         </form>
       ) : (
-        <form onSubmit={handleSignup} className={formCols}>
+        <form onSubmit={handleSignup} className={formCols} autoComplete="on">
           <input
             className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
             placeholder={text.companyName}
+            autoComplete="organization"
             value={signupForm.companyName}
             onChange={(e) => setSignupForm((s) => ({ ...s, companyName: e.target.value }))}
           />
-          <div className="flex gap-2">
+          <div className={compact ? "grid grid-cols-1 gap-2" : "flex gap-2"}>
             <input
-              className="w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+              className={`rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm ${
+                compact ? "w-full" : "min-w-0 flex-1"
+              }`}
               placeholder={text.loginClientKey}
+              autoComplete="off"
               value={signupForm.clientKey}
               onChange={(e) => setSignupForm((s) => ({ ...s, clientKey: e.target.value }))}
             />
             <button
               type="button"
               onClick={makeClientKey}
-              className="shrink-0 rounded-xl border border-neutral-300 px-3 text-xs font-semibold"
+              className={`rounded-xl border border-neutral-300 px-3 text-xs font-semibold ${
+                compact ? "w-full py-2.5" : "shrink-0 whitespace-nowrap"
+              }`}
             >
               {text.makeKey}
             </button>
           </div>
+          <div className={compact ? "grid grid-cols-1 gap-2" : "flex gap-2"}>
+            <select
+              value={signupForm.phoneCountry}
+              onChange={(e) => setSignupForm((s) => ({ ...s, phoneCountry: e.target.value }))}
+              className={`rounded-xl border border-neutral-200 bg-white px-2 py-2.5 text-sm ${
+                compact ? "w-full" : "w-28"
+              }`}
+              aria-label="Country code"
+            >
+              <option value="+7">🇷🇺 +7</option>
+              <option value="+90">🇹🇷 +90</option>
+              <option value="+1">🇺🇸 +1</option>
+              <option value="+44">🇬🇧 +44</option>
+              <option value="+49">🇩🇪 +49</option>
+            </select>
           <input
-            className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
+              className={`rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm ${
+                compact ? "w-full" : "min-w-0 flex-1"
+              }`}
             placeholder={text.phone}
-            value={signupForm.phone}
-            onChange={(e) => setSignupForm((s) => ({ ...s, phone: e.target.value }))}
+              autoComplete="tel-national"
+              inputMode="tel"
+              value={signupForm.phoneNumber}
+              onChange={(e) => setSignupForm((s) => ({ ...s, phoneNumber: e.target.value }))}
           />
+          </div>
           <input
             className={`rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm ${compact ? "" : "md:col-span-2"}`}
             placeholder={text.email}
             type="email"
+            autoComplete="email"
             value={signupForm.email}
             onChange={(e) => setSignupForm((s) => ({ ...s, email: e.target.value }))}
           />
@@ -1857,6 +2040,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
             className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm"
             placeholder={text.password}
             type="password"
+            autoComplete="new-password"
             value={signupForm.password}
             onChange={(e) => setSignupForm((s) => ({ ...s, password: e.target.value }))}
           />
@@ -1882,9 +2066,24 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
 
 const LandingPage: React.FC = () => {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.localStorage.getItem("lumiva_landing_preloader_seen") !== "1";
+    } catch {
+      return true;
+    }
+  });
   const [progress, setProgress] = useState(0);
-  const [cookiesAccepted, setCookiesAccepted] = useState(false);
+  const [cookiesAccepted, setCookiesAccepted] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const decision = window.localStorage.getItem("lumiva_cookies_consent");
+      return decision === "accepted" || decision === "declined";
+    } catch {
+      return false;
+    }
+  });
   const [demoOpen, setDemoOpen] = useState(false);
   const [utmPayload, setUtmPayload] = useState<Record<string, string>>({});
   const [demoForm, setDemoForm] = useState({
@@ -1906,6 +2105,7 @@ const LandingPage: React.FC = () => {
 
   // Простой прелоадер 0–100% БЕЗ текста, только процент
   useEffect(() => {
+    if (!loading) return;
     let current = 0;
     const total = 1600; // мс
     const stepMs = 20;
@@ -1916,13 +2116,18 @@ const LandingPage: React.FC = () => {
       if (current >= 100) {
         current = 100;
         window.clearInterval(id);
-        setTimeout(() => setLoading(false), 200);
+        setTimeout(() => {
+          setLoading(false);
+          try {
+            window.localStorage.setItem("lumiva_landing_preloader_seen", "1");
+          } catch {}
+        }, 200);
       }
       setProgress(Math.round(current));
     }, stepMs);
 
     return () => window.clearInterval(id);
-  }, []);
+  }, [loading]);
 
   useEffect(() => {
     const keys = [
@@ -2301,13 +2506,23 @@ const LandingPage: React.FC = () => {
             </div>
             <div className="flex gap-2">
               <button
-                onClick={() => setCookiesAccepted(true)}
+                onClick={() => {
+                  setCookiesAccepted(true);
+                  try {
+                    window.localStorage.setItem("lumiva_cookies_consent", "accepted");
+                  } catch {}
+                }}
                 className="rounded-xl border border-black bg-black text-white px-3 py-2 text-sm font-semibold"
               >
                 {t("landing.cookies.accept")}
               </button>
               <button
-                onClick={() => setCookiesAccepted(true)}
+                onClick={() => {
+                  setCookiesAccepted(true);
+                  try {
+                    window.localStorage.setItem("lumiva_cookies_consent", "declined");
+                  } catch {}
+                }}
                 className="rounded-xl border border-neutral-300 px-3 py-2 text-sm text-neutral-700"
               >
                 {t("landing.cookies.decline")}

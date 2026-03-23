@@ -210,6 +210,10 @@ export class LeadsService {
       assignedTo: normalizedAssignees.assignedTo,
       assignedToList: normalizedAssignees.assignedToList,
 
+      // связи
+      contactId: dto.contactId ?? null,
+      companyId: dto.companyId ?? null,
+
       meta: dto.meta ?? null,
       customFields: dto.customFields ?? null,
     });
@@ -256,6 +260,8 @@ export class LeadsService {
     if (dto.meta !== undefined) lead.meta = dto.meta;
     if (dto.customFields !== undefined) lead.customFields = dto.customFields;
     if (dto.siteId !== undefined) lead.siteId = dto.siteId;
+    if (dto.contactId !== undefined) lead.contactId = dto.contactId ?? null;
+    if (dto.companyId !== undefined) lead.companyId = dto.companyId ?? null;
 
     // ответственный
     const shouldUpdateAssignees =

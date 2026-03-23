@@ -1,7 +1,7 @@
 // src/pages/projects/ProjectsListPage.tsx
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import type { Project, ProjectTask } from './projectTypes';
 import {
@@ -22,6 +22,7 @@ import {
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { AutomationPanel } from '../../components/AutomationPanel';
+import { ProjectsViewsBar } from './ProjectsViewsBar';
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
@@ -72,6 +73,7 @@ const writeTasksCache = (projectId: string, tasks: Project['tasks']) => {
 
 export const ProjectsListPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const [searchParams] = useSearchParams();
   const locale = resolveLocale(i18n.language);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -88,8 +90,8 @@ export const ProjectsListPage: React.FC = () => {
   const [ownerEditorId, setOwnerEditorId] = useState<string | null>(null);
   const [ownerDraftIds, setOwnerDraftIds] = useState<string[]>([]);
   const [ownerSearch, setOwnerSearch] = useState('');
-  const [groupByStatus, setGroupByStatus] = useState(true);
-  const [collapsedStatuses, setCollapsedStatuses] = useState<string[]>([]);
+  const [groupMode, setGroupMode] = useState<'status' | 'owner' | 'company' | 'none'>('status');
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>([]);
   const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [bulkStatus, setBulkStatus] = useState<Project['status'] | ''>('');
@@ -130,8 +132,16 @@ export const ProjectsListPage: React.FC = () => {
   }, []);
 
   const navigate = useNavigate();
-  const goTable = () => navigate('/app/projects');
-  const goBoard = () => navigate('/app/projects/board');
+  const activeViewId = searchParams.get('view');
+  const openView = (type: 'table' | 'kanban' | 'calendar', viewId?: string) => {
+    const basePath =
+      type === 'table'
+        ? '/app/projects'
+        : type === 'kanban'
+          ? '/app/projects/board'
+          : '/app/projects/calendar';
+    navigate(viewId ? `${basePath}?view=${viewId}` : basePath);
+  };
   const handleOpen = (id: string) => navigate(`/app/projects/${id}`);
   const handleCreate = () => navigate('/app/projects/new');
   const statusLabels = useMemo<Record<string, string>>(
@@ -175,6 +185,17 @@ export const ProjectsListPage: React.FC = () => {
       Заморожен: 'bg-slate-900 text-white border-slate-900',
       Выиграно: 'bg-emerald-500/15 text-emerald-600 border-emerald-500/30',
       Проиграно: 'bg-rose-500/15 text-rose-600 border-rose-500/30',
+    }),
+    [],
+  );
+  const statusGroupStyles = useMemo<Record<string, { header: string; badge: string; row: string }>>(
+    () => ({
+      Новый: { header: 'bg-white border-slate-200', badge: 'bg-rose-100 text-rose-700', row: '' },
+      'В работе': { header: 'bg-white border-slate-200', badge: 'bg-sky-100 text-sky-700', row: '' },
+      'На проверке': { header: 'bg-white border-slate-200', badge: 'bg-amber-100 text-amber-800', row: '' },
+      Заморожен: { header: 'bg-white border-slate-200', badge: 'bg-slate-200 text-slate-700', row: '' },
+      Выиграно: { header: 'bg-white border-slate-200', badge: 'bg-emerald-100 text-emerald-700', row: '' },
+      Проиграно: { header: 'bg-white border-slate-200', badge: 'bg-rose-100 text-rose-700', row: '' },
     }),
     [],
   );
@@ -307,6 +328,14 @@ export const ProjectsListPage: React.FC = () => {
     const b = Math.round(68 + (246 - 68) * t);
     return `rgb(${r}, ${g}, ${b})`;
   };
+  const projectPriorityColor = (project: Project) => {
+    const priority = String(project.customFields?.priority || '')
+      .trim()
+      .toLowerCase();
+    if (priority.includes('выс')) return '#ef4444';
+    if (priority.includes('низ')) return '#22c55e';
+    return '#3b82f6';
+  };
   const initialsFromName = (name: string) => {
     const parts = name.split(' ').filter(Boolean);
     const first = parts[0]?.[0] ?? '';
@@ -361,8 +390,8 @@ export const ProjectsListPage: React.FC = () => {
           ? raw.join(', ')
           : typeof raw === 'boolean'
             ? raw
-              ? 'Да'
-              : 'Нет'
+              ? t('crm.projects.list.boolean.yes')
+              : t('crm.projects.list.boolean.no')
             : String(raw);
         return `${field.label}: ${display}`;
       })
@@ -584,6 +613,14 @@ export const ProjectsListPage: React.FC = () => {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
     );
   };
+  const openProjectTasksPanel = (project: Project) => {
+    if (!(project.tasks || []).length) {
+      updateTaskDraft(project.id, getTaskDraft(project.id));
+    }
+    setExpandedProjectIds((prev) =>
+      prev.includes(project.id) ? prev : [...prev, project.id],
+    );
+  };
 
   const toggleProjectSelected = (id: string) => {
     setSelectedProjectIds((prev) =>
@@ -716,28 +753,45 @@ export const ProjectsListPage: React.FC = () => {
     setOpenNewAssigneesProjectId(null);
   };
 
-  const toggleGroup = (status: string) => {
-    setCollapsedStatuses((prev) =>
-      prev.includes(status) ? prev.filter((item) => item !== status) : [...prev, status],
+  const toggleGroup = (groupKey: string) => {
+    setCollapsedGroups((prev) =>
+      prev.includes(groupKey) ? prev.filter((item) => item !== groupKey) : [...prev, groupKey],
     );
   };
 
+  const getPrimaryOwnerLabel = (project: Project) => {
+    const owners = resolveOwners(project);
+    if (!owners.length) return t('crm.projects.common.emptyValue');
+    const first = owners[0];
+    return typeof first === 'string' ? first : first.fullName;
+  };
+
   const groupedProjects = useMemo(() => {
-    if (!groupByStatus) return [];
+    if (groupMode === 'none') return [];
     const map = new Map<string, Project[]>();
     projects.forEach((p) => {
-      const key = p.status || t('crm.projects.common.emptyValue');
+      const key =
+        groupMode === 'status'
+          ? p.status || t('crm.projects.common.emptyValue')
+          : groupMode === 'company'
+            ? p.companyName || t('crm.projects.common.emptyValue')
+            : getPrimaryOwnerLabel(p) || t('crm.projects.common.emptyValue');
       if (!map.has(key)) map.set(key, []);
       map.get(key)?.push(p);
     });
-    const orderedKeys = [
-      ...statusOptions,
-      ...Array.from(map.keys()).filter((k) => !statusOptions.includes(k as Project['status'])),
-    ];
+
+    const orderedKeys =
+      groupMode === 'status'
+        ? [
+            ...statusOptions,
+            ...Array.from(map.keys()).filter((k) => !statusOptions.includes(k as Project['status'])),
+          ]
+        : Array.from(map.keys()).sort((a, b) => a.localeCompare(b, 'ru'));
+
     return orderedKeys
       .filter((key) => map.get(key)?.length)
-      .map((key) => ({ key, items: map.get(key) ?? [] }));
-  }, [groupByStatus, projects, statusOptions, t]);
+      .map((key) => ({ key, label: key, items: map.get(key) ?? [] }));
+  }, [groupMode, projects, statusOptions, t]);
 
   const totalAmount = useMemo(
     () => projects.reduce((sum, p) => sum + (Number(p.amount) || 0), 0),
@@ -747,7 +801,7 @@ export const ProjectsListPage: React.FC = () => {
   const renderCustomFieldCell = (project: Project, field: CustomField) => {
     const value = project.customFields?.[field.key];
     const commonClass =
-      'w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-200 outline-none focus:border-lumiva-accent-soft';
+      'w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 outline-none focus:border-slate-400';
 
     if (field.type === 'boolean') {
       return (
@@ -764,7 +818,9 @@ export const ProjectsListPage: React.FC = () => {
             }}
             onClick={(e) => e.stopPropagation()}
           />
-          {Boolean(value) ? 'Да' : 'Нет'}
+          {Boolean(value)
+            ? t('crm.projects.list.boolean.yes')
+            : t('crm.projects.list.boolean.no')}
         </label>
       );
     }
@@ -880,19 +936,51 @@ export const ProjectsListPage: React.FC = () => {
       case 'name':
         return (
           <div className="flex items-center gap-2">
-            {(project.tasks?.length ?? 0) > 0 && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (expandedProjectIds.includes(project.id)) {
                   toggleProjectExpanded(project.id);
-                }}
-                className="h-5 w-5 rounded-md border border-slate-700 text-slate-300 flex items-center justify-center"
-                title={t('crm.projects.tasks.title')}
-              >
-                {expandedProjectIds.includes(project.id) ? '▾' : '▸'}
-              </button>
-            )}
+                  return;
+                }
+                openProjectTasksPanel(project);
+              }}
+              className={
+                'flex h-8 w-[22px] shrink-0 flex-col items-center justify-center rounded-full border border-slate-400 bg-white ' +
+                'shadow-[0_1px_3px_rgba(15,23,42,0.12)] transition hover:border-slate-500 hover:shadow-[0_2px_8px_rgba(15,23,42,0.12)] ' +
+                ((project.tasks?.length ?? 0) > 0
+                  ? 'opacity-100'
+                  : 'opacity-40 group-hover:opacity-100')
+              }
+              title={t('crm.projects.tasks.title')}
+              aria-expanded={expandedProjectIds.includes(project.id)}
+            >
+              {expandedProjectIds.includes(project.id) ? (
+                <svg
+                  viewBox="0 0 12 12"
+                  className="h-3 w-3"
+                  aria-hidden
+                >
+                  <path
+                    d="M3 4.5L6 7.5L9 4.5"
+                    fill="none"
+                    stroke="#14532d"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              ) : (
+                <svg
+                  viewBox="0 0 12 12"
+                  className="h-2.5 w-2.5"
+                  aria-hidden
+                >
+                  <path d="M3 2.25L9.25 6L3 9.75V2.25Z" fill="#0f172a" />
+                </svg>
+              )}
+            </button>
             <input
               value={project.name}
               onChange={(e) =>
@@ -908,7 +996,7 @@ export const ProjectsListPage: React.FC = () => {
                 updateProjectInline(project.id, { name: e.target.value })
               }
               onClick={(e) => e.stopPropagation()}
-              className="px-2 py-1 rounded-lg bg-transparent border border-transparent text-slate-100 text-xs focus:border-slate-700"
+              className="px-2 py-1 rounded-lg bg-transparent border border-transparent text-slate-800 text-xs focus:border-slate-300"
             />
             <div className="flex gap-1">
               {(project.tags || []).map((tag) => (
@@ -1109,7 +1197,7 @@ export const ProjectsListPage: React.FC = () => {
               })
             }
             onClick={(e) => e.stopPropagation()}
-            className="w-full px-2 py-1 rounded-lg bg-transparent border border-transparent text-slate-300 text-xs focus:border-slate-700"
+            className="w-full px-2 py-1 rounded-lg bg-transparent border border-transparent text-slate-700 text-xs focus:border-slate-300"
           />
         );
       case 'created':
@@ -1134,9 +1222,10 @@ export const ProjectsListPage: React.FC = () => {
     ])
       .then(async ([projRes, leads, companiesRes, staffUsers]) => {
         if (!alive) return;
+        const activeLeads = leads.filter((lead) => !Boolean(lead.meta?.deleted));
 
         const leadsMap: Record<string, Lead> = {};
-        leads.forEach((l) => {
+        activeLeads.forEach((l) => {
           leadsMap[l.id] = l;
         });
 
@@ -1220,11 +1309,11 @@ export const ProjectsListPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
+      <div className="space-y-5">
         {/* Заголовок + переключатель вида */}
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)] sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-slate-50">
+            <h1 className="text-lg font-semibold text-slate-900">
               {t('crm.projects.list.title')}
             </h1>
             <div className="text-[11px] text-slate-500">
@@ -1233,26 +1322,10 @@ export const ProjectsListPage: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <div className="inline-flex rounded-xl bg-slate-900/80 border border-slate-700/80 text-[11px] overflow-hidden">
-              <button
-                type="button"
-                className="px-3 py-1.5 bg-slate-800 text-slate-50"
-                onClick={goTable}
-              >
-                {t('crm.projects.views.table')}
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-slate-300 hover:bg-lumiva-accent/10 hover:text-slate-100 transition-colors"
-                onClick={goBoard}
-              >
-                {t('crm.projects.views.kanban')}
-              </button>
-            </div>
             <button
               type="button"
               onClick={() => setAutomationOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80 inline-flex items-center gap-2"
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 inline-flex items-center gap-2"
             >
               <svg
                 width="14"
@@ -1278,28 +1351,29 @@ export const ProjectsListPage: React.FC = () => {
               {t('crm.automations.panel.button')}
             </button>
 
-            <button
-              type="button"
-              onClick={() => setGroupByStatus((prev) => !prev)}
-              className={`px-3 py-1.5 text-xs rounded-xl border ${
-                groupByStatus
-                  ? 'border-lumiva-accent text-white bg-lumiva-accent/20'
-                  : 'border-slate-700/80 text-slate-200 hover:bg-slate-900/80'
-              }`}
+            <select
+              value={groupMode}
+              onChange={(e) =>
+                setGroupMode(e.target.value as 'status' | 'owner' | 'company' | 'none')
+              }
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 bg-white text-slate-700"
             >
-              {t('crm.projects.list.groupByStatus')}
-            </button>
+              <option value="status">{t('crm.projects.list.groupMode.status')}</option>
+              <option value="owner">{t('crm.projects.list.groupMode.owner')}</option>
+              <option value="company">{t('crm.projects.list.groupMode.company')}</option>
+              <option value="none">{t('crm.projects.list.groupMode.none')}</option>
+            </select>
 
             <div className="relative" ref={columnsMenuRef}>
               <button
                 type="button"
                 onClick={() => setColumnsOpen((prev) => !prev)}
-                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
+                className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100"
               >
                 {t('crm.projects.list.columns.label')}
               </button>
               {columnsOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-800 bg-slate-950 shadow-xl p-2 z-10">
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-xl p-2 z-10">
                   <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 px-2 py-1">
                     {t('crm.projects.list.columns.label')}
                   </div>
@@ -1313,7 +1387,7 @@ export const ProjectsListPage: React.FC = () => {
                         <label
                           key={col.id}
                           className={`flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-[11px] ${
-                            isCore ? 'text-slate-500' : 'text-slate-200 hover:bg-slate-900/80'
+                            isCore ? 'text-slate-400' : 'text-slate-700 hover:bg-slate-100'
                           }`}
                         >
                           <div className="flex flex-col">
@@ -1337,14 +1411,14 @@ export const ProjectsListPage: React.FC = () => {
                       );
                     })}
                   </div>
-                  <div className="mt-2 border-t border-slate-800 pt-2">
+                  <div className="mt-2 border-t border-slate-200 pt-2">
                     <button
                       type="button"
                       onClick={() => {
                         setColumnsOpen(false);
                         setCustomFieldsOpen(true);
                       }}
-                      className="w-full px-2 py-1.5 text-[11px] rounded-lg bg-slate-900 text-slate-200 hover:bg-slate-800"
+                      className="w-full px-2 py-1.5 text-[11px] rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200"
                     >
                       {t('crm.projects.list.columns.add')}
                     </button>
@@ -1354,16 +1428,23 @@ export const ProjectsListPage: React.FC = () => {
             </div>
             <button
               onClick={handleCreate}
-              className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-white font-semibold hover:bg-lumiva-accent-soft"
+              className="px-3 py-1.5 text-xs rounded-xl bg-[#222222] text-white font-semibold hover:bg-black"
             >
               + {t('crm.projects.actions.newProject')}
             </button>
           </div>
         </div>
 
+        <ProjectsViewsBar
+          currentType="table"
+          activeViewId={activeViewId}
+          onOpenView={openView}
+          onSettingsChange={() => {}}
+        />
+
         {/* Ошибка */}
         {error && (
-          <div className="text-[12px] text-rose-400 bg-rose-950/40 border border-rose-800/60 rounded-2xl px-3 py-2">
+          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-2xl px-3 py-2">
             {error}
           </div>
         )}
@@ -1377,15 +1458,17 @@ export const ProjectsListPage: React.FC = () => {
 
         {/* Фильтр по компании */}
         {!loading && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-              <label className="text-[11px] text-slate-400">Фильтр по компании:</label>
+              <label className="text-[11px] text-slate-500">
+                {t('crm.projects.list.filters.companyLabel')}
+              </label>
               <select
                 value={selectedCompanyId || ''}
                 onChange={(e) => setSelectedCompanyId(e.target.value || null)}
                 className="w-full px-3 py-1.5 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 sm:w-auto"
               >
-                <option value="">Все компании</option>
+                <option value="">{t('crm.projects.list.filters.allCompanies')}</option>
                 {companies.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -1398,20 +1481,28 @@ export const ProjectsListPage: React.FC = () => {
 
         {/* Таблица проектов */}
         {!loading && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
             <div className="overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
               <table className="min-w-[760px] w-full text-xs border-separate border-spacing-y-1 table-fixed">
               <thead className="text-slate-500">
                 <tr>
                   <th className="px-3 py-1 w-10">
-                    <input
-                      type="checkbox"
-                      checked={projects.length > 0 && selectedProjectIds.length === projects.length}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        toggleAllSelected();
-                      }}
-                    />
+                    <label className="inline-flex cursor-pointer items-center">
+                      <input
+                        type="checkbox"
+                        checked={projects.length > 0 && selectedProjectIds.length === projects.length}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          toggleAllSelected();
+                        }}
+                        className="peer sr-only"
+                      />
+                      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-slate-300 bg-white text-white transition peer-checked:border-sky-600 peer-checked:bg-sky-600">
+                        <svg className="h-3 w-3 opacity-0 peer-checked:opacity-100" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                          <path d="M2.5 6.2L4.8 8.5L9.5 3.5" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
+                    </label>
                   </th>
                   {orderedColumns.map((col) => {
                     const fallback =
@@ -1462,27 +1553,39 @@ export const ProjectsListPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {groupByStatus
-                  ? groupedProjects.map((group) => {
-                      const isCollapsed = collapsedStatuses.includes(group.key);
+                {groupMode !== 'none'
+                  ? groupedProjects.map((group, groupIndex) => {
+                      const isCollapsed = collapsedGroups.includes(group.key);
                       const groupAmount = group.items.reduce(
                         (sum, p) => sum + (Number(p.amount) || 0),
                         0,
                       );
+                      const groupTone =
+                        groupMode === 'status'
+                          ? statusGroupStyles[group.key] ?? {
+                              header: 'bg-slate-100 border-slate-200',
+                              badge: 'bg-slate-200 text-slate-700',
+                              row: '',
+                            }
+                          : {
+                              header: 'bg-slate-100 border-slate-200',
+                              badge: 'bg-slate-200 text-slate-700',
+                              row: '',
+                            };
                       return (
                         <React.Fragment key={group.key}>
-                          <tr className="bg-slate-900/70">
+                          <tr>
                             <td
                               colSpan={orderedColumns.length + 1}
-                              className="px-3 py-2 text-slate-200"
+                              className={`px-3 text-slate-700 ${groupIndex === 0 ? 'pt-1 pb-2' : 'pt-3 pb-2'}`}
                             >
                               <button
                                 type="button"
                                 onClick={() => toggleGroup(group.key)}
-                                className="flex items-center gap-2 text-[12px] font-semibold"
+                                className={`flex items-center gap-2 text-[12px] font-semibold rounded-xl border px-3 py-2 ${groupTone.header}`}
                               >
                                 <span>{isCollapsed ? '▸' : '▾'}</span>
-                                <span>{statusLabels[group.key] ?? group.key}</span>
+                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${groupTone.badge}`}>{group.label}</span>
                                 <span className="text-[11px] font-normal text-slate-400">
                                   {t('crm.projects.list.groupSummary', {
                                     count: group.items.length,
@@ -1493,24 +1596,44 @@ export const ProjectsListPage: React.FC = () => {
                             </td>
                           </tr>
                           {!isCollapsed &&
-                            group.items.map((p) => (
+                            group.items.map((p, rowIndex) => {
+                              const leftAccent = projectPriorityColor(p);
+                              const isFirstRow = rowIndex === 0;
+                              const isLastRow = rowIndex === group.items.length - 1;
+                              return (
                               <React.Fragment key={p.id}>
                                 <tr
-                                  className="bg-slate-950/80 hover:bg-slate-900/80 cursor-pointer"
+                                  className={`group bg-white hover:bg-slate-50 cursor-pointer ${groupTone.row}`}
                                   onClick={() => handleOpen(p.id)}
                                 >
-                                  <td className="px-3 py-1.5 text-slate-400">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedProjectIds.includes(p.id)}
-                                      onChange={(e) => {
-                                        e.stopPropagation();
-                                        toggleProjectSelected(p.id);
-                                      }}
+                                  <td
+                                    className={`px-3 py-1.5 text-slate-600 border-l-4 border-y border-slate-200 ${
+                                      isFirstRow ? 'rounded-tl-xl' : ''
+                                    } ${isLastRow ? 'rounded-bl-xl' : ''}`}
+                                    style={{ borderLeftColor: leftAccent }}
+                                  >
+                                    <label
+                                      className="inline-flex cursor-pointer items-center"
                                       onClick={(e) => e.stopPropagation()}
-                                    />
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selectedProjectIds.includes(p.id)}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          toggleProjectSelected(p.id);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="peer sr-only"
+                                      />
+                                      <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-slate-300 bg-white text-white transition peer-checked:border-sky-600 peer-checked:bg-sky-600">
+                                        <svg className="h-3 w-3 opacity-0 peer-checked:opacity-100" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                          <path d="M2.5 6.2L4.8 8.5L9.5 3.5" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                        </svg>
+                                      </span>
+                                    </label>
                                   </td>
-                                  {orderedColumns.map((col) => {
+                                  {orderedColumns.map((col, colIndex) => {
                                     const fallback =
                                       col.id === 'name'
                                         ? 220
@@ -1533,7 +1656,19 @@ export const ProjectsListPage: React.FC = () => {
                                     return (
                                       <td
                                         key={col.id}
-                                        className="px-3 py-1.5 text-slate-400"
+                                        className={`px-3 py-1.5 text-slate-700 border-y border-slate-200 ${
+                                          colIndex === orderedColumns.length - 1
+                                            ? 'border-r border-slate-200'
+                                            : ''
+                                        } ${
+                                          isFirstRow && colIndex === orderedColumns.length - 1
+                                            ? 'rounded-tr-xl'
+                                            : ''
+                                        } ${
+                                          isLastRow && colIndex === orderedColumns.length - 1
+                                            ? 'rounded-br-xl'
+                                            : ''
+                                        }`}
                                         style={{ width, minWidth: width }}
                                       >
                                         {renderCell(p, col)}
@@ -1542,15 +1677,21 @@ export const ProjectsListPage: React.FC = () => {
                                   })}
                                 </tr>
                                 {expandedProjectIds.includes(p.id) && (
-                                  <tr className="bg-slate-950/80">
+                                  <tr className="bg-slate-50">
                                     <td
                                       colSpan={orderedColumns.length + 1}
                                       className="px-3 pb-3"
                                     >
-                                      <div className="mt-2 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3">
+                                      <div className="mt-2 rounded-2xl border border-sky-100 bg-sky-50/30 p-3 pl-5 relative">
+                                        <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-sky-300/90" />
                                         <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">
                                           {t('crm.projects.tasks.title')}
                                         </div>
+                                        {(p.tasks || []).length === 0 && (
+                                          <div className="mb-2 rounded-lg border border-sky-200 bg-sky-50 px-2 py-1 text-[11px] text-slate-600">
+                                            + {t('crm.projects.tasks.newTask.placeholder')}
+                                          </div>
+                                        )}
                                         <div className="overflow-x-auto">
                                           <table className="min-w-[900px] w-full text-xs">
                                             <thead className="text-slate-500">
@@ -1577,18 +1718,21 @@ export const ProjectsListPage: React.FC = () => {
                                             </thead>
                                             <tbody>
                                               {(p.tasks || []).map((task) => (
-                                                <tr key={task.id} className="border-t border-slate-800/60">
+                                                <tr key={task.id} className="border-t border-slate-200">
                                                   <td className="px-2 py-1">
-                                                    <input
-                                                      value={task.title}
-                                                      onChange={(e) =>
-                                                        updateTaskField(p.id, task.id, {
-                                                          title: e.target.value,
-                                                        })
-                                                      }
-                                                      onClick={(e) => e.stopPropagation()}
-                                                      className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs text-slate-200 outline-none"
-                                                    />
+                                                    <div className="flex items-center gap-2">
+                                                      <span className="h-px w-3 bg-sky-300/90" />
+                                                      <input
+                                                        value={task.title}
+                                                        onChange={(e) =>
+                                                          updateTaskField(p.id, task.id, {
+                                                            title: e.target.value,
+                                                          })
+                                                        }
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        className="w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-xs text-slate-700 outline-none"
+                                                      />
+                                                    </div>
                                                   </td>
                                                   <td className="px-2 py-1">
                                                     <div className="flex items-center gap-2 flex-wrap">
@@ -1609,7 +1753,7 @@ export const ProjectsListPage: React.FC = () => {
                                                           return (
                                                             <div
                                                               key={label}
-                                                              className="h-6 w-6 rounded-full border border-slate-700 bg-slate-900 flex items-center justify-center text-[10px] text-slate-200"
+                                                              className="h-6 w-6 rounded-full border border-slate-300 bg-slate-100 flex items-center justify-center text-[10px] text-slate-700"
                                                               title={label}
                                                             >
                                                               {avatarUrl ? (
@@ -1758,14 +1902,17 @@ export const ProjectsListPage: React.FC = () => {
                                               ))}
                                               <tr className="border-t border-slate-800/60">
                                                 <td className="px-2 py-1">
-                                                  <input
-                                                    value={getTaskDraft(p.id).title}
-                                                    onChange={(e) =>
-                                                      updateTaskDraft(p.id, { title: e.target.value })
-                                                    }
-                                                    placeholder={t('crm.projects.tasks.newTask.placeholder')}
-                                                    className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs text-slate-200 outline-none"
-                                                  />
+                                                  <div className="flex items-center gap-2">
+                                                    <span className="h-px w-3 bg-sky-300/90" />
+                                                    <input
+                                                      value={getTaskDraft(p.id).title}
+                                                      onChange={(e) =>
+                                                        updateTaskDraft(p.id, { title: e.target.value })
+                                                      }
+                                                      placeholder={t('crm.projects.tasks.newTask.placeholder')}
+                                                      className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs text-slate-200 outline-none"
+                                                    />
+                                                  </div>
                                                 </td>
                                                 <td className="px-2 py-1">
                                                   <div className="relative" ref={openNewAssigneesProjectId === p.id ? newAssigneesRef : null}>
@@ -1877,26 +2024,38 @@ export const ProjectsListPage: React.FC = () => {
                                   </tr>
                                 )}
                               </React.Fragment>
-                            ))}
+                              );
+                            })}
                         </React.Fragment>
                       );
                     })
                   : projects.map((p) => (
                       <React.Fragment key={p.id}>
                         <tr
-                          className="bg-slate-950/80 hover:bg-slate-900/80 cursor-pointer"
+                          className="group bg-slate-950/80 hover:bg-slate-900/80 cursor-pointer"
                           onClick={() => handleOpen(p.id)}
                         >
                           <td className="px-3 py-1.5 text-slate-400">
-                            <input
-                              type="checkbox"
-                              checked={selectedProjectIds.includes(p.id)}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                toggleProjectSelected(p.id);
-                              }}
+                            <label
+                              className="inline-flex cursor-pointer items-center"
                               onClick={(e) => e.stopPropagation()}
-                            />
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedProjectIds.includes(p.id)}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  toggleProjectSelected(p.id);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="peer sr-only"
+                              />
+                              <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-slate-300 bg-white text-white transition peer-checked:border-sky-600 peer-checked:bg-sky-600">
+                                <svg className="h-3 w-3 opacity-0 peer-checked:opacity-100" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                  <path d="M2.5 6.2L4.8 8.5L9.5 3.5" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </span>
+                            </label>
                           </td>
                           {orderedColumns.map((col) => {
                             const fallback =
@@ -1935,10 +2094,16 @@ export const ProjectsListPage: React.FC = () => {
                               colSpan={orderedColumns.length + 1}
                               className="px-3 pb-3"
                             >
-                              <div className="mt-2 rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3">
+                              <div className="mt-2 rounded-2xl border border-sky-900/50 bg-slate-950/80 p-3 pl-5 relative">
+                                <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-sky-400/80" />
                                 <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">
                                   {t('crm.projects.tasks.title')}
                                 </div>
+                                {(p.tasks || []).length === 0 && (
+                                  <div className="mb-2 rounded-lg border border-sky-900/50 bg-sky-950/30 px-2 py-1 text-[11px] text-slate-300">
+                                    + {t('crm.projects.tasks.newTask.placeholder')}
+                                  </div>
+                                )}
                                 <div className="overflow-x-auto">
                                   <table className="min-w-[900px] w-full text-xs">
                                     <thead className="text-slate-500">
@@ -1967,16 +2132,19 @@ export const ProjectsListPage: React.FC = () => {
                                       {(p.tasks || []).map((task) => (
                                         <tr key={task.id} className="border-t border-slate-800/60">
                                           <td className="px-2 py-1">
-                                            <input
-                                              value={task.title}
-                                              onChange={(e) =>
-                                                updateTaskField(p.id, task.id, {
-                                                  title: e.target.value,
-                                                })
-                                              }
-                                              onClick={(e) => e.stopPropagation()}
-                                              className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs text-slate-200 outline-none"
-                                            />
+                                            <div className="flex items-center gap-2">
+                                              <span className="h-px w-3 bg-sky-400/80" />
+                                              <input
+                                                value={task.title}
+                                                onChange={(e) =>
+                                                  updateTaskField(p.id, task.id, {
+                                                    title: e.target.value,
+                                                  })
+                                                }
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs text-slate-200 outline-none"
+                                              />
+                                            </div>
                                           </td>
                                           <td className="px-2 py-1">
                                             <div className="flex items-center gap-2 flex-wrap">
@@ -2146,14 +2314,17 @@ export const ProjectsListPage: React.FC = () => {
                                       ))}
                                       <tr className="border-t border-slate-800/60">
                                         <td className="px-2 py-1">
-                                          <input
-                                            value={getTaskDraft(p.id).title}
-                                            onChange={(e) =>
-                                              updateTaskDraft(p.id, { title: e.target.value })
-                                            }
-                                            placeholder={t('crm.projects.tasks.newTask.placeholder')}
-                                            className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs text-slate-200 outline-none"
-                                          />
+                                          <div className="flex items-center gap-2">
+                                            <span className="h-px w-3 bg-sky-400/80" />
+                                            <input
+                                              value={getTaskDraft(p.id).title}
+                                              onChange={(e) =>
+                                                updateTaskDraft(p.id, { title: e.target.value })
+                                              }
+                                              placeholder={t('crm.projects.tasks.newTask.placeholder')}
+                                              className="w-full px-2 py-1 rounded-lg bg-slate-900/80 border border-slate-800/80 text-xs text-slate-200 outline-none"
+                                            />
+                                          </div>
                                         </td>
                                         <td className="px-2 py-1">
                                           <div className="relative" ref={openNewAssigneesProjectId === p.id ? newAssigneesRef : null}>
@@ -2447,7 +2618,7 @@ export const ProjectsListPage: React.FC = () => {
         {customFieldsOpen && (
           <CustomFieldsManager
             entityType="project"
-            title="Кастомные поля проектов"
+            title={t('crm.projects.list.customFieldsTitle')}
             suggestedKeys={suggestedKeys}
             onClose={() => setCustomFieldsOpen(false)}
             onUpdated={(items) =>

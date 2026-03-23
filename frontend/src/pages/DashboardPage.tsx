@@ -1,12 +1,40 @@
 // src/pages/DashboardPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../layout/MainLayout';
 import { getStoredUser } from '../auth/session';
 
 import { fetchLeads, type Lead } from '../api/leads';
-import { fetchProjects } from '../api/projects';
+import { fetchProject, fetchProjects } from '../api/projects';
+import { fetchSalesStats } from '../api/sales';
+import { fetchStaff, type StaffUser } from '../api/staff';
 import type { Project, ProjectTask } from './projects/projectTypes';
+import { readProjectTasksCache } from './projects/projectTasksCache';
+import {
+  buildDashboardTaskVisibility,
+  taskMatchesDashboardVisibility,
+} from '../dashboard/dashboardTaskVisibility';
+import {
+  ALL_DASHBOARD_WIDGET_IDS,
+  DASHBOARD_LAYOUT_CHANGED_EVENT,
+  loadDashboardLayout,
+  saveDashboardLayout,
+  type DashboardLayoutState,
+  type WidgetSize,
+  isDashboardPresetInstanceId,
+  getDefaultWidgetHeight,
+  requestAddDashboardPreset,
+  sizeToColSpan,
+  colSpanToSize,
+  type DashboardLayoutChangedDetail,
+} from '../dashboard/dashboardLayout';
+import { getPresetDefinition } from '../dashboard/presetCatalog';
+import { DashboardWidgetChrome } from '../dashboard/DashboardWidgetChrome';
+import { DashboardCalendarMini } from '../dashboard/DashboardCalendarMini';
+import { DashboardPresetWidget } from '../dashboard/DashboardPresetWidget';
+import { DashboardAddPresetsModal } from '../dashboard/DashboardAddPresetsModal';
 
 interface LeadShort {
   id: string;
@@ -38,6 +66,11 @@ interface DashboardData {
   recentLeads: LeadShort[];
   myTasks: {
     id: string;
+    taskId: string;
+    projectId: string;
+    projectName: string;
+    taskTitle: string;
+    /** Совместимость: «задача · проект» одной строкой */
     title: string;
     due: string;
     type: 'call' | 'meeting' | 'todo';
@@ -63,11 +96,37 @@ interface DashboardData {
     today: number;
     upcoming: number;
   };
+
+  staffPerformance: {
+    id: string;
+    name: string;
+    leadsCount: number;
+    revenueEUR: number;
+  }[];
+  /** Выручка по каналам лида (для владельца), из выигранных проектов с leadId */
+  salesByChannel: { channel: string; revenueEUR: number }[];
+  /** Для выбора лидов во встречах (календарь) */
+  leadPickerOptions: { id: string; name: string }[];
+  /** Сводка по продажам для виджета на главной */
+  salesSnapshot: { count: number; amount: number };
+  /** Проекты в области видимости дашборда (для пресетов аналитики) */
+  myProjects: Project[];
 }
 
 interface TaskWithProject extends ProjectTask {
   projectId: string;
   projectName: string;
+}
+
+/** Если API вернул пустой tasks, подмешиваем тот же кэш, что и на странице проекта */
+function mergeProjectTasksWithCache(p: Project): Project {
+  const apiTasks = p.tasks || [];
+  if (apiTasks.length > 0) return p;
+  const cached = readProjectTasksCache(p.id);
+  if (cached?.length) {
+    return { ...p, tasks: cached };
+  }
+  return p;
 }
 
 // === Реальный загрузчик дашборда ===
@@ -77,6 +136,14 @@ function resolveLocale(lang: string) {
   if (lang === 'tr') return 'tr-TR';
   if (lang === 'en') return 'en-US';
   return 'ru-RU';
+}
+
+/** Как в канбане: не считаем удалённые в корзину и архив */
+function isLeadActiveForDashboard(l: Lead): boolean {
+  const m = (l as any).meta;
+  if (m?.deleted) return false;
+  if (m?.archived) return false;
+  return true;
 }
 
 async function loadDashboardData(
@@ -102,10 +169,18 @@ async function loadDashboardData(
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
-  const [allLeads, projectsRes] = await Promise.all([
-    fetchLeads(), // Lead[]
-    fetchProjects(), // { items } | Project[] | что-то ещё
+  const [leadsRaw, projectsRes, salesStatsRes] = await Promise.all([
+    fetchLeads(),
+    fetchProjects(),
+    fetchSalesStats().catch(() => null),
   ]);
+
+  const allLeads = (leadsRaw || []).filter(isLeadActiveForDashboard);
+
+  const salesSnapshot = {
+    count: salesStatsRes?.totalCount ?? 0,
+    amount: salesStatsRes?.totalAmount ?? 0,
+  };
 
   // аккуратно достаём проекты
   let projects: Project[] = [];
@@ -121,12 +196,12 @@ async function loadDashboardData(
   let myProjects: Project[] = [];
 
   if (isOwner) {
-    // Владелец видит всё
-    myLeads = allLeads || [];
+    // Владелец видит все активные (не в корзине / не в архиве)
+    myLeads = allLeads;
     myProjects = projects;
   } else {
     // ---- мои лиды ----
-    myLeads = (allLeads || []).filter((l: any) => {
+    myLeads = allLeads.filter((l: any) => {
       if (staffId && l.assignedUserId && l.assignedUserId === staffId) {
         return true;
       }
@@ -162,14 +237,39 @@ async function loadDashboardData(
     });
 
     // Fallback: если ничего не привязано, но данные есть — показываем всё
-    const hasAnyData =
-      (allLeads && allLeads.length > 0) || projects.length > 0;
+    const hasAnyData = allLeads.length > 0 || projects.length > 0;
 
     if (!myLeads.length && !myProjects.length && hasAnyData) {
-      myLeads = allLeads || [];
+      myLeads = allLeads;
       myProjects = projects;
     }
   }
+
+  // Задачи: берём все проекты из ответа API (уже с фильтром прав на бэкенде), не только myProjects
+  // (иначе при «есть лиды, но нет своих проектов по owner» сводка задач обнулялась).
+  // Полная карточка + кэш из localStorage, если в БД ещё пусто, а в UI задачи есть.
+  const projectsWithTasksForDashboard: Project[] = await Promise.all(
+    projects.map((p) =>
+      fetchProject(p.id)
+        .then((full) => mergeProjectTasksWithCache(full))
+        .catch(() => mergeProjectTasksWithCache(p)),
+    ),
+  );
+
+  let staffList: StaffUser[] = [];
+  try {
+    staffList = await fetchStaff();
+  } catch {
+    staffList = [];
+  }
+
+  const taskVisibility = await buildDashboardTaskVisibility({
+    role,
+    staffId,
+    userEmail: staffEmail,
+    userName: staffName,
+    staffList,
+  });
 
   /* ─────────── Summary ─────────── */
 
@@ -329,8 +429,8 @@ async function loadDashboardData(
 
   /* ─────────── Задачи: summary + топ-10 ─────────── */
 
-  const allTasksRaw: TaskWithProject[] = (Array.isArray(myProjects)
-    ? myProjects
+  const allTasksRaw: TaskWithProject[] = (Array.isArray(projectsWithTasksForDashboard)
+    ? projectsWithTasksForDashboard
     : []
   ).flatMap((p) =>
     ((p.tasks || []) as ProjectTask[]).map((t) => ({
@@ -340,14 +440,18 @@ async function loadDashboardData(
     })),
   );
 
+  const visibleTasksForDashboard = allTasksRaw.filter((task) =>
+    taskMatchesDashboardVisibility(task, taskVisibility),
+  );
+
   const tasksSummary: DashboardData['tasksSummary'] = {
-    total: allTasksRaw.length,
+    total: visibleTasksForDashboard.length,
     overdue: 0,
     today: 0,
     upcoming: 0,
   };
 
-  for (const t of allTasksRaw) {
+  for (const t of visibleTasksForDashboard) {
     if (!t.deadline) {
       tasksSummary.upcoming += 1;
       continue;
@@ -363,7 +467,7 @@ async function loadDashboardData(
     }
   }
 
-  const myTasks = allTasksRaw
+  const myTasks = visibleTasksForDashboard
     .slice()
     .sort((a, b) => {
       const da = a.deadline ? new Date(a.deadline).getTime() : Infinity;
@@ -371,19 +475,97 @@ async function loadDashboardData(
       return da - db;
     })
     .slice(0, 10)
-    .map((task: any) => ({
-      id: task.id,
-      title: t('crm.dashboard.tasks.titleWithProject', {
-        title: task.title || t('crm.dashboard.tasks.fallbackTitle'),
-        project: task.projectName,
-      }),
-      due: task.deadline
-        ? new Date(task.deadline).toLocaleString(locale)
-        : t('crm.dashboard.fallbacks.noDue'),
-      type: 'todo' as const,
+    .map((task) => {
+      const taskTitle =
+        task.title || t('crm.dashboard.tasks.fallbackTitle');
+      return {
+        id: task.id,
+        taskId: task.id,
+        projectId: task.projectId,
+        projectName: task.projectName,
+        taskTitle,
+        title: t('crm.dashboard.tasks.titleWithProject', {
+          title: taskTitle,
+          project: task.projectName,
+        }),
+        due: task.deadline
+          ? new Date(task.deadline).toLocaleString(locale)
+          : t('crm.dashboard.fallbacks.noDue'),
+        type: 'todo' as const,
+      };
+    });
+
+  let staffPerformance: DashboardData['staffPerformance'] = [];
+  const salesByChannelMap = new Map<string, number>();
+
+  if (isOwner) {
+    try {
+      staffPerformance = staffList
+        .filter((s) => s.isActive)
+        .map((s) => {
+          const leadsCount = allLeads.filter((l: any) => {
+            if (l.assignedUserId && l.assignedUserId === s.id) return true;
+            if (
+              l.assignedTo &&
+              typeof l.assignedTo === 'string' &&
+              l.assignedTo.trim() === s.fullName.trim()
+            ) {
+              return true;
+            }
+            return false;
+          }).length;
+
+          const revenueEUR = projects.reduce((sum, p: any) => {
+            const ownerMatch =
+              (p.ownerUserId && p.ownerUserId === s.id) ||
+              p.ownerName === s.fullName ||
+              p.owner === s.fullName;
+            if (!ownerMatch) return sum;
+            const st = (p.status || '').toString().toLowerCase();
+            const isWon = ['забронирован', 'оплачен', 'выигран', 'closed won', 'client'].some((x) =>
+              st.includes(x),
+            );
+            if (!isWon || typeof p.amount !== 'number') return sum;
+            return sum + p.amount;
+          }, 0);
+
+          return {
+            id: s.id,
+            name: s.fullName,
+            leadsCount,
+            revenueEUR,
+          };
+        });
+    } catch {
+      staffPerformance = [];
+    }
+
+    const leadById = new Map(allLeads.map((l) => [l.id, l]));
+    for (const p of projects) {
+      const st = (p.status || '').toString().toLowerCase();
+      const isWon = ['забронирован', 'оплачен', 'выигран', 'closed won', 'client'].some((x) =>
+        st.includes(x),
+      );
+      if (!isWon || typeof (p as any).amount !== 'number') continue;
+      const lead = (p as any).leadId ? leadById.get((p as any).leadId) : null;
+      const ch = (lead?.channel || t('crm.dashboard.fallbacks.other')).toString();
+      salesByChannelMap.set(ch, (salesByChannelMap.get(ch) || 0) + (p as any).amount);
+    }
+  }
+
+  const salesByChannel = Array.from(salesByChannelMap.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([channel, revenueEUR]) => ({ channel, revenueEUR }));
+
+  const leadPickerOptions = (myLeads || [])
+    .slice(0, 200)
+    .map((l) => ({
+      id: l.id,
+      name: l.name || t('crm.dashboard.fallbacks.noName'),
     }));
 
   return {
+    myProjects,
     summary: {
       todayLeads,
       totalLeads,
@@ -399,11 +581,16 @@ async function loadDashboardData(
     leadsTimeline,
     projectsSummary,
     tasksSummary,
+    staffPerformance,
+    salesByChannel,
+    leadPickerOptions,
+    salesSnapshot,
   };
 }
 
 export const DashboardPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const locale = resolveLocale(i18n.language);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -438,182 +625,358 @@ export const DashboardPage: React.FC = () => {
   const projectsSummary = data?.projectsSummary;
   const tasksSummary = data?.tasksSummary;
 
-  return (
-    <MainLayout>
-      <div className="space-y-4 md:space-y-6 pb-8">
-        {/* Верхний приветственный блок */}
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,2.3fr)_minmax(0,1.4fr)]">
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_24px_60px_rgba(17,24,39,0.08)]">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
-              <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">
-                  {t('crm.dashboard.welcome.badge')}
-                </div>
-                <div className="text-lg md:text-xl font-semibold text-lumiva-accent">
-                  {t('crm.dashboard.welcome.title', {
-                    name: user?.name ?? t('crm.dashboard.fallbacks.user'),
-                  })}
-                </div>
-              </div>
-              <div className="flex flex-col items-start md:items-end text-[11px] text-slate-500">
-                <span>
-                  {t('crm.dashboard.welcome.shift', {
-                    date: new Date().toLocaleDateString(locale),
-                  })}
-                </span>
-                <span>
-                  {t('crm.dashboard.welcome.role', {
-                    role: t(`crm.dashboard.roles.${user?.role}`, {
-                      defaultValue: user?.role ?? 'owner',
-                    }),
-                  })}
-                </span>
-              </div>
-            </div>
-            <p className="text-xs md:text-sm text-slate-600 max-w-2xl">
-              {t('crm.dashboard.welcome.summary')}
-            </p>
+  const role = (user as any)?.role || 'user';
+  const isOwner =
+    role === 'owner' || role === 'admin' || role === 'superadmin';
+
+  const [layout, setLayout] = useState<DashboardLayoutState>(() =>
+    loadDashboardLayout(),
+  );
+  const [presetsModalOpen, setPresetsModalOpen] = useState(false);
+  const [resizing, setResizing] = useState<{
+    id: string;
+    startX: number;
+    startY: number;
+    startHeight: number;
+    startColSpan: number;
+    liveHeight: number;
+    liveColSpan: number;
+    minHeight: number;
+    axis: 'x' | 'y' | 'both';
+  } | null>(null);
+  const [leadsModalOpen, setLeadsModalOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dropIndicator, setDropIndicator] = useState<{
+    targetId: string;
+    place: 'before' | 'after';
+  } | null>(null);
+  const [widgetEditOpen, setWidgetEditOpen] = useState(false);
+  const [widgetEditId, setWidgetEditId] = useState<string | null>(null);
+  const [widgetEditTitle, setWidgetEditTitle] = useState('');
+
+  const persistLayout = useCallback(
+    (updater: (p: DashboardLayoutState) => DashboardLayoutState) => {
+      setLayout((prev) => {
+        const next = updater(prev);
+        saveDashboardLayout(next);
+        return next;
+      });
+    },
+    [],
+  );
+
+  /** MainLayout сохраняет layout в localStorage; подтягиваем state и тост */
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<DashboardLayoutChangedDetail>).detail;
+      setLayout(loadDashboardLayout());
+      if (d?.addedWidget) {
+        setToast(t('crm.dashboard.widgets.addedToHome'));
+        window.setTimeout(() => setToast(null), 2800);
+      }
+    };
+    window.addEventListener(DASHBOARD_LAYOUT_CHANGED_EVENT, h);
+    return () => window.removeEventListener(DASHBOARD_LAYOUT_CHANGED_EVENT, h);
+  }, [t]);
+
+  const visibleIds = useMemo(() => {
+    return layout.order.filter((id) => {
+      if (layout.hidden.has(id)) return false;
+      if (id === 'staff' && !isOwner) return false;
+      if (isDashboardPresetInstanceId(id) && !layout.presetInstances[id]) return false;
+      return true;
+    });
+  }, [layout, isOwner]);
+
+  const availableToAdd = useMemo(() => {
+    return ALL_DASHBOARD_WIDGET_IDS.filter((id) => {
+      if (!layout.hidden.has(id)) return false;
+      if (id === 'staff' && !isOwner) return false;
+      return true;
+    });
+  }, [layout.hidden, isOwner]);
+
+  const reorderByDrag = (fromId: string, toId: string, place: 'before' | 'after') => {
+    if (fromId === toId) return;
+    persistLayout((prev) => {
+      const order = [...prev.order];
+      const fromIdx = order.indexOf(fromId);
+      const toIdx = order.indexOf(toId);
+      if (fromIdx < 0 || toIdx < 0) return prev;
+      const next = order.filter((x) => x !== fromId);
+      const newToIdx = next.indexOf(toId);
+      if (newToIdx < 0) return prev;
+      const insertAt = place === 'before' ? newToIdx : newToIdx + 1;
+      next.splice(insertAt, 0, fromId);
+      return { ...prev, order: next };
+    });
+  };
+
+  const hideWidget = (id: string) => {
+    persistLayout((prev) => ({
+      ...prev,
+      hidden: new Set([...prev.hidden, id]),
+    }));
+  };
+
+  /** Полное удаление блока пресета (pid_*); стандартные — скрыть с главной */
+  const removeWidgetBlock = (id: string) => {
+    if (isDashboardPresetInstanceId(id)) {
+      persistLayout((prev) => {
+        const order = prev.order.filter((x) => x !== id);
+        const presetInstances = { ...prev.presetInstances };
+        delete presetInstances[id];
+        const sizes = { ...prev.sizes };
+        delete sizes[id];
+        const heights = { ...prev.heights };
+        delete heights[id];
+        const titleOverrides = { ...prev.titleOverrides };
+        delete titleOverrides[id];
+        return { ...prev, order, presetInstances, sizes, heights, titleOverrides };
+      });
+      return;
+    }
+    hideWidget(id);
+  };
+
+  const saveWidgetTitle = (id: string, title: string) => {
+    const trimmed = title.trim();
+    persistLayout((prev) => {
+      const titleOverrides = { ...prev.titleOverrides };
+      if (!trimmed) {
+        delete titleOverrides[id];
+      } else {
+        titleOverrides[id] = trimmed;
+      }
+      if (isDashboardPresetInstanceId(id) && prev.presetInstances[id]) {
+        const inst = prev.presetInstances[id];
+        const wc: Record<string, unknown> = { ...((inst.widgetConfig as object) || {}) };
+        if (!trimmed) {
+          delete wc.title;
+        } else {
+          wc.title = trimmed;
+        }
+        return {
+          ...prev,
+          titleOverrides,
+          presetInstances: {
+            ...prev.presetInstances,
+            [id]: { ...inst, widgetConfig: wc },
+          },
+        };
+      }
+      return { ...prev, titleOverrides };
+    });
+  };
+
+  const addWidget = (id: string) => {
+    persistLayout((prev) => {
+      const hidden = new Set(prev.hidden);
+      hidden.delete(id);
+      return { ...prev, hidden };
+    });
+    setPresetsModalOpen(false);
+  };
+
+  const beginResize = (
+    id: string,
+    size: WidgetSize,
+    axis: 'x' | 'y' | 'both',
+    e: React.MouseEvent,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startHeight = getDefaultWidgetHeight(id, layout);
+    const startColSpan = sizeToColSpan(size);
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const minHeight = 160;
+
+    setResizing({
+      id,
+      startX,
+      startY,
+      startHeight,
+      startColSpan,
+      liveHeight: startHeight,
+      liveColSpan: startColSpan,
+      minHeight,
+      axis,
+    });
+
+    const handleMove = (ev: MouseEvent) => {
+      const deltaX = ev.clientX - startX;
+      const deltaY = ev.clientY - startY;
+      let liveHeight = startHeight;
+      let liveColSpan = startColSpan;
+      if (axis === 'y' || axis === 'both') {
+        liveHeight = Math.min(720, Math.max(minHeight, startHeight + deltaY));
+      }
+      if (axis === 'x' || axis === 'both') {
+        liveColSpan = Math.max(4, Math.min(12, startColSpan + Math.round(deltaX / 6)));
+      }
+      setResizing((prev) =>
+        prev && prev.id === id
+          ? { ...prev, liveHeight, liveColSpan }
+          : prev,
+      );
+    };
+
+    const handleUp = () => {
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('mouseup', handleUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      setResizing((prev) => {
+        if (prev && prev.id === id) {
+          persistLayout((layoutState) => ({
+            ...layoutState,
+            heights: { ...layoutState.heights, [id]: prev.liveHeight },
+            sizes: { ...layoutState.sizes, [id]: colSpanToSize(prev.liveColSpan) },
+          }));
+        }
+        return null;
+      });
+    };
+
+    document.body.style.cursor =
+      axis === 'y'
+        ? 'ns-resize'
+        : axis === 'both'
+          ? 'nwse-resize'
+          : 'ew-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', handleMove);
+    document.addEventListener('mouseup', handleUp);
+  };
+
+  const widgetTitle = (id: string) => {
+    const ov = layout.titleOverrides?.[id];
+    if (ov && ov.trim()) return ov;
+    if (isDashboardPresetInstanceId(id)) {
+      const inst = layout.presetInstances[id];
+      if (inst) {
+        const wc = inst.widgetConfig as { title?: string } | undefined;
+        if (wc && typeof wc.title === 'string' && wc.title.trim()) return wc.title;
+        const def = getPresetDefinition(inst.source, inst.slug);
+        if (def) return t(def.titleKey);
+      }
+      return t('crm.dashboard.presets.fallback');
+    }
+    const k = `crm.dashboard.widgets.names.${id}` as const;
+    const tr = t(k, { defaultValue: '' });
+    return tr || id;
+  };
+
+  const leadsForCalendar = useMemo(
+    () => data?.leadPickerOptions || [],
+    [data?.leadPickerOptions],
+  );
+
+  const renderWidgetBody = (id: string) => {
+    if (!data) return null;
+    if (isDashboardPresetInstanceId(id)) {
+      const inst = layout.presetInstances[id];
+      if (!inst) return null;
+      return (
+        <DashboardPresetWidget
+          instance={inst}
+          projectsFromDashboard={data.myProjects}
+        />
+      );
+    }
+    switch (id) {
+      case 'kpi':
+        return (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            <KpiCard
+              label={t('crm.dashboard.kpi.todayLeads')}
+              value={summary?.todayLeads ?? 0}
+              subtitle={t('crm.dashboard.kpi.todayLeadsHint')}
+              accent
+            />
+            <KpiCard
+              label={t('crm.dashboard.kpi.totalLeads')}
+              value={summary?.totalLeads ?? 0}
+              format="number"
+              subtitle={t('crm.dashboard.kpi.totalLeadsHint')}
+            />
+            <KpiCard
+              label={t('crm.dashboard.kpi.conversion')}
+              value={summary?.conversion ?? 0}
+              suffix="%"
+              subtitle={t('crm.dashboard.kpi.conversionHint')}
+            />
+            <KpiCard
+              label={t('crm.dashboard.kpi.wonProjects')}
+              value={projectsSummary?.won ?? 0}
+              subtitle={t('crm.dashboard.kpi.wonProjectsHint')}
+            />
+            <KpiCard
+              label={t('crm.dashboard.kpi.revenue')}
+              value={summary?.revenueEUR ?? 0}
+              format="currency"
+              subtitle={t('crm.dashboard.kpi.revenueHint')}
+            />
+            <KpiCard
+              label={t('crm.dashboard.kpi.tasksTotal')}
+              value={tasksSummary?.total ?? 0}
+              subtitle={
+                tasksSummary
+                  ? t('crm.dashboard.kpi.tasksSubtitle', {
+                      today: tasksSummary.today,
+                      overdue: tasksSummary.overdue,
+                    })
+                  : ''
+              }
+            />
           </div>
-
-          <div className="bg-gradient-to-br from-white via-slate-100 to-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_50px_rgba(17,24,39,0.08)]">
-            <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">
-              {t('crm.dashboard.focus.title')}
-            </div>
-            <div className="text-sm text-lumiva-accent mb-3">
-              {t('crm.dashboard.focus.prefix')}{' '}
-              <span className="font-semibold text-black underline decoration-2">
-                {t('crm.dashboard.focus.highlight')}
-              </span>
-              {t('crm.dashboard.focus.suffix')}
-            </div>
-            <ul className="space-y-1.5 text-[11px] text-slate-600">
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent" />
-                <span>{t('crm.dashboard.focus.items.webchat')}</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent" />
-                <span>{t('crm.dashboard.focus.items.pending')}</span>
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent" />
-                <span>{t('crm.dashboard.focus.items.notes')}</span>
-              </li>
-            </ul>
-          </div>
-        </section>
-
-        {/* Карточки KPI */}
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <KpiCard
-            label={t('crm.dashboard.kpi.todayLeads')}
-            value={summary?.todayLeads ?? 0}
-            subtitle={t('crm.dashboard.kpi.todayLeadsHint')}
-            accent
-          />
-          <KpiCard
-            label={t('crm.dashboard.kpi.totalLeads')}
-            value={summary?.totalLeads ?? 0}
-            format="number"
-            subtitle={t('crm.dashboard.kpi.totalLeadsHint')}
-          />
-          <KpiCard
-            label={t('crm.dashboard.kpi.conversion')}
-            value={summary?.conversion ?? 0}
-            suffix="%"
-            subtitle={t('crm.dashboard.kpi.conversionHint')}
-          />
-          <KpiCard
-            label={t('crm.dashboard.kpi.wonProjects')}
-            value={projectsSummary?.won ?? 0}
-            subtitle={t('crm.dashboard.kpi.wonProjectsHint')}
-          />
-          <KpiCard
-            label={t('crm.dashboard.kpi.revenue')}
-            value={summary?.revenueEUR ?? 0}
-            format="currency"
-            subtitle={t('crm.dashboard.kpi.revenueHint')}
-          />
-          <KpiCard
-            label={t('crm.dashboard.kpi.tasksTotal')}
-            value={tasksSummary?.total ?? 0}
-            subtitle={
-              tasksSummary
-                ? t('crm.dashboard.kpi.tasksSubtitle', {
-                    today: tasksSummary.today,
-                    overdue: tasksSummary.overdue,
-                  })
-                : ''
-            }
-          />
-        </section>
-
-        {/* Блок графиков: динамика лидов + проекты */}
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,2.2fr)_minmax(0,1.5fr)]">
-          {/* Динамика лидов */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
+        );
+      case 'calendar':
+        return (
+          <DashboardCalendarMini locale={locale} leads={leadsForCalendar} />
+        );
+      case 'leads-timeline':
+        return (
+          <div>
             <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm font-semibold text-lumiva-accent">
-                  {t('crm.dashboard.leadsTimeline.title')}
-                </h2>
-                <p className="text-[11px] text-slate-500">
-                  {t('crm.dashboard.leadsTimeline.subtitle')}
-                </p>
-              </div>
+              <p className="text-[11px] text-slate-500">
+                {t('crm.dashboard.leadsTimeline.subtitle')}
+              </p>
               <div className="text-right text-[11px] text-slate-500">
-                <div>
-                  {t('crm.dashboard.leadsTimeline.total')}{' '}
-                  <span className="text-lumiva-accent font-medium">
-                    {(data?.leadsTimeline || []).reduce(
-                      (s, d) => s + d.value,
-                      0,
-                    )}
-                  </span>
-                </div>
+                {t('crm.dashboard.leadsTimeline.total')}{' '}
+                <span className="text-lumiva-accent font-medium">
+                  {data.leadsTimeline.reduce((s, d) => s + d.value, 0)}
+                </span>
               </div>
             </div>
-
-            <div className="mt-3">
-              {data && data.leadsTimeline.length > 0 ? (
-                <SparklineBars data={data.leadsTimeline} />
-              ) : (
-                <div className="text-[11px] text-slate-500 italic">
-                  {t('crm.dashboard.leadsTimeline.empty')}
-                </div>
-              )}
-            </div>
+            {data.leadsTimeline.length > 0 ? (
+              <SparklineBars data={data.leadsTimeline} />
+            ) : (
+              <div className="text-[11px] text-slate-500 italic">
+                {t('crm.dashboard.leadsTimeline.empty')}
+              </div>
+            )}
           </div>
-
-          {/* Структура проектов */}
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h2 className="text-sm font-semibold text-lumiva-accent">
-                  {t('crm.dashboard.projects.title')}
-                </h2>
-                <p className="text-[11px] text-slate-500">
-                  {t('crm.dashboard.projects.subtitle')}
-                </p>
+        );
+      case 'projects':
+        return (
+          <div>
+            {projectsSummary && (
+              <div className="flex flex-wrap justify-between gap-2 mb-3 text-[11px] text-slate-500">
+                <span>
+                  {t('crm.dashboard.projects.total')}{' '}
+                  <span className="text-lumiva-accent font-medium">{projectsSummary.total}</span>
+                </span>
+                <span>
+                  {t('crm.dashboard.projects.openPotential')}{' '}
+                  <span className="text-lumiva-accent font-medium">
+                    {projectsSummary.openValueEUR.toLocaleString(locale)} €
+                  </span>
+                </span>
               </div>
-              {projectsSummary && (
-                <div className="text-right text-[11px] text-slate-500">
-                  <div>
-                    {t('crm.dashboard.projects.total')}{' '}
-                    <span className="text-lumiva-accent font-medium">
-                      {projectsSummary.total}
-                    </span>
-                  </div>
-                  <div>
-                    {t('crm.dashboard.projects.openPotential')}{' '}
-                    <span className="text-lumiva-accent font-medium">
-                      {projectsSummary.openValueEUR.toLocaleString(locale)} €
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-
+            )}
             {projectsSummary && projectsSummary.total > 0 ? (
               <>
                 <ProjectDistributionBar summary={projectsSummary} />
@@ -643,7 +1006,6 @@ export const DashboardPage: React.FC = () => {
                 {t('crm.dashboard.projects.empty')}
               </div>
             )}
-
             {tasksSummary && (
               <div className="mt-5 border-t border-slate-200 pt-3 text-[11px]">
                 <div className="text-slate-500 mb-1">
@@ -669,150 +1031,594 @@ export const DashboardPage: React.FC = () => {
               </div>
             )}
           </div>
-        </section>
-
-        {/* Средний блок: каналы + воронка */}
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.3fr)]">
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-lumiva-accent">
-                {t('crm.dashboard.channels.title')}
-              </h2>
-              <span className="text-[11px] text-slate-500">
-                {t('crm.dashboard.channels.period')}
-              </span>
-            </div>
-            <div className="space-y-2">
-              {data?.leadsByChannel.map((ch) => (
-                <ChannelRow key={ch.channel} {...ch} />
-              ))}
-              {!data?.leadsByChannel.length && (
-                <div className="text-[11px] text-slate-500 italic">
-                  {t('crm.dashboard.channels.empty')}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-lumiva-accent">
-                {t('crm.dashboard.pipeline.title')}
-              </h2>
-              <span className="text-[11px] text-slate-500">
-                {t('crm.dashboard.pipeline.subtitle')}
-              </span>
-            </div>
-            <div className="space-y-3">
-              {data?.pipeline.map((st) => (
-                <PipelineRow key={st.stage} {...st} />
-              ))}
-              {!data?.pipeline.length && (
-                <div className="text-[11px] text-slate-500 italic">
-                  {t('crm.dashboard.pipeline.empty')}
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
-        {/* Нижний блок: последние лиды + задачи */}
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,1.2fr)]">
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 min-w-0 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-lumiva-accent">
-                {t('crm.dashboard.recentLeads.title')}
-              </h2>
-              <button className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft">
-                {t('crm.dashboard.recentLeads.openAll')}
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
-                <thead className="text-slate-500">
-                  <tr>
-                    <th className="text-left font-normal px-2 py-1">{t('crm.dashboard.recentLeads.headers.name')}</th>
-                    <th className="text-left font-normal px-2 py-1">{t('crm.dashboard.recentLeads.headers.channel')}</th>
-                    <th className="text-left font-normal px-2 py-1">
-                      {t('crm.dashboard.recentLeads.headers.status')}
-                    </th>
-                    <th className="text-left font-normal px-2 py-1">
-                      {t('crm.dashboard.recentLeads.headers.created')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data?.recentLeads.map((lead) => (
-                    <tr
-                      key={lead.id}
-                      className="bg-slate-100/70 hover:bg-slate-200 transition-colors"
-                    >
-                      <td className="px-2 py-1.5 text-lumiva-accent whitespace-nowrap">
-                        {lead.name}
-                      </td>
-                      <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
-                        {lead.channel}
-                      </td>
-                      <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
-                        {lead.status}
-                      </td>
-                      <td className="px-2 py-1.5 text-slate-500 whitespace-nowrap">
-                        {lead.createdAt}
-                      </td>
-                    </tr>
-                  ))}
-
-                  {!data?.recentLeads.length && (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
+        );
+      case 'channels-funnel':
+        return (
+          <div
+            className={
+              (layout.sizes['channels-funnel'] || 'md') === 'lg'
+                ? 'grid gap-4 lg:grid-cols-2'
+                : 'space-y-4'
+            }
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] text-slate-500">
+                  {t('crm.dashboard.channels.period')}
+                </span>
+              </div>
+              <div className="space-y-2">
+                {data.leadsByChannel.map((ch) => (
+                  <ChannelRow key={ch.channel} {...ch} />
+                ))}
+                {!data.leadsByChannel.length && (
+                  <div className="text-[11px] text-slate-500 italic">
+                    {t('crm.dashboard.channels.empty')}
+                  </div>
+                )}
+              </div>
+              {isOwner && data.salesByChannel.length > 0 && (
+                <div className="mt-4 border-t border-slate-200 pt-3">
+                  <div className="text-[11px] font-medium text-slate-700 mb-2">
+                    {t('crm.dashboard.salesByChannel.title')}
+                  </div>
+                  <div className="space-y-1.5">
+                    {data.salesByChannel.slice(0, 8).map((row) => (
+                      <div
+                        key={row.channel}
+                        className="flex justify-between text-[11px] text-slate-600"
                       >
-                        {t('crm.dashboard.recentLeads.empty')}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="bg-white border border-slate-200 rounded-3xl p-4 md:p-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)]">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-lumiva-accent">
-                {t('crm.dashboard.tasks.title')}
-              </h2>
-            </div>
-            <div className="space-y-2">
-              {data?.myTasks.map((t) => (
-                <TaskRow key={t.id} {...t} />
-              ))}
-              {!data?.myTasks.length && (
-                <div className="text-[11px] text-slate-500 italic">
-                  {t('crm.dashboard.tasks.empty')}
+                        <span className="truncate">{row.channel}</span>
+                        <span className="font-medium text-lumiva-accent">
+                          {row.revenueEUR.toLocaleString(locale)} €
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[11px] text-slate-500">
+                  {t('crm.dashboard.pipeline.subtitle')}
+                </span>
+              </div>
+              <div className="space-y-3">
+                {data.pipeline.map((st) => (
+                  <PipelineRow key={st.stage} {...st} />
+                ))}
+                {!data.pipeline.length && (
+                  <div className="text-[11px] text-slate-500 italic">
+                    {t('crm.dashboard.pipeline.empty')}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
+        );
+      case 'recent-leads':
+        return (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
+              <thead className="text-slate-500">
+                <tr>
+                  <th className="text-left font-normal px-2 py-1">
+                    {t('crm.dashboard.recentLeads.headers.name')}
+                  </th>
+                  <th className="text-left font-normal px-2 py-1">
+                    {t('crm.dashboard.recentLeads.headers.channel')}
+                  </th>
+                  <th className="text-left font-normal px-2 py-1">
+                    {t('crm.dashboard.recentLeads.headers.status')}
+                  </th>
+                  <th className="text-left font-normal px-2 py-1">
+                    {t('crm.dashboard.recentLeads.headers.created')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.recentLeads.map((lead) => (
+                  <tr
+                    key={lead.id}
+                    className="bg-slate-100/70 hover:bg-slate-200 transition-colors cursor-pointer"
+                    onClick={() => navigate(`/leads/${lead.id}`)}
+                  >
+                    <td className="px-2 py-1.5 text-lumiva-accent whitespace-nowrap">
+                      {lead.name}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
+                      {lead.channel}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
+                      {lead.status}
+                    </td>
+                    <td className="px-2 py-1.5 text-slate-500 whitespace-nowrap">
+                      {lead.createdAt}
+                    </td>
+                  </tr>
+                ))}
+                {!data.recentLeads.length && (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
+                    >
+                      {t('crm.dashboard.recentLeads.empty')}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+      case 'recent-tasks':
+        return (
+          <div className="space-y-2">
+            {data.myTasks.map((task) => (
+              <TaskRow key={task.id} {...task} />
+            ))}
+            {!data.myTasks.length && (
+              <div className="text-[11px] text-slate-500 italic">
+                {t('crm.dashboard.tasks.empty')}
+              </div>
+            )}
+          </div>
+        );
+      case 'staff':
+        return (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[11px] border-separate border-spacing-y-1">
+              <thead className="text-slate-500">
+                <tr>
+                  <th className="text-left font-normal px-2 py-1">
+                    {t('crm.dashboard.staff.headers.name')}
+                  </th>
+                  <th className="text-right font-normal px-2 py-1">
+                    {t('crm.dashboard.staff.headers.leads')}
+                  </th>
+                  <th className="text-right font-normal px-2 py-1">
+                    {t('crm.dashboard.staff.headers.revenue')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.staffPerformance.map((s) => (
+                  <tr
+                    key={s.id}
+                    className="bg-slate-100/70 hover:bg-slate-200/90 transition-colors"
+                  >
+                    <td className="px-2 py-1.5 text-lumiva-accent">{s.name}</td>
+                    <td className="px-2 py-1.5 text-right text-slate-700">
+                      {s.leadsCount}
+                    </td>
+                    <td className="px-2 py-1.5 text-right text-slate-700">
+                      {s.revenueEUR.toLocaleString(locale)} €
+                    </td>
+                  </tr>
+                ))}
+                {!data.staffPerformance.length && (
+                  <tr>
+                    <td
+                      colSpan={3}
+                      className="px-2 py-3 text-center text-slate-500 italic"
+                    >
+                      {t('crm.dashboard.staff.empty')}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+      case 'projects-analytics':
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                  {t('crm.dashboard.projectsAnalytics.kpiProjects')}
+                </div>
+                <div className="text-lg font-semibold text-slate-900">
+                  {projectsSummary?.total ?? 0}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                  {t('crm.dashboard.projectsAnalytics.kpiRevenue')}
+                </div>
+                <div className="text-lg font-semibold text-slate-900">
+                  {(summary?.revenueEUR ?? 0).toLocaleString(locale)} €
+                </div>
+              </div>
+            </div>
+            <Link
+              to="/projects/analytics"
+              className="inline-flex items-center justify-center w-full rounded-2xl bg-lumiva-accent text-white text-[11px] font-semibold py-2 border border-lumiva-accent hover:opacity-90 transition-opacity"
+            >
+              {t('crm.dashboard.projectsAnalytics.openFull')}
+            </Link>
+          </div>
+        );
+      case 'leads-analytics':
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                  {t('crm.dashboard.leadsAnalyticsWidget.kpiLeads')}
+                </div>
+                <div className="text-lg font-semibold text-slate-900">
+                  {summary?.totalLeads ?? 0}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                  {t('crm.dashboard.leadsAnalyticsWidget.kpiConversion')}
+                </div>
+                <div className="text-lg font-semibold text-slate-900">
+                  {summary?.conversion ?? 0}%
+                </div>
+              </div>
+            </div>
+            <Link
+              to="/leads/analytics"
+              className="inline-flex items-center justify-center w-full rounded-2xl bg-lumiva-accent text-white text-[11px] font-semibold py-2 border border-lumiva-accent hover:opacity-90 transition-opacity"
+            >
+              {t('crm.dashboard.leadsAnalyticsWidget.openFull')}
+            </Link>
+          </div>
+        );
+      case 'sales-analytics':
+        return (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                  {t('crm.dashboard.salesAnalyticsWidget.kpiCount')}
+                </div>
+                <div className="text-lg font-semibold text-slate-900">
+                  {data.salesSnapshot.count}
+                </div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wide">
+                  {t('crm.dashboard.salesAnalyticsWidget.kpiAmount')}
+                </div>
+                <div className="text-lg font-semibold text-slate-900">
+                  {data.salesSnapshot.amount.toLocaleString(locale)}
+                </div>
+              </div>
+            </div>
+            <Link
+              to="/sales/analytics"
+              className="inline-flex items-center justify-center w-full rounded-2xl bg-lumiva-accent text-white text-[11px] font-semibold py-2 border border-lumiva-accent hover:opacity-90 transition-opacity"
+            >
+              {t('crm.dashboard.salesAnalyticsWidget.openFull')}
+            </Link>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <MainLayout>
+      <div className="relative isolate overflow-visible rounded-[24px] md:rounded-[28px] border border-slate-200/75 bg-gradient-to-b from-slate-50/95 via-white to-slate-50/50 px-3 py-5 sm:px-4 md:px-7 md:py-7 ring-1 ring-slate-900/[0.04]">
+        <div
+          className="pointer-events-none absolute inset-0 rounded-[24px] md:rounded-[28px] opacity-[0.65] bg-[radial-gradient(920px_440px_at_50%_-18%,rgba(14,165,233,0.11),transparent_58%),radial-gradient(560px_320px_at_100%_0%,rgba(99,102,241,0.08),transparent_52%),linear-gradient(180deg,rgba(255,255,255,0.5)_0%,transparent_35%)]"
+          aria-hidden
+        />
+        <div className="relative z-10 space-y-4 md:space-y-6 pb-2 md:pb-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-500/90 font-medium">
+            {t('crm.dashboard.hero.kicker')}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPresetsModalOpen(true)}
+              className="rounded-2xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-700 hover:bg-slate-50"
+            >
+              + {t('crm.dashboard.widgets.addBlock')}
+            </button>
+          </div>
+        </div>
+
+        <section className="grid grid-cols-12 gap-4 md:gap-5 items-start">
+          {visibleIds.map((id) => {
+            const size = layout.sizes[id] || 'md';
+            const heightPx =
+              resizing?.id === id ? resizing.liveHeight : getDefaultWidgetHeight(id, layout);
+            const colSpan =
+              resizing?.id === id ? resizing.liveColSpan : sizeToColSpan(size);
+            return (
+              <DashboardWidgetChrome
+                key={id}
+                title={widgetTitle(id)}
+                size={size}
+                colSpan={colSpan}
+                heightPx={heightPx}
+                resizeActive={resizing?.id === id}
+                dragging={draggingId === id}
+                dropBefore={
+                  !!dropIndicator &&
+                  dropIndicator.targetId === id &&
+                  dropIndicator.place === 'before' &&
+                  draggingId !== null &&
+                  draggingId !== id
+                }
+                dropAfter={
+                  !!dropIndicator &&
+                  dropIndicator.targetId === id &&
+                  dropIndicator.place === 'after' &&
+                  draggingId !== null &&
+                  draggingId !== id
+                }
+                onBeginResize={(axis, e) => beginResize(id, size, axis, e)}
+                dragOver={
+                  dropIndicator?.targetId === id && draggingId !== null && draggingId !== id
+                }
+                onEdit={() => {
+                  setWidgetEditId(id);
+                  setWidgetEditTitle(widgetTitle(id));
+                  setWidgetEditOpen(true);
+                }}
+                onDragStart={(e) => {
+                  e.dataTransfer.setData('text/plain', id);
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDraggingId(id);
+                }}
+                onDragEnd={() => {
+                  setDraggingId(null);
+                  setDropIndicator(null);
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (!draggingId || draggingId === id) return;
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const mid = rect.top + rect.height / 2;
+                  const place = e.clientY < mid ? 'before' : 'after';
+                  setDropIndicator({ targetId: id, place });
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  const from = e.dataTransfer.getData('text/plain') || draggingId;
+                  if (!from || from === id) {
+                    setDraggingId(null);
+                    setDropIndicator(null);
+                    return;
+                  }
+                  const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                  const mid = rect.top + rect.height / 2;
+                  const place = e.clientY < mid ? 'before' : 'after';
+                  reorderByDrag(from, id, place);
+                  setDraggingId(null);
+                  setDropIndicator(null);
+                }}
+                actions={
+                  id === 'recent-leads' ? (
+                    <button
+                      type="button"
+                      draggable={false}
+                      onClick={() => setLeadsModalOpen(true)}
+                      className="rounded-lg border border-slate-200 bg-white/80 px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-50"
+                    >
+                      {t('crm.dashboard.detailModal.open')}
+                    </button>
+                  ) : undefined
+                }
+              >
+                {renderWidgetBody(id)}
+              </DashboardWidgetChrome>
+            );
+          })}
         </section>
 
-        {loading && (
-          <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] text-lumiva-accent shadow-[0_10px_30px_rgba(17,24,39,0.08)] flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {t('crm.dashboard.loading')}
+        {leadsModalOpen &&
+          data &&
+          createPortal(
+            <div
+              className="fixed inset-0 z-[10080] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+              role="presentation"
+              onMouseDown={() => setLeadsModalOpen(false)}
+            >
+              <div
+                role="dialog"
+                className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-3xl border border-slate-200/90 bg-white/98 backdrop-blur-md p-5 ring-1 ring-slate-900/[0.08]"
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4 gap-2">
+                  <h3 className="text-sm font-semibold text-slate-900">
+                    {t('crm.dashboard.recentLeads.title')}
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      to="/leads/list"
+                      className="text-[11px] text-lumiva-accent hover:underline"
+                    >
+                      {t('crm.dashboard.recentLeads.openAll')}
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setLeadsModalOpen(false)}
+                      className="text-[11px] text-slate-500 hover:text-slate-800"
+                    >
+                      {t('crm.common.close')}
+                    </button>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
+                    <thead className="text-slate-500">
+                      <tr>
+                        <th className="text-left font-normal px-2 py-1">
+                          {t('crm.dashboard.recentLeads.headers.name')}
+                        </th>
+                        <th className="text-left font-normal px-2 py-1">
+                          {t('crm.dashboard.recentLeads.headers.channel')}
+                        </th>
+                        <th className="text-left font-normal px-2 py-1">
+                          {t('crm.dashboard.recentLeads.headers.status')}
+                        </th>
+                        <th className="text-left font-normal px-2 py-1">
+                          {t('crm.dashboard.recentLeads.headers.created')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {data.recentLeads.map((lead) => (
+                        <tr
+                          key={lead.id}
+                          className="bg-slate-100/70 hover:bg-slate-200 transition-colors cursor-pointer"
+                          onClick={() => {
+                            setLeadsModalOpen(false);
+                            navigate(`/leads/${lead.id}`);
+                          }}
+                        >
+                          <td className="px-2 py-1.5 text-lumiva-accent whitespace-nowrap">
+                            {lead.name}
+                          </td>
+                          <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
+                            {lead.channel}
+                          </td>
+                          <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">
+                            {lead.status}
+                          </td>
+                          <td className="px-2 py-1.5 text-slate-500 whitespace-nowrap">
+                            {lead.createdAt}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )}
+
+        {presetsModalOpen && (
+          <DashboardAddPresetsModal
+            onClose={() => setPresetsModalOpen(false)}
+            onPick={(preset) => {
+              requestAddDashboardPreset(preset);
+              setPresetsModalOpen(false);
+            }}
+            hiddenStandardIds={availableToAdd}
+            onAddStandard={addWidget}
+            widgetTitle={widgetTitle}
+          />
+        )}
+
+        {widgetEditOpen && widgetEditId && (
+          <div
+            className="fixed inset-0 z-[10085] flex items-center justify-center p-4 bg-black/45 backdrop-blur-md"
+            onClick={() => {
+              setWidgetEditOpen(false);
+              setWidgetEditId(null);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                setWidgetEditOpen(false);
+                setWidgetEditId(null);
+              }
+            }}
+            role="presentation"
+          >
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="widget-edit-title"
+              className="w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 text-slate-900 shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/[0.06]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3
+                id="widget-edit-title"
+                className="text-base font-semibold tracking-tight text-slate-900"
+              >
+                {t('crm.dashboard.widgets.editModalTitle')}
+              </h3>
+              <label
+                htmlFor="widget-edit-title-input"
+                className="mt-4 block text-[12px] font-medium text-slate-600"
+              >
+                {t('crm.dashboard.widgets.editTitleLabel')}
+              </label>
+              <input
+                id="widget-edit-title-input"
+                value={widgetEditTitle}
+                onChange={(e) => setWidgetEditTitle(e.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-shadow focus:border-lumiva-accent focus:bg-white focus:ring-2 focus:ring-lumiva-accent/25"
+                autoFocus
+              />
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeWidgetBlock(widgetEditId);
+                    setWidgetEditOpen(false);
+                    setWidgetEditId(null);
+                  }}
+                  className="rounded-xl border border-rose-300/80 bg-rose-50 px-3.5 py-2 text-[12px] font-medium text-rose-800 hover:bg-rose-100"
+                >
+                  {t('crm.dashboard.widgets.deleteBlock')}
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setWidgetEditOpen(false);
+                      setWidgetEditId(null);
+                    }}
+                    className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-[12px] font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+                  >
+                    {t('crm.common.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      saveWidgetTitle(widgetEditId, widgetEditTitle);
+                      setWidgetEditOpen(false);
+                      setWidgetEditId(null);
+                    }}
+                    className="rounded-xl border border-lumiva-accent bg-lumiva-accent px-4 py-2 text-[12px] font-semibold text-white shadow-sm hover:opacity-95"
+                  >
+                    {t('crm.common.save')}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
 
-        {error && (
-          <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-red-50 border border-red-100 text-[11px] text-red-600 shadow-[0_10px_30px_rgba(248,113,113,0.25)]">
-              {error}
-            </div>
-          </div>
-        )}
+        </div>
       </div>
+
+      {toast && (
+        <div className="fixed top-20 right-4 z-[10090] rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-sm px-4 py-2 text-[11px] text-slate-800 ring-1 ring-slate-900/[0.06]">
+          {toast}
+        </div>
+      )}
+
+      {loading && (
+        <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
+          <div className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-sm border border-slate-200/90 text-[11px] text-lumiva-accent ring-1 ring-slate-900/[0.05] flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            {t('crm.dashboard.loading')}
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
+          <div className="px-3 py-1.5 rounded-full bg-red-50 border border-red-100 text-[11px] text-red-600 ring-1 ring-red-200/60">
+            {error}
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };
@@ -849,10 +1655,10 @@ const KpiCard: React.FC<{
 
   return (
     <div
-      className={`rounded-2xl border px-3.5 py-3 bg-white transition-transform duration-300 hover:-translate-y-0.5 shadow-[0_16px_50px_rgba(17,24,39,0.06)] ${
+      className={`rounded-2xl border px-3.5 py-3 transition-colors duration-300 ring-1 ring-slate-900/[0.03] ${
         accent
-          ? 'bg-gradient-to-br from-white via-slate-100 to-white border-lumiva-accent/30 shadow-[0_20px_60px_rgba(34,34,34,0.08)]'
-          : 'border-slate-200'
+          ? 'bg-gradient-to-br from-white via-sky-50/40 to-white border-lumiva-accent/25 ring-lumiva-accent/15'
+          : 'border-slate-200/80 bg-white/90'
       }`}
     >
       <div className="text-[11px] text-slate-500 mb-1 truncate uppercase tracking-[0.08em]">
@@ -894,7 +1700,7 @@ const SparklineBars: React.FC<{
             >
               <div
                 className={`w-full rounded-t-full bg-gradient-to-t from-slate-300 to-lumiva-accent ${
-                  highlight ? 'shadow-[0_0_12px_rgba(34,34,34,0.4)]' : ''
+                  highlight ? 'ring-2 ring-lumiva-accent/35 ring-offset-1 ring-offset-white' : ''
                 }`}
                 style={{ height: `${height}%` }}
               />
@@ -959,7 +1765,7 @@ const ProjectSummaryChip: React.FC<{
   const locale = resolveLocale(i18n.language);
 
   return (
-    <div className="rounded-2xl bg-white border border-slate-200 px-3 py-2 flex flex-col gap-0.5 shadow-[0_12px_40px_rgba(17,24,39,0.06)]">
+    <div className="rounded-2xl bg-white/95 border border-slate-200/80 px-3 py-2 flex flex-col gap-0.5 ring-1 ring-slate-900/[0.03]">
       <div className="flex items-center gap-1.5 text-[11px] text-slate-600">
         <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
         <span>{label}</span>
@@ -983,7 +1789,7 @@ const TaskStatPill: React.FC<{
   value: number;
   color: string;
 }> = ({ label, value, color }) => (
-  <div className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1 shadow-sm">
+  <div className="inline-flex items-center gap-1.5 rounded-full bg-white/95 border border-slate-200/85 px-2.5 py-1 ring-1 ring-slate-900/[0.04]">
     <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
     <span className="text-[11px] text-slate-600">{label}</span>
     <span className="text-[11px] text-lumiva-accent font-medium">
@@ -1061,10 +1867,20 @@ const PipelineRow: React.FC<{
 
 const TaskRow: React.FC<{
   id: string;
+  taskId: string;
+  projectId: string;
+  projectName: string;
+  taskTitle: string;
   title: string;
   due: string;
   type: 'call' | 'meeting' | 'todo';
-}> = ({ title, due, type }) => {
+}> = ({
+  projectId,
+  taskTitle,
+  projectName,
+  due,
+  type,
+}) => {
   const { t } = useTranslation();
   const color =
     type === 'call'
@@ -1080,11 +1896,24 @@ const TaskRow: React.FC<{
       ? t('crm.dashboard.taskTypes.meeting')
       : t('crm.dashboard.taskTypes.todo');
 
+  const projectHref = `/projects/${encodeURIComponent(projectId)}?tab=tasks`;
+
   return (
-    <div className="flex items-start gap-2.5 text-xs bg-white border border-slate-200 rounded-2xl px-3 py-2 shadow-[0_12px_40px_rgba(17,24,39,0.06)]">
-      <div className={`mt-1 h-1.5 w-1.5 rounded-full ${color}`} />
-      <div className="flex-1">
-        <div className="text-lumiva-accent">{title}</div>
+    <div className="flex items-start gap-2.5 text-xs bg-white/90 border border-slate-200/80 rounded-2xl px-3 py-2 ring-1 ring-slate-900/[0.04] transition-colors hover:border-slate-300/90 hover:bg-white">
+      <div className={`mt-1 h-1.5 w-1.5 shrink-0 rounded-full ${color}`} />
+      <div className="flex-1 min-w-0">
+        <Link
+          to={projectHref}
+          className="block font-medium text-lumiva-accent hover:underline text-left"
+        >
+          {taskTitle}
+        </Link>
+        <Link
+          to={projectHref}
+          className="block text-[11px] text-slate-600 mt-0.5 truncate hover:text-lumiva-accent hover:underline text-left"
+        >
+          {projectName}
+        </Link>
         <div className="text-[11px] text-slate-500 mt-0.5">
           {translatedLabel} · {due}
         </div>

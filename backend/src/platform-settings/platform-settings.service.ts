@@ -111,6 +111,19 @@ export class PlatformSettingsService {
     const fallback = this.getDefaultBillingPlans();
     if (!Array.isArray(input)) return fallback;
     const validCodes: BillingPlanCode[] = ['standard', 'professional', 'enterprise', 'ultimate'];
+    const emptyPlan = (code: BillingPlanCode): BillingPlanContent => ({
+      code,
+      title: fallback.find((f) => f.code === code)?.title || code,
+      price: '',
+      subtitle: '',
+      description: '',
+      features: [],
+      highlighted: false,
+      i18n: {
+        en: {},
+        tr: {},
+      },
+    });
     const items = input
       .map((raw) => {
         if (!raw || typeof raw !== 'object') return null;
@@ -140,20 +153,11 @@ export class PlatformSettingsService {
         return {
           code,
           title: String(src.title || '').trim() || fallback.find((f) => f.code === code)?.title || code,
-          price: String(src.price || '').trim() || fallback.find((f) => f.code === code)?.price || '',
-          subtitle:
-            String(src.subtitle || '').trim() ||
-            fallback.find((f) => f.code === code)?.subtitle ||
-            '',
-          description:
-            String(src.description || '').trim() ||
-            fallback.find((f) => f.code === code)?.description ||
-            '',
-          features: features.length ? features : fallback.find((f) => f.code === code)?.features || [],
-          highlighted:
-            typeof src.highlighted === 'boolean'
-              ? src.highlighted
-              : fallback.find((f) => f.code === code)?.highlighted || false,
+          price: String(src.price || '').trim(),
+          subtitle: String(src.subtitle || '').trim(),
+          description: String(src.description || '').trim(),
+          features,
+          highlighted: typeof src.highlighted === 'boolean' ? src.highlighted : false,
           i18n: {
             en: sanitizeLocale('en'),
             tr: sanitizeLocale('tr'),
@@ -163,7 +167,7 @@ export class PlatformSettingsService {
       .filter(Boolean) as BillingPlanContent[];
 
     if (!items.length) return fallback;
-    return validCodes.map((code) => items.find((i) => i.code === code) || fallback.find((f) => f.code === code)!);
+    return validCodes.map((code) => items.find((i) => i.code === code) || emptyPlan(code));
   }
 
   async getBillingPlans(): Promise<BillingPlanContent[]> {

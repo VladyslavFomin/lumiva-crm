@@ -15,6 +15,7 @@ import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { TenantLogsService } from '../tenants/tenant-logs.service';
+import { UserSessionsService } from '../auth/user-sessions.service';
 
 const RESET_TTL_MS = 1000 * 60 * 60 * 48; // 48h
 const RESET_PRUNE_AFTER_DAYS = 7;
@@ -42,6 +43,8 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
 
     private readonly mail: MailService,
     private readonly tenantLogs: TenantLogsService,
+
+    private readonly userSessions: UserSessionsService,
   ) {}
 
   listForTenant(tenantId: string) {
@@ -165,6 +168,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     if (user) {
       user.status = 'disabled';
       await this.userRepo.save(user);
+      await this.userSessions.revokeAllForUser(tenantId, user.id);
     }
 
     return staff;
@@ -203,6 +207,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     if (user) {
       user.status = 'disabled';
       await this.userRepo.save(user);
+      await this.userSessions.revokeAllForUser(tenantId, user.id);
       // при желании можно удалить:
       // await this.userRepo.remove(user);
     }

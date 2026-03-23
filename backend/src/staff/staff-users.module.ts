@@ -8,12 +8,14 @@ import { StaffUsersService } from './staff-users.service';
 import { StaffUsersController } from './staff-users.controller';
 import { MailModule } from '../mail/mail.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { UserSessionsModule } from '../auth/user-sessions.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([StaffUser, User]),
     MailModule, // 👈 даём StaffUsersService доступ к MailService
     forwardRef(() => TenantsModule), // для TenantLogsService, избегаем циклов
+    UserSessionsModule,
   ],
   controllers: [StaffUsersController],
   providers: [StaffUsersService],

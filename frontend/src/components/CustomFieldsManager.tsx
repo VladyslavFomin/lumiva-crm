@@ -91,6 +91,8 @@ export const CustomFieldsManager: React.FC<Props> = ({
     return Array.from(keys);
   }, [suggestedKeys, fields]);
   const [customKeyMode, setCustomKeyMode] = useState(false);
+  const needsOptions = form.type === 'select' || form.type === 'multiselect';
+  const hasOptions = Boolean(form.options && form.options.length > 0);
 
   useEffect(() => {
     if (suggestedKeyOptions.length > 0) {
@@ -176,6 +178,10 @@ export const CustomFieldsManager: React.FC<Props> = ({
   const handleCreate = async () => {
     if (!form.label.trim() || !form.key.trim()) {
       setError('Укажите название и ключ поля');
+      return;
+    }
+    if (needsOptions && !hasOptions) {
+      setError('Для типа "Список" и "Мульти‑список" добавьте варианты через запятую');
       return;
     }
     setFormBusy(true);
@@ -457,7 +463,15 @@ export const CustomFieldsManager: React.FC<Props> = ({
               <select
                 value={form.type}
                 onChange={(e) =>
-                  handleFormChange({ type: e.target.value as FieldType })
+                  handleFormChange({
+                    type: e.target.value as FieldType,
+                    options:
+                      e.target.value === 'select' || e.target.value === 'multiselect'
+                        ? form.options && form.options.length
+                          ? form.options
+                          : textToOptions('Опция 1, Опция 2')
+                        : undefined,
+                  })
                 }
                 className="px-2 py-2 rounded-lg bg-slate-950/80 border border-slate-800 text-xs text-slate-200"
               >
@@ -468,14 +482,19 @@ export const CustomFieldsManager: React.FC<Props> = ({
                 ))}
               </select>
               {(form.type === 'select' || form.type === 'multiselect') && (
-                <input
-                  value={optionsToText(form.options)}
-                  onChange={(e) =>
-                    handleFormChange({ options: textToOptions(e.target.value) })
-                  }
-                  className="px-2 py-2 rounded-lg bg-slate-950/80 border border-slate-800 text-xs text-slate-200 md:col-span-2"
-                  placeholder="Опции через запятую"
-                />
+                <div className="md:col-span-2 space-y-1">
+                  <input
+                    value={optionsToText(form.options)}
+                    onChange={(e) =>
+                      handleFormChange({ options: textToOptions(e.target.value) })
+                    }
+                    className="w-full px-2 py-2 rounded-lg bg-slate-950/80 border border-slate-800 text-xs text-slate-200"
+                    placeholder="Опции через запятую (например: Высокий, Обычный, Низкий)"
+                  />
+                  <div className="text-[10px] text-slate-500">
+                    Для списков нужно минимум 1 значение
+                  </div>
+                </div>
               )}
               <input
                 value={form.placeholder}
@@ -508,7 +527,7 @@ export const CustomFieldsManager: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={handleCreate}
-                disabled={formBusy}
+                disabled={formBusy || (needsOptions && !hasOptions)}
                 className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
               >
                 {formBusy ? 'Сохраняем...' : 'Добавить поле'}

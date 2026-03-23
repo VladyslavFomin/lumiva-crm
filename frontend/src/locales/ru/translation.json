@@ -461,7 +461,6 @@
       "projectsAnalytics": "Аналитика проектов",
       "projectsArchive": "Архив проектов",
       "projectsTrash": "Корзина проектов",
-      "projectsBulkEdit": "Массовое редактирование",
       "sales": "Продажи",
       "salesAnalytics": "Аналитика продаж",
       "salesChannels": "Каналы продаж",
@@ -493,7 +492,333 @@
       "staff": "Сотрудники",
       "staffList": "Список сотрудников",
       "staffPermissions": "Права доступа",
-      "departments": "Отделы"
+      "departments": "Отделы",
+      "settings": "Настройки",
+      "settingsAccount": "Аккаунт"
+    },
+    "workspace": {
+      "views": {
+        "table": "Таблица",
+        "kanban": "Канбан",
+        "calendar": "Календарь",
+        "analytics": "Аналитика",
+        "settings": "Настройки",
+        "add": "Добавить",
+        "addView": "Добавить вид"
+      },
+      "common": {
+        "loading": "Загрузка...",
+        "loadingData": "Загрузка данных...",
+        "updating": "Обновление...",
+        "active": "Активна",
+        "disabled": "Отключена",
+        "created": "Создано",
+        "noRecords": "Нет записей"
+      },
+      "tablesList": {
+        "title": "Рабочая область без кода",
+        "subtitle": "Создавайте свои таблицы и представления для команды.",
+        "newTable": "Новая таблица",
+        "loadError": "Не удалось загрузить таблицы",
+        "empty": "Пока нет пользовательских таблиц.",
+        "tableActions": "Действия с таблицей",
+        "renameTable": "Переименовать",
+        "duplicateTable": "Дублировать таблицу",
+        "editTable": "Редактировать таблицу",
+        "tableNamePlaceholder": "Название таблицы",
+        "descriptionPlaceholder": "Описание",
+        "updateError": "Не удалось сохранить таблицу",
+        "duplicateError": "Не удалось дублировать таблицу",
+        "duplicate": "Дублировать",
+        "duplicating": "Дублирование...",
+        "newTableNamePlaceholder": "Название новой таблицы",
+        "duplicateWithRecords": "Дублировать вместе с записями (данными)",
+        "copyCommentsActivity": "Копировать комментарии и активность"
+      },
+      "newTable": {
+        "title": "Создать таблицу",
+        "subtitle": "Укажите название, затем добавьте поля, импортируйте данные и откройте таблицу, канбан или календарь.",
+        "name": "Название таблицы",
+        "description": "Описание",
+        "placeholderName": "Счета",
+        "placeholderDescription": "Отслеживание жизненного цикла счетов и оплат.",
+        "creating": "Создание...",
+        "create": "Создать таблицу",
+        "error": "Не удалось создать таблицу"
+      },
+      "import": {
+        "title": "Импорт данных",
+        "backToTable": "К таблице",
+        "chooseFile": "Выберите файл",
+        "fileNotSelected": "Файл не выбран",
+        "preview": "Предпросмотр импорта",
+        "reading": "Чтение файла...",
+        "columnsRows": "Колонок: {{cols}}, строк: {{rows}}",
+        "headerRow": "Строка заголовка: {{n}}",
+        "mapped": "Сопоставлено колонок: {{mapped}} из {{total}}",
+        "importViaApi": "Импорт через API",
+        "importViaApiHint": "Подключение из внешних систем. Раздел в разработке.",
+        "soon": "Скоро",
+        "importTargetGroup": "Группа для импорта",
+        "groupKeep": "Сохранить группы из файла",
+        "groupExisting": "Добавить в существующую группу",
+        "groupNew": "Создать / указать новую группу",
+        "newGroupName": "Название новой группы",
+        "notMapped": "Не сопоставлено",
+        "createField": "Создать поле",
+        "creatingField": "Создание...",
+        "apply": "Применить импорт",
+        "applying": "Импорт...",
+        "importedSummary": "Импорт: создано {{created}}, обновлено {{updated}}, пропущено {{skipped}}",
+        "rowErrors": "Ошибки по строкам ({{count}})",
+        "apiSectionHint": "Планируем API-ключи, шаблоны JSON и историю синхронизаций.",
+        "apiPostHint": "POST /public/custom-objects/:slug/ingest",
+        "previewError": "Не удалось подготовить предпросмотр",
+        "createFieldError": "Не удалось создать поле для колонки «{{column}}»",
+        "mapRequired": "Перед импортом сопоставьте обязательные поля: {{fields}}",
+        "applyFailed": "Не удалось применить импорт",
+        "fieldCreated": "Создано поле «{{label}}», колонка «{{column}}» сопоставлена"
+      },
+      "settings": {
+        "title": "Настройки таблицы",
+        "importData": "Импорт данных",
+        "backToTable": "К таблице",
+        "saveCardMapping": "Сохранить карточки",
+        "saving": "Сохранение...",
+        "kanbanCards": "Карточки канбана",
+        "cardMapping": "Сопоставление полей",
+        "cardMappingHint": "Какие поля показывать на карточках канбана (заголовок, клиент, доп.).",
+        "cardTitleField": "Поле заголовка карточки",
+        "selectTitleField": "Выберите поле заголовка...",
+        "clientField": "Поле клиента (необязательно)",
+        "noClientLabel": "Без подписи клиента",
+        "saveCardHint": "Сохраните сопоставление перед сменой вида.",
+        "statusSection": "Статусы таблицы и канбана",
+        "statusStructure": "Структура статусов",
+        "statusHint": "Порядок и цвета задаются один раз. Таблица и канбан используют одну конфигурацию.",
+        "saveStatuses": "Сохранить статусы",
+        "moveUp": "Выше",
+        "moveDown": "Ниже",
+        "deleteStatus": "Удалить статус",
+        "newStatusPlaceholder": "Подпись нового статуса",
+        "addStatus": "Добавить статус",
+        "records": "Записи",
+        "byStatus": "По статусам",
+        "noStatusData": "Пока нет данных по статусам",
+        "fields": "Поля",
+        "fieldKeyPlaceholder": "ключ_поля",
+        "fieldLabelPlaceholder": "Подпись",
+        "noFieldsYet": "Пока нет полей.",
+        "addField": "Добавить поле",
+        "failedSaveStatuses": "Не удалось сохранить статусы",
+        "failedSaveCard": "Не удалось сохранить настройки карточек",
+        "failedAddField": "Не удалось добавить поле",
+        "statusFieldLabel": "Статус",
+        "addAtLeastOneStatus": "Добавьте хотя бы один статус",
+        "openTable": "Открыть таблицу",
+        "cardMappingHintShort": "Какие поля использовать как заголовок карточки и подпись клиента.",
+        "additionalFields": "Дополнительные поля",
+        "additionalFieldsCount": "Дополнительные поля: {{count}}",
+        "saveStructure": "Сохранить структуру",
+        "statusPreview": "Предпросмотр: {{label}}"
+      },
+      "kanban": {
+        "title": "Канбан",
+        "subtitle": "Статусы и цвета берутся из настроек таблицы.",
+        "searchPlaceholder": "Поиск по карточкам...",
+        "cardsTotal": "Всего карточек: {{count}}",
+        "dismiss": "Скрыть"
+      },
+      "calendar": {
+        "title": "Календарь",
+        "subtitle": "Записи с датами по неделям и месяцам.",
+        "month": "Месяц",
+        "week": "Неделя",
+        "prev": "Назад",
+        "next": "Вперёд",
+        "searchEvents": "Поиск событий...",
+        "noDatedRecords": "Пока нет записей с датами.",
+        "moreCount": "ещё +{{count}}"
+      },
+      "analytics": {
+        "kicker": "Аналитика рабочей области",
+        "title": "Аналитика: {{name}}",
+        "defaultName": "Таблица рабочей области",
+        "subtitle": "Статусы, категории, ответственные и свои метрики — как в аналитике проектов."
+      },
+      "fileViewer": {
+        "download": "Скачать",
+        "remove": "Удалить",
+        "close": "Закрыть",
+        "previewUnavailable": "Предпросмотр в браузере недоступен для этого типа файла.",
+        "downloadToOpen": "Скачайте файл, чтобы открыть"
+      },
+      "recordDrawer": {
+        "close": "Закрыть",
+        "addField": "Добавить поле",
+        "activity": "Активность",
+        "comments": "Комментарии",
+        "addedComment": "Добавлен комментарий",
+        "recordFallback": "Запись",
+        "chooseFile": "Выберите файл",
+        "removeFile": "Удалить",
+        "maxFileSize": "Максимальный размер файла: {{label}}",
+        "uploadFailed": "Не удалось загрузить файл",
+        "updatedAtLabel": "Обновлено",
+        "noCommentsYet": "Пока нет комментариев.",
+        "commentPlaceholder": "Напишите комментарий...",
+        "send": "Отправить",
+        "savingChanges": "Сохранение...",
+        "allSynced": "Все изменения сохранены",
+        "authorYou": "Вы"
+      },
+      "table": {
+        "startFromScratch": "С нуля",
+        "filterRows": "Фильтр строк",
+        "fieldPlaceholder": "Поле...",
+        "valuePlaceholder": "Значение...",
+        "sortRows": "Сортировка",
+        "noSorting": "Без сортировки",
+        "ascending": "По возрастанию",
+        "descending": "По убыванию",
+        "groupRows": "Группировка",
+        "defaultGroupField": "Поле группы по умолчанию",
+        "moveToGroup": "Переместить в группу...",
+        "searchRecords": "Поиск по записям...",
+        "deleteGroupTitle": "Удалить группу",
+        "editColumn": "Изменить колонку",
+        "duplicateColumn": "Дублировать колонку",
+        "hideColumn": "Скрыть колонку",
+        "deleteColumnInGroup": "Удалить колонку в этой группе",
+        "deleteConfirm": "Подтверждение удаления",
+        "addFieldTitle": "Новое поле",
+        "addFieldHint": "Готовые пресеты: владелец, приоритет, срок.",
+        "columnLabelPlaceholder": "Подпись колонки",
+        "selectOptionsPlaceholder": "Варианты: Низкий, Обычный, Высокий",
+        "statusOptionsPlaceholder": "Варианты: В работе, Готово, Стоп",
+        "fieldLabelPlaceholder": "Подпись поля",
+        "saveChanges": "Сохранить изменения",
+        "addField": "Добавить поле",
+        "adding": "Добавление...",
+        "addingRow": "Добавление...",
+        "addItem": "+ Добавить строку",
+        "newGroupTitle": "Название группы",
+        "addGroup": "Добавить группу",
+        "creatingGroup": "Создание...",
+        "bulkDelete": "Удалить",
+        "unassigned": "Не назначен",
+        "groupTitle": "Группа",
+        "newItem": "Новая запись",
+        "item": "Запись",
+        "duplicateRowError": "Не удалось дублировать строку",
+        "datePlaceholder": "ГГГГ-ММ-ДД",
+        "datetimePlaceholder": "ГГГГ-ММ-ДДTЧЧ:мм",
+        "withoutDepartment": "Без отдела",
+        "filterButton": "Фильтр",
+        "sortButton": "Сортировка",
+        "groupByButton": "Группировка",
+        "clearFilter": "Сбросить фильтр",
+        "showHiddenColumns": "Показать скрытые ({{count}})",
+        "showHiddenRows": "Показать скрытые строки ({{count}})",
+        "groupsCountLabel": "Групп: {{count}}",
+        "selectedCount": "Выбрано: {{count}}",
+        "footerItemsCount": "{{count}} записей",
+        "move": "Переместить",
+        "hide": "Скрыть",
+        "deleting": "Удаление...",
+        "sumLabel": "Сумма {{label}}:",
+        "groupHeaderItems": "{{count}} записей",
+        "importButton": "Импорт",
+        "loadingData": "Загрузка данных...",
+        "duplicateRow": "Дублировать строку",
+        "hideRow": "Скрыть строку",
+        "deleteRow": "Удалить строку",
+        "subitemColTask": "Задача",
+        "subitemColOwner": "Ответственный",
+        "subitemColStatus": "Статус",
+        "subitemColPriority": "Приоритет",
+        "subitemColDue": "Дедлайн",
+        "subitemColActions": "Действия",
+        "subitemTitlePlaceholder": "Название задачи",
+        "selectOwner": "Выбрать",
+        "addSubitem": "+ Добавить подзадачу",
+        "addItemOnlyDefault": "Добавление строки доступно только при группировке по умолчанию",
+        "summary": "Итого",
+        "groupCreationOnlyDefault": "Создание группы доступно только для поля группировки по умолчанию.",
+        "deleteColumnConfirm": "Удалить колонку «{{label}}»?",
+        "deleteGroupConfirm": "Удалить группу «{{title}}» и {{count}} записей?",
+        "deleteIrreversible": "Действие нельзя отменить. Связанные данные будут удалены навсегда.",
+        "cancel": "Отмена",
+        "editColumnTitle": "Изменить колонку",
+        "saving": "Сохранение...",
+        "booleanYes": "Да",
+        "booleanNo": "Нет",
+        "editTags": "изм.",
+        "addFieldEmptyLabel": "Добавьте название колонки",
+        "addFieldInvalidKey": "Добавьте корректный ключ колонки",
+        "fieldCopySuffix": " (копия)",
+        "addFileShort": "+ файл",
+        "fileMaxLine": "до {{label}}",
+        "filePickTitle": "До {{label}}",
+        "subitemStatus": {
+          "todo": "К выполнению",
+          "in_progress": "В работе",
+          "review": "На проверке",
+          "blocked": "Заблокировано",
+          "done": "Готово"
+        },
+        "subitemPriority": {
+          "low": "Низкий",
+          "normal": "Обычный",
+          "high": "Высокий"
+        },
+        "presetOwner": "Ответственный",
+        "presetPriority": "Приоритет",
+        "presetDueDate": "Срок",
+        "presetStatus": "Статус",
+        "presetPriLow": "Низкий",
+        "presetPriMedium": "Средний",
+        "presetPriHigh": "Высокий",
+        "presetPriUrgent": "Срочно",
+        "presetStWorking": "В работе",
+        "presetStDone": "Готово",
+        "presetStStuck": "Стоп",
+        "presetStReview": "На проверке",
+        "saveRecordFailed": "Не удалось сохранить запись",
+        "newGroupNameRequired": "Укажите название группы",
+        "subitemDefaultName": "Новая задача",
+        "activityUpdated": "Обновлено: {{field}}",
+        "groupFirstRowTitle": "{{name}} — запись"
+      }
+    },
+    "sidebar": {
+      "brandFallback": "Lumiva CRM",
+      "workspaces": "Рабочие области",
+      "add": "Создать",
+      "addMenuTitle": "Добавить",
+      "newTable": "Таблица",
+      "newKanban": "Канбан",
+      "newAnalytics": "Аналитика",
+      "newWorkspace": "Новая рабочая область",
+      "allTables": "Все таблицы",
+      "empty": "Пока нет таблиц. Создайте первую через «+».",
+      "rename": "Переименовать",
+      "editWorkspace": "Редактировать область",
+      "toggleWorkspaceViews": "Виды и добавление",
+      "quickAdd": "Добавить",
+      "linkTable": "Таблица",
+      "linkKanban": "Канбан",
+      "linkAnalytics": "Аналитика",
+      "workspaceMenu": "Меню области",
+      "openSettings": "Настройки таблицы",
+      "moveUp": "Выше",
+      "moveDown": "Ниже",
+      "duplicateWorkspace": "Дублировать",
+      "deleteWorkspace": "Удалить область",
+      "deleteWorkspaceConfirm": "Удалить область «{{name}}»? Данные будут удалены.",
+      "newGroupInWorkspace": "Новая группа",
+      "collapseSidebar": "Свернуть меню",
+      "expandSidebar": "Развернуть меню"
     },
     "common": {
       "logout": "Выйти",
@@ -944,15 +1269,135 @@
       "loading": "Обновляем данные дашборда…",
       "errors": {
         "loadFailed": "Не удалось загрузить данные"
+      },
+      "hero": {
+        "kicker": "Главная панель"
+      },
+      "widgets": {
+        "customize": "Настроить виджеты",
+        "done": "Готово",
+        "addBlock": "Добавить блок",
+        "nothingToAdd": "Все доступные блоки уже на экране",
+        "addedToHome": "Виджет добавлен на главную",
+        "resize": "Размер колонок",
+        "moveUp": "Выше",
+        "moveDown": "Ниже",
+        "hide": "Скрыть с главной",
+        "editBlock": "Настроить блок",
+        "editModalTitle": "Блок на главной",
+        "editTitleLabel": "Название",
+        "deleteBlock": "Удалить блок",
+        "drag": "Перетащить",
+        "sizeLabel": "Ширина {{size}}",
+        "names": {
+          "kpi": "Показатели",
+          "calendar": "Календарь",
+          "leads-timeline": "Динамика лидов",
+          "projects": "Проекты",
+          "channels-funnel": "Каналы и воронка",
+          "recent-leads": "Последние лиды",
+          "recent-tasks": "Задачи",
+          "staff": "Команда",
+          "projects-analytics": "Аналитика проектов",
+          "leads-analytics": "Аналитика лидов",
+          "sales-analytics": "Аналитика продаж"
+        }
+      },
+      "detailModal": {
+        "open": "Подробнее"
+      },
+      "salesByChannel": {
+        "title": "Продажи по каналам (выигранные проекты)"
+      },
+      "staff": {
+        "headers": {
+          "name": "Сотрудник",
+          "leads": "Лиды",
+          "revenue": "Выручка"
+        },
+        "empty": "Нет данных по команде"
+      },
+      "calendar": {
+        "newMeeting": "Встреча",
+        "newNote": "Заметка",
+        "noEvents": "Нет событий",
+        "subject": "Тема",
+        "start": "Начало",
+        "end": "Конец",
+        "notes": "Текст",
+        "meetingUrl": "Ссылка на встречу (Zoom, Meet, Teams…)",
+        "typeMeeting": "Встреча",
+        "typeNote": "Заметка",
+        "noteDayHint": "Запись на день {{date}} (как в Notion)",
+        "badgeMeeting": "Встреча",
+        "badgeNote": "Заметка",
+        "allDayNote": "На весь день",
+        "entryNote": "Заметка",
+        "joinLink": "Открыть ссылку",
+        "participants": "Участники",
+        "departments": "Отделы (все сотрудники)",
+        "leads": "Лиды",
+        "save": "Сохранить",
+        "openCrm": "Открыть CRM",
+        "time": "Время"
+      },
+      "projectsAnalytics": {
+        "kpiProjects": "Проекты",
+        "kpiRevenue": "Выручка",
+        "openFull": "Полная аналитика проектов"
+      },
+      "leadsAnalyticsWidget": {
+        "kpiLeads": "Лиды",
+        "kpiConversion": "Конверсия",
+        "openFull": "Полная аналитика лидов"
+      },
+      "salesAnalyticsWidget": {
+        "kpiCount": "Сделок",
+        "kpiAmount": "Сумма",
+        "openFull": "Полная аналитика продаж"
+      },
+      "addToHomeFromAnalytics": "Добавить на главную",
+      "presets": {
+        "modalTitle": "Пресеты аналитики",
+        "tabSales": "Аналитика продаж",
+        "tabProjects": "Аналитика проектов",
+        "tabLeads": "Аналитика лидов",
+        "standardBlocks": "Стандартные блоки главной",
+        "openAnalytics": "Полная аналитика",
+        "fallback": "Аналитика",
+        "metricWonProjects": "Выигранных проектов",
+        "pickHint": "Ниже — мини-превью: так блок будет выглядеть на главной. Выберите источник данных вкладками сверху.",
+        "addToDashboard": "Добавить на главную",
+        "previewHint": "Превью",
+        "embedFallback": "Нет данных для этого вида виджета",
+        "formulaOnFullPage": "Откройте полную аналитику для настройки формулы"
       }
     },
     "leads": {
       "board": {
         "title": "Лиды · Канбан",
+        "pageTitle": "Лиды",
         "subtitle": "Перетаскивайте карточки между статусами.",
         "viewKanban": "Канбан",
         "viewList": "Таблица",
+        "viewCalendar": "Календарь",
         "create": "Новый лид",
+        "customFieldsTitle": "Кастомные поля лидов",
+        "actions": {
+          "customizeFields": "Настроить поля"
+        },
+        "menu": {
+          "createTable": "Новая таблица",
+          "createKanban": "Новый канбан",
+          "createCalendar": "Новый календарь",
+          "renameView": "Переименовать вид",
+          "deleteView": "Удалить вид",
+          "viewNamePrompt": "Название вида"
+        },
+        "boolean": {
+          "yes": "Да",
+          "no": "Нет"
+        },
         "loading": "Загрузка лидов...",
         "empty": "Нет лидов в этом статусе.",
         "errors": {
@@ -1235,10 +1680,34 @@
           "label": "Колонки",
           "add": "Добавить колонку",
           "name": "Имя",
+          "contact": "Контакт",
           "channel": "Канал",
           "utm": "UTM",
           "status": "Статус",
           "created": "Создан"
+        },
+        "grouping": {
+          "status": "Группировка: Статус",
+          "company": "Группировка: Компания",
+          "channel": "Группировка: Канал",
+          "custom": "Группировка: Мои группы",
+          "none": "Без группировки",
+          "noCompany": "Без компании",
+          "noChannel": "Без канала"
+        },
+        "customGroups": {
+          "createPrompt": "Название группы",
+          "renamePrompt": "Новое название группы",
+          "deleteConfirm": "Удалить группу? Лиды останутся без группы.",
+          "add": "Новая группа",
+          "renameShort": "изм.",
+          "deleteShort": "del",
+          "ungrouped": "Без группы",
+          "moveTo": "Переместить в группу: {{group}}",
+          "dragHint": "Перетащите лид на заголовок нужной группы"
+        },
+        "actions": {
+          "openContact": "Открыть контакт"
         },
         "bulk": {
           "selected": "Выбрано: {{count}}",
@@ -1250,6 +1719,87 @@
         },
         "errors": {
           "loadFailed": "Ошибка загрузки лидов"
+        }
+      },
+      "calendar": {
+        "subtitle": "Календарь встреч с лидами, ссылок и email-приглашений",
+        "loading": "Загрузка...",
+        "filters": {
+          "showArchived": "Показывать архив",
+          "rangeWeek": "7 дней",
+          "rangeMonth": "30 дней",
+          "rangeAll": "Все",
+          "providerAny": "Любой провайдер",
+          "providerOther": "Другая ссылка",
+          "search": "Поиск лида/встречи"
+        },
+        "upcoming": {
+          "title": "Предстоящие встречи",
+          "autoReminderHint": "Автонапоминания отправляются backend cron: за 24 часа и за 1 час до встречи",
+          "empty": "Нет предстоящих встреч"
+        },
+        "meeting": {
+          "defaultTitle": "Встреча с лидом"
+        },
+        "actions": {
+          "today": "Сегодня",
+          "planMeeting": "Запланировать встречу",
+          "editShort": "Изм.",
+          "edit": "Изменить",
+          "resend": "Повтор",
+          "notify": "Уведомить",
+          "link": "Ссылка",
+          "openLink": "Открыть ссылку",
+          "sendInvite": "Отправить приглашение",
+          "closeMeeting": "Закрыть встречу",
+          "cancel": "Отмена",
+          "saving": "Сохраняем...",
+          "saveMeeting": "Сохранить встречу"
+        },
+        "labels": {
+          "team": "Команда:"
+        },
+        "form": {
+          "editMeeting": "Редактировать встречу",
+          "newMeeting": "Новая встреча",
+          "selectLead": "Выберите лида",
+          "inviteManagers": "Пригласить менеджеров из команды",
+          "noTeamMembers": "Участники команды не найдены",
+          "meetingTitle": "Тема встречи",
+          "notesPlaceholder": "Комментарий для письма"
+        },
+        "email": {
+          "subjectInvite": "Приглашение на встречу: {{title}}",
+          "subjectReminder24h": "Напоминание (24ч): {{title}}",
+          "subjectReminder1h": "Напоминание (1ч): {{title}}",
+          "greeting": "Здравствуйте, {{name}}",
+          "bodyInvite": "Вы приглашены на встречу.",
+          "bodyReminder24h": "Напоминание: встреча начнется через 24 часа.",
+          "bodyReminder1h": "Напоминание: встреча начнется через 1 час.",
+          "meetingLabel": "Встреча:",
+          "startLabel": "Начало:",
+          "endLabel": "Окончание:",
+          "linkLabel": "Ссылка:",
+          "notesLabel": "Комментарий:"
+        },
+        "messages": {
+          "meetingSaved": "Встреча сохранена",
+          "meetingClosed": "Встреча закрыта",
+          "inviteSent": "Приглашение отправлено",
+          "reminderSent": "Напоминание отправлено"
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить лиды",
+          "meetingDateRequired": "Укажите дату и время",
+          "leadNotFound": "Лид не найден",
+          "saveMeetingFailed": "Не удалось сохранить встречу",
+          "closeMeetingFailed": "Не удалось закрыть встречу",
+          "leadNoEmail": "У лида не указан email",
+          "noEmailAccount": "Нет подключенного email-аккаунта",
+          "sendInviteFailed": "Не удалось отправить приглашение"
+        },
+        "fallbacks": {
+          "lead": "Лид"
         }
       },
       "archive": {
@@ -1300,6 +1850,7 @@
         "loadingLead": "Загружаем данные лида…",
         "tabs": {
           "main": "Лид",
+          "journey": "Путь клиента",
           "history": "История"
         },
         "actions": {
@@ -1362,7 +1913,9 @@
           "deleteForbidden": "Недостаточно прав: удалять лиды может только владелец.",
           "historyLoad": "Ошибка загрузки истории",
           "commentFailed": "Не удалось добавить комментарий",
-          "metaInvalid": "Meta: некорректный JSON"
+          "metaInvalid": "Meta: некорректный JSON",
+          "projectsLoad": "Не удалось загрузить проекты лида",
+          "projectHistoryLoad": "Не удалось загрузить историю по проектам лида"
         },
         "activity": {
           "created": "Лид создан",
@@ -1372,11 +1925,36 @@
         },
         "sections": {
           "relatedProjects": "Связанные проекты",
+          "projectsTitle": "Проекты лида",
+          "projectsOpenList": "Все проекты",
+          "projectsNeedSave": "Сохраните лид, чтобы увидеть связанные проекты.",
+          "projectsLoading": "Загрузка проектов…",
+          "projectsEmpty": "Пока нет проектов с этим лидом. Создайте проект в разделе «Проекты» и укажите этого лида.",
+          "channelJourneyHint": "UTM и детали пути — вкладка «Путь клиента».",
           "historyEmptyNew": "История появится после того, как вы сохраните лид.",
-          "historyEmpty": "Пока нет событий по этому лиду.",
+          "historyEmpty": "Пока нет событий по этому лиду и его проектам.",
           "historyLoading": "Загружаем историю…",
           "addComment": "Добавить комментарий",
           "user": "Пользователь"
+        },
+        "journey": {
+          "title": "Путь клиента",
+          "subtitle": "Канал регистрации или заявки и UTM, если лид пришёл с отслеживаемой ссылки.",
+          "acquisitionTitle": "Источник привлечения",
+          "channelLabel": "Канал в CRM",
+          "channelHint": "Редактируется в поле «Канал» на вкладке «Лид».",
+          "directTitle": "Прямой заход",
+          "directBody": "Если регистрация или заявка без UTM (например, ввод адреса сайта вручную), укажите источник в поле «Канал» на вкладке «Лид»: например direct, сайт, рекомендация.",
+          "utmTitle": "UTM и кампания",
+          "utmEmpty": "UTM не зафиксированы",
+          "metaHint": "Полный JSON с техническими полями — в блоке ниже на этой же вкладке.",
+          "metaJsonTitle": "Meta (JSON)",
+          "metaJsonHint": "Сырые данные из формы, referrer, page, form_id и т.д. Текст лида редактируется на вкладке «Лид»."
+        },
+        "timeline": {
+          "leadScope": "Лид",
+          "projectScope": "Проект «{{name}}»",
+          "loadingProjectActivities": "Загружаем события по проектам…"
         },
         "fields": {
           "namePlaceholder": "Имя лида",
@@ -1460,6 +2038,32 @@
         "create": "Создать компанию",
         "createFirst": "Создать первую компанию",
         "search": "Поиск компаний...",
+        "stats": {
+          "total": "Всего компаний",
+          "active": "Активные",
+          "inactive": "Неактивные",
+          "archived": "В архиве"
+        },
+        "filters": {
+          "allStatuses": "Все статусы"
+        },
+        "view": {
+          "table": "Таблица",
+          "cards": "Карточки"
+        },
+        "table": {
+          "headers": {
+            "company": "Компания",
+            "contacts": "Контакты",
+            "assignee": "Ответственный",
+            "status": "Статус",
+            "industry": "Отрасль",
+            "actions": "Действия"
+          }
+        },
+        "common": {
+          "empty": "—"
+        },
         "loading": "Загрузка...",
         "empty": "Нет компаний",
         "notFound": "Компании не найдены",
@@ -1587,6 +2191,38 @@
         }
       },
       "details": {
+        "page": {
+          "subtitle": "Детальная информация о компании",
+          "noCompany": "Компания",
+          "actions": {
+            "addContact": "+ Контакт",
+            "addLead": "+ Лид",
+            "addProject": "+ Проект",
+            "saving": "Сохраняем..."
+          },
+          "assigneesByDepartment": "Ответственные по отделам",
+          "selectedCount": "Выбрано: {{count}}",
+          "selectDepartment": "Весь отдел",
+          "noProject": "Без проекта",
+          "noDepartment": "Без отдела",
+          "errors": {
+            "idMissing": "ID компании не указан",
+            "notFound": "Компания не найдена",
+            "assignFailed": "Не удалось назначить ответственного"
+          },
+          "tables": {
+            "leads": {
+              "lead": "Лид",
+              "owner": "Ответственный"
+            },
+            "projects": {
+              "project": "Проект",
+              "owner": "Ответственный",
+              "budget": "Бюджет",
+              "updated": "Обновлен"
+            }
+          }
+        },
         "tabs": {
           "main": "Основная",
           "contacts": "Контакты",
@@ -1636,6 +2272,10 @@
         "edit": "Редактировать задачу",
         "delete": "Удалить",
         "deleteConfirm": "Удалить задачу?",
+        "actions": {
+          "creating": "Создание...",
+          "editSubtitle": "Изменение данных задачи"
+        },
         "statuses": {
           "todo": "К выполнению",
           "in_progress": "В работе",
@@ -1650,12 +2290,15 @@
           "urgent": "Срочный"
         },
         "filters": {
+          "search": "Поиск задач...",
           "priority": "Приоритет",
           "assignee": "Ответственный",
+          "anyAssignee": "Любой ответственный",
           "dueDate": "Срок",
           "overdue": "Просроченные",
           "today": "Сегодня",
-          "thisWeek": "На этой неделе"
+          "thisWeek": "На этой неделе",
+          "reset": "Сбросить"
         },
         "fields": {
           "title": "Название задачи *",
@@ -1664,6 +2307,13 @@
           "priority": "Приоритет",
           "dueDate": "Срок выполнения",
           "assignedTo": "Ответственный"
+        },
+        "errors": {
+          "loadFailed": "Ошибка загрузки данных",
+          "statusChangeFailed": "Ошибка изменения статуса",
+          "createFailed": "Ошибка создания задачи",
+          "deleteFailed": "Ошибка удаления задачи",
+          "saveFailed": "Ошибка сохранения задачи"
         }
       },
       "analytics": {
@@ -1738,6 +2388,36 @@
         "bulkOperations": "Массовые операции",
         "delete": "Удалить",
         "deleteConfirm": "Удалить контакт?",
+        "groupMode": {
+          "company": "Группировать: Компания",
+          "status": "Группировать: Статус",
+          "manager": "Группировать: Менеджер",
+          "custom": "Группировать: Мои группы",
+          "none": "Без группировки"
+        },
+        "groups": {
+          "new": "Новая группа",
+          "ungrouped": "Без группы",
+          "noCompany": "Без компании",
+          "noStatus": "Без статуса",
+          "noManager": "Без ответственного",
+          "renameShort": "изм.",
+          "deleteShort": "del",
+          "confirmDelete": "Удалить группу? Контакты останутся без группы.",
+          "dragToGroup": "Переместить в группу: {{group}}",
+          "dragHint": "Перетащите контакт на заголовок нужной группы",
+          "prompts": {
+            "newName": "Название группы",
+            "rename": "Новое название группы"
+          }
+        },
+        "table": {
+          "contact": "Контакт",
+          "manager": "Менеджер",
+          "lead": "Лид",
+          "group": "Группа",
+          "openLead": "Открыть лид"
+        },
         "errors": {
           "loadFailed": "Ошибка загрузки контактов",
           "deleteFailed": "Ошибка удаления"
@@ -1779,6 +2459,31 @@
         }
       },
       "details": {
+        "page": {
+          "subtitle": "Детальная информация о контакте",
+          "backToList": "← К списку контактов",
+          "assignee": "Ответственный",
+          "linkedLeads": "Связанные лиды",
+          "allLeads": "Все лиды",
+          "leadsNotLinked": "Лиды не привязаны",
+          "openCompany": "Открыть компанию",
+          "errors": {
+            "idMissing": "ID контакта не указан",
+            "notFound": "Контакт не найден"
+          },
+          "tables": {
+            "leads": {
+              "lead": "Лид",
+              "owner": "Ответственный"
+            },
+            "projects": {
+              "project": "Проект",
+              "owner": "Ответственный",
+              "budget": "Бюджет",
+              "updated": "Обновлен"
+            }
+          }
+        },
         "tabs": {
           "main": "Основная",
           "company": "Компания",
@@ -2015,6 +2720,23 @@
           "activeOnly": "Автоматизация будет выполняться только если включена",
           "actionsDesc": "Что выполнить при срабатывании триггера"
         },
+        "builder": {
+          "scope": "Сфера",
+          "ifTitle": "IF: Когда",
+          "thenTitle": "THEN: Сделать",
+          "previewTitle": "Предпросмотр сценария",
+          "templatesTitle": "Быстрый старт по сущностям",
+          "step": "Шаг",
+          "expand": "Развернуть",
+          "collapse": "Свернуть",
+          "noActions": "Действий пока нет",
+          "noConfig": "Без доп. параметров",
+          "templates": {
+            "leads": "Новый лид -> письмо и заметка",
+            "projects": "Новый проект -> заметка и статус",
+            "sales": "Новая продажа -> отчёт и заметка"
+          }
+        },
         "triggerGroups": {
           "contacts": "Контакты",
           "companies": "Компании",
@@ -2137,6 +2859,16 @@
         "noteAction": {
           "content": "Содержание заметки"
         },
+        "actionTypes": {
+          "trigger_webhook": "Вызвать Webhook",
+          "send_email": "Отправить Email",
+          "send_telegram": "Отправить Telegram",
+          "send_report": "Отправить отчёт",
+          "create_note": "Создать заметку",
+          "update_field": "Обновить поле",
+          "add_tag": "Добавить тег",
+          "change_status": "Изменить статус"
+        },
         "errors": {
           "saveFailed": "Ошибка сохранения",
           "loadFailed": "Ошибка загрузки автоматизации"
@@ -2152,6 +2884,7 @@
         "subtitle": "Создавайте и управляйте шаблонами email для маркетинговых кампаний",
         "create": "Создать шаблон",
         "createFirst": "Создать первый шаблон",
+        "subject": "Тема",
         "loading": "Загрузка...",
         "empty": "Нет шаблонов",
         "delete": "Удалить",
@@ -2178,7 +2911,22 @@
           "preview": "Предпросмотр"
         },
         "hints": {
-          "activeAvailable": "Шаблон будет доступен для использования"
+          "activeAvailable": "Шаблон будет доступен для использования",
+          "availableVariables": "Доступные переменные"
+        },
+        "placeholders": {
+          "name": "Название шаблона",
+          "description": "Описание шаблона",
+          "subject": "Тема письма (можно использовать {{lead.name}}, {{lead.email}} и т.д.)",
+          "htmlBody": "HTML код письма...",
+          "textBody": "Текстовая версия письма (для клиентов без поддержки HTML)"
+        },
+        "defaultTemplate": {
+          "greeting": "Здравствуйте, {{lead.name}}!",
+          "body": "Это пример письма с использованием переменных.",
+          "phoneLabel": "Телефон:",
+          "statusLabel": "Статус:",
+          "signature": "С уважением,<br>Команда Lumiva"
         },
         "variables": {
           "lead": "Данные лида: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
@@ -2194,7 +2942,8 @@
         },
         "errors": {
           "saveFailed": "Ошибка сохранения",
-          "loadFailed": "Ошибка загрузки шаблона"
+          "loadFailed": "Ошибка загрузки шаблона",
+          "previewFailed": "Ошибка предпросмотра"
         },
         "success": {
           "saved": "Шаблон сохранён"
@@ -2205,11 +2954,69 @@
       "board": {
         "title": "Проекты · Канбан",
         "subtitle": "Перетаскивайте карточки между колонками, чтобы менять статус проекта.",
+        "customFieldsTitle": "Кастомные поля проектов",
+        "boolean": {
+          "yes": "Да",
+          "no": "Нет"
+        },
+        "quickEdit": {
+          "title": "Быстрое редактирование",
+          "owners": "Ответственные ({{count}})",
+          "amountPlaceholder": "Сумма",
+          "priority": {
+            "low": "Низкий приоритет",
+            "normal": "Обычный приоритет",
+            "high": "Высокий приоритет"
+          }
+        },
         "empty": "Нет проектов"
+      },
+      "calendar": {
+        "subtitle": "Календарь дедлайнов задач проектов, ответственных и бюджетов",
+        "noCompany": "Без компании",
+        "view": {
+          "month": "Месяц",
+          "week": "Неделя"
+        },
+        "filters": {
+          "allAssignees": "Все ответственные",
+          "allTaskStatuses": "Все статусы задач",
+          "allCompanies": "Все компании",
+          "reset": "Сбросить фильтры"
+        },
+        "weekdays": ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"],
+        "moreTasks": "+{{count}} еще",
+        "upcoming": {
+          "title": "Ближайшие дедлайны",
+          "headers": {
+            "date": "Дата",
+            "project": "Проект",
+            "task": "Задача",
+            "company": "Компания",
+            "assignee": "Ответственный",
+            "projectAmount": "Сумма проекта"
+          },
+          "empty": "Нет задач с дедлайнами"
+        }
       },
       "list": {
         "title": "Проекты · Таблица",
         "subtitle": "Список проектов: статус, сумма, ответственный и дата создания",
+        "customFieldsTitle": "Кастомные поля проектов",
+        "boolean": {
+          "yes": "Да",
+          "no": "Нет"
+        },
+        "groupMode": {
+          "status": "Группировка: Статус",
+          "owner": "Группировка: Ответственный",
+          "company": "Группировка: Компания",
+          "none": "Без группировки"
+        },
+        "filters": {
+          "companyLabel": "Фильтр по компании:",
+          "allCompanies": "Все компании"
+        },
         "columns": {
           "label": "Колонки",
           "hide": "Скрыть колонку",
@@ -2261,21 +3068,20 @@
         }
       },
       "trash": {
-      "bulkEdit": {
-        "title": "Массовое редактирование проектов",
-        "subtitle": "Выберите проекты и примените расширенные действия.",
-        "owner": "Ответственный",
-        "ownerEmpty": "Без ответственного",
-        "actions": {
-          "applyStatus": "Применить статус",
-          "applyOwner": "Назначить ответственного"
-        }
-      },
         "title": "Корзина проектов",
         "subtitle": "Проекты, которые были удалены.",
         "empty": "В корзине пока нет проектов.",
         "actions": {
-          "restore": "Восстановить"
+          "restore": "Восстановить",
+          "deletePermanently": "Удалить полностью",
+          "emptyTrash": "Очистить корзину"
+        },
+        "confirm": {
+          "emptyTitle": "Очистить корзину проектов?",
+          "singleTitle": "Удалить проект навсегда?",
+          "emptyDescription": "Все проекты в корзине будут удалены без возможности восстановления.",
+          "singleDescription": "Проект \"{{name}}\" будет удалён без возможности восстановления.",
+          "deleting": "Удаляем..."
         }
       },
       "closed": {
@@ -2422,7 +3228,64 @@
       },
       "views": {
         "kanban": "Канбан",
-        "table": "Таблица"
+        "table": "Таблица",
+        "calendar": "Календарь"
+      },
+      "viewsBar": {
+        "prompts": {
+          "viewName": "Название вида"
+        },
+        "copyNames": {
+          "table": "Таблица (копия)",
+          "kanban": "Канбан (копия)",
+          "calendar": "Календарь (копия)"
+        },
+        "confirm": {
+          "deleteCurrentView": "Удалить текущий вид?"
+        },
+        "menu": {
+          "tabMenu": "Меню вкладки",
+          "newTable": "Новая таблица",
+          "newKanban": "Новый канбан",
+          "newCalendar": "Новый календарь",
+          "moveLeft": "Сдвинуть влево",
+          "moveRight": "Сдвинуть вправо",
+          "copyTab": "Копировать вкладку",
+          "deleteTab": "Удалить вкладку",
+          "settings": "Настройки"
+        },
+        "settings": {
+          "close": "Закрыть настройки",
+          "title": "Настройки виджета",
+          "kanbanCardTitle": "Настройка карточки канбана",
+          "kanbanFieldsHint": "Выберите поля карточки, которые нужно показывать:",
+          "previewTitle": "Пример карточки проекта",
+          "previewEmpty": "Выберите хотя бы одно поле",
+          "calendarFilterTitle": "Фильтр календаря",
+          "calendarImportantOnly": "Только важные проекты (высокий приоритет задач)",
+          "enabled": "Вкл",
+          "disabled": "Выкл",
+          "tableTitle": "Настройки таблицы",
+          "tableHint": "Следующим шагом добавим настройку колонок, плотности и группировок в этом же окне."
+        },
+        "fields": {
+          "owner": "Ответственный",
+          "amount": "Сумма",
+          "progress": "Прогресс",
+          "created": "Дата создания",
+          "priority": "Приоритет",
+          "tags": "Теги",
+          "deadline": "Дедлайн"
+        },
+        "preview": {
+          "owner": "Менеджер: Анна",
+          "amount": "10 000 EUR",
+          "progress": "65%",
+          "created": "13.03.2026",
+          "priority": "Высокий",
+          "tags": "#crm #retail",
+          "deadline": "20.03.2026"
+        }
       },
       "actions": {
         "newProject": "Новый проект"
@@ -2487,7 +3350,38 @@
           "contact": "Контакт",
           "createdAt": "Создан: 24.09.2025, 03:00:00",
           "category": "Категория",
-          "tags": "Метки"
+          "tags": "Метки",
+          "open": "Открыть"
+        },
+        "owner": {
+          "byDepartment": "Ответственные по отделам",
+          "selected": "Выбрано: {{count}}",
+          "wholeDepartment": "Весь отдел",
+          "noDepartment": "Без отдела"
+        },
+        "priority": {
+          "lowUrgency": "Низкая срочность",
+          "normalUrgency": "Обычная срочность",
+          "highUrgency": "Высокая срочность"
+        },
+        "metrics": {
+          "title": "Стоимость и прогресс",
+          "budget": "Бюджет",
+          "taskProgress": "Прогресс задач",
+          "urgency": "Срочность:"
+        },
+        "notes": {
+          "title": "Заметки проекта",
+          "placeholder": "Контекст, договоренности, риски, что важно не забыть..."
+        },
+        "customFields": {
+          "title": "Кастомные поля",
+          "configure": "Настроить",
+          "loading": "Загрузка полей...",
+          "empty": "Полей нет. Добавьте через настройку.",
+          "selectValue": "Выберите значение",
+          "loadFailed": "Не удалось загрузить кастомные поля",
+          "managerTitle": "Кастомные поля проектов"
         },
         "mentions": {
           "notice": "Упоминаний: {{count}}",
@@ -2498,6 +3392,12 @@
           "loading": "Загружаем историю…",
           "empty": "История изменений пуста.",
           "loadFailed": "Не удалось загрузить историю",
+          "amountTitle": "История стоимости",
+          "summary": {
+            "events": "Событий в истории",
+            "amountChanges": "Изменений стоимости",
+            "lastUpdate": "Последнее обновление"
+          },
           "actions": {
             "create": "Создан проект",
             "update": "Обновление проекта",
@@ -2519,6 +3419,7 @@
         "tasks": {
           "title": "Задачи проекта",
           "readOnly": "Только для просмотра",
+          "reorder": "Перетащить, чтобы изменить порядок",
           "newTitle": "Новая задача: заголовок",
           "newAssignees": "Исполнители",
           "add": "Добавить",
@@ -3068,20 +3969,99 @@
       "company": {
         "sectionLabel": "Настройки",
         "title": "Настройки компании",
-        "subtitle": "Название, логотип и базовые параметры клиента",
+        "subtitle": "Название, логотип, тариф, доступ сотрудников и хранилище",
         "loading": "Загружаем настройки…",
         "saving": "Сохраняем…",
         "save": "Сохранить изменения",
         "success": "Настройки сохранены",
+        "ownerOnly": "Редактирование доступно только владельцу компании (роль owner).",
+        "logoUpload": "Загрузить файл",
+        "logoUploading": "Загрузка…",
+        "logoUploadSuccess": "Логотип обновлён",
+        "noLogo": "Нет изображения",
+        "tabs": {
+          "general": "Основное",
+          "billing": "Тариф и оплата",
+          "sessions": "Сессии и доступ",
+          "invites": "Приглашения",
+          "storage": "Хранилище"
+        },
+        "billing": {
+          "activeUntil": "Подписка активна до",
+          "unlimited": "Без ограничения по дате",
+          "hint": "Смена тарифа и продление — через раздел оплаты (Stripe).",
+          "manage": "Управление тарифом и оплатой"
+        },
+        "sessions": {
+          "hint": "Сотрудники и последний вход. Отключение доступа действует для учётной записи в CRM.",
+          "activeLoginsTitle": "Активные входы",
+          "activeLoginsHint": "Каждая авторизация создаёт отдельную сессию. IP и браузер фиксируются при входе.",
+          "loading": "Загрузка сессий…",
+          "noSessions": "Нет активных сессий",
+          "colName": "Имя",
+          "colEmail": "Email",
+          "colRole": "Роль",
+          "colLastLogin": "Последний вход",
+          "colIp": "IP",
+          "colStarted": "Начало сессии",
+          "colLastSeen": "Последняя активность",
+          "colUserAgent": "Устройство / браузер",
+          "colActions": "Действия",
+          "deactivate": "Отключить",
+          "activate": "Включить",
+          "activated": "Доступ включён",
+          "deactivated": "Доступ отключён",
+          "revokeOne": "Завершить",
+          "revokeAll": "Все сессии ({{count}})",
+          "revokeSuccess": "Сессия завершена",
+          "revokeAllSuccess": "Все сессии пользователя завершены"
+        },
+        "invites": {
+          "hint": "Сотрудники со статусом приглашения (ещё не приняли доступ).",
+          "empty": "Нет ожидающих приглашений",
+          "colEmail": "Email",
+          "colRole": "Роль",
+          "colStatus": "Статус"
+        },
+        "storage": {
+          "usageTitle": "Использование хранилища",
+          "tiersHint": "Базовый тариф: до 3 ГБ, средний — до 5 ГБ, старший — до 10 ГБ на компанию; верхний уровень — по договорённости. Дополнительный объём можно докупить на любом тарифе.",
+          "unlimitedPlan": "Лимит по договорённости",
+          "extraHint": "Дополнительные гигабайты оформляются через оплату. Учёт файлов по модулям внедряется постепенно.",
+          "buyMore": "Докупить объём / тариф",
+          "filesTitle": "Файлы компании",
+          "filesHint": "Файлы, загруженные в CRM по разделам (общее хранилище, логотип, рабочие области, чат, почта и т.д.). Здесь только просмотр и удаление (по правам).",
+          "deleteRolesHint": "Удалять файлы могут только владелец компании и сотрудники ИТ-отдела (по названию отдела в справочнике).",
+          "colSource": "Источник",
+          "colFile": "Файл",
+          "colSize": "Размер",
+          "colUploadedBy": "Кто загрузил",
+          "colDate": "Дата",
+          "colActions": "Действия",
+          "delete": "Удалить",
+          "loadingFiles": "Загрузка списка…",
+          "noFiles": "Пока нет файлов",
+          "deleteSuccess": "Файл удалён",
+          "source": {
+            "company_storage": "Общее хранилище",
+            "logo": "Логотип компании",
+            "online_chat": "Онлайн-чат",
+            "email": "Почта",
+            "telegram": "Telegram",
+            "workspace": "Рабочие области",
+            "tenant_disk": "Каталог тенанта (uploads)"
+          }
+        },
         "errors": {
           "load": "Ошибка загрузки настроек компании",
-          "save": "Ошибка сохранения настроек"
+          "save": "Ошибка сохранения настроек",
+          "upload": "Не удалось загрузить файл логотипа"
         },
         "fields": {
           "name": "Название компании",
           "namePlaceholder": "Название, которое будет видно в CRM",
-          "logo": "Логотип (URL)",
-          "logoHint": "Позже можно будет сделать загрузку файла. Сейчас — только URL к изображению.",
+          "logo": "Логотип",
+          "logoHint": "Загрузите PNG/JPEG/WebP/GIF (до 2 МБ) или укажите прямой URL. Логотип отображается в меню слева у всех сотрудников.",
           "language": "Основной язык интерфейса",
           "languageEmpty": "— Не выбран —",
           "languageHint": "Пока это только поле в настройках. Переключение UI по языку можно добавить позже.",
@@ -3204,6 +4184,8 @@
       "list": {
         "title": "Продажи",
         "shown": "Показано {{shown}} из {{total}}",
+        "addColumn": "Колонка",
+        "customFieldsTitle": "Кастомные поля продаж",
         "headers": {
           "date": "Дата",
           "id": "ID",
@@ -3219,7 +4201,11 @@
         "manager": "Менеджер",
         "market": "Рынок",
         "company": "Компания",
-        "openProduct": "Открыть"
+        "openProduct": "Открыть",
+        "boolean": {
+          "yes": "Да",
+          "no": "Нет"
+        }
       },
       "pagination": {
         "page": "Страница {{page}} из {{pages}}",
@@ -3243,6 +4229,72 @@
         "cancelled": "Отменён",
         "refunded": "Возврат",
         "other": "Другое"
+      },
+      "details": {
+        "title": "Заказ {{id}}…",
+        "subtitle": "Детальная информация по заказу из любых источников (интернет-магазин, внешние интеграции и др.). Отображаются все поля, переданные в CRM.",
+        "back": "Назад к списку",
+        "loading": "Загружаем заказ…",
+        "sections": {
+          "order": "Заказ",
+          "amountAndChannel": "Стоимость и канал",
+          "client": "Клиент",
+          "management": "Управление заказом",
+          "customFields": "Кастомные поля",
+          "product": "Продукт",
+          "allSaleFields": "Все поля заказа (Sale)",
+          "metaFields": "Дополнительные данные (meta)"
+        },
+        "fields": {
+          "productId": "ID продукта",
+          "purchaseDate": "Дата покупки",
+          "updatedAt": "Дата изменения",
+          "status": "Статус",
+          "channel": "Канал",
+          "integration": "Интеграция",
+          "country": "Страна покупки",
+          "orderStatus": "Статус заказа",
+          "manager": "Ответственный менеджер",
+          "leadId": "Лид (ID)",
+          "searchLead": "Поиск лида (имя, телефон, email)",
+          "notes": "Комментарий (внутренние заметки)",
+          "productName": "Название продукта",
+          "productLink": "Ссылка на продукт"
+        },
+        "actions": {
+          "open": "Открыть",
+          "createLead": "Создать лид",
+          "creatingLead": "Создаём…",
+          "configure": "Настроить",
+          "saving": "Сохраняем…",
+          "save": "Сохранить изменения"
+        },
+        "placeholders": {
+          "selectValue": "Выберите значение",
+          "manager": "Например: Анна Иванова",
+          "leadId": "UUID лида или пусто",
+          "searchLead": "Начните вводить для поиска",
+          "notes": "Любая дополнительная информация по заказу, видимая только менеджерам."
+        },
+        "hints": {
+          "manager": "Позже можно будет выбрать менеджера из списка сотрудников.",
+          "lead": "Можно вручную вставить ID лида, выбрать через поиск ниже или создать нового из данных заказа."
+        },
+        "fallbacks": {
+          "noName": "Без имени",
+          "noContacts": "Контакты не указаны",
+          "noResults": "Ничего не найдено",
+          "noActiveCustomFields": "Нет активных кастомных полей"
+        },
+        "lead": {
+          "defaultName": "Клиент из заказа"
+        },
+        "errors": {
+          "load": "Не удалось загрузить заказ",
+          "save": "Не удалось сохранить изменения заказа",
+          "loadCustomFields": "Не удалось загрузить кастомные поля",
+          "createLead": "Не удалось создать лид из заказа"
+        }
       },
       "analytics": {
         "kicker": "Продажи · Аналитика",
@@ -3496,6 +4548,7 @@
       },
       "deleteConfirm": "Удалить {{name}}?",
       "common": {
+        "noCampaign": "(без utm_campaign)",
         "empty": "—"
       }
     },
@@ -4391,7 +5444,11 @@
       "development": "Разработка",
       "scenarios": "Сценарии",
       "api": "API",
+      "integrations": "Интеграции",
       "solutions": "Решения",
+      "analytics": "Аналитика",
+      "marketing": "Маркетинг",
+      "sales": "Продажи",
       "pricing": "Тарифы",
       "blog": "Блог",
       "privacy": "Конфиденциальность"

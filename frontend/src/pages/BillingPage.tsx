@@ -20,115 +20,7 @@ const YEARLY_DISCOUNT: Record<PlanCode, number> = {
   ultimate: 0.2,
 };
 
-const PLAN_FEATURES_BY_CODE: Record<PlanCode, string[]> = {
-  standard: [
-    'Лиды, контакты, компании и сделки',
-    'Воронка продаж и базовая аналитика',
-    'Маркетинг и UTM-метки',
-    'Email шаблоны и отправки',
-    'Проекты и задачи',
-    'Интеграции CF7 / WooCommerce',
-  ],
-  professional: [
-    'Все возможности Standard',
-    'Автоматизации и триггерные сценарии',
-    'Telegram и чат-модуль',
-    'SMM и расширенные интеграции',
-    'Sales pipeline + KPI аналитика',
-    'Расширенные права и процессы команд',
-  ],
-  enterprise: [
-    'Все возможности Professional',
-    'Client Accounts и клиентские порталы',
-    'Глубокая BI/аналитика по отделам',
-    'Планирование внедрения под ваш процесс',
-    'Консалтинг по оптимизации продаж',
-    'Поддержка 24/7 с SLA',
-  ],
-  ultimate: [
-    'Все возможности Enterprise',
-    'Индивидуальная архитектура под бизнес',
-    'Приоритетная техническая линия 24/7',
-    'Выделенный консалтинг и roadmap',
-    'Миграция и сопровождение релизов',
-    'Экспертная поддержка сложных интеграций',
-  ],
-};
-
-const DEFAULT_PLANS: Array<{
-  code: PlanCode;
-  title: string;
-  price: string;
-  subtitle: string;
-  description: string;
-  features: string[];
-}> = [
-  {
-    code: 'standard',
-    title: 'Standard',
-    price: '€14',
-    subtitle: 'Для быстрого запуска команды',
-    description: 'Базовый контур CRM для ежедневной работы отдела продаж и маркетинга.',
-    features: [
-      'Правила распределения и workflow',
-      'Каденции',
-      'Аналитика продаж',
-      'Маркетинг',
-      'Аналитика лидов',
-      'Self-service киоски',
-      'Ведение клиентской базы и воронки',
-      'Базовые интеграции с каналами',
-    ],
-  },
-  {
-    code: 'professional',
-    title: 'Professional',
-    price: '€23',
-    subtitle: 'Для роста и автоматизации',
-    description: 'Подходит для масштабирования и усиления управляемости процессов.',
-    features: [
-      'Все из Standard',
-      'CPQ',
-      'Email intelligence',
-      'Автоматизация процессов',
-      'Сквозные сценарии продаж',
-      'Расширенные отчеты по эффективности',
-      'Контроль SLA и скорости ответа',
-    ],
-  },
-  {
-    code: 'enterprise',
-    title: 'Enterprise',
-    price: '€40',
-    subtitle: 'Для системных корпоративных команд',
-    description: 'Максимум контроля, безопасности и глубокой аналитики для руководителей.',
-    features: [
-      'Все из Professional',
-      'AI ассистент продаж',
-      'Порталы клиентов',
-      'Расширенные роли и матрица прав',
-      'Отделовые KPI-дашборды',
-      'Приоритетная поддержка',
-      'Гибкая модель согласований',
-    ],
-  },
-  {
-    code: 'ultimate',
-    title: 'Ultimate',
-    price: '€52',
-    subtitle: 'Для сложных внедрений и масштабирования',
-    description: 'Премиальный пакет с сопровождением, консалтингом и кастомизацией.',
-    features: [
-      'Все из Enterprise',
-      'Консалтинг',
-      'Помощь в миграции',
-      'Персональный roadmap внедрения',
-      'Глубокая кастомизация процессов',
-      'Выделенные архитектурные сессии',
-      'Поддержка релизного цикла',
-    ],
-  },
-];
+const DEFAULT_PLANS: BillingCatalogPlan[] = [];
 
 export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
   const { i18n } = useTranslation();
@@ -237,7 +129,7 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
       description: locale?.description?.trim() || plan.description,
       features: Array.isArray(locale?.features) && locale.features.length ? locale.features : plan.features,
     };
-  };
+          };
 
   const parseMonthlyPrice = (raw: string): number => {
     const normalized = String(raw || '').replace(',', '.');
@@ -247,27 +139,14 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
   };
 
   const planGridClass = embedded
-    ? 'grid grid-flow-col auto-cols-[88%] gap-3 overflow-x-auto pb-2 snap-x snap-mandatory md:grid-flow-row md:auto-cols-auto md:grid-cols-4'
+    ? 'grid grid-flow-col auto-cols-[88%] gap-3 overflow-x-auto px-0.5 pb-2.5 pt-0.5 snap-x snap-mandatory md:grid-flow-row md:auto-cols-auto md:grid-cols-4'
     : 'grid gap-4 md:grid-cols-2 xl:grid-cols-4';
 
   React.useEffect(() => {
     fetchBillingCatalog()
       .then((list) => {
         if (Array.isArray(list) && list.length) {
-          const merged = (list as BillingCatalogPlan[]).map((plan) => {
-            const code = plan.code as PlanCode;
-            const extra = PLAN_FEATURES_BY_CODE[code] || [];
-            const existing = Array.isArray(plan.features) ? plan.features : [];
-            const uniq = Array.from(new Set([...existing, ...extra]));
-            if ((code === 'enterprise' || code === 'ultimate') && !uniq.some((x) => x.includes('24/7'))) {
-              uniq.push('Поддержка 24/7');
-            }
-            if ((code === 'enterprise' || code === 'ultimate') && !uniq.some((x) => x.toLowerCase().includes('консалт'))) {
-              uniq.push('Консалтинг');
-            }
-            return { ...plan, features: uniq };
-          });
-          setPlans(merged);
+          setPlans(list as BillingCatalogPlan[]);
         }
       })
       .catch(() => {
@@ -312,11 +191,12 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
       setLoadingPlan(plan);
       setStatus(null);
       const origin = window.location.origin;
+      const returnBasePath = embedded ? '/app' : '/app/billing';
       const data = await createCheckoutSession({
         plan,
         period,
-        successUrl: `${origin}/app/billing?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${origin}/app/billing?cancelled=1${renew ? '&renew=1' : ''}`,
+        successUrl: `${origin}${returnBasePath}?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${origin}${returnBasePath}?cancelled=1${renew ? '&renew=1' : ''}`,
       });
       if (!data.url) {
         throw new Error('Stripe checkout URL is empty');
@@ -335,7 +215,7 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
     <div
       className={
         embedded
-          ? 'relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/85 p-4 md:p-6 shadow-[0_30px_90px_rgba(15,23,42,0.28)] backdrop-blur-xl'
+          ? 'relative rounded-[24px] border border-slate-200/80 bg-white/90 p-4 shadow-[0_22px_65px_rgba(15,23,42,0.22)] backdrop-blur-xl md:p-6'
           : 'relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_20%_0%,rgba(14,165,233,0.12),transparent_36%),radial-gradient(circle_at_80%_100%,rgba(99,102,241,0.12),transparent_34%),linear-gradient(to_bottom,#f8fafc,#f1f5f9)] px-[20px] py-1.5'
       }
     >

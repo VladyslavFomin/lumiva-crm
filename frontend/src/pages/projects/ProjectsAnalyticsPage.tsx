@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
+import { requestAddDashboardPreset } from '../../dashboard/dashboardLayout';
+import { notifyAnalyticsWidgetsChanged } from '../../dashboard/analyticsStorage';
 import { fetchProjects } from '../../api/projects';
 import type { Project } from './projectTypes';
 import {
@@ -48,31 +50,23 @@ type WidgetType = 'metric' | 'donut' | 'bar' | 'table' | 'formula';
 type WidgetSize = 'sm' | 'md' | 'lg';
 type ThemeKey = typeof THEME_PRESETS[number]['key'];
 
-type FormulaScope = 'status' | 'category' | 'owner' | 'tag';
-type FormulaMode = 'count' | 'percent';
+type FormulaScope = string;
+type FormulaMode = 'count' | 'percent' | 'sum';
 type FormulaFn = 'count' | 'percent' | 'ratio' | 'diff' | 'sumif';
-type FormulaOperandType =
-  | 'total'
-  | 'amount'
-  | 'avgAmount'
-  | 'owners'
-  | 'categories'
-  | 'tags'
-  | 'status'
-  | 'category'
-  | 'owner'
-  | 'tag';
+type FormulaOperandType = string;
+type ChartValueMode = 'count' | 'sum';
 
-type MetricKey =
-  | 'total'
-  | 'amount'
-  | 'avgAmount'
-  | 'owners'
-  | 'categories'
-  | 'tags'
-  | 'statuses';
-type ChartKey = 'status' | 'category' | 'owner' | 'tag';
-type TableKey = 'projects' | 'owners' | 'categories';
+type MetricKey = string;
+type ChartKey = string;
+type TableKey = string;
+
+interface AnalyticsFieldMeta {
+  key: string;
+  label: string;
+  type?: string;
+}
+
+const EMPTY_ANALYTICS_FIELDS: AnalyticsFieldMeta[] = [];
 
 type WidgetConfig = {
   id: string;
@@ -91,6 +85,8 @@ type WidgetConfig = {
   formulaFilters?: Array<{ scope: FormulaScope; key: string }>;
   metricKey?: MetricKey;
   chartKey?: ChartKey;
+  chartValueMode?: ChartValueMode;
+  chartValueField?: string;
   tableKey?: TableKey;
 };
 
@@ -119,7 +115,55 @@ function parseDate(value?: string | null) {
   return new Date(ts);
 }
 
-export const ProjectsAnalyticsPage: React.FC = () => {
+const isFilled = (value: any) => {
+  if (value === undefined || value === null) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  return true;
+};
+
+const splitMulti = (raw: any) => {
+  if (Array.isArray(raw)) return raw.map((value) => String(value).trim()).filter(Boolean);
+  return String(raw ?? '')
+    .split(/[,;/]+/)
+    .map((value) => value.trim())
+    .filter(Boolean);
+};
+
+const parseNumericLoose = (raw: any) => {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
+  const normalized = String(raw)
+    .replace(/\s+/g, '')
+    .replace(/,/g, '.')
+    .replace(/[^0-9.\-]/g, '');
+  if (!normalized || normalized === '-' || normalized === '.') return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+interface ProjectsAnalyticsPageProps {
+  externalItems?: Project[];
+  storageNamespace?: string;
+  toolbarSlot?: React.ReactNode;
+  analyticsFields?: AnalyticsFieldMeta[];
+  /** Источник данных для пресета на главной */
+  dashboardPresetSource?: 'projects' | 'sales' | 'leads';
+  header?: {
+    kicker?: string;
+    title?: string;
+    subtitle?: string;
+  };
+}
+
+export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
+  externalItems,
+  storageNamespace = 'projects_analytics',
+  toolbarSlot,
+  analyticsFields = EMPTY_ANALYTICS_FIELDS,
+  dashboardPresetSource = 'projects',
+  header,
+}) => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
   const [items, setItems] = useState<Project[]>([]);
@@ -142,9 +186,12 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   const [editOpen, setEditOpen] = useState(false);
   const [editingWidgetId, setEditingWidgetId] = useState<string | null>(null);
   const [dragWidgetId, setDragWidgetId] = useState<string | null>(null);
+  const [addedToHomeToast, setAddedToHomeToast] = useState(false);
   const [draftType, setDraftType] = useState<WidgetType>('metric');
   const [draftMetric, setDraftMetric] = useState<MetricKey>('total');
   const [draftChart, setDraftChart] = useState<ChartKey>('status');
+  const [draftChartValueMode, setDraftChartValueMode] = useState<ChartValueMode>('count');
+  const [draftChartValueField, setDraftChartValueField] = useState<string>('');
   const [draftTable, setDraftTable] = useState<TableKey>('projects');
   const [draftFormulaFn, setDraftFormulaFn] = useState<FormulaFn>('sumif');
   const [draftFormulaMode, setDraftFormulaMode] = useState<FormulaMode>('count');
@@ -168,6 +215,12 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   const [resizing, setResizing] = useState<ResizeState | null>(null);
 
   useEffect(() => {
+    if (externalItems) {
+      setItems(externalItems);
+      setLoading(false);
+      setError(null);
+      return;
+    }
     let alive = true;
     setLoading(true);
     setError(null);
@@ -185,7 +238,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [t]);
+  }, [externalItems, t]);
 
   const statusLabels = useMemo<Record<string, string>>(
     () => ({
@@ -224,12 +277,72 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     });
   }, [items, period]);
 
+  const isWorkspaceMode = analyticsFields.length > 0;
+  const analyticsFieldMap = useMemo(
+    () => new Map(analyticsFields.map((field) => [field.key, field])),
+    [analyticsFields],
+  );
+  const getCustomFieldValue = (item: Project, key: string) => item.customFields?.[key];
+
   const totalProjects = filteredItems.length;
   const totalAmount = useMemo(
     () => filteredItems.reduce((sum, p) => sum + (p.amount || 0), 0),
     [filteredItems],
   );
   const avgAmount = totalProjects > 0 ? Math.round(totalAmount / totalProjects) : 0;
+
+  const dynamicDimensionOptions = useMemo(
+    () =>
+      analyticsFields.map((field) => ({
+        id: `field:${field.key}`,
+        label: field.label || field.key,
+      })),
+    [analyticsFields],
+  );
+
+  const dynamicFormulaScopeOptions = useMemo(
+    () =>
+      analyticsFields
+        .filter((field) => {
+          const type = String(field.type || '').toLowerCase();
+          return type !== 'date' && type !== 'datetime';
+        })
+        .map((field) => ({
+          id: `field:${field.key}`,
+          label: field.label || field.key,
+        })),
+    [analyticsFields],
+  );
+
+  const dynamicNumericFields = useMemo(
+    () =>
+      analyticsFields.filter((field) => {
+        const type = String(field.type || '').toLowerCase();
+        if (type === 'number') return true;
+        const key = field.key.toLowerCase();
+        const label = field.label.toLowerCase();
+        if (
+          key.includes('amount') ||
+          key.includes('price') ||
+          key.includes('sum') ||
+          key.includes('value') ||
+          label.includes('amount') ||
+          label.includes('price') ||
+          label.includes('sum') ||
+          label.includes('value') ||
+          label.includes('сумм') ||
+          label.includes('цена')
+        ) {
+          return true;
+        }
+        return filteredItems.some((item) => {
+          const raw = getCustomFieldValue(item, field.key);
+          if (!isFilled(raw)) return false;
+          return parseNumericLoose(raw) !== null;
+        });
+      }),
+    [analyticsFields, filteredItems],
+  );
 
   const owners = useMemo(() => {
     const map = new Map<string, number>();
@@ -265,12 +378,59 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   const categoryChartData = useMemo(() => {
     const map = new Map<string, number>();
     filteredItems.forEach((p) => {
+      if (isWorkspaceMode && !p.category) return;
       const raw = p.category || t('crm.projects.analytics.noCategory');
       const label = categoryLabels[raw] ?? raw;
       map.set(label, (map.get(label) ?? 0) + 1);
     });
     return Array.from(map.entries()).map(([label, count]) => ({ label, count }));
-  }, [filteredItems, categoryLabels, t]);
+  }, [filteredItems, categoryLabels, t, isWorkspaceMode]);
+
+  const seriesByKey = useMemo<Record<string, Array<{ code: string; label: string; count: number }>>>(() => {
+    if (!isWorkspaceMode) {
+      return {
+        status: statusChartData,
+        category: categoryChartData.map((item) => ({
+          code: item.label,
+          label: item.label,
+          count: item.count,
+        })),
+        owner: owners.map((item) => ({
+          code: item.label,
+          label: item.label,
+          count: item.count,
+        })),
+        tag: tags.map((item) => ({
+          code: item.label,
+          label: item.label,
+          count: item.count,
+        })),
+      };
+    }
+
+    const map: Record<string, Array<{ code: string; label: string; count: number }>> = {};
+    analyticsFields.forEach((field) => {
+      const bucket = new Map<string, number>();
+      filteredItems.forEach((item) => {
+        const raw = getCustomFieldValue(item, field.key);
+        if (!isFilled(raw)) return;
+        const values =
+          field.type === 'multiselect'
+            ? splitMulti(raw)
+            : [String(raw).trim()].filter(Boolean);
+        values.forEach((value) => {
+          const label = value;
+          bucket.set(label, (bucket.get(label) ?? 0) + 1);
+        });
+      });
+      map[`field:${field.key}`] = Array.from(bucket.entries()).map(([label, count]) => ({
+        code: label,
+        label,
+        count,
+      }));
+    });
+    return map;
+  }, [isWorkspaceMode, statusChartData, categoryChartData, owners, tags, analyticsFields, filteredItems]);
 
   const currency = filteredItems[0]?.currency || 'EUR';
   const formatAmount = (amount: number) => {
@@ -282,26 +442,44 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   };
 
   const metricOptions = useMemo(
-    () => [
-      { id: 'total', label: t('crm.projects.analytics.kpis.total') },
-      { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
-      { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
-      { id: 'owners', label: t('crm.projects.analytics.kpis.owners') },
-      { id: 'categories', label: t('crm.projects.analytics.kpis.categories') },
-      { id: 'tags', label: t('crm.projects.analytics.kpis.tags') },
-      { id: 'statuses', label: t('crm.projects.analytics.kpis.statuses') },
-    ],
-    [t],
+    () => {
+      if (isWorkspaceMode) {
+        return [
+          { id: 'total', label: t('crm.projects.analytics.kpis.total') },
+          ...dynamicNumericFields.flatMap((field) => [
+            { id: `sum:${field.key}`, label: `${field.label} (sum)` },
+            { id: `avg:${field.key}`, label: `${field.label} (avg)` },
+          ]),
+          ...analyticsFields.map((field) => ({
+            id: `filled:${field.key}`,
+            label: `${field.label} (filled)`,
+          })),
+        ];
+      }
+      return [
+        { id: 'total', label: t('crm.projects.analytics.kpis.total') },
+        { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
+        { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
+        { id: 'owners', label: t('crm.projects.analytics.kpis.owners') },
+        { id: 'categories', label: t('crm.projects.analytics.kpis.categories') },
+        { id: 'tags', label: t('crm.projects.analytics.kpis.tags') },
+        { id: 'statuses', label: t('crm.projects.analytics.kpis.statuses') },
+      ];
+    },
+    [t, isWorkspaceMode, analyticsFields, dynamicNumericFields],
   );
 
   const chartOptions = useMemo(
-    () => [
-      { id: 'status', label: t('crm.projects.analytics.statusChart.title') },
-      { id: 'category', label: t('crm.projects.analytics.categoryChart.title') },
-      { id: 'owner', label: t('crm.projects.analytics.ownerChart.title') },
-      { id: 'tag', label: t('crm.projects.analytics.tagChart.title') },
-    ],
-    [t],
+    () =>
+      isWorkspaceMode
+        ? dynamicDimensionOptions
+        : [
+            { id: 'status', label: t('crm.projects.analytics.statusChart.title') },
+            { id: 'category', label: t('crm.projects.analytics.categoryChart.title') },
+            { id: 'owner', label: t('crm.projects.analytics.ownerChart.title') },
+            { id: 'tag', label: t('crm.projects.analytics.tagChart.title') },
+          ],
+    [t, isWorkspaceMode, dynamicDimensionOptions],
   );
 
   const widgetTypeOptions = useMemo(
@@ -316,22 +494,31 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   );
 
   const tableOptions = useMemo(
-    () => [
-      { id: 'projects', label: t('crm.projects.analytics.table.title') },
-      { id: 'owners', label: t('crm.projects.analytics.ownersTable.title') },
-      { id: 'categories', label: t('crm.projects.analytics.categoriesTable.title') },
-    ],
-    [t],
+    () =>
+      isWorkspaceMode
+        ? [
+            { id: 'projects', label: t('crm.projects.analytics.table.title') },
+            ...dynamicDimensionOptions,
+          ]
+        : [
+            { id: 'projects', label: t('crm.projects.analytics.table.title') },
+            { id: 'owners', label: t('crm.projects.analytics.ownersTable.title') },
+            { id: 'categories', label: t('crm.projects.analytics.categoriesTable.title') },
+          ],
+    [t, isWorkspaceMode, dynamicDimensionOptions],
   );
 
   const formulaScopeOptions = useMemo(
-    () => [
-      { id: 'status', label: t('crm.projects.analytics.formula.scope.status') },
-      { id: 'category', label: t('crm.projects.analytics.formula.scope.category') },
-      { id: 'owner', label: t('crm.projects.analytics.formula.scope.owner') },
-      { id: 'tag', label: t('crm.projects.analytics.formula.scope.tag') },
-    ],
-    [t],
+    () =>
+      isWorkspaceMode
+        ? dynamicFormulaScopeOptions
+        : [
+            { id: 'status', label: t('crm.projects.analytics.formula.scope.status') },
+            { id: 'category', label: t('crm.projects.analytics.formula.scope.category') },
+            { id: 'owner', label: t('crm.projects.analytics.formula.scope.owner') },
+            { id: 'tag', label: t('crm.projects.analytics.formula.scope.tag') },
+          ],
+    [t, isWorkspaceMode, dynamicFormulaScopeOptions],
   );
 
   const formulaFunctionOptions = useMemo(
@@ -349,18 +536,29 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     () => [
       { id: 'count', label: t('crm.projects.analytics.formula.mode.count') },
       { id: 'percent', label: t('crm.projects.analytics.formula.mode.percent') },
+      { id: 'sum', label: 'Сумма' },
     ],
     [t],
   );
 
   const formulaValueItems = useMemo(
-    () => ({
-      status: Object.entries(statusLabels).map(([id, label]) => ({ id, label })),
-      category: categoryChartData.map((c) => ({ id: c.label, label: c.label })),
-      owner: owners.map((o) => ({ id: o.label, label: o.label })),
-      tag: tags.map((t) => ({ id: t.label, label: t.label })),
-    }),
-    [statusLabels, categoryChartData, owners, tags],
+    () => {
+      if (isWorkspaceMode) {
+        return Object.fromEntries(
+          Object.entries(seriesByKey).map(([key, list]) => [
+            key,
+            list.map((item) => ({ id: item.code, label: item.label })),
+          ]),
+        ) as Record<string, Array<{ id: string; label: string }>>;
+      }
+      return {
+        status: Object.entries(statusLabels).map(([id, label]) => ({ id, label })),
+        category: categoryChartData.map((c) => ({ id: c.label, label: c.label })),
+        owner: owners.map((o) => ({ id: o.label, label: o.label })),
+        tag: tags.map((t) => ({ id: t.label, label: t.label })),
+      } as Record<string, Array<{ id: string; label: string }>>;
+    },
+    [statusLabels, categoryChartData, owners, tags, isWorkspaceMode, seriesByKey],
   );
 
   const formulaValueFallback = useMemo(
@@ -369,19 +567,35 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   );
 
   const formulaOperandOptions = useMemo(
-    () => [
-      { id: 'total', label: t('crm.projects.analytics.kpis.total') },
-      { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
-      { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
-      { id: 'owners', label: t('crm.projects.analytics.kpis.owners') },
-      { id: 'categories', label: t('crm.projects.analytics.kpis.categories') },
-      { id: 'tags', label: t('crm.projects.analytics.kpis.tags') },
-      { id: 'status', label: t('crm.projects.analytics.formula.scope.status') },
-      { id: 'category', label: t('crm.projects.analytics.formula.scope.category') },
-      { id: 'owner', label: t('crm.projects.analytics.formula.scope.owner') },
-      { id: 'tag', label: t('crm.projects.analytics.formula.scope.tag') },
-    ],
-    [t],
+    () => {
+      if (isWorkspaceMode) {
+        return [
+          { id: 'total', label: t('crm.projects.analytics.kpis.total') },
+          ...dynamicNumericFields.flatMap((field) => [
+            { id: `sum:${field.key}`, label: `${field.label} (sum)` },
+            { id: `avg:${field.key}`, label: `${field.label} (avg)` },
+          ]),
+          ...analyticsFields.map((field) => ({
+            id: `filled:${field.key}`,
+            label: `${field.label} (filled)`,
+          })),
+          ...dynamicDimensionOptions,
+        ];
+      }
+      return [
+        { id: 'total', label: t('crm.projects.analytics.kpis.total') },
+        { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
+        { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
+        { id: 'owners', label: t('crm.projects.analytics.kpis.owners') },
+        { id: 'categories', label: t('crm.projects.analytics.kpis.categories') },
+        { id: 'tags', label: t('crm.projects.analytics.kpis.tags') },
+        { id: 'status', label: t('crm.projects.analytics.formula.scope.status') },
+        { id: 'category', label: t('crm.projects.analytics.formula.scope.category') },
+        { id: 'owner', label: t('crm.projects.analytics.formula.scope.owner') },
+        { id: 'tag', label: t('crm.projects.analytics.formula.scope.tag') },
+      ];
+    },
+    [t, isWorkspaceMode, analyticsFields, dynamicNumericFields, dynamicDimensionOptions],
   );
 
   const getDefaultHeight = (size: WidgetSize, type: WidgetType) => {
@@ -395,58 +609,115 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   };
 
   const defaultWidgets = useMemo<WidgetConfig[]>(
-    () => [
-      {
-        id: 'metric-total',
-        type: 'metric',
-        title: t('crm.projects.analytics.kpis.total'),
-        metricKey: 'total',
-        size: 'sm',
-        height: getDefaultHeight('sm', 'metric'),
-      },
-      {
-        id: 'metric-amount',
-        type: 'metric',
-        title: t('crm.projects.analytics.kpis.amount'),
-        metricKey: 'amount',
-        size: 'md',
-        height: getDefaultHeight('md', 'metric'),
-      },
-      {
-        id: 'metric-owners',
-        type: 'metric',
-        title: t('crm.projects.analytics.kpis.owners'),
-        metricKey: 'owners',
-        size: 'sm',
-        height: getDefaultHeight('sm', 'metric'),
-      },
-      {
-        id: 'chart-status',
-        type: 'donut',
-        title: t('crm.projects.analytics.statusChart.title'),
-        chartKey: 'status',
-        size: 'lg',
-        height: getDefaultHeight('lg', 'donut'),
-        showLabels: true,
-      },
-      {
-        id: 'chart-categories',
-        type: 'bar',
-        title: t('crm.projects.analytics.categoryChart.title'),
-        chartKey: 'category',
-        size: 'lg',
-        height: getDefaultHeight('lg', 'bar'),
-      },
-      {
-        id: 'table-projects',
-        type: 'table',
-        title: t('crm.projects.analytics.table.title'),
-        tableKey: 'projects',
-        size: 'lg',
-        height: getDefaultHeight('lg', 'table'),
-      },
-    ],
-    [t],
+    () => {
+      if (isWorkspaceMode) {
+        const firstDimension = dynamicFormulaScopeOptions[0] || dynamicDimensionOptions[0];
+        const firstNumeric = dynamicNumericFields[0];
+        return [
+          {
+            id: 'metric-total',
+            type: 'metric',
+            title: t('crm.projects.analytics.kpis.total'),
+            metricKey: 'total',
+            size: 'sm',
+            height: getDefaultHeight('sm', 'metric'),
+          },
+          {
+            id: 'metric-filled',
+            type: 'metric',
+            title: firstDimension ? `${firstDimension.label} (filled)` : t('crm.projects.analytics.kpis.total'),
+            metricKey: firstDimension ? `filled:${firstDimension.id.replace('field:', '')}` : 'total',
+            size: 'sm',
+            height: getDefaultHeight('sm', 'metric'),
+          },
+          {
+            id: 'metric-sum',
+            type: 'metric',
+            title: firstNumeric ? `${firstNumeric.label} (sum)` : t('crm.projects.analytics.kpis.total'),
+            metricKey: firstNumeric ? `sum:${firstNumeric.key}` : 'total',
+            size: 'md',
+            height: getDefaultHeight('md', 'metric'),
+          },
+          {
+            id: 'chart-dimension-donut',
+            type: 'donut',
+            title: firstDimension?.label || t('crm.projects.analytics.statusChart.title'),
+            chartKey: firstDimension?.id || 'projects',
+            size: 'lg',
+            height: getDefaultHeight('lg', 'donut'),
+            showLabels: true,
+          },
+          {
+            id: 'chart-dimension-bar',
+            type: 'bar',
+            title: firstDimension?.label || t('crm.projects.analytics.categoryChart.title'),
+            chartKey: firstDimension?.id || 'projects',
+            size: 'lg',
+            height: getDefaultHeight('lg', 'bar'),
+          },
+          {
+            id: 'table-records',
+            type: 'table',
+            title: t('crm.projects.analytics.table.title'),
+            tableKey: 'projects',
+            size: 'lg',
+            height: getDefaultHeight('lg', 'table'),
+          },
+        ];
+      }
+      return [
+        {
+          id: 'metric-total',
+          type: 'metric',
+          title: t('crm.projects.analytics.kpis.total'),
+          metricKey: 'total',
+          size: 'sm',
+          height: getDefaultHeight('sm', 'metric'),
+        },
+        {
+          id: 'metric-amount',
+          type: 'metric',
+          title: t('crm.projects.analytics.kpis.amount'),
+          metricKey: 'amount',
+          size: 'md',
+          height: getDefaultHeight('md', 'metric'),
+        },
+        {
+          id: 'metric-owners',
+          type: 'metric',
+          title: t('crm.projects.analytics.kpis.owners'),
+          metricKey: 'owners',
+          size: 'sm',
+          height: getDefaultHeight('sm', 'metric'),
+        },
+        {
+          id: 'chart-status',
+          type: 'donut',
+          title: t('crm.projects.analytics.statusChart.title'),
+          chartKey: 'status',
+          size: 'lg',
+          height: getDefaultHeight('lg', 'donut'),
+          showLabels: true,
+        },
+        {
+          id: 'chart-categories',
+          type: 'bar',
+          title: t('crm.projects.analytics.categoryChart.title'),
+          chartKey: 'category',
+          size: 'lg',
+          height: getDefaultHeight('lg', 'bar'),
+        },
+        {
+          id: 'table-projects',
+          type: 'table',
+          title: t('crm.projects.analytics.table.title'),
+          tableKey: 'projects',
+          size: 'lg',
+          height: getDefaultHeight('lg', 'table'),
+        },
+      ];
+    },
+    [t, isWorkspaceMode, dynamicDimensionOptions, dynamicFormulaScopeOptions, dynamicNumericFields],
   );
 
   const hasData = !loading && !error;
@@ -454,8 +725,8 @@ export const ProjectsAnalyticsPage: React.FC = () => {
 
   useEffect(() => {
     try {
-      const version = localStorage.getItem('projects_analytics_version');
-      const raw = localStorage.getItem('projects_analytics_widgets');
+      const version = localStorage.getItem(`${storageNamespace}_version`);
+      const raw = localStorage.getItem(`${storageNamespace}_widgets`);
       if (raw && version === ANALYTICS_LAYOUT_VERSION) {
         const parsed = JSON.parse(raw) as WidgetConfig[];
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -467,18 +738,22 @@ export const ProjectsAnalyticsPage: React.FC = () => {
       // ignore
     }
     setWidgets(defaultWidgets);
-  }, [defaultWidgets]);
+  }, [defaultWidgets, storageNamespace]);
 
   useEffect(() => {
     try {
       if (widgets.length > 0) {
-        localStorage.setItem('projects_analytics_widgets', JSON.stringify(widgets));
-        localStorage.setItem('projects_analytics_version', ANALYTICS_LAYOUT_VERSION);
+        localStorage.setItem(`${storageNamespace}_widgets`, JSON.stringify(widgets));
+        localStorage.setItem(`${storageNamespace}_version`, ANALYTICS_LAYOUT_VERSION);
       }
     } catch {
       // ignore
     }
-  }, [widgets]);
+  }, [widgets, storageNamespace]);
+
+  useEffect(() => {
+    notifyAnalyticsWidgetsChanged(storageNamespace);
+  }, [widgets, storageNamespace]);
 
   const handleWidgetDrop = (targetId: string) => {
     if (!dragWidgetId || dragWidgetId === targetId) return;
@@ -514,10 +789,14 @@ export const ProjectsAnalyticsPage: React.FC = () => {
       formulaRightType: draftType === 'formula' ? draftFormulaRightType : undefined,
       formulaRightKey: draftType === 'formula' ? draftFormulaRightKey : undefined,
       formulaMode: draftType === 'formula' ? draftFormulaMode : undefined,
-      formulaFilters: draftType === 'formula' ? draftFormulaFilters : undefined,
+      formulaFilters: draftFormulaFilters,
       metricKey: draftType === 'metric' ? draftMetric : undefined,
       chartKey:
         draftType === 'donut' || draftType === 'bar' ? draftChart : undefined,
+      chartValueMode:
+        draftType === 'donut' || draftType === 'bar' ? draftChartValueMode : undefined,
+      chartValueField:
+        draftType === 'donut' || draftType === 'bar' ? draftChartValueField || undefined : undefined,
       tableKey: draftType === 'table' ? draftTable : undefined,
     };
     setWidgets((prev) => [next, ...prev]);
@@ -543,11 +822,13 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     setDraftFormulaFilters(
       widget.formulaFilters?.length
         ? widget.formulaFilters
-        : [{ scope: 'status', key: '' }],
+        : [{ scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' }],
     );
-    setDraftMetric((widget.metricKey ?? metricOptions[0].id) as MetricKey);
-    setDraftChart((widget.chartKey ?? chartOptions[0].id) as ChartKey);
-    setDraftTable((widget.tableKey ?? tableOptions[0].id) as TableKey);
+    setDraftMetric((widget.metricKey ?? metricOptions[0]?.id ?? 'total') as MetricKey);
+    setDraftChart((widget.chartKey ?? chartOptions[0]?.id ?? 'status') as ChartKey);
+    setDraftChartValueMode((widget.chartValueMode ?? 'count') as ChartValueMode);
+    setDraftChartValueField(widget.chartValueField ?? '');
+    setDraftTable((widget.tableKey ?? tableOptions[0]?.id ?? 'projects') as TableKey);
     setEditingWidgetId(widget.id);
     setEditOpen(true);
   };
@@ -576,12 +857,19 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                   draftType === 'formula' ? draftFormulaRightKey : undefined,
                 formulaMode:
                   draftType === 'formula' ? draftFormulaMode : undefined,
-                formulaFilters:
-                  draftType === 'formula' ? draftFormulaFilters : undefined,
+                formulaFilters: draftFormulaFilters,
                 metricKey: draftType === 'metric' ? draftMetric : undefined,
                 chartKey:
                   draftType === 'donut' || draftType === 'bar'
                     ? draftChart
+                    : undefined,
+                chartValueMode:
+                  draftType === 'donut' || draftType === 'bar'
+                    ? draftChartValueMode
+                    : undefined,
+                chartValueField:
+                  draftType === 'donut' || draftType === 'bar'
+                    ? draftChartValueField || undefined
                     : undefined,
                 tableKey: draftType === 'table' ? draftTable : undefined,
               }
@@ -604,11 +892,8 @@ export const ProjectsAnalyticsPage: React.FC = () => {
   const resetLayout = () => {
     setWidgets(defaultWidgets);
     try {
-      localStorage.setItem(
-        'projects_analytics_widgets',
-        JSON.stringify(defaultWidgets),
-      );
-      localStorage.setItem('projects_analytics_version', ANALYTICS_LAYOUT_VERSION);
+      localStorage.setItem(`${storageNamespace}_widgets`, JSON.stringify(defaultWidgets));
+      localStorage.setItem(`${storageNamespace}_version`, ANALYTICS_LAYOUT_VERSION);
     } catch {
       // ignore
     }
@@ -671,36 +956,25 @@ export const ProjectsAnalyticsPage: React.FC = () => {
         setter(list[0].id);
       }
     };
-    if (draftFormulaLeftType === 'status') {
-      ensureKey('status', draftFormulaLeftKey, setDraftFormulaLeftKey);
+    if (formulaValueItems[draftFormulaLeftType]) {
+      ensureKey(draftFormulaLeftType as FormulaScope, draftFormulaLeftKey, setDraftFormulaLeftKey);
     }
-    if (draftFormulaLeftType === 'category') {
-      ensureKey('category', draftFormulaLeftKey, setDraftFormulaLeftKey);
-    }
-    if (draftFormulaLeftType === 'owner') {
-      ensureKey('owner', draftFormulaLeftKey, setDraftFormulaLeftKey);
-    }
-    if (draftFormulaLeftType === 'tag') {
-      ensureKey('tag', draftFormulaLeftKey, setDraftFormulaLeftKey);
-    }
-    if (draftFormulaRightType === 'status') {
-      ensureKey('status', draftFormulaRightKey, setDraftFormulaRightKey);
-    }
-    if (draftFormulaRightType === 'category') {
-      ensureKey('category', draftFormulaRightKey, setDraftFormulaRightKey);
-    }
-    if (draftFormulaRightType === 'owner') {
-      ensureKey('owner', draftFormulaRightKey, setDraftFormulaRightKey);
-    }
-    if (draftFormulaRightType === 'tag') {
-      ensureKey('tag', draftFormulaRightKey, setDraftFormulaRightKey);
+    if (formulaValueItems[draftFormulaRightType]) {
+      ensureKey(draftFormulaRightType as FormulaScope, draftFormulaRightKey, setDraftFormulaRightKey);
     }
     draftFormulaFilters.forEach((filter, index) => {
-      const items = formulaValueItems[filter.scope];
+      const normalizedScope = formulaValueItems[filter.scope]
+        ? filter.scope
+        : (formulaScopeOptions[0]?.id as FormulaScope | undefined);
+      const items = normalizedScope ? formulaValueItems[normalizedScope] || [] : [];
       const list = items.length ? items : formulaValueFallback;
-      if (!list.find((item) => item.id === filter.key)) {
+      if (!normalizedScope || !list.find((item) => item.id === filter.key) || normalizedScope !== filter.scope) {
         const next = [...draftFormulaFilters];
-        next[index] = { ...next[index], key: list[0].id };
+        next[index] = {
+          ...next[index],
+          scope: (normalizedScope || filter.scope) as FormulaScope,
+          key: list[0].id,
+        };
         setDraftFormulaFilters(next);
       }
     });
@@ -710,26 +984,102 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     draftFormulaRightType,
     draftFormulaRightKey,
     draftFormulaFilters,
+    formulaScopeOptions,
     formulaValueItems,
     formulaValueFallback,
   ]);
 
-  const resolveMetricValue = (key?: MetricKey) => {
+  useEffect(() => {
+    if (!isWorkspaceMode) return;
+    if (draftFormulaFn !== 'sumif') return;
+    if (draftFormulaMode !== 'sum') return;
+    if (draftFormulaLeftType.startsWith('sum:')) return;
+    const firstSumField = dynamicNumericFields[0];
+    if (firstSumField) {
+      setDraftFormulaLeftType(`sum:${firstSumField.key}`);
+    }
+  }, [
+    isWorkspaceMode,
+    draftFormulaFn,
+    draftFormulaMode,
+    draftFormulaLeftType,
+    dynamicNumericFields,
+  ]);
+
+  useEffect(() => {
+    if (draftType !== 'donut' && draftType !== 'bar') return;
+    if (draftChartValueMode !== 'sum') return;
+    if (draftChartValueField) return;
+    if (!isWorkspaceMode) {
+      setDraftChartValueField('amount');
+      return;
+    }
+    if (dynamicNumericFields[0]) {
+      setDraftChartValueField(`field:${dynamicNumericFields[0].key}`);
+      return;
+    }
+    if (analyticsFields[0]) {
+      setDraftChartValueField(`field:${analyticsFields[0].key}`);
+    }
+  }, [
+    draftType,
+    draftChartValueMode,
+    draftChartValueField,
+    dynamicNumericFields,
+    analyticsFields,
+    isWorkspaceMode,
+  ]);
+
+  const resolveMetricValue = (key?: MetricKey, sourceItems: Project[] = filteredItems) => {
+    const sourceTotal = sourceItems.length;
+    const sourceAmount = sourceItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const sourceAvg = sourceTotal > 0 ? Math.round(sourceAmount / sourceTotal) : 0;
+    const sourceOwners = new Set(
+      sourceItems.map((item) => item.owner || t('crm.projects.analytics.unknownOwner')),
+    ).size;
+    const sourceCategories = new Set(
+      sourceItems.map((item) => item.category || t('crm.projects.analytics.noCategory')),
+    ).size;
+    const sourceTags = new Set(sourceItems.flatMap((item) => item.tags || [])).size;
+    const sourceStatuses = new Set(sourceItems.map((item) => item.status)).size;
+
+    if (key?.startsWith('sum:')) {
+      const fieldKey = key.slice(4);
+      const sum = sourceItems.reduce((acc, item) => {
+        const raw = getCustomFieldValue(item, fieldKey);
+        const value = parseNumericLoose(raw);
+        return acc + (value ?? 0);
+      }, 0);
+      return new Intl.NumberFormat(locale).format(sum);
+    }
+    if (key?.startsWith('avg:')) {
+      const fieldKey = key.slice(4);
+      const values = sourceItems
+        .map((item) => parseNumericLoose(getCustomFieldValue(item, fieldKey)))
+        .filter((value): value is number => value !== null);
+      const avg = values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+      return new Intl.NumberFormat(locale).format(avg);
+    }
+    if (key?.startsWith('filled:')) {
+      const fieldKey = key.slice(7);
+      const count = sourceItems.filter((item) => isFilled(getCustomFieldValue(item, fieldKey))).length;
+      return count.toLocaleString(locale);
+    }
     switch (key) {
       case 'total':
-        return totalProjects.toLocaleString(locale);
+        return sourceTotal.toLocaleString(locale);
       case 'amount':
-        return formatAmount(totalAmount);
+        return formatAmount(sourceAmount);
       case 'avgAmount':
-        return formatAmount(avgAmount);
+        return formatAmount(sourceAvg);
       case 'owners':
-        return owners.length.toLocaleString(locale);
+        return sourceOwners.toLocaleString(locale);
       case 'categories':
-        return categoryChartData.length.toLocaleString(locale);
+        return sourceCategories.toLocaleString(locale);
       case 'tags':
-        return tags.length.toLocaleString(locale);
+        return sourceTags.toLocaleString(locale);
       case 'statuses':
-        return statusChartData.length.toLocaleString(locale);
+        return sourceStatuses.toLocaleString(locale);
       default:
         return '—';
     }
@@ -768,6 +1118,104 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     });
   };
 
+  const itemMatchesFilter = (item: Project, scope: FormulaScope, key?: string) => {
+    if (!key) return true;
+    if (scope.startsWith('field:')) {
+      const fieldKey = scope.replace('field:', '');
+      const raw = getCustomFieldValue(item, fieldKey);
+      if (!isFilled(raw)) return false;
+      if (Array.isArray(raw)) return raw.map((v) => String(v)).includes(key);
+      const values = splitMulti(raw);
+      if (values.length > 1) return values.includes(key);
+      return String(raw) === key;
+    }
+    if (scope === 'status') return item.status === key;
+    if (scope === 'category') return (item.category || '') === key;
+    if (scope === 'owner') return (item.owner || '') === key;
+    if (scope === 'tag') return (item.tags || []).includes(key);
+    return false;
+  };
+
+  const applyWidgetFilters = (
+    sourceItems: Project[],
+    filters: Array<{ scope: FormulaScope; key: string }> | undefined,
+  ) => {
+    if (!filters?.length) return sourceItems;
+    return sourceItems.filter((item) =>
+      filters.every((filter) => itemMatchesFilter(item, filter.scope as FormulaScope, filter.key)),
+    );
+  };
+
+  const buildSeriesForWidget = (
+    chartKey: string,
+    sourceItems: Project[],
+    mode: ChartValueMode,
+    valueField?: string,
+  ) => {
+    const getNumericValue = (item: Project) => {
+      if (!valueField) return isWorkspaceMode ? 0 : item.amount || 0;
+      if (valueField.startsWith('sum:')) {
+        const fieldKey = valueField.slice(4);
+        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+      }
+      if (valueField.startsWith('field:')) {
+        const fieldKey = valueField.slice(6);
+        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+      }
+      if (valueField === 'amount') return item.amount || 0;
+      return parseNumericLoose(getCustomFieldValue(item, valueField)) ?? 0;
+    };
+
+    if (!isWorkspaceMode) {
+      const grouped = new Map<string, { code: string; label: string; count: number }>();
+      sourceItems.forEach((item) => {
+        let code = '';
+        let label = '';
+        if (chartKey === 'category') {
+          code = item.category || t('crm.projects.analytics.noCategory');
+          label = categoryLabels[code] ?? code;
+        } else if (chartKey === 'owner') {
+          code = item.owner || t('crm.projects.analytics.unknownOwner');
+          label = code;
+        } else if (chartKey === 'tag') {
+          (item.tags || []).forEach((tag) => {
+            const row = grouped.get(tag) || { code: tag, label: tag, count: 0 };
+            row.count += mode === 'sum' ? getNumericValue(item) : 1;
+            grouped.set(tag, row);
+          });
+          return;
+        } else {
+          code = item.status;
+          label = statusLabels[item.status] ?? item.status;
+        }
+        const row = grouped.get(code) || { code, label, count: 0 };
+        row.count += mode === 'sum' ? getNumericValue(item) : 1;
+        grouped.set(code, row);
+      });
+      return Array.from(grouped.values());
+    }
+
+    if (!chartKey.startsWith('field:')) return [];
+    const fieldKey = chartKey.replace('field:', '');
+    const grouped = new Map<string, { code: string; label: string; count: number }>();
+    sourceItems.forEach((item) => {
+      const raw = getCustomFieldValue(item, fieldKey);
+      if (!isFilled(raw)) return;
+      const values = Array.isArray(raw)
+        ? raw.map((v) => String(v).trim()).filter(Boolean)
+        : (() => {
+            const multi = splitMulti(raw);
+            return multi.length > 1 ? multi : [String(raw).trim()].filter(Boolean);
+          })();
+      values.forEach((value) => {
+        const row = grouped.get(value) || { code: value, label: value, count: 0 };
+        row.count += mode === 'sum' ? getNumericValue(item) : 1;
+        grouped.set(value, row);
+      });
+    });
+    return Array.from(grouped.values());
+  };
+
   const renderActiveDonut = (props: any) => {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, cornerRadius } = props;
     return (
@@ -786,6 +1234,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
 
   const renderWidget = (w: WidgetConfig) => {
     const widgetHeight = w.height ?? getDefaultHeight(w.size, w.type);
+    const widgetItems = applyWidgetFilters(filteredItems, w.formulaFilters);
     if (w.type === 'metric') {
       const theme = resolveTheme(w.themeKey);
       return (
@@ -794,7 +1243,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
             {w.title}
           </div>
           <div className="text-2xl font-semibold" style={{ color: theme.primary }}>
-            {resolveMetricValue(w.metricKey)}
+            {resolveMetricValue(w.metricKey, widgetItems)}
           </div>
           <div className="text-[11px] text-slate-500">
             {period === 'custom' ? t('crm.projects.analytics.period.custom') : periodLabels[period]}
@@ -813,15 +1262,52 @@ export const ProjectsAnalyticsPage: React.FC = () => {
       const rightKey = w.formulaRightKey;
       const filters = w.formulaFilters && w.formulaFilters.length > 0
         ? w.formulaFilters
-        : [{ scope: 'status', key: '' }];
+        : [{ scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' }];
 
-      const resolveOperand = (type: FormulaOperandType, key?: string) => {
-        if (type === 'total') return totalProjects;
-        if (type === 'amount') return totalAmount;
-        if (type === 'avgAmount') return avgAmount;
-        if (type === 'owners') return owners.length;
-        if (type === 'categories') return categoryChartData.length;
-        if (type === 'tags') return tags.length;
+      const resolveOperand = (
+        type: FormulaOperandType,
+        key?: string,
+        sourceItems: Project[] = widgetItems,
+      ) => {
+        if (type.startsWith('sum:')) {
+          const fieldKey = type.slice(4);
+          return sourceItems.reduce(
+            (acc, item) => acc + (parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0),
+            0,
+          );
+        }
+        if (type.startsWith('avg:')) {
+          const fieldKey = type.slice(4);
+          const values = sourceItems
+            .map((item) => parseNumericLoose(getCustomFieldValue(item, fieldKey)))
+            .filter((value): value is number => value !== null);
+          return values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : 0;
+        }
+        if (type.startsWith('filled:')) {
+          const fieldKey = type.slice(7);
+          return sourceItems.filter((item) => isFilled(getCustomFieldValue(item, fieldKey))).length;
+        }
+        if (type.startsWith('field:')) {
+          const list = buildSeriesForWidget(type, sourceItems, 'count');
+          return list.find((entry) => entry.code === key)?.count ?? 0;
+        }
+        if (type === 'total') return sourceItems.length;
+        if (type === 'amount') return sourceItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+        if (type === 'avgAmount') {
+          if (!sourceItems.length) return 0;
+          return Math.round(
+            sourceItems.reduce((sum, item) => sum + (item.amount || 0), 0) / sourceItems.length,
+          );
+        }
+        if (type === 'owners') {
+          return new Set(sourceItems.map((item) => item.owner || t('crm.projects.analytics.unknownOwner'))).size;
+        }
+        if (type === 'categories') {
+          return new Set(sourceItems.map((item) => item.category || t('crm.projects.analytics.noCategory'))).size;
+        }
+        if (type === 'tags') {
+          return new Set(sourceItems.flatMap((item) => item.tags || [])).size;
+        }
         if (type === 'status') {
           return statusChartData.find((s) => s.code === key)?.count ?? 0;
         }
@@ -837,41 +1323,16 @@ export const ProjectsAnalyticsPage: React.FC = () => {
         return 0;
       };
 
-      const resolveFilterCount = (scope: FormulaScope, key?: string) => {
-        if (scope === 'status') {
-          return statusChartData.find((s) => s.code === key)?.count ?? 0;
-        }
-        if (scope === 'category') {
-          return categoryChartData.find((s) => s.label === key)?.count ?? 0;
-        }
-        if (scope === 'owner') {
-          return owners.find((s) => s.label === key)?.count ?? 0;
-        }
-        return tags.find((s) => s.label === key)?.count ?? 0;
-      };
-
-      const filterGroups = filters.reduce<Partial<Record<FormulaScope, string[]>>>(
-        (acc, filter) => {
-          const scope = filter.scope as FormulaScope;
-          if (!acc[scope]) acc[scope] = [];
-          acc[scope]!.push(filter.key);
-          return acc;
-        },
-        {},
-      );
-
-      const groupTotals = Object.entries(filterGroups).map(([scope, keys]) =>
-        keys.reduce(
-          (sum, key) => sum + resolveFilterCount(scope as FormulaScope, key),
-          0,
+      const matchingItems = widgetItems.filter((item) =>
+        filters.every((filter) =>
+          itemMatchesFilter(item, filter.scope as FormulaScope, filter.key),
         ),
       );
-
-      const filterValue = groupTotals.length ? Math.min(...groupTotals) : 0;
+      const filterValue = matchingItems.length;
 
       const leftValue = resolveOperand(leftType, leftKey);
       const rightValue = resolveOperand(rightType, rightKey);
-      const baseTotal = totalProjects;
+      const baseTotal = widgetItems.length;
 
       let primaryValue = leftValue;
       let secondaryValue: number | null = null;
@@ -888,8 +1349,19 @@ export const ProjectsAnalyticsPage: React.FC = () => {
         primaryValue = leftValue - rightValue;
         secondaryValue = rightValue;
       } else if (fn === 'sumif') {
-        primaryValue = filterValue;
-        secondaryValue = baseTotal > 0 ? Math.round((filterValue / baseTotal) * 100) : 0;
+        if (mode === 'sum') {
+          const targetOperand =
+            leftType && leftType !== 'total'
+              ? leftType
+              : dynamicNumericFields[0]
+                ? `sum:${dynamicNumericFields[0].key}`
+                : 'total';
+          primaryValue = resolveOperand(targetOperand, leftKey, matchingItems);
+          secondaryValue = null;
+        } else {
+          primaryValue = filterValue;
+          secondaryValue = baseTotal > 0 ? Math.round((filterValue / baseTotal) * 100) : 0;
+        }
       }
 
       if ((fn === 'count' || fn === 'sumif') && mode === 'percent') {
@@ -899,7 +1371,9 @@ export const ProjectsAnalyticsPage: React.FC = () => {
       }
 
       const primaryLabel =
-        fn === 'percent' || fn === 'ratio' || mode === 'percent'
+        mode === 'sum'
+          ? new Intl.NumberFormat(locale).format(primaryValue)
+          : fn === 'percent' || fn === 'ratio' || mode === 'percent'
           ? `${primaryValue}%`
           : primaryValue.toLocaleString(locale);
       const secondaryLabel =
@@ -930,17 +1404,15 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     }
 
     if (w.type === 'donut') {
-      const donutData =
-        w.chartKey === 'category'
-          ? categoryChartData.map((c) => ({ code: c.label, label: c.label, count: c.count }))
-          : w.chartKey === 'owner'
-            ? owners.map((o) => ({ code: o.label, label: o.label, count: o.count }))
-            : w.chartKey === 'tag'
-              ? tags.map((t) => ({ code: t.label, label: t.label, count: t.count }))
-              : statusChartData;
+      const donutData = buildSeriesForWidget(
+        w.chartKey || (chartOptions[0]?.id ?? 'status'),
+        widgetItems,
+        w.chartValueMode || 'count',
+        w.chartValueField,
+      );
       const theme = resolveTheme(w.themeKey);
       const palette = theme.palette || CHART_COLORS;
-      const donutTotal = totalProjects;
+      const donutTotal = donutData.reduce((sum, row) => sum + row.count, 0);
       const chartHeight = Math.max(widgetHeight - 80, 220);
       const activeIndex = activeDonut[w.id] ?? null;
       const activeProps =
@@ -1026,14 +1498,15 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     }
 
     if (w.type === 'bar') {
-      const barData =
-        w.chartKey === 'category'
-          ? categoryChartData.map((c) => ({ label: c.label, count: c.count }))
-          : w.chartKey === 'owner'
-            ? owners.map((o) => ({ label: o.label, count: o.count }))
-            : w.chartKey === 'tag'
-              ? tags.map((t) => ({ label: t.label, count: t.count }))
-              : statusChartData.map((s) => ({ label: s.label, count: s.count }));
+      const barData = buildSeriesForWidget(
+        w.chartKey || (chartOptions[0]?.id ?? 'status'),
+        widgetItems,
+        w.chartValueMode || 'count',
+        w.chartValueField,
+      ).map((item) => ({
+        label: item.label,
+        count: item.count,
+      }));
       const theme = resolveTheme(w.themeKey);
       const palette = theme.palette || CHART_COLORS;
       const chartHeight = Math.max(widgetHeight - 80, 220);
@@ -1061,13 +1534,51 @@ export const ProjectsAnalyticsPage: React.FC = () => {
       );
     }
 
+    if (w.type === 'table' && isWorkspaceMode && (w.tableKey || '').startsWith('field:')) {
+      const fieldKey = String(w.tableKey).replace('field:', '');
+      const series = buildSeriesForWidget(`field:${fieldKey}`, widgetItems, 'count');
+      const fieldLabel = analyticsFieldMap.get(fieldKey)?.label || fieldKey;
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{fieldLabel}</div>
+            <div className="text-[11px] text-slate-500">{series.length}</div>
+          </div>
+          <div
+            className="overflow-x-auto overflow-y-auto"
+            style={{ maxHeight: Math.max(widgetHeight - 80, 160) }}
+          >
+            <table className="min-w-full border-collapse text-[11px]">
+              <thead className="sticky top-0 bg-white/95 backdrop-blur">
+                <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="py-1.5 pr-3 text-left font-normal">{fieldLabel}</th>
+                  <th className="py-1.5 px-3 text-right font-normal">
+                    {t('crm.projects.analytics.ownersTable.headers.projects')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {series.map((entry) => (
+                  <tr key={entry.code} className="border-b border-slate-100 last:border-none">
+                    <td className="py-1.5 pr-3 text-slate-700">{entry.label}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-700">{entry.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
     if (w.type === 'table' && w.tableKey === 'owners') {
+      const ownerSeries = buildSeriesForWidget('owner', widgetItems, 'count');
       return (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
             <div className="text-[11px] text-slate-500">
-              {t('crm.projects.analytics.ownersTable.total', { count: owners.length })}
+              {t('crm.projects.analytics.ownersTable.total', { count: ownerSeries.length })}
             </div>
           </div>
           <div
@@ -1086,7 +1597,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {owners.map((o) => (
+                {ownerSeries.map((o) => (
                   <tr key={o.label} className="border-b border-slate-100 last:border-none">
                     <td className="py-1.5 pr-3 text-slate-700">{o.label}</td>
                     <td className="py-1.5 px-3 text-right text-slate-700">{o.count}</td>
@@ -1100,12 +1611,13 @@ export const ProjectsAnalyticsPage: React.FC = () => {
     }
 
     if (w.type === 'table' && w.tableKey === 'categories') {
+      const categorySeries = buildSeriesForWidget('category', widgetItems, 'count');
       return (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
             <div className="text-[11px] text-slate-500">
-              {t('crm.projects.analytics.categoriesTable.total', { count: categoryChartData.length })}
+              {t('crm.projects.analytics.categoriesTable.total', { count: categorySeries.length })}
             </div>
           </div>
           <div
@@ -1124,10 +1636,55 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {categoryChartData.map((c) => (
+                {categorySeries.map((c) => (
                   <tr key={c.label} className="border-b border-slate-100 last:border-none">
                     <td className="py-1.5 pr-3 text-slate-700">{c.label}</td>
                     <td className="py-1.5 px-3 text-right text-slate-700">{c.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    if (isWorkspaceMode) {
+      const previewFields = analyticsFields.slice(0, 4);
+      return (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
+            <div className="text-[11px] text-slate-500">
+              {t('crm.projects.analytics.table.total', { count: widgetItems.length })}
+            </div>
+          </div>
+          <div
+            className="overflow-x-auto overflow-y-auto"
+            style={{ maxHeight: Math.max(widgetHeight - 80, 160) }}
+          >
+            <table className="min-w-full border-collapse text-[11px]">
+              <thead className="sticky top-0 bg-white/95 backdrop-blur">
+                <tr className="border-b border-slate-200 text-slate-500">
+                  <th className="py-1.5 pr-3 text-left font-normal">
+                    {t('crm.projects.analytics.table.headers.project')}
+                  </th>
+                  {previewFields.map((field) => (
+                    <th key={field.key} className="py-1.5 px-3 text-left font-normal">
+                      {field.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {widgetItems.map((p) => (
+                  <tr key={p.id} className="border-b border-slate-100 last:border-none">
+                    <td className="py-1.5 pr-3 text-slate-700">{p.name}</td>
+                    {previewFields.map((field) => (
+                      <td key={field.key} className="py-1.5 px-3 text-slate-600">
+                        {String(getCustomFieldValue(p, field.key) ?? '—')}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -1142,7 +1699,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
           <div className="text-[11px] text-slate-500">
-            {t('crm.projects.analytics.table.total', { count: filteredItems.length })}
+            {t('crm.projects.analytics.table.total', { count: widgetItems.length })}
           </div>
         </div>
         <div
@@ -1170,7 +1727,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((p) => (
+              {widgetItems.map((p) => (
                 <tr key={p.id} className="border-b border-slate-100 last:border-none">
                   <td className="py-1.5 pr-3 text-slate-700">{p.name}</td>
                   <td className="py-1.5 px-3 text-slate-600">
@@ -1201,13 +1758,13 @@ export const ProjectsAnalyticsPage: React.FC = () => {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
-                {t('crm.projects.analytics.kicker')}
+                {header?.kicker || t('crm.projects.analytics.kicker')}
               </div>
               <h1 className="text-lg md:text-xl font-semibold text-slate-900">
-                {t('crm.projects.analytics.title')}
+                {header?.title || t('crm.projects.analytics.title')}
               </h1>
               <p className="text-xs text-slate-600 max-w-2xl">
-                {t('crm.projects.analytics.subtitle')}
+                {header?.subtitle || t('crm.projects.analytics.subtitle')}
               </p>
             </div>
             <div className="flex flex-col items-stretch gap-2 text-xs md:items-end">
@@ -1216,6 +1773,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                 <span className="text-slate-700">{t('crm.projects.analytics.hero.note')}</span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                {toolbarSlot}
                 <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
                   <span className="text-[11px] text-slate-600 pl-1">
                     {t('crm.projects.analytics.period.label')}
@@ -1282,7 +1840,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setAddOpen(true)}
-              className="px-4 py-2 rounded-2xl bg-slate-900 text-white text-[11px] font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.25)] hover:bg-slate-800"
+              className="px-4 py-2 rounded-2xl bg-lumiva-accent text-white text-[11px] font-semibold border border-lumiva-accent shadow-[0_10px_24px_rgba(34,34,34,0.12)] hover:opacity-90"
             >
               + {t('crm.projects.analytics.addBlock')}
             </button>
@@ -1333,7 +1891,22 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                         <span className="cursor-move">⋮⋮</span>
                         <span>{w.title}</span>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px]">
+                      <div className="flex items-center gap-2 text-[11px] flex-wrap justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            requestAddDashboardPreset({
+                              source: dashboardPresetSource,
+                              slug: w.id,
+                              widgetConfig: w,
+                            });
+                            setAddedToHomeToast(true);
+                            window.setTimeout(() => setAddedToHomeToast(false), 2800);
+                          }}
+                          className="text-lumiva-accent font-semibold hover:underline"
+                        >
+                          {t('crm.dashboard.addToHomeFromAnalytics')}
+                        </button>
                         <button
                           type="button"
                           onClick={() => openEditWidget(w)}
@@ -1354,11 +1927,6 @@ export const ProjectsAnalyticsPage: React.FC = () => {
 
                     {isResizing && (
                       <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-slate-900/20" />
-                    )}
-                    {isResizing && (
-                      <div className="absolute -top-2 right-4 rounded-full bg-slate-900 px-2 py-0.5 text-[10px] font-semibold text-white">
-                        {w.size.toUpperCase()} · {Math.round(widgetHeight)}px
-                      </div>
                     )}
 
                     <div
@@ -1478,21 +2046,54 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                 )}
 
                 {(draftType === 'donut' || draftType === 'bar') && (
-                  <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">
-                      {t('crm.projects.analytics.modal.data')}
-                    </label>
-                    <select
-                      value={draftChart}
-                      onChange={(e) => setDraftChart(e.target.value as ChartKey)}
-                      className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
-                    >
-                      {chartOptions.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">
+                        {t('crm.projects.analytics.modal.data')}
+                      </label>
+                      <select
+                        value={draftChart}
+                        onChange={(e) => setDraftChart(e.target.value as ChartKey)}
+                        className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
+                      >
+                        {chartOptions.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">Метрика графика</label>
+                      <select
+                        value={draftChartValueMode}
+                        onChange={(e) => setDraftChartValueMode(e.target.value as ChartValueMode)}
+                        className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
+                      >
+                        <option value="count">Количество</option>
+                        <option value="sum">Сумма</option>
+                      </select>
+                    </div>
+                    {draftChartValueMode === 'sum' && (
+                      <div>
+                        <label className="block text-[11px] text-slate-500 mb-1">Поле суммы</label>
+                        <select
+                          value={draftChartValueField}
+                          onChange={(e) => setDraftChartValueField(e.target.value)}
+                          className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
+                        >
+                          {!isWorkspaceMode && <option value="amount">Amount</option>}
+                          {(dynamicNumericFields.length
+                            ? dynamicNumericFields
+                            : analyticsFields
+                          ).map((field) => (
+                            <option key={field.key} value={`field:${field.key}`}>
+                              {field.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1617,7 +2218,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                           onClick={() =>
                             setDraftFormulaFilters((prev) => [
                               ...prev,
-                              { scope: 'status', key: '' },
+                              { scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' },
                             ])
                           }
                           className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 hover:border-slate-400 hover:text-slate-700"
@@ -1642,6 +2243,29 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                             ))}
                           </select>
                         </div>
+                        {draftFormulaMode === 'sum' && (
+                          <div>
+                            <label className="block text-[11px] text-slate-500 mb-1">
+                              Поле суммы
+                            </label>
+                            <select
+                              value={draftFormulaLeftType}
+                              onChange={(e) =>
+                                setDraftFormulaLeftType(e.target.value as FormulaOperandType)
+                              }
+                              className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                            >
+                              {(formulaOperandOptions.filter((opt) => opt.id.startsWith('sum:')).length
+                                ? formulaOperandOptions.filter((opt) => opt.id.startsWith('sum:'))
+                                : [{ id: 'total', label: t('crm.projects.analytics.kpis.total') }]
+                              ).map((opt) => (
+                                <option key={opt.id} value={opt.id}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
                     )}
                     {draftFormulaFn !== 'sumif' && (
@@ -1669,10 +2293,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                             ))}
                           </select>
                         </div>
-                        {(draftFormulaLeftType === 'status' ||
-                          draftFormulaLeftType === 'category' ||
-                          draftFormulaLeftType === 'owner' ||
-                          draftFormulaLeftType === 'tag') && (
+                        {Boolean(formulaValueItems[draftFormulaLeftType]) && (
                           <div>
                             <label className="block text-[11px] text-slate-500 mb-1">
                               {t('crm.projects.analytics.formula.left.value')}
@@ -1719,10 +2340,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                                 ))}
                               </select>
                             </div>
-                            {(draftFormulaRightType === 'status' ||
-                              draftFormulaRightType === 'category' ||
-                              draftFormulaRightType === 'owner' ||
-                              draftFormulaRightType === 'tag') && (
+                            {Boolean(formulaValueItems[draftFormulaRightType]) && (
                               <div>
                                 <label className="block text-[11px] text-slate-500 mb-1">
                                   {t('crm.projects.analytics.formula.right.value')}
@@ -1771,6 +2389,94 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                         )}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {draftType !== 'formula' && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-3">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                      Условия блока
+                    </div>
+                    {draftFormulaFilters.map((filter, index) => (
+                      <div
+                        key={`${filter.scope}-${index}`}
+                        className="rounded-2xl border border-slate-200 bg-white px-3 py-2 space-y-2"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                            Условие {index + 1}
+                          </div>
+                          {draftFormulaFilters.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setDraftFormulaFilters((prev) => prev.filter((_, i) => i !== index))
+                              }
+                              className="text-[10px] text-slate-400 hover:text-rose-500"
+                            >
+                              Удалить
+                            </button>
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-500 mb-1">Срез условия</label>
+                          <select
+                            value={filter.scope}
+                            onChange={(e) => {
+                              const scope = e.target.value as FormulaScope;
+                              setDraftFormulaFilters((prev) => {
+                                const next = [...prev];
+                                next[index] = { ...next[index], scope };
+                                return next;
+                              });
+                            }}
+                            className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                          >
+                            {formulaScopeOptions.map((opt) => (
+                              <option key={opt.id} value={opt.id}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-slate-500 mb-1">Значение</label>
+                          <select
+                            value={filter.key}
+                            onChange={(e) => {
+                              const key = e.target.value;
+                              setDraftFormulaFilters((prev) => {
+                                const next = [...prev];
+                                next[index] = { ...next[index], key };
+                                return next;
+                              });
+                            }}
+                            className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                          >
+                            {(formulaValueItems[filter.scope]?.length
+                              ? formulaValueItems[filter.scope]
+                              : formulaValueFallback
+                            ).map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraftFormulaFilters((prev) => [
+                          ...prev,
+                          { scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' },
+                        ])
+                      }
+                      className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                    >
+                      + Добавить условие
+                    </button>
                   </div>
                 )}
 
@@ -1850,23 +2556,48 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  {t('crm.projects.analytics.actions.cancel')}
-                </button>
-                <button
-                  type="button"
-                  onClick={saveWidget}
-                  className="px-4 py-2 rounded-xl !bg-slate-900 !text-white text-xs font-semibold shadow-[0_10px_24px_rgba(15,23,42,0.25)] hover:bg-slate-800"
-                >
-                  {isEditing
-                    ? t('crm.projects.analytics.actions.save')
-                    : t('crm.projects.analytics.actions.add')}
-                </button>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  {isEditing && editingWidgetId && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const w = widgets.find((x) => x.id === editingWidgetId);
+                        if (w) {
+                          requestAddDashboardPreset({
+                            source: dashboardPresetSource,
+                            slug: w.id,
+                            widgetConfig: w,
+                          });
+                          setAddedToHomeToast(true);
+                          window.setTimeout(() => setAddedToHomeToast(false), 2800);
+                        }
+                        closeModal();
+                      }}
+                      className="px-3 py-2 rounded-xl border border-slate-900/15 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                    >
+                      {t('crm.dashboard.addToHomeFromAnalytics')}
+                    </button>
+                  )}
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+                  >
+                    {t('crm.projects.analytics.actions.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={saveWidget}
+                    className="px-4 py-2 rounded-xl bg-lumiva-accent text-white text-xs font-semibold border border-lumiva-accent shadow-[0_10px_24px_rgba(34,34,34,0.12)] hover:opacity-90"
+                  >
+                    {isEditing
+                      ? t('crm.projects.analytics.actions.save')
+                      : t('crm.projects.analytics.actions.add')}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1892,7 +2623,7 @@ export const ProjectsAnalyticsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={resetLayout}
-                  className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800"
+                  className="px-4 py-2 rounded-xl bg-lumiva-accent text-white text-xs font-semibold border border-lumiva-accent hover:opacity-90"
                 >
                   {t('crm.projects.analytics.reset.confirm')}
                 </button>
@@ -1901,6 +2632,11 @@ export const ProjectsAnalyticsPage: React.FC = () => {
           </div>
         )}
       </div>
+      {addedToHomeToast && (
+        <div className="fixed bottom-6 left-1/2 z-[100] max-w-[min(90vw,24rem)] -translate-x-1/2 rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-2.5 text-center text-[11px] text-slate-800 shadow-lg ring-1 ring-slate-900/[0.06]">
+          {t('crm.dashboard.widgets.addedToHome')}
+        </div>
+      )}
     </MainLayout>
   );
 };

@@ -1,5 +1,5 @@
 // src/pages/automations/AutomationFormPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -18,6 +18,8 @@ export const AutomationFormPage: React.FC = () => {
   const [loadingAccounts, setLoadingAccounts] = useState<boolean>(false);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [loadingTemplates, setLoadingTemplates] = useState<boolean>(false);
+  const [dragActionIndex, setDragActionIndex] = useState<number | null>(null);
+  const [expandedActionIndex, setExpandedActionIndex] = useState<number | null>(0);
   const reportCurrencies = ['EUR', 'USD', 'RUB'];
 
   const [formData, setFormData] = useState<CreateAutomationDto>({
@@ -51,7 +53,7 @@ export const AutomationFormPage: React.FC = () => {
         setEmailAccounts(accounts);
       })
       .catch((e) => {
-        console.error('Ошибка загрузки email аккаунтов:', e);
+        console.error('Failed to load email accounts:', e);
       })
       .finally(() => {
         setLoadingAccounts(false);
@@ -63,7 +65,7 @@ export const AutomationFormPage: React.FC = () => {
         setEmailTemplates(templates);
       })
       .catch((e) => {
-        console.error('Ошибка загрузки шаблонов:', e);
+        console.error('Failed to load templates:', e);
       })
       .finally(() => {
         setLoadingTemplates(false);
@@ -75,47 +77,26 @@ export const AutomationFormPage: React.FC = () => {
       setLoading(true);
       fetchAutomation(id)
         .then((automation) => {
-          console.log('Загружена автоматизация:', automation);
-          console.log('Actions (raw):', automation.actions);
-          console.log('Actions type:', typeof automation.actions);
-          
-          // Убеждаемся, что actions - это массив и правильно десериализован
           let actions: Array<{ type: string; config: Record<string, any> }> = [];
-          
           if (Array.isArray(automation.actions)) {
             actions = automation.actions.map((action: any) => {
-              console.log('Processing action:', action);
-              // Убеждаемся, что type и config правильно извлечены
               const actionType = action.type || 'trigger_webhook';
               const actionConfig = action.config || {};
-              
-              console.log(`Action type: ${actionType}, config keys:`, Object.keys(actionConfig));
-              
               return {
                 type: actionType,
                 config: actionConfig,
               };
             });
           } else if (automation.actions && typeof automation.actions === 'object') {
-            // Если actions это объект, преобразуем в массив
-            console.log('Actions is object, converting to array');
             const action = automation.actions as any;
             actions = [{
               type: action.type || 'trigger_webhook',
               config: action.config || {},
             }];
-          } else {
-            console.warn('Actions is not array or object:', automation.actions);
           }
-          
-          // Если actions пустой, создаем дефолтное действие
           if (actions.length === 0) {
-            console.warn('Actions is empty, creating default action');
             actions = [{ type: 'trigger_webhook' as ActionType, config: {} }];
           }
-          
-          console.log('Actions (processed):', JSON.stringify(actions, null, 2));
-          
           setFormData({
             name: automation.name,
             description: automation.description || '',
@@ -142,16 +123,13 @@ export const AutomationFormPage: React.FC = () => {
     setError(null);
 
     try {
-      // Убеждаемся, что actions правильно сформированы
       const submitData = {
         ...formData,
         actions: formData.actions.map((action) => {
-          // Очищаем пустые значения из config, но сохраняем все заполненные поля
           const cleanConfig: Record<string, any> = {};
           if (action.config) {
             Object.keys(action.config).forEach((key) => {
               const value = action.config[key];
-              // Сохраняем все значения, включая пустые строки для некоторых полей
               if (value !== null && value !== undefined) {
                 cleanConfig[key] = value;
               }
@@ -164,17 +142,6 @@ export const AutomationFormPage: React.FC = () => {
           };
         }),
       };
-      console.log('Отправка данных автоматизации:', JSON.stringify(submitData, null, 2));
-      console.log('Actions для отправки:', JSON.stringify(submitData.actions, null, 2));
-      console.log('Количество actions:', submitData.actions.length);
-      submitData.actions.forEach((action, idx) => {
-        console.log(`Action ${idx}:`, {
-          type: action.type,
-          configKeys: Object.keys(action.config),
-          config: action.config,
-        });
-      });
-      
       if (id) {
         await updateAutomation(id, submitData);
       } else {
@@ -182,7 +149,7 @@ export const AutomationFormPage: React.FC = () => {
       }
       navigate('/app/automations');
     } catch (err: any) {
-      console.error('Ошибка сохранения автоматизации:', err);
+      console.error('Failed to save automation:', err);
       setError(err.message || t('crm.automations.form.errors.saveFailed'));
     } finally {
       setSaving(false);
@@ -198,6 +165,15 @@ export const AutomationFormPage: React.FC = () => {
       ...prev,
       actions: [...prev.actions, { type: 'trigger_webhook' as ActionType, config: {} }],
     }));
+    setExpandedActionIndex(formData.actions.length);
+  };
+
+  const addActionByType = (type: ActionType) => {
+    setFormData((prev) => ({
+      ...prev,
+      actions: [...prev.actions, { type, config: {} }],
+    }));
+    setExpandedActionIndex(formData.actions.length);
   };
 
   const removeAction = (index: number) => {
@@ -205,23 +181,22 @@ export const AutomationFormPage: React.FC = () => {
       ...prev,
       actions: prev.actions.filter((_, i) => i !== index),
     }));
+    if (expandedActionIndex === index) {
+      setExpandedActionIndex(null);
+    }
   };
 
   const updateAction = (index: number, field: string, value: any) => {
     setFormData((prev) => {
       const newActions = [...prev.actions];
       if (field === 'type') {
-        // При смене типа действия сохраняем существующий config полностью
-        // Пользователь может вернуться к предыдущему типу
         const currentConfig = newActions[index].config || {};
         newActions[index] = { 
           ...newActions[index], 
           type: value, 
-          config: currentConfig, // Сохраняем весь config
+          config: currentConfig,
         };
-        console.log(`Изменен тип действия ${index} на ${value}, config сохранен:`, currentConfig);
       } else {
-        // Обновляем поле в config
         const currentConfig = newActions[index].config || {};
         newActions[index] = { 
           ...newActions[index], 
@@ -230,12 +205,94 @@ export const AutomationFormPage: React.FC = () => {
             [field]: value 
           } 
         };
-        console.log(`Обновлено поле ${field} в действии ${index}:`, value);
       }
-      console.log('Обновленные actions:', newActions);
       return { ...prev, actions: newActions };
     });
   };
+
+  const moveAction = (from: number, to: number) => {
+    setFormData((prev) => {
+      if (from === to || from < 0 || to < 0 || from >= prev.actions.length || to >= prev.actions.length) {
+        return prev;
+      }
+      const next = [...prev.actions];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return { ...prev, actions: next };
+    });
+  };
+
+  const getActionTypeLabel = (type: ActionType) => {
+    const key = `crm.automations.form.actionTypes.${type}`;
+    const value = t(key);
+    return value === key ? type : value;
+  };
+
+  const currentEntity: 'lead' | 'project' | 'sale' = formData.triggerEvent.startsWith('project.')
+    ? 'project'
+    : formData.triggerEvent.startsWith('sale.')
+      ? 'sale'
+      : 'lead';
+
+  const applyEntityPreset = (entity: 'lead' | 'project' | 'sale') => {
+    const preset: Record<'lead' | 'project' | 'sale', TriggerEvent> = {
+      lead: 'lead.created',
+      project: 'project.created',
+      sale: 'sale.created',
+    };
+    handleChange('triggerEvent', preset[entity]);
+  };
+
+  const applyStarterFlow = (entity: 'lead' | 'project' | 'sale') => {
+    const presets: Record<'lead' | 'project' | 'sale', { trigger: TriggerEvent; actions: Array<{ type: ActionType; config: Record<string, any> }> }> = {
+      lead: {
+        trigger: 'lead.created',
+        actions: [
+          { type: 'send_email', config: {} },
+          { type: 'create_note', config: {} },
+        ],
+      },
+      project: {
+        trigger: 'project.created',
+        actions: [
+          { type: 'create_note', config: {} },
+          { type: 'change_status', config: {} },
+        ],
+      },
+      sale: {
+        trigger: 'sale.created',
+        actions: [
+          { type: 'send_report', config: { reportType: 'sales', channel: 'email' } },
+          { type: 'create_note', config: {} },
+        ],
+      },
+    };
+    const selected = presets[entity];
+    setFormData((prev) => ({
+      ...prev,
+      triggerEvent: selected.trigger,
+      actions: selected.actions,
+    }));
+    setExpandedActionIndex(0);
+  };
+
+  const getTriggerEventLabel = (event: string) => {
+    const key = `crm.automations.form.triggers.${event.replace(/\./g, '_').toUpperCase()}`;
+    const value = t(key);
+    return value === key ? event : value;
+  };
+
+  const actionSummary = useMemo(() => {
+    return formData.actions.map((action) => {
+      if (action.type === 'trigger_webhook') return action.config.url || t('crm.automations.form.builder.noConfig');
+      if (action.type === 'send_email') return action.config.to || action.config.templateId || t('crm.automations.form.builder.noConfig');
+      if (action.type === 'send_telegram') return action.config.telegramUserId || t('crm.automations.form.builder.noConfig');
+      if (action.type === 'create_note') return action.config.content || t('crm.automations.form.builder.noConfig');
+      if (action.type === 'change_status') return action.config.status || t('crm.automations.form.builder.noConfig');
+      if (action.type === 'send_report') return action.config.reportType || t('crm.automations.form.builder.noConfig');
+      return t('crm.automations.form.builder.noConfig');
+    });
+  }, [formData.actions, t]);
 
   if (loading) {
     return (
@@ -247,20 +304,20 @@ export const AutomationFormPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
+      <div className="space-y-5 pb-6">
         {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm flex items-center justify-between gap-3">
           <div>
-            <h1 className="text-lg font-semibold text-slate-50">
+            <h1 className="text-lg font-semibold text-slate-900">
               {id ? t('crm.automations.form.titleEdit') : t('crm.automations.form.titleNew')}
             </h1>
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[12px] text-slate-500">
               {t('crm.automations.form.subtitle')}
             </div>
           </div>
           <button
             onClick={() => navigate('/app/automations')}
-            className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-50 transition-colors"
+            className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-100 transition-colors"
           >
             {t('crm.automations.form.actions.cancel')}
           </button>
@@ -273,36 +330,37 @@ export const AutomationFormPage: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Основная информация */}
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            <h2 className="text-xs font-semibold text-slate-300 mb-3">{t('crm.automations.form.sections.basic')}</h2>
+        <form onSubmit={handleSubmit} className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+          <div className="xl:col-span-8 space-y-4">
+          {/* IF: Основная информация */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-sm">
+            <h2 className="text-xs font-semibold text-slate-700 mb-3">{t('crm.automations.form.sections.basic')}</h2>
 
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.automations.form.fields.name')}</label>
+              <label className="block text-[11px] text-slate-500 mb-1.5">{t('crm.automations.form.fields.name')}</label>
               <input
                 type="text"
                 required
                 value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                placeholder="Например: Приветствие нового контакта"
+                placeholder={t('crm.automations.form.fields.name')}
               />
             </div>
 
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.automations.form.fields.description')}</label>
+              <label className="block text-[11px] text-slate-500 mb-1.5">{t('crm.automations.form.fields.description')}</label>
               <textarea
                 value={formData.description}
                 onChange={(e) => handleChange('description', e.target.value)}
                 rows={2}
                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors resize-none"
-                placeholder="Описание автоматизации (необязательно)"
+                placeholder={t('crm.automations.form.fields.description')}
               />
             </div>
 
             <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.automations.form.fields.trigger')}</label>
+              <label className="block text-[11px] text-slate-500 mb-1.5">{t('crm.automations.form.fields.trigger')}</label>
               <select
                 required
                 value={formData.triggerEvent}
@@ -349,12 +407,53 @@ export const AutomationFormPage: React.FC = () => {
                 <optgroup label={t('crm.automations.form.triggerGroups.notes')}>
                   <option value="note.created">{t('crm.automations.form.triggers.NOTE_CREATED')}</option>
                 </optgroup>
+                <optgroup label="Custom objects">
+                  <option value="custom_object.record_created">Record created</option>
+                  <option value="custom_object.record_updated">Record updated</option>
+                  <option value="custom_object.status_changed">Status changed</option>
+                </optgroup>
               </select>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[10px] text-slate-500">{t('crm.automations.form.builder.scope')}</span>
+                <button
+                  type="button"
+                  onClick={() => applyEntityPreset('lead')}
+                  className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
+                    currentEntity === 'lead'
+                      ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {t('crm.automations.panel.titleLeads')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyEntityPreset('project')}
+                  className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
+                    currentEntity === 'project'
+                      ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {t('crm.automations.panel.titleProjects')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyEntityPreset('sale')}
+                  className={`px-2.5 py-1 text-[10px] rounded-full border transition-colors ${
+                    currentEntity === 'sale'
+                      ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                      : 'border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                  }`}
+                >
+                  {t('crm.automations.panel.titleSales')}
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-between pt-2">
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.automations.form.fields.active')}</label>
+                <label className="block text-[11px] text-slate-500 mb-1.5">{t('crm.automations.form.fields.active')}</label>
                 <div className="text-[10px] text-slate-500">{t('crm.automations.form.hints.activeOnly')}</div>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
@@ -370,52 +469,144 @@ export const AutomationFormPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Действия */}
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xs font-semibold text-slate-300">{t('crm.automations.form.sections.actions')}</h2>
-                <div className="text-[10px] text-slate-500 mt-0.5">{t('crm.automations.form.hints.actionsDesc')}</div>
-              </div>
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-3 shadow-sm">
+            <div className="text-xs font-semibold text-slate-700">{t('crm.automations.form.builder.templatesTitle')}</div>
+            <div className="grid gap-2 sm:grid-cols-3">
               <button
                 type="button"
-                onClick={addAction}
-                className="px-3 py-1.5 text-[10px] rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft transition-colors"
+                onClick={() => applyStarterFlow('lead')}
+                className="rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 p-3 text-left transition-colors"
               >
-                + {t('crm.automations.form.actions.addAction')}
+                <div className="text-[11px] font-semibold text-slate-800">{t('crm.automations.panel.titleLeads')}</div>
+                <div className="text-[10px] text-slate-500 mt-1">{t('crm.automations.form.builder.templates.leads')}</div>
               </button>
+              <button
+                type="button"
+                onClick={() => applyStarterFlow('project')}
+                className="rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 p-3 text-left transition-colors"
+              >
+                <div className="text-[11px] font-semibold text-slate-800">{t('crm.automations.panel.titleProjects')}</div>
+                <div className="text-[10px] text-slate-500 mt-1">{t('crm.automations.form.builder.templates.projects')}</div>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyStarterFlow('sale')}
+                className="rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 p-3 text-left transition-colors"
+              >
+                <div className="text-[11px] font-semibold text-slate-800">{t('crm.automations.panel.titleSales')}</div>
+                <div className="text-[10px] text-slate-500 mt-1">{t('crm.automations.form.builder.templates.sales')}</div>
+              </button>
+            </div>
+          </div>
+
+          {/* THEN: Действия */}
+          <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xs font-semibold text-slate-700">{t('crm.automations.form.builder.thenTitle')}</h2>
+                <div className="text-[10px] text-slate-500 mt-0.5">{t('crm.automations.form.hints.actionsDesc')}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={addAction}
+                  className="px-3 py-1.5 text-[10px] rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft transition-colors"
+                >
+                  + {t('crm.automations.form.actions.addAction')}
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => addActionByType('send_email')} className="px-2.5 py-1 text-[10px] rounded-full border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100">{getActionTypeLabel('send_email')}</button>
+              <button type="button" onClick={() => addActionByType('trigger_webhook')} className="px-2.5 py-1 text-[10px] rounded-full border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100">{getActionTypeLabel('trigger_webhook')}</button>
+              <button type="button" onClick={() => addActionByType('change_status')} className="px-2.5 py-1 text-[10px] rounded-full border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100">{getActionTypeLabel('change_status')}</button>
+              <button type="button" onClick={() => addActionByType('create_note')} className="px-2.5 py-1 text-[10px] rounded-full border border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100">{getActionTypeLabel('create_note')}</button>
             </div>
 
             {formData.actions.map((action, index) => (
-              <div key={index} className="bg-slate-800/30 border border-slate-700/50 rounded-2xl p-3 space-y-3">
+              <div
+                key={index}
+                draggable
+                onDragStart={() => setDragActionIndex(index)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (dragActionIndex !== null) moveAction(dragActionIndex, index);
+                  setDragActionIndex(null);
+                }}
+                onDragEnd={() => setDragActionIndex(null)}
+                className={`relative border rounded-2xl p-3 space-y-3 bg-slate-50/70 ${
+                  dragActionIndex === index ? 'border-lumiva-accent' : 'border-slate-200'
+                }`}
+              >
+                {index < formData.actions.length - 1 && (
+                  <div className="absolute left-5 -bottom-4 h-4 w-px bg-slate-300" />
+                )}
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] text-slate-400 font-medium">{t('crm.automations.form.actions.action')} {index + 1}</span>
-                  {formData.actions.length > 1 && (
+                  <span className="text-[10px] text-slate-600 font-medium flex items-center gap-2">
+                    <span className="cursor-grab">::</span>
+                    {t('crm.automations.form.builder.step')} {index + 1}
+                    <span className="text-slate-400">-</span>
+                    <span>{getActionTypeLabel(action.type as ActionType)}</span>
+                  </span>
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => removeAction(index)}
-                      className="px-2 py-1 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg transition-colors"
+                      onClick={() => setExpandedActionIndex(expandedActionIndex === index ? null : index)}
+                      className="px-2 py-1 text-[10px] rounded-lg border border-slate-300 text-slate-600 hover:bg-white"
                     >
-                      {t('crm.automations.form.actions.removeAction')}
+                      {expandedActionIndex === index
+                        ? t('crm.automations.form.builder.collapse')
+                        : t('crm.automations.form.builder.expand')}
                     </button>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => moveAction(index, Math.max(0, index - 1))}
+                      disabled={index === 0}
+                      className="px-2 py-1 text-[10px] rounded-lg border border-slate-300 text-slate-600 hover:bg-white disabled:opacity-40"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveAction(index, Math.min(formData.actions.length - 1, index + 1))}
+                      disabled={index === formData.actions.length - 1}
+                      className="px-2 py-1 text-[10px] rounded-lg border border-slate-300 text-slate-600 hover:bg-white disabled:opacity-40"
+                    >
+                      ↓
+                    </button>
+                    {formData.actions.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeAction(index)}
+                        className="px-2 py-1 text-[10px] text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg transition-colors"
+                      >
+                        {t('crm.automations.form.actions.removeAction')}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
+                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-[10px] text-slate-600">
+                  {actionSummary[index]}
+                </div>
+
+                {expandedActionIndex === index && (
+                <>
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.automations.form.fields.actionType')}</label>
+                  <label className="block text-[11px] text-slate-500 mb-1.5">{t('crm.automations.form.fields.actionType')}</label>
                   <select
                     value={action.type}
                     onChange={(e) => updateAction(index, 'type', e.target.value)}
                     className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
                   >
-                    <option value="trigger_webhook">Вызвать Webhook</option>
-                    <option value="send_email">Отправить Email</option>
-                    <option value="send_telegram">Отправить Telegram</option>
-                    <option value="send_report">Отправить отчёт</option>
-                    <option value="create_note">Создать заметку</option>
-                    <option value="update_field">Обновить поле</option>
-                    <option value="add_tag">Добавить тег</option>
-                    <option value="change_status">Изменить статус</option>
+                    <option value="trigger_webhook">{getActionTypeLabel('trigger_webhook')}</option>
+                    <option value="send_email">{getActionTypeLabel('send_email')}</option>
+                    <option value="send_telegram">{getActionTypeLabel('send_telegram')}</option>
+                    <option value="send_report">{getActionTypeLabel('send_report')}</option>
+                    <option value="create_note">{getActionTypeLabel('create_note')}</option>
+                    <option value="update_field">{getActionTypeLabel('update_field')}</option>
+                    <option value="add_tag">{getActionTypeLabel('add_tag')}</option>
+                    <option value="change_status">{getActionTypeLabel('change_status')}</option>
                   </select>
                 </div>
 
@@ -870,6 +1061,8 @@ export const AutomationFormPage: React.FC = () => {
                     />
                   </div>
                 )}
+                </>
+                )}
               </div>
             ))}
           </div>
@@ -879,7 +1072,7 @@ export const AutomationFormPage: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/app/automations')}
-              className="px-4 py-2 text-xs text-slate-400 hover:text-slate-50 transition-colors"
+              className="px-4 py-2 text-xs text-slate-500 hover:text-slate-700 transition-colors"
             >
               {t('crm.automations.form.actions.cancel')}
             </button>
@@ -891,6 +1084,42 @@ export const AutomationFormPage: React.FC = () => {
               {saving ? t('crm.automations.form.actions.saving') : id ? t('crm.automations.form.actions.save') : t('crm.automations.form.actions.create')}
             </button>
           </div>
+          </div>
+
+          <aside className="xl:col-span-4">
+            <div className="xl:sticky xl:top-20 space-y-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-[11px] font-semibold text-slate-700 mb-2">
+                  {t('crm.automations.form.builder.previewTitle')}
+                </div>
+                <div className="space-y-2">
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
+                    <div className="text-[10px] text-emerald-700 font-semibold">{t('crm.automations.form.builder.ifTitle')}</div>
+                    <div className="text-xs text-emerald-900 mt-0.5">{getTriggerEventLabel(formData.triggerEvent)}</div>
+                  </div>
+                  <div className="pl-3 text-slate-400 text-[10px]">↓</div>
+                  {formData.actions.length === 0 && (
+                    <div className="text-[11px] text-slate-500">{t('crm.automations.form.builder.noActions')}</div>
+                  )}
+                  {formData.actions.map((action, idx) => (
+                    <div key={`preview-${idx}`} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="text-[10px] text-slate-500">{t('crm.automations.form.builder.step')} {idx + 1}</div>
+                      <div className="text-xs text-slate-800">{getActionTypeLabel(action.type as ActionType)}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5 line-clamp-2">{actionSummary[idx]}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-[11px] font-semibold text-slate-700">{t('crm.automations.form.fields.active')}</div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {formData.isActive
+                    ? t('crm.automations.list.active')
+                    : t('crm.automations.list.inactive')}
+                </div>
+              </div>
+            </div>
+          </aside>
         </form>
       </div>
     </MainLayout>

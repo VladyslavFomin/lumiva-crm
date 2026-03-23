@@ -12,6 +12,26 @@ export const API_BASE =
   import.meta.env.VITE_CRM_API_URL ||
   '/v1';
 
+/**
+ * Публичные файлы из /v1/uploads/... — пересобираем URL относительно API_BASE,
+ * чтобы не ломались ссылки на старый host:port из БД при смене домена.
+ */
+export function resolvePublicAssetUrl(url: string | null | undefined): string | null {
+  if (!url || !String(url).trim()) return null;
+  const u = String(url).trim();
+  const marker = '/uploads/';
+  const i = u.indexOf(marker);
+  if (i === -1) return u;
+  const rel = u
+    .slice(i + marker.length)
+    .split('?')[0]
+    ?.replace(/^\/+/, '');
+  if (!rel) return u;
+  const base = API_BASE.replace(/\/$/, '');
+  const path = `${base}/uploads/${rel.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`;
+  return path.replace(/([^:]\/)\/+/g, '$1');
+}
+
 export class ApiError extends Error {
   status: number;
   code?: string;
@@ -78,8 +98,11 @@ export function clearTenantInactiveReason() {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getAccessToken();
 
+  const isFormData =
+    typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   const headers: HeadersInit = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(options.headers || {}),
   };
 
@@ -90,6 +113,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers,
+    cache: 'no-store',
   });
 
   if (res.status === 401) {
@@ -168,6 +192,8 @@ export interface LoginResponse {
   tenantPlan?: string;
   billingLocked?: boolean;
   tenantActiveUntil?: string | null;
+  tenantName?: string | null;
+  tenant?: { name?: string | null };
 }
 
 export async function login(payload: LoginRequest): Promise<LoginResponse> {
@@ -361,6 +387,13 @@ export const api = {
     request<T>(path, {
       method: 'POST',
       body: body ? JSON.stringify(body) : undefined,
+    }),
+
+  /** multipart/form-data (не задавать Content-Type вручную) */
+  postForm: <T>(path: string, formData: FormData) =>
+    request<T>(path, {
+      method: 'POST',
+      body: formData,
     }),
 
   patch: <T>(path: string, body?: any) =>

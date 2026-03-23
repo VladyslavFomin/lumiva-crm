@@ -10,6 +10,7 @@ interface ContactSelectProps {
   className?: string;
   allowCreate?: boolean;
   onContactCreated?: (contact: Contact) => void;
+  theme?: 'light' | 'dark';
 }
 
 export const ContactSelect: React.FC<ContactSelectProps> = ({
@@ -20,6 +21,7 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
   className = '',
   allowCreate = true,
   onContactCreated,
+  theme = 'light',
 }) => {
   const [search, setSearch] = useState<string>('');
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -172,6 +174,23 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
       return fullName.toLowerCase() === search.toLowerCase().trim();
     });
 
+  const inputClassName =
+    theme === 'dark'
+      ? 'w-full px-3 py-2 text-xs bg-slate-950/80 border border-slate-700 rounded-xl text-slate-100 placeholder-slate-500 focus:outline-none focus:border-lumiva-accent-soft focus:ring-2 focus:ring-lumiva-accent-soft/20 transition-colors'
+      : 'w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors';
+  const clearButtonClassName =
+    theme === 'dark'
+      ? 'absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 text-lg leading-none'
+      : 'absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none';
+  const dropdownClassName =
+    theme === 'dark'
+      ? 'absolute z-50 w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl shadow-lg max-h-60 overflow-auto'
+      : 'absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-xl shadow-lg max-h-60 overflow-auto';
+  const optionClassName =
+    theme === 'dark'
+      ? 'w-full text-left px-3 py-2 text-xs hover:bg-slate-900 transition-colors border-b border-slate-800 last:border-b-0'
+      : 'w-full text-left px-3 py-2 text-xs hover:bg-slate-100 transition-colors border-b border-slate-100 last:border-b-0';
+
   return (
     <div ref={wrapperRef} className={`relative ${className}`}>
       <div className="relative">
@@ -184,13 +203,13 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
           }}
           onFocus={() => setIsOpen(true)}
           placeholder={placeholder}
-          className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
+          className={inputClassName}
         />
         {selectedContact && (
           <button
             type="button"
             onClick={handleClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-lg leading-none"
+            className={clearButtonClassName}
           >
             ×
           </button>
@@ -198,7 +217,7 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
       </div>
 
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-xl shadow-lg max-h-60 overflow-auto">
+        <div className={dropdownClassName}>
           {loading ? (
             <div className="px-3 py-2 text-xs text-slate-500">Загрузка...</div>
           ) : filteredContacts.length === 0 && !showCreateOption ? (
@@ -216,9 +235,11 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
                     key={contact.id}
                     type="button"
                     onClick={() => handleSelect(contact)}
-                    className="w-full text-left px-3 py-2 text-xs hover:bg-slate-100 transition-colors border-b border-slate-100 last:border-b-0"
+                  className={optionClassName}
                   >
-                    <div className="font-medium text-slate-900">{fullName}</div>
+                  <div className={theme === 'dark' ? 'font-medium text-slate-100' : 'font-medium text-slate-900'}>
+                    {fullName}
+                  </div>
                     {contact.email && (
                       <div className="text-[10px] text-slate-500">{contact.email}</div>
                     )}
@@ -233,14 +254,22 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
                   type="button"
                   onClick={handleCreate}
                   disabled={creating}
-                  className="w-full text-left px-3 py-2 text-xs bg-slate-50 hover:bg-slate-100 border-t border-slate-200 transition-colors disabled:opacity-50"
+                  className={
+                    theme === 'dark'
+                      ? 'w-full text-left px-3 py-2 text-xs bg-slate-900 hover:bg-slate-800 border-t border-slate-800 transition-colors disabled:opacity-50'
+                      : 'w-full text-left px-3 py-2 text-xs bg-slate-50 hover:bg-slate-100 border-t border-slate-200 transition-colors disabled:opacity-50'
+                  }
                 >
                   {creating ? (
                     <span className="text-slate-500">Создание...</span>
                   ) : (
                     <>
-                      <span className="text-slate-900">+ Создать контакт: </span>
-                      <span className="font-medium text-slate-900">{search.trim()}</span>
+                      <span className={theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}>
+                        + Создать контакт:{' '}
+                      </span>
+                      <span className={theme === 'dark' ? 'font-medium text-slate-100' : 'font-medium text-slate-900'}>
+                        {search.trim()}
+                      </span>
                     </>
                   )}
                 </button>

@@ -64,7 +64,7 @@ export const CompanyFormPage: React.FC = () => {
       } else {
         await createCompany(formData);
       }
-      navigate('/app/companies');
+      navigate('/companies');
     } catch (err: any) {
       setError(err.message || t('crm.companies.form.errors.saveFailed'));
     } finally {
@@ -97,14 +97,14 @@ export const CompanyFormPage: React.FC = () => {
           <div className="flex gap-2">
             {id && (
               <button
-                onClick={() => navigate(`/app/companies/${id}/tasks`)}
+                onClick={() => navigate(`/companies/${id}/tasks`)}
                 className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
               >
                 {t('crm.companies.list.tasks')}
               </button>
             )}
             <button
-              onClick={() => navigate('/app/companies')}
+              onClick={() => navigate('/companies')}
               className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-50 transition-colors"
             >
               {t('crm.common.cancel')}
@@ -238,7 +238,7 @@ export const CompanyFormPage: React.FC = () => {
           <div className="flex items-center justify-end gap-2">
             <button
               type="button"
-              onClick={() => navigate('/app/companies')}
+              onClick={() => navigate('/companies')}
               className="px-4 py-2 text-xs text-slate-400 hover:text-slate-50 transition-colors"
             >
               {t('crm.common.cancel')}

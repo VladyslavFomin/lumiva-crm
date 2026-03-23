@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import type { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -19,6 +20,8 @@ import { TenantLogsService } from '../tenants/tenant-logs.service';
 import { StaffUsersService } from '../staff/staff-users.service';
 import { buildPlanEntitlements, normalizeTenantPlan } from '../tenants/plan-entitlements';
 import { MailService } from '../mail/mail.service';
+import { UserSessionsService } from './user-sessions.service';
+import { getClientIp } from '../common/client-ip.util';
 
 @Injectable()
 export class AuthService {
@@ -36,10 +39,12 @@ export class AuthService {
     private readonly tenantLogs: TenantLogsService,
     private readonly staffUsers: StaffUsersService,
     private readonly mailService: MailService,
+
+    private readonly userSessions: UserSessionsService,
   ) {}
 
   // ========= ЛОГИН =========
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, req?: Request) {
     const { clientKey, email, password } = dto;
 
     // 1) Тенант
@@ -120,12 +125,29 @@ export class AuthService {
       throw new UnauthorizedException('User is disabled');
     }
 
-    // 6) JWT
+    const session = await this.userSessions.createSession(
+      user.id,
+      tenant.id,
+      req ? getClientIp(req) : null,
+      req && typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent'].slice(0, 512)
+        : null,
+    );
+
+    user.lastActiveAt = new Date();
+    await this.userRepo.save(user);
+
+    if (staff) {
+      staff.lastLoginAt = new Date();
+      await this.staffRepo.save(staff);
+    }
+
     const payload = {
       sub: user.id,
       tenantId: tenant.id,
       role: user.role,
       email: user.email,
+      sid: session.id,
     };
 
     const accessToken = await this.jwtService.signAsync(payload);
@@ -251,11 +273,14 @@ export class AuthService {
     };
   }
 
-  async verifySignupCode(params: {
-    clientKey: string;
-    email: string;
-    code: string;
-  }) {
+  async verifySignupCode(
+    params: {
+      clientKey: string;
+      email: string;
+      code: string;
+    },
+    req?: Request,
+  ) {
     const clientKey = params.clientKey.trim().toLowerCase();
     const email = params.email.trim().toLowerCase();
     const code = (params.code || '').trim();
@@ -301,13 +326,32 @@ export class AuthService {
     user.emailVerificationRequired = false;
     user.emailVerificationCodeHash = null;
     user.emailVerificationExpiresAt = null;
+    user.lastActiveAt = new Date();
     await this.userRepo.save(user);
+
+    const staffRow = await this.staffRepo.findOne({
+      where: { tenantId: tenant.id, email: user.email },
+    });
+    if (staffRow) {
+      staffRow.lastLoginAt = new Date();
+      await this.staffRepo.save(staffRow);
+    }
+
+    const session = await this.userSessions.createSession(
+      user.id,
+      tenant.id,
+      req ? getClientIp(req) : null,
+      req && typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent'].slice(0, 512)
+        : null,
+    );
 
     const accessToken = await this.jwtService.signAsync({
       sub: user.id,
       tenantId: tenant.id,
       role: user.role,
       email: user.email,
+      sid: session.id,
     });
 
     return {

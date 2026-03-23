@@ -209,6 +209,11 @@ function buildLeadRequestBody(payload: LeadPayload) {
   return body;
 }
 
+/** Лид в корзине (мягкое удаление) — не показывать в карточке контакта и т.п. */
+export function isLeadInTrash(lead: Lead): boolean {
+  return Boolean(lead.meta?.deleted);
+}
+
 // ------- API-функции -------
 
 export async function fetchLeads(): Promise<Lead[]> {

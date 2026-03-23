@@ -118,6 +118,7 @@ export class PlatformAdminService {
       'tools_integrations',
       'tools_automation',
       'tools_settings',
+      'custom_objects',
       'chat',
       'client_accounts',
     ];

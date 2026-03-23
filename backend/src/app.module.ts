@@ -28,6 +28,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { SmmModule } from './smm/smm.module';
+import { CustomObjectsModule } from './custom-objects/custom-objects.module';
 import { PublicModule } from './public/public.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
@@ -71,6 +72,11 @@ import { SalesChannel } from './sales-channels/sales-channel.entity';
 import { IntegrationConnection } from './integrations/integration-connection.entity';
 import { ApiToken } from './api-tokens/api-token.entity';
 import { TenantLog } from './tenants/tenant-log.entity';
+import { CustomObject } from './custom-objects/custom-object.entity';
+import { CustomObjectField } from './custom-objects/custom-object-field.entity';
+import { CustomObjectRecord } from './custom-objects/custom-object-record.entity';
+import { CustomObjectView } from './custom-objects/custom-object-view.entity';
+import { CustomObjectImportSession } from './custom-objects/custom-object-import-session.entity';
 
 // --- Entities маркетинга ---
 import { MarketingTraffic } from './marketing/marketing-traffic.entity';
@@ -94,6 +100,8 @@ import { PlatformAdminUser } from './platform-admin/admin-user.entity';
 import { MailModule } from './mail/mail.module';
 import { DemoRequest } from './demo-requests/demo-request.entity';
 import { PlatformSettings } from './platform-settings/platform-settings.entity';
+import { UserSession } from './auth/user-session.entity';
+import { TenantStorageFile } from './tenants/tenant-storage-file.entity';
 
 @Module({
   imports: [
@@ -142,6 +150,11 @@ import { PlatformSettings } from './platform-settings/platform-settings.entity';
         IntegrationConnection,
         ApiToken,
         TenantLog,
+        CustomObject,
+        CustomObjectField,
+        CustomObjectRecord,
+        CustomObjectView,
+        CustomObjectImportSession,
         SmmProfile,
         SmmProfileStat,
         SmmIntegration,
@@ -166,6 +179,8 @@ import { PlatformSettings } from './platform-settings/platform-settings.entity';
         // online chat
         ChatSession,
         ChatMessage,
+        UserSession,
+        TenantStorageFile,
       ],
       synchronize: true, // в проде лучше false + миграции
     }),
@@ -190,6 +205,7 @@ import { PlatformSettings } from './platform-settings/platform-settings.entity';
     SalesModule,
     SalesChannelsModule,
     IntegrationsModule,
+    CustomObjectsModule,
     MarketingModule,
     ApiTokensModule,
     SmmModule,

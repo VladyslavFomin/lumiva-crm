@@ -4,7 +4,9 @@ import {
   Body,
   Controller,
   Post,
+  Req,
 } from '@nestjs/common';
+import type { Request } from 'express';
 
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -21,8 +23,8 @@ export class AuthController {
   ) {}
 
   @Post('login')
-  async login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Req() req: Request) {
+    return this.authService.login(dto, req);
   }
 
   @Post('signup')
@@ -31,8 +33,11 @@ export class AuthController {
   }
 
   @Post('verify-signup-code')
-  async verifySignupCode(@Body() dto: VerifySignupCodeDto) {
-    return this.authService.verifySignupCode(dto);
+  async verifySignupCode(
+    @Body() dto: VerifySignupCodeDto,
+    @Req() req: Request,
+  ) {
+    return this.authService.verifySignupCode(dto, req);
   }
 
   @Post('resend-signup-code')

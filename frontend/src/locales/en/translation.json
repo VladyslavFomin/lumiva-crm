@@ -461,7 +461,6 @@
       "projectsAnalytics": "Project analytics",
       "projectsArchive": "Projects archive",
       "projectsTrash": "Projects trash",
-      "projectsBulkEdit": "Bulk edit",
       "sales": "Sales",
       "salesAnalytics": "Sales analytics",
       "salesChannels": "Sales channels",
@@ -493,7 +492,333 @@
       "staff": "Staff",
       "staffList": "Staff list",
       "staffPermissions": "Access rights",
-      "departments": "Departments"
+      "departments": "Departments",
+      "settings": "Settings",
+      "settingsAccount": "Account"
+    },
+    "workspace": {
+      "views": {
+        "table": "Table",
+        "kanban": "Kanban",
+        "calendar": "Calendar",
+        "analytics": "Analytics",
+        "settings": "Settings",
+        "add": "Add",
+        "addView": "Add view"
+      },
+      "common": {
+        "loading": "Loading...",
+        "loadingData": "Loading data...",
+        "updating": "Updating...",
+        "active": "Active",
+        "disabled": "Disabled",
+        "created": "Created",
+        "noRecords": "No records"
+      },
+      "tablesList": {
+        "title": "No-code Workspace",
+        "subtitle": "Build custom tables and views for your team.",
+        "newTable": "New table",
+        "loadError": "Failed to load custom tables",
+        "empty": "No custom tables yet.",
+        "tableActions": "Table actions",
+        "renameTable": "Rename table",
+        "duplicateTable": "Duplicate table",
+        "editTable": "Edit table",
+        "tableNamePlaceholder": "Table name",
+        "descriptionPlaceholder": "Description",
+        "updateError": "Failed to update table",
+        "duplicateError": "Failed to duplicate table",
+        "duplicate": "Duplicate",
+        "duplicating": "Duplicating...",
+        "newTableNamePlaceholder": "New table name",
+        "duplicateWithRecords": "Duplicate with records (data)",
+        "copyCommentsActivity": "Copy comments and activity"
+      },
+      "newTable": {
+        "title": "Create custom table",
+        "subtitle": "Start with a name, then add fields, import data and open Table/Kanban/Calendar views.",
+        "name": "Table name",
+        "description": "Description",
+        "placeholderName": "Invoices",
+        "placeholderDescription": "Track invoice lifecycle and payment details.",
+        "creating": "Creating...",
+        "create": "Create table",
+        "error": "Failed to create table"
+      },
+      "import": {
+        "title": "Import data",
+        "backToTable": "Back to table",
+        "chooseFile": "Choose file",
+        "fileNotSelected": "No file selected",
+        "preview": "Preview import",
+        "reading": "Reading file...",
+        "columnsRows": "Columns: {{cols}}, rows: {{rows}}",
+        "headerRow": "Header detected on row: {{n}}",
+        "mapped": "Mapped columns: {{mapped}}/{{total}}",
+        "importViaApi": "Import via API",
+        "importViaApiHint": "External system import. This section is under development.",
+        "soon": "Soon",
+        "importTargetGroup": "Import target group",
+        "groupKeep": "Keep source group values",
+        "groupExisting": "Add to existing group",
+        "groupNew": "Create/use new group",
+        "newGroupName": "New group name",
+        "notMapped": "Not mapped",
+        "createField": "Create field",
+        "creatingField": "Creating...",
+        "apply": "Apply import",
+        "applying": "Applying...",
+        "importedSummary": "Imported: created {{created}}, updated {{updated}}, skipped {{skipped}}",
+        "rowErrors": "Row errors ({{count}})",
+        "apiSectionHint": "Planned: API keys, JSON templates, sync history.",
+        "apiPostHint": "POST /public/custom-objects/:slug/ingest",
+        "previewError": "Failed to build preview",
+        "createFieldError": "Failed to create field for \"{{column}}\"",
+        "mapRequired": "Map required fields before import: {{fields}}",
+        "applyFailed": "Failed to apply import",
+        "fieldCreated": "Created field \"{{label}}\" and mapped column \"{{column}}\""
+      },
+      "settings": {
+        "title": "Table settings",
+        "importData": "Import data",
+        "backToTable": "Back to table",
+        "saveCardMapping": "Save card mapping",
+        "saving": "Saving...",
+        "kanbanCards": "Kanban cards",
+        "cardMapping": "Card mapping",
+        "cardMappingHint": "Choose which fields appear on Kanban cards (title, client, extras).",
+        "cardTitleField": "Card title field",
+        "selectTitleField": "Select title field...",
+        "clientField": "Client field (optional)",
+        "noClientLabel": "No client label",
+        "saveCardHint": "Save mapping before switching views.",
+        "statusSection": "Kanban and table statuses",
+        "statusStructure": "Status structure",
+        "statusHint": "Set order and colors once. Table and kanban will use the same status config.",
+        "saveStatuses": "Save statuses",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "deleteStatus": "Delete status",
+        "newStatusPlaceholder": "New status label",
+        "addStatus": "Add status",
+        "records": "Records",
+        "byStatus": "By status",
+        "noStatusData": "No status data yet",
+        "fields": "Fields",
+        "fieldKeyPlaceholder": "field_key",
+        "fieldLabelPlaceholder": "Label",
+        "noFieldsYet": "No fields yet.",
+        "addField": "Add field",
+        "failedSaveStatuses": "Failed to save status structure",
+        "failedSaveCard": "Failed to save card settings",
+        "failedAddField": "Failed to add field",
+        "statusFieldLabel": "Status",
+        "addAtLeastOneStatus": "Add at least one status",
+        "openTable": "Open table",
+        "cardMappingHintShort": "Choose which fields are used as card title and client/customer label.",
+        "additionalFields": "Additional fields",
+        "additionalFieldsCount": "Additional fields: {{count}}",
+        "saveStructure": "Save structure",
+        "statusPreview": "Preview: {{label}}"
+      },
+      "kanban": {
+        "title": "Kanban view",
+        "subtitle": "Statuses and colors come from your table settings.",
+        "searchPlaceholder": "Search cards...",
+        "cardsTotal": "{{count}} cards total",
+        "dismiss": "Dismiss"
+      },
+      "calendar": {
+        "title": "Calendar view",
+        "subtitle": "Track dated records across month and week timelines.",
+        "month": "Month",
+        "week": "Week",
+        "prev": "Previous",
+        "next": "Next",
+        "searchEvents": "Search events...",
+        "noDatedRecords": "No dated records yet.",
+        "moreCount": "+{{count}} more"
+      },
+      "analytics": {
+        "kicker": "Workspace Analytics",
+        "title": "{{name}} analytics",
+        "defaultName": "Workspace table",
+        "subtitle": "Track statuses, categories, owners and custom metrics with the same constructor as projects analytics."
+      },
+      "fileViewer": {
+        "download": "Download",
+        "remove": "Remove",
+        "close": "Close",
+        "previewUnavailable": "In-browser preview is not available for this file type.",
+        "downloadToOpen": "Download to open"
+      },
+      "recordDrawer": {
+        "close": "Close",
+        "addField": "Add field",
+        "activity": "Activity",
+        "comments": "Comments",
+        "addedComment": "Added comment",
+        "recordFallback": "Record",
+        "chooseFile": "Choose file",
+        "removeFile": "Remove",
+        "maxFileSize": "Maximum file size: {{label}}",
+        "uploadFailed": "Failed to upload file",
+        "updatedAtLabel": "Updated",
+        "noCommentsYet": "No comments yet.",
+        "commentPlaceholder": "Write a comment...",
+        "send": "Send",
+        "savingChanges": "Saving changes...",
+        "allSynced": "All changes are synced",
+        "authorYou": "You"
+      },
+      "table": {
+        "startFromScratch": "Start from scratch",
+        "filterRows": "Filter rows",
+        "fieldPlaceholder": "Field...",
+        "valuePlaceholder": "Value...",
+        "sortRows": "Sort rows",
+        "noSorting": "No sorting",
+        "ascending": "Ascending",
+        "descending": "Descending",
+        "groupRows": "Group rows",
+        "defaultGroupField": "Default group field",
+        "moveToGroup": "Move to group...",
+        "searchRecords": "Search records...",
+        "deleteGroupTitle": "Delete group",
+        "editColumn": "Edit column",
+        "duplicateColumn": "Duplicate column",
+        "hideColumn": "Hide column",
+        "deleteColumnInGroup": "Delete column in this group",
+        "deleteConfirm": "Delete confirmation",
+        "addFieldTitle": "Add new field",
+        "addFieldHint": "Use presets for useful fields (owner, priority, due date).",
+        "columnLabelPlaceholder": "Column label",
+        "selectOptionsPlaceholder": "Options: Low, Normal, High",
+        "statusOptionsPlaceholder": "Options: Working on it, Done, Stuck",
+        "fieldLabelPlaceholder": "Field label",
+        "saveChanges": "Save changes",
+        "addField": "Add field",
+        "adding": "Adding...",
+        "addingRow": "Adding...",
+        "addItem": "+ Add item",
+        "newGroupTitle": "New group title",
+        "addGroup": "Add group",
+        "creatingGroup": "Creating...",
+        "bulkDelete": "Delete",
+        "unassigned": "Unassigned",
+        "groupTitle": "Group Title",
+        "newItem": "New item",
+        "item": "Item",
+        "duplicateRowError": "Failed to duplicate row",
+        "datePlaceholder": "YYYY-MM-DD",
+        "datetimePlaceholder": "YYYY-MM-DDTHH:mm",
+        "withoutDepartment": "Without department",
+        "filterButton": "Filter",
+        "sortButton": "Sort",
+        "groupByButton": "Group by",
+        "clearFilter": "Clear filter",
+        "showHiddenColumns": "Show hidden ({{count}})",
+        "showHiddenRows": "Show hidden rows ({{count}})",
+        "groupsCountLabel": "Groups: {{count}}",
+        "selectedCount": "{{count}} selected",
+        "footerItemsCount": "{{count}} items",
+        "move": "Move",
+        "hide": "Hide",
+        "deleting": "Deleting...",
+        "sumLabel": "Sum {{label}}:",
+        "groupHeaderItems": "{{count}} items",
+        "importButton": "Import",
+        "loadingData": "Loading data...",
+        "duplicateRow": "Duplicate row",
+        "hideRow": "Hide row",
+        "deleteRow": "Delete row",
+        "subitemColTask": "Task",
+        "subitemColOwner": "Owner",
+        "subitemColStatus": "Status",
+        "subitemColPriority": "Priority",
+        "subitemColDue": "Due",
+        "subitemColActions": "Actions",
+        "subitemTitlePlaceholder": "Task title",
+        "selectOwner": "Select",
+        "addSubitem": "+ Add subitem",
+        "addItemOnlyDefault": "Add item is available only in default grouping",
+        "summary": "Summary",
+        "groupCreationOnlyDefault": "Group creation is available only for default grouping field.",
+        "deleteColumnConfirm": "Delete column \"{{label}}\"?",
+        "deleteGroupConfirm": "Delete group \"{{title}}\" and {{count}} item(s)?",
+        "deleteIrreversible": "This action cannot be undone. All related data will be removed permanently.",
+        "cancel": "Cancel",
+        "editColumnTitle": "Edit column",
+        "saving": "Saving...",
+        "booleanYes": "Yes",
+        "booleanNo": "No",
+        "editTags": "edit",
+        "addFieldEmptyLabel": "Add a column label",
+        "addFieldInvalidKey": "Enter a valid column key",
+        "fieldCopySuffix": " (copy)",
+        "addFileShort": "+ file",
+        "fileMaxLine": "Up to {{label}}",
+        "filePickTitle": "Up to {{label}}",
+        "subitemStatus": {
+          "todo": "To do",
+          "in_progress": "In progress",
+          "review": "In review",
+          "blocked": "Blocked",
+          "done": "Done"
+        },
+        "subitemPriority": {
+          "low": "Low",
+          "normal": "Normal",
+          "high": "High"
+        },
+        "presetOwner": "Owner",
+        "presetPriority": "Priority",
+        "presetDueDate": "Due date",
+        "presetStatus": "Status",
+        "presetPriLow": "Low",
+        "presetPriMedium": "Medium",
+        "presetPriHigh": "High",
+        "presetPriUrgent": "Urgent",
+        "presetStWorking": "Working on it",
+        "presetStDone": "Done",
+        "presetStStuck": "Stuck",
+        "presetStReview": "In review",
+        "saveRecordFailed": "Failed to save record",
+        "newGroupNameRequired": "Enter a group name",
+        "subitemDefaultName": "New task",
+        "activityUpdated": "Updated {{field}}",
+        "groupFirstRowTitle": "{{name}} item"
+      }
+    },
+    "sidebar": {
+      "brandFallback": "Lumiva CRM",
+      "workspaces": "Workspaces",
+      "add": "Add",
+      "addMenuTitle": "Add new",
+      "newTable": "Table",
+      "newKanban": "Kanban",
+      "newAnalytics": "Analytics",
+      "newWorkspace": "New workspace",
+      "allTables": "All tables",
+      "empty": "No tables yet. Create one with “+”.",
+      "rename": "Rename",
+      "editWorkspace": "Edit workspace",
+      "toggleWorkspaceViews": "Views and add",
+      "quickAdd": "Add",
+      "linkTable": "Table",
+      "linkKanban": "Kanban",
+      "linkAnalytics": "Analytics",
+      "workspaceMenu": "Workspace menu",
+      "openSettings": "Table settings",
+      "moveUp": "Move up",
+      "moveDown": "Move down",
+      "duplicateWorkspace": "Duplicate",
+      "deleteWorkspace": "Delete workspace",
+      "deleteWorkspaceConfirm": "Delete workspace \"{{name}}\"? This cannot be undone.",
+      "newGroupInWorkspace": "New group",
+      "collapseSidebar": "Collapse menu",
+      "expandSidebar": "Expand menu"
     },
     "common": {
       "logout": "Log out",
@@ -937,15 +1262,135 @@
       "loading": "Refreshing dashboard data…",
       "errors": {
         "loadFailed": "Failed to load data"
+      },
+      "hero": {
+        "kicker": "Home dashboard"
+      },
+      "widgets": {
+        "customize": "Customize widgets",
+        "done": "Done",
+        "addBlock": "Add widget",
+        "nothingToAdd": "All available widgets are already visible",
+        "addedToHome": "Widget added to home",
+        "resize": "Column span",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "hide": "Remove from home",
+        "editBlock": "Edit widget",
+        "editModalTitle": "Home widget",
+        "editTitleLabel": "Title",
+        "deleteBlock": "Remove widget",
+        "drag": "Drag to reorder",
+        "sizeLabel": "Width {{size}}",
+        "names": {
+          "kpi": "KPIs",
+          "calendar": "Calendar",
+          "leads-timeline": "Lead trend",
+          "projects": "Projects",
+          "channels-funnel": "Channels & funnel",
+          "recent-leads": "Recent leads",
+          "recent-tasks": "Tasks",
+          "staff": "Team",
+          "projects-analytics": "Project analytics",
+          "leads-analytics": "Leads analytics",
+          "sales-analytics": "Sales analytics"
+        }
+      },
+      "detailModal": {
+        "open": "Details"
+      },
+      "salesByChannel": {
+        "title": "Sales by lead channel (won projects)"
+      },
+      "staff": {
+        "headers": {
+          "name": "Member",
+          "leads": "Leads",
+          "revenue": "Revenue"
+        },
+        "empty": "No team data"
+      },
+      "calendar": {
+        "newMeeting": "Meeting",
+        "newNote": "Note",
+        "noEvents": "No events",
+        "subject": "Subject",
+        "start": "Start",
+        "end": "End",
+        "notes": "Notes",
+        "meetingUrl": "Meeting link (Zoom, Meet, Teams…)",
+        "typeMeeting": "Meeting",
+        "typeNote": "Note",
+        "noteDayHint": "Entry for {{date}} (Notion-style)",
+        "badgeMeeting": "Meeting",
+        "badgeNote": "Note",
+        "allDayNote": "All day",
+        "entryNote": "Note",
+        "joinLink": "Open link",
+        "participants": "Participants",
+        "departments": "Departments (all staff)",
+        "leads": "Leads",
+        "save": "Save",
+        "openCrm": "Open CRM",
+        "time": "Time"
+      },
+      "projectsAnalytics": {
+        "kpiProjects": "Projects",
+        "kpiRevenue": "Revenue",
+        "openFull": "Full project analytics"
+      },
+      "leadsAnalyticsWidget": {
+        "kpiLeads": "Leads",
+        "kpiConversion": "Conversion",
+        "openFull": "Full leads analytics"
+      },
+      "salesAnalyticsWidget": {
+        "kpiCount": "Sales",
+        "kpiAmount": "Amount",
+        "openFull": "Full sales analytics"
+      },
+      "addToHomeFromAnalytics": "Add to home",
+      "presets": {
+        "modalTitle": "Analytics presets",
+        "tabSales": "Sales analytics",
+        "tabProjects": "Projects analytics",
+        "tabLeads": "Leads analytics",
+        "standardBlocks": "Standard dashboard blocks",
+        "openAnalytics": "Open full analytics",
+        "fallback": "Analytics",
+        "metricWonProjects": "Won projects",
+        "pickHint": "Preview shows how the widget will look on the home page. Switch tabs to choose the data source.",
+        "addToDashboard": "Add to home",
+        "previewHint": "Preview",
+        "embedFallback": "No data available for this widget type",
+        "formulaOnFullPage": "Open full analytics to configure the formula"
       }
     },
     "leads": {
       "board": {
         "title": "Leads · Kanban",
+        "pageTitle": "Leads",
         "subtitle": "Drag cards between stages.",
         "viewKanban": "Kanban",
         "viewList": "Table",
+        "viewCalendar": "Calendar",
         "create": "New lead",
+        "customFieldsTitle": "Lead custom fields",
+        "actions": {
+          "customizeFields": "Customize fields"
+        },
+        "menu": {
+          "createTable": "New table view",
+          "createKanban": "New kanban view",
+          "createCalendar": "New calendar view",
+          "renameView": "Rename view",
+          "deleteView": "Delete view",
+          "viewNamePrompt": "View name"
+        },
+        "boolean": {
+          "yes": "Yes",
+          "no": "No"
+        },
         "loading": "Loading leads...",
         "empty": "No leads in this stage.",
         "errors": {
@@ -1228,10 +1673,34 @@
           "label": "Columns",
           "add": "Add column",
           "name": "Name",
+          "contact": "Contact",
           "channel": "Channel",
           "utm": "UTM",
           "status": "Status",
           "created": "Created"
+        },
+        "grouping": {
+          "status": "Grouping: Status",
+          "company": "Grouping: Company",
+          "channel": "Grouping: Channel",
+          "custom": "Grouping: My groups",
+          "none": "No grouping",
+          "noCompany": "No company",
+          "noChannel": "No channel"
+        },
+        "customGroups": {
+          "createPrompt": "Group name",
+          "renamePrompt": "New group name",
+          "deleteConfirm": "Delete group? Leads will remain without a group.",
+          "add": "New group",
+          "renameShort": "edit",
+          "deleteShort": "del",
+          "ungrouped": "No group",
+          "moveTo": "Move to group: {{group}}",
+          "dragHint": "Drag a lead to the target group header"
+        },
+        "actions": {
+          "openContact": "Open contact"
         },
         "bulk": {
           "selected": "Selected: {{count}}",
@@ -1243,6 +1712,87 @@
         },
         "errors": {
           "loadFailed": "Failed to load leads"
+        }
+      },
+      "calendar": {
+        "subtitle": "Calendar for lead meetings, links and email invites",
+        "loading": "Loading...",
+        "filters": {
+          "showArchived": "Show archived",
+          "rangeWeek": "7 days",
+          "rangeMonth": "30 days",
+          "rangeAll": "All",
+          "providerAny": "Any provider",
+          "providerOther": "Other link",
+          "search": "Search lead/meeting"
+        },
+        "upcoming": {
+          "title": "Upcoming meetings",
+          "autoReminderHint": "Auto-reminders are sent by backend cron: 24h and 1h before meeting",
+          "empty": "No upcoming meetings"
+        },
+        "meeting": {
+          "defaultTitle": "Lead meeting"
+        },
+        "actions": {
+          "today": "Today",
+          "planMeeting": "Plan meeting",
+          "editShort": "Edit",
+          "edit": "Edit",
+          "resend": "Resend",
+          "notify": "Notify",
+          "link": "Link",
+          "openLink": "Open link",
+          "sendInvite": "Send invite",
+          "closeMeeting": "Close meeting",
+          "cancel": "Cancel",
+          "saving": "Saving...",
+          "saveMeeting": "Save meeting"
+        },
+        "labels": {
+          "team": "Team:"
+        },
+        "form": {
+          "editMeeting": "Edit meeting",
+          "newMeeting": "New meeting",
+          "selectLead": "Select lead",
+          "inviteManagers": "Invite managers from team",
+          "noTeamMembers": "No team members found",
+          "meetingTitle": "Meeting title",
+          "notesPlaceholder": "Notes for invite email"
+        },
+        "email": {
+          "subjectInvite": "Meeting invitation: {{title}}",
+          "subjectReminder24h": "Reminder (24h): {{title}}",
+          "subjectReminder1h": "Reminder (1h): {{title}}",
+          "greeting": "Hello, {{name}}",
+          "bodyInvite": "You are invited to the meeting.",
+          "bodyReminder24h": "Reminder: meeting starts in 24 hours.",
+          "bodyReminder1h": "Reminder: meeting starts in 1 hour.",
+          "meetingLabel": "Meeting:",
+          "startLabel": "Start:",
+          "endLabel": "End:",
+          "linkLabel": "Link:",
+          "notesLabel": "Notes:"
+        },
+        "messages": {
+          "meetingSaved": "Meeting saved",
+          "meetingClosed": "Meeting closed",
+          "inviteSent": "Invitation sent",
+          "reminderSent": "Reminder sent"
+        },
+        "errors": {
+          "loadFailed": "Failed to load leads",
+          "meetingDateRequired": "Set meeting date/time",
+          "leadNotFound": "Lead not found",
+          "saveMeetingFailed": "Failed to save meeting",
+          "closeMeetingFailed": "Failed to close meeting",
+          "leadNoEmail": "Lead has no email",
+          "noEmailAccount": "No connected email account",
+          "sendInviteFailed": "Failed to send invitation"
+        },
+        "fallbacks": {
+          "lead": "Lead"
         }
       },
       "archive": {
@@ -1293,6 +1843,7 @@
         "loadingLead": "Loading lead data…",
         "tabs": {
           "main": "Lead",
+          "journey": "Customer journey",
           "history": "History"
         },
         "actions": {
@@ -1355,7 +1906,9 @@
           "deleteForbidden": "Not enough permissions: only owner can delete leads.",
           "historyLoad": "Failed to load history",
           "commentFailed": "Failed to add comment",
-          "metaInvalid": "Meta: invalid JSON"
+          "metaInvalid": "Meta: invalid JSON",
+          "projectsLoad": "Failed to load lead projects",
+          "projectHistoryLoad": "Failed to load project activity for this lead"
         },
         "activity": {
           "created": "Lead created",
@@ -1365,11 +1918,36 @@
         },
         "sections": {
           "relatedProjects": "Related projects",
+          "projectsTitle": "Lead projects",
+          "projectsOpenList": "All projects",
+          "projectsNeedSave": "Save the lead to see linked projects.",
+          "projectsLoading": "Loading projects…",
+          "projectsEmpty": "No projects linked to this lead yet. Create a project and attach this lead.",
+          "channelJourneyHint": "UTM and full journey — “Customer journey” tab.",
           "historyEmptyNew": "History appears after you save the lead.",
-          "historyEmpty": "No events for this lead yet.",
+          "historyEmpty": "No events for this lead or its projects yet.",
           "historyLoading": "Loading history…",
           "addComment": "Add comment",
           "user": "User"
+        },
+        "journey": {
+          "title": "Customer journey",
+          "subtitle": "Acquisition channel and UTM when the lead came from a tracked link.",
+          "acquisitionTitle": "Acquisition",
+          "channelLabel": "Channel in CRM",
+          "channelHint": "Edit the “Channel” field on the Lead tab.",
+          "directTitle": "Direct traffic",
+          "directBody": "If signup or inquiry had no UTM (e.g. typed the URL), set the source in “Channel” on the Lead tab — e.g. direct, website, referral.",
+          "utmTitle": "UTM & campaign",
+          "utmEmpty": "No UTM captured",
+          "metaHint": "Full technical JSON is in the block below on this tab.",
+          "metaJsonTitle": "Meta (JSON)",
+          "metaJsonHint": "Raw form payload, referrer, page, form_id, etc. Lead notes are edited on the Lead tab."
+        },
+        "timeline": {
+          "leadScope": "Lead",
+          "projectScope": "Project “{{name}}”",
+          "loadingProjectActivities": "Loading project activity…"
         },
         "fields": {
           "namePlaceholder": "Lead name",
@@ -1453,6 +2031,32 @@
         "create": "Create company",
         "createFirst": "Create first company",
         "search": "Search companies...",
+        "stats": {
+          "total": "Total companies",
+          "active": "Active",
+          "inactive": "Inactive",
+          "archived": "Archived"
+        },
+        "filters": {
+          "allStatuses": "All statuses"
+        },
+        "view": {
+          "table": "Table",
+          "cards": "Cards"
+        },
+        "table": {
+          "headers": {
+            "company": "Company",
+            "contacts": "Contacts",
+            "assignee": "Assignee",
+            "status": "Status",
+            "industry": "Industry",
+            "actions": "Actions"
+          }
+        },
+        "common": {
+          "empty": "—"
+        },
         "loading": "Loading...",
         "empty": "No companies",
         "notFound": "Companies not found",
@@ -1526,6 +2130,38 @@
         }
       },
       "details": {
+        "page": {
+          "subtitle": "Detailed company information",
+          "noCompany": "Company",
+          "actions": {
+            "addContact": "+ Contact",
+            "addLead": "+ Lead",
+            "addProject": "+ Project",
+            "saving": "Saving..."
+          },
+          "assigneesByDepartment": "Assignees by department",
+          "selectedCount": "Selected: {{count}}",
+          "selectDepartment": "Whole department",
+          "noProject": "No project",
+          "noDepartment": "No department",
+          "errors": {
+            "idMissing": "Company ID is missing",
+            "notFound": "Company not found",
+            "assignFailed": "Failed to assign responsible users"
+          },
+          "tables": {
+            "leads": {
+              "lead": "Lead",
+              "owner": "Owner"
+            },
+            "projects": {
+              "project": "Project",
+              "owner": "Owner",
+              "budget": "Budget",
+              "updated": "Updated"
+            }
+          }
+        },
         "tabs": {
           "main": "Main",
           "contacts": "Contacts",
@@ -1575,6 +2211,10 @@
         "edit": "Edit task",
         "delete": "Delete",
         "deleteConfirm": "Delete task?",
+        "actions": {
+          "creating": "Creating...",
+          "editSubtitle": "Edit task details"
+        },
         "statuses": {
           "todo": "To do",
           "in_progress": "In progress",
@@ -1589,12 +2229,15 @@
           "urgent": "Urgent"
         },
         "filters": {
+          "search": "Search tasks...",
           "priority": "Priority",
           "assignee": "Assignee",
+          "anyAssignee": "Any assignee",
           "dueDate": "Due date",
           "overdue": "Overdue",
           "today": "Today",
-          "thisWeek": "This week"
+          "thisWeek": "This week",
+          "reset": "Reset"
         },
         "fields": {
           "title": "Task title *",
@@ -1603,6 +2246,13 @@
           "priority": "Priority",
           "dueDate": "Due date",
           "assignedTo": "Assignee"
+        },
+        "errors": {
+          "loadFailed": "Failed to load data",
+          "statusChangeFailed": "Failed to change status",
+          "createFailed": "Failed to create task",
+          "deleteFailed": "Failed to delete task",
+          "saveFailed": "Failed to save task"
         }
       },
       "analytics": {
@@ -1673,7 +2323,37 @@
         "selected": "selected",
         "bulkOperations": "Bulk operations",
         "delete": "Delete",
-        "deleteConfirm": "Delete contact?"
+        "deleteConfirm": "Delete contact?",
+        "groupMode": {
+          "company": "Group by: Company",
+          "status": "Group by: Status",
+          "manager": "Group by: Manager",
+          "custom": "Group by: My groups",
+          "none": "No grouping"
+        },
+        "groups": {
+          "new": "New group",
+          "ungrouped": "Ungrouped",
+          "noCompany": "No company",
+          "noStatus": "No status",
+          "noManager": "No manager",
+          "renameShort": "ren",
+          "deleteShort": "del",
+          "confirmDelete": "Delete group? Contacts will remain without a group.",
+          "dragToGroup": "Move to group: {{group}}",
+          "dragHint": "Drag a contact onto the desired group header",
+          "prompts": {
+            "newName": "Group name",
+            "rename": "New group name"
+          }
+        },
+        "table": {
+          "contact": "Contact",
+          "manager": "Manager",
+          "lead": "Lead",
+          "group": "Group",
+          "openLead": "Open lead"
+        }
       },
       "form": {
         "titleNew": "Create contact",
@@ -1705,6 +2385,31 @@
         }
       },
       "details": {
+        "page": {
+          "subtitle": "Detailed contact information",
+          "backToList": "← Back to contacts",
+          "assignee": "Assignee",
+          "linkedLeads": "Linked leads",
+          "allLeads": "All leads",
+          "leadsNotLinked": "No linked leads",
+          "openCompany": "Open company",
+          "errors": {
+            "idMissing": "Contact ID is missing",
+            "notFound": "Contact not found"
+          },
+          "tables": {
+            "leads": {
+              "lead": "Lead",
+              "owner": "Owner"
+            },
+            "projects": {
+              "project": "Project",
+              "owner": "Owner",
+              "budget": "Budget",
+              "updated": "Updated"
+            }
+          }
+        },
         "tabs": {
           "main": "Main",
           "company": "Company",
@@ -2015,6 +2720,23 @@
           "activeOnly": "Automation will run only if enabled",
           "actionsDesc": "What to execute when trigger fires"
         },
+        "builder": {
+          "scope": "Scope",
+          "ifTitle": "IF: When",
+          "thenTitle": "THEN: Do",
+          "previewTitle": "Scenario preview",
+          "templatesTitle": "Quick start by entity",
+          "step": "Step",
+          "expand": "Expand",
+          "collapse": "Collapse",
+          "noActions": "No actions yet",
+          "noConfig": "No extra params",
+          "templates": {
+            "leads": "New lead -> email and note",
+            "projects": "New project -> note and status",
+            "sales": "New sale -> report and note"
+          }
+        },
         "actions": {
           "send_email": "Send Email",
           "call_webhook": "Call Webhook",
@@ -2068,6 +2790,16 @@
         "noteAction": {
           "content": "Note content"
         },
+        "actionTypes": {
+          "trigger_webhook": "Call Webhook",
+          "send_email": "Send Email",
+          "send_telegram": "Send Telegram",
+          "send_report": "Send report",
+          "create_note": "Create note",
+          "update_field": "Update field",
+          "add_tag": "Add tag",
+          "change_status": "Change status"
+        },
         "errors": {
           "saveFailed": "Failed to save",
           "loadFailed": "Failed to load automation"
@@ -2083,6 +2815,7 @@
         "subtitle": "Create and manage email templates for marketing campaigns",
         "create": "Create template",
         "createFirst": "Create first template",
+        "subject": "Subject",
         "loading": "Loading...",
         "empty": "No templates",
         "delete": "Delete",
@@ -2114,7 +2847,22 @@
           "company": "Company data: {{company.name}}, {{company.email}}"
         },
         "hints": {
-          "activeAvailable": "Template will be available for use"
+          "activeAvailable": "Template will be available for use",
+          "availableVariables": "Available variables"
+        },
+        "placeholders": {
+          "name": "Template name",
+          "description": "Template description",
+          "subject": "Email subject (you can use {{lead.name}}, {{lead.email}}, etc.)",
+          "htmlBody": "Email HTML code...",
+          "textBody": "Plain-text email version (for clients without HTML support)"
+        },
+        "defaultTemplate": {
+          "greeting": "Hello, {{lead.name}}!",
+          "body": "This is an example email with variable placeholders.",
+          "phoneLabel": "Phone:",
+          "statusLabel": "Status:",
+          "signature": "Best regards,<br>Lumiva Team"
         },
         "actions": {
           "save": "Save",
@@ -2125,7 +2873,8 @@
         },
         "errors": {
           "saveFailed": "Failed to save",
-          "loadFailed": "Failed to load template"
+          "loadFailed": "Failed to load template",
+          "previewFailed": "Preview failed"
         },
         "success": {
           "saved": "Template saved"
@@ -2136,11 +2885,69 @@
       "board": {
         "title": "Projects · Kanban",
         "subtitle": "Drag cards between columns to change the project status.",
+        "customFieldsTitle": "Project custom fields",
+        "boolean": {
+          "yes": "Yes",
+          "no": "No"
+        },
+        "quickEdit": {
+          "title": "Quick edit",
+          "owners": "Owners ({{count}})",
+          "amountPlaceholder": "Amount",
+          "priority": {
+            "low": "Low priority",
+            "normal": "Normal priority",
+            "high": "High priority"
+          }
+        },
         "empty": "No projects"
+      },
+      "calendar": {
+        "subtitle": "Project task deadline calendar with assignees and budgets",
+        "noCompany": "No company",
+        "view": {
+          "month": "Month",
+          "week": "Week"
+        },
+        "filters": {
+          "allAssignees": "All assignees",
+          "allTaskStatuses": "All task statuses",
+          "allCompanies": "All companies",
+          "reset": "Reset filters"
+        },
+        "weekdays": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+        "moreTasks": "+{{count}} more",
+        "upcoming": {
+          "title": "Upcoming deadlines",
+          "headers": {
+            "date": "Date",
+            "project": "Project",
+            "task": "Task",
+            "company": "Company",
+            "assignee": "Assignee",
+            "projectAmount": "Project amount"
+          },
+          "empty": "No tasks with deadlines"
+        }
       },
       "list": {
         "title": "Projects · Table",
         "subtitle": "Project list: status, amount, owner, and created date",
+        "customFieldsTitle": "Project custom fields",
+        "boolean": {
+          "yes": "Yes",
+          "no": "No"
+        },
+        "groupMode": {
+          "status": "Group by: Status",
+          "owner": "Group by: Owner",
+          "company": "Group by: Company",
+          "none": "No grouping"
+        },
+        "filters": {
+          "companyLabel": "Company filter:",
+          "allCompanies": "All companies"
+        },
         "columns": {
           "label": "Columns",
           "hide": "Hide column",
@@ -2192,21 +2999,20 @@
         }
       },
       "trash": {
-      "bulkEdit": {
-        "title": "Bulk edit projects",
-        "subtitle": "Select projects and apply advanced actions.",
-        "owner": "Owner",
-        "ownerEmpty": "No owner",
-        "actions": {
-          "applyStatus": "Apply status",
-          "applyOwner": "Assign owner"
-        }
-      },
         "title": "Projects trash",
         "subtitle": "Projects that were deleted.",
         "empty": "No deleted projects yet.",
         "actions": {
-          "restore": "Restore"
+          "restore": "Restore",
+          "deletePermanently": "Delete permanently",
+          "emptyTrash": "Empty trash"
+        },
+        "confirm": {
+          "emptyTitle": "Empty projects trash?",
+          "singleTitle": "Delete project permanently?",
+          "emptyDescription": "All projects in trash will be deleted and cannot be restored.",
+          "singleDescription": "Project \"{{name}}\" will be deleted and cannot be restored.",
+          "deleting": "Deleting..."
         }
       },
       "closed": {
@@ -2353,7 +3159,64 @@
       },
       "views": {
         "kanban": "Kanban",
-        "table": "Table"
+        "table": "Table",
+        "calendar": "Calendar"
+      },
+      "viewsBar": {
+        "prompts": {
+          "viewName": "View name"
+        },
+        "copyNames": {
+          "table": "Table (copy)",
+          "kanban": "Kanban (copy)",
+          "calendar": "Calendar (copy)"
+        },
+        "confirm": {
+          "deleteCurrentView": "Delete current view?"
+        },
+        "menu": {
+          "tabMenu": "Tab menu",
+          "newTable": "New table",
+          "newKanban": "New kanban",
+          "newCalendar": "New calendar",
+          "moveLeft": "Move left",
+          "moveRight": "Move right",
+          "copyTab": "Copy tab",
+          "deleteTab": "Delete tab",
+          "settings": "Settings"
+        },
+        "settings": {
+          "close": "Close settings",
+          "title": "Widget settings",
+          "kanbanCardTitle": "Kanban card settings",
+          "kanbanFieldsHint": "Select card fields to display:",
+          "previewTitle": "Project card preview",
+          "previewEmpty": "Select at least one field",
+          "calendarFilterTitle": "Calendar filter",
+          "calendarImportantOnly": "Only important projects (high task priority)",
+          "enabled": "On",
+          "disabled": "Off",
+          "tableTitle": "Table settings",
+          "tableHint": "Next step: column, density, and grouping settings in this panel."
+        },
+        "fields": {
+          "owner": "Owner",
+          "amount": "Amount",
+          "progress": "Progress",
+          "created": "Created date",
+          "priority": "Priority",
+          "tags": "Tags",
+          "deadline": "Deadline"
+        },
+        "preview": {
+          "owner": "Manager: Anna",
+          "amount": "10,000 EUR",
+          "progress": "65%",
+          "created": "13.03.2026",
+          "priority": "High",
+          "tags": "#crm #retail",
+          "deadline": "20.03.2026"
+        }
       },
       "actions": {
         "newProject": "New project"
@@ -2418,7 +3281,38 @@
           "contact": "Contact",
           "createdAt": "Created: 24.09.2025, 03:00:00",
           "category": "Category",
-          "tags": "Tags"
+          "tags": "Tags",
+          "open": "Open"
+        },
+        "owner": {
+          "byDepartment": "Owners by department",
+          "selected": "Selected: {{count}}",
+          "wholeDepartment": "Whole department",
+          "noDepartment": "No department"
+        },
+        "priority": {
+          "lowUrgency": "Low urgency",
+          "normalUrgency": "Normal urgency",
+          "highUrgency": "High urgency"
+        },
+        "metrics": {
+          "title": "Cost and progress",
+          "budget": "Budget",
+          "taskProgress": "Task progress",
+          "urgency": "Urgency:"
+        },
+        "notes": {
+          "title": "Project notes",
+          "placeholder": "Context, agreements, risks, important reminders..."
+        },
+        "customFields": {
+          "title": "Custom fields",
+          "configure": "Configure",
+          "loading": "Loading fields...",
+          "empty": "No fields yet. Add them in settings.",
+          "selectValue": "Select a value",
+          "loadFailed": "Failed to load custom fields",
+          "managerTitle": "Project custom fields"
         },
         "mentions": {
           "notice": "Mentions: {{count}}",
@@ -2429,6 +3323,12 @@
           "loading": "Loading history…",
           "empty": "No changes yet.",
           "loadFailed": "Failed to load history",
+          "amountTitle": "Amount history",
+          "summary": {
+            "events": "History events",
+            "amountChanges": "Amount changes",
+            "lastUpdate": "Last update"
+          },
           "actions": {
             "create": "Project created",
             "update": "Project updated",
@@ -2450,6 +3350,7 @@
         "tasks": {
           "title": "Project tasks",
           "readOnly": "Read-only",
+          "reorder": "Drag to reorder",
           "newTitle": "New task: title",
           "newAssignees": "Assignees",
           "add": "Add",
@@ -2999,20 +3900,99 @@
       "company": {
         "sectionLabel": "Settings",
         "title": "Company settings",
-        "subtitle": "Name, logo, and base client settings",
+        "subtitle": "Name, logo, plan, staff access, and storage",
         "loading": "Loading settings...",
         "saving": "Saving...",
         "save": "Save changes",
         "success": "Settings saved",
+        "ownerOnly": "Editing is available only to the company owner (owner role).",
+        "logoUpload": "Upload file",
+        "logoUploading": "Uploading...",
+        "logoUploadSuccess": "Logo updated",
+        "noLogo": "No image",
+        "tabs": {
+          "general": "General",
+          "billing": "Plan & billing",
+          "sessions": "Sessions & access",
+          "invites": "Invitations",
+          "storage": "Storage"
+        },
+        "billing": {
+          "activeUntil": "Subscription active until",
+          "unlimited": "No end date",
+          "hint": "Change plan and renewals — via billing (Stripe).",
+          "manage": "Manage plan & billing"
+        },
+        "sessions": {
+          "hint": "Staff and last sign-in. Disabling access applies to the CRM account.",
+          "activeLoginsTitle": "Active sign-ins",
+          "activeLoginsHint": "Each login creates a session. IP and browser are captured at sign-in.",
+          "loading": "Loading sessions…",
+          "noSessions": "No active sessions",
+          "colName": "Name",
+          "colEmail": "Email",
+          "colRole": "Role",
+          "colLastLogin": "Last sign-in",
+          "colIp": "IP",
+          "colStarted": "Session started",
+          "colLastSeen": "Last activity",
+          "colUserAgent": "Device / browser",
+          "colActions": "Actions",
+          "deactivate": "Disable",
+          "activate": "Enable",
+          "activated": "Access enabled",
+          "deactivated": "Access disabled",
+          "revokeOne": "End session",
+          "revokeAll": "End all ({{count}})",
+          "revokeSuccess": "Session ended",
+          "revokeAllSuccess": "All sessions for this user ended"
+        },
+        "invites": {
+          "hint": "Staff with invitation status (haven’t accepted yet).",
+          "empty": "No pending invitations",
+          "colEmail": "Email",
+          "colRole": "Role",
+          "colStatus": "Status"
+        },
+        "storage": {
+          "usageTitle": "Storage usage",
+          "tiersHint": "Base tier: up to 3 GB, mid — 5 GB, senior — 10 GB per company; top tier — as agreed. Extra space can be purchased on any tier.",
+          "unlimitedPlan": "Limit as agreed",
+          "extraHint": "Extra gigabytes are purchased via billing. Per-module file accounting is rolled out gradually.",
+          "buyMore": "Buy more storage / upgrade plan",
+          "filesTitle": "Company files",
+          "filesHint": "Files uploaded across the CRM (storage, logo, workspaces, chat, email, etc.). This view is read-only; deletion follows your role.",
+          "deleteRolesHint": "Only the company owner and IT department staff (by department name in the directory) can delete files.",
+          "colSource": "Source",
+          "colFile": "File",
+          "colSize": "Size",
+          "colUploadedBy": "Uploaded by",
+          "colDate": "Date",
+          "colActions": "Actions",
+          "delete": "Delete",
+          "loadingFiles": "Loading files…",
+          "noFiles": "No files yet",
+          "deleteSuccess": "File deleted",
+          "source": {
+            "company_storage": "Shared storage",
+            "logo": "Company logo",
+            "online_chat": "Online chat",
+            "email": "Email",
+            "telegram": "Telegram",
+            "workspace": "Workspaces",
+            "tenant_disk": "Tenant folder (uploads)"
+          }
+        },
         "errors": {
           "load": "Failed to load company settings",
-          "save": "Failed to save settings"
+          "save": "Failed to save settings",
+          "upload": "Failed to upload logo file"
         },
         "fields": {
           "name": "Company name",
           "namePlaceholder": "Name shown in CRM",
-          "logo": "Logo (URL)",
-          "logoHint": "File upload will be added later. For now, use an image URL.",
+          "logo": "Logo",
+          "logoHint": "Upload PNG/JPEG/WebP/GIF (up to 2 MB) or paste a direct URL. The logo appears in the left menu for all staff.",
           "language": "Primary UI language",
           "languageEmpty": "— Not selected —",
           "languageHint": "Currently stored in settings. UI switching can be added later.",
@@ -3135,6 +4115,8 @@
       "list": {
         "title": "Sales list",
         "shown": "Showing {{shown}} of {{total}}",
+        "addColumn": "Column",
+        "customFieldsTitle": "Sales custom fields",
         "headers": {
           "date": "Date",
           "id": "ID",
@@ -3150,7 +4132,11 @@
         "manager": "Manager",
         "market": "Market",
         "company": "Company",
-        "openProduct": "Open"
+        "openProduct": "Open",
+        "boolean": {
+          "yes": "Yes",
+          "no": "No"
+        }
       },
       "pagination": {
         "page": "Page {{page}} of {{pages}}",
@@ -3174,6 +4160,72 @@
         "cancelled": "Cancelled",
         "refunded": "Refunded",
         "other": "Other"
+      },
+      "details": {
+        "title": "Order {{id}}…",
+        "subtitle": "Detailed order information from any sources (online stores, external integrations, etc.). All fields sent to CRM are shown.",
+        "back": "Back to list",
+        "loading": "Loading order…",
+        "sections": {
+          "order": "Order",
+          "amountAndChannel": "Amount and channel",
+          "client": "Client",
+          "management": "Order management",
+          "customFields": "Custom fields",
+          "product": "Product",
+          "allSaleFields": "All order fields (Sale)",
+          "metaFields": "Additional data (meta)"
+        },
+        "fields": {
+          "productId": "Product ID",
+          "purchaseDate": "Purchase date",
+          "updatedAt": "Updated at",
+          "status": "Status",
+          "channel": "Channel",
+          "integration": "Integration",
+          "country": "Purchase country",
+          "orderStatus": "Order status",
+          "manager": "Responsible manager",
+          "leadId": "Lead (ID)",
+          "searchLead": "Lead search (name, phone, email)",
+          "notes": "Comment (internal notes)",
+          "productName": "Product name",
+          "productLink": "Product link"
+        },
+        "actions": {
+          "open": "Open",
+          "createLead": "Create lead",
+          "creatingLead": "Creating…",
+          "configure": "Configure",
+          "saving": "Saving…",
+          "save": "Save changes"
+        },
+        "placeholders": {
+          "selectValue": "Select value",
+          "manager": "For example: Anna Ivanova",
+          "leadId": "Lead UUID or empty",
+          "searchLead": "Start typing to search",
+          "notes": "Any additional order information visible only to managers."
+        },
+        "hints": {
+          "manager": "Later you will be able to select a manager from staff list.",
+          "lead": "You can paste a lead ID manually, select via search below, or create a new one from order data."
+        },
+        "fallbacks": {
+          "noName": "No name",
+          "noContacts": "No contacts specified",
+          "noResults": "No results found",
+          "noActiveCustomFields": "No active custom fields"
+        },
+        "lead": {
+          "defaultName": "Client from order"
+        },
+        "errors": {
+          "load": "Failed to load order",
+          "save": "Failed to save order changes",
+          "loadCustomFields": "Failed to load custom fields",
+          "createLead": "Failed to create lead from order"
+        }
       },
       "analytics": {
         "kicker": "Sales · Analytics",
@@ -3427,6 +4479,7 @@
       },
       "deleteConfirm": "Delete {{name}}?",
       "common": {
+        "noCampaign": "No utm_campaign",
         "empty": "—"
       }
     },
@@ -4322,7 +5375,11 @@
       "development": "Development",
       "scenarios": "Scenarios",
       "api": "API",
+      "integrations": "Integrations",
       "solutions": "Solutions",
+      "analytics": "Analytics",
+      "marketing": "Marketing",
+      "sales": "Sales",
       "pricing": "Pricing",
       "blog": "Blog",
       "privacy": "Privacy"

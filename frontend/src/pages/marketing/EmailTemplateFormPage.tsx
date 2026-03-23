@@ -20,8 +20,13 @@ export const EmailTemplateFormPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<'html' | 'text'>('html');
   const [previewData, setPreviewData] = useState<Record<string, any>>({
-    lead: { name: 'Иван Иванов', email: 'ivan@example.com', phone: '+7 999 123-45-67', status: 'Новый' },
-    contact: { fullName: 'Иван Иванов', email: 'ivan@example.com' },
+    lead: {
+      name: 'Ivan Ivanov',
+      email: 'ivan@example.com',
+      phone: '+7 999 123-45-67',
+      status: t('crm.leads.statusValues.new'),
+    },
+    contact: { fullName: 'Ivan Ivanov', email: 'ivan@example.com' },
   });
 
   const [formData, setFormData] = useState<CreateEmailTemplateDto>({
@@ -80,13 +85,12 @@ export const EmailTemplateFormPage: React.FC = () => {
     if (!id) return;
     try {
       const preview = await previewEmailTemplate(id, previewData);
-      // Можно показать модальное окно с предпросмотром
       const previewWindow = window.open('', '_blank');
       if (previewWindow) {
         previewWindow.document.write(preview.htmlBody || preview.textBody || '');
       }
     } catch (err: any) {
-      alert('Ошибка предпросмотра: ' + err.message);
+      alert(`${t('crm.emailTemplates.form.errors.previewFailed')}: ${err.message}`);
     }
   };
 
@@ -94,7 +98,7 @@ export const EmailTemplateFormPage: React.FC = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Базовый HTML шаблон для начала
+  // Starter HTML template.
   const defaultHtmlTemplate = `<!DOCTYPE html>
 <html>
 <head>
@@ -107,13 +111,13 @@ export const EmailTemplateFormPage: React.FC = () => {
     <h1 style="color: white; margin: 0;">{{lead.name}}</h1>
   </div>
   <div style="background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px;">
-    <p>Здравствуйте, {{lead.name}}!</p>
-    <p>Это пример письма с использованием переменных.</p>
+    <p>${t('crm.emailTemplates.form.defaultTemplate.greeting')}</p>
+    <p>${t('crm.emailTemplates.form.defaultTemplate.body')}</p>
     <p><strong>Email:</strong> {{lead.email}}</p>
-    <p><strong>Телефон:</strong> {{lead.phone}}</p>
-    <p><strong>Статус:</strong> {{lead.status}}</p>
+    <p><strong>${t('crm.emailTemplates.form.defaultTemplate.phoneLabel')}</strong> {{lead.phone}}</p>
+    <p><strong>${t('crm.emailTemplates.form.defaultTemplate.statusLabel')}</strong> {{lead.status}}</p>
     <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd;">
-      <p style="color: #666; font-size: 12px;">С уважением,<br>Команда Lumiva</p>
+      <p style="color: #666; font-size: 12px;">${t('crm.emailTemplates.form.defaultTemplate.signature')}</p>
     </div>
   </div>
 </body>
@@ -169,7 +173,7 @@ export const EmailTemplateFormPage: React.FC = () => {
                   value={formData.name}
                   onChange={(e) => handleChange('name', e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="Название шаблона"
+                  placeholder={t('crm.emailTemplates.form.placeholders.name')}
                 />
               </div>
 
@@ -180,7 +184,7 @@ export const EmailTemplateFormPage: React.FC = () => {
                   onChange={(e) => handleChange('description', e.target.value)}
                   rows={2}
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors resize-none"
-                  placeholder="Описание шаблона"
+                  placeholder={t('crm.emailTemplates.form.placeholders.description')}
                 />
               </div>
 
@@ -191,10 +195,10 @@ export const EmailTemplateFormPage: React.FC = () => {
                   value={formData.subject || ''}
                   onChange={(e) => handleChange('subject', e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="Тема письма (можно использовать {{lead.name}}, {{lead.email}} и т.д.)"
+                  placeholder={t('crm.emailTemplates.form.placeholders.subject')}
                 />
                 <div className="text-[10px] text-slate-500 mt-1">
-                  Доступные переменные: {'{{lead.name}}'}, {'{{lead.email}}'}, {'{{lead.phone}}'}, {'{{lead.status}}'}, {'{{contact.fullName}}'}
+                  {t('crm.emailTemplates.form.hints.availableVariables')}: {'{{lead.name}}'}, {'{{lead.email}}'}, {'{{lead.phone}}'}, {'{{lead.status}}'}, {'{{contact.fullName}}'}
                 </div>
               </div>
             </div>
@@ -220,7 +224,7 @@ export const EmailTemplateFormPage: React.FC = () => {
                 onChange={(e) => handleChange('htmlBody', e.target.value)}
                 rows={15}
                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors resize-none font-mono"
-                placeholder="HTML код письма..."
+                placeholder={t('crm.emailTemplates.form.placeholders.htmlBody')}
               />
             </div>
 
@@ -232,7 +236,7 @@ export const EmailTemplateFormPage: React.FC = () => {
                 onChange={(e) => handleChange('textBody', e.target.value)}
                 rows={5}
                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors resize-none"
-                placeholder="Текстовая версия письма (для клиентов без поддержки HTML)"
+                placeholder={t('crm.emailTemplates.form.placeholders.textBody')}
               />
             </div>
 

@@ -223,6 +223,14 @@ export async function restoreProject(id: string): Promise<Project> {
   return mapProject(res);
 }
 
+export async function permanentlyDeleteProject(id: string): Promise<void> {
+  await api.del(`/projects/${id}/permanent`);
+}
+
+export async function emptyProjectsTrash(): Promise<void> {
+  await api.del('/projects/trash/empty');
+}
+
 export interface ProjectActivity {
   id: string;
   projectId: string;

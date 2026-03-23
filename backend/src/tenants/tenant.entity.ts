@@ -93,6 +93,14 @@ export class Tenant {
   @Column({ type: 'jsonb', nullable: true })
   enabledComponents: Record<string, boolean> | null;
 
+  /** Использовано хранилища компании (байты) */
+  @Column({ name: 'storage_used_bytes', type: 'bigint', default: '0' })
+  storageUsedBytes: string;
+
+  /** Докупленный объём (байты), сверх базового по тарифу */
+  @Column({ name: 'storage_extra_bytes', type: 'bigint', default: '0' })
+  storageExtraBytes: string;
+
   @Column({ type: 'text', nullable: true })
   lastBillingSessionId: string | null;
 

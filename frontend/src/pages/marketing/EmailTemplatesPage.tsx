@@ -109,7 +109,7 @@ export const EmailTemplatesPage: React.FC = () => {
 
                 {template.subject && (
                   <div className="text-[10px] text-slate-500 mb-2 truncate">
-                    Тема: {template.subject}
+                    {t('crm.emailTemplates.list.subject')}: {template.subject}
                   </div>
                 )}
 

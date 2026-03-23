@@ -14,10 +14,13 @@ import { RolesGuard } from './roles.guard';
 import { StaffUsersModule } from '../staff/staff-users.module';
 import { TenantsModule } from '../tenants/tenants.module';
 import { MailModule } from '../mail/mail.module';
+import { UserSessionsModule } from './user-sessions.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Tenant, User, StaffUser]),
+
+    UserSessionsModule,
 
     // ⬇️ ВАЖНО! Без этого StaffUsersService будет undefined
     StaffUsersModule,

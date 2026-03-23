@@ -1,18 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import type { Project, ProjectStatus } from './projectTypes';
 import {
   fetchProject,
   fetchProjects,
   changeProjectStatus,
+  updateProject,
 } from '../../api/projects';
+import { fetchStaff, type StaffUser } from '../../api/staff';
 import { useTranslation } from 'react-i18next';
 import {
   fetchCustomFields,
   type CustomField,
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import { ProjectsViewsBar } from './ProjectsViewsBar';
+import { type ProjectsViewSettings } from './projectsViewsStore';
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
@@ -23,6 +27,7 @@ function resolveLocale(lang: string) {
 export const ProjectsBoardPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
+  const [searchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,6 +35,16 @@ export const ProjectsBoardPage: React.FC = () => {
   const [changing, setChanging] = useState<string | null>(null);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
+  const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    ownerUserIds: string[];
+    amount: string;
+    priority: 'Обычный' | 'Высокий' | 'Низкий';
+  } | null>(null);
+  const [activeViewSettings, setActiveViewSettings] = useState<ProjectsViewSettings>({
+    kanbanCardFields: ['amount', 'created', 'progress', 'tags'],
+  });
   const suggestedKeys = useMemo(() => {
     const keys = new Set<string>();
     projects.forEach((p) => {
@@ -39,6 +54,7 @@ export const ProjectsBoardPage: React.FC = () => {
   }, [projects]);
 
   const navigate = useNavigate();
+  const activeViewId = searchParams.get('view');
   const statusLabels = useMemo<Record<ProjectStatus, string>>(
     () => ({
       Новый: t('crm.projects.statuses.new'),
@@ -70,9 +86,17 @@ export const ProjectsBoardPage: React.FC = () => {
     });
   };
 
-  const goTable = () => navigate('/app/projects');
   const createProject = () => navigate('/app/projects/new');
   const openProject = (id: string) => navigate(`/app/projects/${id}`);
+  const openView = (type: 'table' | 'kanban' | 'calendar', viewId?: string) => {
+    const basePath =
+      type === 'table'
+        ? '/app/projects'
+        : type === 'kanban'
+          ? '/app/projects/board'
+          : '/app/projects/calendar';
+    navigate(viewId ? `${basePath}?view=${viewId}` : basePath);
+  };
 
   useEffect(() => {
     let alive = true;
@@ -117,6 +141,19 @@ export const ProjectsBoardPage: React.FC = () => {
 
   useEffect(() => {
     let alive = true;
+    fetchStaff()
+      .then((items) => {
+        if (!alive) return;
+        setStaff(items);
+      })
+      .catch((e) => console.error('Ошибка загрузки сотрудников:', e));
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
     fetchCustomFields('project')
       .then((items) => {
         if (!alive) return;
@@ -140,8 +177,8 @@ export const ProjectsBoardPage: React.FC = () => {
           ? raw.join(', ')
           : typeof raw === 'boolean'
             ? raw
-              ? 'Да'
-              : 'Нет'
+              ? t('crm.projects.board.boolean.yes')
+              : t('crm.projects.board.boolean.no')
             : String(raw);
         return `${field.label}: ${display}`;
       })
@@ -186,6 +223,31 @@ export const ProjectsBoardPage: React.FC = () => {
     const b = Math.round(68 + (246 - 68) * t);
     return `rgb(${r}, ${g}, ${b})`;
   };
+  const cardFields = activeViewSettings.kanbanCardFields || [
+    'amount',
+    'created',
+    'progress',
+    'tags',
+  ];
+  const nearestDeadline = (project: Project) => {
+    const dates = (project.tasks || [])
+      .map((task) => (task.deadline ? new Date(task.deadline) : null))
+      .filter(Boolean) as Date[];
+    if (!dates.length) return '';
+    const min = dates.sort((a, b) => a.getTime() - b.getTime())[0];
+    return min.toLocaleDateString(locale);
+  };
+  const projectPriority = (project: Project): 'Высокий' | 'Обычный' | 'Низкий' => {
+    const value = String(project.customFields?.priority || '').trim().toLowerCase();
+    if (value.includes('выс')) return 'Высокий';
+    if (value.includes('низ')) return 'Низкий';
+    return 'Обычный';
+  };
+  const priorityAccentColor = (priority: 'Высокий' | 'Обычный' | 'Низкий') => {
+    if (priority === 'Высокий') return '#ef4444';
+    if (priority === 'Низкий') return '#22c55e';
+    return '#3b82f6';
+  };
 
   const handleDragStart = (id: string) => {
     setDragProjectId(id);
@@ -221,13 +283,60 @@ export const ProjectsBoardPage: React.FC = () => {
     }
   };
 
+  const openQuickEdit = (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ownerIds =
+      project.ownerUserIds?.length
+        ? project.ownerUserIds
+        : project.ownerUserId
+          ? [project.ownerUserId]
+          : [];
+    const priority =
+      (project.customFields?.priority as 'Обычный' | 'Высокий' | 'Низкий' | undefined) || 'Обычный';
+    setEditingProjectId(project.id);
+    setEditDraft({
+      ownerUserIds: ownerIds,
+      amount: String(Number(project.amount || 0)),
+      priority,
+    });
+  };
+
+  const saveQuickEdit = async (project: Project, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!editDraft) return;
+    const selectedUsers = staff.filter((u) => editDraft.ownerUserIds.includes(u.id));
+    const ownerName = selectedUsers.length
+      ? selectedUsers.map((u) => u.fullName || u.email).join(', ')
+      : null;
+    const next: Project = {
+      ...project,
+      amount: Number(editDraft.amount || 0),
+      ownerUserId: editDraft.ownerUserIds[0] || null,
+      ownerUserIds: editDraft.ownerUserIds,
+      owner: ownerName,
+      customFields: {
+        ...(project.customFields || {}),
+        priority: editDraft.priority,
+      },
+    };
+    try {
+      const updated = await updateProject(next);
+      setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, ...updated } : p)));
+      setEditingProjectId(null);
+      setEditDraft(null);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || t('crm.projects.errors.statusUpdateFailed'));
+    }
+  };
+
   return (
     <MainLayout>
-      <div className="space-y-4">
+      <div className="space-y-5">
         {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div>
-            <h1 className="text-lg font-semibold text-slate-50">
+            <h1 className="text-lg font-semibold text-slate-900">
               {t('crm.projects.board.title')}
             </h1>
             <div className="text-[11px] text-slate-500">
@@ -236,39 +345,30 @@ export const ProjectsBoardPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="inline-flex rounded-xl bg-slate-900/80 border border-slate-700/80 text-[11px] overflow-hidden">
-              <button
-                type="button"
-                className="px-3 py-1.5 bg-slate-800 text-slate-50"
-              >
-                {t('crm.projects.views.kanban')}
-              </button>
-              <button
-                type="button"
-                className="px-3 py-1.5 text-slate-400 hover:bg-slate-800/80"
-                onClick={goTable}
-              >
-                {t('crm.projects.views.table')}
-              </button>
-            </div>
-
             <button
               onClick={() => setCustomFieldsOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100"
             >
               {t('crm.projects.list.columns.label')}
             </button>
             <button
               onClick={createProject}
-              className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
+              className="px-3 py-1.5 text-xs rounded-xl bg-[#222222] text-white font-semibold hover:bg-black"
             >
               + {t('crm.projects.actions.newProject')}
             </button>
           </div>
         </div>
 
+        <ProjectsViewsBar
+          currentType="kanban"
+          activeViewId={activeViewId}
+          onOpenView={openView}
+          onSettingsChange={setActiveViewSettings}
+        />
+
         {error && (
-          <div className="text-[12px] text-rose-400 bg-rose-950/40 border border-rose-800/60 rounded-2xl px-3 py-2">
+          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-2xl px-3 py-2">
             {error}
           </div>
         )}
@@ -286,12 +386,12 @@ export const ProjectsBoardPage: React.FC = () => {
               return (
                 <div
                   key={col.id}
-                  className="flex-1 min-w-[260px] max-w-xs bg-slate-950/80 border border-slate-800/80 rounded-3xl p-3 flex flex-col"
+                  className="flex-1 min-w-[260px] max-w-xs bg-white border border-slate-200 rounded-3xl p-3 flex flex-col"
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={() => handleDropTo(col.id)}
                 >
                   <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs text-slate-300 font-medium">
+                    <div className="text-xs text-slate-700 font-semibold">
                       {col.title}
                     </div>
                     <div className="text-[10px] text-slate-500">
@@ -303,6 +403,8 @@ export const ProjectsBoardPage: React.FC = () => {
                     {columnProjects.map((project) => {
                       const percent = progressValue(project);
                       const color = progressColor(percent);
+                      const priority = projectPriority(project);
+                      const accentColor = priorityAccentColor(priority);
                       return (
                       <div
                         key={project.id}
@@ -310,54 +412,187 @@ export const ProjectsBoardPage: React.FC = () => {
                         onDragStart={() => handleDragStart(project.id)}
                         onClick={() => openProject(project.id)}
                         className={
-                          'cursor-move rounded-2xl bg-slate-900/90 border border-slate-800/80 px-3 py-2 text-xs text-slate-100 hover:border-lumiva-accent-soft hover:bg-slate-900 transition-colors ' +
+                          'group relative cursor-move rounded-2xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-colors ' +
                           (changing === project.id ? 'opacity-60' : '')
                         }
+                        style={{ borderLeftWidth: 4, borderLeftColor: accentColor }}
                       >
                         <div className="flex items-start justify-between mb-1 gap-2">
-                          <div className="font-medium truncate">
-                            {project.name}
+                          <div className="flex min-w-0 items-center gap-1.5">
+                            <div className="font-medium truncate">
+                              {project.name}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => openQuickEdit(project, e)}
+                              className="h-5 w-5 shrink-0 rounded-md border border-slate-200 bg-white text-slate-500 opacity-0 group-hover:opacity-100 hover:text-slate-800 transition"
+                              title={t('crm.projects.board.quickEdit.title')}
+                            >
+                              ✎
+                            </button>
                           </div>
                           <div className="text-[10px] text-slate-500 whitespace-nowrap">
                             #{project.id.slice(0, 8)}
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-[11px] text-slate-400">
-                            {formatAmount(project.amount, project.currency)}
-                          </span>
-                          <span className="text-[10px] text-slate-500">
-                            {project.createdAt}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <div className="flex-1 h-1.5 rounded-full bg-slate-800/80 overflow-hidden">
-                            <div
-                              className="h-full rounded-full transition-all"
-                              style={{ width: `${percent}%`, backgroundColor: color }}
-                            />
+                        {(cardFields.includes('amount') || cardFields.includes('created')) && (
+                          <div className="flex items-center justify-between mb-1">
+                            {cardFields.includes('amount') ? (
+                              <span className="text-[11px] text-slate-600">
+                                {formatAmount(project.amount, project.currency)}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+                            {cardFields.includes('created') && (
+                              <span className="text-[10px] text-slate-500">{project.createdAt}</span>
+                            )}
                           </div>
-                          <span className="text-[10px] font-semibold" style={{ color }}>
-                            {percent}%
-                          </span>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {project.category && (
-                            <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-800/80 text-slate-300">
-                              {project.category}
+                        )}
+                        {cardFields.includes('progress') && (
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className="flex-1 h-1.5 rounded-full bg-slate-800/80 overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all"
+                                style={{ width: `${percent}%`, backgroundColor: color }}
+                              />
+                            </div>
+                            <span className="text-[10px] font-semibold" style={{ color }}>
+                              {percent}%
                             </span>
-                          )}
-                          {project.tags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="text-[9px] px-1.5 py-0.5 rounded-full bg-lumiva-accent-soft/10 text-lumiva-accent"
-                            >
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
+                          </div>
+                        )}
+                        {(cardFields.includes('tags') || cardFields.includes('priority') || cardFields.includes('owner') || cardFields.includes('deadline')) && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {cardFields.includes('owner') && project.owner && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                {project.owner}
+                              </span>
+                            )}
+                            {cardFields.includes('priority') && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                {priority}
+                              </span>
+                            )}
+                            {cardFields.includes('deadline') && nearestDeadline(project) && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                {nearestDeadline(project)}
+                              </span>
+                            )}
+                            {cardFields.includes('tags') && project.category && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                                {project.category}
+                              </span>
+                            )}
+                            {cardFields.includes('tags') &&
+                              project.tags.map((tag) => (
+                                <span
+                                  key={tag}
+                                  className="text-[9px] px-1.5 py-0.5 rounded-full bg-lumiva-accent-soft/10 text-lumiva-accent"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                          </div>
+                        )}
+                        {editingProjectId === project.id && editDraft && (
+                          <div
+                            className="mt-2 rounded-xl border border-slate-200 bg-white p-2 shadow-lg"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <div className="grid gap-2">
+                              <div className="rounded-lg border border-slate-300 bg-white p-2">
+                                <div className="mb-1 text-[10px] font-semibold text-slate-600">
+                                  {t('crm.projects.board.quickEdit.owners', {
+                                    count: editDraft.ownerUserIds.length,
+                                  })}
+                                </div>
+                                <div className="max-h-28 overflow-y-auto space-y-1">
+                                  {staff.map((u) => {
+                                    const isSelected = editDraft.ownerUserIds.includes(u.id);
+                                    return (
+                                      <label
+                                        key={u.id}
+                                        className="flex items-center gap-2 text-[11px] text-slate-700"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={isSelected}
+                                          onChange={(e) =>
+                                            setEditDraft((prev) => {
+                                              if (!prev) return prev;
+                                              const nextIds = e.target.checked
+                                                ? [...prev.ownerUserIds, u.id]
+                                                : prev.ownerUserIds.filter((id) => id !== u.id);
+                                              return { ...prev, ownerUserIds: nextIds };
+                                            })
+                                          }
+                                        />
+                                        <span className="truncate">{u.fullName || u.email}</span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                              <input
+                                type="number"
+                                value={editDraft.amount}
+                                onChange={(e) =>
+                                  setEditDraft((prev) =>
+                                    prev ? { ...prev, amount: e.target.value } : prev,
+                                  )
+                                }
+                                className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 text-slate-700"
+                                placeholder={t('crm.projects.board.quickEdit.amountPlaceholder')}
+                              />
+                              <select
+                                value={editDraft.priority}
+                                onChange={(e) =>
+                                  setEditDraft((prev) =>
+                                    prev
+                                      ? {
+                                          ...prev,
+                                          priority: e.target.value as 'Обычный' | 'Высокий' | 'Низкий',
+                                        }
+                                      : prev,
+                                  )
+                                }
+                                className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 text-slate-700"
+                              >
+                                <option value="Низкий">
+                                  {t('crm.projects.board.quickEdit.priority.low')}
+                                </option>
+                                <option value="Обычный">
+                                  {t('crm.projects.board.quickEdit.priority.normal')}
+                                </option>
+                                <option value="Высокий">
+                                  {t('crm.projects.board.quickEdit.priority.high')}
+                                </option>
+                              </select>
+                            </div>
+                            <div className="mt-2 flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingProjectId(null);
+                                  setEditDraft(null);
+                                }}
+                                className="px-2 py-1 text-[10px] rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100"
+                              >
+                                {t('crm.common.cancel')}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => saveQuickEdit(project, e)}
+                                className="px-2 py-1 text-[10px] rounded-lg bg-[#222222] text-white hover:bg-black"
+                              >
+                                {t('crm.common.save')}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         {renderCustomPreview(project)}
                       </div>
                     );
@@ -377,7 +612,7 @@ export const ProjectsBoardPage: React.FC = () => {
         {customFieldsOpen && (
           <CustomFieldsManager
             entityType="project"
-            title="Кастомные поля проектов"
+            title={t('crm.projects.board.customFieldsTitle')}
             suggestedKeys={suggestedKeys}
             onClose={() => setCustomFieldsOpen(false)}
             onUpdated={(items) =>

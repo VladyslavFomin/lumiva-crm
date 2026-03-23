@@ -4,25 +4,34 @@ import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchContact, type Contact } from '../../api/contacts';
 import { fetchCompany, type Company } from '../../api/companies';
-import { fetchLeads, type Lead } from '../../api/leads';
+import { fetchLeads, isLeadInTrash, type Lead } from '../../api/leads';
 import { fetchProjects, type Project } from '../../api/projects';
+import { useTranslation } from 'react-i18next';
 
 type TabId = 'main' | 'company' | 'leads' | 'projects';
 
 export const ContactDetailsPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabId>('main');
   const [contact, setContact] = useState<Contact | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [quickLeads, setQuickLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const locale = i18n.language?.startsWith('en')
+    ? 'en-US'
+    : i18n.language?.startsWith('tr')
+      ? 'tr-TR'
+      : 'ru-RU';
+
   useEffect(() => {
     if (!id) {
-      setError('ID контакта не указан');
+      setError(t('crm.contacts.details.page.errors.idMissing'));
       setLoading(false);
       return;
     }
@@ -40,13 +49,33 @@ export const ContactDetailsPage: React.FC = () => {
       .catch((e) => {
         console.error(e);
         if (!alive) return;
-        setError(e.message || 'Ошибка загрузки контакта');
+        setError(e.message || t('crm.contacts.form.errors.loadFailed'));
       })
       .finally(() => {
         if (!alive) return;
         setLoading(false);
       });
-  }, [id]);
+  }, [id, t]);
+
+  useEffect(() => {
+    if (!id || loading || !contact) return;
+    let alive = true;
+    fetchLeads()
+      .then((items) => {
+        if (!alive) return;
+        setQuickLeads(
+          items
+            .filter((lead) => lead.contactId === id && !isLeadInTrash(lead))
+            .slice(0, 3),
+        );
+      })
+      .catch(() => {
+        // ignore
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, loading, contact]);
 
   // Загружаем данные для активной вкладки
   useEffect(() => {
@@ -70,8 +99,9 @@ export const ContactDetailsPage: React.FC = () => {
         fetchLeads()
           .then((data) => {
             if (!alive) return;
-            // Фильтруем лиды по контакту
-            const contactLeads = data.filter((lead) => lead.contactId === id);
+            const contactLeads = data.filter(
+              (lead) => lead.contactId === id && !isLeadInTrash(lead),
+            );
             setLeads(contactLeads);
           })
           .catch((e) => console.error('Ошибка загрузки лидов:', e));
@@ -82,7 +112,9 @@ export const ContactDetailsPage: React.FC = () => {
         fetchLeads()
           .then((leadsData) => {
             if (!alive) return;
-            const contactLeads = leadsData.filter((lead) => lead.contactId === id);
+            const contactLeads = leadsData.filter(
+              (lead) => lead.contactId === id && !isLeadInTrash(lead),
+            );
             const leadIds = contactLeads.map((l) => l.id);
 
             if (leadIds.length === 0) {
@@ -110,7 +142,9 @@ export const ContactDetailsPage: React.FC = () => {
   if (loading) {
     return (
       <MainLayout>
-        <div className="text-center py-12 text-xs text-slate-400">Загрузка...</div>
+        <div className="text-center py-12 text-xs text-slate-400">
+          {t('crm.common.loading')}
+        </div>
       </MainLayout>
     );
   }
@@ -119,7 +153,7 @@ export const ContactDetailsPage: React.FC = () => {
     return (
       <MainLayout>
         <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
-          {error || 'Контакт не найден'}
+          {error || t('crm.contacts.details.page.errors.notFound')}
         </div>
       </MainLayout>
     );
@@ -129,40 +163,42 @@ export const ContactDetailsPage: React.FC = () => {
     contact.fullName ||
     `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
     contact.email ||
-    'Без имени';
+    t('crm.projects.detail.fields.leadNameFallback');
 
   return (
     <MainLayout>
       <div className="space-y-4">
         {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
           <div>
             <button
-              onClick={() => navigate('/app/contacts')}
-              className="text-[11px] text-slate-400 hover:text-slate-200 mb-1"
+              onClick={() => navigate('/contacts')}
+              className="text-[11px] text-slate-500 hover:text-slate-700 mb-1"
             >
-              ← К списку контактов
+              {t('crm.contacts.details.page.backToList')}
             </button>
-            <h1 className="text-lg font-semibold text-slate-50">{fullName}</h1>
-            <div className="text-[11px] text-slate-500">Детальная информация о контакте</div>
+            <h1 className="text-lg font-semibold text-slate-900">{fullName}</h1>
+            <div className="text-[11px] text-slate-500">
+              {t('crm.contacts.details.page.subtitle')}
+            </div>
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => navigate(`/app/contacts/${id}/edit`)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
+              onClick={() => navigate(`/contacts/${id}/edit`)}
+              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
             >
-              Редактировать
+              {t('crm.contacts.form.titleEdit')}
             </button>
           </div>
         </div>
 
         {/* Вкладки */}
-        <div className="inline-flex bg-slate-900/70 border border-slate-800/80 rounded-2xl p-1 text-[13px]">
+        <div className="inline-flex bg-white border border-slate-200 rounded-2xl p-1 text-[13px]">
           {[
-            { id: 'main', label: 'Основная' },
-            { id: 'company', label: 'Компания' },
-            { id: 'leads', label: `Лиды` },
-            { id: 'projects', label: `Проекты` },
+            { id: 'main', label: t('crm.contacts.details.tabs.main') },
+            { id: 'company', label: t('crm.contacts.details.tabs.company') },
+            { id: 'leads', label: t('crm.contacts.details.tabs.leads') },
+            { id: 'projects', label: t('crm.contacts.details.tabs.projects') },
           ].map((t) => (
             <button
               key={t.id}
@@ -171,8 +207,8 @@ export const ContactDetailsPage: React.FC = () => {
               className={
                 'px-4 py-1.5 rounded-xl transition-colors ' +
                 (tab === t.id
-                  ? 'bg-slate-800 text-slate-50'
-                  : 'text-slate-400 hover:text-slate-100')
+                  ? 'bg-slate-100 text-slate-900'
+                  : 'text-slate-500 hover:text-slate-800')
               }
             >
               {t.label}
@@ -181,17 +217,17 @@ export const ContactDetailsPage: React.FC = () => {
         </div>
 
         {/* Контент вкладок */}
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+        <div className="bg-white border border-slate-200 rounded-3xl p-4">
           {tab === 'main' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {contact.email && (
                   <div>
                     <div className="text-[10px] text-slate-500 mb-1">Email</div>
-                    <div className="text-xs text-slate-50">
+                    <div className="text-xs text-slate-700">
                       <a
                         href={`mailto:${contact.email}`}
-                        className="text-blue-400 hover:text-blue-300"
+                        className="text-blue-600 hover:text-blue-500"
                       >
                         {contact.email}
                       </a>
@@ -200,11 +236,13 @@ export const ContactDetailsPage: React.FC = () => {
                 )}
                 {contact.phone && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Телефон</div>
-                    <div className="text-xs text-slate-50">
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.contacts.form.fields.phone')}
+                    </div>
+                    <div className="text-xs text-slate-700">
                       <a
                         href={`tel:${contact.phone}`}
-                        className="text-blue-400 hover:text-blue-300"
+                        className="text-blue-600 hover:text-blue-500"
                       >
                         {contact.phone}
                       </a>
@@ -213,27 +251,44 @@ export const ContactDetailsPage: React.FC = () => {
                 )}
                 {contact.position && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Должность</div>
-                    <div className="text-xs text-slate-50">{contact.position}</div>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.contacts.form.fields.position')}
+                    </div>
+                    <div className="text-xs text-slate-700">{contact.position}</div>
                   </div>
                 )}
+                <div>
+                  <div className="text-[10px] text-slate-500 mb-1">
+                    {t('crm.contacts.details.page.assignee')}
+                  </div>
+                  <div className="text-xs text-slate-700">
+                    {contact.assignedTo ||
+                      (Array.isArray(contact.customFields?.assignedToList)
+                        ? (contact.customFields?.assignedToList as string[]).join(', ')
+                        : '') ||
+                      t('crm.projects.common.emptyValue')}
+                  </div>
+                </div>
                 {(contact.city || contact.country) && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Адрес</div>
-                    <div className="text-xs text-slate-50">
-                      {[contact.city, contact.country].filter(Boolean).join(', ') || '-'}
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.contacts.form.fields.address')}
+                    </div>
+                    <div className="text-xs text-slate-700">
+                      {[contact.city, contact.country].filter(Boolean).join(', ') ||
+                        t('crm.projects.common.emptyValue')}
                     </div>
                   </div>
                 )}
                 {contact.linkedin && (
                   <div>
                     <div className="text-[10px] text-slate-500 mb-1">LinkedIn</div>
-                    <div className="text-xs text-slate-50">
+                    <div className="text-xs text-slate-700">
                       <a
                         href={contact.linkedin}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-blue-400 hover:text-blue-300"
+                        className="text-blue-600 hover:text-blue-500"
                       >
                         {contact.linkedin}
                       </a>
@@ -243,18 +298,20 @@ export const ContactDetailsPage: React.FC = () => {
                 {contact.telegram && (
                   <div>
                     <div className="text-[10px] text-slate-500 mb-1">Telegram</div>
-                    <div className="text-xs text-slate-50">{contact.telegram}</div>
+                    <div className="text-xs text-slate-700">{contact.telegram}</div>
                   </div>
                 )}
               </div>
               {contact.tags && contact.tags.length > 0 && (
                 <div>
-                  <div className="text-[10px] text-slate-500 mb-1">Теги</div>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.projects.detail.fields.tags')}
+                    </div>
                   <div className="flex flex-wrap gap-2">
                     {contact.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 bg-slate-800/50 text-slate-300 rounded text-[10px]"
+                        className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]"
                       >
                         {tag}
                       </span>
@@ -262,6 +319,36 @@ export const ContactDetailsPage: React.FC = () => {
                   </div>
                 </div>
               )}
+              <div>
+                <div className="text-[10px] text-slate-500 mb-1">
+                  {t('crm.contacts.details.page.linkedLeads')}
+                </div>
+                {quickLeads.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {quickLeads.map((lead) => (
+                      <button
+                        key={lead.id}
+                        type="button"
+                        onClick={() => navigate(`/leads/${lead.id}`)}
+                        className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 text-slate-700 hover:border-slate-400 transition-colors"
+                      >
+                        {lead.name || t('crm.projects.detail.fields.leadNameFallback')}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setTab('leads')}
+                      className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 text-slate-600 hover:text-slate-800 transition-colors"
+                    >
+                      {t('crm.contacts.details.page.allLeads')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-500">
+                    {t('crm.contacts.details.page.leadsNotLinked')}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -271,36 +358,43 @@ export const ContactDetailsPage: React.FC = () => {
                 company ? (
                   <div className="space-y-3">
                     <div>
-                      <div className="text-[10px] text-slate-500 mb-1">Название</div>
-                      <div className="text-xs font-medium text-slate-50">{company.name}</div>
+                      <div className="text-[10px] text-slate-500 mb-1">
+                        {t('crm.companies.form.fields.name')}
+                      </div>
+                      <div className="text-xs font-medium text-slate-900">{company.name}</div>
                     </div>
                     {company.email && (
                       <div>
-                        <div className="text-[10px] text-slate-500 mb-1">Email</div>
-                        <div className="text-xs text-slate-50">{company.email}</div>
+                        <div className="text-[10px] text-slate-500 mb-1">
+                          {t('crm.companies.form.fields.email')}
+                        </div>
+                        <div className="text-xs text-slate-700">{company.email}</div>
                       </div>
                     )}
                     {company.phone && (
                       <div>
-                        <div className="text-[10px] text-slate-500 mb-1">Телефон</div>
-                        <div className="text-xs text-slate-50">{company.phone}</div>
+                        <div className="text-[10px] text-slate-500 mb-1">
+                          {t('crm.companies.form.fields.phone')}
+                        </div>
+                        <div className="text-xs text-slate-700">{company.phone}</div>
                       </div>
                     )}
                     <button
-                      onClick={() => navigate(`/app/companies/${company.id}`)}
+                      type="button"
+                      onClick={() => navigate(`/companies/${company.id}`)}
                       className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft transition-colors"
                     >
-                      Открыть компанию
+                      {t('crm.contacts.details.page.openCompany')}
                     </button>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-xs text-slate-400">
-                    Загрузка компании...
+                    {t('crm.common.loading')}
                   </div>
                 )
               ) : (
-                <div className="text-center py-8 text-xs text-slate-400">
-                  Контакт не привязан к компании
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {t('crm.contacts.details.company.empty')}
                 </div>
               )}
             </div>
@@ -309,30 +403,57 @@ export const ContactDetailsPage: React.FC = () => {
           {tab === 'leads' && (
             <div className="space-y-2">
               {leads.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-400">Нет лидов</div>
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {t('crm.contacts.details.leads.empty')}
+                </div>
               ) : (
-                leads.map((lead) => (
-                  <div
-                    key={lead.id}
-                    onClick={() => navigate(`/app/leads/${lead.id}`)}
-                    className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3 cursor-pointer hover:border-slate-600/80 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-medium text-slate-50">
-                        {lead.name || 'Без имени'}
-                      </div>
-                      <span className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-[10px]">
-                        {lead.status}
-                      </span>
-                    </div>
-                    {lead.email && (
-                      <div className="text-[11px] text-slate-400 mt-1">{lead.email}</div>
-                    )}
-                    {lead.phone && (
-                      <div className="text-[11px] text-slate-400">{lead.phone}</div>
-                    )}
-                  </div>
-                ))
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.details.page.tables.leads.lead')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">Email</th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.phone')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.status')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.details.page.tables.leads.owner')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {leads.map((lead) => (
+                        <tr
+                          key={lead.id}
+                          onClick={() => navigate(`/leads/${lead.id}`)}
+                          className="cursor-pointer hover:bg-sky-50/50"
+                        >
+                          <td className="px-3 py-2 font-medium text-slate-800">
+                            {lead.name ||
+                              lead.email ||
+                              lead.phone ||
+                              `${t('crm.contacts.details.page.tables.leads.lead')} ${lead.id.slice(0, 6)}`}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {lead.email || t('crm.projects.common.emptyValue')}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {lead.phone || t('crm.projects.common.emptyValue')}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">{lead.status}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {lead.assignedTo || t('crm.projects.common.emptyValue')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
@@ -340,30 +461,58 @@ export const ContactDetailsPage: React.FC = () => {
           {tab === 'projects' && (
             <div className="space-y-2">
               {projects.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-400">Нет проектов</div>
+                <div className="text-center py-8 text-xs text-slate-500">
+                  {t('crm.contacts.details.projects.empty')}
+                </div>
               ) : (
-                projects.map((project) => (
-                  <div
-                    key={project.id}
-                    onClick={() => navigate(`/app/projects/${project.id}`)}
-                    className="bg-slate-800/30 border border-slate-700/50 rounded-xl p-3 cursor-pointer hover:border-slate-600/80 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="text-xs font-medium text-slate-50">{project.name}</div>
-                      <span className="px-2 py-0.5 bg-slate-700/50 text-slate-300 rounded text-[10px]">
-                        {project.status}
-                      </span>
-                    </div>
-                    {project.amount && (
-                      <div className="text-[11px] text-slate-400 mt-1">
-                        {new Intl.NumberFormat('ru-RU', {
-                          style: 'currency',
-                          currency: project.currency || 'EUR',
-                        }).format(parseFloat(project.amount))}
-                      </div>
-                    )}
-                  </div>
-                ))
+                <div className="overflow-x-auto rounded-2xl border border-slate-200">
+                  <table className="min-w-full divide-y divide-slate-200 text-xs">
+                    <thead className="bg-slate-50 text-slate-600">
+                      <tr>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.details.page.tables.projects.project')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.form.fields.status')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.details.page.tables.projects.owner')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.details.page.tables.projects.budget')}
+                        </th>
+                        <th className="px-3 py-2 text-left font-medium">
+                          {t('crm.contacts.details.page.tables.projects.updated')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {projects.map((project) => (
+                        <tr
+                          key={project.id}
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                          className="cursor-pointer hover:bg-sky-50/50"
+                        >
+                          <td className="px-3 py-2 font-medium text-slate-800">{project.name}</td>
+                          <td className="px-3 py-2 text-slate-600">{project.status}</td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {project.owner || t('crm.projects.common.emptyValue')}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {new Intl.NumberFormat(locale, {
+                              style: 'currency',
+                              currency: project.currency || 'EUR',
+                              minimumFractionDigits: 0,
+                            }).format(Number(project.amount || 0))}
+                          </td>
+                          <td className="px-3 py-2 text-slate-600">
+                            {project.updatedAt || t('crm.projects.common.emptyValue')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

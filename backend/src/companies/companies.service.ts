@@ -9,6 +9,7 @@ import { BulkUpdateCompaniesDto } from './dto/bulk-update-companies.dto';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
 import { Lead } from '../leads/lead.entity';
+import { excludeTrashedLeads } from '../leads/lead-relations.util';
 import { Project } from '../projects/project.entity';
 import { Contact } from '../contacts/contact.entity';
 import { CompanyTask, CompanyTaskStatus } from './company-task.entity';
@@ -149,15 +150,12 @@ export class CompaniesService {
       }
     }
 
-    // Объединяем лиды, убираем дубликаты
-    const allLeadIds = new Set([
-      ...leadsByCompany.map((l) => l.id),
-      ...leadsByContact.map((l) => l.id),
-    ]);
-    const allLeads = [
+    // Объединяем лиды, убираем дубликаты; корзина (meta.deleted) не в списке связей
+    const allLeadsMerged = [
       ...leadsByCompany,
       ...leadsByContact.filter((l) => !leadsByCompany.find((lc) => lc.id === l.id)),
     ];
+    const allLeads = excludeTrashedLeads(allLeadsMerged);
 
     // Проекты компании (через лиды)
     const leadIds = allLeads.map((l) => l.id);

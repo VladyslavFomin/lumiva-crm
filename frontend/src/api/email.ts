@@ -73,6 +73,11 @@ export interface SendEmailDto {
   companyId?: string;
   leadId?: string;
   saleId?: string;
+  attachments?: Array<{
+    filename: string;
+    contentType: string;
+    contentBase64?: string;
+  }>;
 }
 
 export interface ListEmailMessagesQuery {

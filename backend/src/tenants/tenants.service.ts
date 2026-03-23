@@ -28,6 +28,21 @@ import {
   isModuleAllowedByPlan,
   normalizeTenantPlan,
 } from './plan-entitlements';
+import { getTotalStorageQuotaBytes } from './storage-quota.util';
+import {
+  extractRelativePathFromPublicUrl,
+  sizeBytesForRelativeUploadPath,
+  sumTenantUploadsBytesOnDisk,
+  toRelativeUploadsUrl,
+  unlinkUploadsRelative,
+} from '../common/uploads-root.util';
+import { stat } from 'fs/promises';
+
+function numStorageBytes(v: string | bigint | null | undefined): number {
+  if (v === undefined || v === null) return 0;
+  const n = typeof v === 'bigint' ? Number(v) : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
 
 @Injectable()
 export class TenantsService {
@@ -94,17 +109,15 @@ export class TenantsService {
    * ========= Настройки компании (для /app/settings) =========
    */
 
-  async getCompanySettings(tenantId: string) {
-    const tenant = await this.repo.findOne({ where: { id: tenantId } });
-    if (!tenant) {
-      throw new NotFoundException('Tenant not found');
-    }
-
+  private mapCompanySettings(tenant: Tenant) {
+    const extra = numStorageBytes(tenant.storageExtraBytes as any);
+    const used = numStorageBytes(tenant.storageUsedBytes as any);
+    const quota = getTotalStorageQuotaBytes(tenant.plan, extra);
     return {
       id: tenant.id,
       name: tenant.name,
       clientKey: tenant.clientKey,
-      logoUrl: tenant.logoUrl,
+      logoUrl: toRelativeUploadsUrl(tenant.logoUrl) ?? tenant.logoUrl ?? null,
       uiLanguage: tenant.uiLanguage,
       status: tenant.status,
       plan: tenant.plan,
@@ -115,6 +128,78 @@ export class TenantsService {
       notes: tenant.notes,
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
+      storageUsedBytes: used,
+      storageExtraBytes: extra,
+      storageQuotaBytes: quota,
+    };
+  }
+
+  async getCompanySettings(tenantId: string) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    const normalizedLogo = toRelativeUploadsUrl(tenant.logoUrl);
+    if (
+      normalizedLogo &&
+      tenant.logoUrl &&
+      normalizedLogo !== tenant.logoUrl
+    ) {
+      tenant.logoUrl = normalizedLogo;
+      await this.repo.save(tenant);
+    }
+
+    const base = this.mapCompanySettings(tenant);
+    let disk = 0;
+    try {
+      disk = await sumTenantUploadsBytesOnDisk(tenantId);
+    } catch {
+      disk = 0;
+    }
+    return {
+      ...base,
+      storageUsedBytes: Math.max(base.storageUsedBytes, disk),
+    };
+  }
+
+  async setLogoFromFile(
+    tenantId: string,
+    file: { path: string; filename: string },
+  ) {
+    const tenant = await this.repo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+    const newRelPath = `tenants/${tenantId}/${file.filename}`;
+    const oldRel = tenant.logoUrl
+      ? extractRelativePathFromPublicUrl(tenant.logoUrl)
+      : null;
+    const stNew = await stat(file.path);
+    const used = BigInt(tenant.storageUsedBytes || '0');
+
+    if (!oldRel) {
+      tenant.storageUsedBytes = (used + BigInt(stNew.size)).toString();
+    } else if (oldRel !== newRelPath) {
+      const oldSz = (await sizeBytesForRelativeUploadPath(oldRel)) ?? 0;
+      await unlinkUploadsRelative(oldRel).catch(() => {});
+      const next = used - BigInt(oldSz) + BigInt(stNew.size);
+      tenant.storageUsedBytes = (next < 0n ? 0n : next).toString();
+    }
+
+    /** Относительный путь — фронт собирает URL через API_BASE (без привязки к Host из запроса). */
+    tenant.logoUrl = `/v1/uploads/${newRelPath}`;
+    await this.repo.save(tenant);
+    const base = this.mapCompanySettings(tenant);
+    let disk = 0;
+    try {
+      disk = await sumTenantUploadsBytesOnDisk(tenantId);
+    } catch {
+      disk = 0;
+    }
+    return {
+      ...base,
+      storageUsedBytes: Math.max(base.storageUsedBytes, disk),
     };
   }
 
@@ -132,7 +217,12 @@ export class TenantsService {
     }
 
     if (patch.logoUrl !== undefined) {
-      tenant.logoUrl = patch.logoUrl || null;
+      if (!patch.logoUrl || !String(patch.logoUrl).trim()) {
+        tenant.logoUrl = null;
+      } else {
+        const raw = String(patch.logoUrl).trim();
+        tenant.logoUrl = toRelativeUploadsUrl(raw) ?? raw;
+      }
     }
 
     if (patch.uiLanguage !== undefined) {
@@ -168,25 +258,10 @@ export class TenantsService {
 
     await this.repo.save(tenant);
 
-    return {
-      id: tenant.id,
-      name: tenant.name,
-      clientKey: tenant.clientKey,
-      logoUrl: tenant.logoUrl,
-      uiLanguage: tenant.uiLanguage,
-      status: tenant.status,
-      plan: tenant.plan,
-      apiEnabled: tenant.apiEnabled,
-      activeUntil: tenant.activeUntil,
-      ownerName: tenant.ownerName,
-      ownerEmail: tenant.ownerEmail,
-      notes: tenant.notes,
-      createdAt: tenant.createdAt,
-      updatedAt: tenant.updatedAt,
-    };
+    return this.mapCompanySettings(tenant);
   }
 
-  /**
+   /**
    * ========= Базовое создание tenant (+ владелец) =========
    */
 
@@ -726,6 +801,7 @@ export class TenantsService {
       'tools_integrations',
       'tools_automation',
       'tools_settings',
+      'custom_objects',
       'email',
       'telegram',
       'chat',

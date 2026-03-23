@@ -1,0 +1,4 @@
+# Если перед API стоит nginx: по умолчанию client_max_body_size часто 1m — файл 1.1 МБ уже даёт
+# «413 Request Entity Too Large» в ответе (это nginx, не лимит приложения 30 МБ).
+# Поставьте не ниже лимита API:
+client_max_body_size 32m;

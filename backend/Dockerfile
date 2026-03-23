@@ -10,5 +10,7 @@ COPY . .
 RUN npm run build
 
 ENV NODE_ENV=production
+ENV UPLOADS_ROOT=/app/uploads
+RUN mkdir -p /app/uploads
 
 CMD ["node", "dist/main.js"]
