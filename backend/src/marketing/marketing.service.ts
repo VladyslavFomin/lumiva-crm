@@ -41,6 +41,12 @@ function sanitizeTrafficText(value: string | null | undefined): string | null {
   const s = value?.trim();
   if (!s) return null;
   if (s.startsWith('crm.') && /^crm\.[a-z0-9_.]+$/i.test(s)) return null;
+  if (
+    /^[\w.]+$/i.test(s) &&
+    /\.common\.(noCampaign|unknown|none|noData)$/i.test(s)
+  ) {
+    return null;
+  }
   return s;
 }
 
