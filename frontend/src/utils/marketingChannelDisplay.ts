@@ -27,7 +27,16 @@ export function formatMarketingChannelDimension(
   kind: 'campaign' | 'source' | 'medium',
 ): string {
   const s = sanitizeMarketingDimension(value);
-  if (s !== '—') return s;
+  return labelSanitizedDimension(t, s, kind);
+}
+
+/** Когда в агрегатах уже только sanitize()-строка (например ключ карты топов). */
+export function labelSanitizedDimension(
+  t: TFunction,
+  sanitized: string,
+  kind: 'campaign' | 'source' | 'medium',
+): string {
+  if (sanitized !== '—') return sanitized;
   if (kind === 'campaign') {
     return t('crm.marketingChannels.common.noCampaign');
   }

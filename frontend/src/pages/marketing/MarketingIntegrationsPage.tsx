@@ -7,6 +7,7 @@ import {
   type MarketingIntegrationRow,
 } from '../../api/marketing';
 import { marketingDataSourceLabel } from '../../utils/marketingDataSourceLabel';
+import { marketingCard } from './marketingPageChrome';
 
 export const MarketingIntegrationsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -55,16 +56,19 @@ export const MarketingIntegrationsPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-4 pb-8">
+      <div className="space-y-4 md:space-y-6 pb-8">
         <div>
-          <h1 className="text-lg font-semibold text-slate-50">
-            {t('crm.nav.marketingIntegrations', { defaultValue: 'Интеграции маркетинга' })}
+          <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
+            {t('crm.marketingIntegrations.kicker')}
+          </div>
+          <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            {t('crm.marketingIntegrations.title')}
           </h1>
-          <p className="text-xs text-slate-500 mt-1 max-w-2xl">
-            {t('crm.marketingIntegrations.hint', {
-              defaultValue:
-                'Синхронизация подтягивает данные в отчёт трафика (расширенные метрики по dataSource).',
-            })}
+          <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            {t('crm.marketingIntegrations.subtitle')}
+          </p>
+          <p className="text-[11px] text-slate-500 mt-2 max-w-2xl">
+            {t('crm.marketingIntegrations.hint')}
           </p>
         </div>
         {loading && (
@@ -93,17 +97,17 @@ export const MarketingIntegrationsPage: React.FC = () => {
           </div>
         )}
         {!loading && list.length === 0 && (
-          <div className="text-[11px] text-slate-500 rounded-2xl border border-slate-800 bg-slate-950/50 px-3 py-2">
-            {t('crm.marketingIntegrations.empty', {
-              defaultValue: 'Интеграций пока нет. Добавьте их через API или форму (если доступна).',
-            })}
+          <div
+            className={`${marketingCard} text-[11px] text-slate-500 border-dashed border-slate-700/80 bg-slate-950/60`}
+          >
+            {t('crm.marketingIntegrations.empty')}
           </div>
         )}
         <div className="space-y-2">
           {list.map((row) => (
             <div
               key={row.id}
-              className="rounded-2xl border border-slate-800 bg-slate-950/80 p-4 flex flex-wrap items-center gap-3 justify-between"
+              className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4 flex flex-wrap items-center gap-3 justify-between shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] hover:border-violet-900/40 transition-colors"
             >
               <div className="min-w-0">
                 <div className="text-slate-100 font-medium truncate">{row.name}</div>
@@ -119,7 +123,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
                 type="button"
                 disabled={!row.isActive || syncingId !== null}
                 onClick={() => onSync(row.id)}
-                className="shrink-0 text-[11px] px-3 py-1.5 rounded-xl bg-white text-slate-900 disabled:opacity-40"
+                className="shrink-0 text-[11px] px-4 py-2 rounded-xl bg-violet-600 text-white font-medium shadow-[0_8px_24px_rgba(124,58,237,0.35)] hover:bg-violet-500 disabled:opacity-40 disabled:shadow-none transition-colors"
               >
                 {syncingId === row.id
                   ? t('crm.common.syncing', { defaultValue: 'Синхронизация…' })
@@ -128,7 +132,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
             </div>
           ))}
         </div>
-        <p className="text-[10px] text-slate-600 pt-4 border-t border-slate-800/80 mt-6">
+        <p className="text-[10px] text-slate-600 pt-4 border-t border-slate-800/80 mt-8">
           CRM UI build:{' '}
           <code className="text-slate-500">{__CRM_FRONT_BUILD__}</code>
           {' · '}

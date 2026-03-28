@@ -21,6 +21,16 @@ import {
   formatMarketingChannelDimension,
   sanitizeMarketingDimension,
 } from '../../utils/marketingChannelDisplay';
+import {
+  marketingCard,
+  marketingChipActive,
+  marketingChipInactive,
+  marketingFilterBar,
+  marketingFilterLabel,
+  marketingKpiAccentCard,
+  marketingKpiCard,
+  marketingSelect,
+} from './marketingPageChrome';
 
 type PeriodPreset = '7d' | '30d' | '90d' | 'all';
 
@@ -113,7 +123,7 @@ export const CampaignsPage: React.FC = () => {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- t не должен перезапрашивать трафик
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range.from, range.to, dataSource]);
 
   const currency = view.currency || 'EUR';
@@ -175,189 +185,137 @@ export const CampaignsPage: React.FC = () => {
     return [...view.items].sort((a, b) => b.cost - a.cost || b.revenue - a.revenue);
   }, [view.items]);
 
-  const cardBase =
-    'rounded-2xl border p-4 shadow-sm transition-shadow hover:shadow-md';
-  const sectionBase =
-    'rounded-2xl border border-slate-200 bg-white p-4 md:p-5 shadow-sm';
-
   return (
     <MainLayout>
       <div className="space-y-4 md:space-y-6 pb-8">
-        <section className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
               {t('crm.marketingCampaigns.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-900">
+            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
               {t('crm.marketingCampaigns.title')}
             </h1>
-            <p className="text-xs text-slate-600 mt-1 max-w-2xl">
+            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
               {t('crm.marketingCampaigns.subtitle')}
             </p>
           </div>
-          <div className="flex flex-col items-stretch gap-2 md:min-w-[260px] md:items-end">
-            <div className="inline-flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1.5 shadow-sm w-full md:w-auto md:justify-end">
-              <span className="text-[11px] text-slate-600 pl-1">
-                {t('crm.marketingCampaigns.periodLabel')}
-              </span>
+          <div className="flex flex-col items-stretch md:items-end gap-2">
+            <div className={`${marketingFilterBar} w-full md:w-auto md:justify-end`}>
+              <span className={marketingFilterLabel}>{t('crm.marketingCampaigns.periodLabel')}</span>
               {(['7d', '30d', '90d', 'all'] as PeriodPreset[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => applyPreset(p)}
-                  className={
-                    'px-3 py-1.5 rounded-xl text-[11px] transition ' +
-                    (preset === p
-                      ? 'bg-slate-900 text-white font-semibold shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
-                  }
+                  className={preset === p ? marketingChipActive : marketingChipInactive}
                 >
                   {periodLabel[p]}
                 </button>
               ))}
             </div>
-            <label className="flex flex-col gap-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <span className="text-[11px] text-slate-500">
+            <div className={`${marketingFilterBar} items-center w-full md:w-auto md:justify-end`}>
+              <span className={marketingFilterLabel}>
                 {t('crm.marketingTraffic.dataSourceLabel')}
               </span>
               <select
                 value={dataSource}
                 onChange={(e) => setDataSource(e.target.value)}
-                className="w-full text-[11px] rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                className={marketingSelect}
               >
-                <option value="">
-                  {t('crm.marketingCampaigns.filters.allSources')}
-                </option>
+                <option value="">{t('crm.marketingTraffic.dataSourceAll')}</option>
                 {dataSourceOptions.map((ds) => (
                   <option key={ds} value={ds}>
                     {marketingDataSourceLabel(t, ds)}
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="flex flex-col gap-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                {t('crm.marketingCampaigns.filters.numbersLabel')}
-                <span
-                  className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-slate-300 text-[9px] text-slate-400"
-                  title={t('crm.marketingCampaigns.filters.numbersHint')}
-                >
-                  !
-                </span>
-              </span>
-              <select
-                disabled
-                className="w-full text-[11px] rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-700"
-                value="stored"
-              >
-                <option value="stored">
-                  {t('crm.marketingCampaigns.filters.numbersAsStored')}
-                </option>
-              </select>
-            </label>
-            <label className="flex flex-col gap-1 w-full rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
-              <span className="text-[11px] text-slate-500">
-                {t('crm.marketingCampaigns.filters.sumsLabel')}
-              </span>
-              <select
-                disabled
-                className="w-full text-[11px] rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 text-slate-700"
-                value="raw"
-              >
-                <option value="raw">{t('crm.marketingCampaigns.filters.sumsAsData')}</option>
-              </select>
-            </label>
+            </div>
           </div>
         </section>
 
         {loading && (
-          <div className="text-[11px] text-slate-500">
+          <div className="text-[11px] text-slate-400">
             {t('crm.marketingCampaigns.loading')}
           </div>
         )}
-        {error && <div className="text-[11px] text-red-600">{error}</div>}
+        {error && <div className="text-[11px] text-red-400">{error}</div>}
 
         {!loading && !error && (
           <>
-            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4">
-              <div className={`${cardBase} border-slate-200 bg-slate-50`}>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-slate-500">
+            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className={marketingKpiCard}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   {t('crm.marketingCampaigns.kpi.campaigns')}
                 </div>
-                <div className="text-2xl font-semibold text-slate-900 mt-2 tabular-nums">
+                <div className="text-2xl font-semibold text-slate-50 mt-2 tabular-nums">
                   {formatNumber(campaignTotals.campaignCount)}
                 </div>
-                <div className="text-[11px] text-slate-600 mt-1">
+                <div className="text-[11px] text-slate-500 mt-1">
                   {t('crm.marketingCampaigns.kpi.campaignsHint')}
                 </div>
               </div>
-              <div className={`${cardBase} border-sky-200 bg-sky-50`}>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-sky-800/80">
+              <div className={marketingKpiCard}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   {t('crm.marketingCampaigns.kpi.cost')}
                 </div>
-                <div className="text-2xl font-semibold text-sky-700 mt-2 tabular-nums">
+                <div className="text-2xl font-semibold text-violet-300 mt-2 tabular-nums">
                   {formatMoney(campaignTotals.cost)} {currency}
                 </div>
-                <div className="text-[11px] text-sky-900/70 mt-1">
+                <div className="text-[11px] text-slate-500 mt-1">
                   {t('crm.marketingCampaigns.kpi.costHint')}
                 </div>
               </div>
-              <div className={`${cardBase} border-emerald-200 bg-emerald-50`}>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-emerald-800/80">
+              <div className={marketingKpiCard}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
                   {t('crm.marketingCampaigns.kpi.revenue')}
                 </div>
-                <div className="text-2xl font-semibold text-emerald-700 mt-2 tabular-nums">
+                <div className="text-2xl font-semibold text-emerald-300 mt-2 tabular-nums">
                   {formatMoney(campaignTotals.revenue)} {currency}
                 </div>
-                <div className="text-[11px] text-emerald-900/70 mt-1">
+                <div className="text-[11px] text-slate-500 mt-1">
                   {t('crm.marketingCampaigns.kpi.revenueHint')}
                 </div>
               </div>
-              <div className={`${cardBase} border-rose-200 bg-rose-50`}>
-                <div className="text-[11px] uppercase tracking-[0.16em] text-rose-800/80">
+              <div className={marketingKpiAccentCard}>
+                <div className="text-[11px] uppercase tracking-[0.2em] text-violet-400/90">
                   {t('crm.marketingCampaigns.kpi.roasCpl')}
                 </div>
-                <div className="text-lg font-semibold text-slate-900 mt-2 tabular-nums">
+                <div className="text-lg font-semibold text-slate-50 mt-2 tabular-nums">
                   {t('crm.marketingCampaigns.kpi.roas')}:{' '}
                   {campaignTotals.roas != null ? campaignTotals.roas.toFixed(2) : '—'}
                 </div>
-                <div className="text-sm font-medium text-rose-700 tabular-nums">
+                <div className="text-sm font-medium text-rose-300/95 tabular-nums">
                   {t('crm.marketingCampaigns.kpi.cpl')}:{' '}
                   {campaignTotals.cpl != null
                     ? `${formatMoney(campaignTotals.cpl)} ${currency}`
                     : '—'}
                 </div>
-                <div className="text-[11px] text-rose-900/70 mt-1">
+                <div className="text-[11px] text-slate-500 mt-1">
                   {t('crm.marketingCampaigns.kpi.roasCplHint')}
                 </div>
               </div>
             </section>
 
-            <section
-              className={
-                providerBreakdown.length === 0
-                  ? `${sectionBase} border-2 border-dashed border-slate-200 bg-slate-50/80`
-                  : `${sectionBase} space-y-3`
-              }
-            >
+            <section className={`${marketingCard} space-y-3`}>
               <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-slate-900">
+                  <div className="text-xs font-semibold text-slate-200">
                     {t('crm.marketingTraffic.extendedMetricsTitle')}
                   </div>
-                  <div className="text-[11px] text-slate-600 mt-0.5">
+                  <div className="text-[11px] text-slate-500 mt-0.5">
                     {t('crm.marketingTraffic.extendedMetricsSubtitle')}
                   </div>
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className="text-[11px] text-slate-400">
                   {t('crm.marketingTraffic.rawRowsLabel')}:{' '}
-                  <span className="text-slate-800 font-semibold tabular-nums">
+                  <span className="text-slate-100 font-semibold tabular-nums">
                     {formatNumber(totalRows)}
                   </span>
                   {totalImpressions > 0 && (
                     <span className="ml-3">
                       {t('crm.marketingTraffic.impressionsLabel')}:{' '}
-                      <span className="text-slate-800 font-semibold tabular-nums">
+                      <span className="text-slate-100 font-semibold tabular-nums">
                         {formatNumber(totalImpressions)}
                       </span>
                     </span>
@@ -365,7 +323,7 @@ export const CampaignsPage: React.FC = () => {
                   {totalCost > 0 && (
                     <span className="ml-3">
                       {t('crm.marketingTraffic.spendLabel')}:{' '}
-                      <span className="text-slate-800 font-semibold tabular-nums">
+                      <span className="text-slate-100 font-semibold tabular-nums">
                         {formatMoney(totalCost)} {currency}
                       </span>
                     </span>
@@ -373,18 +331,18 @@ export const CampaignsPage: React.FC = () => {
                 </div>
               </div>
               {providerBreakdown.length === 0 && totalRows > 0 ? (
-                <div className="text-[11px] text-amber-800 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
+                <div className="text-[11px] text-amber-200/90 rounded-2xl bg-amber-950/40 border border-amber-900/50 px-3 py-2">
                   {t('crm.marketingTraffic.extendedMetricsMismatch', { count: totalRows })}
                 </div>
               ) : providerBreakdown.length === 0 ? (
-                <div className="text-[11px] text-slate-600 rounded-xl bg-white/80 border border-slate-200/80 px-3 py-3">
+                <div className="text-[11px] text-slate-500 rounded-2xl bg-slate-900/50 px-3 py-2">
                   {t('crm.marketingTraffic.extendedMetricsEmpty')}
                 </div>
               ) : (
                 <div className="overflow-x-auto min-w-0">
-                  <table className="w-full min-w-[640px] text-left text-[11px] text-slate-700">
+                  <table className="w-full min-w-[640px] text-left text-[11px] text-slate-300">
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-500">
+                      <tr className="border-b border-slate-800 text-slate-500">
                         <th className="py-2 pr-3 font-medium">
                           {t('crm.marketingTraffic.table.provider')}
                         </th>
@@ -409,9 +367,9 @@ export const CampaignsPage: React.FC = () => {
                       {providerBreakdown.map((row, idx) => (
                         <tr
                           key={`${row.dataSource}-${row.currency}-${idx}`}
-                          className="border-b border-slate-100"
+                          className="border-b border-slate-800/80"
                         >
-                          <td className="py-2 pr-3 text-slate-900">
+                          <td className="py-2 pr-3 text-slate-100">
                             {marketingDataSourceLabel(t, row.dataSource)}
                           </td>
                           <td className="py-2 pr-3 text-right tabular-nums">
@@ -426,7 +384,7 @@ export const CampaignsPage: React.FC = () => {
                           <td className="py-2 pr-3 text-right tabular-nums">
                             {formatNumber(row.impressions)}
                           </td>
-                          <td className="py-2 text-right tabular-nums text-slate-900">
+                          <td className="py-2 text-right tabular-nums text-slate-100">
                             {formatMoney(row.cost)} {row.currency}
                           </td>
                         </tr>
@@ -437,13 +395,13 @@ export const CampaignsPage: React.FC = () => {
               )}
             </section>
 
-            <section className={sectionBase}>
+            <section className={marketingCard}>
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
                 <div>
-                  <div className="text-xs font-semibold text-slate-900">
+                  <div className="text-xs font-semibold text-slate-200">
                     {t('crm.marketingCampaigns.top.title')}
                   </div>
-                  <div className="text-[11px] text-slate-600">
+                  <div className="text-[11px] text-slate-500">
                     {chartConfig.metric === 'revenue'
                       ? t('crm.marketingCampaigns.top.subtitle')
                       : t('crm.marketingCampaigns.top.subtitleCost')}
@@ -457,23 +415,22 @@ export const CampaignsPage: React.FC = () => {
                 {chartConfig.rows.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartConfig.rows} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
                       <XAxis
                         dataKey="name"
-                        tick={{ fontSize: 10, fill: '#64748b' }}
+                        tick={{ fontSize: 10, fill: '#94a3b8' }}
                         interval={0}
-                        angle={-28}
+                        angle={-24}
                         textAnchor="end"
-                        height={56}
+                        height={52}
                       />
-                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
                       <Tooltip
                         contentStyle={{
-                          background: '#fff',
-                          border: '1px solid #e2e8f0',
+                          background: '#0f172a',
+                          border: '1px solid #334155',
                           borderRadius: 12,
                           fontSize: 11,
-                          boxShadow: '0 10px 30px rgba(15,23,42,0.08)',
                         }}
                         formatter={(v: number | string) => {
                           const num = typeof v === 'number' ? v : Number(v);
@@ -487,7 +444,7 @@ export const CampaignsPage: React.FC = () => {
                           String((payload?.[0]?.payload as { fullName?: string })?.fullName ?? '')
                         }
                       />
-                      <Bar dataKey="value" fill="#2563eb" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -498,13 +455,13 @@ export const CampaignsPage: React.FC = () => {
               </div>
             </section>
 
-            <section className={sectionBase}>
+            <section className={marketingCard}>
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
                 <div>
-                  <div className="text-xs font-semibold text-slate-900">
+                  <div className="text-xs font-semibold text-slate-200">
                     {t('crm.marketingCampaigns.table.title')}
                   </div>
-                  <div className="text-[11px] text-slate-600">
+                  <div className="text-[11px] text-slate-500">
                     {t('crm.marketingCampaigns.table.subtitle')}
                   </div>
                 </div>
@@ -513,9 +470,9 @@ export const CampaignsPage: React.FC = () => {
                 </div>
               </div>
               <div className="overflow-x-auto min-w-0">
-                <table className="w-full min-w-[720px] text-left text-[11px] text-slate-700">
+                <table className="w-full min-w-[720px] text-left text-[11px] text-slate-300">
                   <thead>
-                    <tr className="border-b border-slate-200 text-slate-500">
+                    <tr className="border-b border-slate-800 text-slate-500">
                       <th className="py-2 pr-3 font-medium">
                         {t('crm.marketingCampaigns.table.headers.campaign')}
                       </th>
@@ -540,10 +497,10 @@ export const CampaignsPage: React.FC = () => {
                     {tableRows.map((row, idx) => (
                       <tr
                         key={`${row.source}-${row.medium}-${row.campaign}-${idx}`}
-                        className="border-b border-slate-100"
+                        className="border-b border-slate-800/80"
                       >
                         <td
-                          className="py-2 pr-3 text-slate-900 max-w-[200px] truncate"
+                          className="py-2 pr-3 text-slate-100 max-w-[200px] truncate"
                           title={formatMarketingChannelDimension(t, row.campaign, 'campaign')}
                         >
                           {formatMarketingChannelDimension(t, row.campaign, 'campaign')}

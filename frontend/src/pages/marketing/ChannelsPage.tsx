@@ -8,7 +8,17 @@ import {
 } from '../../api/marketing';
 import { getLocale } from '../../i18n/utils';
 import { marketingDataSourceLabel } from '../../utils/marketingDataSourceLabel';
-import { sanitizeMarketingDimension } from '../../utils/marketingChannelDisplay';
+import {
+  labelSanitizedDimension,
+  sanitizeMarketingDimension,
+} from '../../utils/marketingChannelDisplay';
+import {
+  marketingChipActive,
+  marketingChipInactive,
+  marketingFilterBar,
+  marketingFilterLabel,
+  marketingSelect,
+} from './marketingPageChrome';
 
 type PeriodPreset = '7d' | '30d' | '90d' | 'all';
 
@@ -170,34 +180,27 @@ export const ChannelsPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-stretch md:items-end gap-2">
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
-              <span className="text-[11px] text-slate-600 pl-1">
-                {t('crm.marketingChannels.periodLabel')}
-              </span>
+            <div className={`${marketingFilterBar} w-full md:w-auto md:justify-end`}>
+              <span className={marketingFilterLabel}>{t('crm.marketingChannels.periodLabel')}</span>
               {(['7d', '30d', '90d', 'all'] as PeriodPreset[]).map((p) => (
                 <button
                   key={p}
                   type="button"
                   onClick={() => applyPreset(p)}
-                  className={
-                    'px-3 py-1.5 rounded-xl text-[11px] transition ' +
-                    (preset === p
-                      ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
-                  }
+                  className={preset === p ? marketingChipActive : marketingChipInactive}
                 >
                   {periodLabel[p]}
                 </button>
               ))}
             </div>
-            <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
-              <span className="text-[11px] text-slate-600 pl-1 whitespace-nowrap">
+            <div className={`${marketingFilterBar} items-center w-full md:w-auto md:justify-end`}>
+              <span className={marketingFilterLabel}>
                 {t('crm.marketingTraffic.dataSourceLabel')}
               </span>
               <select
                 value={dataSource}
                 onChange={(e) => setDataSource(e.target.value)}
-                className="max-w-[200px] truncate text-[11px] rounded-xl border-0 bg-transparent py-1.5 pr-1 text-slate-800 focus:outline-none focus:ring-0"
+                className={marketingSelect}
               >
                 <option value="">
                   {t('crm.marketingTraffic.dataSourceAll')}
@@ -386,7 +389,7 @@ export const ChannelsPage: React.FC = () => {
                 <div className="space-y-2 text-[11px]">
                   {topSources.map(([name, value]) => (
                     <div key={name} className="flex items-center justify-between text-slate-300">
-                      <span>{name}</span>
+                      <span>{labelSanitizedDimension(t, name, 'source')}</span>
                       <span className="text-slate-100">{formatNumber(value)}</span>
                     </div>
                   ))}
@@ -405,7 +408,7 @@ export const ChannelsPage: React.FC = () => {
                 <div className="space-y-2 text-[11px]">
                   {topMediums.map(([name, value]) => (
                     <div key={name} className="flex items-center justify-between text-slate-300">
-                      <span>{name}</span>
+                      <span>{labelSanitizedDimension(t, name, 'medium')}</span>
                       <span className="text-slate-100">{formatNumber(value)}</span>
                     </div>
                   ))}
@@ -424,7 +427,9 @@ export const ChannelsPage: React.FC = () => {
                 <div className="space-y-2 text-[11px]">
                   {topCampaigns.map(([name, value]) => (
                     <div key={name} className="flex items-center justify-between text-slate-300">
-                      <span className="truncate">{name}</span>
+                      <span className="truncate">
+                        {labelSanitizedDimension(t, name, 'campaign')}
+                      </span>
                       <span className="text-emerald-300">
                         {formatNumber(value.revenue)} {currency}
                       </span>
