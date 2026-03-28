@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchSeoSettings,
@@ -16,6 +17,9 @@ import { getLocale } from '../../i18n/utils';
 export const SeoPage: React.FC = () => {
   const { t } = useTranslation();
   const locale = getLocale();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const searchParamsRef = useRef(searchParams);
+  searchParamsRef.current = searchParams;
   const [settings, setSettings] = useState<SeoSettings | null>(null);
   const [metrics, setMetrics] = useState<SeoMetricsResponse | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
@@ -38,20 +42,49 @@ export const SeoPage: React.FC = () => {
   useEffect(() => {
     let alive = true;
     setLoading(true);
-    Promise.all([fetchSeoSettings(), fetchSeoMetrics()])
-      .then(([s, m]) => {
+    const sp = searchParamsRef.current;
+    const seo = sp.get('seo');
+    const oauthErrorMsg =
+      seo && seo !== 'connected'
+        ? (() => {
+            const key = `crm.marketingSeo.oauthCallback.${seo}`;
+            const msg = t(key);
+            return msg !== key ? msg : t('crm.marketingSeo.oauthCallback.generic');
+          })()
+        : null;
+
+    Promise.allSettled([fetchSeoSettings(), fetchSeoMetrics()])
+      .then((results) => {
         if (!alive) return;
-        setSettings(s);
-        setMetrics(m);
-        if (m?.gsc?.dateFrom && m?.gsc?.dateTo) {
-          setDateFrom(m.gsc.dateFrom);
-          setDateTo(m.gsc.dateTo);
+        const [sRes, mRes] = results;
+        const msgs: string[] = [];
+        if (sRes.status === 'fulfilled') {
+          setSettings(sRes.value);
+        } else {
+          console.error(sRes.reason);
+          msgs.push(t('crm.marketingSeo.errors.loadSettings'));
         }
-      })
-      .catch((e: any) => {
-        if (!alive) return;
-        console.error(e);
-        setError(e?.message || t('crm.marketingSeo.errors.load'));
+        if (mRes.status === 'fulfilled') {
+          setMetrics(mRes.value);
+          const m = mRes.value;
+          if (m?.gsc?.dateFrom && m?.gsc?.dateTo) {
+            setDateFrom(m.gsc.dateFrom);
+            setDateTo(m.gsc.dateTo);
+          }
+        } else {
+          console.error(mRes.reason);
+          msgs.push(t('crm.marketingSeo.errors.loadMetrics'));
+        }
+        const loadErr = msgs.length ? msgs.join(' ') : null;
+        setError(oauthErrorMsg ?? loadErr);
+        if (seo === 'connected') {
+          setStatus(t('crm.marketingSeo.oauthCallback.connected'));
+        }
+        if (seo) {
+          const next = new URLSearchParams(sp);
+          next.delete('seo');
+          setSearchParams(next, { replace: true });
+        }
       })
       .finally(() => {
         if (!alive) return;
@@ -61,7 +94,7 @@ export const SeoPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [t, setSearchParams]);
 
   useEffect(() => {
     setHoverIndex(null);
@@ -160,6 +193,12 @@ export const SeoPage: React.FC = () => {
       const from = override?.from || dateFrom;
       const to = override?.to || dateTo;
       const result = await syncSeo({ dateFrom: from, dateTo: to, compare: compareEnabled });
+      if (result.gscReauthRequired) {
+        const s = await fetchSeoSettings().catch(() => null);
+        if (s) setSettings(s);
+        setError(t('crm.marketingSeo.errors.gscReauthRequired'));
+        return;
+      }
       const fresh = await fetchSeoMetrics({ dateFrom: from, dateTo: to, compare: compareEnabled });
       setMetrics(fresh);
       if (fresh?.gsc?.dateFrom && fresh?.gsc?.dateTo) {
@@ -506,44 +545,48 @@ export const SeoPage: React.FC = () => {
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
               {t('crm.marketingSeo.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            <h1 className="text-lg md:text-xl font-semibold text-slate-900">
               {t('crm.marketingSeo.title')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            <p className="text-xs text-slate-600 mt-1 max-w-2xl">
               {t('crm.marketingSeo.subtitle')}
             </p>
           </div>
         </section>
 
         {loading && (
-          <div className="text-[11px] text-slate-400">{t('crm.marketingSeo.loading')}</div>
+          <div className="text-[11px] text-slate-600">{t('crm.marketingSeo.loading')}</div>
         )}
 
         {error && (
-          <div className="text-[11px] text-red-400">{error}</div>
+          <div className="text-[11px] text-red-600">{error}</div>
         )}
 
         {status && (
-          <div className="text-[11px] text-emerald-300">{status}</div>
+          <div className="text-[11px] font-medium text-emerald-700">{status}</div>
         )}
 
-        {!loading && !error && (
+        {!loading && (
           <>
-            <section className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4 md:p-5 space-y-4">
+            <section className="rounded-3xl border border-slate-200 bg-white p-4 md:p-5 space-y-4 shadow-sm">
               <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="text-xs uppercase tracking-[0.2em] text-slate-500">
                     {t('crm.marketingSeo.connections.title')}
                   </div>
-                  <div className="text-sm text-slate-300 mt-1">
+                  <div className="text-sm text-slate-600 mt-1">
                     {t('crm.marketingSeo.connections.subtitle')}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={connectGsc}
-                  className="rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-[11px] text-slate-100 hover:border-slate-500"
+                    className={
+                      settings?.gscConnected
+                        ? 'inline-flex items-center justify-center rounded-full border border-emerald-200 bg-emerald-100 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-900 shadow-sm hover:bg-emerald-200'
+                        : 'btn-primary !w-auto shrink-0 px-4 py-2'
+                    }
                   >
                     {settings?.gscConnected
                       ? t('crm.marketingSeo.connections.gscConnected')
@@ -553,7 +596,7 @@ export const SeoPage: React.FC = () => {
                     type="button"
                     onClick={runSync}
                     disabled={syncing}
-                    className="rounded-2xl border border-emerald-700/60 bg-emerald-900/20 px-4 py-2 text-[11px] text-emerald-200 hover:border-emerald-500 disabled:opacity-60"
+                    className="inline-flex shrink-0 items-center justify-center rounded-xl border border-emerald-700 bg-emerald-600 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-white shadow-md transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {syncing
                       ? t('crm.marketingSeo.connections.refreshing')
@@ -563,7 +606,7 @@ export const SeoPage: React.FC = () => {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-[1fr,1fr] gap-3 text-xs">
-                <div className="rounded-2xl border border-slate-800/70 bg-slate-900/40 p-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
                   <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500 mb-2">
                     {t('crm.marketingSeo.period.title')}
                   </div>
@@ -574,10 +617,10 @@ export const SeoPage: React.FC = () => {
                         type="button"
                         onClick={() => applyPreset(preset)}
                         className={
-                          'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ' +
+                          'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] shadow-sm transition ' +
                           (periodPreset === preset
-                            ? 'border-white bg-white text-slate-950'
-                          : 'border-slate-700 text-slate-300 hover:border-white hover:text-white')
+                            ? 'border-lumiva-accent bg-lumiva-accent text-white'
+                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50')
                         }
                       >
                         {t(`crm.marketingSeo.period.presets.${preset}`)}
@@ -587,10 +630,10 @@ export const SeoPage: React.FC = () => {
                       type="button"
                       onClick={() => setPeriodPreset('custom')}
                       className={
-                        'rounded-full border px-3 py-1 text-[10px] uppercase tracking-[0.18em] ' +
+                        'rounded-full border px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] shadow-sm transition ' +
                         (periodPreset === 'custom'
-                          ? 'border-white bg-white text-slate-950'
-                          : 'border-slate-700 text-slate-300 hover:border-white hover:text-white')
+                          ? 'border-lumiva-accent bg-lumiva-accent text-white'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50')
                       }
                     >
                       {t('crm.marketingSeo.period.custom')}
@@ -604,7 +647,7 @@ export const SeoPage: React.FC = () => {
                         setDateFrom(e.target.value);
                         setPeriodPreset('custom');
                       }}
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                     />
                     <input
                       type="date"
@@ -613,24 +656,24 @@ export const SeoPage: React.FC = () => {
                         setDateTo(e.target.value);
                         setPeriodPreset('custom');
                       }}
-                      className="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2 text-xs text-slate-100"
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                     />
                   </div>
                   <button
                     type="button"
                     onClick={() => runSync({ from: dateFrom, to: dateTo })}
                     disabled={!dateFrom || !dateTo || syncing}
-                    className="mt-3 w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-[11px] text-slate-100 hover:border-slate-500 disabled:opacity-60"
+                    className="btn-primary mt-3 w-full disabled:cursor-not-allowed"
                   >
                     {t('crm.marketingSeo.period.apply')}
                   </button>
                 </div>
-                <div className="rounded-2xl border border-slate-800/70 bg-slate-900/40 p-3 flex items-center justify-between">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 flex items-center justify-between">
                   <div>
                     <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
                       {t('crm.marketingSeo.compare.title')}
                     </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
+                    <div className="text-[11px] text-slate-600 mt-1">
                       {t('crm.marketingSeo.compare.subtitle')}
                     </div>
                   </div>
@@ -638,8 +681,8 @@ export const SeoPage: React.FC = () => {
                     type="button"
                     onClick={() => setCompareEnabled((v) => !v)}
                     className={
-                      'relative inline-flex h-6 w-11 items-center rounded-full transition ' +
-                      (compareEnabled ? 'bg-emerald-400' : 'bg-slate-700')
+                      'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition ' +
+                      (compareEnabled ? 'bg-emerald-500' : 'bg-slate-300')
                     }
                   >
                     <span
@@ -667,7 +710,7 @@ export const SeoPage: React.FC = () => {
                             void applySiteSelection(id);
                           }
                         }}
-                        className="w-full appearance-none rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 pr-10 text-sm text-slate-100"
+                        className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                       >
                         <option value="">{t('crm.marketingSeo.site.placeholder')}</option>
                         {sites.map((site) => (
@@ -687,7 +730,7 @@ export const SeoPage: React.FC = () => {
                       type="button"
                       onClick={removeSelectedSite}
                       disabled={!selectedSite || selectedSite === '__add__' || deletingSite}
-                      className="w-full sm:w-auto rounded-2xl border border-red-700/60 bg-red-900/10 px-4 py-2 text-[11px] text-red-200 hover:border-red-500 disabled:opacity-60"
+                      className="w-full sm:w-auto rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-red-800 shadow-sm hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {deletingSite
                         ? t('crm.marketingSeo.site.deleting')
@@ -702,14 +745,14 @@ export const SeoPage: React.FC = () => {
                       <input
                         value={newSiteDomain}
                         onChange={(e) => setNewSiteDomain(e.target.value)}
-                        className="w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                         placeholder={t('crm.marketingSeo.newSite.placeholder')}
                       />
                       <button
                         type="button"
                         onClick={addSite}
                         disabled={addingSite}
-                        className="w-full sm:w-auto whitespace-nowrap rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-[11px] text-slate-100 hover:border-slate-500 disabled:opacity-60"
+                        className="btn-primary w-full whitespace-nowrap sm:!w-auto disabled:cursor-not-allowed"
                       >
                         {addingSite
                           ? t('crm.marketingSeo.newSite.adding')
@@ -727,7 +770,7 @@ export const SeoPage: React.FC = () => {
                         s ? { ...s, gscPropertyUrl: e.target.value } : s,
                       )
                     }
-                    className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                     placeholder="https://example.com/"
                   />
                 </label>
@@ -740,7 +783,7 @@ export const SeoPage: React.FC = () => {
                         s ? { ...s, pageSpeedUrl: e.target.value } : s,
                       )
                     }
-                    className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                     placeholder="https://example.com/"
                   />
                 </label>
@@ -753,7 +796,7 @@ export const SeoPage: React.FC = () => {
                         s ? { ...s, pageSpeedApiKey: e.target.value } : s,
                       )
                     }
-                    className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                     placeholder="AIza..."
                   />
                 </label>
@@ -766,7 +809,7 @@ export const SeoPage: React.FC = () => {
                         s ? { ...s, pageSpeedStrategy: e.target.value } : s,
                       )
                     }
-                    className="mt-2 w-full rounded-2xl border border-slate-800 bg-slate-900 px-4 py-3 text-sm text-slate-100"
+                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
                   >
                     <option value="mobile">{t('crm.marketingSeo.fields.strategy.mobile')}</option>
                     <option value="desktop">{t('crm.marketingSeo.fields.strategy.desktop')}</option>
@@ -779,7 +822,7 @@ export const SeoPage: React.FC = () => {
                   type="button"
                   onClick={save}
                   disabled={saving}
-                  className="rounded-2xl border border-slate-700 bg-slate-900 px-4 py-2 text-[11px] text-slate-100 hover:border-slate-500 disabled:opacity-60"
+                  className="btn-primary !w-auto disabled:cursor-not-allowed"
                 >
                   {saving
                     ? t('crm.marketingSeo.actions.saving')
@@ -790,50 +833,50 @@ export const SeoPage: React.FC = () => {
 
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 relative">
               {syncing && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-slate-950/50 text-[11px] text-slate-100">
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-white/85 text-[11px] font-medium text-slate-800 shadow-[inset_0_0_0_1px_rgba(226,232,240,0.9)] backdrop-blur-[2px]">
                   {t('crm.marketingSeo.syncingOverlay')}
                 </div>
               )}
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
-                <div className="text-xs text-slate-200 font-semibold mb-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-xs font-semibold text-slate-900 mb-3">
                   {t('crm.marketingSeo.gsc.title')}
                 </div>
                 {metrics?.gsc ? (
-                  <div className="space-y-3 text-[11px] text-slate-300">
+                  <div className="space-y-3 text-[11px] text-slate-600">
                     <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.2em] text-slate-500">
                       <div>{t('crm.marketingSeo.gsc.period')}</div>
                       <div>{metrics.gsc.dateFrom} → {metrics.gsc.dateTo}</div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="group rounded-2xl border border-slate-800/70 bg-slate-900/40 p-3 hover:border-slate-600">
+                      <div className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm hover:border-slate-300">
                         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
                           {t('crm.marketingSeo.gsc.clicks')}
                         </div>
-                        <div className="mt-2 text-lg font-semibold text-slate-100">
+                        <div className="mt-2 text-lg font-semibold text-slate-900">
                           {metrics.gsc.clicks.toLocaleString(locale)}
                         </div>
                       </div>
-                      <div className="group rounded-2xl border border-slate-800/70 bg-slate-900/40 p-3 hover:border-slate-600">
+                      <div className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm hover:border-slate-300">
                         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
                           {t('crm.marketingSeo.gsc.impressions')}
                         </div>
-                        <div className="mt-2 text-lg font-semibold text-slate-100">
+                        <div className="mt-2 text-lg font-semibold text-slate-900">
                           {metrics.gsc.impressions.toLocaleString(locale)}
                         </div>
                       </div>
-                      <div className="group rounded-2xl border border-slate-800/70 bg-slate-900/40 p-3 hover:border-slate-600">
+                      <div className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm hover:border-slate-300">
                         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
                           {t('crm.marketingSeo.gsc.ctr')}
                         </div>
-                        <div className="mt-2 text-lg font-semibold text-slate-100">
+                        <div className="mt-2 text-lg font-semibold text-slate-900">
                           {(metrics.gsc.ctr * 100).toFixed(2)}%
                         </div>
                       </div>
-                      <div className="group rounded-2xl border border-slate-800/70 bg-slate-900/40 p-3 hover:border-slate-600">
+                      <div className="group rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm hover:border-slate-300">
                         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
                           {t('crm.marketingSeo.gsc.position')}
                         </div>
-                        <div className="mt-2 text-lg font-semibold text-slate-100">
+                        <div className="mt-2 text-lg font-semibold text-slate-900">
                           {metrics.gsc.position.toFixed(2)}
                         </div>
                       </div>
@@ -882,10 +925,10 @@ export const SeoPage: React.FC = () => {
                                 type="button"
                                 onClick={() => setGscMetricKey(key)}
                                 className={
-                                  'rounded-full border px-3 py-1 uppercase tracking-[0.18em] text-[9px] ' +
+                                  'rounded-full border px-3 py-1 uppercase tracking-[0.18em] text-[9px] font-semibold shadow-sm transition ' +
                                   (gscMetricKey === key
-                                    ? 'border-black bg-black text-white'
-                                    : 'border-neutral-200 text-neutral-500 hover:border-black hover:text-black')
+                                    ? 'border-lumiva-accent bg-lumiva-accent text-white'
+                                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50')
                                 }
                               >
                                 {t(`crm.marketingSeo.gsc.metricTabs.${key}`)}
@@ -967,12 +1010,12 @@ export const SeoPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
-                <div className="text-xs text-slate-200 font-semibold mb-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-xs font-semibold text-slate-900 mb-3">
                   {t('crm.marketingSeo.psi.title')}
                 </div>
                 {metrics?.psi ? (
-                  <div className="space-y-3 text-[11px] text-slate-300">
+                  <div className="space-y-3 text-[11px] text-slate-600">
                     <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-black shadow-[0_12px_35px_rgba(0,0,0,0.05)]">
                       <div className="flex items-center justify-between mb-3">
                         <div>
@@ -984,7 +1027,19 @@ export const SeoPage: React.FC = () => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-xs font-semibold text-black">61,3%</div>
+                          <div className="text-xs font-semibold text-black">
+                            {(
+                              (metrics.psi.performance +
+                                metrics.psi.accessibility +
+                                metrics.psi.bestPractices +
+                                metrics.psi.seo) /
+                              4
+                            ).toLocaleString(locale, {
+                              maximumFractionDigits: 1,
+                              minimumFractionDigits: 1,
+                            })}
+                            %
+                          </div>
                           <div className="text-[11px] text-neutral-500">
                             {t('crm.marketingSeo.psiDonut.average')}
                           </div>
@@ -1017,11 +1072,11 @@ export const SeoPage: React.FC = () => {
             </section>
 
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
-                <div className="text-xs text-slate-200 font-semibold mb-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-xs font-semibold text-slate-900 mb-3">
                   {t('crm.marketingSeo.control.title')}
                 </div>
-                <ul className="space-y-2 text-[11px] text-slate-400">
+                <ul className="space-y-2 text-[11px] text-slate-600">
                   <li>{t('crm.marketingSeo.control.items.0')}</li>
                   <li>{t('crm.marketingSeo.control.items.1')}</li>
                   <li>{t('crm.marketingSeo.control.items.2')}</li>
@@ -1029,11 +1084,11 @@ export const SeoPage: React.FC = () => {
                 </ul>
               </div>
 
-              <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4">
-                <div className="text-xs text-slate-200 font-semibold mb-3">
+              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="text-xs font-semibold text-slate-900 mb-3">
                   {t('crm.marketingSeo.connect.title')}
                 </div>
-                <div className="space-y-2 text-[11px] text-slate-400">
+                <div className="space-y-2 text-[11px] text-slate-600">
                   <div>{t('crm.marketingSeo.connect.items.0')}</div>
                   <div>{t('crm.marketingSeo.connect.items.1')}</div>
                   <div>{t('crm.marketingSeo.connect.items.2')}</div>

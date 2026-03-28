@@ -83,6 +83,8 @@ async function bootstrap() {
       // если когда-нибудь захочешь пагинацию/лимиты через хедеры
       'X-Total-Count',
       'X-Request-Id',
+      // POST /marketing/integrations/:id/sync — дублирует rowsSaved для клиентов без парсинга JSON
+      'X-Marketing-Sync-Rows',
     ],
     credentials: false,
     maxAge: 86400, // 24h кеш preflight

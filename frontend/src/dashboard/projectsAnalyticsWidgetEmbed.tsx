@@ -58,6 +58,38 @@ const splitMulti = (raw: any) => {
 
 const getCustomFieldValue = (item: Project, key: string) => item.customFields?.[key];
 
+const numericKeyLooksMonetary = (key: string) => {
+  const k = key.toLowerCase();
+  return (
+    k.includes('amount') ||
+    k.includes('price') ||
+    k.includes('sum') ||
+    k.includes('value') ||
+    k.includes('tutar') ||
+    k.includes('miktar') ||
+    k.includes('total') ||
+    k.includes('cost') ||
+    k.includes('budget')
+  );
+};
+
+/** Первое кастомное поле для суммы в формуле (порядок ключей стабильный). */
+function inferFirstNumericCustomFieldKey(sourceItems: Project[]): string | null {
+  const seen = new Set<string>();
+  for (const item of sourceItems) {
+    const cf = item.customFields || {};
+    for (const key of Object.keys(cf)) {
+      if (seen.has(key)) continue;
+      const raw = cf[key];
+      if (parseNumericLoose(raw) !== null || numericKeyLooksMonetary(key)) {
+        seen.add(key);
+      }
+    }
+  }
+  const keys = Array.from(seen).sort((a, b) => a.localeCompare(b));
+  return keys[0] ?? null;
+}
+
 type ChartRow = { code: string; label: string; count: number };
 
 function buildSeriesForWidget(
@@ -142,7 +174,12 @@ function resolveMetricValue(
   sourceItems: Project[],
   locale: string,
   t: TFunction,
+  denominatorItems: Project[] = sourceItems,
 ): string {
+  if (key === 'filteredPercent') {
+    const d = denominatorItems.length;
+    return d > 0 ? `${Math.round((sourceItems.length / d) * 100)}%` : '0%';
+  }
   const sourceTotal = sourceItems.length;
   const sourceAmount = sourceItems.reduce((sum, item) => sum + (item.amount || 0), 0);
   const sourceAvg = sourceTotal > 0 ? Math.round(sourceAmount / sourceTotal) : 0;
@@ -206,13 +243,12 @@ function resolveMetricValue(
 
 type FormulaScope = string;
 
-function itemMatchesFilterEmbed(
+function itemMatchesOneKeyEmbed(
   item: Project,
   scope: FormulaScope,
-  key?: string,
   t: TFunction,
+  key: string,
 ): boolean {
-  if (!key) return true;
   if (scope.startsWith('field:')) {
     const fieldKey = scope.replace('field:', '');
     const raw = getCustomFieldValue(item, fieldKey);
@@ -227,6 +263,145 @@ function itemMatchesFilterEmbed(
   if (scope === 'owner') return (item.owner || '') === key;
   if (scope === 'tag') return (item.tags || []).includes(key);
   return false;
+}
+
+function itemMatchesFilterRowEmbed(
+  item: Project,
+  filter: { scope: string; keys?: string[]; key?: string },
+  t: TFunction,
+): boolean {
+  const keys = Array.isArray(filter.keys) && filter.keys.length
+    ? filter.keys
+    : filter.key
+      ? [String(filter.key)]
+      : [];
+  if (keys.length === 0) return true;
+  return keys.some((k) => itemMatchesOneKeyEmbed(item, filter.scope as FormulaScope, t, k));
+}
+
+const EMBED_PIVOT_MAX_ROWS = 24;
+const EMBED_PIVOT_MAX_COLS = 10;
+const EMBED_TABLE_MULTI_MAX_ROWS = 300;
+
+function cartesianBucketCombosEmbed(
+  buckets: Array<Array<{ code: string; label: string }>>,
+): Array<Array<{ code: string; label: string }>> {
+  if (!buckets.length) return [];
+  return buckets.reduce<Array<Array<{ code: string; label: string }>>>(
+    (acc, curr) => acc.flatMap((prefix) => curr.map((el) => [...prefix, el])),
+    [[]],
+  );
+}
+
+function buildMultiDimFieldTableRowsEmbed(
+  dimensions: string[],
+  sourceItems: Project[],
+  mode: 'count' | 'sum',
+  valueField: string | undefined,
+  t: TFunction,
+) {
+  const grouped = new Map<string, { cells: string[]; count: number }>();
+  sourceItems.forEach((item) => {
+    const perDim = dimensions.map((dim) => extractPivotBucketsEmbed(item, dim, t));
+    if (perDim.some((b) => b.length === 0)) return;
+    const combos = cartesianBucketCombosEmbed(perDim);
+    for (const combo of combos) {
+      const key = combo.map((b) => b.code).join('\x1e');
+      const cells = combo.map((b) => b.label);
+      const delta = mode === 'sum' ? pivotNumericValueEmbed(item, valueField, true) : 1;
+      const row = grouped.get(key);
+      if (row) row.count += delta;
+      else grouped.set(key, { cells, count: delta });
+    }
+  });
+  const rows = Array.from(grouped.entries()).map(([key, v]) => ({
+    key,
+    cells: v.cells,
+    count: v.count,
+  }));
+  rows.sort((a, b) => {
+    const len = Math.max(a.cells.length, b.cells.length);
+    for (let i = 0; i < len; i++) {
+      const cmp = (a.cells[i] || '').localeCompare(b.cells[i] || '', undefined, { sensitivity: 'base' });
+      if (cmp !== 0) return cmp;
+    }
+    return 0;
+  });
+  return rows.slice(0, EMBED_TABLE_MULTI_MAX_ROWS);
+}
+
+function extractPivotBucketsEmbed(
+  item: Project,
+  chartKey: string,
+  t: TFunction,
+): Array<{ code: string; label: string }> {
+  if (chartKey.startsWith('field:')) {
+    const fieldKey = chartKey.replace('field:', '');
+    const raw = getCustomFieldValue(item, fieldKey);
+    if (!isFilled(raw)) return [];
+    const values = Array.isArray(raw)
+      ? raw.map((v) => String(v).trim()).filter(Boolean)
+      : (() => {
+          const multi = splitMulti(raw);
+          return multi.length > 1 ? multi : [String(raw).trim()].filter(Boolean);
+        })();
+    return values.map((v) => ({ code: v, label: v }));
+  }
+  if (chartKey === 'category') {
+    const code = item.category || t('crm.projects.analytics.noCategory');
+    return [{ code, label: code }];
+  }
+  if (chartKey === 'owner') {
+    const code = item.owner || t('crm.projects.analytics.unknownOwner');
+    return [{ code, label: code }];
+  }
+  if (chartKey === 'tag') {
+    const tags = item.tags || [];
+    if (!tags.length) {
+      return [{ code: '__none__', label: t('crm.projects.analytics.pivot.emptyBucket') }];
+    }
+    return tags.map((tg) => ({ code: tg, label: tg }));
+  }
+  const code = item.status;
+  return [{ code, label: String(item.status) }];
+}
+
+function collectPivotAxisUniqueEmbed(
+  sourceItems: Project[],
+  chartKey: string,
+  t: TFunction,
+) {
+  const map = new Map<string, string>();
+  sourceItems.forEach((item) => {
+    extractPivotBucketsEmbed(item, chartKey, t).forEach((b) => map.set(b.code, b.label));
+  });
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([code, label]) => ({ code, label }));
+}
+
+function pivotNumericValueEmbed(item: Project, valueField?: string, isFieldChart?: boolean): number {
+  if (!valueField) return isFieldChart ? 0 : item.amount || 0;
+  if (valueField.startsWith('sum:')) {
+    const fieldKey = valueField.slice(4);
+    return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+  }
+  if (valueField.startsWith('field:')) {
+    const fieldKey = valueField.slice(6);
+    return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+  }
+  if (valueField === 'amount') return item.amount || 0;
+  return parseNumericLoose(getCustomFieldValue(item, valueField)) ?? 0;
+}
+
+function pivotMeasureAggregateEmbed(
+  cellItems: Project[],
+  mode: 'count' | 'sum',
+  valueField: string | undefined,
+  isFieldChart: boolean,
+): number {
+  if (mode === 'count') return cellItems.length;
+  return cellItems.reduce((acc, item) => acc + pivotNumericValueEmbed(item, valueField, isFieldChart), 0);
 }
 
 /** Локализация статуса проекта/лида для таблицы (англ. коды из API) */
@@ -264,6 +439,24 @@ function translateProjectStatus(status: string, t: TFunction): string {
     if (tr) return tr;
   }
   return raw;
+}
+
+function formatEmbedTableAggCell(
+  n: number,
+  mode: 'count' | 'sum',
+  valueField: string | undefined,
+  locale: string,
+  t: TFunction,
+  currency: string,
+): string {
+  if (mode === 'sum' && (valueField === 'amount' || !valueField)) {
+    const formatted = new Intl.NumberFormat(locale).format(n);
+    return t('crm.projects.common.amountWithCurrency', { amount: formatted, currency });
+  }
+  if (mode === 'sum') {
+    return new Intl.NumberFormat(locale).format(n);
+  }
+  return n.toLocaleString(locale);
 }
 
 function resolveOperandFormulaEmbed(
@@ -346,15 +539,10 @@ function evaluateFormulaWidgetEmbed(
   const rightType = w.formulaRightType ?? 'total';
   const leftKey = w.formulaLeftKey;
   const rightKey = w.formulaRightKey;
-  const filters =
-    w.formulaFilters && w.formulaFilters.length > 0
-      ? w.formulaFilters
-      : [{ scope: 'status', key: '' }];
+  const filters = w.formulaFilters ?? [];
 
   const matchingItems = widgetItems.filter((item) =>
-    filters.every((filter) =>
-      itemMatchesFilterEmbed(item, filter.scope as FormulaScope, filter.key, t),
-    ),
+    filters.every((filter) => itemMatchesFilterRowEmbed(item, filter, t)),
   );
   const baseTotal = widgetItems.length;
 
@@ -378,7 +566,13 @@ function evaluateFormulaWidgetEmbed(
     secondaryValue = rightValue;
   } else if (fn === 'sumif') {
     if (mode === 'sum') {
-      const targetOperand = leftType && leftType !== 'total' ? leftType : 'total';
+      const inferred = inferFirstNumericCustomFieldKey(matchingItems);
+      const targetOperand =
+        leftType && leftType !== 'total'
+          ? leftType
+          : inferred
+            ? `sum:${inferred}`
+            : 'total';
       primaryValue = resolveOperandFormulaEmbed(targetOperand, leftKey, matchingItems, t);
       secondaryValue = null;
     } else {
@@ -452,27 +646,9 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
     const filters = w.formulaFilters;
     if (!filters?.length) return items;
     return items.filter((item) =>
-      filters.every((filter) => {
-        const scope = filter.scope;
-        const key = filter.key;
-        if (!key) return true;
-        if (scope.startsWith('field:')) {
-          const fieldKey = scope.replace('field:', '');
-          const raw = getCustomFieldValue(item, fieldKey);
-          if (!isFilled(raw)) return false;
-          if (Array.isArray(raw)) return raw.map((v) => String(v)).includes(key);
-          const values = splitMulti(raw);
-          if (values.length > 1) return values.includes(key);
-          return String(raw) === key;
-        }
-        if (scope === 'status') return item.status === key;
-        if (scope === 'category') return (item.category || '') === key;
-        if (scope === 'owner') return (item.owner || '') === key;
-        if (scope === 'tag') return (item.tags || []).includes(key);
-        return false;
-      }),
+      filters.every((filter) => itemMatchesFilterRowEmbed(item, filter, t)),
     );
-  }, [items, w.formulaFilters]);
+  }, [items, w.formulaFilters, t]);
 
   const isWorkspaceChart = !!(w.chartKey && w.chartKey.startsWith('field:'));
   const chartH = compact ? 140 : 220;
@@ -484,7 +660,7 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
       <div className="flex flex-col gap-2">
         <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
         <div className="text-2xl font-semibold" style={{ color: themePrimary }}>
-          {resolveMetricValue(w.metricKey, widgetItems, locale, t)}
+          {resolveMetricValue(w.metricKey, widgetItems, locale, t, items)}
         </div>
         <div className="text-[11px] text-slate-500">{t('crm.projects.analytics.period.all')}</div>
       </div>
@@ -586,8 +762,77 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
     );
   }
 
+  const tableAggMode = w.chartValueMode || 'count';
+  const tableAggField = w.chartValueField;
+  const tableCurrency = widgetItems[0]?.currency || items[0]?.currency || 'EUR';
+
+  if (w.type === 'table' && w.tableKey && w.tableKey.startsWith('field:')) {
+    const dimKeysRaw =
+      Array.isArray(w.tableDimensions) && w.tableDimensions.length > 0
+        ? w.tableDimensions
+            .map(String)
+            .filter((id) => id.startsWith('field:'))
+            .slice(0, 4)
+        : [String(w.tableKey)];
+    const dimKeys = dimKeysRaw.length ? dimKeysRaw : [String(w.tableKey)];
+    const dimLabels = dimKeys.map((id) => id.replace('field:', ''));
+    const rows = buildMultiDimFieldTableRowsEmbed(
+      dimKeys,
+      widgetItems,
+      tableAggMode,
+      tableAggField,
+      t,
+    );
+    const valueHeader =
+      tableAggMode === 'sum'
+        ? t('crm.projects.analytics.tableMetric.sum')
+        : t('crm.projects.analytics.ownersTable.headers.projects');
+    return (
+      <div className="overflow-x-auto">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">{w.title}</div>
+        <table className="w-full text-[10px]">
+          <thead className="text-slate-500">
+            <tr>
+              {dimLabels.map((label, i) => (
+                <th key={i} className="text-left font-normal py-1 pr-2">
+                  {label}
+                </th>
+              ))}
+              <th className="text-right font-normal py-1">{valueHeader}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.key} className="border-b border-slate-100">
+                {row.cells.map((cell, i) => (
+                  <td key={i} className="py-1 text-slate-800 pr-2">
+                    {cell}
+                  </td>
+                ))}
+                <td className="py-1 text-right">
+                  {formatEmbedTableAggCell(row.count, tableAggMode, tableAggField, locale, t, tableCurrency)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   if (w.type === 'table' && w.tableKey === 'owners') {
-    const ownerSeries = buildSeriesForWidget('owner', widgetItems, 'count', undefined, t, false);
+    const ownerSeries = buildSeriesForWidget(
+      'owner',
+      widgetItems,
+      tableAggMode,
+      tableAggField,
+      t,
+      false,
+    );
+    const ownersValueHeader =
+      tableAggMode === 'sum'
+        ? t('crm.projects.analytics.tableMetric.sum')
+        : t('crm.projects.analytics.ownersTable.headers.projects');
     return (
       <div className="overflow-x-auto">
         <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">{w.title}</div>
@@ -597,16 +842,16 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
               <th className="text-left font-normal py-1">
                 {t('crm.projects.analytics.ownersTable.headers.owner')}
               </th>
-              <th className="text-right font-normal py-1">
-                {t('crm.projects.analytics.ownersTable.headers.projects')}
-              </th>
+              <th className="text-right font-normal py-1">{ownersValueHeader}</th>
             </tr>
           </thead>
           <tbody>
             {ownerSeries.map((o) => (
               <tr key={o.label} className="border-b border-slate-100">
                 <td className="py-1 text-slate-800">{o.label}</td>
-                <td className="py-1 text-right">{o.count}</td>
+                <td className="py-1 text-right">
+                  {formatEmbedTableAggCell(o.count, tableAggMode, tableAggField, locale, t, tableCurrency)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -616,7 +861,18 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
   }
 
   if (w.type === 'table' && w.tableKey === 'categories') {
-    const catSeries = buildSeriesForWidget('category', widgetItems, 'count', undefined, t, false);
+    const catSeries = buildSeriesForWidget(
+      'category',
+      widgetItems,
+      tableAggMode,
+      tableAggField,
+      t,
+      false,
+    );
+    const categoriesValueHeader =
+      tableAggMode === 'sum'
+        ? t('crm.projects.analytics.tableMetric.sum')
+        : t('crm.projects.analytics.categoriesTable.headers.projects');
     return (
       <div className="overflow-x-auto">
         <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">{w.title}</div>
@@ -626,16 +882,16 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
               <th className="text-left font-normal py-1">
                 {t('crm.projects.analytics.categoriesTable.headers.category')}
               </th>
-              <th className="text-right font-normal py-1">
-                {t('crm.projects.analytics.categoriesTable.headers.projects')}
-              </th>
+              <th className="text-right font-normal py-1">{categoriesValueHeader}</th>
             </tr>
           </thead>
           <tbody>
             {catSeries.map((c) => (
               <tr key={c.label} className="border-b border-slate-100">
                 <td className="py-1 text-slate-800">{c.label}</td>
-                <td className="py-1 text-right">{c.count}</td>
+                <td className="py-1 text-right">
+                  {formatEmbedTableAggCell(c.count, tableAggMode, tableAggField, locale, t, tableCurrency)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -683,6 +939,109 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
         <div className="text-[10px] text-slate-500 mt-1 text-right">
           {t('crm.projects.analytics.table.total', { count: widgetItems.length })}
         </div>
+      </div>
+    );
+  }
+
+  if (w.type === 'pivot') {
+    const rowKey = String(w.pivotRowKey || 'category');
+    const colKey = String(w.pivotColKey || 'status');
+    const measures = (
+      Array.isArray(w.pivotMeasures) && w.pivotMeasures.length
+        ? w.pivotMeasures
+        : [{ id: 'pv', mode: 'count' as const }]
+    ).slice(0, 4);
+    const isField = (k: string) => k.startsWith('field:');
+    if (rowKey === colKey) {
+      return (
+        <div className="text-[10px] text-amber-700">
+          {w.title}: {t('crm.projects.analytics.pivot.sameAxisHint')}
+        </div>
+      );
+    }
+    const rowAxis = collectPivotAxisUniqueEmbed(widgetItems, rowKey, t).slice(0, EMBED_PIVOT_MAX_ROWS);
+    const colAxis = collectPivotAxisUniqueEmbed(widgetItems, colKey, t).slice(0, EMBED_PIVOT_MAX_COLS);
+    if (!rowAxis.length || !colAxis.length) {
+      return (
+        <div className="text-[10px] text-slate-500">
+          {w.title}: {t('crm.projects.analytics.pivot.noData')}
+        </div>
+      );
+    }
+    const cur = widgetItems[0]?.currency || 'EUR';
+    const fmtCell = (n: number, m: { mode: string; valueField?: string }) => {
+      if (m.mode === 'count') return n.toLocaleString(locale);
+      if (m.mode === 'sum' && (m.valueField === 'amount' || !m.valueField)) {
+        const formatted = new Intl.NumberFormat(locale).format(n);
+        return t('crm.projects.common.amountWithCurrency', { amount: formatted, currency: cur });
+      }
+      return new Intl.NumberFormat(locale).format(n);
+    };
+    const mLabel = (m: { mode: string; shortLabel?: string }) =>
+      m.shortLabel?.trim() ||
+      (m.mode === 'count'
+        ? t('crm.projects.analytics.pivot.measure.count')
+        : t('crm.projects.analytics.pivot.measure.sum'));
+    return (
+      <div className="overflow-x-auto">
+        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">{w.title}</div>
+        <table className="w-full text-[9px] border-collapse">
+          <thead>
+            <tr className="text-slate-500">
+              <th className="text-left font-normal py-0.5 pr-1 sticky left-0 bg-white" rowSpan={2} />
+              {colAxis.map((col) => (
+                <th
+                  key={col.code}
+                  className="text-center font-normal px-0.5 border-l border-slate-100"
+                  colSpan={measures.length}
+                >
+                  <span className="line-clamp-2">{col.label}</span>
+                </th>
+              ))}
+            </tr>
+            <tr className="text-slate-400">
+              {colAxis.flatMap((col) =>
+                measures.map((m) => (
+                  <th key={`${col.code}-${m.id}`} className="text-right font-normal px-0.5 border-l border-slate-50">
+                    {mLabel(m)}
+                  </th>
+                )),
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {rowAxis.map((row) => (
+              <tr key={row.code} className="border-b border-slate-100">
+                <td className="py-0.5 pr-1 text-slate-800 sticky left-0 bg-white font-medium truncate max-w-[72px]">
+                  {row.label}
+                </td>
+                {colAxis.flatMap((col) =>
+                  measures.map((m) => {
+                    const cellItems = widgetItems.filter(
+                      (item) =>
+                        extractPivotBucketsEmbed(item, rowKey, t).some((b) => b.code === row.code) &&
+                        extractPivotBucketsEmbed(item, colKey, t).some((b) => b.code === col.code),
+                    );
+                    const val = pivotMeasureAggregateEmbed(
+                      cellItems,
+                      m.mode as 'count' | 'sum',
+                      m.valueField,
+                      isField(rowKey) || isField(colKey),
+                    );
+                    return (
+                      <td
+                        key={`${row.code}-${col.code}-${m.id}`}
+                        className="py-0.5 px-0.5 text-right tabular-nums border-l border-slate-50"
+                      >
+                        {fmtCell(val, m)}
+                      </td>
+                    );
+                  }),
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     );
   }

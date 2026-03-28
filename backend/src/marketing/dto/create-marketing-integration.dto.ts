@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Allow, IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateMarketingIntegrationDto {
   @IsString()
@@ -23,6 +23,16 @@ export class CreateMarketingIntegrationDto {
   @MaxLength(160)
   primaryId?: string;
 
+  /**
+   * Дублируем JSON сюда: даже если вложенный `settings` потерялся (whitelist/прокси/старый клиент),
+   * это поле явно в DTO и сохранится в settings.serviceAccountJson.
+   */
   @IsOptional()
-  settings?: any;
+  @IsString()
+  ga4ServiceAccountJson?: string;
+
+  /** @Allow без @IsObject — иначе часть клиентов/прокси может сломать валидацию вложенного объекта. */
+  @IsOptional()
+  @Allow()
+  settings?: Record<string, unknown>;
 }

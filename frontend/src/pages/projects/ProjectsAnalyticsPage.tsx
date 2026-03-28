@@ -1,5 +1,5 @@
 // src/pages/projects/ProjectsAnalyticsPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
 import { requestAddDashboardPreset } from '../../dashboard/dashboardLayout';
@@ -46,7 +46,7 @@ const THEME_PRESETS = [
 
 type PeriodId = '7d' | '30d' | '1y' | 'all' | 'custom';
 
-type WidgetType = 'metric' | 'donut' | 'bar' | 'table' | 'formula';
+type WidgetType = 'metric' | 'donut' | 'bar' | 'table' | 'formula' | 'pivot';
 type WidgetSize = 'sm' | 'md' | 'lg';
 type ThemeKey = typeof THEME_PRESETS[number]['key'];
 
@@ -55,6 +55,15 @@ type FormulaMode = 'count' | 'percent' | 'sum';
 type FormulaFn = 'count' | 'percent' | 'ratio' | 'diff' | 'sumif';
 type FormulaOperandType = string;
 type ChartValueMode = 'count' | 'sum';
+
+type PivotMeasureConfig = {
+  id: string;
+  mode: ChartValueMode;
+  valueField?: string;
+  shortLabel?: string;
+};
+
+type FormulaFilterRow = { scope: FormulaScope; keys: string[] };
 
 type MetricKey = string;
 type ChartKey = string;
@@ -67,6 +76,123 @@ interface AnalyticsFieldMeta {
 }
 
 const EMPTY_ANALYTICS_FIELDS: AnalyticsFieldMeta[] = [];
+
+const PIVOT_MAX_ROWS = 32;
+const PIVOT_MAX_COLS = 14;
+const PIVOT_MAX_MEASURES = 4;
+const TABLE_MAX_DIMENSIONS = 4;
+const TABLE_MULTI_MAX_ROWS = 400;
+
+function cartesianBucketCombos(buckets: Array<Array<{ code: string; label: string }>>) {
+  if (!buckets.length) return [] as Array<Array<{ code: string; label: string }>>;
+  return buckets.reduce<Array<Array<{ code: string; label: string }>>>(
+    (acc, curr) => acc.flatMap((prefix) => curr.map((el) => [...prefix, el])),
+    [[]],
+  );
+}
+
+function migrateFormulaFilterRow(raw: {
+  scope?: string;
+  key?: string;
+  keys?: unknown;
+}): FormulaFilterRow {
+  const scope = (raw.scope || 'status') as FormulaScope;
+  if (Array.isArray(raw.keys)) {
+    return { scope, keys: raw.keys.map(String) };
+  }
+  if (raw.key !== undefined && raw.key !== null && String(raw.key) !== '') {
+    return { scope, keys: [String(raw.key)] };
+  }
+  return { scope, keys: [] };
+}
+
+function migrateWidgetFromStorage(raw: Record<string, unknown>): WidgetConfig {
+  const w = { ...raw } as unknown as WidgetConfig;
+  if (Array.isArray(raw.formulaFilters)) {
+    w.formulaFilters = (raw.formulaFilters as unknown[]).map((f) =>
+      migrateFormulaFilterRow(f as { scope?: string; key?: string; keys?: unknown }),
+    );
+  }
+  const tk = raw.tableKey;
+  const td = raw.tableDimensions;
+  if (
+    (!Array.isArray(td) || td.length === 0) &&
+    typeof tk === 'string' &&
+    tk.startsWith('field:')
+  ) {
+    w.tableDimensions = [tk];
+  }
+  return w;
+}
+
+type FilterValueOption = { id: string; label: string };
+
+function AnalyticsFilterKeysPicker({
+  list,
+  keys,
+  onChange,
+  allLabel,
+  multiHint,
+}: {
+  list: FilterValueOption[];
+  keys: string[];
+  onChange: (next: string[]) => void;
+  allLabel: string;
+  multiHint: string;
+}) {
+  const allIds = list.map((o) => o.id);
+  const allSelected = keys.length === 0;
+  const itemChecked = (id: string) => allSelected || keys.includes(id);
+
+  return (
+    <div className="space-y-2">
+      <label className="flex items-center gap-2 text-[11px] cursor-pointer text-slate-700">
+        <input
+          type="checkbox"
+          className="rounded border-slate-300"
+          checked={allSelected}
+          onChange={(e) => {
+            if (e.target.checked) onChange([]);
+          }}
+        />
+        {allLabel}
+      </label>
+      <div className="text-[10px] text-slate-500">{multiHint}</div>
+      <div className="max-h-36 overflow-y-auto rounded-xl border border-slate-200 bg-white px-2 py-2 space-y-1.5">
+        {list.map((opt) => (
+          <label
+            key={opt.id}
+            className="flex items-center gap-2 text-[11px] cursor-pointer text-slate-700"
+          >
+            <input
+              type="checkbox"
+              className="rounded border-slate-300"
+              checked={itemChecked(opt.id)}
+              onChange={() => {
+                if (allSelected) {
+                  onChange([opt.id]);
+                  return;
+                }
+                if (keys.includes(opt.id)) {
+                  const nk = keys.filter((k) => k !== opt.id);
+                  onChange(nk);
+                } else {
+                  const next = [...keys, opt.id];
+                  const coversAll =
+                    allIds.length > 0 &&
+                    next.length === allIds.length &&
+                    allIds.every((id) => next.includes(id));
+                  onChange(coversAll ? [] : next);
+                }
+              }}
+            />
+            <span className="truncate">{opt.label}</span>
+          </label>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 type WidgetConfig = {
   id: string;
@@ -82,12 +208,17 @@ type WidgetConfig = {
   formulaRightType?: FormulaOperandType;
   formulaRightKey?: string;
   formulaMode?: FormulaMode;
-  formulaFilters?: Array<{ scope: FormulaScope; key: string }>;
+  formulaFilters?: FormulaFilterRow[];
   metricKey?: MetricKey;
   chartKey?: ChartKey;
   chartValueMode?: ChartValueMode;
   chartValueField?: string;
   tableKey?: TableKey;
+  pivotRowKey?: string;
+  pivotColKey?: string;
+  pivotMeasures?: PivotMeasureConfig[];
+  /** field:* — несколько столбцов группировки в таблице (workspace) */
+  tableDimensions?: string[];
 };
 
 type StatusChartPoint = { code: string; label: string; count: number };
@@ -193,6 +324,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const [draftChartValueMode, setDraftChartValueMode] = useState<ChartValueMode>('count');
   const [draftChartValueField, setDraftChartValueField] = useState<string>('');
   const [draftTable, setDraftTable] = useState<TableKey>('projects');
+  const [draftTableDimensions, setDraftTableDimensions] = useState<string[]>([]);
   const [draftFormulaFn, setDraftFormulaFn] = useState<FormulaFn>('sumif');
   const [draftFormulaMode, setDraftFormulaMode] = useState<FormulaMode>('count');
   const [draftFormulaLeftType, setDraftFormulaLeftType] =
@@ -201,9 +333,13 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const [draftFormulaRightType, setDraftFormulaRightType] =
     useState<FormulaOperandType>('total');
   const [draftFormulaRightKey, setDraftFormulaRightKey] = useState<string>('');
-  const [draftFormulaFilters, setDraftFormulaFilters] = useState<
-    Array<{ scope: FormulaScope; key: string }>
-  >([{ scope: 'status', key: '' }]);
+  const [draftFormulaFilters, setDraftFormulaFilters] = useState<FormulaFilterRow[]>([]);
+  const [draftPivotRowKey, setDraftPivotRowKey] = useState<string>('category');
+  const [draftPivotColKey, setDraftPivotColKey] = useState<string>('status');
+  const [draftPivotMeasures, setDraftPivotMeasures] = useState<PivotMeasureConfig[]>([
+    { id: 'pv-count', mode: 'count' },
+    { id: 'pv-sum', mode: 'sum', valueField: 'amount' },
+  ]);
   const [draftSize, setDraftSize] = useState<WidgetSize>('md');
   const [draftTitle, setDraftTitle] = useState('');
   const [draftTheme, setDraftTheme] = useState<ThemeKey>('lumiva');
@@ -213,6 +349,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     {},
   );
   const [resizing, setResizing] = useState<ResizeState | null>(null);
+  const prevAddOpenRef = useRef(false);
 
   useEffect(() => {
     if (externalItems) {
@@ -314,25 +451,36 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     [analyticsFields],
   );
 
+  const numericKeyLooksMonetary = (key: string, label: string) => {
+    const k = key.toLowerCase();
+    const l = label.toLowerCase();
+    return (
+      k.includes('amount') ||
+      k.includes('price') ||
+      k.includes('sum') ||
+      k.includes('value') ||
+      k.includes('tutar') ||
+      k.includes('miktar') ||
+      k.includes('total') ||
+      k.includes('cost') ||
+      k.includes('budget') ||
+      l.includes('amount') ||
+      l.includes('price') ||
+      l.includes('sum') ||
+      l.includes('value') ||
+      l.includes('сумм') ||
+      l.includes('цена') ||
+      l.includes('тутар') ||
+      l.includes('бюджет')
+    );
+  };
+
   const dynamicNumericFields = useMemo(
     () =>
       analyticsFields.filter((field) => {
         const type = String(field.type || '').toLowerCase();
         if (type === 'number') return true;
-        const key = field.key.toLowerCase();
-        const label = field.label.toLowerCase();
-        if (
-          key.includes('amount') ||
-          key.includes('price') ||
-          key.includes('sum') ||
-          key.includes('value') ||
-          label.includes('amount') ||
-          label.includes('price') ||
-          label.includes('sum') ||
-          label.includes('value') ||
-          label.includes('сумм') ||
-          label.includes('цена')
-        ) {
+        if (numericKeyLooksMonetary(field.key, field.label || '')) {
           return true;
         }
         return filteredItems.some((item) => {
@@ -343,6 +491,51 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       }),
     [analyticsFields, filteredItems],
   );
+
+  /** В режиме только проектов (без analyticsFields) — поля суммы из customFields по данным. */
+  const inferredNumericCustomFields = useMemo(() => {
+    if (isWorkspaceMode) return [];
+    const seen = new Set<string>();
+    const out: AnalyticsFieldMeta[] = [];
+    filteredItems.forEach((item) => {
+      const cf = item.customFields || {};
+      Object.keys(cf).forEach((key) => {
+        if (seen.has(key)) return;
+        const raw = cf[key];
+        const n = parseNumericLoose(raw);
+        if (n !== null || numericKeyLooksMonetary(key, key)) {
+          seen.add(key);
+          out.push({ key, label: key });
+        }
+      });
+    });
+    return out.sort((a, b) => a.key.localeCompare(b.key));
+  }, [isWorkspaceMode, filteredItems]);
+
+  const numericFieldsForMetrics = isWorkspaceMode ? dynamicNumericFields : inferredNumericCustomFields;
+
+  const pivotMeasureFieldOptions = useMemo(() => {
+    const amountOpt = {
+      value: 'amount',
+      label: t('crm.projects.analytics.table.headers.amount'),
+    };
+    if (!isWorkspaceMode) {
+      return [
+        amountOpt,
+        ...inferredNumericCustomFields.map((f) => ({
+          value: `field:${f.key}`,
+          label: f.label,
+        })),
+      ];
+    }
+    return [
+      amountOpt,
+      ...dynamicNumericFields.map((f) => ({
+        value: `field:${f.key}`,
+        label: f.label,
+      })),
+    ];
+  }, [t, isWorkspaceMode, dynamicNumericFields, inferredNumericCustomFields]);
 
   const owners = useMemo(() => {
     const map = new Map<string, number>();
@@ -447,8 +640,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         return [
           { id: 'total', label: t('crm.projects.analytics.kpis.total') },
           ...dynamicNumericFields.flatMap((field) => [
-            { id: `sum:${field.key}`, label: `${field.label} (sum)` },
-            { id: `avg:${field.key}`, label: `${field.label} (avg)` },
+            {
+              id: `sum:${field.key}`,
+              label: `${field.label} (${t('crm.projects.analytics.metric.suffix.sum')})`,
+            },
+            {
+              id: `avg:${field.key}`,
+              label: `${field.label} (${t('crm.projects.analytics.metric.suffix.avg')})`,
+            },
           ]),
           ...analyticsFields.map((field) => ({
             id: `filled:${field.key}`,
@@ -460,13 +659,21 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         { id: 'total', label: t('crm.projects.analytics.kpis.total') },
         { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
         { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
+        ...numericFieldsForMetrics.flatMap((field) => [
+          { id: `sum:${field.key}`, label: `${field.label} (${t('crm.projects.analytics.metric.suffix.sum')})` },
+          { id: `avg:${field.key}`, label: `${field.label} (${t('crm.projects.analytics.metric.suffix.avg')})` },
+        ]),
+        {
+          id: 'filteredPercent',
+          label: t('crm.projects.analytics.metric.filteredPercent'),
+        },
         { id: 'owners', label: t('crm.projects.analytics.kpis.owners') },
         { id: 'categories', label: t('crm.projects.analytics.kpis.categories') },
         { id: 'tags', label: t('crm.projects.analytics.kpis.tags') },
         { id: 'statuses', label: t('crm.projects.analytics.kpis.statuses') },
       ];
     },
-    [t, isWorkspaceMode, analyticsFields, dynamicNumericFields],
+    [t, isWorkspaceMode, analyticsFields, dynamicNumericFields, numericFieldsForMetrics],
   );
 
   const chartOptions = useMemo(
@@ -488,6 +695,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       { id: 'donut', label: t('crm.projects.analytics.widgets.type.donut') },
       { id: 'bar', label: t('crm.projects.analytics.widgets.type.bar') },
       { id: 'table', label: t('crm.projects.analytics.widgets.type.table') },
+      { id: 'pivot', label: t('crm.projects.analytics.widgets.type.pivot') },
       { id: 'formula', label: t('crm.projects.analytics.widgets.type.formula') },
     ],
     [t],
@@ -536,7 +744,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     () => [
       { id: 'count', label: t('crm.projects.analytics.formula.mode.count') },
       { id: 'percent', label: t('crm.projects.analytics.formula.mode.percent') },
-      { id: 'sum', label: 'Сумма' },
+      { id: 'sum', label: t('crm.projects.analytics.formula.mode.sum') },
     ],
     [t],
   );
@@ -566,14 +774,25 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     [t],
   );
 
+  const defaultFormulaFilterRow = useMemo((): FormulaFilterRow => {
+    const scope = (formulaScopeOptions[0]?.id || 'status') as FormulaScope;
+    return { scope, keys: [] };
+  }, [formulaScopeOptions]);
+
   const formulaOperandOptions = useMemo(
     () => {
       if (isWorkspaceMode) {
         return [
           { id: 'total', label: t('crm.projects.analytics.kpis.total') },
           ...dynamicNumericFields.flatMap((field) => [
-            { id: `sum:${field.key}`, label: `${field.label} (sum)` },
-            { id: `avg:${field.key}`, label: `${field.label} (avg)` },
+            {
+              id: `sum:${field.key}`,
+              label: `${field.label} (${t('crm.projects.analytics.metric.suffix.sum')})`,
+            },
+            {
+              id: `avg:${field.key}`,
+              label: `${field.label} (${t('crm.projects.analytics.metric.suffix.avg')})`,
+            },
           ]),
           ...analyticsFields.map((field) => ({
             id: `filled:${field.key}`,
@@ -586,6 +805,10 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         { id: 'total', label: t('crm.projects.analytics.kpis.total') },
         { id: 'amount', label: t('crm.projects.analytics.kpis.amount') },
         { id: 'avgAmount', label: t('crm.projects.analytics.kpis.avgAmount') },
+        ...inferredNumericCustomFields.flatMap((field) => [
+          { id: `sum:${field.key}`, label: `${field.label} (${t('crm.projects.analytics.metric.suffix.sum')})` },
+          { id: `avg:${field.key}`, label: `${field.label} (${t('crm.projects.analytics.metric.suffix.avg')})` },
+        ]),
         { id: 'owners', label: t('crm.projects.analytics.kpis.owners') },
         { id: 'categories', label: t('crm.projects.analytics.kpis.categories') },
         { id: 'tags', label: t('crm.projects.analytics.kpis.tags') },
@@ -595,10 +818,20 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         { id: 'tag', label: t('crm.projects.analytics.formula.scope.tag') },
       ];
     },
-    [t, isWorkspaceMode, analyticsFields, dynamicNumericFields, dynamicDimensionOptions],
+    [
+      t,
+      isWorkspaceMode,
+      analyticsFields,
+      dynamicNumericFields,
+      dynamicDimensionOptions,
+      inferredNumericCustomFields,
+    ],
   );
 
   const getDefaultHeight = (size: WidgetSize, type: WidgetType) => {
+    if (type === 'pivot') {
+      return size === 'lg' ? 480 : size === 'md' ? 400 : 320;
+    }
     if (type === 'table') {
       return size === 'lg' ? 420 : size === 'md' ? 360 : 300;
     }
@@ -728,9 +961,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       const version = localStorage.getItem(`${storageNamespace}_version`);
       const raw = localStorage.getItem(`${storageNamespace}_widgets`);
       if (raw && version === ANALYTICS_LAYOUT_VERSION) {
-        const parsed = JSON.parse(raw) as WidgetConfig[];
+        const parsed = JSON.parse(raw) as unknown[];
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setWidgets(parsed);
+          setWidgets(
+            parsed.map((w) => migrateWidgetFromStorage(w as Record<string, unknown>)),
+          );
           return;
         }
       }
@@ -754,6 +989,23 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   useEffect(() => {
     notifyAnalyticsWidgetsChanged(storageNamespace);
   }, [widgets, storageNamespace]);
+
+  /** Новый блок: при открытии модалки «Добавить» — без условий (весь период). */
+  useEffect(() => {
+    const opened = addOpen && !prevAddOpenRef.current;
+    prevAddOpenRef.current = addOpen;
+    if (opened && !editOpen && editingWidgetId === null) {
+      setDraftFormulaFilters([]);
+      const co = chartOptions;
+      setDraftPivotRowKey(String(co[0]?.id || 'category'));
+      setDraftPivotColKey(String(co.length > 1 ? co[1].id : co[0]?.id || 'status'));
+      setDraftPivotMeasures([
+        { id: `pv-${Date.now()}`, mode: 'count' },
+        { id: `pv-${Date.now() + 1}`, mode: 'sum', valueField: 'amount' },
+      ]);
+      setDraftTableDimensions([]);
+    }
+  }, [addOpen, chartOptions, editOpen, editingWidgetId]);
 
   const handleWidgetDrop = (targetId: string) => {
     if (!dragWidgetId || dragWidgetId === targetId) return;
@@ -794,10 +1046,33 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       chartKey:
         draftType === 'donut' || draftType === 'bar' ? draftChart : undefined,
       chartValueMode:
-        draftType === 'donut' || draftType === 'bar' ? draftChartValueMode : undefined,
+        draftType === 'donut' ||
+        draftType === 'bar' ||
+        (draftType === 'table' && draftTable !== 'projects')
+          ? draftChartValueMode
+          : undefined,
       chartValueField:
-        draftType === 'donut' || draftType === 'bar' ? draftChartValueField || undefined : undefined,
+        draftType === 'donut' ||
+        draftType === 'bar' ||
+        (draftType === 'table' && draftTable !== 'projects')
+          ? draftChartValueField || undefined
+          : undefined,
       tableKey: draftType === 'table' ? draftTable : undefined,
+      tableDimensions:
+        draftType === 'table' && isWorkspaceMode && String(draftTable).startsWith('field:')
+          ? [draftTable, ...draftTableDimensions.slice(1)]
+              .filter((id, i, arr) => arr.indexOf(id) === i)
+              .slice(0, TABLE_MAX_DIMENSIONS)
+          : undefined,
+      pivotRowKey: draftType === 'pivot' ? draftPivotRowKey : undefined,
+      pivotColKey: draftType === 'pivot' ? draftPivotColKey : undefined,
+      pivotMeasures:
+        draftType === 'pivot'
+          ? (draftPivotMeasures.length
+              ? draftPivotMeasures.slice(0, PIVOT_MAX_MEASURES)
+              : [{ id: 'pv1', mode: 'count' as ChartValueMode }]
+            )
+          : undefined,
     };
     setWidgets((prev) => [next, ...prev]);
     setAddOpen(false);
@@ -820,15 +1095,45 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     setDraftFormulaRightKey(widget.formulaRightKey ?? '');
     setDraftFormulaMode((widget.formulaMode ?? 'count') as FormulaMode);
     setDraftFormulaFilters(
-      widget.formulaFilters?.length
-        ? widget.formulaFilters
-        : [{ scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' }],
+      (Array.isArray(widget.formulaFilters) ? widget.formulaFilters : []).map((f) =>
+        migrateFormulaFilterRow(f as { scope?: string; key?: string; keys?: unknown }),
+      ),
+    );
+    setDraftPivotRowKey(widget.pivotRowKey ?? String(chartOptions[0]?.id || 'category'));
+    setDraftPivotColKey(
+      widget.pivotColKey ?? String(chartOptions.length > 1 ? chartOptions[1].id : chartOptions[0]?.id || 'status'),
+    );
+    setDraftPivotMeasures(
+      widget.pivotMeasures?.length
+        ? widget.pivotMeasures.slice(0, PIVOT_MAX_MEASURES)
+        : [
+            { id: 'pv-count', mode: 'count' },
+            { id: 'pv-sum', mode: 'sum', valueField: 'amount' },
+          ],
     );
     setDraftMetric((widget.metricKey ?? metricOptions[0]?.id ?? 'total') as MetricKey);
     setDraftChart((widget.chartKey ?? chartOptions[0]?.id ?? 'status') as ChartKey);
     setDraftChartValueMode((widget.chartValueMode ?? 'count') as ChartValueMode);
     setDraftChartValueField(widget.chartValueField ?? '');
-    setDraftTable((widget.tableKey ?? tableOptions[0]?.id ?? 'projects') as TableKey);
+    const tk = (widget.tableKey ?? tableOptions[0]?.id ?? 'projects') as TableKey;
+    const tdim = widget.tableDimensions;
+    if (String(tk).startsWith('field:')) {
+      if (Array.isArray(tdim) && tdim.length) {
+        const cleaned = tdim
+          .map(String)
+          .filter((id) => id.startsWith('field:'))
+          .slice(0, TABLE_MAX_DIMENSIONS);
+        const dims = cleaned.length ? cleaned : [tk];
+        setDraftTableDimensions(dims);
+        setDraftTable(dims[0] as TableKey);
+      } else {
+        setDraftTableDimensions([tk]);
+        setDraftTable(tk);
+      }
+    } else {
+      setDraftTableDimensions([]);
+      setDraftTable(tk);
+    }
     setEditingWidgetId(widget.id);
     setEditOpen(true);
   };
@@ -864,14 +1169,33 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                     ? draftChart
                     : undefined,
                 chartValueMode:
-                  draftType === 'donut' || draftType === 'bar'
+                  draftType === 'donut' ||
+                  draftType === 'bar' ||
+                  (draftType === 'table' && draftTable !== 'projects')
                     ? draftChartValueMode
                     : undefined,
                 chartValueField:
-                  draftType === 'donut' || draftType === 'bar'
+                  draftType === 'donut' ||
+                  draftType === 'bar' ||
+                  (draftType === 'table' && draftTable !== 'projects')
                     ? draftChartValueField || undefined
                     : undefined,
                 tableKey: draftType === 'table' ? draftTable : undefined,
+                tableDimensions:
+                  draftType === 'table' && isWorkspaceMode && String(draftTable).startsWith('field:')
+                    ? [draftTable, ...draftTableDimensions.slice(1)]
+                        .filter((id, i, arr) => arr.indexOf(id) === i)
+                        .slice(0, TABLE_MAX_DIMENSIONS)
+                    : undefined,
+                pivotRowKey: draftType === 'pivot' ? draftPivotRowKey : undefined,
+                pivotColKey: draftType === 'pivot' ? draftPivotColKey : undefined,
+                pivotMeasures:
+                  draftType === 'pivot'
+                    ? (draftPivotMeasures.length
+                        ? draftPivotMeasures.slice(0, PIVOT_MAX_MEASURES)
+                        : [{ id: 'pv1', mode: 'count' as ChartValueMode }]
+                      )
+                    : undefined,
               }
             : item,
         ),
@@ -962,22 +1286,26 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     if (formulaValueItems[draftFormulaRightType]) {
       ensureKey(draftFormulaRightType as FormulaScope, draftFormulaRightKey, setDraftFormulaRightKey);
     }
-    draftFormulaFilters.forEach((filter, index) => {
+    const validIdsForScope = (scope: FormulaScope) => {
+      const items = formulaValueItems[scope]?.length ? formulaValueItems[scope] : formulaValueFallback;
+      return new Set(items.map((x) => x.id));
+    };
+    let batchChanged = false;
+    const nextFilters = draftFormulaFilters.map((filter) => {
       const normalizedScope = formulaValueItems[filter.scope]
         ? filter.scope
-        : (formulaScopeOptions[0]?.id as FormulaScope | undefined);
-      const items = normalizedScope ? formulaValueItems[normalizedScope] || [] : [];
-      const list = items.length ? items : formulaValueFallback;
-      if (!normalizedScope || !list.find((item) => item.id === filter.key) || normalizedScope !== filter.scope) {
-        const next = [...draftFormulaFilters];
-        next[index] = {
-          ...next[index],
-          scope: (normalizedScope || filter.scope) as FormulaScope,
-          key: list[0].id,
-        };
-        setDraftFormulaFilters(next);
+        : (formulaScopeOptions[0]?.id as FormulaScope);
+      const ids = validIdsForScope(normalizedScope);
+      const keys = (filter.keys || []).filter((k) => ids.has(k));
+      if (normalizedScope !== filter.scope || JSON.stringify(keys) !== JSON.stringify(filter.keys || [])) {
+        batchChanged = true;
+        return { scope: normalizedScope, keys };
       }
+      return filter;
     });
+    if (batchChanged) {
+      setDraftFormulaFilters(nextFilters);
+    }
   }, [
     draftFormulaLeftType,
     draftFormulaLeftKey,
@@ -1007,7 +1335,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   ]);
 
   useEffect(() => {
-    if (draftType !== 'donut' && draftType !== 'bar') return;
+    const needsChartValue =
+      draftType === 'donut' ||
+      draftType === 'bar' ||
+      (draftType === 'table' && draftTable !== 'projects');
+    if (!needsChartValue) return;
     if (draftChartValueMode !== 'sum') return;
     if (draftChartValueField) return;
     if (!isWorkspaceMode) {
@@ -1023,6 +1355,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
   }, [
     draftType,
+    draftTable,
     draftChartValueMode,
     draftChartValueField,
     dynamicNumericFields,
@@ -1030,7 +1363,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     isWorkspaceMode,
   ]);
 
-  const resolveMetricValue = (key?: MetricKey, sourceItems: Project[] = filteredItems) => {
+  const resolveMetricValue = (
+    key?: MetricKey,
+    sourceItems: Project[] = filteredItems,
+    denominatorItems: Project[] = filteredItems,
+  ) => {
     const sourceTotal = sourceItems.length;
     const sourceAmount = sourceItems.reduce((sum, item) => sum + (item.amount || 0), 0);
     const sourceAvg = sourceTotal > 0 ? Math.round(sourceAmount / sourceTotal) : 0;
@@ -1043,6 +1380,10 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     const sourceTags = new Set(sourceItems.flatMap((item) => item.tags || [])).size;
     const sourceStatuses = new Set(sourceItems.map((item) => item.status)).size;
 
+    if (key === 'filteredPercent') {
+      const d = denominatorItems.length;
+      return d > 0 ? `${Math.round((sourceItems.length / d) * 100)}%` : '0%';
+    }
     if (key?.startsWith('sum:')) {
       const fieldKey = key.slice(4);
       const sum = sourceItems.reduce((acc, item) => {
@@ -1106,7 +1447,13 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     const startHeight = current?.height ?? getDefaultHeight(size, current?.type || 'metric');
     const type = current?.type ?? 'metric';
     const minHeight =
-      type === 'table' ? 240 : type === 'donut' || type === 'bar' ? 220 : 160;
+      type === 'pivot'
+        ? 280
+        : type === 'table'
+          ? 240
+          : type === 'donut' || type === 'bar'
+            ? 220
+            : 160;
     setResizing({
       id,
       startX: event.clientX,
@@ -1118,8 +1465,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     });
   };
 
-  const itemMatchesFilter = (item: Project, scope: FormulaScope, key?: string) => {
-    if (!key) return true;
+  const itemMatchesOneKey = (item: Project, scope: FormulaScope, key: string) => {
     if (scope.startsWith('field:')) {
       const fieldKey = scope.replace('field:', '');
       const raw = getCustomFieldValue(item, fieldKey);
@@ -1136,14 +1482,21 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     return false;
   };
 
-  const applyWidgetFilters = (
-    sourceItems: Project[],
-    filters: Array<{ scope: FormulaScope; key: string }> | undefined,
-  ) => {
+  const filterRowMatches = (item: Project, filter: FormulaFilterRow & { key?: string }) => {
+    const rawKeys = filter.keys;
+    const keys =
+      Array.isArray(rawKeys) && rawKeys.length > 0
+        ? rawKeys
+        : filter.key
+          ? [String(filter.key)]
+          : [];
+    if (keys.length === 0) return true;
+    return keys.some((key) => itemMatchesOneKey(item, filter.scope, key));
+  };
+
+  const applyWidgetFilters = (sourceItems: Project[], filters: FormulaFilterRow[] | undefined) => {
     if (!filters?.length) return sourceItems;
-    return sourceItems.filter((item) =>
-      filters.every((filter) => itemMatchesFilter(item, filter.scope as FormulaScope, filter.key)),
-    );
+    return sourceItems.filter((item) => filters.every((filter) => filterRowMatches(item, filter)));
   };
 
   const buildSeriesForWidget = (
@@ -1216,6 +1569,126 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     return Array.from(grouped.values());
   };
 
+  const extractPivotBuckets = (
+    item: Project,
+    chartKey: string,
+  ): Array<{ code: string; label: string }> => {
+    if (!isWorkspaceMode) {
+      if (chartKey === 'category') {
+        const code = item.category || t('crm.projects.analytics.noCategory');
+        return [{ code, label: categoryLabels[code] ?? code }];
+      }
+      if (chartKey === 'owner') {
+        const code = item.owner || t('crm.projects.analytics.unknownOwner');
+        return [{ code, label: code }];
+      }
+      if (chartKey === 'tag') {
+        const tags = item.tags || [];
+        if (!tags.length) {
+          return [{ code: '__none__', label: t('crm.projects.analytics.pivot.emptyBucket') }];
+        }
+        return tags.map((tg) => ({ code: tg, label: tg }));
+      }
+      const code = item.status;
+      return [{ code, label: statusLabels[item.status] ?? item.status }];
+    }
+    if (chartKey.startsWith('field:')) {
+      const fieldKey = chartKey.replace('field:', '');
+      const raw = getCustomFieldValue(item, fieldKey);
+      if (!isFilled(raw)) return [];
+      const values = Array.isArray(raw)
+        ? raw.map((v) => String(v).trim()).filter(Boolean)
+        : (() => {
+            const multi = splitMulti(raw);
+            return multi.length > 1 ? multi : [String(raw).trim()].filter(Boolean);
+          })();
+      return values.map((v) => ({ code: v, label: v }));
+    }
+    return [];
+  };
+
+  function buildMultiDimensionWorkspaceTableRows(
+    dimensions: string[],
+    sourceItems: Project[],
+    mode: ChartValueMode,
+    valueField?: string,
+  ) {
+    const getNumericValue = (item: Project) => {
+      if (!valueField) return isWorkspaceMode ? 0 : item.amount || 0;
+      if (valueField.startsWith('sum:')) {
+        const fieldKey = valueField.slice(4);
+        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+      }
+      if (valueField.startsWith('field:')) {
+        const fieldKey = valueField.slice(6);
+        return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+      }
+      if (valueField === 'amount') return item.amount || 0;
+      return parseNumericLoose(getCustomFieldValue(item, valueField)) ?? 0;
+    };
+    const grouped = new Map<string, { cells: string[]; count: number }>();
+    sourceItems.forEach((item) => {
+      const perDim = dimensions.map((dim) => extractPivotBuckets(item, dim));
+      if (perDim.some((b) => b.length === 0)) return;
+      const combos = cartesianBucketCombos(perDim);
+      for (const combo of combos) {
+        const key = combo.map((b) => b.code).join('\x1e');
+        const cells = combo.map((b) => b.label);
+        const delta = mode === 'sum' ? getNumericValue(item) : 1;
+        const row = grouped.get(key);
+        if (row) row.count += delta;
+        else grouped.set(key, { cells, count: delta });
+      }
+    });
+    const rows = Array.from(grouped.entries()).map(([key, v]) => ({
+      key,
+      cells: v.cells,
+      count: v.count,
+    }));
+    rows.sort((a, b) => {
+      const len = Math.max(a.cells.length, b.cells.length);
+      for (let i = 0; i < len; i++) {
+        const cmp = (a.cells[i] || '').localeCompare(b.cells[i] || '', undefined, { sensitivity: 'base' });
+        if (cmp !== 0) return cmp;
+      }
+      return 0;
+    });
+    return rows.slice(0, TABLE_MULTI_MAX_ROWS);
+  }
+
+  const collectPivotAxisUnique = (sourceItems: Project[], chartKey: string) => {
+    const map = new Map<string, string>();
+    sourceItems.forEach((item) => {
+      extractPivotBuckets(item, chartKey).forEach((b) => map.set(b.code, b.label));
+    });
+    return Array.from(map.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([code, label]) => ({ code, label }));
+  };
+
+  const pivotNumericValue = (item: Project, valueField?: string): number => {
+    if (!valueField) return isWorkspaceMode ? 0 : item.amount || 0;
+    if (valueField.startsWith('sum:')) {
+      const fieldKey = valueField.slice(4);
+      return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+    }
+    if (valueField.startsWith('field:')) {
+      const fieldKey = valueField.slice(6);
+      return parseNumericLoose(getCustomFieldValue(item, fieldKey)) ?? 0;
+    }
+    if (valueField === 'amount') return item.amount || 0;
+    return parseNumericLoose(getCustomFieldValue(item, valueField)) ?? 0;
+  };
+
+  const pivotMeasureAggregate = (
+    cellItems: Project[],
+    mode: ChartValueMode,
+    valueField?: string,
+  ): number => {
+    if (mode === 'count') return cellItems.length;
+    return cellItems.reduce((acc, item) => acc + pivotNumericValue(item, valueField), 0);
+  };
+
   const renderActiveDonut = (props: any) => {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, cornerRadius } = props;
     return (
@@ -1235,6 +1708,141 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const renderWidget = (w: WidgetConfig) => {
     const widgetHeight = w.height ?? getDefaultHeight(w.size, w.type);
     const widgetItems = applyWidgetFilters(filteredItems, w.formulaFilters);
+
+    if (w.type === 'pivot') {
+      const rowKey = w.pivotRowKey || String(chartOptions[0]?.id || 'status');
+      const colKey = w.pivotColKey || String(chartOptions[0]?.id || 'status');
+      const measures =
+        w.pivotMeasures?.length && w.pivotMeasures.length > 0
+          ? w.pivotMeasures.slice(0, PIVOT_MAX_MEASURES)
+          : [{ id: 'pv', mode: 'count' as ChartValueMode }];
+      const theme = resolveTheme(w.themeKey);
+      if (rowKey === colKey) {
+        return (
+          <div className="space-y-2">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
+            <div className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+              {t('crm.projects.analytics.pivot.sameAxisHint')}
+            </div>
+          </div>
+        );
+      }
+      const rowAxis = collectPivotAxisUnique(widgetItems, rowKey).slice(0, PIVOT_MAX_ROWS);
+      const colAxis = collectPivotAxisUnique(widgetItems, colKey).slice(0, PIVOT_MAX_COLS);
+      if (!rowAxis.length || !colAxis.length) {
+        return (
+          <div className="space-y-2">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
+            <div className="text-[12px] text-slate-500">{t('crm.projects.analytics.pivot.noData')}</div>
+          </div>
+        );
+      }
+      const rowDimLabel =
+        chartOptions.find((c) => c.id === rowKey)?.label ||
+        analyticsFieldMap.get(rowKey.replace('field:', ''))?.label ||
+        rowKey;
+      const colDimLabel =
+        chartOptions.find((c) => c.id === colKey)?.label ||
+        analyticsFieldMap.get(colKey.replace('field:', ''))?.label ||
+        colKey;
+      const pivotCurrency = widgetItems[0]?.currency || 'EUR';
+      const formatPivotCell = (n: number, m: PivotMeasureConfig) => {
+        if (m.mode === 'count') return n.toLocaleString(locale);
+        if (m.mode === 'sum' && (m.valueField === 'amount' || !m.valueField)) {
+          const formatted = new Intl.NumberFormat(locale).format(n);
+          return t('crm.projects.common.amountWithCurrency', {
+            amount: formatted,
+            currency: pivotCurrency,
+          });
+        }
+        return new Intl.NumberFormat(locale).format(n);
+      };
+      const measureHeader = (m: PivotMeasureConfig) =>
+        m.shortLabel?.trim() ||
+        (m.mode === 'count'
+          ? t('crm.projects.analytics.pivot.measure.count')
+          : t('crm.projects.analytics.pivot.measure.sum'));
+      return (
+        <div className="space-y-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
+            <div className="text-[10px] text-slate-400">
+              {rowDimLabel} × {colDimLabel}
+              {(rowAxis.length >= PIVOT_MAX_ROWS || colAxis.length >= PIVOT_MAX_COLS) && (
+                <span className="text-amber-600"> · {t('crm.projects.analytics.pivot.truncated')}</span>
+              )}
+            </div>
+          </div>
+          <div
+            className="overflow-x-auto overflow-y-auto rounded-xl border border-slate-100"
+            style={{ maxHeight: Math.max(widgetHeight - 72, 200) }}
+          >
+            <table className="min-w-full border-collapse text-[10px]">
+              <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur">
+                <tr className="border-b border-slate-200 text-slate-500">
+                  <th
+                    className="py-1.5 pr-2 pl-1 text-left font-normal sticky left-0 z-20 bg-white/95 min-w-[100px]"
+                    rowSpan={2}
+                  >
+                    {rowDimLabel}
+                  </th>
+                  {colAxis.map((col) => (
+                    <th
+                      key={col.code}
+                      className="py-1.5 px-1 text-center font-normal border-l border-slate-100"
+                      colSpan={measures.length}
+                    >
+                      <span className="line-clamp-2">{col.label}</span>
+                    </th>
+                  ))}
+                </tr>
+                <tr className="border-b border-slate-200 text-slate-400">
+                  {colAxis.flatMap((col) =>
+                    measures.map((m) => (
+                      <th
+                        key={`${col.code}-${m.id}`}
+                        className="py-1 px-1 text-right font-normal border-l border-slate-50 whitespace-nowrap"
+                        style={{ color: theme.primary }}
+                      >
+                        {measureHeader(m)}
+                      </th>
+                    )),
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {rowAxis.map((row) => (
+                  <tr key={row.code} className="border-b border-slate-100">
+                    <td className="py-1.5 pr-2 pl-1 text-slate-800 sticky left-0 bg-white/95 font-medium">
+                      {row.label}
+                    </td>
+                    {colAxis.flatMap((col) =>
+                      measures.map((m) => {
+                        const cellItems = widgetItems.filter(
+                          (item) =>
+                            extractPivotBuckets(item, rowKey).some((b) => b.code === row.code) &&
+                            extractPivotBuckets(item, colKey).some((b) => b.code === col.code),
+                        );
+                        const val = pivotMeasureAggregate(cellItems, m.mode, m.valueField);
+                        return (
+                          <td
+                            key={`${row.code}-${col.code}-${m.id}`}
+                            className="py-1.5 px-1 text-right text-slate-700 tabular-nums border-l border-slate-50"
+                          >
+                            {formatPivotCell(val, m)}
+                          </td>
+                        );
+                      }),
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
     if (w.type === 'metric') {
       const theme = resolveTheme(w.themeKey);
       return (
@@ -1243,7 +1851,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             {w.title}
           </div>
           <div className="text-2xl font-semibold" style={{ color: theme.primary }}>
-            {resolveMetricValue(w.metricKey, widgetItems)}
+            {resolveMetricValue(w.metricKey, widgetItems, filteredItems)}
           </div>
           <div className="text-[11px] text-slate-500">
             {period === 'custom' ? t('crm.projects.analytics.period.custom') : periodLabels[period]}
@@ -1260,9 +1868,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       const rightType = w.formulaRightType ?? 'total';
       const leftKey = w.formulaLeftKey;
       const rightKey = w.formulaRightKey;
-      const filters = w.formulaFilters && w.formulaFilters.length > 0
-        ? w.formulaFilters
-        : [{ scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' }];
+      const filters = w.formulaFilters ?? [];
 
       const resolveOperand = (
         type: FormulaOperandType,
@@ -1324,9 +1930,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       };
 
       const matchingItems = widgetItems.filter((item) =>
-        filters.every((filter) =>
-          itemMatchesFilter(item, filter.scope as FormulaScope, filter.key),
-        ),
+        filters.every((filter) => filterRowMatches(item, filter as FormulaFilterRow)),
       );
       const filterValue = matchingItems.length;
 
@@ -1353,8 +1957,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           const targetOperand =
             leftType && leftType !== 'total'
               ? leftType
-              : dynamicNumericFields[0]
-                ? `sum:${dynamicNumericFields[0].key}`
+              : numericFieldsForMetrics[0]
+                ? `sum:${numericFieldsForMetrics[0].key}`
                 : 'total';
           primaryValue = resolveOperand(targetOperand, leftKey, matchingItems);
           secondaryValue = null;
@@ -1534,15 +2138,49 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       );
     }
 
+    const tableAggMode = w.chartValueMode || 'count';
+    const tableAggField = w.chartValueField;
+    const formatTableAggCell = (n: number) => {
+      if (tableAggMode === 'sum' && (tableAggField === 'amount' || !tableAggField)) {
+        return formatAmount(n);
+      }
+      if (tableAggMode === 'sum') {
+        return new Intl.NumberFormat(locale).format(n);
+      }
+      return n.toLocaleString(locale);
+    };
+
     if (w.type === 'table' && isWorkspaceMode && (w.tableKey || '').startsWith('field:')) {
-      const fieldKey = String(w.tableKey).replace('field:', '');
-      const series = buildSeriesForWidget(`field:${fieldKey}`, widgetItems, 'count');
-      const fieldLabel = analyticsFieldMap.get(fieldKey)?.label || fieldKey;
+      const dimKeysRaw =
+        Array.isArray(w.tableDimensions) && w.tableDimensions.length > 0
+          ? w.tableDimensions
+              .map(String)
+              .filter((id) => id.startsWith('field:'))
+              .slice(0, TABLE_MAX_DIMENSIONS)
+          : [String(w.tableKey)];
+      const dimKeys = dimKeysRaw.length ? dimKeysRaw : [String(w.tableKey)];
+      const dimLabels = dimKeys.map((id) => {
+        const fk = id.replace('field:', '');
+        return analyticsFieldMap.get(fk)?.label || fk;
+      });
+      const headerKicker = dimLabels.join(' · ');
+      const rows = buildMultiDimensionWorkspaceTableRows(
+        dimKeys,
+        widgetItems,
+        tableAggMode,
+        tableAggField,
+      );
+      const valueHeader =
+        tableAggMode === 'sum'
+          ? t('crm.projects.analytics.tableMetric.sum')
+          : t('crm.projects.analytics.ownersTable.headers.projects');
       return (
         <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{fieldLabel}</div>
-            <div className="text-[11px] text-slate-500">{series.length}</div>
+          <div className="flex items-center justify-between gap-2">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 line-clamp-2">
+              {headerKicker}
+            </div>
+            <div className="text-[11px] text-slate-500 shrink-0">{rows.length}</div>
           </div>
           <div
             className="overflow-x-auto overflow-y-auto"
@@ -1551,17 +2189,25 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             <table className="min-w-full border-collapse text-[11px]">
               <thead className="sticky top-0 bg-white/95 backdrop-blur">
                 <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-1.5 pr-3 text-left font-normal">{fieldLabel}</th>
-                  <th className="py-1.5 px-3 text-right font-normal">
-                    {t('crm.projects.analytics.ownersTable.headers.projects')}
-                  </th>
+                  {dimLabels.map((label, i) => (
+                    <th key={i} className="py-1.5 pr-3 text-left font-normal">
+                      {label}
+                    </th>
+                  ))}
+                  <th className="py-1.5 px-3 text-right font-normal">{valueHeader}</th>
                 </tr>
               </thead>
               <tbody>
-                {series.map((entry) => (
-                  <tr key={entry.code} className="border-b border-slate-100 last:border-none">
-                    <td className="py-1.5 pr-3 text-slate-700">{entry.label}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-700">{entry.count}</td>
+                {rows.map((entry) => (
+                  <tr key={entry.key} className="border-b border-slate-100 last:border-none">
+                    {entry.cells.map((cell, i) => (
+                      <td key={i} className="py-1.5 pr-3 text-slate-700">
+                        {cell}
+                      </td>
+                    ))}
+                    <td className="py-1.5 px-3 text-right text-slate-700">
+                      {formatTableAggCell(entry.count)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1572,7 +2218,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
 
     if (w.type === 'table' && w.tableKey === 'owners') {
-      const ownerSeries = buildSeriesForWidget('owner', widgetItems, 'count');
+      const ownerSeries = buildSeriesForWidget('owner', widgetItems, tableAggMode, tableAggField);
+      const ownersValueHeader =
+        tableAggMode === 'sum'
+          ? t('crm.projects.analytics.tableMetric.sum')
+          : t('crm.projects.analytics.ownersTable.headers.projects');
       return (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -1591,16 +2241,16 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   <th className="py-1.5 pr-3 text-left font-normal">
                     {t('crm.projects.analytics.ownersTable.headers.owner')}
                   </th>
-                  <th className="py-1.5 px-3 text-right font-normal">
-                    {t('crm.projects.analytics.ownersTable.headers.projects')}
-                  </th>
+                  <th className="py-1.5 px-3 text-right font-normal">{ownersValueHeader}</th>
                 </tr>
               </thead>
               <tbody>
                 {ownerSeries.map((o) => (
                   <tr key={o.label} className="border-b border-slate-100 last:border-none">
                     <td className="py-1.5 pr-3 text-slate-700">{o.label}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-700">{o.count}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-700">
+                      {formatTableAggCell(o.count)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1611,7 +2261,16 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
 
     if (w.type === 'table' && w.tableKey === 'categories') {
-      const categorySeries = buildSeriesForWidget('category', widgetItems, 'count');
+      const categorySeries = buildSeriesForWidget(
+        'category',
+        widgetItems,
+        tableAggMode,
+        tableAggField,
+      );
+      const categoriesValueHeader =
+        tableAggMode === 'sum'
+          ? t('crm.projects.analytics.tableMetric.sum')
+          : t('crm.projects.analytics.categoriesTable.headers.projects');
       return (
         <div className="space-y-3">
           <div className="flex items-center justify-between">
@@ -1630,16 +2289,16 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   <th className="py-1.5 pr-3 text-left font-normal">
                     {t('crm.projects.analytics.categoriesTable.headers.category')}
                   </th>
-                  <th className="py-1.5 px-3 text-right font-normal">
-                    {t('crm.projects.analytics.categoriesTable.headers.projects')}
-                  </th>
+                  <th className="py-1.5 px-3 text-right font-normal">{categoriesValueHeader}</th>
                 </tr>
               </thead>
               <tbody>
                 {categorySeries.map((c) => (
                   <tr key={c.label} className="border-b border-slate-100 last:border-none">
                     <td className="py-1.5 pr-3 text-slate-700">{c.label}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-700">{c.count}</td>
+                    <td className="py-1.5 px-3 text-right text-slate-700">
+                      {formatTableAggCell(c.count)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -1986,29 +2645,35 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         </section>
 
         {(addOpen || editOpen) && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4">
-            <div className="w-full max-w-lg rounded-[28px] bg-white p-5 shadow-[0_25px_80px_rgba(15,23,42,0.35)]">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                    {t('crm.projects.analytics.constructor.kicker')}
+          <div className="fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-black/60 backdrop-blur-sm">
+            <div className="flex min-h-full justify-center px-4 py-6 sm:py-10">
+              <div
+                role="dialog"
+                aria-modal="true"
+                className="my-auto flex w-full max-w-lg max-h-[min(92vh,calc(100dvh-3rem))] flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_25px_80px_rgba(15,23,42,0.35)]"
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                      {t('crm.projects.analytics.constructor.kicker')}
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-900">
+                      {isEditing
+                        ? t('crm.projects.analytics.modal.editTitle')
+                        : t('crm.projects.analytics.modal.addTitle')}
+                    </h3>
                   </div>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {isEditing
-                      ? t('crm.projects.analytics.modal.editTitle')
-                      : t('crm.projects.analytics.modal.addTitle')}
-                  </h3>
+                  <button
+                    type="button"
+                    onClick={closeModal}
+                    className="text-slate-400 hover:text-slate-600"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  ✕
-                </button>
-              </div>
 
-              <div className="space-y-3 text-xs">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 py-4">
+                  <div className="space-y-3 text-xs">
                 <div>
                   <label className="block text-[11px] text-slate-500 mb-1">
                     {t('crm.projects.analytics.modal.type')}
@@ -2063,29 +2728,145 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                         ))}
                       </select>
                     </div>
+                  </div>
+                )}
+
+                {draftType === 'table' && (
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-[11px] text-slate-500 mb-1">Метрика графика</label>
+                      <label className="block text-[11px] text-slate-500 mb-1">
+                        {t('crm.projects.analytics.modal.data')}
+                      </label>
+                      <select
+                        value={draftTable}
+                        onChange={(e) => {
+                          const v = e.target.value as TableKey;
+                          setDraftTable(v);
+                          if (v === 'projects') {
+                            setDraftTableDimensions([]);
+                          } else if (String(v).startsWith('field:')) {
+                            setDraftTableDimensions((prev) =>
+                              prev.length ? [v, ...prev.slice(1)] : [v],
+                            );
+                          }
+                        }}
+                        className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
+                      >
+                        {tableOptions.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {isWorkspaceMode && String(draftTable).startsWith('field:') && (
+                      <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-2">
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                          {t('crm.projects.analytics.tableMulti.extraSection')}
+                        </div>
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          {t('crm.projects.analytics.tableMulti.extraHint')}
+                        </p>
+                        {draftTableDimensions.slice(1).map((dimId, j) => {
+                          const colIndex = j + 2;
+                          return (
+                            <div key={`${dimId}-${j}`} className="flex flex-wrap items-center gap-2">
+                              <span className="text-[10px] text-slate-500 shrink-0">
+                                {t('crm.projects.analytics.tableMulti.columnN', { n: colIndex })}
+                              </span>
+                              <select
+                                value={dimId}
+                                onChange={(e) => {
+                                  const v = e.target.value;
+                                  setDraftTableDimensions((prev) => {
+                                    const next = [...prev];
+                                    next[colIndex - 1] = v;
+                                    return next;
+                                  });
+                                }}
+                                className="flex-1 min-w-[140px] h-9 rounded-xl bg-white border border-slate-200 px-2 text-[11px] outline-none"
+                              >
+                                {chartOptions.map((c) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDraftTableDimensions((prev) =>
+                                    prev.filter((_, idx) => idx !== colIndex - 1),
+                                  )
+                                }
+                                className="text-[10px] text-slate-400 hover:text-rose-500 shrink-0"
+                              >
+                                {t('crm.projects.analytics.tableMulti.removeColumn')}
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {draftTableDimensions.length < TABLE_MAX_DIMENSIONS && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDraftTableDimensions((prev) => {
+                                const used = new Set(prev);
+                                const pick =
+                                  chartOptions.find((c) => !used.has(c.id))?.id ??
+                                  chartOptions[0]?.id ??
+                                  draftTable;
+                                return [...prev, pick];
+                              })
+                            }
+                            className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                          >
+                            + {t('crm.projects.analytics.tableMulti.addColumn')}
+                          </button>
+                        )}
+                        <p className="text-[10px] text-slate-400">
+                          {t('crm.projects.analytics.tableMulti.maxColumnsHint', {
+                            max: TABLE_MAX_DIMENSIONS,
+                          })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {(draftType === 'donut' ||
+                  draftType === 'bar' ||
+                  (draftType === 'table' && draftTable !== 'projects')) && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">
+                        {t('crm.projects.analytics.modal.valueMetric')}
+                      </label>
                       <select
                         value={draftChartValueMode}
                         onChange={(e) => setDraftChartValueMode(e.target.value as ChartValueMode)}
                         className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
                       >
-                        <option value="count">Количество</option>
-                        <option value="sum">Сумма</option>
+                        <option value="count">{t('crm.projects.analytics.modal.valueMode.count')}</option>
+                        <option value="sum">{t('crm.projects.analytics.modal.valueMode.sum')}</option>
                       </select>
                     </div>
                     {draftChartValueMode === 'sum' && (
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">Поле суммы</label>
+                        <label className="block text-[11px] text-slate-500 mb-1">
+                          {t('crm.projects.analytics.modal.sumField')}
+                        </label>
                         <select
                           value={draftChartValueField}
                           onChange={(e) => setDraftChartValueField(e.target.value)}
                           className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
                         >
-                          {!isWorkspaceMode && <option value="amount">Amount</option>}
+                          {!isWorkspaceMode && <option value="amount">{t('crm.projects.analytics.table.headers.amount')}</option>}
                           {(dynamicNumericFields.length
                             ? dynamicNumericFields
-                            : analyticsFields
+                            : isWorkspaceMode
+                              ? analyticsFields
+                              : inferredNumericCustomFields
                           ).map((field) => (
                             <option key={field.key} value={`field:${field.key}`}>
                               {field.label}
@@ -2094,25 +2875,6 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                         </select>
                       </div>
                     )}
-                  </div>
-                )}
-
-                {draftType === 'table' && (
-                  <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">
-                      {t('crm.projects.analytics.modal.data')}
-                    </label>
-                    <select
-                      value={draftTable}
-                      onChange={(e) => setDraftTable(e.target.value as TableKey)}
-                      className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
-                    >
-                      {tableOptions.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.label}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 )}
 
@@ -2139,6 +2901,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                         <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400">
                           {t('crm.projects.analytics.formula.block.sumif')}
                         </div>
+                        {draftFormulaFilters.length === 0 ? (
+                          <p className="text-[11px] text-slate-500 leading-relaxed">
+                            {t('crm.projects.analytics.blockConditions.emptyHintFormula')}
+                          </p>
+                        ) : null}
                         {draftFormulaFilters.map((filter, index) => (
                           <div
                             key={`${filter.scope}-${index}`}
@@ -2148,19 +2915,17 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                               <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
                                 {t('crm.projects.analytics.formula.condition.label')} {index + 1}
                               </div>
-                              {draftFormulaFilters.length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setDraftFormulaFilters((prev) =>
-                                      prev.filter((_, i) => i !== index),
-                                    )
-                                  }
-                                  className="text-[10px] text-slate-400 hover:text-rose-500"
-                                >
-                                  {t('crm.projects.analytics.formula.condition.remove')}
-                                </button>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDraftFormulaFilters((prev) =>
+                                    prev.filter((_, i) => i !== index),
+                                  )
+                                }
+                                className="text-[10px] text-slate-400 hover:text-rose-500"
+                              >
+                                {t('crm.projects.analytics.formula.condition.remove')}
+                              </button>
                             </div>
                             <div>
                               <label className="block text-[11px] text-slate-500 mb-1">
@@ -2172,7 +2937,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                                   const scope = e.target.value as FormulaScope;
                                   setDraftFormulaFilters((prev) => {
                                     const next = [...prev];
-                                    next[index] = { ...next[index], scope };
+                                    next[index] = { scope, keys: [] };
                                     return next;
                                   });
                                 }}
@@ -2186,40 +2951,31 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                               </select>
                             </div>
                             <div>
-                              <label className="block text-[11px] text-slate-500 mb-1">
-                                {t('crm.projects.analytics.formula.filter.value')}
-                              </label>
-                              <select
-                                value={filter.key}
-                                onChange={(e) => {
-                                  const key = e.target.value;
+                              <AnalyticsFilterKeysPicker
+                                list={
+                                  (formulaValueItems[filter.scope]?.length
+                                    ? formulaValueItems[filter.scope]
+                                    : formulaValueFallback
+                                  ) as FilterValueOption[]
+                                }
+                                keys={filter.keys || []}
+                                onChange={(keys) =>
                                   setDraftFormulaFilters((prev) => {
                                     const next = [...prev];
-                                    next[index] = { ...next[index], key };
+                                    next[index] = { ...next[index], keys };
                                     return next;
-                                  });
-                                }}
-                                className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
-                              >
-                                {(formulaValueItems[filter.scope].length
-                                  ? formulaValueItems[filter.scope]
-                                  : formulaValueFallback
-                                ).map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {item.label}
-                                  </option>
-                                ))}
-                              </select>
+                                  })
+                                }
+                                allLabel={t('crm.projects.analytics.blockConditions.allValues')}
+                                multiHint={t('crm.projects.analytics.blockConditions.multiHint')}
+                              />
                             </div>
                           </div>
                         ))}
                         <button
                           type="button"
                           onClick={() =>
-                            setDraftFormulaFilters((prev) => [
-                              ...prev,
-                              { scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' },
-                            ])
+                            setDraftFormulaFilters((prev) => [...prev, { ...defaultFormulaFilterRow }])
                           }
                           className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 hover:border-slate-400 hover:text-slate-700"
                         >
@@ -2392,11 +3148,145 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   </div>
                 )}
 
+                {draftType === 'pivot' && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-3">
+                    <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400">
+                      {t('crm.projects.analytics.pivot.section')}
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">
+                        {t('crm.projects.analytics.pivot.rowDim')}
+                      </label>
+                      <select
+                        value={draftPivotRowKey}
+                        onChange={(e) => setDraftPivotRowKey(e.target.value)}
+                        className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                      >
+                        {chartOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-500 mb-1">
+                        {t('crm.projects.analytics.pivot.colDim')}
+                      </label>
+                      <select
+                        value={draftPivotColKey}
+                        onChange={(e) => setDraftPivotColKey(e.target.value)}
+                        className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
+                      >
+                        {chartOptions.map((opt) => (
+                          <option key={opt.id} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
+                        {t('crm.projects.analytics.pivot.measures')}
+                      </div>
+                      {draftPivotMeasures.map((m, mi) => (
+                        <div
+                          key={m.id}
+                          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center"
+                        >
+                          <select
+                            value={m.mode}
+                            onChange={(e) => {
+                              const mode = e.target.value as ChartValueMode;
+                              setDraftPivotMeasures((prev) => {
+                                const next = [...prev];
+                                next[mi] = {
+                                  ...next[mi],
+                                  mode,
+                                  valueField: mode === 'sum' ? next[mi].valueField || 'amount' : undefined,
+                                };
+                                return next;
+                              });
+                            }}
+                            className="h-9 rounded-lg border border-slate-200 px-2 text-[11px] outline-none"
+                          >
+                            <option value="count">{t('crm.projects.analytics.modal.valueMode.count')}</option>
+                            <option value="sum">{t('crm.projects.analytics.modal.valueMode.sum')}</option>
+                          </select>
+                          {m.mode === 'sum' && (
+                            <select
+                              value={m.valueField || 'amount'}
+                              onChange={(e) => {
+                                const valueField = e.target.value;
+                                setDraftPivotMeasures((prev) => {
+                                  const next = [...prev];
+                                  next[mi] = { ...next[mi], valueField };
+                                  return next;
+                                });
+                              }}
+                              className="h-9 flex-1 min-w-[120px] rounded-lg border border-slate-200 px-2 text-[11px] outline-none"
+                            >
+                              {pivotMeasureFieldOptions.map((opt) => (
+                                <option key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          <input
+                            type="text"
+                            value={m.shortLabel ?? ''}
+                            placeholder={t('crm.projects.analytics.pivot.shortLabelPlaceholder')}
+                            onChange={(e) => {
+                              const shortLabel = e.target.value;
+                              setDraftPivotMeasures((prev) => {
+                                const next = [...prev];
+                                next[mi] = { ...next[mi], shortLabel };
+                                return next;
+                              });
+                            }}
+                            className="h-9 flex-1 min-w-[100px] rounded-lg border border-slate-200 px-2 text-[11px] outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDraftPivotMeasures((prev) =>
+                                prev.length <= 1 ? prev : prev.filter((_, i) => i !== mi),
+                              )
+                            }
+                            className="text-[10px] text-slate-400 hover:text-rose-500 self-start sm:self-center"
+                          >
+                            {t('crm.projects.analytics.formula.condition.remove')}
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={draftPivotMeasures.length >= PIVOT_MAX_MEASURES}
+                        onClick={() =>
+                          setDraftPivotMeasures((prev) => [
+                            ...prev,
+                            { id: `pv-${Date.now()}`, mode: 'count' },
+                          ])
+                        }
+                        className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 hover:border-slate-400 hover:text-slate-700 disabled:opacity-40"
+                      >
+                        + {t('crm.projects.analytics.pivot.addMeasure')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {draftType !== 'formula' && (
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 space-y-3">
                     <div className="text-[10px] uppercase tracking-[0.2em] text-slate-400">
-                      Условия блока
+                      {t('crm.projects.analytics.blockConditions.title')}
                     </div>
+                    {draftFormulaFilters.length === 0 ? (
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        {t('crm.projects.analytics.blockConditions.emptyHint')}
+                      </p>
+                    ) : null}
                     {draftFormulaFilters.map((filter, index) => (
                       <div
                         key={`${filter.scope}-${index}`}
@@ -2404,29 +3294,31 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       >
                         <div className="flex items-center justify-between">
                           <div className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
-                            Условие {index + 1}
+                            {t('crm.projects.analytics.blockConditions.conditionLabel', {
+                              n: index + 1,
+                            })}
                           </div>
-                          {draftFormulaFilters.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setDraftFormulaFilters((prev) => prev.filter((_, i) => i !== index))
-                              }
-                              className="text-[10px] text-slate-400 hover:text-rose-500"
-                            >
-                              Удалить
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setDraftFormulaFilters((prev) => prev.filter((_, i) => i !== index))
+                            }
+                            className="text-[10px] text-slate-400 hover:text-rose-500"
+                          >
+                            {t('crm.projects.analytics.formula.condition.remove')}
+                          </button>
                         </div>
                         <div>
-                          <label className="block text-[11px] text-slate-500 mb-1">Срез условия</label>
+                          <label className="block text-[11px] text-slate-500 mb-1">
+                            {t('crm.projects.analytics.formula.filter.scope')}
+                          </label>
                           <select
                             value={filter.scope}
                             onChange={(e) => {
                               const scope = e.target.value as FormulaScope;
                               setDraftFormulaFilters((prev) => {
                                 const next = [...prev];
-                                next[index] = { ...next[index], scope };
+                                next[index] = { scope, keys: [] };
                                 return next;
                               });
                             }}
@@ -2439,43 +3331,34 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                             ))}
                           </select>
                         </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-500 mb-1">Значение</label>
-                          <select
-                            value={filter.key}
-                            onChange={(e) => {
-                              const key = e.target.value;
-                              setDraftFormulaFilters((prev) => {
-                                const next = [...prev];
-                                next[index] = { ...next[index], key };
-                                return next;
-                              });
-                            }}
-                            className="w-full h-9 rounded-xl bg-white border border-slate-200 px-2 outline-none"
-                          >
-                            {(formulaValueItems[filter.scope]?.length
+                        <AnalyticsFilterKeysPicker
+                          list={
+                            (formulaValueItems[filter.scope]?.length
                               ? formulaValueItems[filter.scope]
                               : formulaValueFallback
-                            ).map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
+                            ) as FilterValueOption[]
+                          }
+                          keys={filter.keys || []}
+                          onChange={(keys) =>
+                            setDraftFormulaFilters((prev) => {
+                              const next = [...prev];
+                              next[index] = { ...next[index], keys };
+                              return next;
+                            })
+                          }
+                          allLabel={t('crm.projects.analytics.blockConditions.allValues')}
+                          multiHint={t('crm.projects.analytics.blockConditions.multiHint')}
+                        />
                       </div>
                     ))}
                     <button
                       type="button"
                       onClick={() =>
-                        setDraftFormulaFilters((prev) => [
-                          ...prev,
-                          { scope: (formulaScopeOptions[0]?.id || 'status') as FormulaScope, key: '' },
-                        ])
+                        setDraftFormulaFilters((prev) => [...prev, { ...defaultFormulaFilterRow }])
                       }
                       className="w-full rounded-xl border border-dashed border-slate-300 px-3 py-2 text-[11px] text-slate-500 hover:border-slate-400 hover:text-slate-700"
                     >
-                      + Добавить условие
+                      + {t('crm.projects.analytics.formula.condition.add')}
                     </button>
                   </div>
                 )}
@@ -2554,49 +3437,51 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                     </select>
                   </div>
                 </div>
-              </div>
+                  </div>
+                </div>
 
-              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  {isEditing && editingWidgetId && (
+                <div className="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    {isEditing && editingWidgetId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const w = widgets.find((x) => x.id === editingWidgetId);
+                          if (w) {
+                            requestAddDashboardPreset({
+                              source: dashboardPresetSource,
+                              slug: w.id,
+                              widgetConfig: w,
+                            });
+                            setAddedToHomeToast(true);
+                            window.setTimeout(() => setAddedToHomeToast(false), 2800);
+                          }
+                          closeModal();
+                        }}
+                        className="px-3 py-2 rounded-xl border border-slate-900/15 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                      >
+                        {t('crm.dashboard.addToHomeFromAnalytics')}
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => {
-                        const w = widgets.find((x) => x.id === editingWidgetId);
-                        if (w) {
-                          requestAddDashboardPreset({
-                            source: dashboardPresetSource,
-                            slug: w.id,
-                            widgetConfig: w,
-                          });
-                          setAddedToHomeToast(true);
-                          window.setTimeout(() => setAddedToHomeToast(false), 2800);
-                        }
-                        closeModal();
-                      }}
-                      className="px-3 py-2 rounded-xl border border-slate-900/15 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                      onClick={closeModal}
+                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
                     >
-                      {t('crm.dashboard.addToHomeFromAnalytics')}
+                      {t('crm.projects.analytics.actions.cancel')}
                     </button>
-                  )}
-                </div>
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={closeModal}
-                    className="px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
-                  >
-                    {t('crm.projects.analytics.actions.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={saveWidget}
-                    className="px-4 py-2 rounded-xl bg-lumiva-accent text-white text-xs font-semibold border border-lumiva-accent shadow-[0_10px_24px_rgba(34,34,34,0.12)] hover:opacity-90"
-                  >
-                    {isEditing
-                      ? t('crm.projects.analytics.actions.save')
-                      : t('crm.projects.analytics.actions.add')}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={saveWidget}
+                      className="px-4 py-2 rounded-xl bg-lumiva-accent text-white text-xs font-semibold border border-lumiva-accent shadow-[0_10px_24px_rgba(34,34,34,0.12)] hover:opacity-90"
+                    >
+                      {isEditing
+                        ? t('crm.projects.analytics.actions.save')
+                        : t('crm.projects.analytics.actions.add')}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

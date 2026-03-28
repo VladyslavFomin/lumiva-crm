@@ -9,6 +9,7 @@ import {
 } from '../../api/customObjects';
 import type { StaffUser } from '../../api/staff';
 import { collectStatusValuesFromRecords } from './workspaceStatusField';
+import { normalizeOptionToken } from '../../workspace/normalizeOptionToken';
 import { WorkspaceFileViewerModal } from './WorkspaceFileViewerModal';
 
 const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
@@ -117,12 +118,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
   useEffect(() => {
     setFileUploadErrorByField({});
   }, [activeRecord?.id]);
-  const normalizeStatusToken = (value: string) =>
-    String(value || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_')
-      .replace(/[^a-z0-9_а-яё-]/gi, '');
+  const normalizeStatusToken = (value: string) => normalizeOptionToken(value);
 
   const statusOptions = useMemo(() => {
     const fromField =

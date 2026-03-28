@@ -87,7 +87,11 @@ export const LeadsAnalyticsPage: React.FC = () => {
           lower.includes('price') ||
           lower.includes('sum') ||
           lower.includes('value') ||
-          lower.includes('total')
+          lower.includes('total') ||
+          lower.includes('tutar') ||
+          lower.includes('miktar') ||
+          lower.includes('cost') ||
+          lower.includes('budget')
         );
       });
       const raw = amountLikeKey ? fields[amountLikeKey] : null;

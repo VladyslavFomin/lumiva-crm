@@ -400,6 +400,10 @@ export async function applyCustomObjectImport(
     created: number;
     updated: number;
     skipped: number;
+    /** Строки без данных в сопоставленных колонках (не дублируются в errors). */
+    skippedEmptyRows?: number;
+    /** Строки с ошибкой валидации/сохранения (совпадает с длиной errors). */
+    skippedValidationFailed?: number;
     errors: Array<{ row: number; reason: string }>;
   }>(`/custom-objects/${objectId}/import/apply`, payload);
 }

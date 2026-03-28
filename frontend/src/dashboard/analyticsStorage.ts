@@ -7,10 +7,17 @@ export const ANALYTICS_STORAGE_NAMESPACE: Record<DashboardPresetSource, string> 
   leads: 'leads_analytics',
 };
 
+export type PivotMeasureConfig = {
+  id: string;
+  mode: 'count' | 'sum';
+  valueField?: string;
+  shortLabel?: string;
+};
+
 /** Снимок виджета из localStorage (тот же формат, что JSON в аналитике) */
 export type ProjectsAnalyticsWidgetConfig = {
   id: string;
-  type: 'metric' | 'donut' | 'bar' | 'table' | 'formula';
+  type: 'metric' | 'donut' | 'bar' | 'table' | 'formula' | 'pivot';
   title: string;
   size: 'sm' | 'md' | 'lg';
   height?: number;
@@ -21,13 +28,18 @@ export type ProjectsAnalyticsWidgetConfig = {
   chartValueMode?: 'count' | 'sum';
   chartValueField?: string;
   tableKey?: string;
+  /** Несколько полей группировки для таблицы (workspace): строка = комбинация значений, сумма/кол-во по ней */
+  tableDimensions?: string[];
   formulaFn?: string;
   formulaLeftType?: string;
   formulaLeftKey?: string;
   formulaRightType?: string;
   formulaRightKey?: string;
   formulaMode?: string;
-  formulaFilters?: Array<{ scope: string; key: string }>;
+  formulaFilters?: Array<{ scope: string; key?: string; keys?: string[] }>;
+  pivotRowKey?: string;
+  pivotColKey?: string;
+  pivotMeasures?: PivotMeasureConfig[];
   [key: string]: unknown;
 };
 

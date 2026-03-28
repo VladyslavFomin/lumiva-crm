@@ -13,6 +13,7 @@ import {
   type LeadsCustomView,
   updateLeadsCustomView,
 } from './leadsViewsStore';
+import { dayKeysFromStartEndStrings, toLocalDateKey } from '../../utils/calendarLocalDates';
 
 type LeadMeeting = {
   id: string;
@@ -52,12 +53,10 @@ const emptyDraft: MeetingDraft = {
   attendeeUserIds: [],
 };
 
-const toDateKey = (value: string) => {
-  const d = new Date(value);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+const toDateKey = (value: string | Date) => {
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return toLocalDateKey(d);
 };
 
 const toInputDateTime = (date: Date) => {
@@ -280,10 +279,16 @@ export const LeadsCalendarPage: React.FC = () => {
     filteredLeads.forEach((lead) => {
       readMeetings(lead).forEach((meeting) => {
         if (meeting.closedAt) return;
-        const key = toDateKey(meeting.startsAt);
-        const list = map.get(key) ?? [];
-        list.push({ lead, meeting });
-        map.set(key, list);
+        const keys = dayKeysFromStartEndStrings(meeting.startsAt, meeting.endsAt);
+        if (!keys.length) return;
+        const seen = new Set<string>();
+        keys.forEach((key) => {
+          if (seen.has(key)) return;
+          seen.add(key);
+          const list = map.get(key) ?? [];
+          list.push({ lead, meeting });
+          map.set(key, list);
+        });
       });
     });
     map.forEach((list, key) => {
@@ -318,7 +323,7 @@ export const LeadsCalendarPage: React.FC = () => {
     return Array.from({ length: 42 }, (_, idx) => {
       const d = new Date(startDate);
       d.setDate(startDate.getDate() + idx);
-      const key = toDateKey(d.toISOString());
+      const key = toDateKey(d);
       return {
         date: d,
         key,

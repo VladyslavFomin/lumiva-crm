@@ -1,4 +1,3 @@
-// backend/src/marketing/marketing-traffic.entity.ts
 import {
   Column,
   CreateDateColumn,
@@ -9,17 +8,20 @@ import {
 } from 'typeorm';
 
 @Entity('marketing_traffic')
-@Index(['tenantId', 'date', 'source', 'medium', 'campaign'], { unique: true })
+@Index(['tenantId', 'date', 'dataSource', 'source', 'medium', 'campaign'])
 export class MarketingTraffic {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column('uuid')
+  @Column({ type: 'uuid' })
   tenantId: string;
 
-  // дата в формате YYYY-MM-DD
   @Column({ type: 'date' })
   date: string;
+
+  /** n8n / google_ads / meta_ads / manual и т.п. */
+  @Column({ type: 'varchar', length: 80, nullable: true })
+  dataSource: string | null;
 
   @Column({ type: 'varchar', length: 128, nullable: true })
   source: string | null;
@@ -27,7 +29,7 @@ export class MarketingTraffic {
   @Column({ type: 'varchar', length: 128, nullable: true })
   medium: string | null;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: 'varchar', length: 256, nullable: true })
   campaign: string | null;
 
   @Column({ type: 'int', default: 0 })
@@ -39,16 +41,20 @@ export class MarketingTraffic {
   @Column({ type: 'int', default: 0 })
   leads: number;
 
-  // расходы
-  @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
+  @Column({ type: 'int', default: 0 })
+  projects: number;
+
+  @Column({ type: 'numeric', precision: 14, scale: 4, default: 0 })
   cost: string;
 
-  // доход, атрибутированный этой связке
   @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
   revenue: string;
 
   @Column({ type: 'varchar', length: 8, default: 'EUR' })
   currency: string;
+
+  @Column({ type: 'int', default: 0 })
+  impressions: number;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

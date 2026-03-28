@@ -1,0 +1,68 @@
+# CRM: HTTPS (Let's Encrypt) + редирект с :80, SPA + прокси /v1/ → Nest
+#
+# Сертификат: sudo certbot certonly --webroot -w /var/www/crm.lumiva.agency -d crm.lumiva.agency
+# или: sudo certbot --nginx -d crm.lumiva.agency
+#
+# Ошибка NET::ERR_CERT_COMMON_NAME_INVALID при открытии https://crm... обычно значит:
+# на 443 слушает другой vhost (например lumiva.agency) без имени crm в SAN — нужен этот server { listen 443 ssl; server_name crm... }
+
+# HTTP: ACME + редирект на HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+    server_name crm.lumiva.agency;
+
+    location ^~ /.well-known/acme-challenge/ {
+        allow all;
+        default_type "text/plain";
+        root /var/www/crm.lumiva.agency;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name crm.lumiva.agency;
+
+    ssl_certificate /etc/letsencrypt/live/crm.lumiva.agency/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/crm.lumiva.agency/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    root /var/www/crm.lumiva.agency;
+    index index.html;
+
+    client_max_body_size 32m;
+
+    # Vite кладёт JS/CSS в /assets/ с хэшем в имени — их можно кешировать годами.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        try_files $uri =404;
+    }
+
+    # Без этого браузер/CDN часто держит старый index.html со ссылками на старые chunk-и → «как будто деплой не прошёл».
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0";
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /v1/ {
+        proxy_pass http://127.0.0.1:3000/v1/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_buffering off;
+        proxy_request_buffering off;
+    }
+
+    access_log /var/log/nginx/crm.lumiva.agency.access.log;
+    error_log /var/log/nginx/crm.lumiva.agency.error.log;
+}

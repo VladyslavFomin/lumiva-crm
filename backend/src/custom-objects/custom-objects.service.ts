@@ -33,6 +33,11 @@ import {
   unlinkUploadsRelative,
 } from '../common/uploads-root.util';
 import type { CustomObjectFieldType } from './custom-object-field.entity';
+import {
+  buildSuggestedCustomObjectFieldMapping,
+  makeUniqueHeaders,
+  parseCsvRobust,
+} from '../lib/import-spreadsheet.util';
 
 export interface ImportPreviewResponse {
   importId: string;
@@ -78,6 +83,22 @@ export class CustomObjectsService {
       .replace(/[^a-z0-9а-яё]+/gi, '-')
       .replace(/^-+|-+$/g, '')
       .slice(0, 180) || 'table';
+  }
+
+  /**
+   * Токены опций select/status (не slug таблицы): сохраняем Unicode-буквы, иначе турецкий текст
+   * превращается в planlan_yor вместо planlanıyor и ломает сопоставление с Excel.
+   */
+  private slugifyOptionValue(input: string): string {
+    const s = String(input || '')
+      .trim()
+      .toLocaleLowerCase('tr-TR')
+      .normalize('NFKC')
+      .replace(/\s+/g, '_')
+      .replace(/[^\p{L}\p{N}_]+/gu, '')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+    return s.slice(0, 120);
   }
 
   private async uniqueSlug(tenantId: string, base: string, excludeId?: string) {
@@ -139,16 +160,13 @@ export class CustomObjectsService {
   private optionToken(raw: any) {
     const source = String(raw ?? '').trim();
     if (!source) return '';
-    return this.slugify(source).replace(/-/g, '_');
+    const t = this.slugifyOptionValue(source);
+    return t || 'option';
   }
 
-  /** Как `normalizeOptionValue` на Kanban (frontend) — иначе «confirmed» и опция «Confirmed» не сходятся с `optionToken`. */
+  /** Согласован с `optionToken` / фронтом `normalizeOptionToken`. */
   private normalizeKanbanToken(value: string): string {
-    return String(value || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_')
-      .replace(/[^a-z0-9_а-яё-]/gi, '');
+    return this.slugifyOptionValue(String(value || ''));
   }
 
   private resolveSingleOptionValue(field: CustomObjectField, raw: any): string | null {
@@ -163,11 +181,11 @@ export class CustomObjectsService {
     );
     if (exact) return String(exact.value);
 
-    const lower = source.toLowerCase();
+    const lower = source.toLocaleLowerCase('tr-TR');
     const caseInsensitive = options.find(
       (opt) =>
-        String(opt.value).toLowerCase() === lower ||
-        String(opt.label).toLowerCase() === lower,
+        String(opt.value).toLocaleLowerCase('tr-TR') === lower ||
+        String(opt.label).toLocaleLowerCase('tr-TR') === lower,
     );
     if (caseInsensitive) return String(caseInsensitive.value);
 
@@ -351,15 +369,7 @@ export class CustomObjectsService {
     for (const raw of firstSeen) {
       const labelRaw = String(raw).trim();
       if (!labelRaw) continue;
-      let value = this.optionToken(labelRaw);
-      if (!value) {
-        value =
-          labelRaw
-            .toLowerCase()
-            .trim()
-            .replace(/\s+/g, '_')
-            .replace(/[^a-z0-9_а-яё-]/gi, '') || 'status';
-      }
+      let value = this.slugifyOptionValue(labelRaw) || 'status';
       let v = value;
       let n = 2;
       while (used.has(v)) {
@@ -1170,29 +1180,12 @@ export class CustomObjectsService {
   }
 
   private parseCsv(content: string) {
-    const lines = content
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter((l) => l.length > 0);
-    if (!lines.length)
-      return { columns: [] as string[], rows: [] as Array<Record<string, any>>, headerRowNumber: 1 };
-    const header = lines[0];
-    const comma = (header.match(/,/g) || []).length;
-    const semi = (header.match(/;/g) || []).length;
-    const delimiter = semi > comma ? ';' : ',';
-    const split = (line: string) =>
-      line.split(delimiter).map((cell) => cell.replace(/^"|"$/g, '').trim());
-    const columns = split(header);
-    const rows: Array<Record<string, any>> = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cells = split(lines[i]);
-      const row: Record<string, any> = {};
-      columns.forEach((col, idx) => {
-        row[col] = cells[idx] ?? '';
-      });
-      rows.push(row);
-    }
-    return { columns, rows, headerRowNumber: 1 };
+    const t = parseCsvRobust(content);
+    return {
+      columns: t.columns,
+      rows: t.rows as Array<Record<string, any>>,
+      headerRowNumber: t.headerRowNumber,
+    };
   }
 
   private excelCellToString(value: any): string {
@@ -1213,6 +1206,21 @@ export class CustomObjectsService {
     return String(value).trim();
   }
 
+  /**
+   * Читает строку Excel колонка 1..row.cellCount подряд (включая пустые ячейки).
+   * Раньше заголовки прогонялись через .filter(Boolean) — первая пустая ячейка в шапке
+   * выкидывалась, а данные строк оставались со сдвигом: LOCATION получала значение из колонки A и т.д.
+   */
+  private excelRowToCellStrings(row: ExcelJS.Row): string[] {
+    const n = row.cellCount;
+    if (!n || n < 1) return [];
+    const out: string[] = [];
+    for (let c = 1; c <= n; c++) {
+      out.push(this.excelCellToString(row.getCell(c).value));
+    }
+    return out;
+  }
+
   private async parseXlsx(buffer: Buffer) {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer as any);
@@ -1224,13 +1232,14 @@ export class CustomObjectsService {
 
     for (let rowNum = 1; rowNum <= Math.min(sheet.rowCount, 50); rowNum++) {
       const row = sheet.getRow(rowNum);
-      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
-      const candidate = values
-        .map((v: any) => this.excelCellToString(v))
-        .filter(Boolean);
-      if (candidate.length > 0) {
+      const labels = this.excelRowToCellStrings(row);
+      if (labels.some((l) => l.trim() !== '')) {
         headerRowNumber = rowNum;
-        columns = candidate;
+        while (labels.length > 0 && labels[labels.length - 1].trim() === '') {
+          labels.pop();
+        }
+        if (!labels.length) continue;
+        columns = makeUniqueHeaders(labels).columns;
         break;
       }
     }
@@ -1239,14 +1248,14 @@ export class CustomObjectsService {
       return { columns: [] as string[], rows: [] as Array<Record<string, any>>, headerRowNumber: 1 };
     }
 
+    const width = columns.length;
     const rows: Array<Record<string, any>> = [];
     for (let rowNum = headerRowNumber + 1; rowNum <= sheet.rowCount; rowNum++) {
       const row = sheet.getRow(rowNum);
-      const values = Array.isArray(row.values) ? row.values.slice(1) : [];
       const obj: Record<string, any> = {};
-      columns.forEach((col, idx) => {
-        obj[col] = this.excelCellToString(values[idx]);
-      });
+      for (let c = 1; c <= width; c++) {
+        obj[columns[c - 1]] = this.excelCellToString(row.getCell(c).value);
+      }
       const hasData = Object.values(obj).some((v) => String(v ?? '').trim() !== '');
       if (hasData) rows.push(obj);
     }
@@ -1279,18 +1288,7 @@ export class CustomObjectsService {
   }
 
   private buildSuggestedMapping(columns: string[], fields: CustomObjectField[]) {
-    const map: Record<string, string | null> = {};
-    const cols = columns.map((c) => ({ raw: c, norm: c.toLowerCase().trim() }));
-    fields.forEach((field) => {
-      const keyNorm = field.key.toLowerCase().trim();
-      const labelNorm = field.label.toLowerCase().trim();
-      const exact = cols.find((c) => c.norm === keyNorm || c.norm === labelNorm);
-      const partial =
-        exact ||
-        cols.find((c) => c.norm.includes(keyNorm) || c.norm.includes(labelNorm));
-      map[field.key] = partial ? partial.raw : null;
-    });
-    return map;
+    return buildSuggestedCustomObjectFieldMapping(columns, fields);
   }
 
   async previewImport(tenantId: string, objectId: string, file: any): Promise<ImportPreviewResponse> {
@@ -1350,6 +1348,8 @@ export class CustomObjectsService {
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    /** Строки без данных в сопоставленных колонках (и без externalId / defaultValues) — не попадают в errors. */
+    let skippedEmptyRows = 0;
     const errors: Array<{ row: number; reason: string }> = [];
     const updatedRecordIds = new Set<string>();
     for (let i = 0; i < rows.length; i++) {
@@ -1372,9 +1372,10 @@ export class CustomObjectsService {
         this.hasMeaningfulValue(value),
       );
       const hasExternalId = this.hasMeaningfulValue(externalId);
-      // Quietly skip blank spreadsheet lines instead of returning noisy required-field errors.
+      // Пустые строки: нет значений в сопоставленных колонках, нет externalId и нет defaultValues.
       if (!hasMappedRowData && !hasDefaultData && !hasExternalId) {
         skipped += 1;
+        skippedEmptyRows += 1;
         continue;
       }
       try {
@@ -1428,10 +1429,20 @@ export class CustomObjectsService {
       created,
       updated,
       skipped,
+      skippedEmptyRows,
+      skippedValidationFailed: errors.length,
       errors: errors.slice(0, 200),
     };
     await this.importRepo.save(session);
-    return { ok: true, created, updated, skipped, errors: errors.slice(0, 200) };
+    return {
+      ok: true,
+      created,
+      updated,
+      skipped,
+      skippedEmptyRows,
+      skippedValidationFailed: errors.length,
+      errors: errors.slice(0, 200),
+    };
   }
 
   async ingestRecords(

@@ -43,6 +43,8 @@ export class CreateSegmentDto {
 
 export class SegmentDto {
   id: string;
+  /** UI ожидает тип сущности; в БД пока только лиды. */
+  entityType: string;
   name: string;
   description: string | null;
   leadStatuses: string[] | null;

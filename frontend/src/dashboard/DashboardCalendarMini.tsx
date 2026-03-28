@@ -6,6 +6,7 @@ import { fetchStaff, type StaffUser } from '../api/staff';
 import { fetchDepartments, type Department } from '../api/departments';
 import { buildIcsEvent, icsToBase64 } from './dashboardIcs';
 import { loadMeetings, saveMeetings, type DashboardMeeting } from './dashboardMeetings';
+import { toLocalDateKey } from '../utils/calendarLocalDates';
 
 type LeadOpt = { id: string; name: string };
 
@@ -94,7 +95,12 @@ export const DashboardCalendarMini: React.FC<{
   const meetingsForDay = useCallback(
     (day: Date | null) => {
       if (!day) return [];
-      return meetings.filter((m) => sameDay(new Date(m.startsAt), day));
+      const dayKey = toLocalDateKey(day);
+      return meetings.filter((m) => {
+        const startKey = toLocalDateKey(new Date(m.startsAt));
+        const endKey = toLocalDateKey(new Date(m.endsAt || m.startsAt));
+        return startKey && endKey && dayKey >= startKey && dayKey <= endKey;
+      });
     },
     [meetings],
   );

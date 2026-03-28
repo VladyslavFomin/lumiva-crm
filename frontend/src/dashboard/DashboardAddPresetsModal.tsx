@@ -38,6 +38,8 @@ function kindLabelForSaved(
       return t('crm.projects.analytics.widgets.type.table');
     case 'formula':
       return t('crm.projects.analytics.widgets.type.formula');
+    case 'pivot':
+      return t('crm.projects.analytics.widgets.type.pivot');
     default:
       return type;
   }

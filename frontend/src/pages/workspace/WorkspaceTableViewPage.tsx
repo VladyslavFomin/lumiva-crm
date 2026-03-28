@@ -30,6 +30,7 @@ import {
   collectStatusValuesFromRecords,
   pickStatusLikeField,
 } from '../../components/workspace/workspaceStatusField';
+import { normalizeOptionToken } from '../../workspace/normalizeOptionToken';
 
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#14b8a6', '#f59e0b', '#ef4444', '#22c55e'];
 const FIELD_TYPES: CustomObjectFieldType[] = [
@@ -540,14 +541,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const canonicalStatusPayloadValue = (field: CustomObjectField, uiValue: string) => {
     const opts = field.options;
     if (!opts?.length) return uiValue;
-    const norm = (s: string) =>
-      String(s || '')
-        .trim()
-        .toLowerCase()
-        .replace(/\s+/g, '_')
-        .replace(/[^a-z0-9_а-яё-]/gi, '');
-    const token = norm(uiValue);
-    const hit = opts.find((o) => norm(String(o.value || o.label || '')) === token);
+    const token = normalizeOptionToken(uiValue);
+    const hit = opts.find(
+      (o) => normalizeOptionToken(String(o.value || o.label || '')) === token,
+    );
     return hit ? String(hit.value ?? '').trim() || uiValue : uiValue;
   };
   const groupField = useMemo(
@@ -580,12 +577,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
     if (merged.length) return merged;
     return ['working_on_it', 'done', 'stuck', 'in_review'];
   }, [statusField, records]);
-  const normalizeStatusToken = (value: string) =>
-    String(value || '')
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '_')
-      .replace(/[^a-z0-9_а-яё-]/gi, '');
+  const normalizeStatusToken = (value: string) => normalizeOptionToken(value);
   const statusLabelMap = useMemo(() => {
     const map: Record<string, string> = {};
     statusField?.options?.forEach((o) => {
@@ -1581,12 +1573,63 @@ export const WorkspaceTableViewPage: React.FC = () => {
       );
     }
 
-    const isSingularStatusColumn =
-      statusField &&
-      field.key === statusField.key &&
-      (field.type === 'status' || field.type === 'select');
+    if (field.type === 'status') {
+      const normalizedOptions =
+        (field.options || [])
+          .map((o) => ({
+            value: String(o.value ?? '').trim(),
+            label: String(o.label ?? o.value ?? '').trim(),
+          }))
+          .filter((o) => o.value);
+      const fromRecords = collectStatusValuesFromRecords([record], field.key);
+      const seen = new Set(normalizedOptions.map((o) => o.value));
+      const extras = fromRecords
+        .filter((v) => v && !seen.has(v))
+        .map((v) => ({ value: v, label: v.replace(/_/g, ' ') }));
+      const allOptions = [...normalizedOptions, ...extras];
+      const colors = (field.meta?.statusColors || {}) as Record<string, string>;
+      const raw = textValue.trim();
+      const hit =
+        allOptions.find((o) => o.value === raw) ||
+        allOptions.find((o) => o.label === raw) ||
+        allOptions.find(
+          (o) => normalizeOptionToken(o.value) === normalizeOptionToken(raw),
+        );
+      const currentValue = hit?.value || allOptions[0]?.value || '';
+      const hex = colors[currentValue];
+      const style = hex
+        ? {
+            backgroundColor: hex,
+            color: pickTextColorForBg(hex),
+            borderColor: hex,
+          }
+        : undefined;
+      return (
+        <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
+          <select
+            value={currentValue}
+            onChange={(e) =>
+              updateCell(record, field, canonicalStatusPayloadValue(field, e.target.value))
+            }
+            style={style}
+            className={`rounded-full px-2.5 py-1 text-xs border ${
+              style ? 'bg-transparent' : getStatusColor(currentValue)
+            }`}
+          >
+            {allOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label || opt.value}
+              </option>
+            ))}
+          </select>
+        </td>
+      );
+    }
 
-    if (isSingularStatusColumn) {
+    const isCanonicalSelectStatusColumn =
+      statusField && field.key === statusField.key && field.type === 'select';
+
+    if (isCanonicalSelectStatusColumn) {
       const resolvedStatus =
         resolveStatusOptionValue(textValue) || statusOptions[0] || 'working_on_it';
       const style = getStatusStyle(resolvedStatus);

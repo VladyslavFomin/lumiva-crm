@@ -11,6 +11,7 @@ import {
   type CustomObjectField,
   type CustomObjectImportPreview,
 } from '../../api/customObjects';
+import { normalizeOptionToken } from '../../workspace/normalizeOptionToken';
 
 /** Как в таблице/канбане по умолчанию — только если в файле нет ни одного значения статуса */
 const DEFAULT_STATUS_FIELD_OPTIONS: Array<{ value: string; label: string }> = [
@@ -21,11 +22,7 @@ const DEFAULT_STATUS_FIELD_OPTIONS: Array<{ value: string; label: string }> = [
 ];
 
 function slugifyStatusValue(label: string): string {
-  return String(label || '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9_а-яё-]/gi, '');
+  return normalizeOptionToken(label);
 }
 
 /** Уникальные строки из файла → { value, label } для поля status (как на бэкенде при импорте). */
@@ -127,7 +124,8 @@ export const WorkspaceImportPage: React.FC = () => {
   ): string | null => {
     const key = fieldKey.toLowerCase();
     const label = fieldLabel.toLowerCase();
-    const list = columns.map((c) => ({ raw: c, norm: c.toLowerCase().trim() }));
+    const normCol = (c: string) => c.toLocaleLowerCase('tr-TR').trim();
+    const list = columns.map((c) => ({ raw: c, norm: normCol(c) }));
 
     const preferNameLike =
       key === 'name' || key.includes('name') || label.includes('name') || label.includes('наз');
@@ -138,7 +136,11 @@ export const WorkspaceImportPage: React.FC = () => {
           c.norm.includes('title') ||
           c.norm.includes('hotel') ||
           c.norm.includes('назв') ||
-          c.norm.includes('проект'),
+          c.norm.includes('проект') ||
+          c.norm.includes('organiz') ||
+          c.norm.includes('орган') ||
+          c.norm.includes('firma') ||
+          c.norm.includes('şirket'),
       );
       if (preferred) return preferred.raw;
     }
@@ -271,13 +273,20 @@ export const WorkspaceImportPage: React.FC = () => {
             ? { [groupField.key]: targetGroup.trim() }
             : undefined,
       });
-      setMessage(
+      const emptySkips = res.skippedEmptyRows ?? 0;
+      const parts = [
         t('crm.workspace.import.importedSummary', {
           created: res.created,
           updated: res.updated,
           skipped: res.skipped,
         }),
-      );
+      ];
+      if (res.skipped > 0 && emptySkips > 0) {
+        parts.push(
+          t('crm.workspace.import.skippedEmptyHint', { count: emptySkips }),
+        );
+      }
+      setMessage(parts.join(' '));
       setApplyErrors(res.errors || []);
     } catch (e: any) {
       setMessage(e?.message || t('crm.workspace.import.applyFailed'));

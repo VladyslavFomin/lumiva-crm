@@ -12,6 +12,7 @@ import {
 } from '../../api/customObjects';
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
+import { dayKeysFromStartEndStrings, toLocalDateKey } from '../../utils/calendarLocalDates';
 
 export const WorkspaceCalendarViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -52,10 +53,14 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
       ''
     );
   }, [fields, objectMeta]);
-  const firstDateFieldKey = useMemo(() => {
-    const dateField = fields.find((field) => field.type === 'date' || field.type === 'datetime');
-    return dateField?.key || '$record.createdAt';
-  }, [fields]);
+  /** Порядок полей в схеме: 1-я дата — начало (заказ и т.п.), 2-я — конец (доставка); диапазон по обеим. */
+  const customDateFieldKeys = useMemo(
+    () =>
+      fields
+        .filter((field) => field.type === 'date' || field.type === 'datetime')
+        .map((field) => field.key),
+    [fields],
+  );
   const resolveSystemValue = (record: CustomObjectRecord, key: string) => {
     if (key === '$record.id') return record.id;
     if (key === '$record.externalId') return record.externalId || '';
@@ -74,8 +79,26 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
   const resolveEventTitle = (record: CustomObjectRecord) =>
     resolveFieldText(record, cardTitleField) ||
     String(record.values?.name || record.values?.title || record.id);
-  const pickDate = (record: CustomObjectRecord) =>
-    resolveFieldText(record, firstDateFieldKey) || record.createdAt;
+  /** Ключи дней (локальные YYYY-MM-DD), в которые попадает запись. */
+  const pickDayKeysForRecord = (record: CustomObjectRecord): string[] => {
+    if (customDateFieldKeys.length >= 2) {
+      const startRaw = resolveFieldText(record, customDateFieldKeys[0]);
+      const endRaw = resolveFieldText(record, customDateFieldKeys[1]);
+      if (startRaw || endRaw) {
+        return dayKeysFromStartEndStrings(startRaw || endRaw, endRaw || startRaw);
+      }
+    }
+    if (customDateFieldKeys.length === 1) {
+      const startRaw = resolveFieldText(record, customDateFieldKeys[0]);
+      if (startRaw) {
+        return dayKeysFromStartEndStrings(startRaw, null);
+      }
+    }
+    const created = record.createdAt;
+    if (!created) return [];
+    const k = toLocalDateKey(created);
+    return k ? [k] : [];
+  };
   const renderRecordValue = (value: any): string => {
     if (value === undefined || value === null || value === '') return '—';
     if (Array.isArray(value)) return value.map((item) => String(item)).join(', ') || '—';
@@ -89,13 +112,23 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
         const haystack = `${resolveEventTitle(rec)} ${String(rec.values?.description || '')}`.toLowerCase();
         if (!haystack.includes(search.trim().toLowerCase())) return acc;
       }
-      const raw = pickDate(rec);
-      const key = String(raw || '').slice(0, 10) || 'without_date';
-      acc[key] = acc[key] || [];
-      acc[key].push(rec);
+      const dayKeys = pickDayKeysForRecord(rec);
+      if (!dayKeys.length) {
+        const k = 'without_date';
+        acc[k] = acc[k] || [];
+        acc[k].push(rec);
+        return acc;
+      }
+      const seen = new Set<string>();
+      dayKeys.forEach((key) => {
+        if (seen.has(key)) return;
+        seen.add(key);
+        acc[key] = acc[key] || [];
+        acc[key].push(rec);
+      });
       return acc;
     }, {});
-  }, [records, search, cardTitleField, firstDateFieldKey]);
+  }, [records, search, cardTitleField, customDateFieldKeys]);
 
   const monthLabel = useMemo(
     () => anchorDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' }),
@@ -111,7 +144,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
     const cursor = new Date(year, month, 1 - startWeekDay);
     for (let i = 0; i < 42; i++) {
       result.push({
-        iso: cursor.toISOString().slice(0, 10),
+        iso: toLocalDateKey(cursor),
         day: cursor.getDate(),
         inCurrentMonth: cursor.getMonth() === month,
       });
@@ -128,7 +161,7 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
       const d = new Date(base);
       d.setDate(base.getDate() + i);
       return {
-        iso: d.toISOString().slice(0, 10),
+        iso: toLocalDateKey(d),
         label: d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' }),
       };
     });

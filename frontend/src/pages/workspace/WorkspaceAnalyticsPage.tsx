@@ -71,6 +71,8 @@ export const WorkspaceAnalyticsPage: React.FC = () => {
           pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'price')) ||
           pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'sum')) ||
           pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'value')) ||
+          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'tutar')) ||
+          pickField(loadedFields, (field) => field.type === 'number' && keyIncludes(field, 'miktar')) ||
           pickField(loadedFields, (field) => field.type === 'number');
         const tagsField =
           pickField(loadedFields, (field) => field.type === 'multiselect' && keyIncludes(field, 'tag')) ||

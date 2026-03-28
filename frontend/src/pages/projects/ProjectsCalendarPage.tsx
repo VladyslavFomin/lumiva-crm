@@ -8,12 +8,16 @@ import { fetchLeadsList } from '../../api/leads';
 import { fetchCompanies } from '../../api/companies';
 import { ProjectsViewsBar } from './ProjectsViewsBar';
 import { type ProjectsViewSettings } from './projectsViewsStore';
+import { toLocalDateKey } from '../../utils/calendarLocalDates';
 
-const toDateKey = (value: string) => {
+const toDateKey = (value: string | Date) => {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? '' : toLocalDateKey(value);
+  }
   if (!value) return '';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
-  return parsed.toISOString().slice(0, 10);
+  return toLocalDateKey(parsed);
 };
 
 const monthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
@@ -176,8 +180,8 @@ export const ProjectsCalendarPage: React.FC = () => {
 
   const rangeStart = viewMode === 'month' ? monthStart(cursor) : weekStart(cursor);
   const rangeEnd = viewMode === 'month' ? monthEnd(cursor) : weekEnd(cursor);
-  const rangeStartKey = toDateKey(rangeStart.toISOString());
-  const rangeEndKey = toDateKey(rangeEnd.toISOString());
+  const rangeStartKey = toDateKey(rangeStart);
+  const rangeEndKey = toDateKey(rangeEnd);
 
   const filteredItems = useMemo(() => {
     return calendarItems.filter((item) => {
@@ -209,7 +213,7 @@ export const ProjectsCalendarPage: React.FC = () => {
     }
     for (let d = 1; d <= daysInMonth; d += 1) {
       const date = new Date(cursor.getFullYear(), cursor.getMonth(), d);
-      cells.push({ key: toDateKey(date.toISOString()), date });
+      cells.push({ key: toDateKey(date), date });
     }
     while (cells.length % 7 !== 0) {
       cells.push({ key: `empty-end-${cells.length}`, date: null });
@@ -221,7 +225,7 @@ export const ProjectsCalendarPage: React.FC = () => {
     () =>
       Array.from({ length: 7 }).map((_, idx) => {
         const date = addDays(weekStart(cursor), idx);
-        return { key: toDateKey(date.toISOString()), date };
+        return { key: toDateKey(date), date };
       }),
     [cursor],
   );
@@ -237,7 +241,7 @@ export const ProjectsCalendarPage: React.FC = () => {
   }, [filteredItems]);
 
   const upcoming = useMemo(() => {
-    const todayKey = toDateKey(new Date().toISOString());
+    const todayKey = toDateKey(new Date());
     return [...filteredItems]
       .filter((item) => item.deadlineKey >= todayKey)
       .sort((a, b) => a.deadlineKey.localeCompare(b.deadlineKey))

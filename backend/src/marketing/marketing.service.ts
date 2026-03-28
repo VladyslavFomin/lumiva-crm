@@ -1,1359 +1,328 @@
-import { Injectable } from '@nestjs/common';
+// src/marketing/marketing.service.ts
+import * as crypto from 'crypto';
+
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, FindOptionsWhere, Repository } from 'typeorm';
-import { createHmac, createSign } from 'crypto';
-import { OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import axios from 'axios';
+import * as jwt from 'jsonwebtoken';
+import { Between, Repository } from 'typeorm';
+
+import { Lead } from '../leads/lead.entity';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+
 import { MarketingTraffic } from './marketing-traffic.entity';
-import { ImportTrafficDto } from './dto/import-traffic.dto';
 import { MarketingUtmTemplate } from './marketing-utm-template.entity';
 import { MarketingIntegration } from './marketing-integration.entity';
 import { MarketingAutomation } from './marketing-automation.entity';
-import { CreateUtmTemplateDto } from './dto/utm-template.dto';
-import { CreateMarketingIntegrationDto } from './dto/create-marketing-integration.dto';
-import { CreateAutomationDto } from './dto/create-automation.dto';
+import { MarketingSegment } from './marketing-segment.entity';
 import { SeoSettings } from './seo-settings.entity';
 import { SeoGscMetric } from './seo-gsc-metric.entity';
-import { SeoPageSpeedMetric } from './seo-pagespeed-metric.entity';
 import { SeoGscDaily } from './seo-gsc-daily.entity';
-import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { SeoPageSpeedMetric } from './seo-pagespeed-metric.entity';
 
-export interface MarketingTrafficRow {
-  date: string; // YYYY-MM-DD
-  source: string | null;
-  medium: string | null;
-  campaign: string | null;
+import { CreateUtmTemplateDto } from './dto/utm-template.dto';
+import { CreateAutomationDto } from './dto/create-automation.dto';
+import { UpdateAutomationDto } from './dto/update-automation.dto';
+import { CreateSegmentBodyDto } from './dto/create-segment-body.dto';
+import { SegmentDto } from './dto/segment.dto';
+import { CreateMarketingIntegrationDto } from './dto/create-marketing-integration.dto';
+import { UpdateMarketingIntegrationDto } from './dto/update-marketing-integration.dto';
 
+/** Актуальная версия REST Google Ads API (v14 и ниже сняты → 404). */
+export const GOOGLE_ADS_API_VERSION = 'v23';
+
+/** Не сохраняем в БД строки-ключи i18n (ошибочно пришедшие с клиента). */
+function sanitizeTrafficText(value: string | null | undefined): string | null {
+  const s = value?.trim();
+  if (!s) return null;
+  if (s.startsWith('crm.') && /^crm\.[a-z0-9_.]+$/i.test(s)) return null;
+  return s;
+}
+
+export interface MarketingTrafficProviderBreakdown {
+  /** Совпадает с полем dataSource в marketing_traffic (meta_ads, yandex_metrika, …). */
+  dataSource: string;
+  rowCount: number;
   sessions: number;
   clicks: number;
   leads: number;
-
-  cost: number;
   revenue: number;
+  impressions: number;
+  cost: number;
+  /** Валюта из последней строки группы (у разных провайдеров может отличаться). */
   currency: string;
 }
 
-export interface MarketingTrafficStats {
+export interface MarketingTrafficChannelsStats {
+  from: string | null;
+  to: string | null;
   currency: string;
   totalSessions: number;
   totalLeads: number;
   totalRevenue: number;
+  /** Суммы по всем строкам выборки (нужны для рекламных / Метрики провайдеров). */
+  totalClicks: number;
+  totalImpressions: number;
   totalCost: number;
-  items: MarketingTrafficRow[];
+  /** Число сырых строк в marketing_traffic за период (до агрегации по каналам). */
+  totalRows: number;
+  dataSources: string[];
+  providerBreakdown: MarketingTrafficProviderBreakdown[];
+  items: Array<{
+    dataSource: string | null;
+    source: string | null;
+    medium: string | null;
+    campaign: string | null;
+    sessions: number;
+    clicks: number;
+    leads: number;
+    revenue: number;
+    impressions: number;
+    cost: number;
+  }>;
 }
 
-type TrafficUpsertRow = {
-  date: string;
-  source: string | null;
-  medium: string | null;
-  campaign: string | null;
-  sessions: number;
-  clicks: number;
-  leads: number;
-  cost: number;
-  revenue: number;
-  currency: string;
-  system?: 'analytics' | 'ads' | 'manual';
-};
-
 @Injectable()
-export class MarketingService implements OnModuleInit, OnModuleDestroy {
+export class MarketingService {
+  private readonly log = new Logger(MarketingService.name);
+
   constructor(
     @InjectRepository(MarketingTraffic)
     private readonly trafficRepo: Repository<MarketingTraffic>,
-
     @InjectRepository(MarketingUtmTemplate)
     private readonly utmRepo: Repository<MarketingUtmTemplate>,
-
-    @InjectRepository(MarketingIntegration)
-    private readonly integrationRepo: Repository<MarketingIntegration>,
-
     @InjectRepository(MarketingAutomation)
     private readonly automationRepo: Repository<MarketingAutomation>,
-
+    @InjectRepository(MarketingSegment)
+    private readonly segmentRepo: Repository<MarketingSegment>,
+    @InjectRepository(MarketingIntegration)
+    private readonly integrationRepo: Repository<MarketingIntegration>,
     @InjectRepository(SeoSettings)
-    private readonly seoSettingsRepo: Repository<SeoSettings>,
-
+    private readonly seoRepo: Repository<SeoSettings>,
     @InjectRepository(SeoGscMetric)
-    private readonly seoGscRepo: Repository<SeoGscMetric>,
-
-    @InjectRepository(SeoPageSpeedMetric)
-    private readonly seoPsiRepo: Repository<SeoPageSpeedMetric>,
-
+    private readonly gscMetricRepo: Repository<SeoGscMetric>,
     @InjectRepository(SeoGscDaily)
-    private readonly seoGscDailyRepo: Repository<SeoGscDaily>,
-
+    private readonly gscDailyRepo: Repository<SeoGscDaily>,
+    @InjectRepository(SeoPageSpeedMetric)
+    private readonly psiRepo: Repository<SeoPageSpeedMetric>,
+    @InjectRepository(Lead)
+    private readonly leadRepo: Repository<Lead>,
     private readonly platformSettings: PlatformSettingsService,
   ) {}
 
-  private seoSyncTimer?: NodeJS.Timeout;
-  private seoSyncRunning = false;
+  // --- Traffic (каналы / импорт) ---
 
-  onModuleInit() {
-    const disabled = process.env.SEO_SYNC_DISABLED === 'true';
-    if (disabled) return;
-    const minutes = Number(process.env.SEO_SYNC_INTERVAL_MIN || 360);
-    const intervalMs = Math.max(10, minutes) * 60 * 1000;
-    this.seoSyncTimer = setInterval(() => {
-      void this.syncSeoForAllTenants();
-    }, intervalMs);
-    // первичный запуск через минуту
-    setTimeout(() => {
-      void this.syncSeoForAllTenants();
-    }, 60 * 1000);
-  }
-
-  onModuleDestroy() {
-    if (this.seoSyncTimer) {
-      clearInterval(this.seoSyncTimer);
-    }
-  }
-
-  // ===== ТРАФИК =====
-  async getTrafficForTenant(
+  async getTrafficChannelsStats(
     tenantId: string,
     from?: string,
     to?: string,
-  ): Promise<MarketingTrafficStats> {
-    const where: FindOptionsWhere<MarketingTraffic> = { tenantId };
+    dataSource?: string,
+  ): Promise<MarketingTrafficChannelsStats> {
+    const qb = this.trafficRepo
+      .createQueryBuilder('t')
+      .where('t.tenantId = :tenantId', { tenantId });
+    if (from) qb.andWhere('t.date >= :from', { from });
+    if (to) qb.andWhere('t.date <= :to', { to });
+    if (dataSource) qb.andWhere('t.dataSource = :ds', { ds: dataSource });
 
-    if (from && to) {
-      where.date = Between(from, to);
-    } else if (from) {
-      where.date = Between(from, from);
-    } else if (to) {
-      where.date = Between(to, to);
+    const rows = await qb.getMany();
+
+    const dsSet = new Set<string>();
+    for (const r of rows) {
+      if (r.dataSource) dsSet.add(r.dataSource);
     }
 
-    const rows = await this.trafficRepo.find({
-      where,
-      order: { date: 'ASC' },
+    type Agg = {
+      sessions: number;
+      clicks: number;
+      leads: number;
+      revenue: number;
+      impressions: number;
+      cost: number;
+    };
+    const map = new Map<string, Agg>();
+    let currency = 'EUR';
+    let totalSessions = 0;
+    let totalLeads = 0;
+    let totalRevenue = 0;
+    let totalClicks = 0;
+    let totalImpressions = 0;
+    let totalCost = 0;
+
+    type ProvAgg = {
+      rowCount: number;
+      sessions: number;
+      clicks: number;
+      leads: number;
+      revenue: number;
+      impressions: number;
+      cost: number;
+      currency: string;
+    };
+    const provMap = new Map<string, ProvAgg>();
+
+    for (const r of rows) {
+      currency = r.currency || currency;
+      const dsKey = (r.dataSource || '').trim() || '_none';
+      const k = `${dsKey}\0${r.source ?? ''}\0${r.medium ?? ''}\0${r.campaign ?? ''}`;
+      const prev = map.get(k) ?? {
+        sessions: 0,
+        clicks: 0,
+        leads: 0,
+        revenue: 0,
+        impressions: 0,
+        cost: 0,
+      };
+      const imp = r.impressions || 0;
+      const cst = Number(r.cost || 0);
+      prev.sessions += r.sessions || 0;
+      prev.clicks += r.clicks || 0;
+      prev.leads += r.leads || 0;
+      prev.revenue += Number(r.revenue || 0);
+      prev.impressions += imp;
+      prev.cost += cst;
+      map.set(k, prev);
+      totalSessions += r.sessions || 0;
+      totalClicks += r.clicks || 0;
+      totalLeads += r.leads || 0;
+      totalRevenue += Number(r.revenue || 0);
+      totalImpressions += imp;
+      totalCost += cst;
+
+      const pKey = (r.dataSource || '').trim() || '_none';
+      const p = provMap.get(pKey) ?? {
+        rowCount: 0,
+        sessions: 0,
+        clicks: 0,
+        leads: 0,
+        revenue: 0,
+        impressions: 0,
+        cost: 0,
+        currency: r.currency || currency,
+      };
+      p.rowCount += 1;
+      p.sessions += r.sessions || 0;
+      p.clicks += r.clicks || 0;
+      p.leads += r.leads || 0;
+      p.revenue += Number(r.revenue || 0);
+      p.impressions += imp;
+      p.cost += cst;
+      p.currency = r.currency || p.currency;
+      provMap.set(pKey, p);
+    }
+
+    const items = [...map.entries()].map(([k, v]) => {
+      const [ds, source, medium, campaign] = k.split('\0');
+      return {
+        dataSource: ds && ds !== '_none' ? ds : null,
+        source: source || null,
+        medium: medium || null,
+        // Убираем из API ошибочно сохранённые строки-ключи i18n — любой клиент увидит null вместо crm.…
+        campaign: sanitizeTrafficText(campaign || undefined),
+        sessions: v.sessions,
+        clicks: v.clicks,
+        leads: v.leads,
+        revenue: v.revenue,
+        impressions: v.impressions,
+        cost: v.cost,
+      };
     });
 
-    if (!rows.length) {
-      return {
-        currency: 'EUR',
-        totalSessions: 0,
-        totalLeads: 0,
-        totalRevenue: 0,
-        totalCost: 0,
-        items: [],
-      };
-    }
-
-    const items: MarketingTrafficRow[] = rows.map((r) => ({
-      date: r.date,
-      source: r.source,
-      medium: r.medium,
-      campaign: r.campaign,
-      sessions: r.sessions || 0,
-      clicks: r.clicks || 0,
-      leads: r.leads || 0,
-      cost: Number(r.cost) || 0,
-      revenue: Number(r.revenue) || 0,
-      currency: r.currency || 'EUR',
-    }));
-
-    const totalSessions = items.reduce((s, r) => s + r.sessions, 0);
-    const totalLeads = items.reduce((s, r) => s + r.leads, 0);
-    const totalRevenue = items.reduce((s, r) => s + r.revenue, 0);
-    const totalCost = items.reduce((s, r) => s + r.cost, 0);
-    const currency = items[0]?.currency || 'EUR';
+    const providerBreakdown: MarketingTrafficProviderBreakdown[] = [...provMap.entries()]
+      .map(([key, v]) => ({
+        dataSource: key === '_none' ? 'unknown' : key,
+        rowCount: v.rowCount,
+        sessions: v.sessions,
+        clicks: v.clicks,
+        leads: v.leads,
+        revenue: v.revenue,
+        impressions: v.impressions,
+        cost: v.cost,
+        currency: v.currency || currency,
+      }))
+      .sort((a, b) => a.dataSource.localeCompare(b.dataSource));
 
     return {
+      from: from ?? null,
+      to: to ?? null,
       currency,
       totalSessions,
       totalLeads,
       totalRevenue,
+      totalClicks,
+      totalImpressions,
       totalCost,
+      totalRows: rows.length,
+      dataSources: [...dsSet].sort(),
+      providerBreakdown,
       items,
     };
   }
 
-  async importTraffic(tenantId: string, dto: ImportTrafficDto): Promise<void> {
-    const rows: TrafficUpsertRow[] = dto.items.map((item) => ({
-      date: item.date,
-      source: item.source ?? null,
-      medium: item.medium ?? null,
-      campaign: item.campaign ?? null,
-      sessions: item.sessions ?? 0,
-      clicks: item.clicks ?? 0,
-      leads: item.leads ?? 0,
-      cost: item.cost ?? 0,
-      revenue: item.revenue ?? 0,
-      currency: item.currency || 'EUR',
-      system: 'manual',
-    }));
-
-    await this.upsertTrafficRows(tenantId, rows);
-  }
-
-  async syncIntegration(
+  async importTraffic(
     tenantId: string,
-    integrationId: string,
-    from?: string,
-    to?: string,
-  ): Promise<{ ok: boolean; updated: number }> {
-    const integration = await this.integrationRepo.findOne({
-      where: { id: integrationId, tenantId },
-    });
-
-    if (!integration) {
-      throw new Error('Integration not found');
-    }
-
-    const range = this.resolveRange(from, to);
-    let rows: TrafficUpsertRow[] = [];
-
-    if (integration.provider === 'google_analytics') {
-      rows = await this.fetchGa4Traffic(integration, range.from, range.to);
-    } else if (integration.provider === 'yandex_metrika') {
-      rows = await this.fetchYandexTraffic(integration, range.from, range.to);
-    } else if (integration.provider === 'google_ads') {
-      rows = await this.fetchGoogleAdsTraffic(integration, range.from, range.to);
-    } else if (integration.provider === 'meta_ads') {
-      rows = await this.fetchMetaAdsTraffic(integration, range.from, range.to);
-    } else {
-      throw new Error('Sync is not supported for this provider');
-    }
-
-    if (!rows.length) {
-      return { ok: true, updated: 0 };
-    }
-
-    await this.upsertTrafficRows(tenantId, rows);
-    await this.touchIntegration(integration, rows.length);
-
-    return { ok: true, updated: rows.length };
-  }
-
-  private resolveRange(from?: string, to?: string) {
-    const today = new Date();
-    const end = to
-      ? new Date(to)
-      : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()));
-    const start = from
-      ? new Date(from)
-      : new Date(end.getTime() - 29 * 24 * 60 * 60 * 1000);
-
-    return {
-      from: start.toISOString().slice(0, 10),
-      to: end.toISOString().slice(0, 10),
-    };
-  }
-
-  private async upsertTrafficRows(tenantId: string, rows: TrafficUpsertRow[]) {
-    for (const item of rows) {
-      const key: Partial<MarketingTraffic> = {
-        tenantId,
-        date: item.date,
-        source: item.source ?? null,
-        medium: item.medium ?? null,
-        campaign: item.campaign ?? null,
-      };
-
-      const where: FindOptionsWhere<MarketingTraffic> = {
-        tenantId: key.tenantId!,
-        date: key.date!,
-        source: key.source ?? undefined,
-        medium: key.medium ?? undefined,
-        campaign: key.campaign ?? undefined,
-      };
-
-      const existing = await this.trafficRepo.findOne({ where });
-
-      const base: Partial<MarketingTraffic> = {
-        ...key,
-        sessions: item.sessions ?? 0,
-        clicks: item.clicks ?? 0,
-        leads: item.leads ?? 0,
-        cost: String(item.cost ?? 0),
-        revenue: String(item.revenue ?? 0),
-        currency: item.currency || 'EUR',
-      };
-
-      if (existing) {
-        const next: Partial<MarketingTraffic> = { ...existing, ...base };
-        if (item.system === 'analytics') {
-          next.clicks = existing.clicks;
-          next.cost = existing.cost;
-        } else if (item.system === 'ads') {
-          next.sessions = existing.sessions;
-          next.leads = existing.leads;
-          next.revenue = existing.revenue;
-        }
-
-        await this.trafficRepo.save(next);
-      } else {
-        const row = this.trafficRepo.create(base);
-        await this.trafficRepo.save(row);
-      }
-    }
-  }
-
-  private async touchIntegration(integration: MarketingIntegration, updated: number) {
-    const settings = integration.settings ?? {};
-    settings.lastSyncAt = new Date().toISOString();
-    settings.lastSyncRows = updated;
-    await this.integrationRepo.save({ ...integration, settings });
-  }
-
-  private parseGaDate(value: string) {
-    if (!value || value.length !== 8) return value;
-    return `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}`;
-  }
-
-  private async fetchGa4Traffic(
-    integration: MarketingIntegration,
-    from: string,
-    to: string,
-  ): Promise<TrafficUpsertRow[]> {
-    const settings = integration.settings ?? {};
-    const propertyId = settings.propertyId || integration.primaryId;
-    const serviceAccountJson = settings.serviceAccountJson;
-    if (!propertyId || !serviceAccountJson) {
-      throw new Error('GA4 settings are missing (propertyId/serviceAccountJson)');
-    }
-
-    const token = await this.getGoogleAccessToken(serviceAccountJson);
-    const revenueMetric = settings.revenueMetric || 'purchaseRevenue';
-    const metrics = [
-      { name: 'sessions' },
-      { name: revenueMetric },
-      ...(settings.conversionEvent ? [] : [{ name: 'conversions' }]),
-    ];
-
-    const baseBody = {
-      dateRanges: [{ startDate: from, endDate: to }],
-      dimensions: [
-        { name: 'date' },
-        { name: 'sessionSource' },
-        { name: 'sessionMedium' },
-        { name: 'sessionCampaignName' },
-      ],
-      metrics,
-      limit: 100000,
-    };
-
-    const baseRows = await this.fetchGa4Report(propertyId, token, baseBody);
-
-    let conversionsMap: Map<string, number> | null = null;
-    if (settings.conversionEvent) {
-      const convBody = {
-        ...baseBody,
-        metrics: [{ name: 'eventCount' }],
-        dimensionFilter: {
-          filter: {
-            fieldName: 'eventName',
-            stringFilter: { value: settings.conversionEvent },
-          },
-        },
-      };
-      const convRows = await this.fetchGa4Report(propertyId, token, convBody);
-      conversionsMap = new Map(
-        convRows.map((row) => [row.key, row.values.metrics.eventCount || 0]),
-      );
-    }
-
-    return baseRows.map((row) => ({
-      date: row.values.date,
-      source: row.values.source,
-      medium: row.values.medium,
-      campaign: row.values.campaign,
-      sessions: row.values.metrics.sessions || 0,
-      clicks: 0,
-      leads: conversionsMap
-        ? conversionsMap.get(row.key) || 0
-        : row.values.metrics.conversions || 0,
-      cost: 0,
-      revenue: row.values.metrics[revenueMetric] || 0,
-      currency: settings.currency || 'EUR',
-      system: 'analytics',
-    }));
-  }
-
-  private async fetchGa4Report(propertyId: string, token: string, body: any) {
-    const res = await fetch(
-      `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      },
-    );
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`GA4 API error: ${res.status} ${text}`);
-    }
-
-    const data = await res.json();
-    const rows = data.rows || [];
-    const metricNames = (body.metrics || []).map((m: any) => m.name);
-
-    return rows.map((row: any) => {
-      const dims = row.dimensionValues || [];
-      const metrics = row.metricValues || [];
-      const date = this.parseGaDate(dims[0]?.value || '');
-      const source = dims[1]?.value || null;
-      const medium = dims[2]?.value || null;
-      const campaign = dims[3]?.value || null;
-
-      const metricsMap: Record<string, number> = {};
-      metricNames.forEach((name: string, idx: number) => {
-        metricsMap[name] = Number(metrics[idx]?.value || 0);
-      });
-
-      const key = `${date}::${source}::${medium}::${campaign}`;
-      return {
-        key,
-        values: {
-          date,
-          source,
-          medium,
-          campaign,
-          metrics: metricsMap,
-        },
-      };
-    });
-  }
-
-  private async getGoogleAccessToken(serviceAccountJson: string) {
-    const creds =
-      typeof serviceAccountJson === 'string'
-        ? JSON.parse(serviceAccountJson)
-        : serviceAccountJson;
-    if (!creds?.client_email || !creds?.private_key) {
-      throw new Error('Invalid GA4 service account JSON');
-    }
-
-    const now = Math.floor(Date.now() / 1000);
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const payload = {
-      iss: creds.client_email,
-      scope: 'https://www.googleapis.com/auth/analytics.readonly',
-      aud: 'https://oauth2.googleapis.com/token',
-      iat: now,
-      exp: now + 3600,
-    };
-
-    const base64url = (input: string) =>
-      Buffer.from(input)
-        .toString('base64')
-        .replace(/=/g, '')
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_');
-
-    const encodedHeader = base64url(JSON.stringify(header));
-    const encodedPayload = base64url(JSON.stringify(payload));
-    const signatureInput = `${encodedHeader}.${encodedPayload}`;
-
-    const sign = createSign('RSA-SHA256');
-    sign.update(signatureInput);
-    sign.end();
-    const signature = sign.sign(creds.private_key, 'base64');
-    const encodedSignature = signature
-      .replace(/=/g, '')
-      .replace(/\+/g, '-')
-      .replace(/\//g, '_');
-
-    const assertion = `${signatureInput}.${encodedSignature}`;
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-        assertion,
-      }).toString(),
-    });
-
-    if (!tokenRes.ok) {
-      const text = await tokenRes.text();
-      throw new Error(`Google OAuth error: ${tokenRes.status} ${text}`);
-    }
-
-    const tokenJson = await tokenRes.json();
-    return tokenJson.access_token as string;
-  }
-
-  private async getGoogleOAuthAccessToken(settings: {
-    clientId?: string;
-    clientSecret?: string;
-    refreshToken?: string;
-  }) {
-    const clientId = settings.clientId;
-    const clientSecret = settings.clientSecret;
-    const refreshToken = settings.refreshToken;
-    if (!clientId || !clientSecret || !refreshToken) {
-      throw new Error('Google OAuth settings are missing (clientId/clientSecret/refreshToken)');
-    }
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-      }).toString(),
-    });
-
-    if (!tokenRes.ok) {
-      const text = await tokenRes.text();
-      throw new Error(`Google OAuth error: ${tokenRes.status} ${text}`);
-    }
-
-    const tokenJson = await tokenRes.json();
-    return tokenJson.access_token as string;
-  }
-
-  private normalizeAdsCustomerId(value?: string | null) {
-    if (!value) return null;
-    return value.replace(/-/g, '').trim();
-  }
-
-  private async fetchGoogleAdsTraffic(
-    integration: MarketingIntegration,
-    from: string,
-    to: string,
-  ): Promise<TrafficUpsertRow[]> {
-    const settings = integration.settings ?? {};
-    const customerId = this.normalizeAdsCustomerId(
-      settings.customerId || integration.primaryId,
-    );
-    const developerToken = settings.developerToken;
-    if (!customerId || !developerToken) {
-      throw new Error('Google Ads settings are missing (customerId/developerToken)');
-    }
-
-    const accessToken = await this.getGoogleOAuthAccessToken(settings);
-    const loginCustomerId = this.normalizeAdsCustomerId(settings.loginCustomerId);
-
-    const query = `
-      SELECT
-        segments.date,
-        campaign.name,
-        metrics.impressions,
-        metrics.clicks,
-        metrics.cost_micros,
-        metrics.conversions,
-        metrics.conversions_value
-      FROM campaign
-      WHERE segments.date BETWEEN '${from}' AND '${to}'
-    `;
-
-    const res = await fetch(
-      `https://googleads.googleapis.com/v14/customers/${customerId}/googleAds:searchStream`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'developer-token': developerToken,
-          ...(loginCustomerId ? { 'login-customer-id': loginCustomerId } : {}),
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ query }),
-      },
-    );
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Google Ads API error: ${res.status} ${text}`);
-    }
-
-    const data = await res.json();
-    const rows: TrafficUpsertRow[] = [];
-
-    for (const chunk of data || []) {
-      for (const row of chunk.results || []) {
-        const date = row?.segments?.date || '';
-        const campaign = row?.campaign?.name || null;
-        const metrics = row?.metrics || {};
-        const costMicros = Number(metrics.costMicros || 0);
-        rows.push({
-          date,
-          source: settings.source || 'google',
-          medium: settings.medium || 'cpc',
-          campaign,
-          sessions: 0,
-          clicks: Number(metrics.clicks || 0),
-          leads: 0,
-          cost: costMicros / 1_000_000,
-          revenue: 0,
-          currency: settings.currency || 'EUR',
-          system: 'ads',
-        });
-      }
-    }
-
-    return rows;
-  }
-
-  private async fetchMetaAdsTraffic(
-    integration: MarketingIntegration,
-    from: string,
-    to: string,
-  ): Promise<TrafficUpsertRow[]> {
-    const settings = integration.settings ?? {};
-    const accessToken = settings.accessToken;
-    const accountId = settings.adAccountId || integration.primaryId;
-    if (!accessToken || !accountId) {
-      throw new Error('Meta Ads settings are missing (accessToken/adAccountId)');
-    }
-
-    const url = new URL(`https://graph.facebook.com/v19.0/act_${accountId}/insights`);
-    url.searchParams.set('access_token', accessToken);
-    url.searchParams.set('level', 'campaign');
-    url.searchParams.set('time_increment', '1');
-    url.searchParams.set('fields', [
-      'date_start',
-      'campaign_name',
-      'impressions',
-      'clicks',
-      'spend',
-      'actions',
-      'action_values',
-    ].join(','));
-    url.searchParams.set('time_range[since]', from);
-    url.searchParams.set('time_range[until]', to);
-
-    const res = await fetch(url.toString());
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Meta Ads API error: ${res.status} ${text}`);
-    }
-
-    const data = await res.json();
-    const rows: TrafficUpsertRow[] = [];
-
-    for (const row of data?.data || []) {
-      const date = row.date_start || '';
-      const campaign = row.campaign_name || null;
-      rows.push({
-        date,
-        source: settings.source || 'meta',
-        medium: settings.medium || 'paid_social',
-        campaign,
-        sessions: 0,
-        clicks: Number(row.clicks || 0),
-        leads: 0,
-        cost: Number(row.spend || 0),
-        revenue: 0,
-        currency: settings.currency || 'EUR',
-        system: 'ads',
-      });
-    }
-
-    return rows;
-  }
-
-  private async fetchYandexTraffic(
-    integration: MarketingIntegration,
-    from: string,
-    to: string,
-  ): Promise<TrafficUpsertRow[]> {
-    const settings = integration.settings ?? {};
-    const counterId = settings.counterId || integration.primaryId;
-    const token = settings.token;
-    if (!counterId || !token) {
-      throw new Error('Metrika settings are missing (counterId/token)');
-    }
-
-    const goalId = settings.goalId;
-    const revenueMetric = settings.revenueMetric || 'ym:s:purchaseRevenue';
-    const conversionMetric = goalId
-      ? `ym:s:goal${goalId}reaches`
-      : 'ym:s:goalReachesAny';
-
-    const metrics = ['ym:s:visits', conversionMetric, revenueMetric].join(',');
-    const dimensions = [
-      'ym:s:date',
-      'ym:s:UTMSource',
-      'ym:s:UTMMedium',
-      'ym:s:UTMCampaign',
-    ].join(',');
-
-    const url = new URL('https://api-metrika.yandex.net/stat/v1/data');
-    url.searchParams.set('ids', String(counterId));
-    url.searchParams.set('metrics', metrics);
-    url.searchParams.set('dimensions', dimensions);
-    url.searchParams.set('date1', from);
-    url.searchParams.set('date2', to);
-    url.searchParams.set('accuracy', 'full');
-    url.searchParams.set('limit', '100000');
-
-    const res = await fetch(url.toString(), {
-      headers: {
-        Authorization: `OAuth ${token}`,
-      },
-    });
-
-    if (!res.ok) {
-      const text = await res.text();
-      throw new Error(`Metrika API error: ${res.status} ${text}`);
-    }
-
-    const data = await res.json();
-    const rows = data.data || [];
-
-    return rows.map((row: any) => {
-      const dims = row.dimensions || [];
-      const metrics = row.metrics || [];
-      const date = dims[0]?.name || '';
-      const source = dims[1]?.name || null;
-      const medium = dims[2]?.name || null;
-      const campaign = dims[3]?.name || null;
-
-      return {
-        date,
-        source,
-        medium,
-        campaign,
-        sessions: Number(metrics[0] || 0),
-        clicks: 0,
-        leads: Number(metrics[1] || 0),
-        cost: 0,
-        revenue: Number(metrics[2] || 0),
-        currency: settings.currency || 'EUR',
-        system: 'analytics',
-      };
-    });
-  }
-
-  // ===== SEO SETTINGS / METRICS =====
-  async getSeoSettings(tenantId: string) {
-    const current = await this.seoSettingsRepo.findOne({
-      where: { tenantId },
-    });
-
-    return {
-      gscPropertyUrl: current?.gscPropertyUrl ?? null,
-      gscConnected: Boolean(current?.gscRefreshToken),
-      pageSpeedApiKey: current?.pageSpeedApiKey ?? null,
-      pageSpeedUrl: current?.pageSpeedUrl ?? null,
-      pageSpeedStrategy: current?.pageSpeedStrategy ?? 'mobile',
-      updatedAt: current?.updatedAt ?? null,
-    };
-  }
-
-  async updateSeoSettings(
-    tenantId: string,
-    payload: {
-      gscPropertyUrl?: string | null;
-      pageSpeedApiKey?: string | null;
-      pageSpeedUrl?: string | null;
-      pageSpeedStrategy?: string | null;
+    body: {
+      items: Array<{
+        date: string;
+        source?: string;
+        medium?: string;
+        campaign?: string;
+        sessions?: number;
+        clicks?: number;
+        leads?: number;
+        projects?: number;
+        cost?: number;
+        revenue?: number;
+        currency?: string;
+        impressions?: number;
+        dataSource?: string;
+      }>;
     },
-  ) {
-    let current = await this.seoSettingsRepo.findOne({
-      where: { tenantId },
-    });
+  ): Promise<{ imported: number }> {
+    const raw = Array.isArray(body?.items) ? body.items : [];
+    const rows: MarketingTraffic[] = [];
 
-    if (!current) {
-      current = this.seoSettingsRepo.create({
+    for (const it of raw) {
+      if (!it?.date) continue;
+      const row = this.trafficRepo.create({
         tenantId,
-        gscPropertyUrl: payload.gscPropertyUrl ?? null,
-        pageSpeedApiKey: payload.pageSpeedApiKey ?? null,
-        pageSpeedUrl: payload.pageSpeedUrl ?? null,
-        pageSpeedStrategy: payload.pageSpeedStrategy ?? 'mobile',
+        date: String(it.date).slice(0, 10),
+        dataSource: it.dataSource?.trim() || 'import',
+        source: sanitizeTrafficText(it.source),
+        medium: sanitizeTrafficText(it.medium),
+        campaign: sanitizeTrafficText(it.campaign),
+        sessions: Math.max(0, Number(it.sessions) || 0),
+        clicks: Math.max(0, Number(it.clicks) || 0),
+        leads: Math.max(0, Number(it.leads) || 0),
+        projects: Math.max(0, Number(it.projects) || 0),
+        cost: String(Math.max(0, Number(it.cost) || 0)),
+        revenue: String(Math.max(0, Number(it.revenue) || 0)),
+        currency: (it.currency || 'EUR').slice(0, 8),
+        impressions: Math.max(0, Number(it.impressions) || 0),
       });
-    } else {
-      if (payload.gscPropertyUrl !== undefined) {
-        current.gscPropertyUrl = payload.gscPropertyUrl;
-      }
-      if (payload.pageSpeedApiKey !== undefined) {
-        current.pageSpeedApiKey = payload.pageSpeedApiKey;
-      }
-      if (payload.pageSpeedUrl !== undefined) {
-        current.pageSpeedUrl = payload.pageSpeedUrl;
-      }
-      if (payload.pageSpeedStrategy !== undefined) {
-        current.pageSpeedStrategy = payload.pageSpeedStrategy || 'mobile';
-      }
+      rows.push(row);
     }
 
-    await this.seoSettingsRepo.save(current);
-    return this.getSeoSettings(tenantId);
+    if (rows.length) await this.trafficRepo.save(rows);
+    return { imported: rows.length };
   }
 
-  private normalizeDateRange(dateFrom?: string, dateTo?: string) {
-    const isValid = (value?: string) => !!value && /^\d{4}-\d{2}-\d{2}$/.test(value);
-    if (isValid(dateFrom) && isValid(dateTo)) {
-      return { dateFrom: dateFrom as string, dateTo: dateTo as string };
-    }
-    const today = new Date();
-    const end = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1));
-    const start = new Date(end.getTime() - 27 * 24 * 60 * 60 * 1000);
-    return {
-      dateFrom: start.toISOString().slice(0, 10),
-      dateTo: end.toISOString().slice(0, 10),
-    };
-  }
+  // --- UTM ---
 
-  private getCompareRange(dateFrom: string, dateTo: string) {
-    const start = new Date(`${dateFrom}T00:00:00.000Z`);
-    const end = new Date(`${dateTo}T00:00:00.000Z`);
-    const days = Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1;
-    const prevEnd = new Date(start.getTime() - 24 * 60 * 60 * 1000);
-    const prevStart = new Date(prevEnd.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
-    return {
-      dateFrom: prevStart.toISOString().slice(0, 10),
-      dateTo: prevEnd.toISOString().slice(0, 10),
-    };
-  }
-
-  private async getGscRangeSummary(tenantId: string, propertyUrl: string, dateFrom: string, dateTo: string) {
-    const rows = await this.seoGscDailyRepo.find({
-      where: { tenantId, propertyUrl, date: Between(dateFrom, dateTo) },
-      order: { date: 'ASC' },
-    });
-
-    let clicks = 0;
-    let impressions = 0;
-    let positionSum = 0;
-    rows.forEach((r) => {
-      clicks += Number(r.clicks || 0);
-      impressions += Number(r.impressions || 0);
-      positionSum += Number(r.position || 0) * Number(r.impressions || 0);
-    });
-    const ctr = impressions > 0 ? clicks / impressions : 0;
-    const position = impressions > 0 ? positionSum / impressions : 0;
-    return {
-      summary: {
-        propertyUrl,
-        dateFrom,
-        dateTo,
-        clicks,
-        impressions,
-        ctr,
-        position,
-      },
-      daily: rows.map((row) => ({
-        date: row.date,
-        clicks: row.clicks,
-        impressions: row.impressions,
-        ctr: Number(row.ctr) || 0,
-        position: Number(row.position) || 0,
-      })),
-    };
-  }
-
-  async getSeoMetrics(tenantId: string, opts?: { dateFrom?: string; dateTo?: string; compare?: boolean }) {
-    const gsc = await this.seoGscRepo.findOne({ where: { tenantId } });
-    const psi = await this.seoPsiRepo.findOne({ where: { tenantId } });
-    const settings = await this.seoSettingsRepo.findOne({ where: { tenantId } });
-    const propertyUrl = settings?.gscPropertyUrl || gsc?.propertyUrl || null;
-
-    if (opts?.dateFrom && opts?.dateTo && propertyUrl) {
-      const { dateFrom, dateTo } = this.normalizeDateRange(opts.dateFrom, opts.dateTo);
-      const range = await this.getGscRangeSummary(tenantId, propertyUrl, dateFrom, dateTo);
-      const compare = opts.compare ? this.getCompareRange(dateFrom, dateTo) : null;
-      const compareRange = compare
-        ? await this.getGscRangeSummary(tenantId, propertyUrl, compare.dateFrom, compare.dateTo)
-        : null;
-      return {
-        gsc: range.summary,
-        gscDaily: range.daily,
-        gscCompare: compareRange?.summary || null,
-        gscCompareDaily: compareRange?.daily || [],
-        psi: psi
-          ? {
-              pageUrl: psi.pageUrl,
-              strategy: psi.strategy,
-              performance: psi.performance,
-              accessibility: psi.accessibility,
-              bestPractices: psi.bestPractices,
-              seo: psi.seo,
-              lcp: Number(psi.lcp) || 0,
-              cls: Number(psi.cls) || 0,
-              fcp: Number(psi.fcp) || 0,
-              tbt: Number(psi.tbt) || 0,
-              speedIndex: Number(psi.speedIndex) || 0,
-              updatedAt: psi.updatedAt,
-            }
-          : null,
-      };
-    }
-
-    const daily = await this.seoGscDailyRepo.find({
-      where: { tenantId },
-      order: { date: 'ASC' },
-      take: 31,
-    });
-    return {
-      gsc: gsc
-        ? {
-            propertyUrl: gsc.propertyUrl,
-            dateFrom: gsc.dateFrom,
-            dateTo: gsc.dateTo,
-            clicks: gsc.clicks,
-            impressions: gsc.impressions,
-            ctr: Number(gsc.ctr) || 0,
-            position: Number(gsc.position) || 0,
-            updatedAt: gsc.updatedAt,
-          }
-        : null,
-      gscDaily: daily.map((row) => ({
-        date: row.date,
-        clicks: row.clicks,
-        impressions: row.impressions,
-        ctr: Number(row.ctr) || 0,
-        position: Number(row.position) || 0,
-      })),
-      gscCompare: null,
-      gscCompareDaily: [],
-      psi: psi
-        ? {
-            pageUrl: psi.pageUrl,
-            strategy: psi.strategy,
-            performance: psi.performance,
-            accessibility: psi.accessibility,
-            bestPractices: psi.bestPractices,
-            seo: psi.seo,
-            lcp: Number(psi.lcp) || 0,
-            cls: Number(psi.cls) || 0,
-            fcp: Number(psi.fcp) || 0,
-            tbt: Number(psi.tbt) || 0,
-            speedIndex: Number(psi.speedIndex) || 0,
-            updatedAt: psi.updatedAt,
-          }
-        : null,
-    };
-  }
-
-  async getGoogleAuthUrl(tenantId: string, redirect?: string) {
-    const { clientId } = await this.platformSettings.getGoogleOAuthConfig();
-    if (!clientId) {
-      throw new Error('Google OAuth clientId is not configured');
-    }
-
-    const redirectUri =
-      process.env.GOOGLE_OAUTH_REDIRECT_URI ||
-      'https://crm.lumiva.agency/v1/marketing/seo/google/callback';
-    const state = this.signState({
-      tenantId,
-      redirect: redirect || '/app/marketing/seo',
-      ts: Date.now(),
-    });
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: 'code',
-      access_type: 'offline',
-      prompt: 'consent',
-      include_granted_scopes: 'true',
-      scope: 'https://www.googleapis.com/auth/webmasters.readonly',
-      state,
-    });
-
-    return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}` };
-  }
-
-  async handleGoogleCallback(code?: string, state?: string) {
-    if (!code || !state) {
-      return this.safeRedirect('/app/marketing/seo?seo=error');
-    }
-
-    const parsed = this.verifyState(state);
-    if (!parsed?.tenantId) {
-      return this.safeRedirect('/app/marketing/seo?seo=invalid_state');
-    }
-
-    const { clientId, clientSecret } =
-      await this.platformSettings.getGoogleOAuthConfig();
-    if (!clientId || !clientSecret) {
-      return this.safeRedirect('/app/marketing/seo?seo=missing_oauth');
-    }
-
-    const redirectUri =
-      process.env.GOOGLE_OAUTH_REDIRECT_URI ||
-      'https://crm.lumiva.agency/v1/marketing/seo/google/callback';
-
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
-        grant_type: 'authorization_code',
-      }).toString(),
-    });
-
-    if (!tokenRes.ok) {
-      return this.safeRedirect('/app/marketing/seo?seo=oauth_error');
-    }
-
-    const tokenJson = await tokenRes.json();
-    const refreshToken = tokenJson.refresh_token as string | undefined;
-
-    let current = await this.seoSettingsRepo.findOne({
-      where: { tenantId: parsed.tenantId },
-    });
-    if (!current) {
-      current = this.seoSettingsRepo.create({
-        tenantId: parsed.tenantId,
-        gscRefreshToken: refreshToken || null,
-      });
-    } else if (refreshToken) {
-      current.gscRefreshToken = refreshToken;
-    }
-
-    if (current) {
-      await this.seoSettingsRepo.save(current);
-    }
-
-    const redirect = parsed.redirect || '/app/marketing/seo';
-    return this.safeRedirect(`${redirect}?seo=connected`);
-  }
-
-  async syncSeoMetrics(tenantId: string, opts?: { dateFrom?: string; dateTo?: string; compare?: boolean }) {
-    const settings = await this.seoSettingsRepo.findOne({
-      where: { tenantId },
-    });
-    if (!settings) {
-      return { ok: true, gsc: false, psi: false };
-    }
-
-    const gscUpdated = await this.syncGscMetrics(tenantId, settings, opts);
-    const psiUpdated = await this.syncPageSpeedMetrics(tenantId, settings);
-
-    return { ok: true, gsc: gscUpdated, psi: psiUpdated };
-  }
-
-  private async syncSeoForAllTenants() {
-    if (this.seoSyncRunning) return;
-    this.seoSyncRunning = true;
-    try {
-      const all = await this.seoSettingsRepo.find();
-      for (const settings of all) {
-        await this.syncSeoMetrics(settings.tenantId);
-      }
-    } catch (e) {
-      // avoid noisy crashes; cron will retry next run
-    } finally {
-      this.seoSyncRunning = false;
-    }
-  }
-
-  private async syncGscMetrics(
-    tenantId: string,
-    settings: SeoSettings,
-    opts?: { dateFrom?: string; dateTo?: string; compare?: boolean },
-  ) {
-    if (!settings.gscPropertyUrl || !settings.gscRefreshToken) return false;
-
-    const { clientId, clientSecret } =
-      await this.platformSettings.getGoogleOAuthConfig();
-    if (!clientId || !clientSecret) return false;
-
-    const accessToken = await this.getGoogleAccessTokenFromRefreshToken({
-      clientId,
-      clientSecret,
-      refreshToken: settings.gscRefreshToken,
-    });
-
-    const mainRange = this.normalizeDateRange(opts?.dateFrom, opts?.dateTo);
-    const compareRange = opts?.compare ? this.getCompareRange(mainRange.dateFrom, mainRange.dateTo) : null;
-
-    const normalizePropertyUrl = (value: string) => {
-      if (value.startsWith('sc-domain:')) {
-        return value;
-      }
-      if (value.startsWith('http://') || value.startsWith('https://')) {
-        return value.endsWith('/') ? value : `${value}/`;
-      }
-      return `https://${value.replace(/\/+$/, '')}/`;
-    };
-
-    const buildFallbackPropertyUrl = (value: string) => {
-      if (value.startsWith('sc-domain:')) {
-        return normalizePropertyUrl(value.replace(/^sc-domain:/, ''));
-      }
-      try {
-        const url = new URL(normalizePropertyUrl(value));
-        return `sc-domain:${url.host}`;
-      } catch {
-        return `sc-domain:${value}`;
-      }
-    };
-
-    const fetchRange = async (propertyUrl: string, dateFrom: string, dateTo: string) => {
-      const url = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
-        propertyUrl,
-      )}/searchAnalytics/query`;
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          startDate: dateFrom,
-          endDate: dateTo,
-          dimensions: ['date'],
-          rowLimit: 25000,
-        }),
-      });
-
-      if (!res.ok) {
-        return null;
-      }
-
-      const data = await res.json();
-      return data?.rows || [];
-    };
-
-    const primaryPropertyUrl = normalizePropertyUrl(settings.gscPropertyUrl);
-    const fallbackPropertyUrl = buildFallbackPropertyUrl(settings.gscPropertyUrl);
-
-    let propertyUrl = primaryPropertyUrl;
-    let rows = await fetchRange(primaryPropertyUrl, mainRange.dateFrom, mainRange.dateTo);
-    if (!rows && fallbackPropertyUrl !== primaryPropertyUrl) {
-      rows = await fetchRange(fallbackPropertyUrl, mainRange.dateFrom, mainRange.dateTo);
-      if (rows) {
-        propertyUrl = fallbackPropertyUrl;
-        settings.gscPropertyUrl = fallbackPropertyUrl;
-        await this.seoSettingsRepo.save(settings);
-      }
-    }
-    if (!rows) return false;
-
-    let clicks = 0;
-    let impressions = 0;
-    let positionSum = 0;
-    rows.forEach((r: any) => {
-      const c = Number(r.clicks || 0);
-      const i = Number(r.impressions || 0);
-      clicks += c;
-      impressions += i;
-      positionSum += Number(r.position || 0) * i;
-    });
-
-    const ctr = impressions > 0 ? clicks / impressions : 0;
-    const position = impressions > 0 ? positionSum / impressions : 0;
-
-    const existing = await this.seoGscRepo.findOne({
-      where: { tenantId, propertyUrl },
-    });
-
-    const payload: Partial<SeoGscMetric> = {
-      tenantId,
-      propertyUrl,
-      dateFrom: mainRange.dateFrom,
-      dateTo: mainRange.dateTo,
-      clicks,
-      impressions,
-      ctr: String(ctr),
-      position: String(position),
-    };
-
-    if (existing) {
-      await this.seoGscRepo.save({ ...existing, ...payload });
-    } else {
-      await this.seoGscRepo.save(this.seoGscRepo.create(payload));
-    }
-
-    for (const row of rows) {
-      const date = row.keys?.[0];
-      if (!date) continue;
-      const i = Number(row.impressions || 0);
-      const ctrRow = i > 0 ? Number(row.clicks || 0) / i : 0;
-      const dailyPayload: Partial<SeoGscDaily> = {
-        tenantId,
-          propertyUrl,
-        date,
-        clicks: Number(row.clicks || 0),
-        impressions: i,
-        ctr: String(ctrRow),
-        position: String(Number(row.position || 0)),
-      };
-
-      const dailyExisting = await this.seoGscDailyRepo.findOne({
-        where: { tenantId, propertyUrl, date },
-      });
-      if (dailyExisting) {
-        await this.seoGscDailyRepo.save({ ...dailyExisting, ...dailyPayload });
-      } else {
-        await this.seoGscDailyRepo.save(this.seoGscDailyRepo.create(dailyPayload));
-      }
-    }
-
-    if (compareRange) {
-      const compareRows = await fetchRange(propertyUrl, compareRange.dateFrom, compareRange.dateTo);
-      if (compareRows) {
-        for (const row of compareRows) {
-          const date = row.keys?.[0];
-          if (!date) continue;
-          const i = Number(row.impressions || 0);
-          const ctrRow = i > 0 ? Number(row.clicks || 0) / i : 0;
-          const dailyPayload: Partial<SeoGscDaily> = {
-            tenantId,
-            propertyUrl,
-            date,
-            clicks: Number(row.clicks || 0),
-            impressions: i,
-            ctr: String(ctrRow),
-            position: String(Number(row.position || 0)),
-          };
-
-          const dailyExisting = await this.seoGscDailyRepo.findOne({
-            where: { tenantId, propertyUrl, date },
-          });
-          if (dailyExisting) {
-            await this.seoGscDailyRepo.save({ ...dailyExisting, ...dailyPayload });
-          } else {
-            await this.seoGscDailyRepo.save(this.seoGscDailyRepo.create(dailyPayload));
-          }
-        }
-      }
-    }
-
-    return true;
-  }
-
-  private async syncPageSpeedMetrics(tenantId: string, settings: SeoSettings) {
-    if (!settings.pageSpeedApiKey || !settings.pageSpeedUrl) return false;
-    const strategy = settings.pageSpeedStrategy || 'mobile';
-    const normalizeUrl = (value: string) => {
-      if (value.startsWith('http://') || value.startsWith('https://')) {
-        return value;
-      }
-      return `https://${value}`;
-    };
-    const url = new URL('https://www.googleapis.com/pagespeedonline/v5/runPagespeed');
-    url.searchParams.set('url', normalizeUrl(settings.pageSpeedUrl));
-    url.searchParams.set('strategy', strategy);
-    url.searchParams.set('key', settings.pageSpeedApiKey);
-    url.searchParams.append('category', 'performance');
-    url.searchParams.append('category', 'accessibility');
-    url.searchParams.append('category', 'best-practices');
-    url.searchParams.append('category', 'seo');
-
-    const res = await fetch(url.toString());
-    if (!res.ok) return false;
-
-    const data = await res.json();
-    const categories = data?.lighthouseResult?.categories || {};
-    const audits = data?.lighthouseResult?.audits || {};
-    if (!data?.lighthouseResult?.categories) {
-      return false;
-    }
-
-    const toScore = (v?: number) => Math.round((v || 0) * 100);
-    const metricValue = (key: string) =>
-      Number(audits?.[key]?.numericValue || 0);
-
-    const bestPracticesScore =
-      categories?.['best-practices']?.score ??
-      categories?.bestPractices?.score ??
-      0;
-
-    const accessibilityScore =
-      categories?.accessibility?.score ?? 0;
-
-    const seoScore =
-      categories?.seo?.score ?? 0;
-
-    const payload: Partial<SeoPageSpeedMetric> = {
-      tenantId,
-      pageUrl: normalizeUrl(settings.pageSpeedUrl),
-      strategy,
-      performance: toScore(categories?.performance?.score),
-      accessibility: toScore(accessibilityScore),
-      bestPractices: toScore(bestPracticesScore),
-      seo: toScore(seoScore),
-      lcp: String(metricValue('largest-contentful-paint')),
-      cls: String(metricValue('cumulative-layout-shift')),
-      fcp: String(metricValue('first-contentful-paint')),
-      tbt: String(metricValue('total-blocking-time')),
-      speedIndex: String(metricValue('speed-index')),
-    };
-
-    const existing = await this.seoPsiRepo.findOne({
-      where: { tenantId, pageUrl: settings.pageSpeedUrl, strategy },
-    });
-
-    if (existing) {
-      await this.seoPsiRepo.save({ ...existing, ...payload });
-    } else {
-      await this.seoPsiRepo.save(this.seoPsiRepo.create(payload));
-    }
-
-    return true;
-  }
-
-  private async getGoogleAccessTokenFromRefreshToken(params: {
-    clientId: string;
-    clientSecret: string;
-    refreshToken: string;
-  }) {
-    const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'refresh_token',
-        client_id: params.clientId,
-        client_secret: params.clientSecret,
-        refresh_token: params.refreshToken,
-      }).toString(),
-    });
-
-    if (!tokenRes.ok) {
-      const text = await tokenRes.text();
-      throw new Error(`Google OAuth error: ${tokenRes.status} ${text}`);
-    }
-
-    const tokenJson = await tokenRes.json();
-    return tokenJson.access_token as string;
-  }
-
-  private signState(payload: Record<string, unknown>) {
-    const secret = process.env.JWT_SECRET || 'changeme';
-    const raw = Buffer.from(JSON.stringify(payload)).toString('base64url');
-    const sig = createHmac('sha256', secret).update(raw).digest('base64url');
-    return `${raw}.${sig}`;
-  }
-
-  private verifyState(state?: string | null): { tenantId?: string; redirect?: string } | null {
-    if (!state) return null;
-    const [raw, sig] = state.split('.');
-    if (!raw || !sig) return null;
-    const secret = process.env.JWT_SECRET || 'changeme';
-    const expected = createHmac('sha256', secret).update(raw).digest('base64url');
-    if (expected !== sig) return null;
-    try {
-      return JSON.parse(Buffer.from(raw, 'base64url').toString('utf-8'));
-    } catch {
-      return null;
-    }
-  }
-
-  private safeRedirect(path: string) {
-    if (path.startsWith('http://') || path.startsWith('https://')) return path;
-    return `https://crm.lumiva.agency${path}`;
-  }
-
-  // ===== UTM ТЕМПЛЕЙТЫ =====
-  async listUtmTemplates(tenantId: string): Promise<MarketingUtmTemplate[]> {
+  listUtmTemplates(tenantId: string) {
     return this.utmRepo.find({
       where: { tenantId },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async createUtmTemplate(
-    tenantId: string,
-    dto: CreateUtmTemplateDto,
-  ): Promise<MarketingUtmTemplate> {
-    const entity = this.utmRepo.create({
+  async createUtmTemplate(tenantId: string, dto: CreateUtmTemplateDto) {
+    const row = this.utmRepo.create({
       tenantId,
       name: dto.name,
       baseUrl: dto.baseUrl ?? null,
@@ -1364,78 +333,227 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       utmContent: dto.utmContent ?? null,
       utmTerm: dto.utmTerm ?? null,
     });
-
-    return this.utmRepo.save(entity);
+    return this.utmRepo.save(row);
   }
 
-  async deleteUtmTemplate(tenantId: string, id: string): Promise<void> {
-    await this.utmRepo.delete({ id, tenantId });
+  async deleteUtmTemplate(tenantId: string, id: string) {
+    const res = await this.utmRepo.delete({ id, tenantId });
+    if (!res.affected) throw new NotFoundException('Template not found');
+    return { success: true };
   }
 
-  // ===== ИНТЕГРАЦИИ =====
-  async listIntegrations(tenantId: string): Promise<MarketingIntegration[]> {
+  // --- Интеграции (GA4, Метрика, Google Ads, …) ---
+
+  /** jsonb иногда приходит строкой; UI может класть поля во вложенные объекты. */
+  private parseSettingsObject(raw: unknown): Record<string, unknown> {
+    if (raw == null) return {};
+    if (typeof raw === 'string') {
+      const t = raw.trim();
+      if (!t) return {};
+      try {
+        const p = JSON.parse(t) as unknown;
+        return typeof p === 'object' && p !== null && !Array.isArray(p)
+          ? (p as Record<string, unknown>)
+          : {};
+      } catch {
+        return {};
+      }
+    }
+    if (typeof raw === 'object' && !Array.isArray(raw)) {
+      return { ...(raw as Record<string, unknown>) };
+    }
+    return {};
+  }
+
+  /**
+   * Провайдер в БД/UI может содержать пробелы, дефисы, невидимые символы (копипаст).
+   */
+  private normalizeMarketingIntegrationProvider(raw: unknown): string {
+    return String(raw ?? '')
+      .normalize('NFKC')
+      .replace(/[\u200B-\u200D\uFEFF]/g, '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '_')
+      .replace(/-/g, '_');
+  }
+
+  private isMetaAdsProvider(normalized: string): boolean {
+    return (
+      normalized === 'meta_ads' ||
+      normalized === 'facebook_ads' ||
+      normalized === 'meta' ||
+      normalized === 'facebook_marketing' ||
+      normalized === 'instagram_ads' ||
+      normalized === 'fb_ads'
+    );
+  }
+
+  private flattenNestedIntegrationSettings(
+    s: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const out = { ...s };
+    const nest = [
+      'metrika',
+      'yandex',
+      'metrica',
+      'yandexMetrika',
+      'yandex_metrika',
+      'config',
+      'credentials',
+      'auth',
+      'ga4',
+      'googleAnalytics',
+      'google_analytics',
+      'meta',
+      'facebook',
+      'metaAds',
+      'meta_ads',
+    ];
+    for (const k of nest) {
+      const inner = out[k];
+      if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+        Object.assign(out, inner as Record<string, unknown>);
+      }
+    }
+    return out;
+  }
+
+  private pickFirstNonEmptyString(values: unknown[]): string {
+    for (const v of values) {
+      if (v === null || v === undefined) continue;
+      const t = String(v).trim();
+      if (t) return t;
+    }
+    return '';
+  }
+
+  private normalizeMetrikaOAuthToken(raw: string): string {
+    let t = raw.trim();
+    if (/^oauth\s+/i.test(t)) t = t.replace(/^oauth\s+/i, '').trim();
+    if (/^bearer\s+/i.test(t)) t = t.replace(/^bearer\s+/i, '').trim();
+    return t;
+  }
+
+  listMarketingIntegrations(tenantId: string) {
     return this.integrationRepo.find({
       where: { tenantId },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async createIntegration(
+  async createMarketingIntegration(
     tenantId: string,
     dto: CreateMarketingIntegrationDto,
-  ): Promise<MarketingIntegration> {
-    const entity = this.integrationRepo.create({
+  ) {
+    const settings: Record<string, unknown> = {
+      ...this.parseSettingsObject(dto.settings as unknown),
+    };
+    if (dto.ga4ServiceAccountJson?.trim()) {
+      settings.serviceAccountJson = dto.ga4ServiceAccountJson.trim();
+    }
+    const row = this.integrationRepo.create({
       tenantId,
       provider: dto.provider,
       kind: dto.kind ?? 'analytics',
       name: dto.name,
       isActive: dto.isActive ?? true,
-      primaryId: dto.primaryId ?? null,
-      settings: dto.settings ?? null,
+      primaryId: dto.primaryId?.trim() || null,
+      settings: Object.keys(settings).length ? settings : null,
     });
-
-    return this.integrationRepo.save(entity);
+    return this.integrationRepo.save(row);
   }
 
-  async updateIntegration(
+  async updateMarketingIntegration(
     tenantId: string,
     id: string,
-    dto: Partial<CreateMarketingIntegrationDto>,
-  ): Promise<MarketingIntegration> {
-    const prev = await this.integrationRepo.findOne({
-      where: { id, tenantId },
-    });
-    if (!prev) {
-      throw new Error('Integration not found');
+    dto: UpdateMarketingIntegrationDto,
+  ) {
+    const row = await this.integrationRepo.findOne({ where: { id, tenantId } });
+    if (!row) throw new NotFoundException('Integration not found');
+
+    if (dto.provider !== undefined) row.provider = dto.provider;
+    if (dto.kind !== undefined) row.kind = dto.kind;
+    if (dto.name !== undefined) row.name = dto.name;
+    if (dto.isActive !== undefined) row.isActive = dto.isActive;
+    if (dto.primaryId !== undefined) {
+      row.primaryId = dto.primaryId?.trim() || null;
     }
 
-    const merged = {
-      ...prev,
-      ...dto,
-      primaryId: dto.primaryId ?? prev.primaryId,
-      settings: dto.settings ?? prev.settings,
-    };
+    const patchSettings =
+      dto.settings !== undefined || dto.ga4ServiceAccountJson !== undefined;
+    if (patchSettings) {
+      const base: Record<string, unknown> = {
+        ...this.parseSettingsObject(row.settings),
+      };
+      if (dto.settings !== undefined && typeof dto.settings === 'object') {
+        Object.assign(base, dto.settings);
+      }
+      if (dto.ga4ServiceAccountJson !== undefined) {
+        const j = dto.ga4ServiceAccountJson?.trim();
+        if (j) base.serviceAccountJson = j;
+        else delete base.serviceAccountJson;
+      }
+      row.settings = Object.keys(base).length ? base : null;
+    }
 
-    return this.integrationRepo.save(merged);
+    return this.integrationRepo.save(row);
   }
 
-  async deleteIntegration(tenantId: string, id: string): Promise<void> {
-    await this.integrationRepo.delete({ id, tenantId });
+  async deleteMarketingIntegration(tenantId: string, id: string) {
+    const res = await this.integrationRepo.delete({ id, tenantId });
+    if (!res.affected) throw new NotFoundException('Integration not found');
+    return { success: true };
   }
 
-  // ===== АВТОМАТИЗАЦИИ (n8n) =====
-  async listAutomations(tenantId: string): Promise<MarketingAutomation[]> {
+  /**
+   * Ручная синхронизация одной интеграции (UI: «Синхронизировать» для Google Ads).
+   */
+  /** @returns сколько строк трафика записано (0 — ок, но данных за период нет или синк пропущен). */
+  async syncMarketingIntegrationById(tenantId: string, id: string): Promise<number> {
+    const row = await this.integrationRepo.findOne({ where: { id, tenantId } });
+    if (!row) throw new NotFoundException('Integration not found');
+    if (!row.isActive) {
+      throw new BadRequestException('Integration is inactive');
+    }
+    const provider = this.normalizeMarketingIntegrationProvider(row.provider);
+    if (provider === 'google_ads') {
+      return this.syncGoogleAdsIntegration(row);
+    }
+    if (
+      provider === 'yandex_metrika' ||
+      provider === 'yandex_metrica' ||
+      provider === 'yandex_metrika_web'
+    ) {
+      return this.syncYandexMetrikaIntegration(row);
+    }
+    if (
+      provider === 'ga4' ||
+      provider === 'google_analytics' ||
+      provider === 'google_analytics_4' ||
+      provider === 'google_analytics_ga4'
+    ) {
+      return this.syncGa4Integration(row);
+    }
+    if (this.isMetaAdsProvider(provider)) {
+      return this.syncMetaAdsIntegration(row);
+    }
+    throw new BadRequestException(
+      `Синхронизация недоступна для провайдера «${row.provider}». Обновите backend или проверьте значение поля provider в интеграции.`,
+    );
+  }
+
+  // --- Automations ---
+
+  listAutomations(tenantId: string) {
     return this.automationRepo.find({
       where: { tenantId },
       order: { createdAt: 'DESC' },
     });
   }
 
-  async createAutomation(
-    tenantId: string,
-    dto: CreateAutomationDto,
-  ): Promise<MarketingAutomation> {
-    const entity = this.automationRepo.create({
+  createAutomation(tenantId: string, dto: CreateAutomationDto) {
+    const row = this.automationRepo.create({
       tenantId,
       name: dto.name,
       type: dto.type ?? 'n8n_webhook',
@@ -1443,36 +561,1325 @@ export class MarketingService implements OnModuleInit, OnModuleDestroy {
       isActive: dto.isActive ?? true,
       meta: dto.meta ?? null,
     });
-
-    return this.automationRepo.save(entity);
+    return this.automationRepo.save(row);
   }
 
-  async updateAutomation(
-    tenantId: string,
-    id: string,
-    dto: Partial<CreateAutomationDto>,
-  ): Promise<MarketingAutomation> {
-    const prev = await this.automationRepo.findOne({
-      where: { id, tenantId },
-    });
-    if (!prev) throw new Error('Automation not found');
+  async updateAutomation(tenantId: string, id: string, dto: UpdateAutomationDto) {
+    const row = await this.automationRepo.findOne({ where: { id, tenantId } });
+    if (!row) throw new NotFoundException('Automation not found');
+    if (dto.name !== undefined) row.name = dto.name;
+    if (dto.type !== undefined) row.type = dto.type;
+    if (dto.webhookUrl !== undefined) row.webhookUrl = dto.webhookUrl ?? null;
+    if (dto.isActive !== undefined) row.isActive = dto.isActive;
+    if (dto.meta !== undefined) row.meta = dto.meta ?? null;
+    return this.automationRepo.save(row);
+  }
 
-    const merged = {
-      ...prev,
-      ...dto,
-      webhookUrl: dto.webhookUrl ?? prev.webhookUrl,
-      meta: dto.meta ?? prev.meta,
+  async deleteAutomation(tenantId: string, id: string) {
+    const res = await this.automationRepo.delete({ id, tenantId });
+    if (!res.affected) throw new NotFoundException('Automation not found');
+    return { success: true };
+  }
+
+  // --- Segments ---
+
+  private toSegmentDto(e: MarketingSegment): SegmentDto {
+    return {
+      id: e.id,
+      entityType: 'lead',
+      name: e.name,
+      description: e.description,
+      leadStatuses: e.leadStatuses,
+      source: e.source,
+      country: e.country,
+      manager: e.manager,
+      createdFrom: e.createdFrom
+        ? String(e.createdFrom).slice(0, 10)
+        : null,
+      createdTo: e.createdTo ? String(e.createdTo).slice(0, 10) : null,
+      lastMatchedCount: e.lastMatchedCount,
+      lastRunAt: e.lastRunAt ? e.lastRunAt.toISOString() : null,
+      createdAt: e.createdAt.toISOString(),
+    };
+  }
+
+  async listSegments(tenantId: string): Promise<SegmentDto[]> {
+    const list = await this.segmentRepo.find({
+      where: { tenantId },
+      order: { createdAt: 'DESC' },
+    });
+    return list.map((e) => this.toSegmentDto(e));
+  }
+
+  async createSegment(
+    tenantId: string,
+    body: CreateSegmentBodyDto,
+  ): Promise<SegmentDto> {
+    if (body.entityType !== 'lead') {
+      throw new BadRequestException('Only entityType=lead is supported');
+    }
+    const f = body.filters ?? {};
+    const row = this.segmentRepo.create({
+      tenantId,
+      name: body.name,
+      description: body.description?.trim() || null,
+      leadStatuses: f.statuses?.length ? f.statuses : null,
+      source: f.sources?.[0]?.trim() || null,
+      country: f.countries?.[0]?.trim()?.slice(0, 8) || null,
+      manager: f.managers?.[0]?.trim() || null,
+      createdFrom: f.createdFrom?.trim()?.slice(0, 10) || null,
+      createdTo: f.createdTo?.trim()?.slice(0, 10) || null,
+      lastMatchedCount: 0,
+      lastRunAt: null,
+    });
+    const saved = await this.segmentRepo.save(row);
+    return this.toSegmentDto(saved);
+  }
+
+  async runSegment(
+    tenantId: string,
+    segmentId: string,
+  ): Promise<
+    Array<{
+      id: string;
+      name: string | null;
+      email: string | null;
+      phone: string | null;
+      status: string;
+    }>
+  > {
+    const seg = await this.segmentRepo.findOne({
+      where: { id: segmentId, tenantId },
+    });
+    if (!seg) throw new NotFoundException('Segment not found');
+
+    const qb = this.leadRepo
+      .createQueryBuilder('l')
+      .where('l.tenantId = :tenantId', { tenantId });
+
+    if (seg.leadStatuses?.length) {
+      qb.andWhere('l.status IN (:...st)', { st: seg.leadStatuses });
+    }
+    if (seg.source) {
+      qb.andWhere('l.source = :source', { source: seg.source });
+    }
+    if (seg.country) {
+      qb.andWhere('l.country = :country', { country: seg.country });
+    }
+    if (seg.manager) {
+      qb.andWhere('l.assignedTo ILIKE :mgr', { mgr: `%${seg.manager}%` });
+    }
+    if (seg.createdFrom) {
+      qb.andWhere('l.createdAt >= :cf', { cf: seg.createdFrom });
+    }
+    if (seg.createdTo) {
+      const ctEnd = new Date(`${seg.createdTo}T23:59:59.999Z`);
+      qb.andWhere('l.createdAt <= :ctEnd', { ctEnd });
+    }
+
+    const leads = await qb
+      .orderBy('l.createdAt', 'DESC')
+      .take(5000)
+      .getMany();
+
+    seg.lastMatchedCount = leads.length;
+    seg.lastRunAt = new Date();
+    await this.segmentRepo.save(seg);
+
+    return leads.map((l) => ({
+      id: l.id,
+      name: l.name,
+      email: l.email,
+      phone: l.phone,
+      status: l.status,
+    }));
+  }
+
+  // --- Google Ads (REST v23, unary search) ---
+
+  private normalizeGoogleAdsCustomerId(id: string): string {
+    return String(id || '').replace(/-/g, '').trim();
+  }
+
+  private googleAdsSearchUrl(customerId: string): string {
+    const cid = this.normalizeGoogleAdsCustomerId(customerId);
+    return `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cid}/googleAds:search`;
+  }
+
+  /**
+   * Обмен refresh_token на access_token.
+   * Если в интеграции заданы оба поля clientId + clientSecret — используются они
+   * (тот же OAuth-клиент, что выдал refresh token). Иначе — из настроек платформы CRM.
+   */
+  private async googleOAuthAccessToken(
+    refreshToken: string,
+    integrationOAuth?: { clientId: string; clientSecret: string },
+  ): Promise<string> {
+    let clientId = integrationOAuth?.clientId?.trim() || '';
+    let clientSecret = integrationOAuth?.clientSecret?.trim() || '';
+    if (!clientId || !clientSecret) {
+      const platform = await this.platformSettings.getGoogleOAuthConfig();
+      clientId = platform.clientId?.trim() || '';
+      clientSecret = platform.clientSecret?.trim() || '';
+    }
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException(
+        'Google OAuth: укажите client_id и client_secret в настройках платформы CRM или в JSON интеграции (поля clientId и clientSecret)',
+      );
+    }
+    const params = new URLSearchParams({
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    });
+    try {
+      const res = await axios.post(
+        'https://oauth2.googleapis.com/token',
+        params.toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      );
+      const access = res.data?.access_token as string | undefined;
+      if (!access) {
+        throw new BadRequestException('Google не вернул access_token');
+      }
+      return access;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const status = err.response?.status;
+        const body = err.response?.data as
+          | { error?: string; error_description?: string }
+          | undefined;
+        const code = body?.error;
+        if (status === 401 && code === 'unauthorized_client') {
+          throw new BadRequestException(
+            'OAuth: refresh token выдан другим Client ID, чем сейчас в CRM. ' +
+              'Либо в JSON интеграции Google Ads укажите clientId и clientSecret того же OAuth-клиента, ' +
+              'что использовали при получении refresh token, либо получите новый refresh token через OAuth Playground / приложение с тем же client_id, что в настройках платформы.',
+          );
+        }
+        if (status === 400 && code === 'invalid_grant') {
+          throw new BadRequestException(
+            'OAuth: refresh token недействителен или отозван. Получите новый refresh token.',
+          );
+        }
+        const hint = [code, body?.error_description].filter(Boolean).join(' — ');
+        throw new BadRequestException(
+          hint
+            ? `Запрос токена Google отклонён (${status ?? '?'})${hint ? `: ${hint}` : ''}`
+            : `Запрос токена Google отклонён (${status ?? 'network'})`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Тянет статистику кампаний за период и пишет строки в marketing_traffic (dataSource=google_ads).
+   */
+  /** @returns число сохранённых строк marketing_traffic (0 если пропуск или нет данных). */
+  async syncGoogleAdsIntegration(row: MarketingIntegration): Promise<number> {
+    if (row.provider !== 'google_ads' || !row.isActive) return 0;
+
+    const s = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const refreshToken = String(s.refreshToken || s.refresh_token || '').trim();
+    const customerId = String(s.customerId || s.customer_id || row.primaryId || '').trim();
+    const developerToken = String(
+      s.developerToken ||
+        s.developer_token ||
+        process.env.GOOGLE_ADS_DEVELOPER_TOKEN ||
+        '',
+    ).trim();
+    const loginCustomerId = String(
+      s.loginCustomerId || s.login_customer_id || '',
+    ).trim();
+
+    if (!refreshToken || !customerId || !developerToken) {
+      this.log.warn(
+        `Google Ads sync skipped for integration ${row.id}: missing refreshToken, customerId or developerToken`,
+      );
+      return 0;
+    }
+
+    const intClientId = String(s.clientId || s.client_id || '').trim();
+    const intClientSecret = String(s.clientSecret || s.client_secret || '').trim();
+    const integrationOAuth =
+      intClientId && intClientSecret
+        ? { clientId: intClientId, clientSecret: intClientSecret }
+        : undefined;
+
+    const accessToken = await this.googleOAuthAccessToken(
+      refreshToken,
+      integrationOAuth,
+    );
+    const end = new Date();
+    const start = new Date();
+    start.setUTCDate(end.getUTCDate() - 30);
+    const from = start.toISOString().slice(0, 10);
+    const to = end.toISOString().slice(0, 10);
+
+    const query = `
+      SELECT campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
+      FROM campaign
+      WHERE segments.date BETWEEN '${from}' AND '${to}'
+        AND campaign.status != 'REMOVED'
+    `.trim();
+
+    const url = this.googleAdsSearchUrl(customerId);
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      'developer-token': developerToken,
+      'Content-Type': 'application/json',
+    };
+    const login = this.normalizeGoogleAdsCustomerId(loginCustomerId);
+    if (login) headers['login-customer-id'] = login;
+
+    const trafficRows: MarketingTraffic[] = [];
+    let pageToken: string | undefined;
+
+    try {
+      do {
+        const body: Record<string, unknown> = {
+          query,
+          pageSize: 10000,
+        };
+        if (pageToken) body.pageToken = pageToken;
+
+        const res = await axios.post(url, body, { headers });
+        const results = (res.data?.results || []) as any[];
+        pageToken = res.data?.nextPageToken as string | undefined;
+
+        for (const r of results) {
+          const date = r.segments?.date as string | undefined;
+          const name = r.campaign?.name as string | undefined;
+          if (!date) continue;
+          const impressions = Number(r.metrics?.impressions || 0);
+          const clicks = Number(r.metrics?.clicks || 0);
+          const costMicros = Number(r.metrics?.costMicros || 0);
+          const cost = costMicros / 1_000_000;
+
+          trafficRows.push(
+            this.trafficRepo.create({
+              tenantId: row.tenantId,
+              date: String(date).slice(0, 10),
+              dataSource: 'google_ads',
+              source: 'google',
+              medium: 'cpc',
+              campaign: name || '(campaign)',
+              sessions: clicks,
+              clicks,
+              leads: 0,
+              projects: 0,
+              cost: String(cost),
+              revenue: '0',
+              currency: String(s.currency || 'EUR').slice(0, 8) || 'EUR',
+              impressions,
+            }),
+          );
+        }
+      } while (pageToken);
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const st = err.response?.status;
+        const raw = err.response?.data;
+        const fullText =
+          typeof raw === 'string'
+            ? raw
+            : raw && typeof raw === 'object'
+              ? JSON.stringify(raw)
+              : '';
+        if (fullText.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
+          throw new BadRequestException(
+            'Developer token Google Ads только для тестовых аккаунтов. ' +
+              'В Google Ads: Инструменты → API Center подайте заявку на Basic или Standard access для работы с боевым Customer ID. ' +
+              'Интеграцию в CRM заново создавать не нужно — после одобрения токена синк заработает с теми же настройками.',
+          );
+        }
+        const snippet = fullText.slice(0, 400);
+        throw new BadRequestException(
+          `Google Ads API: запрос отклонён (${st ?? 'network'})${snippet ? ` — ${snippet}` : ''}`,
+        );
+      }
+      throw err;
+    }
+
+    if (!trafficRows.length) return 0;
+
+    await this.trafficRepo
+      .createQueryBuilder()
+      .delete()
+      .from(MarketingTraffic)
+      .where('tenantId = :tenantId', { tenantId: row.tenantId })
+      .andWhere('dataSource = :ds', { ds: 'google_ads' })
+      .andWhere('date BETWEEN :from AND :to', { from, to })
+      .execute();
+
+    await this.trafficRepo.save(trafficRows);
+    this.log.log(
+      `Google Ads v23: saved ${trafficRows.length} rows for tenant ${row.tenantId}`,
+    );
+    return trafficRows.length;
+  }
+
+  async syncAllActiveGoogleAds(): Promise<void> {
+    const list = await this.integrationRepo.find({
+      where: { provider: 'google_ads', isActive: true },
+    });
+    for (const row of list) {
+      try {
+        await this.syncGoogleAdsIntegration(row);
+      } catch (e: any) {
+        this.log.error(
+          `Google Ads sync failed for ${row.id}: ${e?.message || e}`,
+        );
+      }
+    }
+  }
+
+  async syncGoogleAdsForTenant(tenantId: string): Promise<void> {
+    const list = await this.integrationRepo.find({
+      where: { tenantId, provider: 'google_ads', isActive: true },
+    });
+    for (const row of list) {
+      await this.syncGoogleAdsIntegration(row);
+    }
+  }
+
+  // --- Яндекс.Метрика + GA4 (отчётность в marketing_traffic) ---
+
+  private async googleServiceAccountAccessToken(
+    serviceAccountJson: string,
+    scope: string,
+  ): Promise<string> {
+    let key: {
+      client_email: string;
+      private_key: string;
+      token_uri?: string;
+    };
+    try {
+      key = JSON.parse(serviceAccountJson);
+    } catch {
+      throw new BadRequestException('GA4: невалидный JSON сервисного аккаунта');
+    }
+    const pk = String(key.private_key || '').replace(/\\n/g, '\n');
+    if (!key.client_email || !pk) {
+      throw new BadRequestException(
+        'GA4: в JSON сервисного аккаунта нужны client_email и private_key',
+      );
+    }
+    const tokenUri = key.token_uri || 'https://oauth2.googleapis.com/token';
+    const now = Math.floor(Date.now() / 1000);
+    const assertion = jwt.sign(
+      {
+        iss: key.client_email,
+        sub: key.client_email,
+        scope,
+        aud: tokenUri,
+        iat: now,
+        exp: now + 3600,
+      },
+      pk,
+      { algorithm: 'RS256' },
+    );
+    try {
+      const res = await axios.post(
+        tokenUri,
+        new URLSearchParams({
+          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+          assertion,
+        }).toString(),
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+      );
+      const token = res.data?.access_token as string | undefined;
+      if (!token) {
+        throw new BadRequestException('GA4: Google не вернул access_token');
+      }
+      return token;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const d = err.response?.data as
+          | { error_description?: string; error?: string }
+          | undefined;
+        throw new BadRequestException(
+          `GA4 (service account): ${d?.error_description || d?.error || err.message}`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  private ga4DimensionDateToIso(raw: string): string | null {
+    const v = String(raw).replace(/-/g, '');
+    if (/^\d{8}$/.test(v)) {
+      return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      return raw.slice(0, 10);
+    }
+    return null;
+  }
+
+  /**
+   * GET stat/v1/data — визиты и просмотры по дням.
+   * Настройки: counterId (или primaryId), oauthToken (OAuth-токен пользователя с доступом к счётчику).
+   */
+  async syncYandexMetrikaIntegration(row: MarketingIntegration): Promise<number> {
+    const s = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const counterId = this.pickFirstNonEmptyString([
+      row.primaryId,
+      s.counterId,
+      s.counter_id,
+      s.counter,
+      s.counterNumber,
+      s.counter_number,
+      s.metrikaCounterId,
+      s.metrika_counter_id,
+      s.tagId,
+      s.tag_id,
+      s.ids,
+      s.siteCounterId,
+      s.site_counter_id,
+    ]);
+    const oauthRaw = this.pickFirstNonEmptyString([
+      s.oauthToken,
+      s.oauth_token,
+      s.oauth,
+      s.token,
+      s.accessToken,
+      s.access_token,
+      s.metrikaOAuth,
+      s.metrika_oauth,
+      s.metrikaToken,
+      s.metrika_token,
+      s.yandexToken,
+      s.yandex_token,
+      s.yandexOAuthToken,
+      s.yandex_oauth_token,
+      s.apiToken,
+      s.api_token,
+    ]);
+    const oauth = oauthRaw ? this.normalizeMetrikaOAuthToken(oauthRaw) : '';
+    if (!counterId || !oauth) {
+      throw new BadRequestException(
+        'Яндекс.Метрика: не найдены номер счётчика и OAuth-токен в сохранённых настройках. ' +
+          'Укажите в primaryId или в JSON: counterId / counter_id / tagId и oauthToken / access_token / token ' +
+          '(при необходимости внутри объекта metrika или yandex).',
+      );
+    }
+    const end = new Date();
+    const start = new Date();
+    start.setUTCDate(end.getUTCDate() - 30);
+    const date1 = start.toISOString().slice(0, 10);
+    const date2 = end.toISOString().slice(0, 10);
+    const url = 'https://api-metrika.yandex.net/stat/v1/data';
+    try {
+      const res = await axios.get(url, {
+        headers: { Authorization: `OAuth ${oauth}` },
+        params: {
+          ids: counterId,
+          metrics: 'ym:s:visits,ym:s:pageviews',
+          dimensions: 'ym:s:date',
+          date1,
+          date2,
+          accuracy: '1',
+          limit: '100000',
+        },
+      });
+      const data = res.data?.data as Array<{
+        dimensions?: Array<{ id?: string; name?: string }>;
+        metrics?: number[];
+      }>;
+      if (!Array.isArray(data) || !data.length) {
+        this.log.warn(`Yandex Metrika: пустой ответ для счётчика ${counterId}`);
+        return 0;
+      }
+      const trafficRows: MarketingTraffic[] = [];
+      for (const item of data) {
+        const dim = item.dimensions?.[0];
+        const rawDate = dim?.id ?? dim?.name;
+        if (rawDate == null || rawDate === '') continue;
+        const dateStr = String(rawDate).slice(0, 10);
+        const visits = Number(item.metrics?.[0] ?? 0);
+        const pageviews = Number(item.metrics?.[1] ?? 0);
+        trafficRows.push(
+          this.trafficRepo.create({
+            tenantId: row.tenantId,
+            date: dateStr,
+            dataSource: 'yandex_metrika',
+            source: 'yandex',
+            medium: 'organic',
+            campaign: '(metrika)',
+            sessions: visits,
+            clicks: pageviews,
+            leads: 0,
+            projects: 0,
+            cost: '0',
+            revenue: '0',
+            currency: String(s.currency || 'RUB').slice(0, 8) || 'RUB',
+            impressions: 0,
+          }),
+        );
+      }
+      if (!trafficRows.length) return 0;
+      await this.trafficRepo
+        .createQueryBuilder()
+        .delete()
+        .from(MarketingTraffic)
+        .where('tenantId = :tenantId', { tenantId: row.tenantId })
+        .andWhere('dataSource = :ds', { ds: 'yandex_metrika' })
+        .andWhere('date BETWEEN :from AND :to', { from: date1, to: date2 })
+        .execute();
+      await this.trafficRepo.save(trafficRows);
+      this.log.log(
+        `Yandex Metrika: сохранено ${trafficRows.length} строк, счётчик ${counterId}`,
+      );
+      return trafficRows.length;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const st = err.response?.status;
+        const raw = err.response?.data;
+        const snippet =
+          typeof raw === 'string'
+            ? raw.slice(0, 400)
+            : raw && typeof raw === 'object'
+              ? JSON.stringify(raw).slice(0, 400)
+              : '';
+        throw new BadRequestException(
+          `Яндекс.Метрика API (${st ?? '?'}): ${snippet || err.message}`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * GA4 Data API runReport — сессии и просмотры по дням.
+   * Настройки: serviceAccountJson (или сохранённый через форму ga4), propertyId (числовой ID свойства).
+   */
+  async syncGa4Integration(row: MarketingIntegration): Promise<number> {
+    const s = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const jsonRaw = this.pickFirstNonEmptyString([
+      s.serviceAccountJson,
+      s.service_account_json,
+      s.ga4ServiceAccountJson,
+      s.ga4_service_account_json,
+      s.credentialsJson,
+      s.credentials_json,
+    ]);
+    let propertyId = this.pickFirstNonEmptyString([
+      row.primaryId,
+      s.propertyId,
+      s.ga4PropertyId,
+      s.ga_property_id,
+    ]);
+    propertyId = propertyId.replace(/^properties\//i, '');
+    if (!jsonRaw || !propertyId) {
+      throw new BadRequestException(
+        'GA4: укажите serviceAccountJson (ключ сервисного аккаунта) и propertyId (или primaryId свойства GA4, только цифры).',
+      );
+    }
+    const end = new Date();
+    const start = new Date();
+    start.setUTCDate(end.getUTCDate() - 30);
+    const date1 = start.toISOString().slice(0, 10);
+    const date2 = end.toISOString().slice(0, 10);
+
+    const access = await this.googleServiceAccountAccessToken(
+      jsonRaw,
+      'https://www.googleapis.com/auth/analytics.readonly',
+    );
+    const apiUrl = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+    try {
+      const res = await axios.post(
+        apiUrl,
+        {
+          dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+          dimensions: [{ name: 'date' }],
+          metrics: [
+            { name: 'sessions' },
+            { name: 'screenPageViews' },
+          ],
+          limit: 10000,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${access}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+      const rows = res.data?.rows as
+        | Array<{
+            dimensionValues?: Array<{ value?: string }>;
+            metricValues?: Array<{ value?: string }>;
+          }>
+        | undefined;
+      if (!Array.isArray(rows) || !rows.length) {
+        this.log.warn(`GA4: пустой отчёт для property ${propertyId}`);
+        return 0;
+      }
+      const trafficRows: MarketingTraffic[] = [];
+      for (const r of rows) {
+        const rawD = r.dimensionValues?.[0]?.value;
+        if (rawD == null) continue;
+        const dateStr = this.ga4DimensionDateToIso(String(rawD));
+        if (!dateStr) continue;
+        const sessions = Number(r.metricValues?.[0]?.value ?? 0);
+        const views = Number(r.metricValues?.[1]?.value ?? 0);
+        trafficRows.push(
+          this.trafficRepo.create({
+            tenantId: row.tenantId,
+            date: dateStr,
+            dataSource: 'ga4',
+            source: 'google',
+            medium: 'analytics',
+            campaign: '(ga4)',
+            sessions,
+            clicks: views,
+            leads: 0,
+            projects: 0,
+            cost: '0',
+            revenue: '0',
+            currency: String(s.currency || 'EUR').slice(0, 8) || 'EUR',
+            impressions: 0,
+          }),
+        );
+      }
+      if (!trafficRows.length) return 0;
+      await this.trafficRepo
+        .createQueryBuilder()
+        .delete()
+        .from(MarketingTraffic)
+        .where('tenantId = :tenantId', { tenantId: row.tenantId })
+        .andWhere('dataSource = :ds', { ds: 'ga4' })
+        .andWhere('date BETWEEN :from AND :to', { from: date1, to: date2 })
+        .execute();
+      await this.trafficRepo.save(trafficRows);
+      this.log.log(
+        `GA4: сохранено ${trafficRows.length} строк, property ${propertyId}`,
+      );
+      return trafficRows.length;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const st = err.response?.status;
+        const raw = err.response?.data;
+        const snippet =
+          typeof raw === 'string'
+            ? raw.slice(0, 400)
+            : raw && typeof raw === 'object'
+              ? JSON.stringify(raw).slice(0, 400)
+              : '';
+        throw new BadRequestException(
+          `GA4 Data API (${st ?? '?'}): ${snippet || err.message}`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Meta / Facebook Marketing API — дневные insights по рекламному аккаунту.
+   * Нужны: access token с правами ads_read и ID счёта (только цифры или act_…).
+   */
+  async syncMetaAdsIntegration(row: MarketingIntegration): Promise<number> {
+    const s = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const token = this.pickFirstNonEmptyString([
+      s.accessToken,
+      s.access_token,
+      s.longLivedToken,
+      s.long_lived_token,
+      s.metaAccessToken,
+      s.meta_access_token,
+      s.fbAccessToken,
+      s.fb_access_token,
+    ]);
+    let accountRaw = this.pickFirstNonEmptyString([
+      row.primaryId,
+      s.adAccountId,
+      s.ad_account_id,
+      s.accountId,
+      s.account_id,
+    ]);
+    if (!token || !accountRaw) {
+      throw new BadRequestException(
+        'Meta Ads: укажите access token и ID рекламного аккаунта (adAccountId в JSON или primaryId; цифры из Ads Manager, с префиксом act_ или без).',
+      );
+    }
+    accountRaw = accountRaw.replace(/^act_/i, '').trim();
+    if (!/^\d+$/.test(accountRaw)) {
+      throw new BadRequestException(
+        'Meta Ads: ID рекламного аккаунта — только цифры (как в Ads Manager, без букв).',
+      );
+    }
+    const actPath = `act_${accountRaw}`;
+
+    const end = new Date();
+    const start = new Date();
+    start.setUTCDate(end.getUTCDate() - 30);
+    const since = start.toISOString().slice(0, 10);
+    const until = end.toISOString().slice(0, 10);
+
+    const graphVer = 'v19.0';
+    const baseUrl = `https://graph.facebook.com/${graphVer}/${actPath}/insights`;
+    const byDay = new Map<
+      string,
+      { impressions: number; clicks: number; spend: number }
+    >();
+
+    try {
+      let nextUrl: string | null = null;
+      let useParams = true;
+      while (useParams || nextUrl) {
+        const res = await axios.get(useParams ? baseUrl : (nextUrl as string), {
+          params: useParams
+            ? {
+                fields: 'impressions,clicks,spend,date_start',
+                time_increment: 1,
+                time_range: JSON.stringify({ since, until }),
+                access_token: token,
+                limit: 500,
+              }
+            : undefined,
+        });
+        useParams = false;
+        nextUrl = res.data?.paging?.next || null;
+
+        const data = res.data?.data as
+          | Array<{
+              impressions?: string;
+              clicks?: string;
+              spend?: string;
+              date_start?: string;
+            }>
+          | undefined;
+        if (Array.isArray(data)) {
+          for (const it of data) {
+            const ds = it.date_start?.slice(0, 10);
+            if (!ds) continue;
+            const impressions =
+              parseInt(String(it.impressions ?? 0), 10) || 0;
+            const clicks = parseInt(String(it.clicks ?? 0), 10) || 0;
+            const spend = parseFloat(String(it.spend ?? 0)) || 0;
+            const prev = byDay.get(ds) || {
+              impressions: 0,
+              clicks: 0,
+              spend: 0,
+            };
+            byDay.set(ds, {
+              impressions: prev.impressions + impressions,
+              clicks: prev.clicks + clicks,
+              spend: prev.spend + spend,
+            });
+          }
+        }
+        if (!nextUrl) break;
+      }
+
+      if (!byDay.size) {
+        this.log.warn(`Meta Ads: пустой insights для ${actPath}`);
+        return 0;
+      }
+
+      const trafficRows: MarketingTraffic[] = [];
+      for (const [dateStr, m] of byDay) {
+        trafficRows.push(
+          this.trafficRepo.create({
+            tenantId: row.tenantId,
+            date: dateStr,
+            dataSource: 'meta_ads',
+            source: 'meta',
+            medium: 'paid',
+            campaign: '(account)',
+            sessions: m.clicks,
+            clicks: m.clicks,
+            leads: 0,
+            projects: 0,
+            cost: String(m.spend),
+            revenue: '0',
+            currency: String(s.currency || 'USD').slice(0, 8) || 'USD',
+            impressions: m.impressions,
+          }),
+        );
+      }
+
+      await this.trafficRepo
+        .createQueryBuilder()
+        .delete()
+        .from(MarketingTraffic)
+        .where('tenantId = :tenantId', { tenantId: row.tenantId })
+        .andWhere('dataSource = :ds', { ds: 'meta_ads' })
+        .andWhere('date BETWEEN :from AND :to', { from: since, to: until })
+        .execute();
+      await this.trafficRepo.save(trafficRows);
+      this.log.log(
+        `Meta Ads: сохранено ${trafficRows.length} дней, ${actPath}`,
+      );
+      return trafficRows.length;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const fb = err.response?.data as
+          | { error?: { message?: string } }
+          | undefined;
+        const msg = fb?.error?.message;
+        const raw = err.response?.data;
+        const snippet =
+          typeof raw === 'object' && raw
+            ? JSON.stringify(raw).slice(0, 400)
+            : '';
+        throw new BadRequestException(
+          msg
+            ? `Meta Ads API: ${msg}`
+            : `Meta Ads API (${err.response?.status ?? '?'}): ${snippet || err.message}`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /** Ночной прогон: Метрика, GA4, Meta Ads. */
+  async syncAllActiveAnalyticsIntegrations(): Promise<void> {
+    const list = await this.integrationRepo.find({ where: { isActive: true } });
+    for (const row of list) {
+      const p = this.normalizeMarketingIntegrationProvider(row.provider);
+      const yandex =
+        p === 'yandex_metrika' ||
+        p === 'yandex_metrica' ||
+        p === 'yandex_metrika_web';
+      const ga =
+        p === 'ga4' ||
+        p === 'google_analytics' ||
+        p === 'google_analytics_4' ||
+        p === 'google_analytics_ga4';
+      const meta = this.isMetaAdsProvider(p);
+      if (!yandex && !ga && !meta) continue;
+      try {
+        if (yandex) await this.syncYandexMetrikaIntegration(row);
+        else if (ga) await this.syncGa4Integration(row);
+        else await this.syncMetaAdsIntegration(row);
+      } catch (e: any) {
+        this.log.error(
+          `Analytics sync failed [${row.provider} ${row.id}]: ${e?.message || e}`,
+        );
+      }
+    }
+  }
+
+  // --- SEO (настройки, OAuth state, метрики) ---
+
+  private seoOauthSecret(): string {
+    return process.env.JWT_SECRET || 'changeme';
+  }
+
+  encodeGscOauthState(tenantId: string, redirect: string): string {
+    const payload = Buffer.from(
+      JSON.stringify({ tenantId, redirect }),
+      'utf8',
+    ).toString('base64url');
+    const sig = crypto
+      .createHmac('sha256', this.seoOauthSecret())
+      .update(payload)
+      .digest('base64url');
+    return `${payload}.${sig}`;
+  }
+
+  decodeGscOauthState(state: string): { tenantId: string; redirect: string } | null {
+    try {
+      const dot = state.indexOf('.');
+      if (dot <= 0) return null;
+      const payloadB64 = state.slice(0, dot);
+      const sig = state.slice(dot + 1);
+      const expected = crypto
+        .createHmac('sha256', this.seoOauthSecret())
+        .update(payloadB64)
+        .digest('base64url');
+      const a = Buffer.from(sig);
+      const b = Buffer.from(expected);
+      if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
+      const data = JSON.parse(
+        Buffer.from(payloadB64, 'base64url').toString('utf8'),
+      );
+      if (!data?.tenantId || typeof data.redirect !== 'string') return null;
+      return { tenantId: data.tenantId, redirect: data.redirect };
+    } catch {
+      return null;
+    }
+  }
+
+  async getOrCreateSeoSettings(tenantId: string): Promise<SeoSettings> {
+    let row = await this.seoRepo.findOne({ where: { tenantId } });
+    if (!row) {
+      row = this.seoRepo.create({ tenantId });
+      row = await this.seoRepo.save(row);
+    }
+    return row;
+  }
+
+  async getSeoSettingsPublic(tenantId: string) {
+    const row = await this.getOrCreateSeoSettings(tenantId);
+    return {
+      gscPropertyUrl: row.gscPropertyUrl,
+      gscConnected: Boolean(row.gscRefreshToken),
+      pageSpeedApiKey: row.pageSpeedApiKey,
+      pageSpeedUrl: row.pageSpeedUrl,
+      pageSpeedStrategy: row.pageSpeedStrategy || 'mobile',
+      updatedAt: row.updatedAt?.toISOString() ?? null,
+    };
+  }
+
+  async patchSeoSettings(
+    tenantId: string,
+    patch: Partial<{
+      gscPropertyUrl: string | null;
+      pageSpeedApiKey: string | null;
+      pageSpeedUrl: string | null;
+      pageSpeedStrategy: string;
+    }>,
+  ) {
+    const row = await this.getOrCreateSeoSettings(tenantId);
+    if (patch.gscPropertyUrl !== undefined)
+      row.gscPropertyUrl = patch.gscPropertyUrl;
+    if (patch.pageSpeedApiKey !== undefined)
+      row.pageSpeedApiKey = patch.pageSpeedApiKey;
+    if (patch.pageSpeedUrl !== undefined) row.pageSpeedUrl = patch.pageSpeedUrl;
+    if (patch.pageSpeedStrategy !== undefined)
+      row.pageSpeedStrategy = patch.pageSpeedStrategy;
+    await this.seoRepo.save(row);
+    return this.getSeoSettingsPublic(tenantId);
+  }
+
+  async buildGscAuthUrlAsync(
+    tenantId: string,
+    redirectPath: string,
+  ): Promise<string> {
+    const { clientId } = await this.platformSettings.getGoogleOAuthConfig();
+    if (!clientId) {
+      throw new BadRequestException('Google OAuth client id is not configured');
+    }
+    const apiBase = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+    if (!apiBase) {
+      throw new BadRequestException('PUBLIC_API_URL is not set (needed for GSC redirect_uri)');
+    }
+    const redirectUri = `${apiBase}/v1/marketing/seo/google/callback`;
+    const state = this.encodeGscOauthState(tenantId, redirectPath || '/app/marketing/seo');
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      access_type: 'offline',
+      prompt: 'consent',
+      scope: 'https://www.googleapis.com/auth/webmasters.readonly',
+      state,
+    });
+    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+  }
+
+  async exchangeGscCode(code: string, redirectUri: string): Promise<string> {
+    const { clientId, clientSecret } =
+      await this.platformSettings.getGoogleOAuthConfig();
+    if (!clientId || !clientSecret) {
+      throw new BadRequestException('Google OAuth is not configured');
+    }
+    const params = new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    });
+    const res = await axios.post(
+      'https://oauth2.googleapis.com/token',
+      params.toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
+    );
+    const rt = res.data?.refresh_token as string | undefined;
+    if (!rt) {
+      throw new BadRequestException('No refresh_token from Google (try prompt=consent)');
+    }
+    return rt;
+  }
+
+  async saveGscRefreshToken(tenantId: string, refreshToken: string) {
+    const row = await this.getOrCreateSeoSettings(tenantId);
+    row.gscRefreshToken = refreshToken;
+    await this.seoRepo.save(row);
+  }
+
+  async getSeoMetrics(
+    tenantId: string,
+    dateFrom?: string,
+    dateTo?: string,
+    compare?: boolean,
+  ) {
+    const settings = await this.getOrCreateSeoSettings(tenantId);
+    const propertyUrl = settings.gscPropertyUrl || '';
+
+    const gsc = propertyUrl
+      ? await this.gscMetricRepo.findOne({
+          where: { tenantId, propertyUrl },
+        })
+      : null;
+
+    let gscDaily: SeoGscDaily[] = [];
+    if (propertyUrl && dateFrom && dateTo) {
+      gscDaily = await this.gscDailyRepo.find({
+        where: {
+          tenantId,
+          propertyUrl,
+          date: Between(dateFrom, dateTo) as any,
+        },
+        order: { date: 'ASC' },
+      });
+    }
+
+    const psiUrl = settings.pageSpeedUrl || '';
+    const psiStrategy = settings.pageSpeedStrategy || 'mobile';
+    const psi = psiUrl
+      ? await this.psiRepo.findOne({
+          where: { tenantId, pageUrl: psiUrl, strategy: psiStrategy },
+        })
+      : null;
+
+    const mapGsc = (m: SeoGscMetric | null) =>
+      m
+        ? {
+            propertyUrl: m.propertyUrl,
+            dateFrom: String(m.dateFrom).slice(0, 10),
+            dateTo: String(m.dateTo).slice(0, 10),
+            clicks: m.clicks,
+            impressions: m.impressions,
+            ctr: Number(m.ctr),
+            position: Number(m.position),
+            updatedAt: m.updatedAt.toISOString(),
+          }
+        : null;
+
+    const mapDaily = (rows: SeoGscDaily[]) =>
+      rows.map((d) => ({
+        date: String(d.date).slice(0, 10),
+        clicks: d.clicks,
+        impressions: d.impressions,
+        ctr: Number(d.ctr),
+        position: Number(d.position),
+      }));
+
+    const result: any = {
+      gsc: mapGsc(gsc),
+      gscDaily: mapDaily(gscDaily),
+      psi: psi
+        ? {
+            pageUrl: psi.pageUrl,
+            strategy: psi.strategy,
+            performance: psi.performance,
+            accessibility: psi.accessibility,
+            bestPractices: psi.bestPractices,
+            seo: psi.seo,
+            lcp: Number(psi.lcp),
+            cls: Number(psi.cls),
+            fcp: Number(psi.fcp),
+            tbt: Number(psi.tbt),
+            speedIndex: Number(psi.speedIndex),
+            updatedAt: psi.updatedAt.toISOString(),
+          }
+        : null,
     };
 
-    return this.automationRepo.save(merged);
+    if (compare) {
+      result.gscCompare = null;
+      result.gscCompareDaily = [];
+    }
+
+    return result;
   }
 
-  async deleteAutomation(tenantId: string, id: string): Promise<void> {
-    await this.automationRepo.delete({ id, tenantId });
-  }
+  async syncSeo(
+    tenantId: string,
+    dateFrom?: string,
+    dateTo?: string,
+    _compare?: boolean,
+  ): Promise<{
+    ok: boolean;
+    gsc: boolean;
+    psi: boolean;
+    gscReauthRequired: boolean;
+  }> {
+    const settings = await this.getOrCreateSeoSettings(tenantId);
+    let gscOk = false;
+    let psiOk = false;
 
-  // ===== СЕГМЕНТЫ (пока заглушки, чтобы не ломать UI) =====
-  async getSegmentsForTenant(_tenantId: string): Promise<any[]> {
-    return [];
+    const end = dateTo || new Date().toISOString().slice(0, 10);
+    const start =
+      dateFrom ||
+      new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
+
+    if (settings.gscRefreshToken && settings.gscPropertyUrl) {
+      try {
+        const access = await this.googleOAuthAccessToken(
+          settings.gscRefreshToken,
+        );
+        const siteUrl = encodeURIComponent(settings.gscPropertyUrl);
+        const url = `https://www.googleapis.com/webmasters/v3/sites/${siteUrl}/searchAnalytics/query`;
+        const res = await axios.post(
+          url,
+          {
+            startDate: start,
+            endDate: end,
+            dimensions: ['date'],
+            rowLimit: 25000,
+          },
+          { headers: { Authorization: `Bearer ${access}` } },
+        );
+
+        const totals = { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+        const rows = (res.data?.rows || []) as any[];
+        let posWt = 0;
+
+        await this.gscDailyRepo
+          .createQueryBuilder()
+          .delete()
+          .from(SeoGscDaily)
+          .where('tenantId = :tenantId', { tenantId })
+          .andWhere('propertyUrl = :pu', { pu: settings.gscPropertyUrl })
+          .andWhere('date BETWEEN :a AND :b', { a: start, b: end })
+          .execute();
+
+        for (const gscRow of rows) {
+          const keys = gscRow.keys || [];
+          const d = keys[0] as string;
+          if (!d) continue;
+          const clicks = Number(gscRow.clicks || 0);
+          const impressions = Number(gscRow.impressions || 0);
+          const ctr = Number(gscRow.ctr || 0);
+          const position = Number(gscRow.position || 0);
+          totals.clicks += clicks;
+          totals.impressions += impressions;
+          posWt += position * impressions;
+
+          await this.gscDailyRepo.insert({
+            tenantId,
+            propertyUrl: settings.gscPropertyUrl,
+            date: d,
+            clicks,
+            impressions,
+            ctr: String(ctr),
+            position: String(position),
+          });
+        }
+
+        const avgPos =
+          totals.impressions > 0 ? posWt / totals.impressions : 0;
+        const aggCtr =
+          totals.impressions > 0 ? totals.clicks / totals.impressions : 0;
+
+        let metric = await this.gscMetricRepo.findOne({
+          where: { tenantId, propertyUrl: settings.gscPropertyUrl },
+        });
+        if (!metric) {
+          metric = this.gscMetricRepo.create({
+            tenantId,
+            propertyUrl: settings.gscPropertyUrl,
+            dateFrom: start,
+            dateTo: end,
+            clicks: totals.clicks,
+            impressions: totals.impressions,
+            ctr: String(aggCtr),
+            position: String(avgPos),
+          });
+        } else {
+          metric.dateFrom = start;
+          metric.dateTo = end;
+          metric.clicks = totals.clicks;
+          metric.impressions = totals.impressions;
+          metric.ctr = String(aggCtr);
+          metric.position = String(avgPos);
+        }
+        await this.gscMetricRepo.save(metric);
+        gscOk = true;
+      } catch (e: any) {
+        const status = e?.response?.status;
+        if (status === 401 || status === 403) {
+          return {
+            ok: false,
+            gsc: false,
+            psi: false,
+            gscReauthRequired: true,
+          };
+        }
+        this.log.warn(`GSC sync error: ${e?.message || e}`);
+      }
+    }
+
+    if (settings.pageSpeedUrl?.trim() && settings.pageSpeedApiKey?.trim()) {
+      try {
+        const strategy = settings.pageSpeedStrategy || 'mobile';
+        const psiRes = await axios.get(
+          'https://www.googleapis.com/pagespeedonline/v5/runPagespeed',
+          {
+            params: {
+              url: settings.pageSpeedUrl,
+              key: settings.pageSpeedApiKey,
+              strategy,
+            },
+          },
+        );
+        const lh = psiRes.data?.lighthouseResult;
+        const cat = lh?.categories || {};
+        const audits = lh?.audits || {};
+        const num = (id: string) =>
+          Number(
+            audits[id]?.numericValue != null
+              ? audits[id].numericValue
+              : audits[id]?.score ?? 0,
+          );
+
+        let row = await this.psiRepo.findOne({
+          where: {
+            tenantId,
+            pageUrl: settings.pageSpeedUrl,
+            strategy,
+          },
+        });
+        const perf = Math.round((cat.performance?.score || 0) * 100);
+        const acc = Math.round((cat.accessibility?.score || 0) * 100);
+        const bp = Math.round((cat['best-practices']?.score || 0) * 100);
+        const seo = Math.round((cat.seo?.score || 0) * 100);
+
+        const payload = {
+          tenantId,
+          pageUrl: settings.pageSpeedUrl,
+          strategy,
+          performance: perf,
+          accessibility: acc,
+          bestPractices: bp,
+          seo,
+          lcp: String(num('largest-contentful-paint') || 0),
+          cls: String(num('cumulative-layout-shift') || 0),
+          fcp: String(num('first-contentful-paint') || 0),
+          tbt: String(num('total-blocking-time') || 0),
+          speedIndex: String(num('speed-index') || 0),
+        };
+
+        if (!row) row = this.psiRepo.create(payload);
+        else Object.assign(row, payload);
+        await this.psiRepo.save(row);
+        psiOk = true;
+      } catch (e: any) {
+        this.log.warn(`PageSpeed sync error: ${e?.message || e}`);
+      }
+    }
+
+    return {
+      ok: gscOk || psiOk,
+      gsc: gscOk,
+      psi: psiOk,
+      gscReauthRequired: false,
+    };
   }
 }

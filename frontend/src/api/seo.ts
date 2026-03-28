@@ -91,7 +91,7 @@ export async function syncSeo(params?: {
   dateFrom?: string;
   dateTo?: string;
   compare?: boolean;
-}): Promise<{ ok: boolean; gsc: boolean; psi: boolean }> {
+}): Promise<{ ok: boolean; gsc: boolean; psi: boolean; gscReauthRequired: boolean }> {
   const qs = params
     ? `?${new URLSearchParams({
         ...(params.dateFrom ? { dateFrom: params.dateFrom } : {}),
@@ -99,5 +99,8 @@ export async function syncSeo(params?: {
         ...(params.compare ? { compare: '1' } : {}),
       }).toString()}`
     : '';
-  return api.post<{ ok: boolean; gsc: boolean; psi: boolean }>(`/marketing/seo/sync${qs}`, {});
+  return api.post<{ ok: boolean; gsc: boolean; psi: boolean; gscReauthRequired: boolean }>(
+    `/marketing/seo/sync${qs}`,
+    {},
+  );
 }

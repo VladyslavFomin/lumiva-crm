@@ -5,7 +5,7 @@ import { Repository } from 'typeorm';
 import { SalesImportSession } from './sales-import-session.entity';
 import { Sale } from './sale.entity';
 import { SalesChannel } from '../sales-channels/sales-channel.entity';
-
+import { parseCsvRobust } from '../lib/import-spreadsheet.util';
 
 // Те же ключи, что и на фронте (ImportSystemField)
 export type ImportSystemField = string;
@@ -33,44 +33,6 @@ export interface ImportApplyResult {
     row: number;
     reason: string;
   }>;
-}
-
-// Простенький CSV-парсер
-function parseCsv(content: string): { columns: string[]; rows: Record<string, string>[] } {
-  const lines = content
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-
-  if (!lines.length) {
-    return { columns: [], rows: [] };
-  }
-
-  const headerLine = lines[0];
-
-  // Определяем разделитель: ; или ,
-  const countComma = (headerLine.match(/,/g) || []).length;
-  const countSemi = (headerLine.match(/;/g) || []).length;
-  const delimiter = countSemi > countComma ? ';' : ',';
-
-  const splitLine = (line: string): string[] =>
-    line
-      .split(delimiter)
-      .map((cell) => cell.replace(/^"|"$/g, '').trim());
-
-  const columns = splitLine(headerLine).filter((c) => c.length > 0);
-  const rows: Record<string, string>[] = [];
-
-  for (let i = 1; i < lines.length; i++) {
-    const cells = splitLine(lines[i]);
-    const row: Record<string, string> = {};
-    columns.forEach((col, idx) => {
-      row[col] = cells[idx] ?? '';
-    });
-    rows.push(row);
-  }
-
-  return { columns, rows };
 }
 
 // Простейший XML-парсер для импорта:
@@ -237,10 +199,11 @@ function parseContent(
   if (trimmed.startsWith('<')) {
     return parseXml(content);
   }
-  return parseCsv(content);
+  const t = parseCsvRobust(content);
+  return { columns: t.columns, rows: t.rows };
 }
 
-// Грубый авто-маппинг по названию колонок
+// Авто-маппинг: точное совпадение, затем только границы token (_ .), без includes для коротких имён
 function buildSuggestedMapping(
   columns: string[],
 ): Record<string, string | null> {
@@ -252,13 +215,21 @@ function buildSuggestedMapping(
     const colsNorm = columns.map((c) => ({ raw: c, norm: norm(c) }));
     for (const cand of candidates) {
       const cNorm = norm(cand);
+      if (!cNorm) continue;
       const exact = colsNorm.find((c) => c.norm === cNorm);
       if (exact) return exact.raw;
     }
     for (const cand of candidates) {
       const cNorm = norm(cand);
-      const partial = colsNorm.find((c) => c.norm.includes(cNorm));
-      if (partial) return partial.raw;
+      if (cNorm.length < 3) continue;
+      const hit = colsNorm.find(
+        (c) =>
+          c.norm.startsWith(`${cNorm}_`) ||
+          c.norm.startsWith(`${cNorm}.`) ||
+          c.norm.endsWith(`_${cNorm}`) ||
+          c.norm.endsWith(`.${cNorm}`),
+      );
+      if (hit) return hit.raw;
     }
     return null;
   };
