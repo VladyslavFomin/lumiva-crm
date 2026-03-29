@@ -9,16 +9,25 @@ import {
   type MarketingIntegrationRow,
 } from '../../api/marketing';
 import { marketingDataSourceLabel } from '../../utils/marketingDataSourceLabel';
+import {
+  marketingCard,
+  marketingH1,
+  marketingKicker,
+  marketingPageShell,
+  marketingSectionSub,
+  marketingSectionTitle,
+} from './marketingPageChrome';
 
 type ProviderKey = 'google_ads' | 'google_analytics' | 'yandex_metrika' | 'meta_ads';
 
-const BRAND = '#222222';
-
 const inputCls =
-  'mt-1 w-full rounded-xl border border-[#222222]/18 bg-white px-3 py-2 text-[13px] text-[#222222] placeholder:text-[#222222]/35 outline-none transition focus:border-[#222222] focus:ring-2 focus:ring-[#222222]/10';
-const labelCls = 'block text-[11px] font-medium text-[#222222]/65';
-const cardCls =
-  'rounded-2xl border border-[#222222]/12 bg-white p-5 shadow-[0_14px_48px_rgba(34,34,34,0.06)]';
+  'mt-1 w-full rounded-xl border border-[#222222]/16 bg-white px-3 py-2.5 text-[13px] text-[#222222] placeholder:text-[#222222]/35 outline-none transition shadow-[inset_0_1px_2px_rgba(34,34,34,0.04)] focus:border-[#222222] focus:ring-2 focus:ring-[#222222]/10';
+const labelCls = 'block text-[11px] font-semibold text-[#222222]/55 tracking-wide';
+const formPanel = `${marketingCard} border-l-[4px] border-l-[#222222] shadow-[0_18px_56px_rgba(34,34,34,0.09)]`;
+const credentialsShell =
+  'rounded-xl border border-[#222222]/10 bg-gradient-to-b from-slate-50/90 to-white p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]';
+const credentialsBlock = `${credentialsShell} space-y-3`;
+const credentialsGrid = `${credentialsShell} grid grid-cols-1 sm:grid-cols-2 gap-3`;
 const btnPrimary =
   'inline-flex items-center justify-center rounded-xl bg-[#222222] px-4 py-2.5 text-[11px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40';
 const btnDanger =
@@ -235,21 +244,16 @@ export const MarketingIntegrationsPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-6 pb-10 max-w-[1200px]">
-        <header>
-          <div
-            className="text-[11px] uppercase tracking-[0.22em] mb-1"
-            style={{ color: `${BRAND}99` }}
-          >
-            {t('crm.marketingIntegrations.kicker')}
-          </div>
-          <h1 className="text-xl md:text-2xl font-semibold text-[#222222]">
-            {t('crm.marketingIntegrations.title')}
-          </h1>
-          <p className="text-sm text-[#222222]/70 mt-1 max-w-2xl">
+      <div className={`${marketingPageShell} space-y-6 pb-2 max-w-[1200px]`}>
+        <header className="border-b border-[#222222]/10 pb-5">
+          <div className={marketingKicker}>{t('crm.marketingIntegrations.kicker')}</div>
+          <h1 className={marketingH1}>{t('crm.marketingIntegrations.title')}</h1>
+          <p className="text-sm text-[#222222]/70 mt-1 max-w-2xl leading-relaxed">
             {t('crm.marketingIntegrations.subtitle')}
           </p>
-          <p className="text-[11px] text-[#222222]/55 mt-2 max-w-2xl">{t('crm.marketingIntegrations.hint')}</p>
+          <p className="text-[11px] text-[#222222]/50 mt-2 max-w-2xl leading-relaxed">
+            {t('crm.marketingIntegrations.hint')}
+          </p>
         </header>
 
         {error && (
@@ -282,13 +286,9 @@ export const MarketingIntegrationsPage: React.FC = () => {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <section className={`lg:col-span-5 ${cardCls}`}>
-            <h2 className="text-sm font-semibold text-[#222222]">
-              {t('crm.marketingIntegrations.form.title')}
-            </h2>
-            <p className="text-[11px] text-[#222222]/60 mt-1 mb-4">
-              {t('crm.marketingIntegrations.form.intro')}
-            </p>
+          <section className={`lg:col-span-5 ${formPanel}`}>
+            <h2 className={marketingSectionTitle}>{t('crm.marketingIntegrations.form.title')}</h2>
+            <p className={`${marketingSectionSub} mb-5`}>{t('crm.marketingIntegrations.form.intro')}</p>
             <form onSubmit={onCreate} className="space-y-4">
               <div>
                 <label className={labelCls}>{t('crm.marketingIntegrations.form.provider')}</label>
@@ -330,7 +330,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
               </div>
 
               {provider === 'google_analytics' && (
-                <div>
+                <div className={credentialsBlock}>
                   <label className={labelCls}>{t('crm.marketingIntegrations.form.ga.serviceAccount')}</label>
                   <textarea
                     className={`${inputCls} min-h-[120px] font-mono text-[12px]`}
@@ -342,7 +342,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
               )}
 
               {provider === 'google_ads' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={credentialsGrid}>
                   <div className="sm:col-span-2">
                     <label className={labelCls}>{t('crm.marketingIntegrations.form.ads.developerToken')}</label>
                     <input className={inputCls} value={adsDev} onChange={(e) => setAdsDev(e.target.value)} />
@@ -388,7 +388,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
               )}
 
               {provider === 'yandex_metrika' && (
-                <div className="space-y-3">
+                <div className={`${credentialsBlock} space-y-3`}>
                   <div>
                     <label className={labelCls}>{t('crm.marketingIntegrations.form.ym.token')}</label>
                     <input className={inputCls} value={ymToken} onChange={(e) => setYmToken(e.target.value)} />
@@ -405,7 +405,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
               )}
 
               {provider === 'meta_ads' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className={credentialsGrid}>
                   <div className="sm:col-span-2">
                     <label className={labelCls}>{t('crm.marketingIntegrations.form.meta.accessToken')}</label>
                     <input className={inputCls} value={metaToken} onChange={(e) => setMetaToken(e.target.value)} />
@@ -447,15 +447,11 @@ export const MarketingIntegrationsPage: React.FC = () => {
             </form>
           </section>
 
-          <section className="lg:col-span-7 space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-[#222222]">
-                {t('crm.marketingIntegrations.table.title')}
-              </h2>
-              <p className="text-[11px] text-[#222222]/60 mt-0.5">
-                {t('crm.marketingIntegrations.table.subtitle')}
-              </p>
-              <p className="text-[11px] text-[#222222]/45 mt-1">
+          <section className="lg:col-span-7 space-y-4">
+            <div className="border-b border-[#222222]/10 pb-3">
+              <h2 className={marketingSectionTitle}>{t('crm.marketingIntegrations.table.title')}</h2>
+              <p className={marketingSectionSub}>{t('crm.marketingIntegrations.table.subtitle')}</p>
+              <p className="text-[11px] font-medium text-[#222222]/40 mt-2">
                 {t('crm.marketingIntegrations.table.total', { count: list.length })}
               </p>
             </div>
@@ -465,20 +461,23 @@ export const MarketingIntegrationsPage: React.FC = () => {
             )}
 
             {!loading && list.length === 0 && (
-              <div className={`${cardCls} border-dashed text-[11px] text-[#222222]/55`}>
+              <div
+                className={`${marketingCard} border-dashed border-[#222222]/20 bg-slate-50/50 text-[11px] text-[#222222]/55`}
+              >
                 {t('crm.marketingIntegrations.table.empty')}
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="space-y-3">
               {list.map((row) => (
                 <div
                   key={row.id}
-                  className={`${cardCls} py-4 flex flex-wrap items-center gap-3 justify-between`}
+                  className={`${marketingCard} flex flex-wrap items-stretch gap-0 p-0 overflow-hidden shadow-[0_10px_36px_rgba(34,34,34,0.07)] hover:shadow-[0_14px_44px_rgba(34,34,34,0.09)] transition-shadow`}
                 >
-                  <div className="min-w-0 flex-1">
+                  <div className="w-1 shrink-0 bg-[#222222]" aria-hidden />
+                  <div className="min-w-0 flex-1 py-4 pl-4 pr-3">
                     <div className="text-sm font-semibold text-[#222222] truncate">{row.name}</div>
-                    <div className="text-[11px] text-[#222222]/55 mt-0.5">
+                    <div className="text-[11px] text-[#222222]/50 mt-1 leading-snug">
                       {marketingDataSourceLabel(t, row.provider)} · {row.kind}
                       {row.primaryId ? ` · ${row.primaryId}` : ''} ·{' '}
                       {row.isActive
@@ -486,7 +485,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
                         : t('crm.marketingIntegrations.status.disabled')}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2 py-3 pr-4 pl-2 border-t sm:border-t-0 sm:border-l border-[#222222]/10 bg-slate-50/40">
                     <button
                       type="button"
                       disabled={!row.isActive || syncingId !== null}
@@ -501,7 +500,7 @@ export const MarketingIntegrationsPage: React.FC = () => {
                       type="button"
                       disabled={deletingId !== null}
                       onClick={() => onDelete(row)}
-                      className={btnDanger}
+                      className={`${btnDanger} px-1 py-2 sm:self-center`}
                     >
                       {deletingId === row.id ? '…' : t('crm.marketingIntegrations.actions.delete')}
                     </button>

@@ -25,11 +25,30 @@ import {
   marketingCard,
   marketingChipActive,
   marketingChipInactive,
+  marketingEmptyBanner,
   marketingFilterBar,
   marketingFilterLabel,
-  marketingKpiAccentCard,
-  marketingKpiCard,
+  marketingH1,
+  marketingKicker,
+  marketingKpiHint,
+  marketingKpiLabel,
+  marketingKpiStripeBrand,
+  marketingKpiStripeDuo,
+  marketingKpiStripeEmerald,
+  marketingKpiStripeViolet,
+  marketingKpiValue,
+  marketingLead,
+  marketingMetaLine,
+  marketingPageShell,
+  marketingSectionSub,
+  marketingSectionTitle,
   marketingSelect,
+  marketingTableWrap,
+  marketingTd,
+  marketingTh,
+  marketingThead,
+  marketingTr,
+  marketingWarnBanner,
 } from './marketingPageChrome';
 
 type PeriodPreset = '7d' | '30d' | '90d' | 'all';
@@ -187,18 +206,12 @@ export const CampaignsPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-4 md:space-y-6 pb-8">
+      <div className={`${marketingPageShell} space-y-5 md:space-y-6 pb-2`}>
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              {t('crm.marketingCampaigns.kicker')}
-            </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              {t('crm.marketingCampaigns.title')}
-            </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              {t('crm.marketingCampaigns.subtitle')}
-            </p>
+            <div className={marketingKicker}>{t('crm.marketingCampaigns.kicker')}</div>
+            <h1 className={marketingH1}>{t('crm.marketingCampaigns.title')}</h1>
+            <p className={marketingLead}>{t('crm.marketingCampaigns.subtitle')}</p>
           </div>
           <div className="flex flex-col items-stretch md:items-end gap-2">
             <div className={`${marketingFilterBar} w-full md:w-auto md:justify-end`}>
@@ -235,87 +248,67 @@ export const CampaignsPage: React.FC = () => {
         </section>
 
         {loading && (
-          <div className="text-[11px] text-slate-400">
-            {t('crm.marketingCampaigns.loading')}
+          <div className="text-[11px] text-[#222222]/50">{t('crm.marketingCampaigns.loading')}</div>
+        )}
+        {error && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-800">
+            {error}
           </div>
         )}
-        {error && <div className="text-[11px] text-red-400">{error}</div>}
 
         {!loading && !error && (
           <>
             <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className={marketingKpiCard}>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingCampaigns.kpi.campaigns')}
-                </div>
-                <div className="text-2xl font-semibold text-slate-50 mt-2 tabular-nums">
-                  {formatNumber(campaignTotals.campaignCount)}
-                </div>
-                <div className="text-[11px] text-slate-500 mt-1">
-                  {t('crm.marketingCampaigns.kpi.campaignsHint')}
-                </div>
+              <div className={marketingKpiStripeBrand}>
+                <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.campaigns')}</div>
+                <div className={marketingKpiValue}>{formatNumber(campaignTotals.campaignCount)}</div>
+                <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.campaignsHint')}</div>
               </div>
-              <div className={marketingKpiCard}>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingCampaigns.kpi.cost')}
-                </div>
-                <div className="text-2xl font-semibold text-violet-300 mt-2 tabular-nums">
+              <div className={marketingKpiStripeViolet}>
+                <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.cost')}</div>
+                <div className={`${marketingKpiValue} text-violet-600`}>
                   {formatMoney(campaignTotals.cost)} {currency}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">
-                  {t('crm.marketingCampaigns.kpi.costHint')}
-                </div>
+                <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.costHint')}</div>
               </div>
-              <div className={marketingKpiCard}>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingCampaigns.kpi.revenue')}
-                </div>
-                <div className="text-2xl font-semibold text-emerald-300 mt-2 tabular-nums">
+              <div className={marketingKpiStripeEmerald}>
+                <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.revenue')}</div>
+                <div className={`${marketingKpiValue} text-emerald-600`}>
                   {formatMoney(campaignTotals.revenue)} {currency}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">
-                  {t('crm.marketingCampaigns.kpi.revenueHint')}
-                </div>
+                <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.revenueHint')}</div>
               </div>
-              <div className={marketingKpiAccentCard}>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-violet-400/90">
-                  {t('crm.marketingCampaigns.kpi.roasCpl')}
-                </div>
-                <div className="text-lg font-semibold text-slate-50 mt-2 tabular-nums">
+              <div className={marketingKpiStripeDuo}>
+                <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.roasCpl')}</div>
+                <div className="text-lg font-semibold text-[#222222] mt-2 tabular-nums">
                   {t('crm.marketingCampaigns.kpi.roas')}:{' '}
                   {campaignTotals.roas != null ? campaignTotals.roas.toFixed(2) : '—'}
                 </div>
-                <div className="text-sm font-medium text-rose-300/95 tabular-nums">
+                <div className="text-sm font-semibold text-rose-600 tabular-nums mt-1">
                   {t('crm.marketingCampaigns.kpi.cpl')}:{' '}
                   {campaignTotals.cpl != null
                     ? `${formatMoney(campaignTotals.cpl)} ${currency}`
                     : '—'}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">
-                  {t('crm.marketingCampaigns.kpi.roasCplHint')}
-                </div>
+                <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.roasCplHint')}</div>
               </div>
             </section>
 
-            <section className={`${marketingCard} space-y-3`}>
+            <section className={`${marketingCard} space-y-4`}>
               <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-slate-200">
+                  <div className={marketingSectionTitle}>
                     {t('crm.marketingTraffic.extendedMetricsTitle')}
                   </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    {t('crm.marketingTraffic.extendedMetricsSubtitle')}
-                  </div>
+                  <div className={marketingSectionSub}>{t('crm.marketingTraffic.extendedMetricsSubtitle')}</div>
                 </div>
-                <div className="text-[11px] text-slate-400">
+                <div className={marketingMetaLine}>
                   {t('crm.marketingTraffic.rawRowsLabel')}:{' '}
-                  <span className="text-slate-100 font-semibold tabular-nums">
-                    {formatNumber(totalRows)}
-                  </span>
+                  <span className="font-semibold tabular-nums text-[#222222]">{formatNumber(totalRows)}</span>
                   {totalImpressions > 0 && (
                     <span className="ml-3">
                       {t('crm.marketingTraffic.impressionsLabel')}:{' '}
-                      <span className="text-slate-100 font-semibold tabular-nums">
+                      <span className="font-semibold tabular-nums text-[#222222]">
                         {formatNumber(totalImpressions)}
                       </span>
                     </span>
@@ -323,7 +316,7 @@ export const CampaignsPage: React.FC = () => {
                   {totalCost > 0 && (
                     <span className="ml-3">
                       {t('crm.marketingTraffic.spendLabel')}:{' '}
-                      <span className="text-slate-100 font-semibold tabular-nums">
+                      <span className="font-semibold tabular-nums text-[#222222]">
                         {formatMoney(totalCost)} {currency}
                       </span>
                     </span>
@@ -331,60 +324,53 @@ export const CampaignsPage: React.FC = () => {
                 </div>
               </div>
               {providerBreakdown.length === 0 && totalRows > 0 ? (
-                <div className="text-[11px] text-amber-200/90 rounded-2xl bg-amber-950/40 border border-amber-900/50 px-3 py-2">
+                <div className={marketingWarnBanner}>
                   {t('crm.marketingTraffic.extendedMetricsMismatch', { count: totalRows })}
                 </div>
               ) : providerBreakdown.length === 0 ? (
-                <div className="text-[11px] text-slate-500 rounded-2xl bg-slate-900/50 px-3 py-2">
-                  {t('crm.marketingTraffic.extendedMetricsEmpty')}
-                </div>
+                <div className={marketingEmptyBanner}>{t('crm.marketingTraffic.extendedMetricsEmpty')}</div>
               ) : (
-                <div className="overflow-x-auto min-w-0">
-                  <table className="w-full min-w-[640px] text-left text-[11px] text-slate-300">
-                    <thead>
-                      <tr className="border-b border-slate-800 text-slate-500">
-                        <th className="py-2 pr-3 font-medium">
-                          {t('crm.marketingTraffic.table.provider')}
-                        </th>
-                        <th className="py-2 pr-3 font-medium text-right tabular-nums">
+                <div className={`${marketingTableWrap} overflow-x-auto min-w-0`}>
+                  <table className="w-full min-w-[640px] text-left">
+                    <thead className={marketingThead}>
+                      <tr>
+                        <th className={marketingTh}>{t('crm.marketingTraffic.table.provider')}</th>
+                        <th className={`${marketingTh} text-right tabular-nums`}>
                           {t('crm.marketingTraffic.table.rows')}
                         </th>
-                        <th className="py-2 pr-3 font-medium text-right tabular-nums">
+                        <th className={`${marketingTh} text-right tabular-nums`}>
                           {t('crm.marketingTraffic.table.sessions')}
                         </th>
-                        <th className="py-2 pr-3 font-medium text-right tabular-nums">
+                        <th className={`${marketingTh} text-right tabular-nums`}>
                           {t('crm.marketingTraffic.table.clicks')}
                         </th>
-                        <th className="py-2 pr-3 font-medium text-right tabular-nums">
+                        <th className={`${marketingTh} text-right tabular-nums`}>
                           {t('crm.marketingTraffic.table.impressions')}
                         </th>
-                        <th className="py-2 font-medium text-right tabular-nums">
+                        <th className={`${marketingTh} text-right tabular-nums`}>
                           {t('crm.marketingTraffic.table.cost')}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {providerBreakdown.map((row, idx) => (
-                        <tr
-                          key={`${row.dataSource}-${row.currency}-${idx}`}
-                          className="border-b border-slate-800/80"
-                        >
-                          <td className="py-2 pr-3 text-slate-100">
+                        <tr key={`${row.dataSource}-${row.currency}-${idx}`} className={marketingTr}>
+                          <td className={`${marketingTd} font-medium text-[#222222]`}>
                             {marketingDataSourceLabel(t, row.dataSource)}
                           </td>
-                          <td className="py-2 pr-3 text-right tabular-nums">
+                          <td className={`${marketingTd} text-right tabular-nums`}>
                             {formatNumber(row.rowCount)}
                           </td>
-                          <td className="py-2 pr-3 text-right tabular-nums">
+                          <td className={`${marketingTd} text-right tabular-nums`}>
                             {formatNumber(row.sessions)}
                           </td>
-                          <td className="py-2 pr-3 text-right tabular-nums">
+                          <td className={`${marketingTd} text-right tabular-nums`}>
                             {formatNumber(row.clicks)}
                           </td>
-                          <td className="py-2 pr-3 text-right tabular-nums">
+                          <td className={`${marketingTd} text-right tabular-nums`}>
                             {formatNumber(row.impressions)}
                           </td>
-                          <td className="py-2 text-right tabular-nums text-slate-100">
+                          <td className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
                             {formatMoney(row.cost)} {row.currency}
                           </td>
                         </tr>
@@ -396,41 +382,42 @@ export const CampaignsPage: React.FC = () => {
             </section>
 
             <section className={marketingCard}>
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
                 <div>
-                  <div className="text-xs font-semibold text-slate-200">
-                    {t('crm.marketingCampaigns.top.title')}
-                  </div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className={marketingSectionTitle}>{t('crm.marketingCampaigns.top.title')}</div>
+                  <div className={marketingSectionSub}>
                     {chartConfig.metric === 'revenue'
                       ? t('crm.marketingCampaigns.top.subtitle')
                       : t('crm.marketingCampaigns.top.subtitleCost')}
                   </div>
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className={marketingMetaLine}>
                   {t('crm.marketingCampaigns.top.shown', { count: chartConfig.rows.length })}
                 </div>
               </div>
-              <div className="h-56 w-full min-w-0">
+              <div
+                className={`${marketingTableWrap} h-60 w-full min-w-0 p-3 bg-gradient-to-b from-slate-50/50 to-white`}
+              >
                 {chartConfig.rows.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={chartConfig.rows} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                       <XAxis
                         dataKey="name"
-                        tick={{ fontSize: 10, fill: '#94a3b8' }}
+                        tick={{ fontSize: 10, fill: '#64748b' }}
                         interval={0}
-                        angle={-24}
+                        angle={-28}
                         textAnchor="end"
-                        height={52}
+                        height={54}
                       />
-                      <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#64748b' }} />
                       <Tooltip
                         contentStyle={{
-                          background: '#0f172a',
-                          border: '1px solid #334155',
+                          background: '#fff',
+                          border: '1px solid rgba(34,34,34,0.12)',
                           borderRadius: 12,
                           fontSize: 11,
+                          boxShadow: '0 12px 40px rgba(34,34,34,0.12)',
                         }}
                         formatter={(v: number | string) => {
                           const num = typeof v === 'number' ? v : Number(v);
@@ -444,11 +431,11 @@ export const CampaignsPage: React.FC = () => {
                           String((payload?.[0]?.payload as { fullName?: string })?.fullName ?? '')
                         }
                       />
-                      <Bar dataKey="value" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
+                      <Bar dataKey="value" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="text-[11px] text-slate-500 h-full flex items-center justify-center">
+                  <div className="text-[11px] text-[#222222]/45 h-full flex items-center justify-center">
                     {t('crm.marketingChannels.common.noData')}
                   </div>
                 )}
@@ -456,68 +443,55 @@ export const CampaignsPage: React.FC = () => {
             </section>
 
             <section className={marketingCard}>
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
                 <div>
-                  <div className="text-xs font-semibold text-slate-200">
-                    {t('crm.marketingCampaigns.table.title')}
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    {t('crm.marketingCampaigns.table.subtitle')}
-                  </div>
+                  <div className={marketingSectionTitle}>{t('crm.marketingCampaigns.table.title')}</div>
+                  <div className={marketingSectionSub}>{t('crm.marketingCampaigns.table.subtitle')}</div>
                 </div>
-                <div className="text-[11px] text-slate-500">
+                <div className={marketingMetaLine}>
                   {t('crm.marketingCampaigns.table.count', { count: tableRows.length })}
                 </div>
               </div>
-              <div className="overflow-x-auto min-w-0">
-                <table className="w-full min-w-[720px] text-left text-[11px] text-slate-300">
-                  <thead>
-                    <tr className="border-b border-slate-800 text-slate-500">
-                      <th className="py-2 pr-3 font-medium">
-                        {t('crm.marketingCampaigns.table.headers.campaign')}
-                      </th>
-                      <th className="py-2 pr-3 font-medium">
-                        {t('crm.marketingCampaigns.table.headers.source')}
-                      </th>
-                      <th className="py-2 pr-3 font-medium">
-                        {t('crm.marketingCampaigns.table.headers.medium')}
-                      </th>
-                      <th className="py-2 pr-3 font-medium text-right">
+              <div className={`${marketingTableWrap} overflow-x-auto min-w-0`}>
+                <table className="w-full min-w-[720px] text-left">
+                  <thead className={marketingThead}>
+                    <tr>
+                      <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.campaign')}</th>
+                      <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.source')}</th>
+                      <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.medium')}</th>
+                      <th className={`${marketingTh} text-right`}>
                         {t('crm.marketingCampaigns.table.headers.cost')}
                       </th>
-                      <th className="py-2 pr-3 font-medium text-right">
+                      <th className={`${marketingTh} text-right`}>
                         {t('crm.marketingCampaigns.table.headers.impressions')}
                       </th>
-                      <th className="py-2 font-medium text-right">
+                      <th className={`${marketingTh} text-right`}>
                         {t('crm.marketingCampaigns.table.headers.clicks')}
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     {tableRows.map((row, idx) => (
-                      <tr
-                        key={`${row.source}-${row.medium}-${row.campaign}-${idx}`}
-                        className="border-b border-slate-800/80"
-                      >
+                      <tr key={`${row.source}-${row.medium}-${row.campaign}-${idx}`} className={marketingTr}>
                         <td
-                          className="py-2 pr-3 text-slate-100 max-w-[200px] truncate"
+                          className={`${marketingTd} max-w-[200px] truncate font-medium text-[#222222]`}
                           title={formatMarketingChannelDimension(t, row.campaign, 'campaign')}
                         >
                           {formatMarketingChannelDimension(t, row.campaign, 'campaign')}
                         </td>
-                        <td className="py-2 pr-3">
+                        <td className={marketingTd}>
                           {formatMarketingChannelDimension(t, row.source, 'source')}
                         </td>
-                        <td className="py-2 pr-3">
+                        <td className={marketingTd}>
                           {formatMarketingChannelDimension(t, row.medium, 'medium')}
                         </td>
-                        <td className="py-2 pr-3 text-right tabular-nums">
+                        <td className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
                           {formatMoney(row.cost)} {currency}
                         </td>
-                        <td className="py-2 pr-3 text-right tabular-nums">
+                        <td className={`${marketingTd} text-right tabular-nums`}>
                           {formatNumber(row.impressions)}
                         </td>
-                        <td className="py-2 text-right tabular-nums">{formatNumber(row.clicks)}</td>
+                        <td className={`${marketingTd} text-right tabular-nums`}>{formatNumber(row.clicks)}</td>
                       </tr>
                     ))}
                   </tbody>
