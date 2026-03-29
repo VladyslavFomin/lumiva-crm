@@ -461,6 +461,26 @@ export async function syncMarketingIntegration(
   return { ok: o.ok !== false, rowsSaved: n };
 }
 
+export type CreateMarketingIntegrationBody = {
+  provider: string;
+  kind?: string;
+  name: string;
+  isActive?: boolean;
+  primaryId?: string;
+  ga4ServiceAccountJson?: string;
+  settings?: Record<string, unknown>;
+};
+
+export async function createMarketingIntegration(
+  body: CreateMarketingIntegrationBody,
+): Promise<MarketingIntegrationRow> {
+  return api.post<MarketingIntegrationRow>('/marketing/integrations', body);
+}
+
+export async function deleteMarketingIntegration(id: string): Promise<void> {
+  await api.delete(`/marketing/integrations/${id}`);
+}
+
 export async function fetchMarketingApiToken(): Promise<string> {
   const res = await api.get<{ token: string }>('/api-tokens/marketing');
   return res.token;
