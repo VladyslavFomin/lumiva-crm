@@ -26,6 +26,17 @@ export class PlatformSettingsController {
         stripePriceEnterprise: null,
         stripePriceUltimate: null,
         billingPlans: null,
+        openAiApiKey: null,
+        openAiBaseUrl: null,
+        openAiModel: null,
+        openAiImageModel: null,
+        aiPriceInputPerMtokUsd: null,
+        aiPriceOutputPerMtokUsd: null,
+        aiImageCostCents: null,
+        stripePriceAiCredits: null,
+        stripePriceStoragePack: null,
+        aiCreditsPackAmountCents: null,
+        storagePackBytes: null,
       }
     );
   }
@@ -49,6 +60,17 @@ export class PlatformSettingsController {
       stripePriceProfessional?: string | null;
       stripePriceEnterprise?: string | null;
       stripePriceUltimate?: string | null;
+      openAiApiKey?: string | null;
+      openAiBaseUrl?: string | null;
+      openAiModel?: string | null;
+      openAiImageModel?: string | null;
+      aiPriceInputPerMtokUsd?: string | null;
+      aiPriceOutputPerMtokUsd?: string | null;
+      aiImageCostCents?: number | null;
+      stripePriceAiCredits?: string | null;
+      stripePriceStoragePack?: string | null;
+      aiCreditsPackAmountCents?: number | null;
+      storagePackBytes?: string | null;
       billingPlans?: Array<{
         code: 'standard' | 'professional' | 'enterprise' | 'ultimate';
         title: string;

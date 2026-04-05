@@ -51,6 +51,10 @@ export const marketingThead =
 export const marketingTh =
   'py-3 px-3 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-[#222222]/50';
 
+/** Узкие числовые колонки: без переноса и с чуть более плотным трекингом */
+export const marketingThNumeric =
+  'py-2.5 px-2.5 text-right text-[9px] font-semibold uppercase tracking-[0.08em] text-[#222222]/50 whitespace-nowrap leading-tight';
+
 export const marketingTd =
   'py-2.5 px-3 text-[11px] text-[#222222]/85 border-b border-slate-100 align-middle';
 

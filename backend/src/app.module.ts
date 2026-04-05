@@ -35,6 +35,7 @@ import { DemoRequestsModule } from './demo-requests/demo-requests.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { BillingModule } from './billing/billing.module';
+import { AiModule } from './ai/ai.module';
 
 // --- CCP
 import { CcpModule } from './modules/ccp/ccp.module';
@@ -102,6 +103,10 @@ import { DemoRequest } from './demo-requests/demo-request.entity';
 import { PlatformSettings } from './platform-settings/platform-settings.entity';
 import { UserSession } from './auth/user-session.entity';
 import { TenantStorageFile } from './tenants/tenant-storage-file.entity';
+import { AiUsageLog } from './ai/ai-usage-log.entity';
+import { AiMemoryChunk } from './ai/ai-memory-chunk.entity';
+import { AiChatSession } from './ai/ai-chat-session.entity';
+import { AiChatMessage } from './ai/ai-chat-message.entity';
 
 @Module({
   imports: [
@@ -181,6 +186,10 @@ import { TenantStorageFile } from './tenants/tenant-storage-file.entity';
         ChatMessage,
         UserSession,
         TenantStorageFile,
+        AiUsageLog,
+        AiMemoryChunk,
+        AiChatSession,
+        AiChatMessage,
       ],
       synchronize: true, // в проде лучше false + миграции
     }),
@@ -215,6 +224,7 @@ import { TenantStorageFile } from './tenants/tenant-storage-file.entity';
     PlatformSettingsModule,
     TelegramModule,
     BillingModule,
+    AiModule,
     OnlineChatModule,
     CcpModule,
     MailModule,

@@ -283,6 +283,27 @@ export class SalesImportService {
     private readonly channelsRepo: Repository<SalesChannel>,
   ) {}
 
+  /** Для AI/интеграций: прочитать сессию предпросмотра по id (маппинг и метаданные). */
+  async getImportSession(importId: string): Promise<{
+    importId: string;
+    suggestedMapping: Record<string, string | null>;
+    columns: string[];
+    totalRows: number;
+    status: string;
+    originalFileName: string | null;
+  } | null> {
+    const s = await this.sessionRepo.findOne({ where: { id: importId } });
+    if (!s) return null;
+    return {
+      importId: s.id,
+      suggestedMapping: (s.suggestedMapping || {}) as Record<string, string | null>,
+      columns: s.columns || [],
+      totalRows: s.totalRows ?? 0,
+      status: s.status,
+      originalFileName: s.originalFileName,
+    };
+  }
+
   async preview(file: any): Promise<ImportPreviewResponse> {
     if (!file) {
       throw new BadRequestException('Файл не передан');

@@ -1,0 +1,197 @@
+{
+  "common": {
+    "sync": "Sync",
+    "loading": "…",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "marketingTraffic": {
+    "summaryBreakdownEmpty": "No provider breakdown for the selected period.",
+    "summaryBreakdownChannel": "Channel (data source)",
+    "summaryBreakdownRows": "Rows"
+  },
+  "marketingCurrency": {
+    "fxError": "Could not load exchange rates",
+    "missingRateFootnote": "* Row currency is not in EUR/GBP/TRY/RUB or the rate has not loaded yet — amount shown without conversion.",
+    "mixedShort": "mixed curr.",
+    "toolbar": {
+      "native": "As in data",
+      "convertedTo": "Converted to {{code}} (ECB, business day)",
+      "label": "Report currency",
+      "configure": "Configure",
+      "fxAsOf": "{{source}} {{date}}"
+    },
+    "modal": {
+      "title": "Campaign & traffic currency",
+      "introFx": "EUR, GBP, TRY, RUB rates are loaded from the server (Frankfurter / ECB). Integration currency is set with the “Currency” button in the integrations list.",
+      "modeConverted": "Single currency (ECB rate)",
+      "modeNative": "As in data (per channel)",
+      "fxTo": "Convert to",
+      "refreshFx": "Refresh rates"
+    },
+    "iso": {
+      "hint": "Pick an ISO currency code. You can filter the list.",
+      "search": "Search…",
+      "empty": "No matches"
+    }
+  },
+  "marketingIntegrations": {
+    "list": {
+      "currencyTitle": "Data source currency"
+    },
+    "errors": {
+      "patchCurrency": "Could not save currency"
+    },
+    "actions": {
+      "currency": "Currency",
+      "sync": "Sync"
+    },
+    "form": {
+      "pickCurrency": "Choose currency",
+      "clearCurrency": "Clear",
+      "ym": {
+        "currency": "Currency (optional)"
+      }
+    }
+  },
+  "marketingChannelBlocks": {
+    "allUnattributedHidden": "All rows are hidden: only records without an integration channel remain. Clear the filter below or set dataSource on import.",
+    "hideUnattributed": "Hide “no integration channel”",
+    "moreDetails": "Details",
+    "unknownExplain": "Rows without a data source in CRM: often imports from n8n/analytics without an integration tag. Impressions and spend here may overlap Meta/Google session slices without UTMs—do not add them to neighbors as “more ads.”",
+    "ctr": "CTR",
+    "cpc": "CPC",
+    "cpm": "CPM",
+    "cplShort": "CPL",
+    "topCampaigns": "Campaigns"
+  },
+  "marketingChannelAnalytics": {
+    "dimEmpty": "(not set)",
+    "other": "Other",
+    "mapTitleGa4": "Geography (Google Analytics data)",
+    "mapHintGa4": "Country comes from countryId when syncing GA4. Intensity by sessions. These are web analytics aggregates, not individual CRM contacts.",
+    "mapEmptyNoInfer": "No geo in the database for the period and country could not be inferred from campaign names. For GA4 channels, sync the integration after updating.",
+    "geoUnknownCountry": "Country unknown",
+    "periodAll": "Full available period",
+    "close": "Close",
+    "sectionTrend": "Daily trend",
+    "loadingSeries": "Loading series…",
+    "emptySeries": "No daily data for the selected filter.",
+    "chartSessionsClicks": "Sessions and clicks",
+    "chartCostRevenue": "Spend and revenue (raw daily totals)",
+    "chartImpressions": "Impressions",
+    "sectionBreakdown": "Spend and traffic structure",
+    "pieCostCampaign": "Spend by campaign",
+    "pieSessionsSource": "Sessions by source",
+    "pieImprMedium": "Impressions by medium",
+    "barTopImpressions": "Top campaigns by impressions",
+    "sectionGeo": "Geography",
+    "geoTableTitle": "Sessions and views by country",
+    "geoTableHint": "Like the Geo report in Google Analytics: sessions and views by country. No individual CRM users—web analytics aggregates only.",
+    "geoColCountry": "Country",
+    "fullTable": "All campaigns in selection",
+    "fullTableHint": "Sort by column. Data matches the period aggregate on the traffic page.",
+    "mapTitle": "Geography (estimated from campaign names)",
+    "mapHint": "Colored by sessions. Country is guessed from keywords in campaign names (e.g. “Almanya”, “Polonya”). Without a match, data does not appear on the map.",
+    "mapEmpty": "No rows linked to a country from campaign names.",
+    "geoLoading": "Loading geo data…",
+    "mapNoCountryData": "No data for this country in the current selection.",
+    "mapScale": "Sessions (intensity)",
+    "roadmapTitle": "Pages and funnel (in development)",
+    "roadmapBody": "Geo by session for GA4 channels is pulled on sync (countryId). Reports by page URL, cities, and funnel steps are planned after schema/import extensions."
+  },
+  "marketingIntegrationsGuide": {
+    "kindVideo": "Video",
+    "kindConsole": "Console",
+    "kindArticle": "Article",
+    "navAria": "Guide sections",
+    "navTitle": "Sections",
+    "whereLead": "Ad and analytics consoles: where tokens, counter IDs, and API keys live.",
+    "whatLead": "Mapping fields in the “Add integration” form on the marketing connections page.",
+    "keysLead": "Formats without real secrets: easier to verify you copied the right value.",
+    "helpCardsTitle": "Official help with screenshots"
+  },
+  "emailTemplates": {
+    "list": {
+      "title": "Emails",
+      "subtitle": "Create and manage email templates for marketing campaigns",
+      "create": "Create template",
+      "createFirst": "Create your first template",
+      "subject": "Subject",
+      "loading": "Loading…",
+      "empty": "No templates",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this email template?",
+      "edit": "Edit",
+      "preview": "Preview",
+      "errors": {
+        "loadFailed": "Could not load templates",
+        "deleteFailed": "Could not delete template"
+      }
+    },
+    "form": {
+      "titleNew": "Create email template",
+      "titleEdit": "Edit email template",
+      "subtitle": "Build a template with variable support",
+      "fields": {
+        "name": "Name *",
+        "description": "Description",
+        "subject": "Email subject",
+        "htmlBody": "HTML body",
+        "textBody": "Plain text version",
+        "isActive": "Active",
+        "variables": "Available variables",
+        "preview": "Preview"
+      },
+      "hints": {
+        "activeAvailable": "Template will be available for use",
+        "availableVariables": "Available variables"
+      },
+      "placeholders": {
+        "name": "Template name",
+        "description": "Template description",
+        "subject": "Subject (you can use {{lead.name}}, {{lead.email}}, etc.)",
+        "htmlBody": "HTML email code…",
+        "textBody": "Plain text for clients without HTML"
+      },
+      "defaultTemplate": {
+        "greeting": "Hello, {{lead.name}}!",
+        "body": "This is a sample email using variables.",
+        "phoneLabel": "Phone:",
+        "statusLabel": "Status:",
+        "signature": "Best regards,<br>The Lumiva team"
+      },
+      "variables": {
+        "lead": "Lead: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
+        "contact": "Contact: {{contact.name}}, {{contact.email}}",
+        "company": "Company: {{company.name}}, {{company.email}}"
+      },
+      "actions": {
+        "save": "Save",
+        "saving": "Saving…",
+        "cancel": "Cancel",
+        "preview": "Preview",
+        "useTemplate": "Use template"
+      },
+      "errors": {
+        "saveFailed": "Could not save",
+        "loadFailed": "Could not load template",
+        "previewFailed": "Preview failed"
+      },
+      "success": {
+        "saved": "Template saved"
+      }
+    }
+  },
+  "nav": {
+    "marketingStatuses": "Lead / client statuses"
+  },
+  "sales": {
+    "analytics": {
+      "settings": {
+        "currencyMode": "Currency mode",
+        "displayCurrency": "Display currency"
+      }
+    }
+  }
+}

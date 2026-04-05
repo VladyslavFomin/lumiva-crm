@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { CrmShellModal } from '../../components/ui/CrmShellModal';
 import {
   createUtmTemplate,
   fetchUtmTemplates,
   deleteUtmTemplate,
   type MarketingUtmTemplate,
 } from '../../api/marketing';
+
+const ACCENT = '#45a094';
 
 type ChannelPreset = 'google_search' | 'meta_ads' | 'yandex_direct' | 'email' | 'other';
 
@@ -39,6 +42,12 @@ export const UtmsPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<{
+    title: string;
+    message: string;
+    variant?: 'info' | 'error';
+  } | null>(null);
+  const [pendingDeleteTpl, setPendingDeleteTpl] = useState<MarketingUtmTemplate | null>(null);
 
   // загрузка сохранённых шаблонов
   useEffect(() => {
@@ -98,7 +107,11 @@ export const UtmsPage: React.FC = () => {
 
   const onSaveTemplate = async () => {
     if (!form.nameForTemplate.trim()) {
-      alert(t('crm.marketingUtms.errors.nameRequired'));
+      setNotice({
+        title: t('crm.common.modalNotice'),
+        message: t('crm.marketingUtms.errors.nameRequired'),
+        variant: 'info',
+      });
       return;
     }
 
@@ -119,7 +132,11 @@ export const UtmsPage: React.FC = () => {
       setForm((prev) => ({ ...prev, nameForTemplate: '' }));
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || t('crm.marketingUtms.errors.saveTemplate'));
+      setNotice({
+        title: t('crm.common.modalError'),
+        message: e?.message || t('crm.marketingUtms.errors.saveTemplate'),
+        variant: 'error',
+      });
     } finally {
       setSaving(false);
     }
@@ -139,35 +156,44 @@ export const UtmsPage: React.FC = () => {
     }));
   };
 
-  const onDeleteTemplate = async (tpl: MarketingUtmTemplate) => {
-    if (
-      !window.confirm(
-        t('crm.marketingUtms.confirmDelete', { name: tpl.name }),
-      )
-    )
-      return;
+  const onDeleteTemplate = (tpl: MarketingUtmTemplate) => {
+    setPendingDeleteTpl(tpl);
+  };
 
+  const confirmDeleteTemplate = async () => {
+    const tpl = pendingDeleteTpl;
+    if (!tpl) return;
     try {
       await deleteUtmTemplate(tpl.id);
-      setTemplates((prev) => prev.filter((t) => t.id !== tpl.id));
+      setTemplates((prev) => prev.filter((x) => x.id !== tpl.id));
+      setPendingDeleteTpl(null);
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || t('crm.marketingUtms.errors.deleteTemplate'));
+      setPendingDeleteTpl(null);
+      setNotice({
+        title: t('crm.common.modalError'),
+        message: e?.message || t('crm.marketingUtms.errors.deleteTemplate'),
+        variant: 'error',
+      });
     }
   };
 
   return (
     <MainLayout>
       <div className="space-y-4 md:space-y-6 pb-8">
-        <section className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
+        <section className="relative overflow-hidden rounded-3xl border border-slate-800/90 bg-gradient-to-br from-slate-950/95 via-slate-950/90 to-slate-900/80 px-5 py-5 shadow-[0_20px_50px_rgba(0,0,0,0.35)] md:px-7 md:py-6">
+          <div
+            className="pointer-events-none absolute left-0 top-0 h-full w-1.5 rounded-l-3xl"
+            style={{ backgroundColor: ACCENT }}
+          />
+          <div className="pl-2">
+            <div className="mb-1 text-[11px] uppercase tracking-[0.25em] text-slate-500">
               {t('crm.marketingUtms.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            <h1 className="text-lg font-semibold text-slate-50 md:text-xl">
               {t('crm.marketingUtms.title')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            <p className="mt-2 max-w-2xl text-xs leading-relaxed text-slate-400">
               {t('crm.marketingUtms.subtitle')}
             </p>
           </div>
@@ -175,7 +201,7 @@ export const UtmsPage: React.FC = () => {
 
         <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           {/* Левая колонка: форма */}
-          <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5 space-y-4">
+          <div className="space-y-4 rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 shadow-lg shadow-black/20 md:px-5 md:py-5">
             <div>
               <div className="text-[11px] text-slate-400 mb-1">
                 {t('crm.marketingUtms.fields.channel')}
@@ -195,10 +221,10 @@ export const UtmsPage: React.FC = () => {
                     type="button"
                     onClick={() => applyChannelPreset(key)}
                     className={
-                      'px-3 py-1.5 rounded-xl text-[11px] border transition ' +
+                      'rounded-xl border px-3 py-1.5 text-[11px] transition ' +
                       (form.channel === key
-                        ? 'border-sky-500 bg-sky-500/10 text-sky-200'
-                        : 'border-slate-700/80 bg-slate-900/60 text-slate-300 hover:border-sky-500/60 hover:text-sky-200')
+                        ? 'border-[#45a094] bg-[#45a094]/15 text-teal-100'
+                        : 'border-slate-700/80 bg-slate-900/60 text-slate-300 hover:border-[#45a094]/50 hover:text-teal-100')
                     }
                   >
                     {label}
@@ -318,7 +344,8 @@ export const UtmsPage: React.FC = () => {
                 type="button"
                 onClick={onSaveTemplate}
                 disabled={saving}
-                className="md:w-auto w-full px-4 py-2 rounded-2xl bg-sky-500 text-slate-950 text-xs font-semibold hover:bg-sky-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full rounded-2xl px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-60 md:w-auto"
+                style={{ backgroundColor: ACCENT, boxShadow: '0 10px 28px rgba(69,160,148,0.35)' }}
               >
                 {saving
                   ? t('crm.marketingUtms.actions.saving')
@@ -328,7 +355,7 @@ export const UtmsPage: React.FC = () => {
           </div>
 
           {/* Правая колонка: список шаблонов */}
-          <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 md:px-5 md:py-5 text-xs">
+          <div className="rounded-3xl border border-slate-800/80 bg-slate-950/80 px-4 py-4 text-xs shadow-lg shadow-black/20 md:px-5 md:py-5">
             <div className="mb-3 flex items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-semibold text-slate-50">
@@ -406,6 +433,28 @@ export const UtmsPage: React.FC = () => {
           </div>
         </section>
       </div>
+
+      <CrmShellModal
+        open={!!notice}
+        title={notice?.title || ''}
+        message={notice?.message || ''}
+        variant={notice?.variant === 'error' ? 'error' : 'info'}
+        onClose={() => setNotice(null)}
+      />
+
+      <CrmShellModal
+        open={!!pendingDeleteTpl}
+        title={t('crm.common.modalConfirm')}
+        message={
+          pendingDeleteTpl
+            ? t('crm.marketingUtms.confirmDelete', { name: pendingDeleteTpl.name })
+            : ''
+        }
+        cancelLabel={t('crm.common.cancel')}
+        confirmLabel={t('crm.common.delete')}
+        onClose={() => setPendingDeleteTpl(null)}
+        onConfirm={() => void confirmDeleteTemplate()}
+      />
     </MainLayout>
   );
 };

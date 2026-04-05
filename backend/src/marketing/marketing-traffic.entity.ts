@@ -8,7 +8,7 @@ import {
 } from 'typeorm';
 
 @Entity('marketing_traffic')
-@Index(['tenantId', 'date', 'dataSource', 'source', 'medium', 'campaign'])
+@Index(['tenantId', 'date', 'dataSource', 'source', 'medium', 'campaign', 'country'])
 export class MarketingTraffic {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -31,6 +31,10 @@ export class MarketingTraffic {
 
   @Column({ type: 'varchar', length: 256, nullable: true })
   campaign: string | null;
+
+  /** ISO 3166-1 alpha-2 из GA4 (countryId) или импорт; null — нет гео в строке. */
+  @Column({ type: 'varchar', length: 8, nullable: true })
+  country: string | null;
 
   @Column({ type: 'int', default: 0 })
   sessions: number;

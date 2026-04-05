@@ -39,6 +39,10 @@ export class EmailMessage {
   @JoinColumn({ name: 'accountId' })
   account: EmailAccount;
 
+  /** Папка в CRM (иерархия, перетаскивание); системные inbox/sent/trash */
+  @Column({ type: 'uuid', nullable: true })
+  crmFolderId: string | null;
+
   // ==== ID ПИСЬМА ОТ ПРОВАЙДЕРА ====
   @Column({ type: 'varchar', length: 255, unique: true })
   messageId: string; // Уникальный ID от email провайдера

@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Bar,
@@ -25,7 +32,6 @@ import {
   marketingCard,
   marketingChipActive,
   marketingChipInactive,
-  marketingEmptyBanner,
   marketingFilterBar,
   marketingFilterLabel,
   marketingH1,
@@ -48,8 +54,14 @@ import {
   marketingTh,
   marketingThead,
   marketingTr,
-  marketingWarnBanner,
 } from './marketingPageChrome';
+import { MarketingChannelBlocks } from './marketingChannelBlocks';
+import { MarketingProviderBreakdownTable } from './MarketingProviderBreakdownTable';
+import {
+  MarketingDisplayCurrencyToolbar,
+  useMarketingDisplayCurrencyPrefs,
+} from './MarketingDisplayCurrencyToolbar';
+import { convertMarketingAmount } from './marketingDisplayCurrencyStorage';
 
 type PeriodPreset = '7d' | '30d' | '90d' | 'all';
 
@@ -67,11 +79,17 @@ export const CampaignsPage: React.FC = () => {
   const [stats, setStats] = useState<MarketingTrafficStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hideUnattributedChannel, setHideUnattributedChannel] = useState(false);
 
-  const formatNumber = (v: number) =>
-    v.toLocaleString(locale, { maximumFractionDigits: 0 });
-  const formatMoney = (v: number) =>
-    v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatNumber = useCallback(
+    (v: number) => v.toLocaleString(locale, { maximumFractionDigits: 0 }),
+    [locale],
+  );
+  const formatMoney = useCallback(
+    (v: number) =>
+      v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    [locale],
+  );
 
   const periodLabel: Record<PeriodPreset, string> = {
     '7d': t('crm.marketingCampaigns.periods.7d'),
@@ -108,6 +126,7 @@ export const CampaignsPage: React.FC = () => {
     () => normalizeMarketingTrafficStats(stats ?? {}),
     [stats],
   );
+  const deferredItemsForBlocks = useDeferredValue(view.items);
 
   const dataSourceOptions = useMemo(() => {
     const list = [...(view.dataSources ?? [])];
@@ -123,10 +142,11 @@ export const CampaignsPage: React.FC = () => {
       from: range.from,
       to: range.to,
       dataSource: dataSource || undefined,
+      itemsLimit: 70_000,
     })
       .then((res) => {
         if (!alive) return;
-        setStats(res);
+        startTransition(() => setStats(res));
       })
       .catch((e: unknown) => {
         if (!alive) return;
@@ -151,16 +171,63 @@ export const CampaignsPage: React.FC = () => {
   const totalImpressions = view.totalImpressions;
   const totalCost = view.totalCost;
 
+  const { state: curPrefs, setState: setCurPrefs } = useMarketingDisplayCurrencyPrefs(
+    view.currenciesPresent ?? [],
+  );
+
+  const fmtCell = useCallback(
+    (amount: number, fromCur: string) => {
+      const c = convertMarketingAmount(
+        amount,
+        fromCur,
+        curPrefs.currencyMode,
+        curPrefs.displayCurrency,
+        curPrefs.rates,
+      );
+      if (c.missingRate && curPrefs.currencyMode === 'converted') {
+        return `${formatMoney(c.value)} ${c.currency}*`;
+      }
+      return `${formatMoney(c.value)} ${c.currency}`;
+    },
+    [curPrefs, formatMoney],
+  );
+
   const campaignTotals = useMemo(() => {
     const items = view.items;
-    let cost = 0;
-    let revenue = 0;
+    let costC = 0;
+    let revC = 0;
     let leads = 0;
+    let miss = false;
     const activeCampaignKeys = new Set<string>();
+    const splitCost = new Map<string, number>();
+    const splitRev = new Map<string, number>();
+
     for (const r of items) {
-      cost += r.cost || 0;
-      revenue += r.revenue || 0;
+      const co = convertMarketingAmount(
+        r.cost || 0,
+        r.currency,
+        curPrefs.currencyMode,
+        curPrefs.displayCurrency,
+        curPrefs.rates,
+      );
+      const re = convertMarketingAmount(
+        r.revenue || 0,
+        r.currency,
+        curPrefs.currencyMode,
+        curPrefs.displayCurrency,
+        curPrefs.rates,
+      );
+      if (co.missingRate || re.missingRate) miss = true;
+      costC += co.value;
+      revC += re.value;
       leads += r.leads || 0;
+
+      if (curPrefs.currencyMode === 'native' && view.currency === 'MIXED') {
+        const cc = (r.currency || 'EUR').toUpperCase().slice(0, 8);
+        splitCost.set(cc, (splitCost.get(cc) || 0) + (r.cost || 0));
+        splitRev.set(cc, (splitRev.get(cc) || 0) + (r.revenue || 0));
+      }
+
       if (r.cost > 0 || r.sessions > 0 || r.impressions > 0 || r.clicks > 0) {
         const c = sanitizeMarketingDimension(r.campaign);
         const s = sanitizeMarketingDimension(r.source);
@@ -168,37 +235,121 @@ export const CampaignsPage: React.FC = () => {
         activeCampaignKeys.add(`${s}|${m}|${c}`);
       }
     }
-    const roas = cost > 0 && revenue > 0 ? revenue / cost : null;
-    const cpl = leads > 0 ? cost / leads : null;
+
+    const ratiosOk = view.currency !== 'MIXED' || curPrefs.currencyMode === 'converted';
+    const roas = ratiosOk && costC > 0 && revC > 0 ? revC / costC : null;
+    const cpl = ratiosOk && leads > 0 ? costC / leads : null;
+    const labelCur =
+      curPrefs.currencyMode === 'converted' ? curPrefs.displayCurrency : view.currency === 'MIXED' ? null : currency;
+
+    const costParts =
+      curPrefs.currencyMode === 'native' && view.currency === 'MIXED'
+        ? [...splitCost.entries()].sort((a, b) => b[1] - a[1])
+        : null;
+    const revParts =
+      curPrefs.currencyMode === 'native' && view.currency === 'MIXED'
+        ? [...splitRev.entries()].sort((a, b) => b[1] - a[1])
+        : null;
+
     return {
       campaignCount: activeCampaignKeys.size,
-      cost,
-      revenue,
+      costC,
+      revC,
       leads,
       roas,
       cpl,
+      labelCur,
+      miss,
+      costParts,
+      revParts,
     };
-  }, [view.items]);
+  }, [view.items, view.currency, curPrefs, currency]);
+
+  const engagementTotals = useMemo(() => {
+    let imp = 0;
+    let clk = 0;
+    let sess = 0;
+    let leads = 0;
+    for (const r of view.items) {
+      imp += r.impressions || 0;
+      clk += r.clicks || 0;
+      sess += r.sessions || 0;
+      leads += r.leads || 0;
+    }
+    const ctr = imp > 0 && clk !== imp ? (clk / imp) * 100 : null;
+    const cpc =
+      clk > 0 && campaignTotals.costC > 0 ? campaignTotals.costC / clk : null;
+    return { imp, clk, sess, leads, ctr, cpc };
+  }, [view.items, campaignTotals.costC]);
 
   const chartConfig = useMemo(() => {
     const items = view.items;
-    const allRevZero = items.length > 0 && items.every((r) => !r.revenue);
-    let metric: 'revenue' | 'cost' = allRevZero ? 'cost' : 'revenue';
-    let rowsSlice = allRevZero
-      ? [...items].sort((a, b) => b.cost - a.cost).slice(0, 6)
-      : [...items].sort((a, b) => b.revenue - a.revenue).slice(0, 6);
-    if (!allRevZero && rowsSlice.length && rowsSlice.every((r) => !r.revenue)) {
-      metric = 'cost';
-      rowsSlice = [...items].sort((a, b) => b.cost - a.cost).slice(0, 6);
+    const hasImpr = items.some((r) => (r.impressions || 0) > 0);
+    const hasClk = items.some((r) => (r.clicks || 0) > 0);
+    let metric: 'impressions' | 'clicks' | 'revenue' | 'cost';
+    let rowsSlice: typeof items;
+    if (hasImpr) {
+      metric = 'impressions';
+      rowsSlice = [...items].sort((a, b) => b.impressions - a.impressions).slice(0, 6);
+    } else if (hasClk) {
+      metric = 'clicks';
+      rowsSlice = [...items].sort((a, b) => b.clicks - a.clicks).slice(0, 6);
+    } else {
+      const allRevZero = items.length > 0 && items.every((r) => !r.revenue);
+      metric = allRevZero ? 'cost' : 'revenue';
+      rowsSlice = allRevZero
+        ? [...items].sort((a, b) => b.cost - a.cost).slice(0, 6)
+        : [...items].sort((a, b) => b.revenue - a.revenue).slice(0, 6);
+      if (!allRevZero && rowsSlice.length && rowsSlice.every((r) => !r.revenue)) {
+        metric = 'cost';
+        rowsSlice = [...items].sort((a, b) => b.cost - a.cost).slice(0, 6);
+      }
     }
     const rows = rowsSlice.map((r, i) => {
       const name = formatMarketingChannelDimension(t, r.campaign, 'campaign');
       const short = name.length > 22 ? `${name.slice(0, 20)}…` : name || `—${i}`;
-      const value = metric === 'revenue' ? r.revenue : r.cost;
-      return { key: `${short}-${i}`, name: short, fullName: name, value };
+      const value =
+        metric === 'impressions'
+          ? r.impressions
+          : metric === 'clicks'
+            ? r.clicks
+            : metric === 'cost'
+              ? r.cost
+              : r.revenue;
+      return {
+        key: `${short}-${i}`,
+        name: short,
+        fullName: name,
+        value,
+        rowCurrency: r.currency || 'EUR',
+      };
     });
     return { metric, rows };
   }, [view.items, t]);
+
+  const spendSummary = useMemo(() => {
+    if (totalCost <= 0) return null;
+    if (curPrefs.currencyMode === 'native') {
+      return providerBreakdown
+        .filter((p) => p.cost > 0)
+        .map((p) => `${formatMoney(p.cost)} ${p.currency}`)
+        .join(' · ');
+    }
+    let sum = 0;
+    let miss = false;
+    for (const p of providerBreakdown) {
+      const c = convertMarketingAmount(
+        p.cost,
+        p.currency,
+        'converted',
+        curPrefs.displayCurrency,
+        curPrefs.rates,
+      );
+      if (c.missingRate) miss = true;
+      sum += c.value;
+    }
+    return `${formatMoney(sum)} ${curPrefs.displayCurrency}${miss ? '*' : ''}`;
+  }, [totalCost, providerBreakdown, curPrefs, formatMoney]);
 
   const tableRows = useMemo(() => {
     return [...view.items].sort((a, b) => b.cost - a.cost || b.revenue - a.revenue);
@@ -239,7 +390,7 @@ export const CampaignsPage: React.FC = () => {
                 <option value="">{t('crm.marketingTraffic.dataSourceAll')}</option>
                 {dataSourceOptions.map((ds) => (
                   <option key={ds} value={ds}>
-                    {marketingDataSourceLabel(t, ds)}
+                    {marketingDataSourceLabel(t, ds, view.dataSourceLabels)}
                   </option>
                 ))}
               </select>
@@ -258,39 +409,115 @@ export const CampaignsPage: React.FC = () => {
 
         {!loading && !error && (
           <>
-            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <MarketingDisplayCurrencyToolbar
+              currenciesPresent={view.currenciesPresent ?? []}
+              state={curPrefs}
+              onStateChange={setCurPrefs}
+            />
+
+            <section className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
               <div className={marketingKpiStripeBrand}>
                 <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.campaigns')}</div>
                 <div className={marketingKpiValue}>{formatNumber(campaignTotals.campaignCount)}</div>
                 <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.campaignsHint')}</div>
               </div>
+              <div className={marketingKpiStripeEmerald}>
+                <div className={marketingKpiLabel}>
+                  {t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })}
+                </div>
+                <div className={`${marketingKpiValue} text-emerald-700`}>
+                  {formatNumber(engagementTotals.imp)}
+                </div>
+                <div className={marketingKpiHint}>
+                  {t('crm.marketingCampaigns.kpi.impressionsHint', {
+                    defaultValue: 'Показы рекламы и охват по данным каналов',
+                  })}
+                </div>
+              </div>
               <div className={marketingKpiStripeViolet}>
+                <div className={marketingKpiLabel}>
+                  {t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' })}
+                </div>
+                <div className={`${marketingKpiValue} text-violet-700`}>
+                  {formatNumber(engagementTotals.clk)}
+                </div>
+                <div className={marketingKpiHint}>
+                  {t('crm.marketingCampaigns.kpi.clicksHint', {
+                    defaultValue: 'Клики и просмотры страниц (зависит от источника)',
+                  })}
+                </div>
+              </div>
+              <div className={marketingKpiStripeBrand}>
+                <div className={marketingKpiLabel}>
+                  {t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' })}
+                </div>
+                <div className={marketingKpiValue}>{formatNumber(engagementTotals.sess)}</div>
+                <div className={marketingKpiHint}>
+                  {t('crm.marketingCampaigns.kpi.sessionsHint', {
+                    defaultValue: 'Визиты / сессии из аналитики',
+                  })}
+                </div>
+              </div>
+              <div className={marketingKpiStripeDuo}>
                 <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.cost')}</div>
-                <div className={`${marketingKpiValue} text-violet-600`}>
-                  {formatMoney(campaignTotals.cost)} {currency}
+                <div className={`${marketingKpiValue} text-[#222222] text-left leading-tight`}>
+                  {campaignTotals.costParts ? (
+                    <span className="block text-base sm:text-lg font-semibold break-words">
+                      {campaignTotals.costParts.map(([c, v]) => (
+                        <span key={c} className="inline-block mr-2">
+                          {formatMoney(v)} {c}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <>
+                      {formatMoney(campaignTotals.costC)}
+                      {campaignTotals.labelCur ? ` ${campaignTotals.labelCur}` : ''}
+                      {campaignTotals.miss && curPrefs.currencyMode === 'converted' ? '*' : ''}
+                    </>
+                  )}
                 </div>
                 <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.costHint')}</div>
               </div>
-              <div className={marketingKpiStripeEmerald}>
-                <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.revenue')}</div>
-                <div className={`${marketingKpiValue} text-emerald-600`}>
-                  {formatMoney(campaignTotals.revenue)} {currency}
-                </div>
-                <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.revenueHint')}</div>
-              </div>
-              <div className={marketingKpiStripeDuo}>
-                <div className={marketingKpiLabel}>{t('crm.marketingCampaigns.kpi.roasCpl')}</div>
-                <div className="text-lg font-semibold text-[#222222] mt-2 tabular-nums">
-                  {t('crm.marketingCampaigns.kpi.roas')}:{' '}
-                  {campaignTotals.roas != null ? campaignTotals.roas.toFixed(2) : '—'}
-                </div>
-                <div className="text-sm font-semibold text-rose-600 tabular-nums mt-1">
-                  {t('crm.marketingCampaigns.kpi.cpl')}:{' '}
-                  {campaignTotals.cpl != null
-                    ? `${formatMoney(campaignTotals.cpl)} ${currency}`
-                    : '—'}
-                </div>
-                <div className={marketingKpiHint}>{t('crm.marketingCampaigns.kpi.roasCplHint')}</div>
+            </section>
+
+            <section className={`${marketingCard} px-4 py-3`}>
+              <div className="flex flex-wrap gap-x-6 gap-y-2 text-[12px] text-[#222222]/85">
+                <span className="font-medium">
+                  {t('crm.marketingChannels.kpi.leads')}:{' '}
+                  <span className="tabular-nums text-violet-700">{formatNumber(engagementTotals.leads)}</span>
+                </span>
+                <span className="font-medium">
+                  {t('crm.marketingChannelBlocks.ctr', { defaultValue: 'CTR' })}:{' '}
+                  <span className="tabular-nums">
+                    {engagementTotals.ctr != null ? `${engagementTotals.ctr.toFixed(2)}%` : '—'}
+                  </span>
+                </span>
+                <span className="font-medium">
+                  {t('crm.marketingChannelBlocks.cpc', { defaultValue: 'CPC' })}:{' '}
+                  <span className="tabular-nums">
+                    {engagementTotals.cpc != null && engagementTotals.cpc > 0
+                      ? `${formatMoney(engagementTotals.cpc)} ${
+                          campaignTotals.labelCur || curPrefs.displayCurrency
+                        }${campaignTotals.miss && curPrefs.currencyMode === 'converted' ? '*' : ''}`
+                      : '—'}
+                  </span>
+                </span>
+                {campaignTotals.roas != null && (
+                  <span className="font-medium">
+                    {t('crm.marketingCampaigns.kpi.roas')}:{' '}
+                    <span className="tabular-nums">{campaignTotals.roas.toFixed(2)}</span>
+                  </span>
+                )}
+                {campaignTotals.cpl != null && campaignTotals.labelCur && (
+                  <span className="font-medium">
+                    {t('crm.marketingCampaigns.kpi.cpl')}:{' '}
+                    <span className="tabular-nums text-rose-600">
+                      {formatMoney(campaignTotals.cpl)} {campaignTotals.labelCur}
+                      {campaignTotals.miss && curPrefs.currencyMode === 'converted' ? '*' : ''}
+                    </span>
+                  </span>
+                )}
               </div>
             </section>
 
@@ -298,9 +525,14 @@ export const CampaignsPage: React.FC = () => {
               <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className={marketingSectionTitle}>
-                    {t('crm.marketingTraffic.extendedMetricsTitle')}
+                    {t('crm.marketingTraffic.summaryStripTitle', { defaultValue: 'Сводка периода' })}
                   </div>
-                  <div className={marketingSectionSub}>{t('crm.marketingTraffic.extendedMetricsSubtitle')}</div>
+                  <div className={marketingSectionSub}>
+                    {t('crm.marketingTraffic.summaryStripSubtitle', {
+                      defaultValue:
+                        'Таблица — сводка по каждому источнику данных за период. Валюта — как на панели выше. Карточки по каналам и графики — ниже.',
+                    })}
+                  </div>
                 </div>
                 <div className={marketingMetaLine}>
                   {t('crm.marketingTraffic.rawRowsLabel')}:{' '}
@@ -313,82 +545,64 @@ export const CampaignsPage: React.FC = () => {
                       </span>
                     </span>
                   )}
-                  {totalCost > 0 && (
+                  {spendSummary && (
                     <span className="ml-3">
                       {t('crm.marketingTraffic.spendLabel')}:{' '}
-                      <span className="font-semibold tabular-nums text-[#222222]">
-                        {formatMoney(totalCost)} {currency}
-                      </span>
+                      <span className="font-semibold tabular-nums text-[#222222]">{spendSummary}</span>
                     </span>
                   )}
                 </div>
               </div>
-              {providerBreakdown.length === 0 && totalRows > 0 ? (
-                <div className={marketingWarnBanner}>
-                  {t('crm.marketingTraffic.extendedMetricsMismatch', { count: totalRows })}
-                </div>
-              ) : providerBreakdown.length === 0 ? (
-                <div className={marketingEmptyBanner}>{t('crm.marketingTraffic.extendedMetricsEmpty')}</div>
-              ) : (
-                <div className={`${marketingTableWrap} overflow-x-auto min-w-0`}>
-                  <table className="w-full min-w-[640px] text-left">
-                    <thead className={marketingThead}>
-                      <tr>
-                        <th className={marketingTh}>{t('crm.marketingTraffic.table.provider')}</th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.rows')}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.sessions')}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.clicks')}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.impressions')}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.cost')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {providerBreakdown.map((row, idx) => (
-                        <tr key={`${row.dataSource}-${row.currency}-${idx}`} className={marketingTr}>
-                          <td className={`${marketingTd} font-medium text-[#222222]`}>
-                            {marketingDataSourceLabel(t, row.dataSource)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.rowCount)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.sessions)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.clicks)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.impressions)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
-                            {formatMoney(row.cost)} {row.currency}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <MarketingProviderBreakdownTable
+                rows={providerBreakdown}
+                dataSourceLabels={view.dataSourceLabels}
+                currencyMode={curPrefs.currencyMode}
+                displayCurrency={curPrefs.displayCurrency}
+                rates={curPrefs.rates}
+                formatNumber={formatNumber}
+                formatMoney={formatMoney}
+                t={t}
+              />
             </section>
+
+            <MarketingChannelBlocks
+              items={deferredItemsForBlocks}
+              t={t}
+              currencyMode={curPrefs.currencyMode}
+              displayCurrency={curPrefs.displayCurrency}
+              rates={curPrefs.rates}
+              formatNumber={formatNumber}
+              formatMoney={formatMoney}
+              dataSourceLabels={view.dataSourceLabels}
+              trafficDateFrom={range.from}
+              trafficDateTo={range.to}
+              title={t('crm.marketingChannelBlocks.titleCampaigns', { defaultValue: 'Кампании по каналам' })}
+              subtitle={t('crm.marketingChannelBlocks.subtitleCampaigns', {
+                defaultValue:
+                  'Колонка «без канала интеграции» — строки в CRM без data source (часто импорт/аналитика без UTM). Не суммируйте её с Meta/Google Ads: это другой срез, цифры могут пересекаться.',
+              })}
+              unattributedControl={{
+                hidden: hideUnattributedChannel,
+                onChange: setHideUnattributedChannel,
+              }}
+            />
 
             <section className={marketingCard}>
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
                 <div>
                   <div className={marketingSectionTitle}>{t('crm.marketingCampaigns.top.title')}</div>
                   <div className={marketingSectionSub}>
-                    {chartConfig.metric === 'revenue'
-                      ? t('crm.marketingCampaigns.top.subtitle')
-                      : t('crm.marketingCampaigns.top.subtitleCost')}
+                    {chartConfig.metric === 'impressions'
+                      ? t('crm.marketingCampaigns.top.subtitleImpressions', {
+                          defaultValue: 'Топ кампаний по показам',
+                        })
+                      : chartConfig.metric === 'clicks'
+                        ? t('crm.marketingCampaigns.top.subtitleClicks', {
+                            defaultValue: 'Топ кампаний по кликам / просмотрам',
+                          })
+                        : chartConfig.metric === 'revenue'
+                          ? t('crm.marketingCampaigns.top.subtitle')
+                          : t('crm.marketingCampaigns.top.subtitleCost')}
                   </div>
                 </div>
                 <div className={marketingMetaLine}>
@@ -419,13 +633,24 @@ export const CampaignsPage: React.FC = () => {
                           fontSize: 11,
                           boxShadow: '0 12px 40px rgba(34,34,34,0.12)',
                         }}
-                        formatter={(v: number | string) => {
+                        formatter={(v: number | string, _name, item) => {
                           const num = typeof v === 'number' ? v : Number(v);
+                          if (chartConfig.metric === 'impressions' || chartConfig.metric === 'clicks') {
+                            const label =
+                              chartConfig.metric === 'impressions'
+                                ? t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })
+                                : t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' });
+                            return [formatNumber(num), label];
+                          }
                           const label =
                             chartConfig.metric === 'revenue'
                               ? t('crm.marketingCampaigns.table.headers.revenue')
                               : t('crm.marketingCampaigns.table.headers.cost');
-                          return [`${formatMoney(num)} ${currency}`, label];
+                          const cur = String(
+                            (item as { payload?: { rowCurrency?: string } })?.payload?.rowCurrency ||
+                              currency,
+                          );
+                          return [fmtCell(num, cur), label];
                         }}
                         labelFormatter={(_l, payload) =>
                           String((payload?.[0]?.payload as { fullName?: string })?.fullName ?? '')
@@ -453,20 +678,23 @@ export const CampaignsPage: React.FC = () => {
                 </div>
               </div>
               <div className={`${marketingTableWrap} overflow-x-auto min-w-0`}>
-                <table className="w-full min-w-[720px] text-left">
+                <table className="w-full min-w-[880px] text-left">
                   <thead className={marketingThead}>
                     <tr>
                       <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.campaign')}</th>
                       <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.source')}</th>
                       <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.medium')}</th>
-                      <th className={`${marketingTh} text-right`}>
-                        {t('crm.marketingCampaigns.table.headers.cost')}
-                      </th>
-                      <th className={`${marketingTh} text-right`}>
+                      <th className={`${marketingTh} text-right tabular-nums`}>
                         {t('crm.marketingCampaigns.table.headers.impressions')}
                       </th>
-                      <th className={`${marketingTh} text-right`}>
+                      <th className={`${marketingTh} text-right tabular-nums`}>
                         {t('crm.marketingCampaigns.table.headers.clicks')}
+                      </th>
+                      <th className={`${marketingTh} text-right tabular-nums`}>
+                        {t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' })}
+                      </th>
+                      <th className={`${marketingTh} text-right`}>
+                        {t('crm.marketingCampaigns.table.headers.cost')}
                       </th>
                     </tr>
                   </thead>
@@ -485,13 +713,18 @@ export const CampaignsPage: React.FC = () => {
                         <td className={marketingTd}>
                           {formatMarketingChannelDimension(t, row.medium, 'medium')}
                         </td>
-                        <td className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
-                          {formatMoney(row.cost)} {currency}
+                        <td className={`${marketingTd} text-right tabular-nums`}>
+                          {formatNumber(row.impressions || 0)}
                         </td>
                         <td className={`${marketingTd} text-right tabular-nums`}>
-                          {formatNumber(row.impressions)}
+                          {formatNumber(row.clicks || 0)}
                         </td>
-                        <td className={`${marketingTd} text-right tabular-nums`}>{formatNumber(row.clicks)}</td>
+                        <td className={`${marketingTd} text-right tabular-nums`}>
+                          {formatNumber(row.sessions || 0)}
+                        </td>
+                        <td className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
+                          {fmtCell(row.cost || 0, row.currency)}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

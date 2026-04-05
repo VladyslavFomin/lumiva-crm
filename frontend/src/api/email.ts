@@ -14,8 +14,30 @@ export interface EmailAccount {
   smtpSecure: boolean;
   status: string;
   lastError: string | null;
+  lastSyncAt?: string | null;
   syncIncoming: boolean;
   syncOutgoing: boolean;
+  oauthProvider?: string | null;
+  oauthExpiresAt?: string | null;
+  hasOAuthTokens?: boolean;
+  meta?: {
+    leadIngestion?: { autoCreateFromUnknown?: boolean; skipDomains?: string[] };
+    signatureHtml?: string | null;
+    signatureText?: string | null;
+    [key: string]: unknown;
+  } | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmailFolder {
+  id: string;
+  tenantId: string;
+  accountId: string;
+  parentId: string | null;
+  name: string;
+  systemKey: string | null;
+  sortOrder: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -24,6 +46,7 @@ export interface EmailMessage {
   id: string;
   tenantId: string;
   accountId: string;
+  crmFolderId?: string | null;
   messageId: string;
   direction: 'incoming' | 'outgoing';
   from: string;
@@ -40,6 +63,8 @@ export interface EmailMessage {
   saleId: string | null;
   date: string;
   isRead: boolean;
+  isStarred?: boolean;
+  meta?: { hasCalendarAttachment?: boolean; [key: string]: unknown } | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -69,6 +94,7 @@ export interface SendEmailDto {
   subject?: string;
   textBody?: string;
   htmlBody?: string;
+  templateId?: string;
   contactId?: string;
   companyId?: string;
   leadId?: string;
@@ -82,6 +108,7 @@ export interface SendEmailDto {
 
 export interface ListEmailMessagesQuery {
   accountId?: string;
+  folderId?: string;
   direction?: 'incoming' | 'outgoing';
   contactId?: string;
   companyId?: string;
@@ -140,9 +167,126 @@ export async function fetchEmailMessages(query?: ListEmailMessagesQuery): Promis
   return res;
 }
 
+export async function fetchEmailMessage(id: string): Promise<EmailMessage> {
+  return api.get<EmailMessage>(`/email/messages/${id}`);
+}
+
+export async function patchEmailMessage(
+  id: string,
+  body: {
+    isRead?: boolean;
+    isStarred?: boolean;
+    leadId?: string | null;
+    crmFolderId?: string | null;
+  },
+): Promise<EmailMessage> {
+  return api.patch<EmailMessage>(`/email/messages/${id}`, body);
+}
+
+export async function deleteEmailMessage(id: string): Promise<void> {
+  await api.delete(`/email/messages/${id}`);
+}
+
+export async function fetchEmailFolders(accountId: string): Promise<EmailFolder[]> {
+  return api.get<EmailFolder[]>('/email/folders', { params: { accountId } });
+}
+
+export async function createEmailFolder(body: {
+  accountId: string;
+  name: string;
+  parentId?: string | null;
+}): Promise<EmailFolder> {
+  const payload: { accountId: string; name: string; parentId?: string } = {
+    accountId: body.accountId,
+    name: body.name,
+  };
+  if (body.parentId && typeof body.parentId === 'string' && body.parentId.trim().length > 0) {
+    payload.parentId = body.parentId.trim();
+  }
+  return api.post<EmailFolder>('/email/folders', payload);
+}
+
+export async function patchEmailFolder(
+  id: string,
+  body: { name?: string; parentId?: string | null; sortOrder?: number },
+): Promise<EmailFolder> {
+  return api.patch<EmailFolder>(`/email/folders/${id}`, body);
+}
+
+export async function deleteEmailFolder(id: string): Promise<void> {
+  await api.delete(`/email/folders/${id}`);
+}
+
+export async function reorderEmailFolders(body: {
+  accountId: string;
+  items: Array<{ id: string; sortOrder: number; parentId?: string | null }>;
+}): Promise<void> {
+  await api.post('/email/folders/reorder', body);
+}
+
+export async function patchEmailAccountSignature(
+  accountId: string,
+  body: { signatureHtml?: string | null; signatureText?: string | null },
+): Promise<EmailAccount> {
+  return api.patch<EmailAccount>(`/email/accounts/${accountId}/signature`, body);
+}
+
+export async function startEmailOAuthGoogle(redirectPath?: string): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/email/oauth/google/start', {
+    redirect: redirectPath || '/app/email/accounts',
+  });
+}
+
+export async function startEmailOAuthMicrosoft(redirectPath?: string): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/email/oauth/microsoft/start', {
+    redirect: redirectPath || '/app/email/accounts',
+  });
+}
+
+export async function syncEmailMailboxNow(accountId: string): Promise<{ imported: number }> {
+  return api.post<{ imported: number }>(`/email/oauth/sync/${accountId}`, {});
+}
+
+export async function patchEmailAccountIngestion(
+  accountId: string,
+  body: { autoCreateFromUnknown?: boolean; skipDomains?: string[] },
+): Promise<EmailAccount> {
+  return api.patch<EmailAccount>(`/email/oauth/accounts/${accountId}/ingestion`, body);
+}
+
 export async function sendEmail(dto: SendEmailDto): Promise<EmailMessage> {
   const res = await api.post<EmailMessage>('/email/send', dto);
   return res;
+}
+
+export interface PreviewStyledMailDto {
+  subject: string;
+  bodyText?: string;
+  bodyHtml?: string;
+  headline?: string;
+  contactId?: string;
+  leadId?: string;
+  companyId?: string;
+  saleId?: string;
+  variables?: Record<string, unknown>;
+}
+
+export async function previewStyledMail(
+  dto: PreviewStyledMailDto,
+): Promise<{ subject: string; htmlBody: string; textBody: string }> {
+  return api.post<{ subject: string; htmlBody: string; textBody: string }>(
+    '/email/preview-styled',
+    dto,
+  );
+}
+
+export interface SendStyledEmailDto extends PreviewStyledMailDto {
+  accountId: string;
+  to: string[];
+}
+
+export async function sendStyledMail(dto: SendStyledEmailDto): Promise<EmailMessage> {
+  return api.post<EmailMessage>('/email/send-styled', dto);
 }
 
 // ========== EMAIL TEMPLATES ==========

@@ -3,6 +3,7 @@ import * as crypto from 'crypto';
 
 import {
   BadRequestException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -36,6 +37,102 @@ import { UpdateMarketingIntegrationDto } from './dto/update-marketing-integratio
 /** Актуальная версия REST Google Ads API (v14 и ниже сняты → 404). */
 export const GOOGLE_ADS_API_VERSION = 'v23';
 
+/** Разбор тела ответа googleAds:search / OAuth при ошибке (GoogleAdsFailure в details). */
+function extractGoogleAdsRestErrorPayload(data: unknown): string {
+  if (data == null) return '';
+  if (typeof data === 'string') return data.slice(0, 1200);
+  if (typeof data !== 'object') return String(data);
+  const root = data as Record<string, unknown>;
+  const errObj = root.error as Record<string, unknown> | undefined;
+  const top = typeof errObj?.message === 'string' ? errObj.message : '';
+  const pieces: string[] = [];
+  if (top) pieces.push(top);
+  const details = errObj?.details;
+  if (Array.isArray(details)) {
+    for (const det of details) {
+      if (!det || typeof det !== 'object') continue;
+      const errors = (det as Record<string, unknown>).errors;
+      if (!Array.isArray(errors)) continue;
+      for (const ge of errors) {
+        if (!ge || typeof ge !== 'object') continue;
+        const g = ge as Record<string, unknown>;
+        if (typeof g.message === 'string') pieces.push(g.message);
+        const ec = g.errorCode;
+        if (ec && typeof ec === 'object') {
+          for (const [k, v] of Object.entries(ec as Record<string, unknown>)) {
+            if (v != null && String(v).trim() !== '') pieces.push(`${k}=${String(v)}`);
+          }
+        }
+      }
+    }
+  }
+  const joined = pieces.filter(Boolean).join(' | ');
+  if (joined) return joined.slice(0, 2000);
+  try {
+    return JSON.stringify(data).slice(0, 800);
+  } catch {
+    return 'unknown error body';
+  }
+}
+
+function googleAdsSyncFailureHint(detail: string): string {
+  const u = detail.toUpperCase();
+  if (u.includes('USER_PERMISSION_DENIED')) {
+    return (
+      ' Если доступ к аккаунту через менеджерский (MCC), в интеграции укажите Login Customer ID — 10 цифр ID менеджерского аккаунта без дефисов (заголовок login-customer-id). ' +
+      'См. https://developers.google.com/google-ads/api/docs/concepts/call-structure#login-customer-id'
+    );
+  }
+  if (
+    u.includes('CUSTOMER_NOT_FOUND') ||
+    u.includes('CLIENT_CUSTOMER_ID_INVALID') ||
+    u.includes('CLIENT_CUSTOMER_ID_IS_REQUIRED')
+  ) {
+    return ' Проверьте Customer ID (primary ID в CRM): 10 цифр без дефисов, аккаунт должен быть доступен пользователю OAuth.';
+  }
+  if (u.includes('ORGANIZATION_NOT_ASSOCIATED_WITH_DEVELOPER_TOKEN')) {
+    return ' Developer token из API Center должен быть в той же организации Google, что и доступ к рекламному аккаунту.';
+  }
+  if (u.includes('DEVELOPER_TOKEN_INVALID') || u.includes('DEVELOPER_TOKEN_PROHIBITED')) {
+    return ' Проверьте developer token в интеграции или env GOOGLE_ADS_DEVELOPER_TOKEN.';
+  }
+  if (u.includes('OAUTH_TOKEN_INVALID')) {
+    return ' Выпустите новый refresh token со scope https://www.googleapis.com/auth/adwords.';
+  }
+  if (u.includes('ACCESS_TOKEN_SCOPE_INSUFFICIENT')) {
+    return ' Недостаточно прав OAuth: нужен scope adwords / https://www.googleapis.com/auth/adwords.';
+  }
+  if (u.includes('REQUESTED_METRICS_FOR_MANAGER')) {
+    return (
+      ' В поле Customer ID (primary ID) указан менеджерский аккаунт (MCC). Метрики по MCC недоступны — укажите ID конкретного клиентского (рекламного) аккаунта (10 цифр). ' +
+      'Login Customer ID при этом остаётся ID менеджера, если доступ через MCC.'
+    );
+  }
+  return '';
+}
+
+function normTrafficCurrency(raw: string | null | undefined): string {
+  const c = (raw || 'EUR').trim().toUpperCase().slice(0, 8);
+  return c || 'EUR';
+}
+
+function addCurWeight(weights: Record<string, number>, cur: string, w: number) {
+  const k = normTrafficCurrency(cur);
+  weights[k] = (weights[k] || 0) + w;
+}
+
+function pickDominantCurrency(weights: Record<string, number>): string {
+  let best = 'EUR';
+  let max = 0;
+  for (const [code, w] of Object.entries(weights)) {
+    if (w > max) {
+      max = w;
+      best = code;
+    }
+  }
+  return best;
+}
+
 /** Не сохраняем в БД строки-ключи i18n (ошибочно пришедшие с клиента). */
 function sanitizeTrafficText(value: string | null | undefined): string | null {
   const s = value?.trim();
@@ -60,14 +157,19 @@ export interface MarketingTrafficProviderBreakdown {
   revenue: number;
   impressions: number;
   cost: number;
-  /** Валюта из последней строки группы (у разных провайдеров может отличаться). */
+  /** Доминирующая валюта строк группы (по весу расхода+выручки). */
   currency: string;
 }
 
 export interface MarketingTrafficChannelsStats {
   from: string | null;
   to: string | null;
+  /**
+   * Одна валюта, если в периоде только она; иначе «MIXED» (суммы по разным валютам нельзя смешивать без конвертации).
+   */
   currency: string;
+  /** Уникальные валюты сырых строк (верхний регистр). */
+  currenciesPresent: string[];
   totalSessions: number;
   totalLeads: number;
   totalRevenue: number;
@@ -79,18 +181,32 @@ export interface MarketingTrafficChannelsStats {
   totalRows: number;
   dataSources: string[];
   providerBreakdown: MarketingTrafficProviderBreakdown[];
+  /** Подписи dataSource (ga4_… → имя ресурса из интеграции). */
+  dataSourceLabels?: Record<string, string>;
   items: Array<{
     dataSource: string | null;
-    source: string | null;
-    medium: string | null;
-    campaign: string | null;
-    sessions: number;
-    clicks: number;
-    leads: number;
-    revenue: number;
+  source: string | null;
+  medium: string | null;
+  campaign: string | null;
+  sessions: number;
+  clicks: number;
+  leads: number;
+  revenue: number;
     impressions: number;
     cost: number;
+    /** Доминирующая валюта в агрегате (по весу расхода+выручки). */
+  currency: string;
   }>;
+}
+
+export interface MarketingTrafficDailyPoint {
+  date: string;
+  sessions: number;
+  clicks: number;
+  leads: number;
+  revenue: number;
+  cost: number;
+  impressions: number;
 }
 
 @Injectable()
@@ -121,6 +237,141 @@ export class MarketingService {
     private readonly platformSettings: PlatformSettingsService,
   ) {}
 
+  /**
+   * Массовый `save` по десяткам тысяч сущностей даёт один INSERT с огромным числом параметров
+   * и падает в PostgreSQL (лимит ~65535). Пишем чанками.
+   */
+  private async saveMarketingTrafficChunked(
+    rows: MarketingTraffic[],
+    chunkSize = 350,
+  ): Promise<void> {
+    if (!rows.length) return;
+    for (let i = 0; i < rows.length; i += chunkSize) {
+      await this.trafficRepo.save(rows.slice(i, i + chunkSize));
+    }
+  }
+
+  /** Кэш курсов отдельно по валюте отчёта (display). TTL 1 ч; `force` обходит кэш. */
+  private readonly marketingFxCache = new Map<
+    string,
+    {
+      at: number;
+      data: {
+        display: string;
+        asOf: string;
+        source: string;
+        multiplyToDisplay: Record<string, number>;
+      };
+    }
+  >();
+
+  private readonly marketingFxTtlMs = 60 * 60 * 1000;
+
+  /**
+   * Тянем курсы EUR→TRY, GBP с api.frankfurter.app/latest (без /v1 — иначе 404).
+   * RUB в наборе ECB на .app часто отсутствует — добираем с api.frankfurter.dev/v2.
+   */
+  private async fetchFrankfurterMergedRates(): Promise<{
+    ratesVsEur: Record<string, number>;
+    asOf: string;
+    source: string;
+  }> {
+    const res = await axios.get<{ rates?: Record<string, number>; date?: string }>(
+      'https://api.frankfurter.app/latest?from=EUR&to=TRY,GBP',
+      { timeout: 12_000 },
+    );
+    const ratesVsEur: Record<string, number> = { ...(res.data?.rates || {}) };
+    let asOf = String(res.data?.date ?? '');
+    let source = 'Frankfurter api.frankfurter.app (ECB)';
+    try {
+      const r2 = await axios.get<
+        Array<{ date?: string; quote?: string; rate?: number }>
+      >('https://api.frankfurter.dev/v2/rates?base=EUR&quotes=RUB', {
+        timeout: 10_000,
+      });
+      if (Array.isArray(r2.data)) {
+        for (const row of r2.data) {
+          if (row.quote === 'RUB' && row.rate != null && Number(row.rate) > 0) {
+            ratesVsEur.RUB = Number(row.rate);
+            if (row.date) asOf = row.date;
+          }
+        }
+        source += ' + RUB (frankfurter.dev v2)';
+      }
+    } catch (e: unknown) {
+      this.log.warn(
+        `FX: не удалось подтянуть RUB с frankfurter.dev: ${e instanceof Error ? e.message : e}`,
+      );
+    }
+    if (!asOf) asOf = new Date().toISOString().slice(0, 10);
+    if (!ratesVsEur || Object.keys(ratesVsEur).length === 0) {
+      throw new BadRequestException('FX: пустой ответ курсов');
+    }
+    return { ratesVsEur, asOf, source };
+  }
+
+  /**
+   * Курсы для экранов маркетинга: только EUR, GBP, TRY, RUB.
+   * Множитель: amount_in_display = amount_in_src * multiplyToDisplay[src].
+   */
+  async getMarketingFxRates(
+    displayRaw: string,
+    opts?: { force?: boolean },
+  ): Promise<{
+    display: string;
+    asOf: string;
+    source: string;
+    multiplyToDisplay: Record<string, number>;
+  }> {
+    const allowed = ['EUR', 'GBP', 'TRY', 'RUB'] as const;
+    const set = new Set<string>(allowed);
+    const display = (displayRaw || 'EUR').toUpperCase().slice(0, 8);
+    if (!set.has(display)) {
+      throw new BadRequestException(
+        `Unsupported display currency: ${display}. Allowed: ${allowed.join(', ')}`,
+      );
+    }
+    const now = Date.now();
+    const force = opts?.force === true;
+    if (!force) {
+      const cached = this.marketingFxCache.get(display);
+      if (cached && now - cached.at < this.marketingFxTtlMs) {
+        return cached.data;
+      }
+    }
+    let ratesVsEur: Record<string, number>;
+    let asOf: string;
+    let source: string;
+    try {
+      const m = await this.fetchFrankfurterMergedRates();
+      ratesVsEur = m.ratesVsEur;
+      asOf = m.asOf;
+      source = m.source;
+    } catch (e: unknown) {
+      const msg = axios.isAxiosError(e) ? e.message : String(e);
+      throw new BadRequestException(`FX: Frankfurter недоступен (${msg})`);
+    }
+    /** Сколько EUR в 1 единице валюты F (1 EUR = r units of F ⇒ 1 F = 1/r EUR). */
+    const eurPerUnit: Record<string, number> = { EUR: 1 };
+    for (const c of ['TRY', 'GBP', 'RUB'] as const) {
+      const r = Number(ratesVsEur[c]);
+      if (Number.isFinite(r) && r > 0) eurPerUnit[c] = 1 / r;
+      else eurPerUnit[c] = 1;
+    }
+    const multiplyToDisplay: Record<string, number> = {};
+    for (const f of allowed) {
+      multiplyToDisplay[f] = eurPerUnit[f] / eurPerUnit[display];
+    }
+    const data = {
+      display,
+      asOf,
+      source,
+      multiplyToDisplay,
+    };
+    this.marketingFxCache.set(display, { at: now, data });
+    return data;
+  }
+
   // --- Traffic (каналы / импорт) ---
 
   async getTrafficChannelsStats(
@@ -128,6 +379,8 @@ export class MarketingService {
     from?: string,
     to?: string,
     dataSource?: string,
+    /** Лимит строк детализации (после GROUP BY); тоталы и провайдеры — полные. */
+    itemsLimit = 14_000,
   ): Promise<MarketingTrafficChannelsStats> {
     const qb = this.trafficRepo
       .createQueryBuilder('t')
@@ -136,138 +389,300 @@ export class MarketingService {
     if (to) qb.andWhere('t.date <= :to', { to });
     if (dataSource) qb.andWhere('t.dataSource = :ds', { ds: dataSource });
 
-    const rows = await qb.getMany();
+    const num = (v: string | number | null | undefined) =>
+      Number(v != null && v !== '' ? v : 0) || 0;
 
-    const dsSet = new Set<string>();
-    for (const r of rows) {
-      if (r.dataSource) dsSet.add(r.dataSource);
-    }
+    const [totalRows, totalsRaw, curRaw, itemRaw, provRaw, dataSourceLabels] =
+      await Promise.all([
+        qb.clone().getCount(),
+        qb
+          .clone()
+          .select('COALESCE(SUM(t.sessions), 0)', 'totalSessions')
+          .addSelect('COALESCE(SUM(t.clicks), 0)', 'totalClicks')
+          .addSelect('COALESCE(SUM(t.leads), 0)', 'totalLeads')
+          .addSelect('COALESCE(SUM(t.revenue), 0)', 'totalRevenue')
+          .addSelect('COALESCE(SUM(t.impressions), 0)', 'totalImpressions')
+          .addSelect('COALESCE(SUM(t.cost), 0)', 'totalCost')
+          .getRawOne(),
+        qb
+          .clone()
+          .select('t.currency', 'currency')
+          .distinct(true)
+          .orderBy('t.currency', 'ASC')
+          .getRawMany(),
+        qb
+          .clone()
+          .select('t.dataSource', 'dataSource')
+          .addSelect('t.source', 'source')
+          .addSelect('t.medium', 'medium')
+          .addSelect('t.campaign', 'campaign')
+          .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+          .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+          .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
+          .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
+          .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+          .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+          .addSelect('MAX(t.currency)', 'currency')
+          .groupBy('t.dataSource')
+          .addGroupBy('t.source')
+          .addGroupBy('t.medium')
+          .addGroupBy('t.campaign')
+          // Иначе при GA4 с сотнями тысяч комбинаций UI и JSON «захлёбываются»; тоталы/провайдеры — отдельными запросами.
+          .orderBy(
+            'COALESCE(SUM(t.sessions), 0) + COALESCE(SUM(t.clicks), 0) + COALESCE(SUM(t.impressions), 0) + ABS(COALESCE(SUM(t.revenue), 0)) + ABS(COALESCE(SUM(t.cost), 0))',
+            'DESC',
+          )
+          .limit(Math.min(Math.max(itemsLimit, 2_000), 80_000))
+          .getRawMany(),
+        qb
+          .clone()
+          .select('t.dataSource', 'dataSource')
+          .addSelect('COUNT(*)', 'rowCount')
+          .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+          .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+          .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
+          .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
+          .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+          .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+          .addSelect('MAX(t.currency)', 'currency')
+          .groupBy('t.dataSource')
+          .getRawMany(),
+        this.buildMarketingDataSourceLabels(tenantId),
+      ]);
 
-    type Agg = {
-      sessions: number;
-      clicks: number;
-      leads: number;
-      revenue: number;
-      impressions: number;
-      cost: number;
-    };
-    const map = new Map<string, Agg>();
-    let currency = 'EUR';
-    let totalSessions = 0;
-    let totalLeads = 0;
-    let totalRevenue = 0;
-    let totalClicks = 0;
-    let totalImpressions = 0;
-    let totalCost = 0;
+    const currenciesPresent = (curRaw as { currency?: string }[])
+      .map((r) => normTrafficCurrency(r.currency))
+      .filter((c, i, a) => c && a.indexOf(c) === i)
+      .sort();
+    const currency =
+      currenciesPresent.length === 0
+        ? 'EUR'
+        : currenciesPresent.length === 1
+          ? currenciesPresent[0]
+          : 'MIXED';
 
-    type ProvAgg = {
-      rowCount: number;
-      sessions: number;
-      clicks: number;
-      leads: number;
-      revenue: number;
-      impressions: number;
-      cost: number;
-      currency: string;
-    };
-    const provMap = new Map<string, ProvAgg>();
-
-    for (const r of rows) {
-      currency = r.currency || currency;
-      const dsKey = (r.dataSource || '').trim() || '_none';
-      const k = `${dsKey}\0${r.source ?? ''}\0${r.medium ?? ''}\0${r.campaign ?? ''}`;
-      const prev = map.get(k) ?? {
-        sessions: 0,
-        clicks: 0,
-        leads: 0,
-        revenue: 0,
-        impressions: 0,
-        cost: 0,
-      };
-      const imp = r.impressions || 0;
-      const cst = Number(r.cost || 0);
-      prev.sessions += r.sessions || 0;
-      prev.clicks += r.clicks || 0;
-      prev.leads += r.leads || 0;
-      prev.revenue += Number(r.revenue || 0);
-      prev.impressions += imp;
-      prev.cost += cst;
-      map.set(k, prev);
-      totalSessions += r.sessions || 0;
-      totalClicks += r.clicks || 0;
-      totalLeads += r.leads || 0;
-      totalRevenue += Number(r.revenue || 0);
-      totalImpressions += imp;
-      totalCost += cst;
-
-      const pKey = (r.dataSource || '').trim() || '_none';
-      const p = provMap.get(pKey) ?? {
-        rowCount: 0,
-        sessions: 0,
-        clicks: 0,
-        leads: 0,
-        revenue: 0,
-        impressions: 0,
-        cost: 0,
-        currency: r.currency || currency,
-      };
-      p.rowCount += 1;
-      p.sessions += r.sessions || 0;
-      p.clicks += r.clicks || 0;
-      p.leads += r.leads || 0;
-      p.revenue += Number(r.revenue || 0);
-      p.impressions += imp;
-      p.cost += cst;
-      p.currency = r.currency || p.currency;
-      provMap.set(pKey, p);
-    }
-
-    const items = [...map.entries()].map(([k, v]) => {
-      const [ds, source, medium, campaign] = k.split('\0');
+    const items = (itemRaw as Record<string, unknown>[]).map((r) => {
+      const dsRaw = r.dataSource != null ? String(r.dataSource).trim() : '';
+      const ds = dsRaw || '_none';
       return {
         dataSource: ds && ds !== '_none' ? ds : null,
-        source: source || null,
-        medium: medium || null,
-        // Убираем из API ошибочно сохранённые строки-ключи i18n — любой клиент увидит null вместо crm.…
-        campaign: sanitizeTrafficText(campaign || undefined),
-        sessions: v.sessions,
-        clicks: v.clicks,
-        leads: v.leads,
-        revenue: v.revenue,
-        impressions: v.impressions,
-        cost: v.cost,
+        source:
+          r.source != null && String(r.source).trim() !== ''
+            ? String(r.source)
+            : null,
+        medium:
+          r.medium != null && String(r.medium).trim() !== ''
+            ? String(r.medium)
+            : null,
+        campaign: sanitizeTrafficText(
+          r.campaign != null ? String(r.campaign) : undefined,
+        ),
+        sessions: num(r.sessions as string),
+        clicks: num(r.clicks as string),
+        leads: num(r.leads as string),
+        revenue: num(r.revenue as string),
+        impressions: num(r.impressions as string),
+        cost: num(r.cost as string),
+        currency: normTrafficCurrency(r.currency as string),
       };
     });
 
-    const providerBreakdown: MarketingTrafficProviderBreakdown[] = [...provMap.entries()]
-      .map(([key, v]) => ({
-        dataSource: key === '_none' ? 'unknown' : key,
-        rowCount: v.rowCount,
-        sessions: v.sessions,
-        clicks: v.clicks,
-        leads: v.leads,
-        revenue: v.revenue,
-        impressions: v.impressions,
-        cost: v.cost,
-        currency: v.currency || currency,
-      }))
+    const providerBreakdown: MarketingTrafficProviderBreakdown[] = (
+      provRaw as Record<string, unknown>[]
+    )
+      .map((r) => {
+        const dsRaw = r.dataSource != null ? String(r.dataSource).trim() : '';
+        const key = dsRaw || '_none';
+      return {
+          dataSource: key === '_none' ? 'unknown' : key,
+          rowCount: num(r.rowCount as string),
+          sessions: num(r.sessions as string),
+          clicks: num(r.clicks as string),
+          leads: num(r.leads as string),
+          revenue: num(r.revenue as string),
+          impressions: num(r.impressions as string),
+          cost: num(r.cost as string),
+          currency: normTrafficCurrency(r.currency as string),
+        };
+      })
       .sort((a, b) => a.dataSource.localeCompare(b.dataSource));
 
+    const dsSet = new Set<string>();
+    for (const it of items) {
+      if (it.dataSource) dsSet.add(it.dataSource);
+    }
+    for (const p of providerBreakdown) {
+      dsSet.add(p.dataSource);
+    }
+
+    const tr = totalsRaw as Record<string, unknown> | undefined;
     return {
       from: from ?? null,
       to: to ?? null,
       currency,
-      totalSessions,
-      totalLeads,
-      totalRevenue,
-      totalClicks,
-      totalImpressions,
-      totalCost,
-      totalRows: rows.length,
+      currenciesPresent,
+      totalSessions: num(tr?.totalSessions as string),
+      totalLeads: num(tr?.totalLeads as string),
+      totalRevenue: num(tr?.totalRevenue as string),
+      totalClicks: num(tr?.totalClicks as string),
+      totalImpressions: num(tr?.totalImpressions as string),
+      totalCost: num(tr?.totalCost as string),
+      totalRows,
       dataSources: [...dsSet].sort(),
       providerBreakdown,
+      dataSourceLabels,
       items,
     };
+  }
+
+  /**
+   * Дневные агрегаты по marketing_traffic для графиков в UI (один канал или только строки без dataSource).
+   */
+  async getTrafficDailySeries(
+    tenantId: string,
+    from?: string,
+    to?: string,
+    dataSource?: string,
+    onlyUnattributed?: boolean,
+  ): Promise<{ series: MarketingTrafficDailyPoint[] }> {
+    const qb = this.trafficRepo
+      .createQueryBuilder('t')
+      .where('t.tenantId = :tenantId', { tenantId });
+    if (from) qb.andWhere('t.date >= :from', { from });
+    if (to) qb.andWhere('t.date <= :to', { to });
+    if (onlyUnattributed) {
+      qb.andWhere('(t.dataSource IS NULL OR t.dataSource = :empty)', {
+        empty: '',
+      });
+    } else if (dataSource && dataSource.trim()) {
+      qb.andWhere('t.dataSource = :ds', { ds: dataSource.trim() });
+    }
+
+    const num = (v: string | number | null | undefined) =>
+      Number(v != null && v !== '' ? v : 0) || 0;
+
+    const raw = await qb
+      .select('t.date', 'date')
+      .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+      .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+      .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
+      .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
+      .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+      .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+      .groupBy('t.date')
+      .orderBy('t.date', 'ASC')
+      .getRawMany();
+
+    const series: MarketingTrafficDailyPoint[] = (raw as Record<string, unknown>[]).map(
+      (r) => ({
+        date: String(r.date ?? '').slice(0, 10),
+        sessions: num(r.sessions as string),
+        clicks: num(r.clicks as string),
+        leads: num(r.leads as string),
+        revenue: num(r.revenue as string),
+        cost: num(r.cost as string),
+        impressions: num(r.impressions as string),
+      }),
+    );
+
+    return { series };
+  }
+
+  /**
+   * Агрегат по стране (ISO2 в поле country) за период и канал — для карты и таблицы в UI.
+   */
+  async getTrafficByCountry(
+    tenantId: string,
+    from?: string,
+    to?: string,
+    dataSource?: string,
+    onlyUnattributed?: boolean,
+  ): Promise<{
+    rows: Array<{
+      country: string | null;
+      sessions: number;
+      clicks: number;
+      impressions: number;
+    }>;
+  }> {
+    const qb = this.trafficRepo
+      .createQueryBuilder('t')
+      .where('t.tenantId = :tenantId', { tenantId });
+    if (from) qb.andWhere('t.date >= :from', { from });
+    if (to) qb.andWhere('t.date <= :to', { to });
+    if (onlyUnattributed) {
+      qb.andWhere('(t.dataSource IS NULL OR t.dataSource = :empty)', {
+        empty: '',
+      });
+    } else if (dataSource && dataSource.trim()) {
+      qb.andWhere('t.dataSource = :ds', { ds: dataSource.trim() });
+    }
+
+    const num = (v: string | number | null | undefined) =>
+      Number(v != null && v !== '' ? v : 0) || 0;
+
+    const countryKeyExpr = `NULLIF(TRIM(UPPER(COALESCE(t.country, ''))), '')`;
+
+    const raw = await qb
+      .select(countryKeyExpr, 'country')
+      .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+      .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+      .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+      .groupBy(countryKeyExpr)
+      .orderBy('COALESCE(SUM(t.sessions), 0)', 'DESC')
+      .getRawMany();
+
+    const rows = (raw as Record<string, unknown>[]).map((r) => {
+      const c = r.country as string | null;
+    return {
+        country: c && String(c).trim() !== '' ? String(c).trim().toUpperCase() : null,
+        sessions: num(r.sessions as string),
+        clicks: num(r.clicks as string),
+        impressions: num(r.impressions as string),
+      };
+    });
+
+    return { rows };
+  }
+
+  /** Имена ресурсов GA4 из настроек интеграций (ключ dataSource = ga4_{propertyId}). */
+  private async buildMarketingDataSourceLabels(
+    tenantId: string,
+  ): Promise<Record<string, string>> {
+    const rows = await this.integrationRepo.find({
+      where: { tenantId },
+      select: ['provider', 'primaryId', 'settings', 'name'],
+    });
+    const out: Record<string, string> = {};
+    for (const r of rows) {
+      const p = this.normalizeMarketingIntegrationProvider(r.provider);
+      const isGa =
+        p === 'ga4' ||
+        p === 'google_analytics' ||
+        p === 'google_analytics_4' ||
+        p === 'google_analytics_ga4';
+      if (!isGa) continue;
+      const flat = this.flattenNestedIntegrationSettings(
+        this.parseSettingsObject(r.settings),
+      );
+      const pid = this.pickFirstNonEmptyString([
+        r.primaryId,
+        flat.propertyId,
+        flat.ga4PropertyId,
+        flat.ga_property_id,
+      ])
+        ?.replace(/^properties\//i, '')
+        .trim();
+      if (!pid || !/^\d+$/.test(pid)) continue;
+      const key = `ga4_${pid}`.slice(0, 80);
+      const display = this.pickFirstNonEmptyString([
+        flat.ga4PropertyDisplayName,
+        flat.ga4_property_display_name,
+        r.name,
+      ]);
+      if (display) out[key] = display;
+    }
+    return out;
   }
 
   async importTraffic(
@@ -278,6 +693,7 @@ export class MarketingService {
         source?: string;
         medium?: string;
         campaign?: string;
+        country?: string;
         sessions?: number;
         clicks?: number;
         leads?: number;
@@ -295,6 +711,7 @@ export class MarketingService {
 
     for (const it of raw) {
       if (!it?.date) continue;
+      const ctry = it.country != null ? String(it.country).trim().toUpperCase().slice(0, 8) : '';
       const row = this.trafficRepo.create({
         tenantId,
         date: String(it.date).slice(0, 10),
@@ -302,6 +719,7 @@ export class MarketingService {
         source: sanitizeTrafficText(it.source),
         medium: sanitizeTrafficText(it.medium),
         campaign: sanitizeTrafficText(it.campaign),
+        country: ctry || null,
         sessions: Math.max(0, Number(it.sessions) || 0),
         clicks: Math.max(0, Number(it.clicks) || 0),
         leads: Math.max(0, Number(it.leads) || 0),
@@ -314,7 +732,7 @@ export class MarketingService {
       rows.push(row);
     }
 
-    if (rows.length) await this.trafficRepo.save(rows);
+    if (rows.length) await this.saveMarketingTrafficChunked(rows);
     return { imported: rows.length };
   }
 
@@ -415,6 +833,9 @@ export class MarketingService {
       'facebook',
       'metaAds',
       'meta_ads',
+      'google_ads',
+      'googleAds',
+      'adwords',
     ];
     for (const k of nest) {
       const inner = out[k];
@@ -459,7 +880,7 @@ export class MarketingService {
       settings.serviceAccountJson = dto.ga4ServiceAccountJson.trim();
     }
     const row = this.integrationRepo.create({
-      tenantId,
+        tenantId,
       provider: dto.provider,
       kind: dto.kind ?? 'analytics',
       name: dto.name,
@@ -523,30 +944,44 @@ export class MarketingService {
       throw new BadRequestException('Integration is inactive');
     }
     const provider = this.normalizeMarketingIntegrationProvider(row.provider);
-    if (provider === 'google_ads') {
-      return this.syncGoogleAdsIntegration(row);
+    try {
+      if (provider === 'google_ads') {
+        return await this.syncGoogleAdsIntegration(row);
+      }
+      if (
+        provider === 'yandex_metrika' ||
+        provider === 'yandex_metrica' ||
+        provider === 'yandex_metrika_web'
+      ) {
+        return await this.syncYandexMetrikaIntegration(row);
+      }
+      if (
+        provider === 'ga4' ||
+        provider === 'google_analytics' ||
+        provider === 'google_analytics_4' ||
+        provider === 'google_analytics_ga4'
+      ) {
+        return await this.syncGa4Integration(row);
+      }
+      if (this.isMetaAdsProvider(provider)) {
+        return await this.syncMetaAdsIntegration(row);
+      }
+      throw new BadRequestException(
+        `Синхронизация недоступна для провайдера «${row.provider}». Обновите backend или проверьте значение поля provider в интеграции.`,
+      );
+    } catch (e: unknown) {
+      if (e instanceof HttpException) {
+        throw e;
+      }
+      const msg = e instanceof Error ? e.message : String(e);
+      this.log.error(
+        `syncMarketingIntegrationById failed id=${id} provider=${row.provider}: ${msg}`,
+        e instanceof Error ? e.stack : undefined,
+      );
+      throw new BadRequestException(
+        `Синхронизация не удалась (${row.provider}): ${msg}`,
+      );
     }
-    if (
-      provider === 'yandex_metrika' ||
-      provider === 'yandex_metrica' ||
-      provider === 'yandex_metrika_web'
-    ) {
-      return this.syncYandexMetrikaIntegration(row);
-    }
-    if (
-      provider === 'ga4' ||
-      provider === 'google_analytics' ||
-      provider === 'google_analytics_4' ||
-      provider === 'google_analytics_ga4'
-    ) {
-      return this.syncGa4Integration(row);
-    }
-    if (this.isMetaAdsProvider(provider)) {
-      return this.syncMetaAdsIntegration(row);
-    }
-    throw new BadRequestException(
-      `Синхронизация недоступна для провайдера «${row.provider}». Обновите backend или проверьте значение поля provider в интеграции.`,
-    );
   }
 
   // --- Automations ---
@@ -590,7 +1025,7 @@ export class MarketingService {
   // --- Segments ---
 
   private toSegmentDto(e: MarketingSegment): SegmentDto {
-    return {
+      return {
       id: e.id,
       entityType: 'lead',
       name: e.name,
@@ -827,10 +1262,11 @@ export class MarketingService {
     const to = end.toISOString().slice(0, 10);
 
     const query = `
-      SELECT campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
+      SELECT campaign.id, campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
       FROM campaign
       WHERE segments.date BETWEEN '${from}' AND '${to}'
         AND campaign.status != 'REMOVED'
+      ORDER BY segments.date, campaign.id
     `.trim();
 
     const url = this.googleAdsSearchUrl(customerId);
@@ -847,13 +1283,35 @@ export class MarketingService {
 
     try {
       do {
-        const body: Record<string, unknown> = {
-          query,
-          pageSize: 10000,
-        };
+        // pageSize в теле не передаём: REST googleAds:search фиксирует страницу 10000 строк (PAGE_SIZE_NOT_SUPPORTED).
+        const body: Record<string, unknown> = { query };
         if (pageToken) body.pageToken = pageToken;
 
-        const res = await axios.post(url, body, { headers });
+        const res = await axios.post(url, body, {
+          headers,
+          timeout: 180_000,
+          validateStatus: (s) => s < 500,
+        });
+        if (res.status >= 400) {
+          const detail = extractGoogleAdsRestErrorPayload(res.data);
+          const hint = googleAdsSyncFailureHint(detail);
+          const reqId =
+            (typeof res.headers?.['request-id'] === 'string' && res.headers['request-id']) ||
+            (typeof res.headers?.['Request-Id'] === 'string' && res.headers['Request-Id']) ||
+            '';
+          const rid = reqId ? ` [request-id: ${reqId}]` : '';
+          if (detail.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
+            throw new BadRequestException(
+              'Developer token Google Ads только для тестовых аккаунтов. ' +
+                'В Google Ads: Инструменты → API Center подайте заявку на Basic или Standard access для работы с боевым Customer ID. ' +
+                'Интеграцию в CRM заново создавать не нужно — после одобрения токена синк заработает с теми же настройками.' +
+                rid,
+            );
+          }
+          throw new BadRequestException(
+            `Google Ads API: запрос отклонён (${res.status})${detail ? ` — ${detail}` : ''}${hint}${rid}`,
+          );
+        }
         const results = (res.data?.results || []) as any[];
         pageToken = res.data?.nextPageToken as string | undefined;
 
@@ -889,23 +1347,23 @@ export class MarketingService {
     } catch (err: unknown) {
       if (axios.isAxiosError(err)) {
         const st = err.response?.status;
-        const raw = err.response?.data;
-        const fullText =
-          typeof raw === 'string'
-            ? raw
-            : raw && typeof raw === 'object'
-              ? JSON.stringify(raw)
-              : '';
-        if (fullText.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
+        const detail = extractGoogleAdsRestErrorPayload(err.response?.data);
+        const hint = googleAdsSyncFailureHint(detail);
+        if (detail.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
           throw new BadRequestException(
             'Developer token Google Ads только для тестовых аккаунтов. ' +
               'В Google Ads: Инструменты → API Center подайте заявку на Basic или Standard access для работы с боевым Customer ID. ' +
               'Интеграцию в CRM заново создавать не нужно — после одобрения токена синк заработает с теми же настройками.',
           );
         }
-        const snippet = fullText.slice(0, 400);
+        if (st && st >= 400 && detail) {
+          throw new BadRequestException(
+            `Google Ads API: запрос отклонён (${st}) — ${detail}${hint}`,
+          );
+        }
+        const net = err.code === 'ECONNABORTED' ? 'таймаут запроса к Google Ads' : err.message || 'сеть';
         throw new BadRequestException(
-          `Google Ads API: запрос отклонён (${st ?? 'network'})${snippet ? ` — ${snippet}` : ''}`,
+          `Google Ads API: нет ответа (${st ?? 'network'}) — ${net}${hint ? `. ${hint}` : ''}`,
         );
       }
       throw err;
@@ -922,7 +1380,7 @@ export class MarketingService {
       .andWhere('date BETWEEN :from AND :to', { from, to })
       .execute();
 
-    await this.trafficRepo.save(trafficRows);
+    await this.saveMarketingTrafficChunked(trafficRows);
     this.log.log(
       `Google Ads v23: saved ${trafficRows.length} rows for tenant ${row.tenantId}`,
     );
@@ -983,8 +1441,8 @@ export class MarketingService {
         sub: key.client_email,
         scope,
         aud: tokenUri,
-        iat: now,
-        exp: now + 3600,
+      iat: now,
+      exp: now + 3600,
       },
       pk,
       { algorithm: 'RS256' },
@@ -993,9 +1451,9 @@ export class MarketingService {
       const res = await axios.post(
         tokenUri,
         new URLSearchParams({
-          grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-          assertion,
-        }).toString(),
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }).toString(),
         { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } },
       );
       const token = res.data?.access_token as string | undefined;
@@ -1025,6 +1483,50 @@ export class MarketingService {
       return raw.slice(0, 10);
     }
     return null;
+  }
+
+  /** Display name ресурса GA4 (Admin API), тот же scope analytics.readonly. */
+  private async fetchGa4PropertyDisplayName(
+    serviceAccountJson: string,
+    numericPropertyId: string,
+  ): Promise<string | null> {
+    try {
+      const access = await this.googleServiceAccountAccessToken(
+        serviceAccountJson,
+        'https://www.googleapis.com/auth/analytics.readonly',
+      );
+      const url = `https://analyticsadmin.googleapis.com/v1beta/properties/${numericPropertyId}`;
+      const res = await axios.get<{ displayName?: string }>(url, {
+        headers: { Authorization: `Bearer ${access}` },
+      });
+      const n = res.data?.displayName?.trim();
+      return n || null;
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      this.log.warn(
+        `GA4 Admin API: не удалось прочитать displayName для ${numericPropertyId}: ${msg}`,
+      );
+      return null;
+    }
+  }
+
+  private async persistGa4PropertyDisplayName(
+    row: MarketingIntegration,
+    displayName: string,
+  ): Promise<void> {
+    const base = this.parseSettingsObject(row.settings);
+    if (String(base.ga4PropertyDisplayName || '').trim() === displayName) {
+      return;
+    }
+    await this.integrationRepo.update(
+      { id: row.id, tenantId: row.tenantId },
+      {
+        settings: { ...base, ga4PropertyDisplayName: displayName } as Record<
+          string,
+          unknown
+        >,
+      } as Record<string, unknown>,
+    );
   }
 
   /**
@@ -1139,7 +1641,7 @@ export class MarketingService {
         .andWhere('dataSource = :ds', { ds: 'yandex_metrika' })
         .andWhere('date BETWEEN :from AND :to', { from: date1, to: date2 })
         .execute();
-      await this.trafficRepo.save(trafficRows);
+      await this.saveMarketingTrafficChunked(trafficRows);
       this.log.log(
         `Yandex Metrika: сохранено ${trafficRows.length} строк, счётчик ${counterId}`,
       );
@@ -1163,8 +1665,8 @@ export class MarketingService {
   }
 
   /**
-   * GA4 Data API runReport — сессии и просмотры по дням.
-   * Настройки: serviceAccountJson (или сохранённый через форму ga4), propertyId (числовой ID свойства).
+   * GA4 Data API runReport — сессии и просмотры по дням с разбивкой по источнику / medium / кампании сессии.
+   * dataSource: ga4_{propertyId}, чтобы несколько ресурсов GA4 не перетирали друг друга при синке.
    */
   async syncGa4Integration(row: MarketingIntegration): Promise<number> {
     const s = this.flattenNestedIntegrationSettings(
@@ -1190,6 +1692,7 @@ export class MarketingService {
         'GA4: укажите serviceAccountJson (ключ сервисного аккаунта) и propertyId (или primaryId свойства GA4, только цифры).',
       );
     }
+    const dataSourceTag = `ga4_${propertyId}`.slice(0, 80);
     const end = new Date();
     const start = new Date();
     start.setUTCDate(end.getUTCDate() - 30);
@@ -1201,51 +1704,129 @@ export class MarketingService {
       'https://www.googleapis.com/auth/analytics.readonly',
     );
     const apiUrl = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+
+    const clip = (v: string | null | undefined, max: number): string | null => {
+      const t = sanitizeTrafficText(v);
+      if (!t) return null;
+      return t.length > max ? t.slice(0, max) : t;
+    };
+
+    type GaRow = {
+      dimensionValues?: Array<{ value?: string }>;
+      metricValues?: Array<{ value?: string }>;
+    };
+
     try {
-      const res = await axios.post(
-        apiUrl,
-        {
-          dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
-          dimensions: [{ name: 'date' }],
-          metrics: [
-            { name: 'sessions' },
-            { name: 'screenPageViews' },
-          ],
-          limit: 10000,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${access}`,
-            'Content-Type': 'application/json',
+      const pageLimit = 25_000;
+      const allRows: GaRow[] = [];
+      let offset = 0;
+      for (let guard = 0; guard < 40; guard += 1) {
+        const res = await axios.post(
+          apiUrl,
+          {
+            dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+            dimensions: [
+              { name: 'date' },
+              { name: 'countryId' },
+              { name: 'sessionSource' },
+              { name: 'sessionMedium' },
+              { name: 'sessionCampaignName' },
+            ],
+            metrics: [
+              { name: 'sessions' },
+              { name: 'screenPageViews' },
+            ],
+            limit: pageLimit,
+            offset,
+            orderBys: [
+              { dimension: { dimensionName: 'date', orderType: 'ALPHANUMERIC' } },
+              {
+                dimension: {
+                  dimensionName: 'countryId',
+                  orderType: 'ALPHANUMERIC',
+                },
+              },
+              {
+                dimension: {
+                  dimensionName: 'sessionSource',
+                  orderType: 'ALPHANUMERIC',
+                },
+              },
+              {
+                dimension: {
+                  dimensionName: 'sessionMedium',
+                  orderType: 'ALPHANUMERIC',
+                },
+              },
+              {
+                dimension: {
+                  dimensionName: 'sessionCampaignName',
+                  orderType: 'ALPHANUMERIC',
+                },
+              },
+            ],
           },
-        },
-      );
-      const rows = res.data?.rows as
-        | Array<{
-            dimensionValues?: Array<{ value?: string }>;
-            metricValues?: Array<{ value?: string }>;
-          }>
-        | undefined;
-      if (!Array.isArray(rows) || !rows.length) {
+          {
+            headers: {
+              Authorization: `Bearer ${access}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+        const batch = res.data?.rows as GaRow[] | undefined;
+        if (!Array.isArray(batch) || batch.length === 0) break;
+        allRows.push(...batch);
+        if (batch.length < pageLimit) break;
+        offset += pageLimit;
+      }
+
+      if (!allRows.length) {
         this.log.warn(`GA4: пустой отчёт для property ${propertyId}`);
         return 0;
       }
-      const trafficRows: MarketingTraffic[] = [];
-      for (const r of rows) {
+
+      const mergeMap = new Map<string, MarketingTraffic>();
+      for (const r of allRows) {
         const rawD = r.dimensionValues?.[0]?.value;
         if (rawD == null) continue;
         const dateStr = this.ga4DimensionDateToIso(String(rawD));
         if (!dateStr) continue;
         const sessions = Number(r.metricValues?.[0]?.value ?? 0);
         const views = Number(r.metricValues?.[1]?.value ?? 0);
-        trafficRows.push(
+        if (!sessions && !views) continue;
+        const rawCountry = String(r.dimensionValues?.[1]?.value ?? '')
+          .trim()
+          .toUpperCase();
+        const countryIso =
+          rawCountry &&
+          rawCountry !== '(NOT SET)' &&
+          rawCountry !== 'NOT SET' &&
+          /^[A-Z]{2}$/.test(rawCountry)
+            ? rawCountry
+            : null;
+        const src = clip(r.dimensionValues?.[2]?.value, 128) ?? '(not set)';
+        const med = clip(r.dimensionValues?.[3]?.value, 128) ?? '(not set)';
+        const camp =
+          clip(r.dimensionValues?.[4]?.value, 256) ?? '(not set)';
+        const cKey = countryIso ?? '';
+        const key = `${dateStr}\t${src}\t${med}\t${camp}\t${cKey}`;
+        const prev = mergeMap.get(key);
+        if (prev) {
+          prev.sessions += sessions;
+          prev.clicks += views;
+          prev.impressions += views;
+          continue;
+        }
+        mergeMap.set(
+          key,
           this.trafficRepo.create({
             tenantId: row.tenantId,
             date: dateStr,
-            dataSource: 'ga4',
-            source: 'google',
-            medium: 'analytics',
-            campaign: '(ga4)',
+            dataSource: dataSourceTag,
+            source: src,
+            medium: med,
+            campaign: camp,
+            country: countryIso,
             sessions,
             clicks: views,
             leads: 0,
@@ -1253,22 +1834,39 @@ export class MarketingService {
             cost: '0',
             revenue: '0',
             currency: String(s.currency || 'EUR').slice(0, 8) || 'EUR',
-            impressions: 0,
+            /** GA4: screenPageViews — в CRM «Показы» (просмотры экранов/страниц), не рекламные impressions. */
+            impressions: views,
           }),
         );
       }
+      const trafficRows = [...mergeMap.values()];
       if (!trafficRows.length) return 0;
       await this.trafficRepo
         .createQueryBuilder()
         .delete()
         .from(MarketingTraffic)
         .where('tenantId = :tenantId', { tenantId: row.tenantId })
-        .andWhere('dataSource = :ds', { ds: 'ga4' })
+        .andWhere('dataSource = :ds', { ds: dataSourceTag })
         .andWhere('date BETWEEN :from AND :to', { from: date1, to: date2 })
         .execute();
-      await this.trafficRepo.save(trafficRows);
+      await this.saveMarketingTrafficChunked(trafficRows);
+      const displayName = await this.fetchGa4PropertyDisplayName(
+        jsonRaw,
+        propertyId,
+      );
+      if (displayName) {
+        try {
+          await this.persistGa4PropertyDisplayName(row, displayName);
+        } catch (e: unknown) {
+          this.log.warn(
+            `GA4: не удалось сохранить displayName в интеграции: ${
+              e instanceof Error ? e.message : e
+            }`,
+          );
+        }
+      }
       this.log.log(
-        `GA4: сохранено ${trafficRows.length} строк, property ${propertyId}`,
+        `GA4: сохранено ${trafficRows.length} строк (источник/кампания/страна), property ${propertyId}`,
       );
       return trafficRows.length;
     } catch (err: unknown) {
@@ -1335,9 +1933,9 @@ export class MarketingService {
 
     const graphVer = 'v19.0';
     const baseUrl = `https://graph.facebook.com/${graphVer}/${actPath}/insights`;
-    const byDay = new Map<
+    const agg = new Map<
       string,
-      { impressions: number; clicks: number; spend: number }
+      { impressions: number; clicks: number; spend: number; campaignLabel: string }
     >();
 
     try {
@@ -1347,7 +1945,9 @@ export class MarketingService {
         const res = await axios.get(useParams ? baseUrl : (nextUrl as string), {
           params: useParams
             ? {
-                fields: 'impressions,clicks,spend,date_start',
+                fields:
+                  'impressions,clicks,spend,date_start,campaign_name,campaign_id',
+                level: 'campaign',
                 time_increment: 1,
                 time_range: JSON.stringify({ since, until }),
                 access_token: token,
@@ -1364,38 +1964,51 @@ export class MarketingService {
               clicks?: string;
               spend?: string;
               date_start?: string;
+              campaign_name?: string;
+              campaign_id?: string;
             }>
           | undefined;
         if (Array.isArray(data)) {
           for (const it of data) {
             const ds = it.date_start?.slice(0, 10);
             if (!ds) continue;
+            const rawName = it.campaign_name?.trim();
+            const id = it.campaign_id?.toString().trim();
+            const campaignLabel =
+              rawName || (id ? `Campaign ${id}` : 'Meta');
+            const key = `${ds}\0${campaignLabel}`;
             const impressions =
               parseInt(String(it.impressions ?? 0), 10) || 0;
             const clicks = parseInt(String(it.clicks ?? 0), 10) || 0;
             const spend = parseFloat(String(it.spend ?? 0)) || 0;
-            const prev = byDay.get(ds) || {
+            const prev = agg.get(key) || {
               impressions: 0,
               clicks: 0,
               spend: 0,
+              campaignLabel,
             };
-            byDay.set(ds, {
+            agg.set(key, {
               impressions: prev.impressions + impressions,
               clicks: prev.clicks + clicks,
               spend: prev.spend + spend,
+              campaignLabel,
             });
           }
         }
         if (!nextUrl) break;
       }
 
-      if (!byDay.size) {
+      if (!agg.size) {
         this.log.warn(`Meta Ads: пустой insights для ${actPath}`);
         return 0;
       }
 
       const trafficRows: MarketingTraffic[] = [];
-      for (const [dateStr, m] of byDay) {
+      for (const [key, m] of agg) {
+        const dateStr = key.split('\0')[0];
+        const safeName =
+          sanitizeTrafficText(m.campaignLabel) ??
+          m.campaignLabel.slice(0, 256);
         trafficRows.push(
           this.trafficRepo.create({
             tenantId: row.tenantId,
@@ -1403,7 +2016,7 @@ export class MarketingService {
             dataSource: 'meta_ads',
             source: 'meta',
             medium: 'paid',
-            campaign: '(account)',
+            campaign: safeName,
             sessions: m.clicks,
             clicks: m.clicks,
             leads: 0,
@@ -1424,9 +2037,9 @@ export class MarketingService {
         .andWhere('dataSource = :ds', { ds: 'meta_ads' })
         .andWhere('date BETWEEN :from AND :to', { from: since, to: until })
         .execute();
-      await this.trafficRepo.save(trafficRows);
+      await this.saveMarketingTrafficChunked(trafficRows);
       this.log.log(
-        `Meta Ads: сохранено ${trafficRows.length} дней, ${actPath}`,
+        `Meta Ads: сохранено ${trafficRows.length} строк (по кампаниям), ${actPath}`,
       );
       return trafficRows.length;
     } catch (err: unknown) {
@@ -1594,11 +2207,11 @@ export class MarketingService {
       throw new BadRequestException('Google OAuth is not configured');
     }
     const params = new URLSearchParams({
-      code,
-      client_id: clientId,
-      client_secret: clientSecret,
-      redirect_uri: redirectUri,
-      grant_type: 'authorization_code',
+        code,
+        client_id: clientId,
+        client_secret: clientSecret,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
     });
     const res = await axios.post(
       'https://oauth2.googleapis.com/token',
@@ -1737,8 +2350,8 @@ export class MarketingService {
           {
             startDate: start,
             endDate: end,
-            dimensions: ['date'],
-            rowLimit: 25000,
+          dimensions: ['date'],
+          rowLimit: 25000,
           },
           { headers: { Authorization: `Bearer ${access}` } },
         );
@@ -1769,13 +2382,13 @@ export class MarketingService {
           posWt += position * impressions;
 
           await this.gscDailyRepo.insert({
-            tenantId,
+      tenantId,
             propertyUrl: settings.gscPropertyUrl,
             date: d,
-            clicks,
-            impressions,
-            ctr: String(ctr),
-            position: String(position),
+      clicks,
+      impressions,
+      ctr: String(ctr),
+      position: String(position),
           });
         }
 
@@ -1798,7 +2411,7 @@ export class MarketingService {
             ctr: String(aggCtr),
             position: String(avgPos),
           });
-        } else {
+          } else {
           metric.dateFrom = start;
           metric.dateTo = end;
           metric.clicks = totals.clicks;
@@ -1847,7 +2460,7 @@ export class MarketingService {
 
         let row = await this.psiRepo.findOne({
           where: {
-            tenantId,
+      tenantId,
             pageUrl: settings.pageSpeedUrl,
             strategy,
           },

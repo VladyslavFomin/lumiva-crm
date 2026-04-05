@@ -9,6 +9,7 @@ import {
   IsDateString,
   Matches,
   ValidateIf,
+  IsUUID,
 } from 'class-validator';
 
 export class UpdateTenantSettingsDto {
@@ -57,4 +58,10 @@ export class UpdateTenantSettingsDto {
   @IsOptional()
   @IsString()
   notes?: string | null;
+
+  /** UUID шаблона обёртки для AI/транзакционных писем; пусто = встроенный дизайн */
+  @IsOptional()
+  @ValidateIf((_, v) => v != null && String(v).trim() !== '')
+  @IsUUID()
+  aiWrapperEmailTemplateId?: string | null;
 }

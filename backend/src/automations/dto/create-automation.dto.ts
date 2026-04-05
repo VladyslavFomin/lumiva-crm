@@ -64,5 +64,10 @@ export class CreateAutomationDto {
   @IsInt()
   @Min(0)
   cooldownSeconds?: number;
+
+  /** Для trigger scheduled: { schedule: { scheduleFrequency, scheduleTime, scheduleTimezone, scheduleDayOfWeek, scheduleDayOfMonth } } */
+  @IsOptional()
+  @IsObject()
+  meta?: Record<string, any>;
 }
 

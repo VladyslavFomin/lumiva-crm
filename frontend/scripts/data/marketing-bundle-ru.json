@@ -1,0 +1,745 @@
+{
+  "crm": {
+    "nav": {
+      "marketing": "Маркетинг",
+      "marketingTraffic": "Трафик",
+      "marketingCampaigns": "Кампании (ROAS)",
+      "marketingUtms": "UTM-метки",
+      "marketingSegments": "Сегменты",
+      "marketingStatuses": "Статусы лидов/клиентов",
+      "marketingChannels": "Каналы и площадки",
+      "marketingSeo": "SEO & контент",
+      "marketingSmm": "SMM / соцсети",
+      "marketingIntegrations": "Интеграции маркетинга",
+      "marketingAutomations": "Автоматизации (n8n)",
+      "marketingEmailTemplates": "Письма"
+    },
+    "marketingTraffic": {
+      "kicker": "Маркетинг · Трафик",
+      "title": "Источники трафика и эффективность",
+      "subtitle": "Данные из аналитики (GA4, Яндекс.Метрика) и рекламных кабинетов. Конверсии и доход — из аналитики, расходы и клики — из Ads.",
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней",
+        "all": "Все время"
+      },
+      "loading": "Загружаем данные по трафику…",
+      "errors": {
+        "load": "Не удалось загрузить данные по трафику"
+      },
+      "kpi": {
+        "sessions": "Сессии",
+        "sessionsHint": "Всего сессий по всем источникам за период.",
+        "conversions": "Конверсии",
+        "conversionsHint": "Суммарное количество заявок / лидов.",
+        "cr": "Конверсия (CR)",
+        "crHint": "Доля сессий, которые превратились в лиды.",
+        "revPerSession": "Доход на сессию",
+        "revPerSessionHint": "Средний доход, который приносит одна сессия.",
+        "dbRows": "Строк в БД (период)",
+        "dbRowsHint": "Сколько записей marketing_traffic попало в выборку"
+      },
+      "table": {
+        "title": "Источники трафика",
+        "subtitle": "Каналы сессий, количество конверсий и доход по каждому источнику.",
+        "headers": {
+          "source": "Источник / канал",
+          "type": "Тип",
+          "sessions": "Сессии",
+          "conversions": "Конверсии",
+          "cr": "CR",
+          "revenue": "Доход"
+        },
+        "empty": "Пока нет данных по трафику за выбранный период.",
+        "provider": "Провайдер",
+        "rows": "Строк",
+        "sessions": "Сессии / визиты",
+        "clicks": "Клики / просмотры",
+        "impressions": "Показы",
+        "cost": "Расход"
+      },
+      "types": {
+        "paid": "Платный",
+        "organic": "Органический поиск",
+        "email": "Email",
+        "social": "Соцсети",
+        "direct": "Прямой",
+        "other": "Другое"
+      },
+      "common": {
+        "empty": "—"
+      },
+      "dataSourceLabel": "Источник данных",
+      "dataSourceAll": "Все",
+      "dataSources": {
+        "ga4Property": "Google Analytics 4 (ресурс {{id}})",
+        "meta_ads": "Meta Ads",
+        "yandex_metrika": "Яндекс.Метрика",
+        "ga4": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "unknown": "Без канала интеграции",
+        "import": "Импорт",
+        "manual": "Вручную"
+      },
+      "extendedMetricsTitle": "Расширенные метрики провайдеров",
+      "extendedMetricsSubtitle": "Агрегаты по полю dataSource в marketing_traffic за выбранный период.",
+      "extendedMetricsEmpty": "Расширенных метрик пока нет: выполните синхронизацию GA4, Яндекс.Метрики, Meta Ads или Google Ads либо выберите период «Все время».",
+      "extendedMetricsMismatch": "Есть {{count}} строк в выборке, но разбивка по провайдерам пуста. Обновите страницу с очисткой кэша.",
+      "rawRowsLabel": "Строк в периоде",
+      "impressionsLabel": "Показы",
+      "spendLabel": "Расход"
+    },
+    "marketingChannels": {
+      "kicker": "Маркетинг · Каналы и площадки",
+      "title": "Откуда приходят заявки",
+      "subtitle": "Данные агрегируются по источникам и кампаниям на основе UTM. Это помогает видеть, какие каналы дают трафик, лиды и выручку.",
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней",
+        "all": "Все время"
+      },
+      "loading": "Загружаем данные по каналам…",
+      "errors": {
+        "load": "Не удалось загрузить данные по каналам"
+      },
+      "kpi": {
+        "sessions": "Сессии",
+        "sessionsHint": "Все каналы, выбранный период",
+        "leads": "Лиды",
+        "leadsHint": "Конверсии из аналитики",
+        "revenue": "Выручка",
+        "revenueHint": "По данным аналитики"
+      },
+      "topSources": "Топ источников",
+      "topMediums": "Топ площадок (medium)",
+      "topCampaigns": "Топ кампаний по выручке",
+      "common": {
+        "unknown": "(unknown)",
+        "none": "(none)",
+        "noCampaign": "(без utm_campaign)",
+        "noData": "Нет данных."
+      }
+    },
+    "marketingChannelBlocks": {
+      "thImpressions": "Показы",
+      "thClicks": "Клики",
+      "thSessions": "Сессии",
+      "thLeads": "Лиды",
+      "thCost": "Расход",
+      "thRevenue": "Выручка"
+    },
+    "marketingCampaigns": {
+      "kicker": "Маркетинг · Кампании",
+      "title": "Эффективность рекламных кампаний",
+      "subtitle": "Сравнивайте расходы, выручку и конверсию по кампаниям. Данные агрегируются из аналитики и источников трафика.",
+      "filters": {
+        "allSources": "Все источники",
+        "numbersLabel": "Фактические числа в",
+        "numbersAsStored": "Как в базе CRM",
+        "numbersHint": "Значения из marketing_traffic после синка, без пересчёта на клиенте.",
+        "sumsLabel": "Суммы",
+        "sumsAsData": "Как в данных"
+      },
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней",
+        "all": "Все время"
+      },
+      "loading": "Загружаем кампании…",
+      "errors": {
+        "load": "Не удалось загрузить кампании"
+      },
+      "kpi": {
+        "campaigns": "Количество кампаний",
+        "campaignsHint": "Число кампаний, где зафиксирован трафик / расходы.",
+        "cost": "Расходы по кампаниям",
+        "costHint": "Суммарные маркетинговые расходы за период.",
+        "revenue": "Доход по кампаниям",
+        "revenueHint": "Атрибутированный доход по связанным лидам / продажам.",
+        "roasCpl": "ROAS & CPL",
+        "roas": "ROAS",
+        "cpl": "CPL",
+        "roasCplHint": "Окупаемость и средняя стоимость лида."
+      },
+      "top": {
+        "title": "Топ кампаний",
+        "subtitle": "По выручке за выбранный период.",
+        "subtitleCost": "По расходу (выручка в данных отсутствует или нулевая для выбранного топа).",
+        "shown": "Показано: {{count}}"
+      },
+      "table": {
+        "title": "Список кампаний",
+        "subtitle": "Каналы, расходы, выручка и эффективность.",
+        "count": "Всего: {{count}}",
+        "headers": {
+          "campaign": "Кампания",
+          "source": "Источник",
+          "medium": "Medium",
+          "cost": "Расходы",
+          "revenue": "Выручка",
+          "leads": "Лиды",
+          "impressions": "Показы",
+          "clicks": "Клики",
+          "roas": "ROAS",
+          "cpl": "CPL"
+        },
+        "empty": "Кампаний пока нет."
+      },
+      "tooltip": {
+        "revenue": "Выручка",
+        "cost": "Расходы",
+        "leads": "Лиды",
+        "clicks": "Клики",
+        "sessions": "Сессии",
+        "roas": "ROAS",
+        "cpl": "CPL"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingIntegrations": {
+      "guide": {
+        "open": "Инструкция: ключи и ссылки",
+        "openAria": "Открыть пошаговую инструкцию по маркетинговым интеграциям"
+      },
+      "kicker": "Маркетинг · Интеграции",
+      "title": "Интеграции маркетинга",
+      "subtitle": "Настройка аккаунтов аналитики и рекламы (GA4, Метрика, Meta Ads, Google Ads и т.д.). Данные используются в отчетах и сценариях n8n.",
+      "hint": "Синхронизация подтягивает данные в отчёт трафика (расширенные метрики по dataSource).",
+      "empty": "Интеграций пока нет. Добавьте их через API или форму (если доступна).",
+      "syncZero": "Синхронизация завершена, новых строк: 0 (пустой ответ API за период, нет прав к счётчику или интеграция пропущена — см. логи backend).",
+      "loading": "Загружаем интеграции...",
+      "providers": {
+        "google_analytics": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "yandex_metrika": "Яндекс.Метрика",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "tiktok_ads": "TikTok Ads",
+        "other": "Другое"
+      },
+      "form": {
+        "title": "Добавить интеграцию",
+        "intro": "Новое подключение появится в списке справа. Параметры синхронизации хранятся в CRM; при необходимости их можно обновить через API.",
+        "provider": "Провайдер",
+        "name": "Название в CRM",
+        "primaryId": "Основной ID (property, счетчик, рекламный аккаунт и т.д.)",
+        "primaryIdHint": "GA4 property ID / Counter ID / Ad Account ID",
+        "ga": {
+          "serviceAccount": "Service Account JSON",
+          "conversionEvent": "Событие конверсии (опционально)",
+          "revenueMetric": "Метрика выручки (опционально)"
+        },
+        "ym": {
+          "token": "OAuth токен",
+          "goalId": "ID цели (опционально)",
+          "revenueMetric": "Метрика выручки (опционально)"
+        },
+        "ads": {
+          "developerToken": "Developer token",
+          "clientId": "OAuth client ID",
+          "clientSecret": "OAuth client secret",
+          "refreshToken": "Refresh token",
+          "loginCustomerId": "Login customer ID (опционально)",
+          "source": "Source (опционально)",
+          "medium": "Medium (опционально)",
+          "currency": "Currency (опционально)"
+        },
+        "meta": {
+          "accessToken": "Access token",
+          "conversionAction": "Conversion action (опционально)",
+          "revenueAction": "Revenue action (опционально)",
+          "source": "Source (опционально)",
+          "medium": "Medium (опционально)",
+          "currency": "Currency (опционально)"
+        },
+        "note": "Далее эти подключения можно использовать в n8n-флоу: выгрузка отчетов, синхронизация аудиторий и т.д."
+      },
+      "actions": {
+        "create": "Создать интеграцию",
+        "creating": "Создание...",
+        "sync": "Синхр.",
+        "syncing": "Синхрон...",
+        "delete": "Удалить"
+      },
+      "table": {
+        "title": "Текущие интеграции",
+        "subtitle": "Включенные интеграции используются в маркетинговых отчетах.",
+        "total": "Всего: {{count}}",
+        "empty": "Интеграций пока нет. Добавьте хотя бы GA4 или Метрику.",
+        "headers": {
+          "name": "Название",
+          "provider": "Провайдер",
+          "primaryId": "Основной ID",
+          "status": "Статус",
+          "actions": "Действия"
+        }
+      },
+      "status": {
+        "enabled": "Включена",
+        "disabled": "Выключена"
+      },
+      "errors": {
+        "load": "Не удалось загрузить интеграции",
+        "requiredName": "Введите название интеграции",
+        "create": "Не удалось создать интеграцию",
+        "update": "Не удалось обновить интеграцию",
+        "delete": "Не удалось удалить интеграцию",
+        "sync": "Не удалось синхронизировать"
+      },
+      "confirmDelete": "Удалить интеграцию «{{name}}»?",
+      "syncResult": "Синхронизировано строк: {{count}}",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingAutomations": {
+      "kicker": "Маркетинг · Автоматизации",
+      "title": "Автоматизации маркетинга (n8n)",
+      "subtitle": "Отслеживайте сценарии n8n: импорт трафика, кампании, синхронизация аудиторий. Позже можно получать статусы напрямую из n8n API.",
+      "loading": "Загружаем автоматизации...",
+      "form": {
+        "title": "Новый сценарий",
+        "name": "Название сценария",
+        "namePlaceholder": "Импорт GA4 → CRM (ежедневно)",
+        "webhook": "Webhook URL (из n8n)",
+        "note": "Для каждого сценария можно добавить токены, расписание и статус выполнения."
+      },
+      "actions": {
+        "create": "Создать сценарий",
+        "creating": "Создание...",
+        "delete": "Удалить"
+      },
+      "list": {
+        "title": "Текущие автоматизации",
+        "subtitle": "Пока без связи с n8n API, но можно хранить описание и webhooks по тенантам.",
+        "total": "Всего: {{count}}",
+        "empty": "Пока нет ни одного сценария. Добавьте хотя бы импорт трафика из n8n.",
+        "lastStatus": "Последний статус: {{status}}",
+        "statusUnknown": "Статус пока неизвестен"
+      },
+      "status": {
+        "enabled": "Включен",
+        "disabled": "Выключен"
+      },
+      "errors": {
+        "load": "Не удалось загрузить автоматизации",
+        "requiredName": "Введите название сценария",
+        "create": "Не удалось создать автоматизацию",
+        "update": "Не удалось обновить автоматизацию",
+        "delete": "Не удалось удалить автоматизацию"
+      },
+      "confirmDelete": "Удалить сценарий «{{name}}»?"
+    },
+    "marketingSeo": {
+      "kicker": "Маркетинг · SEO & контент",
+      "title": "Контроль SEO и качества сайта",
+      "subtitle": "Эта страница показывает, насколько сайт готов к росту: скорость, индексируемость, ошибки и структура контента. Часть данных берём из аналитики, остальное подключается через Search Console и PageSpeed.",
+      "loading": "Загружаем данные…",
+      "status": {
+        "saved": "Сохранено",
+        "updated": "Метрики обновлены",
+        "siteAdded": "Сайт добавлен",
+        "siteDeleted": "Сайт удалён"
+      },
+      "errors": {
+        "load": "Не удалось загрузить данные",
+        "save": "Не удалось сохранить настройки",
+        "oauth": "Не удалось открыть OAuth",
+        "update": "Не удалось обновить метрики",
+        "gscNotSynced": "GSC не синхронизирован: проверьте доступ к property.",
+        "psiNotSynced": "PageSpeed не синхронизирован: проверьте ключ и URL.",
+        "siteRequired": "Введите домен сайта",
+        "siteAdd": "Не удалось добавить сайт",
+        "siteApply": "Не удалось применить сайт",
+        "siteDelete": "Не удалось удалить сайт"
+      },
+      "connections": {
+        "title": "Подключения",
+        "subtitle": "Настройте Search Console и PageSpeed для вашего сайта.",
+        "gscConnected": "GSC подключен",
+        "connectGsc": "Подключить GSC",
+        "refresh": "Обновить метрики",
+        "refreshing": "Обновляем…"
+      },
+      "period": {
+        "title": "Период",
+        "presets": {
+          "7": "7 дн.",
+          "30": "30 дн.",
+          "90": "90 дн."
+        },
+        "custom": "custom",
+        "apply": "Применить период"
+      },
+      "compare": {
+        "title": "Сравнение",
+        "subtitle": "Показать предыдущий период."
+      },
+      "site": {
+        "title": "Сайт",
+        "placeholder": "Выбрать сайт",
+        "addOption": "Добавить сайт +",
+        "delete": "Удалить",
+        "deleting": "Удаляем…"
+      },
+      "newSite": {
+        "title": "Новый сайт",
+        "placeholder": "example.com",
+        "add": "Добавить",
+        "adding": "Добавляем…"
+      },
+      "fields": {
+        "gscPropertyUrl": "GSC property URL",
+        "pageSpeedUrl": "PageSpeed URL",
+        "pageSpeedApiKey": "PageSpeed API Key",
+        "pageSpeedStrategy": "Стратегия PageSpeed",
+        "strategy": {
+          "mobile": "mobile",
+          "desktop": "desktop"
+        }
+      },
+      "actions": {
+        "save": "Сохранить",
+        "saving": "Сохраняем…"
+      },
+      "syncingOverlay": "Обновляем данные…",
+      "gsc": {
+        "title": "Search Console",
+        "period": "Период",
+        "clicks": "Клики",
+        "impressions": "Показы",
+        "ctr": "CTR",
+        "position": "Позиция",
+        "trendTitle": "Spend / Leads",
+        "trendSource": "Search",
+        "legend": {
+          "current": "Текущий период",
+          "previous": "Предыдущий период"
+        },
+        "metricTabs": {
+          "clicks": "clicks",
+          "impressions": "impressions",
+          "ctr": "ctr",
+          "position": "position"
+        },
+        "empty": "Нет данных. Подключите GSC и выполните синхронизацию."
+      },
+      "gscDonut": {
+        "title": "Конверсии по каналам",
+        "subtitle": "Воронка лидов и сделок",
+        "average": "средняя по сети",
+        "labels": {
+          "ctr": "CTR",
+          "rank": "Rank",
+          "visibility": "Visibility"
+        },
+        "was": "Было: {{value}}%"
+      },
+      "psi": {
+        "title": "PageSpeed Insights",
+        "empty": "Нет данных. Подключите PageSpeed и выполните синхронизацию."
+      },
+      "psiDonut": {
+        "title": "Конверсии по каналам",
+        "subtitle": "Воронка лидов и сделок",
+        "average": "средняя по сети",
+        "labels": {
+          "performance": "Performance",
+          "seo": "SEO",
+          "accessibility": "Accessibility",
+          "best": "Best"
+        }
+      },
+      "psiMetrics": {
+        "lcp": "LCP: {{value}}s",
+        "cls": "CLS: {{value}}",
+        "fcp": "FCP: {{value}}s",
+        "tbt": "TBT: {{value}}s",
+        "speedIndex": "Speed Index: {{value}}s",
+        "strategy": "Стратегия: {{value}}"
+      },
+      "control": {
+        "title": "Что можно контролировать в CRM",
+        "items": [
+          "Скорость загрузки и Core Web Vitals по ключевым страницам.",
+          "Ошибки индексации, дубль‑страницы, проблемы с sitemap.",
+          "Топ‑страницы по органическому трафику и конверсии.",
+          "Сравнение SEO‑каналов с рекламой и соцсетями."
+        ]
+      },
+      "connect": {
+        "title": "Что нужно подключить",
+        "items": [
+          "Google Search Console — индексация, ошибки, CTR.",
+          "PageSpeed Insights — скорость и Core Web Vitals.",
+          "Analytics (GA4/Метрика) — поведение и конверсии."
+        ]
+      }
+    },
+    "marketingSmm": {
+      "kicker": "Маркетинг · SMM",
+      "title": "Соцсети и динамика аудитории",
+      "subtitle": "Профили и дневная статистика: подписчики, охват, просмотры, вовлечённость.",
+      "periodLabel": "Период",
+      "periods": {
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "90d": "90 дней"
+      },
+      "compareLabel": "Прошлый период",
+      "compare": {
+        "loading": "Загрузка...",
+        "noData": "Нет данных",
+        "dash": "—"
+      },
+      "errors": {
+        "profiles": "Не удалось загрузить профили",
+        "stats": "Не удалось загрузить статистику",
+        "createProfile": "Не удалось добавить профиль",
+        "deleteProfile": "Не удалось удалить профиль",
+        "metaConnect": "Не удалось подключить Meta",
+        "metaAssets": "Не удалось загрузить аккаунты Meta",
+        "metaAdd": "Не удалось подключить аккаунт Meta",
+        "metaRemove": "Не удалось отключить аккаунт Meta",
+        "metaSync": "Не удалось обновить данные Meta"
+      },
+      "meta": {
+        "profileAdded": "Профиль подключён",
+        "profileRemoved": "Профиль отключён",
+        "syncStatus": "Синхронизировано за {{label}}",
+        "scope": {
+          "days": "последние {{days}} дней",
+          "today": "сегодня"
+        },
+        "connected": "подключена",
+        "disconnected": "не подключена"
+      },
+      "kpi": {
+        "activeProfiles": "Активные профили",
+        "activeProfilesHint": "Суммарное количество профилей, подключенных в CRM.",
+        "followersCurrent": "Подписчики (текущие)",
+        "followersHint": "Сумма подписчиков по всем профилям на последнюю дату.",
+        "followersDelta": "Прирост подписчиков",
+        "followersDeltaHint": "Разница между началом и концом выбранного периода.",
+        "reachEngagement": "Охват и вовлечённость",
+        "reachLabel": "Охват",
+        "videoViewsLabel": "Видео-просмотры",
+        "likesLabel": "Лайки",
+        "commentsLabel": "Комментарии",
+        "erLabel": "ER",
+        "totalHint": "Сумма по всем платформам за период."
+      },
+      "chart": {
+        "title": "Динамика по платформам",
+        "subtitle": "Дневные значения по выбранной метрике.",
+        "metrics": {
+          "followers": "Подписчики",
+          "reach": "Охват",
+          "likes": "Лайки",
+          "comments": "Комментарии",
+          "videoViews": "Просмотры"
+        },
+        "loading": "Загрузка графика...",
+        "empty": "Нет данных по выбранному периоду.",
+        "prevSuffix": "прошлый"
+      },
+      "profiles": {
+        "title": "Профили соцсетей",
+        "subtitle": "Профили и ежедневная статистика по выбранным площадкам.",
+        "tabs": {
+          "profiles": "Профили",
+          "integrations": "Интеграции"
+        },
+        "shown": "Показано: {{shown}} из {{total}}",
+        "searchPlaceholder": "Поиск по @аккаунту",
+        "filterAll": "Все платформы",
+        "form": {
+          "platform": "Платформа",
+          "handle": "Handle / @аккаунт",
+          "url": "URL (опционально)",
+          "handlePlaceholder": "@company",
+          "urlPlaceholder": "https://instagram.com/...",
+          "add": "Добавить профиль",
+          "adding": "Добавление..."
+        },
+        "table": {
+          "headers": {
+            "profile": "Профиль",
+            "platform": "Платформа",
+            "followers": "Подписчики",
+            "reachLikesComments": "Охват / лайки / комм",
+            "erViews": "ER / просмотры",
+            "date": "Дата",
+            "actions": "Действия"
+          },
+          "loading": "Загрузка...",
+          "empty": "Нет данных по выбранным фильтрам."
+        },
+        "delete": "Удалить",
+        "confirmDelete": "Удалить профиль {{platform}} {{handle}}?",
+        "loadMore": "Загрузить ещё"
+      },
+      "integrations": {
+        "kicker": "Интеграции",
+        "title": "Подключения и статус",
+        "subtitle": "Подключайте соцсети и проверяйте статус.",
+        "connections": "Подключения",
+        "metaStatus": "Статус Meta: {{status}}",
+        "manage": "Управление",
+        "vkTitle": "VK Analytics",
+        "telegramTitle": "Telegram Analytics",
+        "inDev": "В разработке"
+      },
+      "popup": {
+        "title": "Интеграции",
+        "close": "Закрыть",
+        "metaTitle": "Meta (Facebook / Instagram)",
+        "statusLabel": "Статус: {{status}}",
+        "connect": "Подключить Meta",
+        "reconnect": "Переподключить Meta",
+        "syncNow": "Обновить сейчас",
+        "syncing": "Обновление...",
+        "accountList": "Список аккаунтов",
+        "accountsTitle": "Meta аккаунты",
+        "showHidden": "Показать скрытые",
+        "loading": "Загрузка аккаунтов...",
+        "empty": "Аккаунты не найдены.",
+        "hide": "Скрыть",
+        "disconnectFacebook": "Отключить",
+        "addFacebook": "Добавить Facebook",
+        "disconnectInstagram": "Отключить",
+        "addInstagram": "Добавить Instagram",
+        "facebookPage": "Страница Facebook",
+        "instagramPrefix": "Instagram: {{handle}}",
+        "vkTitle": "VK Analytics",
+        "tgTitle": "Telegram Analytics",
+        "tiktokTitle": "TikTok",
+        "inDevLabel": "В разработке",
+        "soon": "Скоро",
+        "vkDesc": "Скоро на сайте — подключение сообществ и метрик.",
+        "tgDesc": "Скоро на сайте — аналитика каналов и вовлечённости.",
+        "tiktokDesc": "Метрики по просмотрам и охвату — в разработке."
+      },
+      "platforms": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "telegram": "Telegram",
+        "vk": "VK",
+        "tiktok": "TikTok",
+        "other": "Другое"
+      },
+      "zeroNotes": {
+        "igVideo": "Видео-просмотры Instagram могут быть недоступны для некоторых профилей.",
+        "igEngagement": "Лайки и комментарии могут приходить с задержкой при отсутствии свежего контента.",
+        "fbReach": "Метрики Facebook могут задерживаться из-за ограничений Insights."
+      }
+    },
+    "marketingUtms": {
+      "kicker": "Маркетинг · UTM-метки",
+      "title": "Генератор UTM-ссылок",
+      "subtitle": "Быстро собирайте UTM-ссылки для кампаний. Можно сохранять пресеты по каналам (Google Ads, Meta Ads, Яндекс, email и т.д.).",
+      "fields": {
+        "channel": "Канал",
+        "baseUrl": "Базовый URL",
+        "utm_source": "utm_source",
+        "utm_medium": "utm_medium",
+        "utm_campaign": "utm_campaign",
+        "utm_content": "utm_content (опционально)",
+        "utm_term": "utm_term (опционально)",
+        "generatedUrl": "Сгенерированная ссылка",
+        "templateName": "Название для шаблона"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com/landing",
+        "utm_campaign": "spring_2026_brand",
+        "utm_content": "banner_1",
+        "utm_term": "keyword",
+        "templateName": "Google Brand · RU · весна 2026"
+      },
+      "channels": {
+        "google_search": "Google Ads · Search",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "yandex_direct": "Yandex Direct",
+        "email": "Email-рассылка",
+        "other": "Другое"
+      },
+      "actions": {
+        "saveTemplate": "Сохранить шаблон",
+        "saving": "Сохранение…",
+        "applyTemplate": "Подставить",
+        "deleteTemplate": "Удалить"
+      },
+      "templates": {
+        "title": "Сохранённые шаблоны",
+        "subtitle": "Хранится по компании (tenant). Можно быстро подставлять параметры для повторяющихся кампаний.",
+        "total": "Всего: {{count}}",
+        "empty": "Пока нет сохранённых шаблонов. Сконструируйте UTM-ссылку и сохраните её как шаблон."
+      },
+      "loading": "Загружаем шаблоны…",
+      "errors": {
+        "loadTemplates": "Не удалось загрузить UTM-шаблоны",
+        "nameRequired": "Введите название шаблона",
+        "saveTemplate": "Не удалось сохранить шаблон",
+        "deleteTemplate": "Не удалось удалить шаблон"
+      },
+      "confirmDelete": "Удалить шаблон «{{name}}»?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingSegments": {
+      "kicker": "Маркетинг · Сегменты",
+      "title": "Сегменты лидов",
+      "subtitle": "Сохраняйте часто используемые выборки по лидам: по статусам, каналам, странам и менеджерам. В дальнейшем можно будет привязать сегменты к рассылкам и задачам в n8n.",
+      "errors": {
+        "load": "Не удалось загрузить сегменты",
+        "save": "Не удалось сохранить сегмент"
+      },
+      "form": {
+        "name": "Название сегмента",
+        "namePlaceholder": "Лиды из Google Ads RU за последние 30 дней",
+        "description": "Описание (опционально)",
+        "descriptionPlaceholder": "Для рассылки по лидам из брендового трафика",
+        "statuses": "Статусы лидов",
+        "source": "Источник (source)",
+        "sourcePlaceholder": "google / facebook / crm…",
+        "country": "Страна",
+        "countryPlaceholder": "TR / RU / PL / DE…",
+        "manager": "Менеджер (assignedTo)",
+        "managerPlaceholder": "Имя менеджера",
+        "createdFrom": "Создан с",
+        "createdTo": "Создан по",
+        "helper": "Сегменты сейчас работают только по лидам. В будущем сюда можно привязать рассылки, экспорт, webhooks в n8n."
+      },
+      "statuses": {
+        "new": "Новый",
+        "in_progress": "В работе",
+        "waiting": "Ожидает",
+        "won": "Успех",
+        "lost": "Проигран"
+      },
+      "actions": {
+        "create": "Создать сегмент",
+        "creating": "Сохраняем…",
+        "run": "Запустить",
+        "running": "Запуск…"
+      },
+      "list": {
+        "title": "Сохранённые сегменты",
+        "subtitle": "Нажмите «Запустить», чтобы посмотреть, сколько лидов попадает в сегмент.",
+        "total": "Всего: {{count}}",
+        "empty": "Сегментов пока нет. Создайте первый выше.",
+        "meta": "entity: {{entity}} · создан: {{date}}",
+        "found": "Найдено: {{count}}"
+      },
+      "loading": "Загружаем сегменты…"
+    }
+  }
+}

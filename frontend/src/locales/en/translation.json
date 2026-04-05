@@ -1,1 +1,1039 @@
-{}
+{
+  "crm": {
+    "header": {
+      "realtime": "Real-time · connected",
+      "openMenu": "Open menu",
+      "close": "Close",
+      "newMessages": "New messages",
+      "notifications": "Notifications",
+      "aiAssistant": "AI assistant"
+    },
+    "aiAssistant": {
+      "title": "Assistant",
+      "tabChat": "Chat",
+      "tabMemory": "Memory",
+      "greeting": "Hi, {{name}}! What should we work on today?",
+      "subGreeting": "Copy, analytics, marketing, projects, and CRM actions in one place.",
+      "fallbackName": "there",
+      "inputPlaceholder": "Describe a task or ask for CRM analytics…",
+      "addContextHint": "Long-term context — Memory tab",
+      "chatHistoryTitle": "Chat history",
+      "chatHistoryEmpty": "No saved conversations yet — start one in Chat.",
+      "chatUntitled": "Untitled chat",
+      "chatTitleField": "Chat title",
+      "chatTitlePlaceholder": "e.g. March analytics",
+      "chatTitleHint": "Optional. If empty, the title is taken from your first message.",
+      "memoryFragmentsTitle": "Memory snippets",
+      "memoryListEmpty": "No saved snippets.",
+      "chatPlaceholder": "Message…",
+      "send": "Send",
+      "thinking": "Thinking…",
+      "imageGenerating": "Generating image…",
+      "presetQuickActionTitle": "Quick scenario: insert text into the chat field",
+      "deleteChatFromList": "Delete",
+      "notConfigured": "AI is not configured yet. Contact your administrator.",
+      "quotaLine": "Quota: ~{{left}} USD-eq. · Storage: {{storage}} / {{cap}}",
+      "newChat": "New chat",
+      "pickSession": "History…",
+      "deleteSession": "Delete chat",
+      "backToHub": "Shortcuts",
+      "topupAi": "Top up AI credits",
+      "topupStorage": "+ storage",
+      "memoryTitlePh": "Fragment title",
+      "memoryContentPh": "Text for long-term context…",
+      "saveMemory": "Save to memory",
+      "memoryUntitled": "Untitled",
+      "imagePrompt": "Describe the image",
+      "imageReady": "Image ready",
+      "dismissImage": "Hide preview",
+      "genImage": "Image",
+      "imagePanelTitle": "Image description",
+      "imagePanelHint": "Describe style, subjects, colours — sent to the image generator.",
+      "generateImageAction": "Generate image",
+      "addContextLabel": "Add context",
+      "attachFileTitle": "Attach CSV (sales or workspace table)",
+      "attachedSales": "Sales import",
+      "attachedWorkspaceCsv": "Workspace table",
+      "removeAttachment": "Remove",
+      "attachParseError": "Could not parse the file. Use CRM sales import CSV/XML, or a CSV with a header row for a workspace table.",
+      "cardsIntro": "Suggested starting points",
+      "emailComposer": {
+        "title": "Email to client",
+        "hintStyled": "Write plain text—the CRM wraps it in one branded layout (like signup emails). No HTML required.",
+        "sendFlowHintStyled": "Click Refresh preview, check the right pane, edit if needed, then Send.",
+        "account": "Sending account",
+        "pickAccount": "Select account",
+        "to": "To (emails, comma-separated)",
+        "headlineField": "Header title in the email",
+        "headlinePlaceholder": "e.g. A note from our team",
+        "contactId": "Contact (UUID)",
+        "leadId": "Lead (UUID)",
+        "fillFromEntity": "Fill JSON from contact/lead",
+        "variablesJson": "Variables for subject (JSON)",
+        "subject": "Subject",
+        "subjectRequired": "Enter a subject.",
+        "messagePlain": "Message",
+        "messagePlainHint": "The copy you agreed on with the AI. Blank line between paragraphs.",
+        "messagePlainPh": "Hello…",
+        "showAdvanced": "More: contact, variables, custom HTML",
+        "hideAdvanced": "Hide advanced fields",
+        "bodyHtmlFragment": "Custom HTML inside the email (optional)",
+        "bodyHtmlFragmentHint": "Only if you need a custom block; leave empty otherwise.",
+        "previewTitle": "Client preview",
+        "previewEmptyStyled": "Click Refresh preview to see the styled email.",
+        "refreshPreview": "Refresh preview",
+        "send": "Send email",
+        "toRequired": "Enter at least one email.",
+        "bodyRequired": "Enter the message body.",
+        "varsInvalid": "Invalid variables JSON.",
+        "applyEntityFailed": "Could not load contact or lead."
+      },
+      "openEmailComposer": "Email",
+      "presets": {
+        "board": { "label": "Board / project", "prompt": "Help plan a new CRM project: stages, tasks, owners." },
+        "doc": { "label": "Document", "prompt": "Draft a structured doc with goals and next steps." },
+        "data": { "label": "Analytics", "prompt": "Give a marketing overview for the last 30 days." },
+        "brain": { "label": "Ideas", "prompt": "Brainstorm how to improve lead-to-sale conversion." },
+        "image": { "label": "Visual", "prompt": "Suggest an image prompt for our pricing page." },
+        "vibe": { "label": "Article", "prompt": "Write a blog draft about our services, professional tone." },
+        "search": { "label": "CRM data", "prompt": "Summarise recent leads and sales using tools." },
+        "more": { "label": "Integrations", "prompt": "Which integrations are connected and what to improve?" }
+      },
+      "cards": [
+        { "title": "Kanban for a product launch.", "prompt": "Propose columns and tasks for a launch kanban.", "tag": "Board" },
+        { "title": "Quarter goals document with KPIs.", "prompt": "Create a Q goals doc with KPIs and owners.", "tag": "Doc" },
+        { "title": "Funnel risk summary.", "prompt": "Pull lead data and summarise risks and priorities.", "tag": "Analytics" },
+        { "title": "Social promo ideas.", "prompt": "Generate 10 social post ideas for a promo.", "tag": "Ideas" },
+        { "title": "Which channels to scale.", "prompt": "Analyse marketing channels and budget focus.", "tag": "Marketing" },
+        { "title": "Landing visual brief.", "prompt": "Write an image prompt for a pricing landing visual.", "tag": "Image" },
+        { "title": "Client onboarding draft.", "prompt": "Step-by-step onboarding for new CRM clients.", "tag": "Process" },
+        { "title": "Sales import checklist.", "prompt": "Checklist to prepare importing sales into CRM.", "tag": "Import" }
+      ]
+    },
+    "nav": {
+      "marketing": "Marketing",
+      "marketingTraffic": "Traffic",
+      "marketingCampaigns": "Campaigns (ROAS)",
+      "marketingUtms": "UTM tags",
+      "marketingSegments": "Segments",
+      "marketingStatuses": "Lead / client statuses",
+      "marketingChannels": "Channels and placements",
+      "marketingSeo": "SEO & content",
+      "marketingSmm": "SMM / social",
+      "marketingIntegrations": "Marketing integrations",
+      "marketingAutomations": "Automations (n8n)",
+      "marketingEmailTemplates": "Emails",
+      "tools": "Tools",
+      "toolsAutomations": "Automations",
+      "toolsEmail": "Email accounts",
+      "toolsEmailInbox": "Mail (inbox)",
+      "toolsTelegram": "Telegram"
+    },
+    "marketingTraffic": {
+      "kicker": "Marketing · Traffic",
+      "title": "Traffic sources and performance",
+      "subtitle": "Data from analytics (GA4, Yandex.Metrica) and ad accounts. Conversions and revenue from analytics; spend and clicks from Ads.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading traffic data…",
+      "errors": {
+        "load": "Could not load traffic data"
+      },
+      "kpi": {
+        "sessions": "Sessions",
+        "sessionsHint": "Total sessions across all sources for the period.",
+        "conversions": "Conversions",
+        "conversionsHint": "Total applications / leads.",
+        "cr": "Conversion (CR)",
+        "crHint": "Share of sessions that became leads.",
+        "revPerSession": "Revenue per session",
+        "revPerSessionHint": "Average revenue one session brings.",
+        "dbRows": "Rows in DB (period)",
+        "dbRowsHint": "How many marketing_traffic rows matched the filter"
+      },
+      "table": {
+        "title": "Traffic sources",
+        "subtitle": "Session channels, conversions, and revenue per source.",
+        "headers": {
+          "source": "Source / channel",
+          "type": "Type",
+          "sessions": "Sessions",
+          "conversions": "Conversions",
+          "cr": "CR",
+          "revenue": "Revenue"
+        },
+        "empty": "No traffic data for the selected period yet.",
+        "provider": "Provider",
+        "rows": "Rows",
+        "sessions": "Sessions / visits",
+        "clicks": "Clicks / views",
+        "impressions": "Impressions",
+        "cost": "Spend"
+      },
+      "types": {
+        "paid": "Paid",
+        "organic": "Organic search",
+        "email": "Email",
+        "social": "Social",
+        "direct": "Direct",
+        "other": "Other"
+      },
+      "common": {
+        "empty": "—"
+      },
+      "dataSourceLabel": "Data source",
+      "dataSourceAll": "All",
+      "dataSources": {
+        "ga4Property": "Google Analytics 4 (property {{id}})",
+        "meta_ads": "Meta Ads",
+        "yandex_metrika": "Yandex.Metrica",
+        "ga4": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "unknown": "No integration channel",
+        "import": "Import",
+        "manual": "Manual"
+      },
+      "extendedMetricsTitle": "Extended provider metrics",
+      "extendedMetricsSubtitle": "Aggregates by dataSource field in marketing_traffic for the selected period.",
+      "extendedMetricsEmpty": "No extended metrics yet: sync GA4, Yandex.Metrica, Meta Ads, or Google Ads, or pick “All time”.",
+      "extendedMetricsMismatch": "There are {{count}} rows in the selection but the provider breakdown is empty. Refresh with cache cleared.",
+      "rawRowsLabel": "Rows in period",
+      "impressionsLabel": "Impressions",
+      "spendLabel": "Spend",
+      "summaryBreakdownEmpty": "No provider breakdown for the selected period.",
+      "summaryBreakdownChannel": "Channel (data source)",
+      "summaryBreakdownRows": "Rows"
+    },
+    "marketingChannels": {
+      "kicker": "Marketing · Channels and placements",
+      "title": "Where leads come from",
+      "subtitle": "Data is aggregated by source and campaign from UTMs. See which channels drive traffic, leads, and revenue.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading channel data…",
+      "errors": {
+        "load": "Could not load channel data"
+      },
+      "kpi": {
+        "sessions": "Sessions",
+        "sessionsHint": "All channels, selected period",
+        "leads": "Leads",
+        "leadsHint": "Conversions from analytics",
+        "revenue": "Revenue",
+        "revenueHint": "From analytics data"
+      },
+      "topSources": "Top sources",
+      "topMediums": "Top placements (medium)",
+      "topCampaigns": "Top campaigns by revenue",
+      "common": {
+        "unknown": "(unknown)",
+        "none": "(none)",
+        "noCampaign": "(no utm_campaign)",
+        "noData": "No data."
+      }
+    },
+    "marketingChannelBlocks": {
+      "thImpressions": "Impressions",
+      "thClicks": "Clicks",
+      "thSessions": "Sessions",
+      "thLeads": "Leads",
+      "thCost": "Spend",
+      "thRevenue": "Revenue",
+      "allUnattributedHidden": "All rows are hidden: only records without an integration channel remain. Clear the filter below or set dataSource on import.",
+      "hideUnattributed": "Hide “no integration channel”",
+      "moreDetails": "Details",
+      "unknownExplain": "Rows without a data source in CRM: often imports from n8n/analytics without an integration tag. Impressions and spend here may overlap Meta/Google session slices without UTMs—do not add them to neighbors as “more ads.”",
+      "ctr": "CTR",
+      "cpc": "CPC",
+      "cpm": "CPM",
+      "cplShort": "CPL",
+      "topCampaigns": "Campaigns"
+    },
+    "marketingCampaigns": {
+      "kicker": "Marketing · Campaigns",
+      "title": "Ad campaign performance",
+      "subtitle": "Compare spend, revenue, and conversion by campaign. Data from analytics and traffic sources.",
+      "filters": {
+        "allSources": "All sources",
+        "numbersLabel": "Actual numbers in",
+        "numbersAsStored": "As stored in CRM",
+        "numbersHint": "Values from marketing_traffic after sync, without client-side recalculation.",
+        "sumsLabel": "Totals",
+        "sumsAsData": "As in data"
+      },
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading campaigns…",
+      "errors": {
+        "load": "Could not load campaigns"
+      },
+      "kpi": {
+        "campaigns": "Number of campaigns",
+        "campaignsHint": "Campaigns with traffic / spend recorded.",
+        "cost": "Campaign spend",
+        "costHint": "Total marketing spend for the period.",
+        "revenue": "Revenue by campaign",
+        "revenueHint": "Attributed revenue from related leads / sales.",
+        "roasCpl": "ROAS & CPL",
+        "roas": "ROAS",
+        "cpl": "CPL",
+        "roasCplHint": "ROAS and average cost per lead."
+      },
+      "top": {
+        "title": "Top campaigns",
+        "subtitle": "By revenue for the selected period.",
+        "subtitleCost": "By spend (revenue missing or zero for this top list).",
+        "shown": "Shown: {{count}}"
+      },
+      "table": {
+        "title": "Campaign list",
+        "subtitle": "Channels, spend, revenue, and efficiency.",
+        "count": "Total: {{count}}",
+        "headers": {
+          "campaign": "Campaign",
+          "source": "Source",
+          "medium": "Medium",
+          "cost": "Spend",
+          "revenue": "Revenue",
+          "leads": "Leads",
+          "impressions": "Impressions",
+          "clicks": "Clicks",
+          "roas": "ROAS",
+          "cpl": "CPL"
+        },
+        "empty": "No campaigns yet."
+      },
+      "tooltip": {
+        "revenue": "Revenue",
+        "cost": "Spend",
+        "leads": "Leads",
+        "clicks": "Clicks",
+        "sessions": "Sessions",
+        "roas": "ROAS",
+        "cpl": "CPL"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingIntegrations": {
+      "guide": {
+        "open": "Guide: keys and links",
+        "openAria": "Open step-by-step guide for marketing integrations"
+      },
+      "kicker": "Marketing · Integrations",
+      "title": "Marketing integrations",
+      "subtitle": "Set up analytics and ad accounts (GA4, Metrica, Meta Ads, Google Ads, etc.). Data is used in reports and n8n scenarios.",
+      "hint": "Sync pulls data into the traffic report (extended metrics by dataSource).",
+      "empty": "No integrations yet. Add them via API or form (if available).",
+      "syncZero": "Sync finished, new rows: 0 (empty API response for the period, no counter access, or integration skipped — see backend logs).",
+      "loading": "Loading integrations…",
+      "providers": {
+        "google_analytics": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "yandex_metrika": "Yandex.Metrica",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "tiktok_ads": "TikTok Ads",
+        "other": "Other"
+      },
+      "form": {
+        "title": "Add integration",
+        "intro": "The new connection will appear in the list on the right. Sync settings are stored in CRM; update via API if needed.",
+        "provider": "Provider",
+        "name": "Name in CRM",
+        "primaryId": "Primary ID (property, counter, ad account, etc.)",
+        "primaryIdHint": "GA4 property ID / Counter ID / Ad Account ID",
+        "ga": {
+          "serviceAccount": "Service Account JSON",
+          "conversionEvent": "Conversion event (optional)",
+          "revenueMetric": "Revenue metric (optional)"
+        },
+        "ym": {
+          "token": "OAuth token",
+          "goalId": "Goal ID (optional)",
+          "revenueMetric": "Revenue metric (optional)",
+          "currency": "Currency (optional)"
+        },
+        "ads": {
+          "developerToken": "Developer token",
+          "clientId": "OAuth client ID",
+          "clientSecret": "OAuth client secret",
+          "refreshToken": "Refresh token",
+          "loginCustomerId": "Login customer ID (optional)",
+          "source": "Source (optional)",
+          "medium": "Medium (optional)",
+          "currency": "Currency (optional)"
+        },
+        "meta": {
+          "accessToken": "Access token",
+          "conversionAction": "Conversion action (optional)",
+          "revenueAction": "Revenue action (optional)",
+          "source": "Source (optional)",
+          "medium": "Medium (optional)",
+          "currency": "Currency (optional)"
+        },
+        "note": "You can then use these connections in n8n flows: report exports, audience sync, etc.",
+        "pickCurrency": "Choose currency",
+        "clearCurrency": "Clear"
+      },
+      "actions": {
+        "create": "Create integration",
+        "creating": "Creating…",
+        "sync": "Sync",
+        "syncing": "Syncing…",
+        "delete": "Delete",
+        "currency": "Currency"
+      },
+      "table": {
+        "title": "Current integrations",
+        "subtitle": "Enabled integrations are used in marketing reports.",
+        "total": "Total: {{count}}",
+        "empty": "No integrations yet. Add at least GA4 or Metrica.",
+        "headers": {
+          "name": "Name",
+          "provider": "Provider",
+          "primaryId": "Primary ID",
+          "status": "Status",
+          "actions": "Actions"
+        }
+      },
+      "status": {
+        "enabled": "On",
+        "disabled": "Off"
+      },
+      "errors": {
+        "load": "Could not load integrations",
+        "requiredName": "Enter integration name",
+        "create": "Could not create integration",
+        "update": "Could not update integration",
+        "delete": "Could not delete integration",
+        "sync": "Could not sync",
+        "patchCurrency": "Could not save currency"
+      },
+      "confirmDelete": "Delete integration “{{name}}”?",
+      "syncResult": "Synced rows: {{count}}",
+      "common": {
+        "empty": "—"
+      },
+      "list": {
+        "currencyTitle": "Data source currency"
+      }
+    },
+    "marketingAutomations": {
+      "kicker": "Marketing · Automations",
+      "title": "Marketing automations (n8n)",
+      "subtitle": "Track n8n scenarios: traffic import, campaigns, audience sync. Later you can pull status from the n8n API.",
+      "loading": "Loading automations…",
+      "form": {
+        "title": "New scenario",
+        "name": "Scenario name",
+        "namePlaceholder": "GA4 → CRM import (daily)",
+        "webhook": "Webhook URL (from n8n)",
+        "note": "You can add tokens, schedule, and run status for each scenario."
+      },
+      "actions": {
+        "create": "Create scenario",
+        "creating": "Creating…",
+        "delete": "Delete"
+      },
+      "list": {
+        "title": "Current automations",
+        "subtitle": "Not linked to the n8n API yet; you can still store descriptions and webhooks per tenant.",
+        "total": "Total: {{count}}",
+        "empty": "No scenarios yet. Add at least traffic import from n8n.",
+        "lastStatus": "Last status: {{status}}",
+        "statusUnknown": "Status unknown yet"
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "errors": {
+        "load": "Could not load automations",
+        "requiredName": "Enter scenario name",
+        "create": "Could not create automation",
+        "update": "Could not update automation",
+        "delete": "Could not delete automation"
+      },
+      "confirmDelete": "Delete scenario “{{name}}”?"
+    },
+    "marketingSeo": {
+      "kicker": "Marketing · SEO & content",
+      "title": "SEO and site quality",
+      "subtitle": "This page shows how ready the site is to grow: speed, indexability, errors, and content structure. Some data from analytics; the rest via Search Console and PageSpeed.",
+      "loading": "Loading data…",
+      "status": {
+        "saved": "Saved",
+        "updated": "Metrics updated",
+        "siteAdded": "Site added",
+        "siteDeleted": "Site removed"
+      },
+      "errors": {
+        "load": "Could not load data",
+        "save": "Could not save settings",
+        "oauth": "Could not open OAuth",
+        "update": "Could not update metrics",
+        "gscNotSynced": "GSC not synced: check property access.",
+        "psiNotSynced": "PageSpeed not synced: check key and URL.",
+        "siteRequired": "Enter site domain",
+        "siteAdd": "Could not add site",
+        "siteApply": "Could not apply site",
+        "siteDelete": "Could not delete site"
+      },
+      "connections": {
+        "title": "Connections",
+        "subtitle": "Set up Search Console and PageSpeed for your site.",
+        "gscConnected": "GSC connected",
+        "connectGsc": "Connect GSC",
+        "refresh": "Refresh metrics",
+        "refreshing": "Refreshing…"
+      },
+      "period": {
+        "title": "Period",
+        "presets": {
+          "7": "7 d",
+          "30": "30 d",
+          "90": "90 d"
+        },
+        "custom": "custom",
+        "apply": "Apply period"
+      },
+      "compare": {
+        "title": "Compare",
+        "subtitle": "Show previous period."
+      },
+      "site": {
+        "title": "Site",
+        "placeholder": "Select site",
+        "addOption": "Add site +",
+        "delete": "Delete",
+        "deleting": "Deleting…"
+      },
+      "newSite": {
+        "title": "New site",
+        "placeholder": "example.com",
+        "add": "Add",
+        "adding": "Working…"
+      },
+      "fields": {
+        "gscPropertyUrl": "GSC property URL",
+        "pageSpeedUrl": "PageSpeed URL",
+        "pageSpeedApiKey": "PageSpeed API Key",
+        "pageSpeedStrategy": "PageSpeed strategy",
+        "strategy": {
+          "mobile": "mobile",
+          "desktop": "desktop"
+        }
+      },
+      "actions": {
+        "save": "Save",
+        "saving": "Saving…"
+      },
+      "syncingOverlay": "Refreshing data…",
+      "gsc": {
+        "title": "Search Console",
+        "period": "Period",
+        "clicks": "Clicks",
+        "impressions": "Impressions",
+        "ctr": "CTR",
+        "position": "Position",
+        "trendTitle": "Spend / Leads",
+        "trendSource": "Search",
+        "legend": {
+          "current": "Current period",
+          "previous": "Previous period"
+        },
+        "metricTabs": {
+          "clicks": "clicks",
+          "impressions": "impressions",
+          "ctr": "ctr",
+          "position": "position"
+        },
+        "empty": "No data. Connect GSC and run sync."
+      },
+      "gscDonut": {
+        "title": "Conversions by channel",
+        "subtitle": "Lead and deal funnel",
+        "average": "network average",
+        "labels": {
+          "ctr": "CTR",
+          "rank": "Rank",
+          "visibility": "Visibility"
+        },
+        "was": "Was: {{value}}%"
+      },
+      "psi": {
+        "title": "PageSpeed Insights",
+        "empty": "No data. Connect PageSpeed and run sync."
+      },
+      "psiDonut": {
+        "title": "Conversions by channel",
+        "subtitle": "Lead and deal funnel",
+        "average": "network average",
+        "labels": {
+          "performance": "Performance",
+          "seo": "SEO",
+          "accessibility": "Accessibility",
+          "best": "Best"
+        }
+      },
+      "psiMetrics": {
+        "lcp": "LCP: {{value}}s",
+        "cls": "CLS: {{value}}",
+        "fcp": "FCP: {{value}}s",
+        "tbt": "TBT: {{value}}s",
+        "speedIndex": "Speed Index: {{value}}s",
+        "strategy": "Strategy: {{value}}"
+      },
+      "control": {
+        "title": "What you can monitor in CRM",
+        "items": [
+          "Page speed and Core Web Vitals for key pages.",
+          "Indexing errors, duplicate pages, sitemap issues.",
+          "Top organic pages by traffic and conversion.",
+          "Compare SEO channels with ads and social."
+        ]
+      },
+      "connect": {
+        "title": "What to connect",
+        "items": [
+          "Google Search Console — indexing, errors, CTR.",
+          "PageSpeed Insights — speed and Core Web Vitals.",
+          "Analytics (GA4 / Yandex.Metrica) — behavior and conversions."
+        ]
+      }
+    },
+    "marketingSmm": {
+      "kicker": "Marketing · SMM",
+      "title": "Social and audience dynamics",
+      "subtitle": "Profiles and daily stats: followers, reach, views, engagement.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days"
+      },
+      "compareLabel": "Previous period",
+      "compare": {
+        "loading": "Loading…",
+        "noData": "No data",
+        "dash": "—"
+      },
+      "errors": {
+        "profiles": "Could not load profiles",
+        "stats": "Could not load statistics",
+        "createProfile": "Could not add profile",
+        "deleteProfile": "Could not delete profile",
+        "metaConnect": "Could not connect Meta",
+        "metaAssets": "Could not load Meta accounts",
+        "metaAdd": "Could not connect Meta account",
+        "metaRemove": "Could not disconnect Meta account",
+        "metaSync": "Could not update Meta data"
+      },
+      "meta": {
+        "profileAdded": "Profile connected",
+        "profileRemoved": "Profile disconnected",
+        "syncStatus": "Synced for {{label}}",
+        "scope": {
+          "days": "last {{days}} days",
+          "today": "today"
+        },
+        "connected": "connected",
+        "disconnected": "not connected"
+      },
+      "kpi": {
+        "activeProfiles": "Active profiles",
+        "activeProfilesHint": "Total profiles connected in CRM.",
+        "followersCurrent": "Followers (current)",
+        "followersHint": "Sum of followers across profiles on the latest date.",
+        "followersDelta": "Follower growth",
+        "followersDeltaHint": "Difference between start and end of the selected period.",
+        "reachEngagement": "Reach and engagement",
+        "reachLabel": "Reach",
+        "videoViewsLabel": "Video views",
+        "likesLabel": "Likes",
+        "commentsLabel": "Comments",
+        "erLabel": "ER",
+        "totalHint": "Total across platforms for the period."
+      },
+      "chart": {
+        "title": "Trend by platform",
+        "subtitle": "Daily values for the selected metric.",
+        "metrics": {
+          "followers": "Followers",
+          "reach": "Reach",
+          "likes": "Likes",
+          "comments": "Comments",
+          "videoViews": "Views"
+        },
+        "loading": "Loading chart…",
+        "empty": "No data for the selected period.",
+        "prevSuffix": "previous"
+      },
+      "profiles": {
+        "title": "Social profiles",
+        "subtitle": "Profiles and daily stats for selected networks.",
+        "tabs": {
+          "profiles": "Profiles",
+          "integrations": "Integrations"
+        },
+        "shown": "Shown: {{shown}} of {{total}}",
+        "searchPlaceholder": "Search by @account",
+        "filterAll": "All platforms",
+        "form": {
+          "platform": "Platform",
+          "handle": "Handle / @account",
+          "url": "URL (optional)",
+          "handlePlaceholder": "@company",
+          "urlPlaceholder": "https://instagram.com/...",
+          "add": "Add profile",
+          "adding": "Adding…"
+        },
+        "table": {
+          "headers": {
+            "profile": "Profile",
+            "platform": "Platform",
+            "followers": "Followers",
+            "reachLikesComments": "Reach / likes / comm",
+            "erViews": "ER / views",
+            "date": "Date",
+            "actions": "Actions"
+          },
+          "loading": "Loading…",
+          "empty": "No data for the selected filters."
+        },
+        "delete": "Delete",
+        "confirmDelete": "Delete profile {{platform}} {{handle}}?",
+        "loadMore": "Load more"
+      },
+      "integrations": {
+        "kicker": "Integrations",
+        "title": "Connections and status",
+        "subtitle": "Connect social networks and check status.",
+        "connections": "Connections",
+        "metaStatus": "Meta status: {{status}}",
+        "manage": "Manage",
+        "vkTitle": "VK Analytics",
+        "telegramTitle": "Telegram Analytics",
+        "inDev": "In development"
+      },
+      "popup": {
+        "title": "Integrations",
+        "close": "Close",
+        "metaTitle": "Meta (Facebook / Instagram)",
+        "statusLabel": "Status: {{status}}",
+        "connect": "Connect Meta",
+        "reconnect": "Reconnect Meta",
+        "syncNow": "Refresh now",
+        "syncing": "Updating…",
+        "accountList": "Account list",
+        "accountsTitle": "Meta accounts",
+        "showHidden": "Show hidden",
+        "loading": "Loading accounts…",
+        "empty": "No accounts found.",
+        "hide": "Hide",
+        "disconnectFacebook": "Disconnect",
+        "addFacebook": "Add Facebook",
+        "disconnectInstagram": "Disconnect",
+        "addInstagram": "Add Instagram",
+        "facebookPage": "Facebook Page",
+        "instagramPrefix": "Instagram: {{handle}}",
+        "vkTitle": "VK Analytics",
+        "tgTitle": "Telegram Analytics",
+        "tiktokTitle": "TikTok",
+        "inDevLabel": "In development",
+        "soon": "Coming soon",
+        "vkDesc": "Soon on the site — communities and metrics connection.",
+        "tgDesc": "Soon on the site — channel and engagement analytics.",
+        "tiktokDesc": "View and reach metrics — in development."
+      },
+      "platforms": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "telegram": "Telegram",
+        "vk": "VK",
+        "tiktok": "TikTok",
+        "other": "Other"
+      },
+      "zeroNotes": {
+        "igVideo": "Instagram video views may be unavailable for some profiles.",
+        "igEngagement": "Likes and comments may arrive with delay when there is no fresh content.",
+        "fbReach": "Facebook metrics may lag due to Insights limits."
+      }
+    },
+    "marketingUtms": {
+      "kicker": "Marketing · UTM tags",
+      "title": "UTM link builder",
+      "subtitle": "Build UTM links for campaigns quickly. You can save presets per channel (Google Ads, Meta Ads, Yandex, email, etc.).",
+      "fields": {
+        "channel": "Channel",
+        "baseUrl": "Base URL",
+        "utm_source": "utm_source",
+        "utm_medium": "utm_medium",
+        "utm_campaign": "utm_campaign",
+        "utm_content": "utm_content (optional)",
+        "utm_term": "utm_term (optional)",
+        "generatedUrl": "Generated link",
+        "templateName": "Template name"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com/landing",
+        "utm_campaign": "spring_2026_brand",
+        "utm_content": "banner_1",
+        "utm_term": "keyword",
+        "templateName": "Google Brand · RU · spring 2026"
+      },
+      "channels": {
+        "google_search": "Google Ads · Search",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "yandex_direct": "Yandex Direct",
+        "email": "Email newsletter",
+        "other": "Other"
+      },
+      "actions": {
+        "saveTemplate": "Save template",
+        "saving": "Saving…",
+        "applyTemplate": "Apply",
+        "deleteTemplate": "Delete"
+      },
+      "templates": {
+        "title": "Saved templates",
+        "subtitle": "Stored per company (tenant). Quickly apply parameters for recurring campaigns.",
+        "total": "Total: {{count}}",
+        "empty": "No saved templates yet. Build a UTM link and save it as a template."
+      },
+      "loading": "Loading templates…",
+      "errors": {
+        "loadTemplates": "Could not load UTM templates",
+        "nameRequired": "Enter template name",
+        "saveTemplate": "Could not save template",
+        "deleteTemplate": "Could not delete template"
+      },
+      "confirmDelete": "Delete template “{{name}}”?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingSegments": {
+      "kicker": "Marketing · Segments",
+      "title": "Lead segments",
+      "subtitle": "Save frequent lead selections: statuses, channels, countries, managers. Later: email, tasks in n8n.",
+      "errors": {
+        "load": "Could not load segments",
+        "save": "Could not save segment"
+      },
+      "form": {
+        "name": "Segment name",
+        "namePlaceholder": "Leads from Google Ads RU in the last 30 days",
+        "description": "Description (optional)",
+        "descriptionPlaceholder": "For emailing leads from brand traffic",
+        "statuses": "Lead statuses",
+        "source": "Source (source)",
+        "sourcePlaceholder": "google / facebook / crm…",
+        "country": "Country",
+        "countryPlaceholder": "TR / RU / PL / DE…",
+        "manager": "Manager (assignedTo)",
+        "managerPlaceholder": "Manager name",
+        "createdFrom": "Created from",
+        "createdTo": "Created to",
+        "helper": "Segments work on leads only for now. Later: email, export, n8n webhooks."
+      },
+      "statuses": {
+        "new": "New",
+        "in_progress": "In progress",
+        "waiting": "Waiting",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "actions": {
+        "create": "Create segment",
+        "creating": "Saving…",
+        "run": "Run",
+        "running": "Running…"
+      },
+      "list": {
+        "title": "Saved segments",
+        "subtitle": "Click “Run” to see how many leads match the segment.",
+        "total": "Total: {{count}}",
+        "empty": "No segments yet. Create the first one above.",
+        "meta": "entity: {{entity}} · created: {{date}}",
+        "found": "Found: {{count}}"
+      },
+      "loading": "Loading segments…"
+    },
+    "common": {
+      "delete": "Delete",
+      "close": "Close",
+      "sync": "Sync",
+      "loading": "…",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "marketingCurrency": {
+      "fxError": "Could not load exchange rates",
+      "missingRateFootnote": "* Row currency is not in EUR/GBP/TRY/RUB or the rate has not loaded yet — amount shown without conversion.",
+      "mixedShort": "mixed curr.",
+      "toolbar": {
+        "native": "As in data",
+        "convertedTo": "Converted to {{code}} (ECB, business day)",
+        "label": "Report currency",
+        "configure": "Configure",
+        "fxAsOf": "{{source}} {{date}}"
+      },
+      "modal": {
+        "title": "Campaign & traffic currency",
+        "introFx": "EUR, GBP, TRY, RUB rates are loaded from the server (Frankfurter / ECB). Integration currency is set with the “Currency” button in the integrations list.",
+        "modeConverted": "Single currency (ECB rate)",
+        "modeNative": "As in data (per channel)",
+        "fxTo": "Convert to",
+        "refreshFx": "Refresh rates"
+      },
+      "iso": {
+        "hint": "Pick an ISO currency code. You can filter the list.",
+        "search": "Search…",
+        "empty": "No matches"
+      }
+    },
+    "marketingChannelAnalytics": {
+      "dimEmpty": "(not set)",
+      "other": "Other",
+      "mapTitleGa4": "Geography (Google Analytics data)",
+      "mapHintGa4": "Country comes from countryId when syncing GA4. Intensity by sessions. These are web analytics aggregates, not individual CRM contacts.",
+      "mapEmptyNoInfer": "No geo in the database for the period and country could not be inferred from campaign names. For GA4 channels, sync the integration after updating.",
+      "geoUnknownCountry": "Country unknown",
+      "periodAll": "Full available period",
+      "close": "Close",
+      "sectionTrend": "Daily trend",
+      "loadingSeries": "Loading series…",
+      "emptySeries": "No daily data for the selected filter.",
+      "chartSessionsClicks": "Sessions and clicks",
+      "chartCostRevenue": "Spend and revenue (raw daily totals)",
+      "chartImpressions": "Impressions",
+      "sectionBreakdown": "Spend and traffic structure",
+      "pieCostCampaign": "Spend by campaign",
+      "pieSessionsSource": "Sessions by source",
+      "pieImprMedium": "Impressions by medium",
+      "barTopImpressions": "Top campaigns by impressions",
+      "sectionGeo": "Geography",
+      "geoTableTitle": "Sessions and views by country",
+      "geoTableHint": "Like the Geo report in Google Analytics: sessions and views by country. No individual CRM users—web analytics aggregates only.",
+      "geoColCountry": "Country",
+      "fullTable": "All campaigns in selection",
+      "fullTableHint": "Sort by column. Data matches the period aggregate on the traffic page.",
+      "mapTitle": "Geography (estimated from campaign names)",
+      "mapHint": "Colored by sessions. Country is guessed from keywords in campaign names (e.g. “Almanya”, “Polonya”). Without a match, data does not appear on the map.",
+      "mapEmpty": "No rows linked to a country from campaign names.",
+      "geoLoading": "Loading geo data…",
+      "mapNoCountryData": "No data for this country in the current selection.",
+      "mapScale": "Sessions (intensity)",
+      "roadmapTitle": "Pages and funnel (in development)",
+      "roadmapBody": "Geo by session for GA4 channels is pulled on sync (countryId). Reports by page URL, cities, and funnel steps are planned after schema/import extensions."
+    },
+    "marketingIntegrationsGuide": {
+      "kindVideo": "Video",
+      "kindConsole": "Console",
+      "kindArticle": "Article",
+      "navAria": "Guide sections",
+      "navTitle": "Sections",
+      "whereLead": "Ad and analytics consoles: where tokens, counter IDs, and API keys live.",
+      "whatLead": "Mapping fields in the “Add integration” form on the marketing connections page.",
+      "keysLead": "Formats without real secrets: easier to verify you copied the right value.",
+      "helpCardsTitle": "Official help with screenshots"
+    },
+    "emailTemplates": {
+      "list": {
+        "title": "Emails",
+        "subtitle": "Create and manage email templates for marketing campaigns",
+        "create": "Create template",
+        "createFirst": "Create your first template",
+        "subject": "Subject",
+        "loading": "Loading…",
+        "empty": "No templates",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this email template?",
+        "edit": "Edit",
+        "preview": "Preview",
+        "errors": {
+          "loadFailed": "Could not load templates",
+          "deleteFailed": "Could not delete template"
+        }
+      },
+      "form": {
+        "titleNew": "Create email template",
+        "titleEdit": "Edit email template",
+        "subtitle": "Build a template with variable support",
+        "fields": {
+          "name": "Name *",
+          "description": "Description",
+          "subject": "Email subject",
+          "htmlBody": "HTML body",
+          "textBody": "Plain text version",
+          "isActive": "Active",
+          "variables": "Available variables",
+          "preview": "Preview"
+        },
+        "hints": {
+          "activeAvailable": "Template will be available for use",
+          "availableVariables": "Available variables"
+        },
+        "placeholders": {
+          "name": "Template name",
+          "description": "Template description",
+          "subject": "Subject (you can use {{lead.name}}, {{lead.email}}, etc.)",
+          "htmlBody": "HTML email code…",
+          "textBody": "Plain text for clients without HTML"
+        },
+        "defaultTemplate": {
+          "greeting": "Hello, {{lead.name}}!",
+          "body": "This is a sample email using variables.",
+          "phoneLabel": "Phone:",
+          "statusLabel": "Status:",
+          "signature": "Best regards,<br>The Lumiva team"
+        },
+        "variables": {
+          "lead": "Lead: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
+          "contact": "Contact: {{contact.name}}, {{contact.email}}",
+          "company": "Company: {{company.name}}, {{company.email}}"
+        },
+        "actions": {
+          "save": "Save",
+          "saving": "Saving…",
+          "cancel": "Cancel",
+          "preview": "Preview",
+          "useTemplate": "Use template"
+        },
+        "errors": {
+          "saveFailed": "Could not save",
+          "loadFailed": "Could not load template",
+          "previewFailed": "Preview failed"
+        },
+        "success": {
+          "saved": "Template saved"
+        }
+      }
+    },
+    "sales": {
+      "analytics": {
+        "settings": {
+          "currencyMode": "Currency mode",
+          "displayCurrency": "Display currency"
+        }
+      }
+    }
+  }
+}

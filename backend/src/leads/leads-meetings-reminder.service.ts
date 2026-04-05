@@ -118,8 +118,10 @@ export class LeadsMeetingsReminderService {
       const accounts = await this.emailService.findAllAccounts(tenantId);
       const account = accounts.find((a) => a.status === 'active') || accounts[0];
       if (!account) return null;
-      cache.set(tenantId, account.id);
-      return account.id;
+      const id = String((account as { id?: string }).id || '');
+      if (!id) return null;
+      cache.set(tenantId, id);
+      return id;
     } catch (error: any) {
       this.logger.warn(`No email account for tenant ${tenantId}: ${error?.message || 'unknown error'}`);
       return null;

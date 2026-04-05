@@ -59,6 +59,9 @@ export enum TriggerEvent {
   // Отчёты по расписанию
   REPORT_SCHEDULED = 'report.scheduled',
 
+  /** Действия по расписанию (расписание в meta.schedule, как у отчётов) */
+  SCHEDULED = 'scheduled',
+
   // Custom objects (no-code tables)
   CUSTOM_OBJECT_RECORD_CREATED = 'custom_object.record_created',
   CUSTOM_OBJECT_RECORD_UPDATED = 'custom_object.record_updated',

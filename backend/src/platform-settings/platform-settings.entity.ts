@@ -53,6 +53,45 @@ export class PlatformSettings {
   @Column({ type: 'jsonb', nullable: true })
   billingPlans: unknown[] | null;
 
+  /** OpenAI-compatible API key (platform-wide; не отдавать в CRM UI) */
+  @Column({ type: 'text', nullable: true })
+  openAiApiKey: string | null;
+
+  /** База URL, например https://api.openai.com/v1 */
+  @Column({ type: 'text', nullable: true })
+  openAiBaseUrl: string | null;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  openAiModel: string | null;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  openAiImageModel: string | null;
+
+  /** USD за 1M input tokens (строка для decimal) */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  aiPriceInputPerMtokUsd: string | null;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  aiPriceOutputPerMtokUsd: string | null;
+
+  /** Фикс. списание в центах за одно изображение (внутренняя «стоимость») */
+  @Column({ type: 'int', nullable: true })
+  aiImageCostCents: number | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripePriceAiCredits: string | null;
+
+  @Column({ type: 'text', nullable: true })
+  stripePriceStoragePack: string | null;
+
+  /** Сколько центов AI-кредитов начислять за одну покупку (если нет metadata в Stripe) */
+  @Column({ type: 'int', nullable: true })
+  aiCreditsPackAmountCents: number | null;
+
+  /** +байт к storage_extra при покупке пакета хранилища */
+  @Column({ type: 'bigint', nullable: true })
+  storagePackBytes: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

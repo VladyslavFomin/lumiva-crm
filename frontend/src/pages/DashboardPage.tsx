@@ -35,6 +35,12 @@ import { DashboardWidgetChrome } from '../dashboard/DashboardWidgetChrome';
 import { DashboardCalendarMini } from '../dashboard/DashboardCalendarMini';
 import { DashboardPresetWidget } from '../dashboard/DashboardPresetWidget';
 import { DashboardAddPresetsModal } from '../dashboard/DashboardAddPresetsModal';
+import { DashboardQuickActions } from '../dashboard/DashboardQuickActions';
+import { DashboardActivityFeed } from '../dashboard/DashboardActivityFeed';
+import {
+  flattenLeadMeetingsFromLeads,
+  type LeadMeetingCalendarEvent,
+} from '../dashboard/flattenLeadMeetings';
 
 interface LeadShort {
   id: string;
@@ -107,10 +113,20 @@ interface DashboardData {
   salesByChannel: { channel: string; revenueEUR: number }[];
   /** Для выбора лидов во встречах (календарь) */
   leadPickerOptions: { id: string; name: string }[];
+  /** Встречи из карточек лидов (в т.ч. от ИИ) — показываем в календаре главной */
+  leadCalendarMeetings: LeadMeetingCalendarEvent[];
   /** Сводка по продажам для виджета на главной */
   salesSnapshot: { count: number; amount: number };
   /** Проекты в области видимости дашборда (для пресетов аналитики) */
   myProjects: Project[];
+  activityRecentLeads: { id: string; name: string; channel: string; createdAt: string }[];
+  activityUrgentTasks: {
+    id: string;
+    projectId: string;
+    projectName: string;
+    taskTitle: string;
+    due: string;
+  }[];
 }
 
 interface TaskWithProject extends ProjectTask {
@@ -564,6 +580,52 @@ async function loadDashboardData(
       name: l.name || t('crm.dashboard.fallbacks.noName'),
     }));
 
+  // Встречи из meta.meetings: как у GET /leads (все видимые лиды), а не урезанный myLeads —
+  // иначе встречи по лидам из co-assignees (assignedUserIds) и записи от ИИ не попадали в виджет.
+  const leadCalendarMeetings = flattenLeadMeetingsFromLeads(allLeads);
+
+  const activityRecentLeads = [...myLeads]
+    .sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )
+    .slice(0, 8)
+    .map((l) => ({
+      id: l.id,
+      name: l.name || t('crm.dashboard.fallbacks.noName'),
+      channel: l.channel || t('crm.dashboard.fallbacks.empty'),
+      createdAt: l.createdAt,
+    }));
+
+  const tsDay = todayStart.getTime();
+  const teDay = todayEnd.getTime();
+  const activityUrgentTasks = visibleTasksForDashboard
+    .filter((task) => task.deadline)
+    .map((task) => {
+      const taskTitle =
+        task.title || t('crm.dashboard.tasks.fallbackTitle');
+      const day = new Date(task.deadline!);
+      day.setHours(0, 0, 0, 0);
+      const dt = day.getTime();
+      let tier = 2;
+      if (dt < tsDay) tier = 0;
+      else if (dt >= tsDay && dt < teDay) tier = 1;
+      return {
+        tier,
+        sortDue: new Date(task.deadline!).getTime(),
+        id: task.id,
+        projectId: task.projectId,
+        projectName: task.projectName,
+        taskTitle,
+        due: new Date(task.deadline!).toLocaleString(locale),
+      };
+    })
+    .sort((a, b) =>
+      a.tier !== b.tier ? a.tier - b.tier : a.sortDue - b.sortDue,
+    )
+    .slice(0, 8)
+    .map(({ tier: _t, sortDue: _s, ...rest }) => rest);
+
   return {
     myProjects,
     summary: {
@@ -584,7 +646,10 @@ async function loadDashboardData(
     staffPerformance,
     salesByChannel,
     leadPickerOptions,
+    leadCalendarMeetings,
     salesSnapshot,
+    activityRecentLeads,
+    activityUrgentTasks,
   };
 }
 
@@ -873,6 +938,10 @@ export const DashboardPage: React.FC = () => {
     () => data?.leadPickerOptions || [],
     [data?.leadPickerOptions],
   );
+  const leadMeetingsForCalendar = useMemo(
+    () => data?.leadCalendarMeetings || [],
+    [data?.leadCalendarMeetings],
+  );
 
   const renderWidgetBody = (id: string) => {
     if (!data) return null;
@@ -933,9 +1002,26 @@ export const DashboardPage: React.FC = () => {
             />
           </div>
         );
+      case 'quick-actions':
+        return <DashboardQuickActions />;
       case 'calendar':
         return (
-          <DashboardCalendarMini locale={locale} leads={leadsForCalendar} />
+          <DashboardCalendarMini
+            locale={locale}
+            leads={leadsForCalendar}
+            leadMeetings={leadMeetingsForCalendar}
+          />
+        );
+      case 'activity-feed':
+        return (
+          <DashboardActivityFeed
+            locale={locale}
+            todayLeads={data.summary?.todayLeads ?? 0}
+            tasksOverdue={data.tasksSummary?.overdue ?? 0}
+            tasksToday={data.tasksSummary?.today ?? 0}
+            recentLeads={data.activityRecentLeads}
+            urgentTasks={data.activityUrgentTasks}
+          />
         );
       case 'leads-timeline':
         return (

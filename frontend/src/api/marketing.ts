@@ -294,51 +294,6 @@ export async function deleteUtmTemplate(id: string): Promise<void> {
   await api.delete(`/marketing/utm-templates/${id}`);
 }
 
-export interface MarketingAutomation {
-  id: string;
-  tenantId: string;
-  name: string;
-  type: string;
-  webhookUrl: string | null;
-  isActive: boolean;
-  lastStatus: string | null;
-  lastRunAt: string | null;
-  meta: unknown;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export async function fetchMarketingAutomations(): Promise<MarketingAutomation[]> {
-  return api.get<MarketingAutomation[]>('/marketing/automations');
-}
-
-export async function createMarketingAutomation(payload: {
-  name: string;
-  type?: string;
-  webhookUrl?: string;
-  isActive?: boolean;
-  meta?: unknown;
-}): Promise<MarketingAutomation> {
-  return api.post<MarketingAutomation>('/marketing/automations', payload);
-}
-
-export async function updateMarketingAutomation(
-  id: string,
-  payload: Partial<{
-    name: string;
-    type: string;
-    webhookUrl: string;
-    isActive: boolean;
-    meta: unknown;
-  }>,
-): Promise<MarketingAutomation> {
-  return api.patch<MarketingAutomation>(`/marketing/automations/${id}`, payload);
-}
-
-export async function deleteMarketingAutomation(id: string): Promise<void> {
-  await api.delete(`/marketing/automations/${id}`);
-}
-
 export type LeadSegmentFilters = {
   statuses?: string[];
   sources?: string[];

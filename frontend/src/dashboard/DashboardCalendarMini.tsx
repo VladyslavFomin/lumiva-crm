@@ -1,14 +1,26 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchEmailAccounts, sendEmail } from '../api/email';
 import { fetchStaff, type StaffUser } from '../api/staff';
 import { fetchDepartments, type Department } from '../api/departments';
 import { buildIcsEvent, icsToBase64 } from './dashboardIcs';
 import { loadMeetings, saveMeetings, type DashboardMeeting } from './dashboardMeetings';
-import { toLocalDateKey } from '../utils/calendarLocalDates';
+import { parseDatetimeLocalValue, toLocalDateKey } from '../utils/calendarLocalDates';
+import type { LeadMeetingCalendarEvent } from './flattenLeadMeetings';
 
 type LeadOpt = { id: string; name: string };
+
+type CalendarEntry =
+  | { source: 'local'; m: DashboardMeeting }
+  | { source: 'lead'; e: LeadMeetingCalendarEvent };
+
+function leadEventCoversDay(e: LeadMeetingCalendarEvent, dayKey: string): boolean {
+  const startKey = toLocalDateKey(new Date(e.startsAt));
+  const endKey = toLocalDateKey(new Date(e.endsAt || e.startsAt));
+  return !!(startKey && endKey && dayKey >= startKey && dayKey <= endKey);
+}
 
 function pad2(n: number) {
   return n < 10 ? `0${n}` : `${n}`;
@@ -35,13 +47,16 @@ function sameDay(a: Date, b: Date) {
 export const DashboardCalendarMini: React.FC<{
   locale: string;
   leads: LeadOpt[];
-}> = ({ locale, leads }) => {
+  /** Встречи из лидов (CRM / ИИ) — отображаются вместе с локальными записями */
+  leadMeetings?: LeadMeetingCalendarEvent[];
+}> = ({ locale, leads, leadMeetings = [] }) => {
   const { t } = useTranslation();
   const [cursor, setCursor] = useState(() => startOfMonth(new Date()));
   const [meetings, setMeetings] = useState<DashboardMeeting[]>(() => loadMeetings());
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
-  const [modal, setModal] = useState<'create' | 'day' | null>(null);
+  const [modal, setModal] = useState<'compose' | null>(null);
+  const [composeError, setComposeError] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
   const [draft, setDraft] = useState({
@@ -92,20 +107,43 @@ export const DashboardCalendarMini: React.FC<{
     return cells;
   }, [cursor]);
 
-  const meetingsForDay = useCallback(
-    (day: Date | null) => {
+  const entriesForDay = useCallback(
+    (day: Date | null): CalendarEntry[] => {
       if (!day) return [];
       const dayKey = toLocalDateKey(day);
-      return meetings.filter((m) => {
+      if (!dayKey) return [];
+      const list: CalendarEntry[] = [];
+      for (const m of meetings) {
         const startKey = toLocalDateKey(new Date(m.startsAt));
         const endKey = toLocalDateKey(new Date(m.endsAt || m.startsAt));
-        return startKey && endKey && dayKey >= startKey && dayKey <= endKey;
+        if (startKey && endKey && dayKey >= startKey && dayKey <= endKey) {
+          list.push({ source: 'local', m });
+        }
+      }
+      for (const e of leadMeetings) {
+        if (leadEventCoversDay(e, dayKey)) list.push({ source: 'lead', e });
+      }
+      list.sort((a, b) => {
+        const ta = new Date(
+          a.source === 'local' ? a.m.startsAt : a.e.startsAt,
+        ).getTime();
+        const tb = new Date(
+          b.source === 'local' ? b.m.startsAt : b.e.startsAt,
+        ).getTime();
+        return ta - tb;
       });
+      return list;
     },
-    [meetings],
+    [meetings, leadMeetings],
   );
 
+  const composeDayEntries = useMemo(() => {
+    if (!selectedDay) return [];
+    return entriesForDay(selectedDay);
+  }, [selectedDay, entriesForDay]);
+
   const openCreate = (day: Date) => {
+    setComposeError(null);
     const y = day.getFullYear();
     const mo = day.getMonth();
     const da = day.getDate();
@@ -127,10 +165,11 @@ export const DashboardCalendarMini: React.FC<{
       departmentIds: [],
     });
     setSelectedDay(day);
-    setModal('create');
+    setModal('compose');
   };
 
   const openCreateNote = (day: Date) => {
+    setComposeError(null);
     const y = day.getFullYear();
     const mo = day.getMonth();
     const da = day.getDate();
@@ -152,7 +191,7 @@ export const DashboardCalendarMini: React.FC<{
       departmentIds: [],
     });
     setSelectedDay(day);
-    setModal('create');
+    setModal('compose');
   };
 
   const collectEmails = (): string[] => {
@@ -180,6 +219,7 @@ export const DashboardCalendarMini: React.FC<{
   }, [locale]);
 
   const submitMeeting = async () => {
+    setComposeError(null);
     const leadNamesLine = draft.leadIds
       .map((lid) => leads.find((l) => l.id === lid)?.name || lid)
       .join(', ');
@@ -193,14 +233,22 @@ export const DashboardCalendarMini: React.FC<{
       const da = day.getDate();
       start = new Date(y, mo, da, 0, 0, 0, 0);
       end = new Date(y, mo, da, 23, 59, 59, 999);
-      if (!draft.title.trim()) return;
     } else {
-      start = new Date(draft.startLocal);
-      end = new Date(draft.endLocal);
-      if (!draft.title.trim() || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      const s = parseDatetimeLocalValue(draft.startLocal);
+      const e = parseDatetimeLocalValue(draft.endLocal);
+      if (!s || !e) {
+        setComposeError(t('crm.dashboard.calendar.validationTime'));
         return;
       }
+      start = s;
+      end = e;
     }
+
+    const title =
+      draft.title.trim() ||
+      (draft.kind === 'note'
+        ? t('crm.dashboard.calendar.untitledNote')
+        : t('crm.dashboard.calendar.untitledMeeting'));
 
     const attendeeEmails = collectEmails();
     const id =
@@ -211,7 +259,7 @@ export const DashboardCalendarMini: React.FC<{
     const meeting: DashboardMeeting = {
       id,
       kind: draft.kind,
-      title: draft.title.trim(),
+      title,
       body: draft.body.trim(),
       meetingUrl: draft.kind === 'meeting' ? draft.meetingUrl.trim() : '',
       startsAt: start.toISOString(),
@@ -221,7 +269,20 @@ export const DashboardCalendarMini: React.FC<{
       departmentIds: draft.departmentIds,
       createdAt: new Date().toISOString(),
     };
-    setMeetings((prev) => [...prev, meeting]);
+    // Сохраняем в localStorage сразу в этом же колбэке: иначе в dev (Strict Mode)
+    // компонент может размонтироваться до useEffect, и запись не попадёт в хранилище.
+    setMeetings((prev) => {
+      const next = [...prev, meeting];
+      saveMeetings(next);
+      return next;
+    });
+    setCursor((c) => {
+      const y = start.getFullYear();
+      const m = start.getMonth();
+      if (c.getFullYear() === y && c.getMonth() === m) return c;
+      return new Date(y, m, 1);
+    });
+    setComposeError(null);
     setModal(null);
 
     const urlLine =
@@ -316,37 +377,84 @@ export const DashboardCalendarMini: React.FC<{
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 text-[10px] text-slate-500 text-center mb-1">
+      <p className="text-[10px] leading-snug text-slate-500">
+        {t('crm.dashboard.calendar.hintSources')}
+      </p>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 shrink-0 rounded-sm bg-sky-400" />
+          {t('crm.dashboard.calendar.legendLocal')}
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 shrink-0 rounded-sm bg-violet-500" />
+          {t('crm.dashboard.calendar.legendLead')}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 text-[10px] font-medium text-slate-500 text-center mb-1">
         {dowLabels.map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1.5">
         {grid.map((cell, idx) => {
           if (!cell) {
-            return <div key={`e-${idx}`} className="h-9" />;
+            return <div key={`e-${idx}`} className="min-h-[72px]" />;
           }
-          const count = meetingsForDay(cell).length;
+          const entries = entriesForDay(cell);
+          const count = entries.length;
+          const previews = entries.slice(0, 2);
           const isToday = sameDay(cell, new Date());
           return (
             <button
               key={cell.toISOString()}
               type="button"
-              onClick={() => {
-                setSelectedDay(cell);
-                setModal('day');
-              }}
+              onClick={() => openCreate(cell)}
               className={
-                'h-9 rounded-xl text-[11px] border transition-colors ' +
+                'min-h-[72px] rounded-xl border text-left transition-colors flex flex-col p-1 ' +
                 (isToday
-                  ? 'border-sky-500 bg-sky-50 text-sky-900 font-semibold'
-                  : 'border-slate-100 bg-slate-50/80 hover:bg-slate-100 text-slate-800')
+                  ? 'border-sky-500 bg-sky-50/90 text-sky-950 ring-1 ring-sky-200'
+                  : 'border-slate-200/90 bg-white hover:bg-slate-50 text-slate-900')
               }
             >
-              <div>{cell.getDate()}</div>
-              {count > 0 && (
-                <div className="mx-auto mt-0.5 h-1 w-1 rounded-full bg-emerald-500" />
-              )}
+              <span
+                className={
+                  'text-[12px] font-semibold tabular-nums ' +
+                  (isToday ? 'text-sky-800' : 'text-slate-800')
+                }
+              >
+                {cell.getDate()}
+              </span>
+              <div className="mt-0.5 flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
+                {previews.map((ent) => {
+                  const key =
+                    ent.source === 'local'
+                      ? ent.m.id
+                      : `lm-${ent.e.leadId}-${ent.e.meetingId}`;
+                  const label =
+                    ent.source === 'local' ? ent.m.title : ent.e.title;
+                  const chip =
+                    ent.source === 'local'
+                      ? 'bg-sky-100/90 text-sky-950'
+                      : 'bg-violet-100/90 text-violet-950';
+                  return (
+                    <div
+                      key={key}
+                      className={
+                        'truncate rounded px-1 py-0.5 text-[9px] font-medium leading-tight ' +
+                        chip
+                      }
+                    >
+                      {label || '—'}
+                    </div>
+                  );
+                })}
+                {count > 2 ? (
+                  <span className="text-[9px] font-semibold text-slate-500">
+                    +{count - 2}
+                  </span>
+                ) : null}
+              </div>
             </button>
           );
         })}
@@ -372,273 +480,426 @@ export const DashboardCalendarMini: React.FC<{
       {modal &&
         createPortal(
           <div
-            className="fixed inset-0 z-[10080] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm"
+            className="fixed inset-0 z-[10080] flex items-center justify-center p-3 sm:p-4 bg-slate-900/25 backdrop-blur-sm"
             role="presentation"
-            onMouseDown={() => setModal(null)}
+            onMouseDown={() => {
+              setComposeError(null);
+              setModal(null);
+            }}
           >
             <div
               role="dialog"
-              className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl border border-slate-200/90 bg-white/98 backdrop-blur-md p-5 ring-1 ring-slate-900/[0.08]"
+              aria-modal="true"
+              aria-labelledby="dashboard-calendar-sheet-title"
+              className="flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/[0.04] sm:max-w-lg"
               onMouseDown={(e) => e.stopPropagation()}
             >
-              {modal === 'day' && selectedDay && (
+              {modal === 'compose' && selectedDay && (
                 <>
-                  <div className="text-sm font-semibold text-slate-900 mb-3">
-                    {selectedDay.toLocaleDateString(locale, {
-                      weekday: 'long',
-                      day: 'numeric',
-                      month: 'long',
-                    })}
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    {meetingsForDay(selectedDay).length === 0 && (
-                      <div className="text-[11px] text-slate-500">{t('crm.dashboard.calendar.noEvents')}</div>
-                    )}
-                    {meetingsForDay(selectedDay).map((m) => (
-                      <div
-                        key={m.id}
-                        className="rounded-2xl border border-slate-200 px-3 py-2 text-[11px]"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="font-medium text-slate-900">{m.title}</div>
-                          <span
-                            className={
-                              'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] uppercase ' +
-                              (m.kind === 'note'
-                                ? 'bg-amber-100 text-amber-900'
-                                : 'bg-sky-100 text-sky-900')
-                            }
-                          >
-                            {m.kind === 'note'
-                              ? t('crm.dashboard.calendar.badgeNote')
-                              : t('crm.dashboard.calendar.badgeMeeting')}
-                          </span>
-                        </div>
-                        {m.kind === 'meeting' ? (
-                          <div className="text-slate-500 mt-0.5">
-                            {new Date(m.startsAt).toLocaleTimeString(locale, {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}{' '}
-                            –{' '}
-                            {new Date(m.endsAt).toLocaleTimeString(locale, {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </div>
-                        ) : (
-                          <div className="text-slate-500 mt-0.5">
-                            {t('crm.dashboard.calendar.allDayNote')}
-                          </div>
-                        )}
-                        {m.meetingUrl ? (
-                          <a
-                            href={m.meetingUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-sky-700 underline mt-1 inline-block"
-                          >
-                            {t('crm.dashboard.calendar.joinLink')}
-                          </a>
-                        ) : null}
-                        {m.body ? (
-                          <div className="text-slate-600 mt-1 whitespace-pre-wrap">{m.body}</div>
-                        ) : null}
+                  <header className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 sm:px-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                          {t('crm.dashboard.calendar.sheetKicker')}
+                        </p>
+                        <h2
+                          id="dashboard-calendar-sheet-title"
+                          className="mt-0.5 text-lg font-semibold leading-snug text-slate-900 capitalize sm:text-xl"
+                        >
+                          {selectedDay.toLocaleDateString(locale, {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                          })}
+                        </h2>
+                        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                          {composeDayEntries.length === 0
+                            ? t('crm.dashboard.calendar.sheetEmptyHint')
+                            : t('crm.dashboard.calendar.sheetHasEvents', {
+                                count: composeDayEntries.length,
+                              })}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex gap-2">
                       <button
                         type="button"
-                        className="flex-1 rounded-2xl bg-lumiva-accent text-white text-[11px] py-2 border border-lumiva-accent hover:opacity-90"
-                        onClick={() => openCreate(selectedDay)}
+                        className="shrink-0 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                        aria-label={t('crm.common.close')}
+                        onClick={() => {
+                          setComposeError(null);
+                          setModal(null);
+                        }}
                       >
-                        {t('crm.dashboard.calendar.newMeeting')}
-                      </button>
-                      <button
-                        type="button"
-                        className="flex-1 rounded-2xl border border-slate-200 bg-white text-slate-800 text-[11px] font-semibold py-2 hover:bg-slate-50"
-                        onClick={() => openCreateNote(selectedDay)}
-                      >
-                        {t('crm.dashboard.calendar.newNote')}
+                        <svg
+                          className="h-5 w-5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          aria-hidden
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6 18L18 6M6 6l12 12"
+                          />
+                        </svg>
                       </button>
                     </div>
-                    <button
-                      type="button"
-                      className="w-full rounded-2xl border border-slate-200 px-4 text-[11px] py-2"
-                      onClick={() => setModal(null)}
-                    >
-                      {t('crm.common.close')}
-                    </button>
-                  </div>
-                </>
-              )}
+                  </header>
 
-              {modal === 'create' && (
-                <>
-                  <div className="text-sm font-semibold text-slate-900 mb-3">
-                    {draft.kind === 'note'
-                      ? t('crm.dashboard.calendar.newNote')
-                      : t('crm.dashboard.calendar.newMeeting')}
-                  </div>
-                  <div className="flex gap-2 mb-3">
-                    <button
-                      type="button"
-                      className={
-                        'flex-1 rounded-xl border py-1.5 text-[11px] font-medium ' +
-                        (draft.kind === 'meeting'
-                          ? 'border-lumiva-accent bg-lumiva-accent text-white'
-                          : 'border-slate-200 bg-white text-slate-800')
-                      }
-                      onClick={() => setDraft((d) => ({ ...d, kind: 'meeting' }))}
+                  {composeError ? (
+                    <div
+                      className="shrink-0 border-b border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-medium text-rose-900 sm:px-5"
+                      role="alert"
                     >
-                      {t('crm.dashboard.calendar.typeMeeting')}
-                    </button>
-                    <button
-                      type="button"
-                      className={
-                        'flex-1 rounded-xl border py-1.5 text-[11px] font-medium ' +
-                        (draft.kind === 'note'
-                          ? 'border-lumiva-accent bg-lumiva-accent text-white'
-                          : 'border-slate-200 bg-white text-slate-800')
-                      }
-                      onClick={() => setDraft((d) => ({ ...d, kind: 'note' }))}
-                    >
-                      {t('crm.dashboard.calendar.typeNote')}
-                    </button>
-                  </div>
-                  <label className="block text-[11px] text-slate-600 mb-1">{t('crm.dashboard.calendar.subject')}</label>
-                  <input
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs mb-3"
-                    value={draft.title}
-                    onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
-                  />
-                  {draft.kind === 'meeting' && (
-                    <>
-                      <div className="grid grid-cols-2 gap-2 mb-3">
-                        <div>
-                          <label className="block text-[11px] text-slate-600 mb-1">{t('crm.dashboard.calendar.start')}</label>
-                          <input
-                            type="datetime-local"
-                            className="w-full rounded-xl border border-slate-200 px-2 py-1.5 text-[11px]"
-                            value={draft.startLocal}
-                            onChange={(e) => setDraft((d) => ({ ...d, startLocal: e.target.value }))}
-                          />
+                      {composeError}
+                    </div>
+                  ) : null}
+
+                  <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+                    {composeDayEntries.length > 0 && (
+                      <section className="mb-6">
+                        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                          {t('crm.dashboard.calendar.existingEvents')}
+                        </h3>
+                        <div className="space-y-2">
+                          {composeDayEntries.map((ent) =>
+                            ent.source === 'lead' ? (
+                              <div
+                                key={`lm-${ent.e.leadId}-${ent.e.meetingId}`}
+                                className="rounded-xl border border-violet-200 bg-violet-50/80 px-3 py-2.5 text-[11px]"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 font-medium text-slate-900">
+                                    {ent.e.title}
+                                  </div>
+                                  <span className="shrink-0 rounded-md bg-violet-200/80 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-900">
+                                    {t('crm.dashboard.calendar.badgeLead')}
+                                  </span>
+                                </div>
+                                <div className="mt-1 text-slate-600">
+                                  {new Date(ent.e.startsAt).toLocaleTimeString(locale, {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                  {ent.e.endsAt
+                                    ? ` – ${new Date(ent.e.endsAt).toLocaleTimeString(locale, {
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })}`
+                                    : ''}
+                                </div>
+                                <Link
+                                  to={`/leads/${ent.e.leadId}`}
+                                  className="mt-1.5 inline-block text-[11px] font-medium text-violet-700 underline decoration-violet-200 hover:text-violet-900"
+                                >
+                                  {ent.e.leadName}
+                                </Link>
+                                {ent.e.meetingUrl ? (
+                                  <a
+                                    href={ent.e.meetingUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-1 block text-[11px] text-sky-700 underline hover:text-sky-900"
+                                  >
+                                    {t('crm.dashboard.calendar.joinLink')}
+                                  </a>
+                                ) : null}
+                                {ent.e.notes ? (
+                                  <div className="mt-1.5 whitespace-pre-wrap text-slate-600">
+                                    {ent.e.notes}
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : (
+                              <div
+                                key={ent.m.id}
+                                className="rounded-xl border border-slate-200 bg-slate-50/90 px-3 py-2.5 text-[11px]"
+                              >
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0 font-medium text-slate-900">{ent.m.title}</div>
+                                  <span
+                                    className={
+                                      'shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ' +
+                                      (ent.m.kind === 'note'
+                                        ? 'bg-amber-100 text-amber-900'
+                                        : 'bg-sky-100 text-sky-900')
+                                    }
+                                  >
+                                    {ent.m.kind === 'note'
+                                      ? t('crm.dashboard.calendar.badgeNote')
+                                      : t('crm.dashboard.calendar.badgeMeeting')}
+                                  </span>
+                                </div>
+                                {ent.m.kind === 'meeting' ? (
+                                  <div className="mt-1 text-slate-600">
+                                    {new Date(ent.m.startsAt).toLocaleTimeString(locale, {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}{' '}
+                                    –{' '}
+                                    {new Date(ent.m.endsAt).toLocaleTimeString(locale, {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="mt-1 text-slate-600">
+                                    {t('crm.dashboard.calendar.allDayNote')}
+                                  </div>
+                                )}
+                                {ent.m.meetingUrl ? (
+                                  <a
+                                    href={ent.m.meetingUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-1.5 inline-block text-[11px] text-sky-700 underline hover:text-sky-900"
+                                  >
+                                    {t('crm.dashboard.calendar.joinLink')}
+                                  </a>
+                                ) : null}
+                                {ent.m.body ? (
+                                  <div className="mt-1.5 whitespace-pre-wrap text-slate-600">{ent.m.body}</div>
+                                ) : null}
+                              </div>
+                            ),
+                          )}
                         </div>
-                        <div>
-                          <label className="block text-[11px] text-slate-600 mb-1">{t('crm.dashboard.calendar.end')}</label>
-                          <input
-                            type="datetime-local"
-                            className="w-full rounded-xl border border-slate-200 px-2 py-1.5 text-[11px]"
-                            value={draft.endLocal}
-                            onChange={(e) => setDraft((d) => ({ ...d, endLocal: e.target.value }))}
-                          />
-                        </div>
+                      </section>
+                    )}
+
+                    <section>
+                      <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        {t('crm.dashboard.calendar.newEntrySection')}
+                      </h3>
+                      <div className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1">
+                        <button
+                          type="button"
+                          className={
+                            'flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ' +
+                            (draft.kind === 'meeting'
+                              ? 'bg-[#222222] text-white shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900')
+                          }
+                          onClick={() => {
+                            if (draft.kind === 'meeting') return;
+                            openCreate(selectedDay);
+                          }}
+                        >
+                          {t('crm.dashboard.calendar.typeMeeting')}
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            'flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ' +
+                            (draft.kind === 'note'
+                              ? 'bg-[#222222] text-white shadow-sm'
+                              : 'text-slate-600 hover:text-slate-900')
+                          }
+                          onClick={() => {
+                            if (draft.kind === 'note') return;
+                            openCreateNote(selectedDay);
+                          }}
+                        >
+                          {t('crm.dashboard.calendar.typeNote')}
+                        </button>
                       </div>
-                      <label className="block text-[11px] text-slate-600 mb-1">{t('crm.dashboard.calendar.meetingUrl')}</label>
+
+                      <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                        {t('crm.dashboard.calendar.subject')}
+                      </label>
                       <input
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs mb-3"
-                        placeholder="https://"
-                        value={draft.meetingUrl}
-                        onChange={(e) => setDraft((d) => ({ ...d, meetingUrl: e.target.value }))}
+                        className="mb-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                        value={draft.title}
+                        placeholder={t('crm.dashboard.calendar.subjectPlaceholder')}
+                        onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
                       />
-                    </>
-                  )}
-                  {draft.kind === 'note' && selectedDay && (
-                    <p className="text-[11px] text-slate-500 mb-3">
-                      {t('crm.dashboard.calendar.noteDayHint', {
-                        date: selectedDay.toLocaleDateString(locale),
-                      })}
-                    </p>
-                  )}
-                  <label className="block text-[11px] text-slate-600 mb-1">{t('crm.dashboard.calendar.notes')}</label>
-                  <textarea
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs mb-3 min-h-[72px]"
-                    value={draft.body}
-                    onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
-                  />
 
-                  <div className="text-[11px] font-medium text-slate-700 mb-1">{t('crm.dashboard.calendar.participants')}</div>
-                  <div className="max-h-28 overflow-y-auto rounded-xl border border-slate-200 p-2 mb-3 space-y-1">
-                    {staff.map((s) => (
-                      <label key={s.id} className="flex items-center gap-2 text-[11px] cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={draft.staffIds.includes(s.id)}
-                          onChange={(e) => {
-                            setDraft((d) => ({
-                              ...d,
-                              staffIds: e.target.checked
-                                ? [...d.staffIds, s.id]
-                                : d.staffIds.filter((x) => x !== s.id),
-                            }));
-                          }}
-                        />
-                        <span className="truncate">{s.fullName}</span>
-                        <span className="text-slate-400 truncate">{s.email}</span>
+                      {draft.kind === 'meeting' && (
+                        <>
+                          <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div>
+                              <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                                {t('crm.dashboard.calendar.start')}
+                              </label>
+                              <input
+                                type="datetime-local"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-900 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                                value={draft.startLocal}
+                                onChange={(e) => setDraft((d) => ({ ...d, startLocal: e.target.value }))}
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                                {t('crm.dashboard.calendar.end')}
+                              </label>
+                              <input
+                                type="datetime-local"
+                                className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-900 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                                value={draft.endLocal}
+                                onChange={(e) => setDraft((d) => ({ ...d, endLocal: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+                          <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                            {t('crm.dashboard.calendar.meetingUrl')}
+                          </label>
+                          <input
+                            className="mb-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                            placeholder="https://"
+                            value={draft.meetingUrl}
+                            onChange={(e) => setDraft((d) => ({ ...d, meetingUrl: e.target.value }))}
+                          />
+                        </>
+                      )}
+
+                      {draft.kind === 'note' && (
+                        <p className="mb-4 text-xs leading-relaxed text-slate-500">
+                          {t('crm.dashboard.calendar.noteDayHint', {
+                            date: selectedDay.toLocaleDateString(locale),
+                          })}
+                        </p>
+                      )}
+
+                      <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                        {t('crm.dashboard.calendar.notes')}
                       </label>
-                    ))}
+                      <textarea
+                        className="mb-4 min-h-[88px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                        value={draft.body}
+                        onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
+                      />
+
+                      <details className="mb-2 rounded-xl border border-slate-200 bg-slate-50/60 open:[&>summary>svg]:rotate-180 [&_summary::-webkit-details-marker]:hidden">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-100/80">
+                          <span>{t('crm.dashboard.calendar.optionalParticipants')}</span>
+                          <svg
+                            className="h-4 w-4 shrink-0 text-slate-400 transition-transform"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            aria-hidden
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M19.5 8.25l-7.5 7.5-7.5-7.5"
+                            />
+                          </svg>
+                        </summary>
+                        <div className="space-y-4 border-t border-slate-200 bg-white px-3 pb-3 pt-3">
+                          <div>
+                            <div className="mb-1.5 text-[11px] font-medium text-slate-500">
+                              {t('crm.dashboard.calendar.participants')}
+                            </div>
+                            <div className="max-h-32 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                              {staff.map((s) => (
+                                <label
+                                  key={s.id}
+                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-700"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-slate-300 accent-[#222222] focus:ring-[#222222]/20"
+                                    checked={draft.staffIds.includes(s.id)}
+                                    onChange={(e) => {
+                                      setDraft((d) => ({
+                                        ...d,
+                                        staffIds: e.target.checked
+                                          ? [...d.staffIds, s.id]
+                                          : d.staffIds.filter((x) => x !== s.id),
+                                      }));
+                                    }}
+                                  />
+                                  <span className="truncate">{s.fullName}</span>
+                                  <span className="truncate text-slate-500">{s.email}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="mb-1.5 text-[11px] font-medium text-slate-500">
+                              {t('crm.dashboard.calendar.departments')}
+                            </div>
+                            <div className="max-h-28 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                              {departments.map((dep) => (
+                                <label
+                                  key={dep.id}
+                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-700"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-slate-300 accent-[#222222] focus:ring-[#222222]/20"
+                                    checked={draft.departmentIds.includes(dep.id)}
+                                    onChange={(e) => {
+                                      setDraft((d) => ({
+                                        ...d,
+                                        departmentIds: e.target.checked
+                                          ? [...d.departmentIds, dep.id]
+                                          : d.departmentIds.filter((x) => x !== dep.id),
+                                      }));
+                                    }}
+                                  />
+                                  <span className="truncate">{dep.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="mb-1.5 text-[11px] font-medium text-slate-500">
+                              {t('crm.dashboard.calendar.leads')}
+                            </div>
+                            <div className="max-h-28 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                              {leads.slice(0, 80).map((l) => (
+                                <label
+                                  key={l.id}
+                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-700"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="rounded border-slate-300 accent-[#222222] focus:ring-[#222222]/20"
+                                    checked={draft.leadIds.includes(l.id)}
+                                    onChange={(e) => {
+                                      setDraft((d) => ({
+                                        ...d,
+                                        leadIds: e.target.checked
+                                          ? [...d.leadIds, l.id]
+                                          : d.leadIds.filter((x) => x !== l.id),
+                                      }));
+                                    }}
+                                  />
+                                  <span className="truncate">{l.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </details>
+                    </section>
                   </div>
 
-                  <div className="text-[11px] font-medium text-slate-700 mb-1">{t('crm.dashboard.calendar.departments')}</div>
-                  <div className="max-h-24 overflow-y-auto rounded-xl border border-slate-200 p-2 mb-3 space-y-1">
-                    {departments.map((dep) => (
-                      <label key={dep.id} className="flex items-center gap-2 text-[11px] cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={draft.departmentIds.includes(dep.id)}
-                          onChange={(e) => {
-                            setDraft((d) => ({
-                              ...d,
-                              departmentIds: e.target.checked
-                                ? [...d.departmentIds, dep.id]
-                                : d.departmentIds.filter((x) => x !== dep.id),
-                            }));
-                          }}
-                        />
-                        <span className="truncate">{dep.name}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="text-[11px] font-medium text-slate-700 mb-1">{t('crm.dashboard.calendar.leads')}</div>
-                  <div className="max-h-24 overflow-y-auto rounded-xl border border-slate-200 p-2 mb-4 space-y-1">
-                    {leads.slice(0, 80).map((l) => (
-                      <label key={l.id} className="flex items-center gap-2 text-[11px] cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={draft.leadIds.includes(l.id)}
-                          onChange={(e) => {
-                            setDraft((d) => ({
-                              ...d,
-                              leadIds: e.target.checked
-                                ? [...d.leadIds, l.id]
-                                : d.leadIds.filter((x) => x !== l.id),
-                            }));
-                          }}
-                        />
-                        <span className="truncate">{l.name}</span>
-                      </label>
-                    ))}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="flex-1 rounded-2xl bg-lumiva-accent text-white text-[11px] py-2 border border-lumiva-accent hover:opacity-90"
-                      onClick={() => void submitMeeting()}
-                    >
-                      {t('crm.dashboard.calendar.save')}
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-2xl border border-slate-200 px-4 text-[11px]"
-                      onClick={() => setModal(null)}
-                    >
-                      {t('crm.common.cancel')}
-                    </button>
-                  </div>
+                  <footer className="shrink-0 border-t border-slate-100 bg-white px-4 py-3 sm:px-5">
+                    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
+                      <button
+                        type="button"
+                        className="w-full rounded-xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:min-w-[100px] sm:px-5"
+                        onClick={() => {
+                          setComposeError(null);
+                          setModal(null);
+                        }}
+                      >
+                        {t('crm.common.cancel')}
+                      </button>
+                      <button
+                        type="button"
+                        className="w-full flex-1 rounded-xl bg-[#222222] py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#333333] active:bg-[#1a1a1a] sm:py-3"
+                        onClick={() => void submitMeeting()}
+                      >
+                        {t('crm.dashboard.calendar.save')}
+                      </button>
+                    </div>
+                  </footer>
                 </>
               )}
             </div>

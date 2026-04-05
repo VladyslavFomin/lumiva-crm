@@ -20,6 +20,7 @@ export type TriggerEvent =
   | 'task.updated'
   | 'task.status_changed'
   | 'report.scheduled'
+  | 'scheduled'
   | 'email.received'
   | 'email.sent'
   | 'telegram.message_received'
@@ -69,6 +70,7 @@ export interface Automation {
   lastError: string | null;
   maxExecutions: number | null;
   cooldownSeconds: number | null;
+  meta?: Record<string, unknown> | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -97,6 +99,7 @@ export interface CreateAutomationDto {
   isActive?: boolean;
   maxExecutions?: number;
   cooldownSeconds?: number;
+  meta?: Record<string, unknown>;
 }
 
 export interface UpdateAutomationDto extends Partial<CreateAutomationDto> {}

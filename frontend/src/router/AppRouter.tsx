@@ -88,7 +88,6 @@ import { CampaignsPage } from '../pages/marketing/CampaignsPage';
 import { UtmsPage } from '../pages/marketing/UtmsPage';
 import { SegmentsPage } from '../pages/marketing/SegmentsPage';
 import { MarketingIntegrationsPage } from '../pages/marketing/MarketingIntegrationsPage';
-import { AutomationsPage } from '../pages/marketing/AutomationsPage';
 import { SmmPage } from '../pages/marketing/SmmPage';
 import { ChannelsPage } from '../pages/marketing/ChannelsPage';
 import { SeoPage } from '../pages/marketing/SeoPage';
@@ -110,6 +109,7 @@ import { AutomationsPage as AutomationsPageNew } from '../pages/automations/Auto
 import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
 import { EmailAccountsPage } from '../pages/email/EmailAccountsPage';
 import { EmailAccountFormPage } from '../pages/email/EmailAccountFormPage';
+import { EmailInboxPage } from '../pages/email/EmailInboxPage';
 import { TelegramBotsPage } from '../pages/telegram-crm/TelegramBotsPage';
 import { TelegramBotFormPage } from '../pages/telegram-crm/TelegramBotFormPage';
 import { WorkspaceTablesPage } from '../pages/workspace/WorkspaceTablesPage';
@@ -637,14 +637,6 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/marketing/automations"
-          element={
-            <ProtectedRoute>
-              <AutomationsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/marketing/email-templates"
           element={
             <ProtectedRoute>
@@ -788,6 +780,14 @@ export const AppRouter: React.FC = () => {
         />
 
         {/* -------- EMAIL -------- */}
+        <Route
+          path="/email/inbox"
+          element={
+            <ProtectedRoute>
+              <EmailInboxPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/email"
           element={

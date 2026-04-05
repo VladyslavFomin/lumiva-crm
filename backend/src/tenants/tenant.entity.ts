@@ -101,8 +101,37 @@ export class Tenant {
   @Column({ name: 'storage_extra_bytes', type: 'bigint', default: '0' })
   storageExtraBytes: string;
 
+  /** Период учёта AI (YYYY-MM); при смене месяца сбрасывается spent из пакета */
+  @Column({ name: 'ai_period_ym', type: 'varchar', length: 7, nullable: true })
+  aiPeriodYm: string | null;
+
+  /** Потрачено из месячного включённого пула (центы USD-эквивалента) */
+  @Column({ name: 'ai_spent_included_cents', type: 'int', default: 0 })
+  aiSpentIncludedCents: number;
+
+  /** Предоплаченные AI-кредиты (центы), пополняются отдельным продуктом */
+  @Column({ name: 'ai_prepaid_cents', type: 'int', default: 0 })
+  aiPrepaidCents: number;
+
+  /**
+   * Месячный включённый лимит в центах; 0 = брать из тарифа платформы
+   */
+  @Column({ name: 'ai_monthly_included_cents', type: 'int', default: 0 })
+  aiMonthlyIncludedCents: number;
+
+  /**
+   * Шаблон письма CRM с плейсхолдерами {{contentHtml}}, {{contentText}}, {{headline}}, {{tenantName}}.
+   * Если null — используется встроенная обёртка в стиле транзакционных писем Lumiva.
+   */
+  @Column({ name: 'ai_wrapper_email_template_id', type: 'uuid', nullable: true })
+  aiWrapperEmailTemplateId: string | null;
+
   @Column({ type: 'text', nullable: true })
   lastBillingSessionId: string | null;
+
+  /** Идемпотентность Stripe Checkout для докупки AI / хранилища */
+  @Column({ type: 'text', nullable: true })
+  stripeAuxLastSessionId: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

@@ -275,6 +275,17 @@ export class PlatformSettingsService {
     stripePriceEnterprise?: string | null;
     stripePriceUltimate?: string | null;
     billingPlans?: BillingPlanContent[] | null;
+    openAiApiKey?: string | null;
+    openAiBaseUrl?: string | null;
+    openAiModel?: string | null;
+    openAiImageModel?: string | null;
+    aiPriceInputPerMtokUsd?: string | null;
+    aiPriceOutputPerMtokUsd?: string | null;
+    aiImageCostCents?: number | null;
+    stripePriceAiCredits?: string | null;
+    stripePriceStoragePack?: string | null;
+    aiCreditsPackAmountCents?: number | null;
+    storagePackBytes?: string | null;
   }) {
     let current = await this.getSettings();
     if (!current) {
@@ -295,6 +306,17 @@ export class PlatformSettingsService {
         stripePriceEnterprise: payload.stripePriceEnterprise ?? null,
         stripePriceUltimate: payload.stripePriceUltimate ?? null,
         billingPlans: this.sanitizeBillingPlans(payload.billingPlans),
+        openAiApiKey: payload.openAiApiKey ?? null,
+        openAiBaseUrl: payload.openAiBaseUrl ?? null,
+        openAiModel: payload.openAiModel ?? null,
+        openAiImageModel: payload.openAiImageModel ?? null,
+        aiPriceInputPerMtokUsd: payload.aiPriceInputPerMtokUsd ?? null,
+        aiPriceOutputPerMtokUsd: payload.aiPriceOutputPerMtokUsd ?? null,
+        aiImageCostCents: payload.aiImageCostCents ?? null,
+        stripePriceAiCredits: payload.stripePriceAiCredits ?? null,
+        stripePriceStoragePack: payload.stripePriceStoragePack ?? null,
+        aiCreditsPackAmountCents: payload.aiCreditsPackAmountCents ?? null,
+        storagePackBytes: payload.storagePackBytes ?? null,
       });
     } else {
       if (payload.telegramBotToken !== undefined) {
@@ -345,6 +367,27 @@ export class PlatformSettingsService {
       if (payload.billingPlans !== undefined) {
         current.billingPlans = payload.billingPlans ? this.sanitizeBillingPlans(payload.billingPlans) : null;
       }
+      if (payload.openAiApiKey !== undefined) current.openAiApiKey = payload.openAiApiKey;
+      if (payload.openAiBaseUrl !== undefined) current.openAiBaseUrl = payload.openAiBaseUrl;
+      if (payload.openAiModel !== undefined) current.openAiModel = payload.openAiModel;
+      if (payload.openAiImageModel !== undefined) current.openAiImageModel = payload.openAiImageModel;
+      if (payload.aiPriceInputPerMtokUsd !== undefined) {
+        current.aiPriceInputPerMtokUsd = payload.aiPriceInputPerMtokUsd;
+      }
+      if (payload.aiPriceOutputPerMtokUsd !== undefined) {
+        current.aiPriceOutputPerMtokUsd = payload.aiPriceOutputPerMtokUsd;
+      }
+      if (payload.aiImageCostCents !== undefined) current.aiImageCostCents = payload.aiImageCostCents;
+      if (payload.stripePriceAiCredits !== undefined) {
+        current.stripePriceAiCredits = payload.stripePriceAiCredits;
+      }
+      if (payload.stripePriceStoragePack !== undefined) {
+        current.stripePriceStoragePack = payload.stripePriceStoragePack;
+      }
+      if (payload.aiCreditsPackAmountCents !== undefined) {
+        current.aiCreditsPackAmountCents = payload.aiCreditsPackAmountCents;
+      }
+      if (payload.storagePackBytes !== undefined) current.storagePackBytes = payload.storagePackBytes;
     }
     return this.repo.save(current);
   }

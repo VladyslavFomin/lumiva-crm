@@ -372,6 +372,17 @@ export async function createCheckoutSession(payload: {
   });
 }
 
+export async function createAiAddonCheckoutSession(payload: {
+  kind: 'ai_prepaid' | 'storage_pack';
+  successUrl: string;
+  cancelUrl: string;
+}): Promise<{ id: string; url: string | null }> {
+  return request('/billing/checkout-ai-addon', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function confirmCheckoutSession(sessionId: string): Promise<{ ok: boolean }> {
   return request(`/billing/checkout-confirm?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'GET',
@@ -380,8 +391,30 @@ export async function confirmCheckoutSession(sessionId: string): Promise<{ ok: b
 
 // ---------- ОБЩИЙ API-ВРАППЕР ----------
 
+/** Собирает query-string из плоского объекта (массивы → повторяющиеся ключи). */
+function appendQueryToPath(path: string, params?: Record<string, unknown>): string {
+  if (!params) return path;
+  const sp = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === undefined || item === null) continue;
+        sp.append(key, String(item));
+      }
+    } else {
+      sp.set(key, String(value));
+    }
+  }
+  const qs = sp.toString();
+  if (!qs) return path;
+  const joiner = path.includes('?') ? '&' : '?';
+  return `${path}${joiner}${qs}`;
+}
+
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, options?: { params?: Record<string, unknown> }) =>
+    request<T>(appendQueryToPath(path, options?.params)),
 
   post: <T>(path: string, body?: any) =>
     request<T>(path, {

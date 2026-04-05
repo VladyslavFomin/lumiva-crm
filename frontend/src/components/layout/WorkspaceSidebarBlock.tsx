@@ -30,7 +30,7 @@ type Props = {
 };
 
 const MENU_W = 208;
-const MENU_H = 280;
+const MENU_H = 340;
 const PLUS_MENU_W = 220;
 const PLUS_MENU_H = 280;
 
@@ -42,6 +42,36 @@ const PLUS_MENU_EXTRA_VIEWS: Array<{
   { key: 'calendar', iconClass: 'text-violet-600' },
   { key: 'analytics', iconClass: 'text-sky-600' },
 ];
+
+const COLLAPSED_CAT_STORAGE = 'lumiva_workspace_collapsed_categories';
+const UNCATEGORIZED_KEY = '__uncategorized__';
+
+const CATEGORY_PRESET_KEYS = [
+  'leads',
+  'sales',
+  'projects',
+  'marketing',
+  'finance',
+  'other',
+] as const;
+
+function readCollapsedCategories(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_CAT_STORAGE);
+    if (!raw) return new Set();
+    const a = JSON.parse(raw) as unknown;
+    if (!Array.isArray(a)) return new Set();
+    return new Set(a.map(String));
+  } catch {
+    return new Set();
+  }
+}
+
+function workspaceCategoryStorageKey(obj: CustomObject): string {
+  const c = obj.meta?.sidebarCategory;
+  if (typeof c === 'string' && c.trim()) return c.trim();
+  return UNCATEGORIZED_KEY;
+}
 
 function placeFixedMenu(
   anchor: DOMRect,
@@ -95,11 +125,32 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   const [plusEnablingKey, setPlusEnablingKey] = useState<ExtraWorkspaceViewKey | null>(null);
   const plusEnablingRef = useRef(false);
   const createRef = useRef<HTMLDivElement | null>(null);
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(readCollapsedCategories);
+  const [hiddenSectionOpen, setHiddenSectionOpen] = useState(false);
+  const [categoryTarget, setCategoryTarget] = useState<CustomObject | null>(null);
+  const [categoryDraft, setCategoryDraft] = useState('');
+  const [categorySaving, setCategorySaving] = useState(false);
 
   const closeOverlays = useCallback(() => {
     setDotsMenu(null);
     setPlusMenu(null);
   }, []);
+
+  const persistCollapsedCategories = useCallback((next: Set<string>) => {
+    try {
+      localStorage.setItem(COLLAPSED_CAT_STORAGE, JSON.stringify([...next]));
+    } catch {
+      /* ignore */
+    }
+    setCollapsedCategories(next);
+  }, []);
+
+  const toggleCategoryCollapsed = (catKey: string) => {
+    const next = new Set(collapsedCategories);
+    if (next.has(catKey)) next.delete(catKey);
+    else next.add(catKey);
+    persistCollapsedCategories(next);
+  };
 
   const load = async () => {
     if (!enabled) return;
@@ -141,13 +192,15 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   }, [closeOverlays]);
 
   useLayoutEffect(() => {
-    if (!dotsMenu && !plusMenu) return;
+    if (!dotsMenu && !plusMenu && !categoryTarget) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeOverlays();
+      if (e.key !== 'Escape') return;
+      if (categoryTarget && !categorySaving) setCategoryTarget(null);
+      else closeOverlays();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dotsMenu, plusMenu, closeOverlays]);
+  }, [dotsMenu, plusMenu, categoryTarget, categorySaving, closeOverlays]);
 
   const go = (path: string) => {
     navigate(path);
@@ -202,6 +255,102 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   };
 
   const sortedObjects = useMemo(() => sortWorkspaceObjects(objects), [objects]);
+  const visibleSorted = useMemo(
+    () => sortedObjects.filter((o) => !o.meta?.sidebarHidden),
+    [sortedObjects],
+  );
+  const hiddenSorted = useMemo(
+    () => sortedObjects.filter((o) => !!o.meta?.sidebarHidden),
+    [sortedObjects],
+  );
+
+  const workspaceGroups = useMemo(() => {
+    const map = new Map<string, CustomObject[]>();
+    for (const o of visibleSorted) {
+      const k = workspaceCategoryStorageKey(o);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k)!.push(o);
+    }
+    for (const arr of map.values()) {
+      arr.sort((a, b) => {
+        const ra = typeof a.meta?.sidebarRank === 'number' ? a.meta.sidebarRank : null;
+        const rb = typeof b.meta?.sidebarRank === 'number' ? b.meta.sidebarRank : null;
+        if (ra !== null && rb !== null) return ra - rb;
+        if (ra !== null) return -1;
+        if (rb !== null) return 1;
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
+    }
+    const keys = [...map.keys()].sort((a, b) => {
+      if (a === UNCATEGORIZED_KEY) return 1;
+      if (b === UNCATEGORIZED_KEY) return -1;
+      return a.localeCompare(b, undefined, { sensitivity: 'base' });
+    });
+    return keys.map((catKey) => ({
+      catKey,
+      label:
+        catKey === UNCATEGORIZED_KEY
+          ? t('crm.sidebar.uncategorized')
+          : (CATEGORY_PRESET_KEYS as readonly string[]).includes(catKey)
+            ? t(`crm.sidebar.categoryPresets.${catKey}`)
+            : catKey,
+      items: map.get(catKey)!,
+    }));
+  }, [visibleSorted, t]);
+
+  const openCategoryModal = (obj: CustomObject) => {
+    const raw = obj.meta?.sidebarCategory;
+    setCategoryDraft(typeof raw === 'string' ? raw : '');
+    setCategoryTarget(obj);
+    setDotsMenu(null);
+  };
+
+  const saveCategory = async () => {
+    if (!categoryTarget) return;
+    setCategorySaving(true);
+    try {
+      const trimmed = categoryDraft.trim();
+      const nextMeta = {
+        ...(categoryTarget.meta && typeof categoryTarget.meta === 'object'
+          ? categoryTarget.meta
+          : {}),
+      } as Record<string, unknown>;
+      if (trimmed) nextMeta.sidebarCategory = trimmed;
+      else delete nextMeta.sidebarCategory;
+      const updated = await updateCustomObject(categoryTarget.id, { meta: nextMeta });
+      setObjects((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      setCategoryTarget(null);
+    } finally {
+      setCategorySaving(false);
+    }
+  };
+
+  const hideWorkspaceFromSidebar = async (obj: CustomObject) => {
+    setDotsMenu(null);
+    try {
+      const nextMeta = {
+        ...(obj.meta && typeof obj.meta === 'object' ? obj.meta : {}),
+        sidebarHidden: true,
+      } as Record<string, unknown>;
+      const updated = await updateCustomObject(obj.id, { meta: nextMeta });
+      setObjects((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+    } catch {
+      /* ignore */
+    }
+  };
+
+  const restoreWorkspaceToSidebar = async (obj: CustomObject) => {
+    try {
+      const nextMeta = {
+        ...(obj.meta && typeof obj.meta === 'object' ? obj.meta : {}),
+      } as Record<string, unknown>;
+      delete nextMeta.sidebarHidden;
+      const updated = await updateCustomObject(obj.id, { meta: nextMeta });
+      setObjects((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+    } catch {
+      /* ignore */
+    }
+  };
 
   const moveWorkspace = async (id: string, dir: 'up' | 'down') => {
     const sorted = sortWorkspaceObjects(objects);
@@ -284,6 +433,148 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   const CalendarIcon = NAV_ICON_MAP.calendar;
   const WorkspaceNewIcon = NAV_ICON_MAP.workspaceNew;
 
+  const renderWorkspaceItem = (obj: CustomObject) => {
+    const base = `/workspace/${obj.id}`;
+    const enabledViews = parseEnabledViews(obj.meta);
+    const isActive =
+      location.pathname.startsWith(`${base}/`) || location.pathname === base;
+    const isOpen = expanded.has(obj.id);
+    return (
+      <div key={obj.id} className="group relative">
+        <div className={`flex items-center gap-0.5 ${compact ? 'justify-center' : ''}`}>
+          <NavLink
+            to={`${base}/table`}
+            title={compact ? obj.name : undefined}
+            onClick={() => onMobileNavigate?.()}
+            className={({ isActive: navActive }) =>
+              [
+                'min-w-0 flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] transition-colors',
+                compact ? 'justify-center flex-1' : 'flex-1',
+                navActive || isActive
+                  ? 'bg-sky-50 text-sky-900 font-medium'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
+              ].join(' ')
+            }
+          >
+            <NavIconFolder className={isActive ? 'text-sky-600' : 'text-slate-400'} />
+            <span
+              className={
+                compact ? 'sr-only' : 'line-clamp-2 min-w-0 break-words text-left leading-snug'
+              }
+            >
+              {obj.name}
+            </span>
+          </NavLink>
+          {!compact && (
+            <button
+              type="button"
+              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-emerald-800 hover:bg-emerald-50"
+              aria-expanded={isOpen}
+              title={t('crm.sidebar.toggleWorkspaceViews')}
+              onClick={(e) => {
+                e.preventDefault();
+                toggleExpand(obj.id);
+              }}
+            >
+              <NavChevronDown expanded={isOpen} />
+            </button>
+          )}
+          {!compact && (
+            <div className="shrink-0 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label={t('crm.sidebar.workspaceMenu')}
+                onClick={(e) => openDots(obj, e)}
+              >
+                <NavIconDots />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {isOpen && !compact && (
+          <div className="mt-1 ml-1 border-l border-slate-200 pl-2 space-y-0.5">
+            <NavLink
+              to={`${base}/table`}
+              onClick={() => onMobileNavigate?.()}
+              className={({ isActive: a }) =>
+                [
+                  'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
+                  a || location.pathname === `${base}/table`
+                    ? 'bg-slate-100 text-slate-900 font-medium'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
+                ].join(' ')
+              }
+            >
+              <TableIcon className="text-slate-400" />
+              {t('crm.sidebar.linkTable')}
+            </NavLink>
+            {enabledViews.kanban && (
+              <NavLink
+                to={`${base}/kanban`}
+                onClick={() => onMobileNavigate?.()}
+                className={({ isActive: a }) =>
+                  [
+                    'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
+                    a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
+                  ].join(' ')
+                }
+              >
+                <KanbanIcon className="text-slate-400" />
+                {t('crm.sidebar.linkKanban')}
+              </NavLink>
+            )}
+            {enabledViews.calendar && (
+              <NavLink
+                to={`${base}/calendar`}
+                onClick={() => onMobileNavigate?.()}
+                className={({ isActive: a }) =>
+                  [
+                    'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
+                    a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
+                  ].join(' ')
+                }
+              >
+                <CalendarIcon className="text-slate-400" />
+                {t('crm.workspace.views.calendar')}
+              </NavLink>
+            )}
+            {enabledViews.analytics && (
+              <NavLink
+                to={`${base}/analytics`}
+                onClick={() => onMobileNavigate?.()}
+                className={({ isActive: a }) =>
+                  [
+                    'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
+                    a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
+                  ].join(' ')
+                }
+              >
+                <AnalyticsIcon className="text-slate-400" />
+                {t('crm.sidebar.linkAnalytics')}
+              </NavLink>
+            )}
+            <div className="flex items-center justify-between gap-1 pt-1 pb-0.5">
+              <span className="text-[10px] uppercase tracking-wide text-slate-400 pl-0.5">
+                {t('crm.sidebar.quickAdd')}
+              </span>
+              <button
+                type="button"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm hover:bg-teal-700"
+                title={t('crm.sidebar.add')}
+                aria-label={t('crm.sidebar.add')}
+                onClick={(e) => openPlus(obj, e)}
+              >
+                <NavIconPlus className="!h-3.5 !w-3.5 text-white" />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const dotsPortal =
     dotsMenu &&
     createPortal(
@@ -342,6 +633,20 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                   >
                     {t('crm.sidebar.openSettings')}
                   </NavLink>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
+                    onClick={() => openCategoryModal(obj)}
+                  >
+                    {t('crm.sidebar.categoryTitle')}
+                  </button>
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
+                    onClick={() => void hideWorkspaceFromSidebar(obj)}
+                  >
+                    {t('crm.sidebar.hideFromSidebar')}
+                  </button>
                   <button
                     type="button"
                     className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
@@ -512,144 +817,73 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
             ))}
           </div>
         )}
+        {!loading && compact && visibleSorted.map((obj) => renderWorkspaceItem(obj))}
         {!loading &&
-          sortedObjects.map((obj) => {
-            const base = `/workspace/${obj.id}`;
-            const enabledViews = parseEnabledViews(obj.meta);
-            const isActive =
-              location.pathname.startsWith(`${base}/`) || location.pathname === base;
-            const isOpen = expanded.has(obj.id);
+          !compact &&
+          workspaceGroups.map((group) => {
+            const hideCategoryHeader =
+              workspaceGroups.length === 1 && group.catKey === UNCATEGORIZED_KEY;
+            const sectionOpen =
+              hideCategoryHeader || !collapsedCategories.has(group.catKey);
             return (
-              <div key={obj.id} className="group relative">
-                <div className={`flex items-center gap-0.5 ${compact ? 'justify-center' : ''}`}>
-                  <NavLink
-                    to={`${base}/table`}
-                    title={compact ? obj.name : undefined}
-                    onClick={() => onMobileNavigate?.()}
-                    className={() =>
-                      [
-                        'min-w-0 flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] transition-colors',
-                        compact ? 'justify-center flex-1' : 'flex-1',
-                        isActive
-                          ? 'bg-sky-50 text-sky-900 font-medium'
-                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
-                      ].join(' ')
-                    }
+              <div key={group.catKey} className="space-y-0.5">
+                {!hideCategoryHeader && (
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-1 rounded-lg px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-slate-50"
+                    onClick={() => toggleCategoryCollapsed(group.catKey)}
+                    aria-expanded={sectionOpen}
                   >
-                    <NavIconFolder className={isActive ? 'text-sky-600' : 'text-slate-400'} />
-                    <span className={compact ? 'sr-only' : 'truncate'}>{obj.name}</span>
-                  </NavLink>
-                  {!compact && (
-                    <button
-                      type="button"
-                      className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-emerald-800 hover:bg-emerald-50"
-                      aria-expanded={isOpen}
-                      title={t('crm.sidebar.toggleWorkspaceViews')}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleExpand(obj.id);
-                      }}
-                    >
-                      <NavChevronDown expanded={isOpen} />
-                    </button>
-                  )}
-                  {!compact && (
-                    <div className="shrink-0 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
-                      <button
-                        type="button"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                        aria-label={t('crm.sidebar.workspaceMenu')}
-                        onClick={(e) => openDots(obj, e)}
-                      >
-                        <NavIconDots />
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {isOpen && !compact && (
-                  <div className="mt-1 ml-1 border-l border-slate-200 pl-2 space-y-0.5">
-                    <NavLink
-                      to={`${base}/table`}
-                      onClick={() => onMobileNavigate?.()}
-                      className={({ isActive: a }) =>
-                        [
-                          'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                          a || location.pathname === `${base}/table`
-                            ? 'bg-slate-100 text-slate-900 font-medium'
-                            : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
-                        ].join(' ')
-                      }
-                    >
-                      <TableIcon className="text-slate-400" />
-                      {t('crm.sidebar.linkTable')}
-                    </NavLink>
-                    {enabledViews.kanban && (
-                      <NavLink
-                        to={`${base}/kanban`}
-                        onClick={() => onMobileNavigate?.()}
-                        className={({ isActive: a }) =>
-                          [
-                            'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                            a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
-                          ].join(' ')
-                        }
-                      >
-                        <KanbanIcon className="text-slate-400" />
-                        {t('crm.sidebar.linkKanban')}
-                      </NavLink>
-                    )}
-                    {enabledViews.calendar && (
-                      <NavLink
-                        to={`${base}/calendar`}
-                        onClick={() => onMobileNavigate?.()}
-                        className={({ isActive: a }) =>
-                          [
-                            'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                            a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
-                          ].join(' ')
-                        }
-                      >
-                        <CalendarIcon className="text-slate-400" />
-                        {t('crm.workspace.views.calendar')}
-                      </NavLink>
-                    )}
-                    {enabledViews.analytics && (
-                      <NavLink
-                        to={`${base}/analytics`}
-                        onClick={() => onMobileNavigate?.()}
-                        className={({ isActive: a }) =>
-                          [
-                            'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                            a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
-                          ].join(' ')
-                        }
-                      >
-                        <AnalyticsIcon className="text-slate-400" />
-                        {t('crm.sidebar.linkAnalytics')}
-                      </NavLink>
-                    )}
-                    <div className="flex items-center justify-between gap-1 pt-1 pb-0.5">
-                      <span className="text-[10px] uppercase tracking-wide text-slate-400 pl-0.5">
-                        {t('crm.sidebar.quickAdd')}
-                      </span>
-                      <button
-                        type="button"
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm hover:bg-teal-700"
-                        title={t('crm.sidebar.add')}
-                        aria-label={t('crm.sidebar.add')}
-                        onClick={(e) => openPlus(obj, e)}
-                      >
-                        <NavIconPlus className="!h-3.5 !w-3.5 text-white" />
-                      </button>
-                    </div>
-                  </div>
+                    <NavChevronDown expanded={sectionOpen} />
+                    <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
+                    <span className="tabular-nums text-slate-300">{group.items.length}</span>
+                  </button>
                 )}
+                {sectionOpen && group.items.map((obj) => renderWorkspaceItem(obj))}
               </div>
             );
           })}
-        {!loading && objects.length === 0 && (
+        {!loading && !compact && hiddenSorted.length > 0 && (
+          <div className="mt-2 border-t border-slate-200 pt-2">
+            <button
+              type="button"
+              className="flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-slate-50"
+              onClick={() => setHiddenSectionOpen((v) => !v)}
+              aria-expanded={hiddenSectionOpen}
+            >
+              <span>{t('crm.sidebar.showHiddenWorkspaces')}</span>
+              <span className="text-slate-300">{hiddenSorted.length}</span>
+            </button>
+            {hiddenSectionOpen && (
+              <div className="mt-1 space-y-1 pl-1">
+                {hiddenSorted.map((obj) => (
+                  <div
+                    key={obj.id}
+                    className="flex items-center gap-1 rounded-lg bg-slate-50/80 px-2 py-1"
+                  >
+                    <span className="min-w-0 flex-1 line-clamp-2 text-[11px] text-slate-500">
+                      {obj.name}
+                    </span>
+                    <button
+                      type="button"
+                      className="shrink-0 rounded-md bg-white px-2 py-0.5 text-[10px] font-medium text-teal-700 ring-1 ring-slate-200 hover:bg-teal-50"
+                      onClick={() => void restoreWorkspaceToSidebar(obj)}
+                    >
+                      {t('crm.sidebar.restoreWorkspace')}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {!loading && visibleSorted.length === 0 && objects.length === 0 && (
           <p className="text-[11px] text-slate-400 px-1 py-2 leading-snug">{t('crm.sidebar.empty')}</p>
+        )}
+        {!loading && visibleSorted.length === 0 && objects.length > 0 && (
+          <p className="text-[11px] text-slate-400 px-1 py-2 leading-snug">
+            {t('crm.sidebar.allWorkspacesHiddenHint')}
+          </p>
         )}
       </div>
 
@@ -732,6 +966,73 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                   onClick={() => void confirmDeleteWorkspace()}
                 >
                   {t('crm.sidebar.deleteWorkspace')}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {categoryTarget &&
+        createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="workspace-category-title"
+            className="fixed inset-0 z-[10070] flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-sm"
+            onClick={() => !categorySaving && setCategoryTarget(null)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div id="workspace-category-title" className="mb-1 text-sm font-semibold text-slate-900">
+                {t('crm.sidebar.categoryTitle')}
+              </div>
+              <p className="mb-3 text-xs leading-relaxed text-slate-500">
+                {t('crm.sidebar.categoryHint')}
+              </p>
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                {CATEGORY_PRESET_KEYS.map((pk) => (
+                  <button
+                    key={pk}
+                    type="button"
+                    className={
+                      'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ' +
+                      (categoryDraft === pk
+                        ? 'border-teal-500 bg-teal-50 text-teal-900'
+                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
+                    }
+                    onClick={() => setCategoryDraft(pk)}
+                  >
+                    {t(`crm.sidebar.categoryPresets.${pk}`)}
+                  </button>
+                ))}
+              </div>
+              <input
+                value={categoryDraft}
+                onChange={(e) => setCategoryDraft(e.target.value)}
+                className="mb-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                placeholder={t('crm.sidebar.categoryCustomPlaceholder')}
+                aria-label={t('crm.sidebar.categoryCustomPlaceholder')}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="rounded-xl px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                  onClick={() => !categorySaving && setCategoryTarget(null)}
+                  disabled={categorySaving}
+                >
+                  {t('crm.common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  disabled={categorySaving}
+                  className="rounded-xl bg-lumiva-accent px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                  onClick={() => void saveCategory()}
+                >
+                  {t('crm.sidebar.categorySave')}
                 </button>
               </div>
             </div>

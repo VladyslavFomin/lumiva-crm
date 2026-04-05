@@ -41,6 +41,8 @@ export interface CompanySettings {
   storageQuotaBytes?: number | null;
   /** Удаление файлов общего хранилища: владелец или ИТ-отдел */
   canDeleteTenantStorage?: boolean;
+  /** Шаблон обёртки для AI/транзакционных писем ({{contentHtml}}, …); null = встроенный дизайн */
+  aiWrapperEmailTemplateId?: string | null;
 }
 
 /**
@@ -57,6 +59,7 @@ export async function updateCompanySettings(payload: {
   name?: string;
   logoUrl?: string | null;
   uiLanguage?: string | null;
+  aiWrapperEmailTemplateId?: string | null;
 }): Promise<CompanySettings> {
   return api.patch<CompanySettings>('/tenants/settings', payload);
 }

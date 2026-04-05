@@ -49,13 +49,63 @@ export class MarketingController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('dataSource') dataSource?: string,
+    @Query('itemsLimit') itemsLimitRaw?: string,
   ) {
     const tenantId = this.requireTenant(user);
+    const parsed = parseInt(String(itemsLimitRaw ?? '').trim(), 10);
+    const itemsLimit = Number.isFinite(parsed)
+      ? Math.min(80_000, Math.max(2_000, parsed))
+      : 14_000;
     return this.marketing.getTrafficChannelsStats(
       tenantId,
       from?.trim() || undefined,
       to?.trim() || undefined,
       dataSource?.trim() || undefined,
+      itemsLimit,
+    );
+  }
+
+  @Get('traffic/daily')
+  @UseGuards(JwtAuthGuard)
+  async getTrafficDaily(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('dataSource') dataSource?: string,
+    @Query('onlyUnattributed') onlyUnattributedRaw?: string,
+  ) {
+    const onlyUnattributed =
+      onlyUnattributedRaw === '1' ||
+      onlyUnattributedRaw === 'true' ||
+      onlyUnattributedRaw === 'yes';
+    return this.marketing.getTrafficDailySeries(
+      this.requireTenant(user),
+      from?.trim() || undefined,
+      to?.trim() || undefined,
+      dataSource?.trim() || undefined,
+      onlyUnattributed,
+    );
+  }
+
+  @Get('traffic/by-country')
+  @UseGuards(JwtAuthGuard)
+  async getTrafficByCountry(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('dataSource') dataSource?: string,
+    @Query('onlyUnattributed') onlyUnattributedRaw?: string,
+  ) {
+    const onlyUnattributed =
+      onlyUnattributedRaw === '1' ||
+      onlyUnattributedRaw === 'true' ||
+      onlyUnattributedRaw === 'yes';
+    return this.marketing.getTrafficByCountry(
+      this.requireTenant(user),
+      from?.trim() || undefined,
+      to?.trim() || undefined,
+      dataSource?.trim() || undefined,
+      onlyUnattributed,
     );
   }
 
@@ -204,6 +254,17 @@ export class MarketingController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.marketing.deleteMarketingIntegration(this.requireTenant(user), id);
+  }
+
+  /** Курсы EUR/GBP/TRY/RUB для пересчёта расходов в отчётах маркетинга (Frankfurter / ECB). */
+  @Get('fx-rates')
+  @UseGuards(JwtAuthGuard)
+  marketingFxRates(
+    @Query('display') display?: string,
+    @Query('force') forceRaw?: string,
+  ) {
+    const force = forceRaw === '1' || forceRaw === 'true' || forceRaw === 'yes';
+    return this.marketing.getMarketingFxRates(display?.trim() || 'EUR', { force });
   }
 
   @Post('integrations/:id/sync')

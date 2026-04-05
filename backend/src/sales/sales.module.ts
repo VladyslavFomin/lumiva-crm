@@ -29,6 +29,6 @@ import { AutomationsModule } from '../automations/automations.module';
   ],
   controllers: [SalesController, SalesImportController],
   providers: [SalesService, SalesImportService],
-  exports: [SalesService],
+  exports: [SalesService, SalesImportService],
 })
 export class SalesModule {}

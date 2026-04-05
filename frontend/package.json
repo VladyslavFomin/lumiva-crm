@@ -10,18 +10,30 @@
     "postbuild": "node scripts/check-analytics-layout.mjs --dist",
     "type-check": "tsc --noEmit",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "locales:marketing": "node scripts/compile-marketing-locales.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
-    "i18next": "^24.0.0",
+    "@tiptap/extension-link": "^3.22.2",
+    "@tiptap/extension-placeholder": "^3.22.2",
+    "@tiptap/extension-text-align": "^3.22.2",
+    "@tiptap/extension-underline": "^3.22.2",
+    "@tiptap/pm": "^3.22.2",
+    "@tiptap/react": "^3.22.2",
+    "@tiptap/starter-kit": "^3.22.2",
     "framer-motion": "^12.23.25",
+    "i18next": "^24.0.0",
+    "prop-types": "^15.8.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-i18next": "^15.0.0",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.9.6",
+    "react-simple-maps": "^3.0.0",
     "recharts": "^3.5.0",
+    "remark-gfm": "^4.0.1",
     "three": "^0.181.2"
   },
   "devDependencies": {

@@ -9,7 +9,9 @@ export type { DashboardPresetSource };
 /** Виджеты по умолчанию на главной */
 export const DASHBOARD_CORE_WIDGET_IDS = [
   'kpi',
+  'quick-actions',
   'calendar',
+  'activity-feed',
   'leads-timeline',
   'projects',
   'channels-funnel',
@@ -91,7 +93,9 @@ function defaultLayout(): DashboardLayoutState {
     hidden: new Set<string>([...DASHBOARD_EXTRA_WIDGET_IDS]),
     sizes: {
       kpi: 'lg',
+      'quick-actions': 'lg',
       calendar: 'md',
+      'activity-feed': 'md',
       'leads-timeline': 'md',
       projects: 'md',
       'channels-funnel': 'lg',
@@ -111,7 +115,9 @@ function defaultLayout(): DashboardLayoutState {
 function defaultHeightForWidgetId(id: string): number {
   const map: Record<string, number> = {
     kpi: 200,
-    calendar: 440,
+    'quick-actions': 120,
+    calendar: 520,
+    'activity-feed': 340,
     'leads-timeline': 280,
     projects: 320,
     'channels-funnel': 300,

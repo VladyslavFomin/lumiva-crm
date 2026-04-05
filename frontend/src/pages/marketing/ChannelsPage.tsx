@@ -1,4 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
@@ -16,7 +23,6 @@ import {
   marketingCard,
   marketingChipActive,
   marketingChipInactive,
-  marketingEmptyBanner,
   marketingFilterBar,
   marketingFilterLabel,
   marketingH1,
@@ -34,13 +40,14 @@ import {
   marketingSectionSub,
   marketingSectionTitle,
   marketingSelect,
-  marketingTableWrap,
-  marketingTd,
-  marketingTh,
-  marketingThead,
-  marketingTr,
-  marketingWarnBanner,
 } from './marketingPageChrome';
+import { MarketingChannelBlocks } from './marketingChannelBlocks';
+import { MarketingProviderBreakdownTable } from './MarketingProviderBreakdownTable';
+import {
+  MarketingDisplayCurrencyToolbar,
+  useMarketingDisplayCurrencyPrefs,
+} from './MarketingDisplayCurrencyToolbar';
+import { convertMarketingAmount } from './marketingDisplayCurrencyStorage';
 
 type PeriodPreset = '7d' | '30d' | '90d' | 'all';
 
@@ -58,8 +65,10 @@ export const ChannelsPage: React.FC = () => {
   const [stats, setStats] = useState<MarketingTrafficStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const formatNumber = (v: number) =>
-    v.toLocaleString(locale, { maximumFractionDigits: 0 });
+  const formatNumber = useCallback(
+    (v: number) => v.toLocaleString(locale, { maximumFractionDigits: 0 }),
+    [locale],
+  );
   const periodLabel: Record<PeriodPreset, string> = {
     '7d': t('crm.marketingChannels.periods.7d'),
     '30d': t('crm.marketingChannels.periods.30d'),
@@ -116,10 +125,11 @@ export const ChannelsPage: React.FC = () => {
       from: range.from,
       to: range.to,
       dataSource: dataSource || undefined,
+      itemsLimit: 12_000,
     })
       .then((res) => {
         if (!alive) return;
-        setStats(res);
+        startTransition(() => setStats(res));
       })
       .catch((e: unknown) => {
         if (!alive) return;
@@ -141,48 +151,103 @@ export const ChannelsPage: React.FC = () => {
 
   const currency = view.currency || 'EUR';
   const items = view.items;
+  const deferredItemsForBlocks = useDeferredValue(items);
   const providerBreakdown = view.providerBreakdown;
   const totalRows = view.totalRows;
   const totalImpressions = view.totalImpressions;
   const totalCost = view.totalCost;
-  const formatMoney = (v: number) =>
-    v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatMoney = useCallback(
+    (v: number) =>
+      v.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+    [locale],
+  );
 
-  const topSources = useMemo(() => {
-    const map = new Map<string, number>();
-    items.forEach((row) => {
-      const key = sanitizeMarketingDimension(row.source);
-      map.set(key, (map.get(key) || 0) + (row.sessions || 0));
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6);
-  }, [items]);
+  const { state: curPrefs, setState: setCurPrefs } = useMarketingDisplayCurrencyPrefs(
+    view.currenciesPresent ?? [],
+  );
 
-  const topMediums = useMemo(() => {
-    const map = new Map<string, number>();
-    items.forEach((row) => {
-      const key = sanitizeMarketingDimension(row.medium);
-      map.set(key, (map.get(key) || 0) + (row.sessions || 0));
-    });
-    return Array.from(map.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 6);
-  }, [items]);
+  const kpiRevenue = useMemo(() => {
+    if (curPrefs.currencyMode === 'native' && view.currency === 'MIXED') {
+      const by = new Map<string, number>();
+      for (const p of providerBreakdown) {
+        const c = (p.currency || 'EUR').toUpperCase().slice(0, 8);
+        by.set(c, (by.get(c) || 0) + (p.revenue || 0));
+      }
+      const parts = [...by.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([c, v]) => ({ c, v }));
+      return { kind: 'split' as const, parts, miss: false };
+    }
+    let sum = 0;
+    let miss = false;
+    for (const p of providerBreakdown) {
+      const c = convertMarketingAmount(
+        p.revenue || 0,
+        p.currency,
+        curPrefs.currencyMode,
+        curPrefs.displayCurrency,
+        curPrefs.rates,
+      );
+      if (c.missingRate) miss = true;
+      sum += c.value;
+    }
+    const cur =
+      curPrefs.currencyMode === 'converted'
+        ? curPrefs.displayCurrency
+        : currency;
+    return { kind: 'single' as const, sum, cur, miss };
+  }, [providerBreakdown, curPrefs, view.currency, currency]);
 
-  const topCampaigns = useMemo(() => {
-    const map = new Map<string, { sessions: number; leads: number; revenue: number }>();
-    items.forEach((row) => {
-      const key = sanitizeMarketingDimension(row.campaign);
-      const prev = map.get(key) || { sessions: 0, leads: 0, revenue: 0 };
+  const spendSummary = useMemo(() => {
+    if (totalCost <= 0) return null;
+    if (curPrefs.currencyMode === 'native') {
+      return providerBreakdown
+        .filter((p) => p.cost > 0)
+        .map((p) => `${formatMoney(p.cost)} ${p.currency}`)
+        .join(' · ');
+    }
+    let sum = 0;
+    let miss = false;
+    for (const p of providerBreakdown) {
+      const c = convertMarketingAmount(
+        p.cost,
+        p.currency,
+        'converted',
+        curPrefs.displayCurrency,
+        curPrefs.rates,
+      );
+      if (c.missingRate) miss = true;
+      sum += c.value;
+    }
+    return `${formatMoney(sum)} ${curPrefs.displayCurrency}${miss ? '*' : ''}`;
+  }, [totalCost, providerBreakdown, curPrefs, formatMoney]);
+
+  const { topSources, topMediums, topCampaigns } = useMemo(() => {
+    const srcMap = new Map<string, number>();
+    const medMap = new Map<string, number>();
+    const campMap = new Map<string, { sessions: number; leads: number; revenue: number }>();
+    for (const row of items) {
+      const sk = sanitizeMarketingDimension(row.source);
+      srcMap.set(sk, (srcMap.get(sk) || 0) + (row.sessions || 0));
+      const mk = sanitizeMarketingDimension(row.medium);
+      medMap.set(mk, (medMap.get(mk) || 0) + (row.sessions || 0));
+      const ck = sanitizeMarketingDimension(row.campaign);
+      const prev = campMap.get(ck) || { sessions: 0, leads: 0, revenue: 0 };
       prev.sessions += row.sessions || 0;
       prev.leads += row.leads || 0;
       prev.revenue += row.revenue || 0;
-      map.set(key, prev);
-    });
-    return Array.from(map.entries())
+      campMap.set(ck, prev);
+    }
+    const topSources = Array.from(srcMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+    const topMediums = Array.from(medMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+    const topCampaigns = Array.from(campMap.entries())
       .sort((a, b) => b[1].revenue - a[1].revenue)
       .slice(0, 6);
+    return { topSources, topMediums, topCampaigns };
   }, [items]);
 
   return (
@@ -223,7 +288,7 @@ export const ChannelsPage: React.FC = () => {
                 </option>
                 {dataSourceOptions.map((ds) => (
                   <option key={ds} value={ds}>
-                    {marketingDataSourceLabel(t, ds)}
+                    {marketingDataSourceLabel(t, ds, view.dataSourceLabels)}
                   </option>
                 ))}
               </select>
@@ -243,6 +308,12 @@ export const ChannelsPage: React.FC = () => {
 
         {!loading && !error && (
           <>
+            <MarketingDisplayCurrencyToolbar
+              currenciesPresent={view.currenciesPresent ?? []}
+              state={curPrefs}
+              onStateChange={setCurPrefs}
+            />
+
             <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
               <div className={marketingKpiStripeBrand}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.sessions')}</div>
@@ -258,8 +329,22 @@ export const ChannelsPage: React.FC = () => {
               </div>
               <div className={marketingKpiStripeEmerald}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.revenue')}</div>
-                <div className={`${marketingKpiValue} text-emerald-600`}>
-                  {formatNumber(view.totalRevenue || 0)} {currency}
+                <div className={`${marketingKpiValue} text-emerald-600 text-left leading-tight`}>
+                  {kpiRevenue.kind === 'split' ? (
+                    <span className="block text-base sm:text-lg font-semibold break-words">
+                      {kpiRevenue.parts.map((p) => (
+                        <span key={p.c} className="inline-block mr-2">
+                          {formatMoney(p.v)} {p.c}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <>
+                      {formatMoney(kpiRevenue.sum)}
+                      {` ${kpiRevenue.cur}`}
+                      {kpiRevenue.miss && curPrefs.currencyMode === 'converted' ? '*' : ''}
+                    </>
+                  )}
                 </div>
                 <div className={marketingKpiHint}>{t('crm.marketingChannels.kpi.revenueHint')}</div>
               </div>
@@ -282,14 +367,14 @@ export const ChannelsPage: React.FC = () => {
               <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className={marketingSectionTitle}>
-                    {t('crm.marketingTraffic.extendedMetricsTitle', {
-                      defaultValue: 'Расширенные метрики провайдеров',
+                    {t('crm.marketingTraffic.summaryStripTitle', {
+                      defaultValue: 'Сводка периода',
                     })}
                   </div>
                   <div className={marketingSectionSub}>
-                    {t('crm.marketingTraffic.extendedMetricsSubtitle', {
+                    {t('crm.marketingTraffic.summaryStripSubtitle', {
                       defaultValue:
-                        'Сырые строки в БД и агрегаты по полю dataSource (Meta Ads, Яндекс.Метрика, GA4, Google Ads и т.д.).',
+                        'Таблица — сводка по каждому источнику данных за период (строки в выборке и метрики). Валюта — как на панели выше. Детальные карточки каналов — ниже.',
                     })}
                   </div>
                 </div>
@@ -304,83 +389,43 @@ export const ChannelsPage: React.FC = () => {
                       </span>
                     </span>
                   )}
-                  {totalCost > 0 && (
+                  {spendSummary && (
                     <span className="ml-3">
                       {t('crm.marketingTraffic.spendLabel', { defaultValue: 'Расход' })}:{' '}
-                      <span className="font-semibold tabular-nums text-[#222222]">
-                        {formatMoney(totalCost)} {currency}
-                      </span>
+                      <span className="font-semibold tabular-nums text-[#222222]">{spendSummary}</span>
                     </span>
                   )}
                 </div>
               </div>
-              {providerBreakdown.length === 0 && totalRows > 0 ? (
-                <div className={marketingWarnBanner}>
-                  {t('crm.marketingTraffic.extendedMetricsMismatch', {
-                    defaultValue:
-                      `В ответе API есть ${totalRows} строк, но таблица разбивки пуста. Сделайте жёсткое обновление страницы (Ctrl+Shift+R) или проверьте, что открыта актуальная сборка фронта.`,
-                  })}
-                </div>
-              ) : providerBreakdown.length === 0 ? (
-                <div className={marketingEmptyBanner}>
-                  {t('crm.marketingTraffic.extendedMetricsEmpty', {
-                    defaultValue:
-                      'Расширенных метрик пока нет: выполните синхронизацию интеграций (GA4, Яндекс.Метрика, Meta Ads, Google Ads) или расширьте период «Все время».',
-                  })}
-                </div>
-              ) : (
-                <div className={`${marketingTableWrap} overflow-x-auto min-w-0`}>
-                  <table className="w-full min-w-[640px] text-left">
-                    <thead className={marketingThead}>
-                      <tr>
-                        <th className={marketingTh}>
-                          {t('crm.marketingTraffic.table.provider', { defaultValue: 'Провайдер' })}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.rows', { defaultValue: 'Строк' })}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии / визиты' })}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики / просмотры' })}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })}
-                        </th>
-                        <th className={`${marketingTh} text-right tabular-nums`}>
-                          {t('crm.marketingTraffic.table.cost', { defaultValue: 'Расход' })}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {providerBreakdown.map((row, idx) => (
-                        <tr key={`${row.dataSource}-${row.currency}-${idx}`} className={marketingTr}>
-                          <td className={`${marketingTd} font-medium text-[#222222]`}>
-                            {marketingDataSourceLabel(t, row.dataSource)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.rowCount)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.sessions)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.clicks)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums`}>
-                            {formatNumber(row.impressions)}
-                          </td>
-                          <td className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
-                            {formatMoney(row.cost)} {row.currency}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <MarketingProviderBreakdownTable
+                rows={providerBreakdown}
+                dataSourceLabels={view.dataSourceLabels}
+                currencyMode={curPrefs.currencyMode}
+                displayCurrency={curPrefs.displayCurrency}
+                rates={curPrefs.rates}
+                formatNumber={formatNumber}
+                formatMoney={formatMoney}
+                t={t}
+              />
             </section>
+
+            <MarketingChannelBlocks
+              items={deferredItemsForBlocks}
+              t={t}
+              currencyMode={curPrefs.currencyMode}
+              displayCurrency={curPrefs.displayCurrency}
+              rates={curPrefs.rates}
+              formatNumber={formatNumber}
+              formatMoney={formatMoney}
+              dataSourceLabels={view.dataSourceLabels}
+              trafficDateFrom={range.from}
+              trafficDateTo={range.to}
+              title={t('crm.marketingChannelBlocks.title', { defaultValue: 'Каналы' })}
+              subtitle={t('crm.marketingChannelBlocks.subtitleTraffic', {
+                defaultValue:
+                  'Отдельный блок на каждый источник данных (Яндекс, Meta, Google и т.д.): метрики и топ кампаний по расходу.',
+              })}
+            />
 
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               <div className={marketingCard}>
@@ -431,7 +476,14 @@ export const ChannelsPage: React.FC = () => {
                         {labelSanitizedDimension(t, name, 'campaign')}
                       </span>
                       <span className="shrink-0 font-semibold tabular-nums text-emerald-600">
-                        {formatNumber(value.revenue)} {currency}
+                        {formatMoney(value.revenue)}
+                        {view.currency === 'MIXED' ? (
+                          <span className="text-[9px] text-[#222222]/45 font-normal ml-1">
+                            {t('crm.marketingCurrency.mixedShort', { defaultValue: 'разн. вал.' })}
+                          </span>
+                        ) : (
+                          ` ${currency}`
+                        )}
                       </span>
                     </div>
                   ))}

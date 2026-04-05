@@ -90,6 +90,7 @@ export class AutomationsService {
       isActive: dto.isActive !== undefined ? dto.isActive : true,
       maxExecutions: dto.maxExecutions || null,
       cooldownSeconds: dto.cooldownSeconds || null,
+      meta: dto.meta !== undefined ? dto.meta : null,
       executionCount: 0,
       errorCount: 0,
     });
@@ -125,6 +126,7 @@ export class AutomationsService {
     if (dto.isActive !== undefined) automation.isActive = dto.isActive;
     if (dto.maxExecutions !== undefined) automation.maxExecutions = dto.maxExecutions || null;
     if (dto.cooldownSeconds !== undefined) automation.cooldownSeconds = dto.cooldownSeconds || null;
+    if (dto.meta !== undefined) automation.meta = dto.meta;
 
     const saved = await this.automationRepo.save(automation);
     console.log('Saved automation actions:', JSON.stringify(saved.actions, null, 2));
@@ -220,6 +222,29 @@ export class AutomationsService {
             report: true,
           },
         );
+      }
+
+      const scheduledAutomations = await this.automationRepo.find({
+        where: {
+          triggerEvent: TriggerEvent.SCHEDULED,
+          isActive: true,
+        } as any,
+      });
+
+      for (const automation of scheduledAutomations) {
+        const sched = automation.meta?.schedule;
+        if (!sched || typeof sched !== 'object') {
+          continue;
+        }
+        if (!this.shouldRunSchedule(sched, automation.lastExecutedAt)) {
+          continue;
+        }
+        await this.executeAutomation(automation, TriggerEvent.SCHEDULED, {
+          entityType: 'scheduled',
+          entityId: automation.id,
+          tenantId: automation.tenantId,
+          scheduled: true,
+        });
       }
     } finally {
       this.scheduleRunning = false;

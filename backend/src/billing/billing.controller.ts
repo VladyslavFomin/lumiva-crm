@@ -14,6 +14,25 @@ export class BillingController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('checkout-ai-addon')
+  async createAiAddon(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body()
+    body: {
+      kind: 'ai_prepaid' | 'storage_pack';
+      successUrl: string;
+      cancelUrl: string;
+    },
+  ) {
+    return this.billing.createAiAddonCheckoutSession({
+      tenantId: user?.tenantId,
+      kind: body.kind,
+      successUrl: body.successUrl,
+      cancelUrl: body.cancelUrl,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('checkout-session')
   async createCheckout(
     @CurrentUser() user: CurrentUserPayload,

@@ -131,6 +131,7 @@ export class TenantsService {
       storageUsedBytes: used,
       storageExtraBytes: extra,
       storageQuotaBytes: quota,
+      aiWrapperEmailTemplateId: tenant.aiWrapperEmailTemplateId ?? null,
     };
   }
 
@@ -254,6 +255,12 @@ export class TenantsService {
 
     if (patch.notes !== undefined) {
       tenant.notes = patch.notes || null;
+    }
+
+    if (patch.aiWrapperEmailTemplateId !== undefined) {
+      const v = patch.aiWrapperEmailTemplateId;
+      tenant.aiWrapperEmailTemplateId =
+        v && String(v).trim() ? String(v).trim() : null;
     }
 
     await this.repo.save(tenant);

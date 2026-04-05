@@ -112,6 +112,19 @@ body {
 
 /* bg-slate-900 + text-white becomes white-on-white — use bg-lumiva-accent or arbitrary bg-[#111827] for primary actions */
 
+/* AI-ассистент (рендер в document.body): жёстко тёмный текст в полях — на случай autofill / наследования */
+textarea.ai-assistant-input,
+input.ai-assistant-input {
+  color: #0f172a !important;
+  -webkit-text-fill-color: #0f172a;
+}
+textarea.ai-assistant-input::placeholder,
+input.ai-assistant-input::placeholder {
+  color: #64748b !important;
+  -webkit-text-fill-color: #64748b;
+  opacity: 1;
+}
+
 .border-slate-900,
 .border-slate-900\/60,
 .border-slate-900\/70,

@@ -32,6 +32,31 @@ export const AutomationFormPage: React.FC = () => {
   });
 
   useEffect(() => {
+    if (formData.triggerEvent !== 'scheduled') return;
+    setFormData((prev) => {
+      const sch = (prev.meta as Record<string, any> | undefined)?.schedule;
+      if (sch && typeof sch === 'object' && Object.keys(sch).length > 0) {
+        return prev;
+      }
+      return {
+        ...prev,
+        meta: {
+          ...(typeof prev.meta === 'object' && prev.meta && !Array.isArray(prev.meta)
+            ? (prev.meta as Record<string, unknown>)
+            : {}),
+          schedule: {
+            scheduleFrequency: 'weekly',
+            scheduleTime: '09:00',
+            scheduleTimezone: 'Europe/Moscow',
+            scheduleDayOfWeek: 1,
+            scheduleDayOfMonth: 1,
+          },
+        },
+      };
+    });
+  }, [formData.triggerEvent]);
+
+  useEffect(() => {
     if (id) return;
     const params = new URLSearchParams(location.search);
     const entity = params.get('entity');
@@ -106,6 +131,7 @@ export const AutomationFormPage: React.FC = () => {
             isActive: automation.isActive,
             maxExecutions: automation.maxExecutions || undefined,
             cooldownSeconds: automation.cooldownSeconds || undefined,
+            meta: automation.meta ?? undefined,
           });
         })
         .catch((e) => {
@@ -158,6 +184,59 @@ export const AutomationFormPage: React.FC = () => {
 
   const handleChange = (field: keyof CreateAutomationDto, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const onTriggerEventChange = (v: TriggerEvent) => {
+    if (v === 'scheduled') {
+      setFormData((prev) => ({
+        ...prev,
+        triggerEvent: v,
+        meta: {
+          schedule: {
+            scheduleFrequency: 'weekly',
+            scheduleTime: '09:00',
+            scheduleTimezone: 'Europe/Moscow',
+            scheduleDayOfWeek: 1,
+            scheduleDayOfMonth: 1,
+            ...((prev.meta as Record<string, any> | undefined)?.schedule || {}),
+          },
+        },
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        triggerEvent: v,
+        meta: undefined,
+      }));
+    }
+  };
+
+  const patchScheduleField = (field: string, value: unknown) => {
+    setFormData((prev) => {
+      const prevSched =
+        prev.meta &&
+        typeof prev.meta === 'object' &&
+        !Array.isArray(prev.meta) &&
+        (prev.meta as Record<string, any>).schedule &&
+        typeof (prev.meta as Record<string, any>).schedule === 'object'
+          ? { ...(prev.meta as Record<string, any>).schedule }
+          : {
+              scheduleFrequency: 'weekly',
+              scheduleTime: '09:00',
+              scheduleTimezone: 'Europe/Moscow',
+              scheduleDayOfWeek: 1,
+              scheduleDayOfMonth: 1,
+            };
+      return {
+        ...prev,
+        meta: {
+          ...(typeof prev.meta === 'object' && prev.meta && !Array.isArray(prev.meta)
+            ? (prev.meta as Record<string, unknown>)
+            : {}),
+          schedule: { ...prevSched, [field]: value },
+        },
+      };
+    });
   };
 
   const addAction = () => {
@@ -282,6 +361,22 @@ export const AutomationFormPage: React.FC = () => {
     return value === key ? event : value;
   };
 
+  const scheduledCfg = useMemo(() => {
+    const m = formData.meta as Record<string, any> | undefined;
+    if (m && typeof m.schedule === 'object' && m.schedule) {
+      return m.schedule as Record<string, any>;
+    }
+    return {
+      scheduleFrequency: 'weekly',
+      scheduleTime: '09:00',
+      scheduleTimezone: 'Europe/Moscow',
+      scheduleDayOfWeek: 1,
+      scheduleDayOfMonth: 1,
+    };
+  }, [formData.meta]);
+
+  const schedFreq = (scheduledCfg.scheduleFrequency as string) || 'weekly';
+
   const actionSummary = useMemo(() => {
     return formData.actions.map((action) => {
       if (action.type === 'trigger_webhook') return action.config.url || t('crm.automations.form.builder.noConfig');
@@ -364,7 +459,7 @@ export const AutomationFormPage: React.FC = () => {
               <select
                 required
                 value={formData.triggerEvent}
-                onChange={(e) => handleChange('triggerEvent', e.target.value as TriggerEvent)}
+                onChange={(e) => onTriggerEventChange(e.target.value as TriggerEvent)}
                 className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
               >
                 <optgroup label={t('crm.automations.form.triggerGroups.contacts')}>
@@ -396,6 +491,7 @@ export const AutomationFormPage: React.FC = () => {
                 </optgroup>
                 <optgroup label={t('crm.automations.form.triggerGroups.reports')}>
                   <option value="report.scheduled">{t('crm.automations.form.triggers.REPORT_SCHEDULED')}</option>
+                  <option value="scheduled">{t('crm.automations.form.triggers.SCHEDULED')}</option>
                 </optgroup>
                 <optgroup label={t('crm.automations.form.triggerGroups.email')}>
                   <option value="email.sent">{t('crm.automations.form.triggers.EMAIL_SENT')}</option>
@@ -413,6 +509,115 @@ export const AutomationFormPage: React.FC = () => {
                   <option value="custom_object.status_changed">Status changed</option>
                 </optgroup>
               </select>
+              {formData.triggerEvent === 'scheduled' && (
+                <div className="mt-3 space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/50 p-3">
+                  <div className="text-[10px] font-semibold text-indigo-900">
+                    {t('crm.automations.form.triggers.SCHEDULED')}
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-[11px] text-slate-600">
+                        {t('crm.automations.form.report.frequency')}
+                      </label>
+                      <select
+                        value={schedFreq}
+                        onChange={(e) =>
+                          patchScheduleField('scheduleFrequency', e.target.value)
+                        }
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900"
+                      >
+                        <option value="daily">
+                          {t('crm.automations.form.report.frequencies.daily')}
+                        </option>
+                        <option value="weekly">
+                          {t('crm.automations.form.report.frequencies.weekly')}
+                        </option>
+                        <option value="monthly">
+                          {t('crm.automations.form.report.frequencies.monthly')}
+                        </option>
+                        <option value="quarterly">
+                          {t('crm.automations.form.report.frequencies.quarterly')}
+                        </option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[11px] text-slate-600">
+                        {t('crm.automations.form.report.time')}
+                      </label>
+                      <input
+                        type="time"
+                        value={scheduledCfg.scheduleTime || '09:00'}
+                        onChange={(e) =>
+                          patchScheduleField('scheduleTime', e.target.value)
+                        }
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900"
+                      />
+                    </div>
+                  </div>
+                  {schedFreq === 'weekly' && (
+                    <div>
+                      <label className="mb-1 block text-[11px] text-slate-600">
+                        {t('crm.automations.form.report.dayOfWeek')}
+                      </label>
+                      <select
+                        value={scheduledCfg.scheduleDayOfWeek ?? 1}
+                        onChange={(e) =>
+                          patchScheduleField(
+                            'scheduleDayOfWeek',
+                            Number(e.target.value),
+                          )
+                        }
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900"
+                      >
+                        <option value={1}>{t('crm.automations.form.report.weekdays.mon')}</option>
+                        <option value={2}>{t('crm.automations.form.report.weekdays.tue')}</option>
+                        <option value={3}>{t('crm.automations.form.report.weekdays.wed')}</option>
+                        <option value={4}>{t('crm.automations.form.report.weekdays.thu')}</option>
+                        <option value={5}>{t('crm.automations.form.report.weekdays.fri')}</option>
+                        <option value={6}>{t('crm.automations.form.report.weekdays.sat')}</option>
+                        <option value={7}>{t('crm.automations.form.report.weekdays.sun')}</option>
+                      </select>
+                    </div>
+                  )}
+                  {schedFreq !== 'weekly' && (
+                    <div>
+                      <label className="mb-1 block text-[11px] text-slate-600">
+                        {t('crm.automations.form.report.dayOfMonth')}
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={scheduledCfg.scheduleDayOfMonth ?? 1}
+                        onChange={(e) =>
+                          patchScheduleField(
+                            'scheduleDayOfMonth',
+                            Number(e.target.value),
+                          )
+                        }
+                        className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="mb-1 block text-[11px] text-slate-600">
+                      {t('crm.automations.form.report.timezone')}
+                    </label>
+                    <input
+                      type="text"
+                      value={scheduledCfg.scheduleTimezone || 'UTC'}
+                      onChange={(e) =>
+                        patchScheduleField('scheduleTimezone', e.target.value)
+                      }
+                      className="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900"
+                      placeholder="Europe/Moscow"
+                    />
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-slate-600">
+                    Добавьте действия ниже (например «Отправить email») с полями accountId и списком to.
+                  </p>
+                </div>
+              )}
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <span className="text-[10px] text-slate-500">{t('crm.automations.form.builder.scope')}</span>
                 <button
@@ -819,6 +1024,7 @@ export const AutomationFormPage: React.FC = () => {
                           onChange={(e) => updateAction(index, 'scheduleFrequency', e.target.value)}
                           className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
                         >
+                          <option value="daily">{t('crm.automations.form.report.frequencies.daily')}</option>
                           <option value="weekly">{t('crm.automations.form.report.frequencies.weekly')}</option>
                           <option value="monthly">{t('crm.automations.form.report.frequencies.monthly')}</option>
                           <option value="quarterly">{t('crm.automations.form.report.frequencies.quarterly')}</option>

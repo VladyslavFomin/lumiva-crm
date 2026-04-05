@@ -65,3 +65,43 @@ export function dayKeysFromStartEndStrings(
   }
   return enumerateInclusiveLocalDayKeys(start, end);
 }
+
+/**
+ * Разбор значения {@code <input type="datetime-local">}: локальные компоненты,
+ * без неоднозначного {@code Date.parse} в части браузеров.
+ */
+export function parseDatetimeLocalValue(raw: string | null | undefined): Date | null {
+  const s = String(raw ?? '').trim();
+  if (!s) return null;
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (m) {
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const d = Number(m[3]);
+    const h = Number(m[4]);
+    const min = Number(m[5]);
+    const sec = m[6] != null && m[6] !== '' ? Number(m[6]) : 0;
+    if (
+      [y, mo, d, h, min, sec].some((n) => Number.isNaN(n)) ||
+      mo < 1 ||
+      mo > 12 ||
+      d < 1 ||
+      d > 31 ||
+      h < 0 ||
+      h > 23 ||
+      min < 0 ||
+      min > 59 ||
+      sec < 0 ||
+      sec > 59
+    ) {
+      return null;
+    }
+    const dt = new Date(y, mo - 1, d, h, min, sec, 0);
+    if (dt.getFullYear() !== y || dt.getMonth() !== mo - 1 || dt.getDate() !== d) {
+      return null;
+    }
+    return dt;
+  }
+  const dt = new Date(s);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}

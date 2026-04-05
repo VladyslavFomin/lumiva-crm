@@ -1,0 +1,197 @@
+{
+  "common": {
+    "sync": "Senkronize et",
+    "loading": "…",
+    "cancel": "İptal",
+    "save": "Kaydet"
+  },
+  "marketingTraffic": {
+    "summaryBreakdownEmpty": "Seçilen dönem için sağlayıcı dökümü yok.",
+    "summaryBreakdownChannel": "Kanal (veri kaynağı)",
+    "summaryBreakdownRows": "Satır"
+  },
+  "marketingCurrency": {
+    "fxError": "Döviz kurları yüklenemedi",
+    "missingRateFootnote": "* Satır para birimi EUR/GBP/TRY/RUB içinde değil veya kur henüz yüklenmedi — tutar dönüşümsüz gösterilir.",
+    "mixedShort": "karışık pb",
+    "toolbar": {
+      "native": "Verideki gibi",
+      "convertedTo": "{{code}} cinsine çevrildi (ECB, iş günü)",
+      "label": "Rapor para birimi",
+      "configure": "Yapılandır",
+      "fxAsOf": "{{source}} {{date}}"
+    },
+    "modal": {
+      "title": "Kampanya ve trafik para birimi",
+      "introFx": "EUR, GBP, TRY, RUB kurları sunucudan yüklenir (Frankfurter / ECB). Entegrasyon para birimi, entegrasyon listesindeki «Para birimi» düğmesiyle ayarlanır.",
+      "modeConverted": "Tek para birimi (ECB kuru)",
+      "modeNative": "Verideki gibi (kanala göre)",
+      "fxTo": "Şuna çevir",
+      "refreshFx": "Kurları yenile"
+    },
+    "iso": {
+      "hint": "ISO para birimi kodunu seçin. Listeyi süzebilirsiniz.",
+      "search": "Ara…",
+      "empty": "Eşleşme yok"
+    }
+  },
+  "marketingIntegrations": {
+    "list": {
+      "currencyTitle": "Veri kaynağı para birimi"
+    },
+    "errors": {
+      "patchCurrency": "Para birimi kaydedilemedi"
+    },
+    "actions": {
+      "currency": "Para birimi",
+      "sync": "Senkronize et"
+    },
+    "form": {
+      "pickCurrency": "Para birimi seç",
+      "clearCurrency": "Sıfırla",
+      "ym": {
+        "currency": "Para birimi (isteğe bağlı)"
+      }
+    }
+  },
+  "marketingChannelBlocks": {
+    "allUnattributedHidden": "Tüm satırlar gizli: yalnızca entegrasyon kanalı olmayan kayıtlar kaldı. Aşağıdaki filtreyi kaldırın veya içe aktarımda dataSource ayarlayın.",
+    "hideUnattributed": "«Entegrasyon kanalı yok» satırlarını gizle",
+    "moreDetails": "Ayrıntılar",
+    "unknownExplain": "CRM'de veri kaynağı olmayan satırlar: genelde n8n/analitik içe aktarımı entegrasyon etiketi olmadan. Gösterimler ve harcama burada UTM'siz Meta/Google oturum dilimleriyle çakışabilir—komşu kartlara «ek reklam» gibi eklemeyin.",
+    "ctr": "CTR",
+    "cpc": "CPC",
+    "cpm": "CPM",
+    "cplShort": "CPL",
+    "topCampaigns": "Kampanyalar"
+  },
+  "marketingChannelAnalytics": {
+    "dimEmpty": "(tanımsız)",
+    "other": "Diğer",
+    "mapTitleGa4": "Coğrafya (Google Analytics verisi)",
+    "mapHintGa4": "Ülke, GA4 senkronunda countryId alanından gelir. Yoğunluk oturumlara göre. Bunlar web analitiği özetleri, CRM'deki kişiler değil.",
+    "mapEmptyNoInfer": "Dönem için veritabanında coğrafya yok ve kampanya adından ülke çıkarılamadı. GA4 kanalları için güncellemeden sonra entegrasyonu senkronize edin.",
+    "geoUnknownCountry": "Ülke belirlenemedi",
+    "periodAll": "Kullanılabilir tüm dönem",
+    "close": "Kapat",
+    "sectionTrend": "Günlük trend",
+    "loadingSeries": "Seri yükleniyor…",
+    "emptySeries": "Seçilen filtre için günlük veri yok.",
+    "chartSessionsClicks": "Oturumlar ve tıklamalar",
+    "chartCostRevenue": "Harcama ve gelir (ham günlük toplamlar)",
+    "chartImpressions": "Gösterimler",
+    "sectionBreakdown": "Harcama ve trafik yapısı",
+    "pieCostCampaign": "Kampanyaya göre harcama",
+    "pieSessionsSource": "Kaynağa göre oturumlar",
+    "pieImprMedium": "Ortağa (medium) göre gösterimler",
+    "barTopImpressions": "Gösterime göre en iyi kampanyalar",
+    "sectionGeo": "Coğrafya",
+    "geoTableTitle": "Ülkelere göre oturum ve görüntülenme",
+    "geoTableHint": "Google Analytics'teki Geo raporu gibi: ülkeye göre oturum ve görüntülenme. Bireysel CRM kullanıcıları yok—yalnızca web analitiği özetleri.",
+    "geoColCountry": "Ülke",
+    "fullTable": "Seçimdeki tüm kampanyalar",
+    "fullTableHint": "Sütunlara göre sıralayın. Veriler trafik sayfasındaki dönem özetine uyar.",
+    "mapTitle": "Coğrafya (kampanya adlarından tahmin)",
+    "mapHint": "Oturumlara göre renklendirme. Ülke, kampanya adındaki anahtar kelimelerden tahmin edilir (ör. «Almanya», «Polonya»). Eşleşme yoksa haritada görünmez.",
+    "mapEmpty": "Kampanya adına göre ülkeye bağlı satır yok.",
+    "geoLoading": "Coğrafi veri yükleniyor…",
+    "mapNoCountryData": "Bu ülke için mevcut seçimde veri yok.",
+    "mapScale": "Oturumlar (yoğunluk)",
+    "roadmapTitle": "Sayfalar ve huni (geliştiriliyor)",
+    "roadmapBody": "GA4 kanalları için oturuma göre coğrafya senkronla gelir (countryId). Sayfa URL'si, şehirler ve huni adımları raporları şema/içe aktarma genişletmesinden sonra planlanıyor."
+  },
+  "marketingIntegrationsGuide": {
+    "kindVideo": "Video",
+    "kindConsole": "Konsol",
+    "kindArticle": "Makale",
+    "navAria": "Kılavuz bölümleri",
+    "navTitle": "Bölümler",
+    "whereLead": "Reklam ve analitik konsolları: jetonlar, sayaç kimlikleri ve API anahtarlarının bulunduğu yerler.",
+    "whatLead": "Pazarlama bağlantıları sayfasındaki «Entegrasyon ekle» formundaki alan eşlemesi.",
+    "keysLead": "Gerçek sırlar olmadan formatlar: doğru değeri kopyaladığınızı doğrulamayı kolaylaştırır.",
+    "helpCardsTitle": "Ekran görüntülü resmi yardım"
+  },
+  "emailTemplates": {
+    "list": {
+      "title": "E-postalar",
+      "subtitle": "Pazarlama kampanyaları için e-posta şablonları oluşturun ve yönetin",
+      "create": "Şablon oluştur",
+      "createFirst": "İlk şablonu oluştur",
+      "subject": "Konu",
+      "loading": "Yükleniyor…",
+      "empty": "Şablon yok",
+      "delete": "Sil",
+      "deleteConfirm": "Bu e-posta şablonunu silmek istiyor musunuz?",
+      "edit": "Düzenle",
+      "preview": "Önizleme",
+      "errors": {
+        "loadFailed": "Şablonlar yüklenemedi",
+        "deleteFailed": "Şablon silinemedi"
+      }
+    },
+    "form": {
+      "titleNew": "E-posta şablonu oluştur",
+      "titleEdit": "E-posta şablonunu düzenle",
+      "subtitle": "Değişken destekli şablon oluşturun",
+      "fields": {
+        "name": "Ad *",
+        "description": "Açıklama",
+        "subject": "E-posta konusu",
+        "htmlBody": "HTML gövde",
+        "textBody": "Düz metin sürümü",
+        "isActive": "Aktif",
+        "variables": "Kullanılabilir değişkenler",
+        "preview": "Önizleme"
+      },
+      "hints": {
+        "activeAvailable": "Şablon kullanıma açık olacak",
+        "availableVariables": "Kullanılabilir değişkenler"
+      },
+      "placeholders": {
+        "name": "Şablon adı",
+        "description": "Şablon açıklaması",
+        "subject": "Konu ({{lead.name}}, {{lead.email}} vb. kullanılabilir)",
+        "htmlBody": "HTML e-posta kodu…",
+        "textBody": "HTML desteklemeyen istemciler için düz metin"
+      },
+      "defaultTemplate": {
+        "greeting": "Merhaba {{lead.name}}!",
+        "body": "Bu, değişken kullanan örnek bir e-postadır.",
+        "phoneLabel": "Telefon:",
+        "statusLabel": "Durum:",
+        "signature": "Saygılarımızla,<br>Lumiva ekibi"
+      },
+      "variables": {
+        "lead": "Lead: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
+        "contact": "Kişi: {{contact.name}}, {{contact.email}}",
+        "company": "Şirket: {{company.name}}, {{company.email}}"
+      },
+      "actions": {
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "cancel": "İptal",
+        "preview": "Önizleme",
+        "useTemplate": "Şablonu kullan"
+      },
+      "errors": {
+        "saveFailed": "Kaydedilemedi",
+        "loadFailed": "Şablon yüklenemedi",
+        "previewFailed": "Önizleme başarısız"
+      },
+      "success": {
+        "saved": "Şablon kaydedildi"
+      }
+    }
+  },
+  "nav": {
+    "marketingStatuses": "Lead / müşteri durumları"
+  },
+  "sales": {
+    "analytics": {
+      "settings": {
+        "currencyMode": "Para birimi modu",
+        "displayCurrency": "Görüntüleme para birimi"
+      }
+    }
+  }
+}

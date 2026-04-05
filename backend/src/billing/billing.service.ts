@@ -70,6 +70,9 @@ export class BillingService {
   }
 
   private async applyPaidSession(session: Stripe.Checkout.Session): Promise<{ applied: boolean }> {
+    const pt = session.metadata?.purchaseType;
+    if (pt === 'ai_prepaid' || pt === 'storage_pack') return { applied: false };
+
     const tenantId = session.metadata?.tenantId;
     const plan = (session.metadata?.plan || 'standard') as PlanCode;
     const period = (session.metadata?.period || 'month') as BillingPeriod;
@@ -102,6 +105,41 @@ export class BillingService {
       tenant.status = 'active';
     }
 
+    await this.tenantsRepo.save(tenant);
+    return { applied: true };
+  }
+
+  private async applyAddonSession(session: Stripe.Checkout.Session): Promise<{ applied: boolean }> {
+    const meta = session.metadata || {};
+    const purchaseType = meta.purchaseType;
+    const tenantId = meta.tenantId;
+    if (
+      !tenantId ||
+      (purchaseType !== 'ai_prepaid' && purchaseType !== 'storage_pack')
+    ) {
+      return { applied: false };
+    }
+
+    const tenant = await this.getTenantOrFail(tenantId);
+    if (tenant.stripeAuxLastSessionId && tenant.stripeAuxLastSessionId === session.id) {
+      return { applied: false };
+    }
+
+    if (purchaseType === 'ai_prepaid') {
+      const cents = parseInt(String(meta.creditsCents || '0'), 10) || 0;
+      if (cents > 0) {
+        tenant.aiPrepaidCents = (tenant.aiPrepaidCents || 0) + cents;
+      }
+    } else if (purchaseType === 'storage_pack') {
+      let bytes = BigInt(String(meta.storageBytes || '0'));
+      if (bytes <= 0n) {
+        bytes = BigInt(1024 * 1024 * 1024);
+      }
+      const cur = BigInt(tenant.storageExtraBytes || '0');
+      tenant.storageExtraBytes = (cur + bytes).toString();
+    }
+
+    tenant.stripeAuxLastSessionId = session.id;
     await this.tenantsRepo.save(tenant);
     return { applied: true };
   }
@@ -211,7 +249,10 @@ export class BillingService {
     if (session.metadata?.tenantId && session.metadata.tenantId !== tenant.id) {
       throw new BadRequestException('Session tenant mismatch');
     }
-    await this.applyPaidSession(session);
+    const main = await this.applyPaidSession(session);
+    if (!main.applied) {
+      await this.applyAddonSession(session);
+    }
     return { ok: true };
   }
 
@@ -230,9 +271,124 @@ export class BillingService {
 
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as Stripe.Checkout.Session;
-      await this.applyPaidSession(session);
+      const paid = session.payment_status === 'paid' || session.status === 'complete';
+      if (paid) {
+        const main = await this.applyPaidSession(session);
+        if (!main.applied) {
+          await this.applyAddonSession(session);
+        }
+      }
     }
 
     return { ok: true };
+  }
+
+  async createAiAddonCheckoutSession(input: {
+    tenantId?: string | null;
+    kind: 'ai_prepaid' | 'storage_pack';
+    successUrl: string;
+    cancelUrl: string;
+  }) {
+    const tenant = await this.getTenantOrFail(input.tenantId);
+    const cfg = await this.settings.getSettings();
+    const secretKey =
+      cfg?.stripeSecretKey?.trim() || process.env.STRIPE_SECRET_KEY?.trim();
+    if (!secretKey) {
+      throw new BadRequestException('Stripe is not configured');
+    }
+    const stripe = this.getStripeClient(secretKey);
+
+    const creditsCents =
+      cfg?.aiCreditsPackAmountCents != null && cfg.aiCreditsPackAmountCents > 0
+        ? cfg.aiCreditsPackAmountCents
+        : 1000;
+    const storageBytes =
+      cfg?.storagePackBytes != null && BigInt(cfg.storagePackBytes || '0') > 0n
+        ? BigInt(cfg.storagePackBytes as string)
+        : BigInt(1024 * 1024 * 1024);
+
+    if (input.kind === 'ai_prepaid') {
+      const priceId = (cfg?.stripePriceAiCredits || '').trim();
+      if (priceId.startsWith('price_')) {
+        const session = await stripe.checkout.sessions.create({
+          mode: 'payment',
+          line_items: [{ price: priceId, quantity: 1 }],
+          success_url: input.successUrl,
+          cancel_url: input.cancelUrl,
+          metadata: {
+            tenantId: tenant.id,
+            purchaseType: 'ai_prepaid',
+            creditsCents: String(creditsCents),
+          },
+          customer_email: tenant.ownerEmail || undefined,
+        });
+        return { id: session.id, url: session.url };
+      }
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'eur',
+              unit_amount: Math.max(50, Math.round(creditsCents)),
+              product_data: {
+                name: `AI-кредиты · ${(creditsCents / 100).toFixed(2)} EUR экв.`,
+              },
+            },
+          },
+        ],
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+        metadata: {
+          tenantId: tenant.id,
+          purchaseType: 'ai_prepaid',
+          creditsCents: String(creditsCents),
+        },
+        customer_email: tenant.ownerEmail || undefined,
+      });
+      return { id: session.id, url: session.url };
+    }
+
+    const priceId = (cfg?.stripePriceStoragePack || '').trim();
+    if (priceId.startsWith('price_')) {
+      const session = await stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: [{ price: priceId, quantity: 1 }],
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+        metadata: {
+          tenantId: tenant.id,
+          purchaseType: 'storage_pack',
+          storageBytes: storageBytes.toString(),
+        },
+        customer_email: tenant.ownerEmail || undefined,
+      });
+      return { id: session.id, url: session.url };
+    }
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: 'eur',
+            unit_amount: 499,
+            product_data: {
+              name: 'Доп. хранилище · +1 ГБ',
+            },
+          },
+        },
+      ],
+      success_url: input.successUrl,
+      cancel_url: input.cancelUrl,
+      metadata: {
+        tenantId: tenant.id,
+        purchaseType: 'storage_pack',
+        storageBytes: storageBytes.toString(),
+      },
+      customer_email: tenant.ownerEmail || undefined,
+    });
+    return { id: session.id, url: session.url };
   }
 }

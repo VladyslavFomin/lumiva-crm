@@ -29,6 +29,10 @@ import {
   tenantStorageFileHref,
   type TenantCompanyFileRow,
 } from '../../api/tenant-storage-files';
+import {
+  fetchEmailTemplates,
+  type EmailTemplate,
+} from '../../api/email';
 
 type TabId = 'general' | 'billing' | 'sessions' | 'invites' | 'storage';
 
@@ -63,6 +67,13 @@ export const SettingsCompanyPage: React.FC = () => {
   const [name, setName] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
   const [uiLanguage, setUiLanguage] = useState<string | ''>('');
+  const [aiWrapperEmailTemplateId, setAiWrapperEmailTemplateId] =
+    useState<string>('');
+  const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
+  const [emailTemplatesLoading, setEmailTemplatesLoading] = useState(false);
+  const [emailTemplatesError, setEmailTemplatesError] = useState<string | null>(
+    null,
+  );
 
   const locale = useMemo(() => {
     if (i18n.language === 'tr') return 'tr-TR';
@@ -88,6 +99,7 @@ export const SettingsCompanyPage: React.FC = () => {
           normalizeLogoUrl(settings.logoUrl) ?? settings.logoUrl ?? '',
         );
         setUiLanguage(settings.uiLanguage || '');
+        setAiWrapperEmailTemplateId(settings.aiWrapperEmailTemplateId ?? '');
         if (settings.name?.trim()) {
           updateStoredTenantName(settings.name.trim());
         }
@@ -154,6 +166,32 @@ export const SettingsCompanyPage: React.FC = () => {
     void loadStorageFiles();
   }, [tab, loadStorageFiles]);
 
+  useEffect(() => {
+    if (tab !== 'general' || !data) return;
+    let alive = true;
+    setEmailTemplatesLoading(true);
+    setEmailTemplatesError(null);
+    fetchEmailTemplates()
+      .then((list) => {
+        if (alive) setEmailTemplates(list);
+      })
+      .catch((e: any) => {
+        console.error(e);
+        if (alive) {
+          setEmailTemplates([]);
+          setEmailTemplatesError(
+            e.message || t('crm.settings.company.fields.aiWrapperTemplatesError'),
+          );
+        }
+      })
+      .finally(() => {
+        if (alive) setEmailTemplatesLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [tab, data, t]);
+
   const orderedSessions = useMemo(() => {
     return [...tenantSessions].sort((a, b) => {
       const byEmail = a.userEmail.localeCompare(b.userEmail);
@@ -183,8 +221,12 @@ export const SettingsCompanyPage: React.FC = () => {
         name: name.trim() || data.name,
         logoUrl: logoUrl.trim() || null,
         uiLanguage: uiLanguage || null,
+        aiWrapperEmailTemplateId: aiWrapperEmailTemplateId.trim()
+          ? aiWrapperEmailTemplateId.trim()
+          : null,
       });
       setData(updated);
+      setAiWrapperEmailTemplateId(updated.aiWrapperEmailTemplateId ?? '');
       setLogoUrl(
         normalizeLogoUrl(updated.logoUrl) ?? updated.logoUrl ?? '',
       );
@@ -398,6 +440,49 @@ export const SettingsCompanyPage: React.FC = () => {
                       </select>
                       <p className="mt-1 text-[11px] text-slate-500">
                         {t('crm.settings.company.fields.languageHint')}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-slate-600">
+                        {t('crm.settings.company.fields.aiWrapperTemplate')}
+                      </label>
+                      <select
+                        value={aiWrapperEmailTemplateId}
+                        onChange={(e) =>
+                          setAiWrapperEmailTemplateId(e.target.value)
+                        }
+                        disabled={!isOwner || emailTemplatesLoading}
+                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 disabled:opacity-60"
+                      >
+                        <option value="">
+                          {t('crm.settings.company.fields.aiWrapperTemplateEmpty')}
+                        </option>
+                        {emailTemplates.map((tpl) => (
+                          <option key={tpl.id} value={tpl.id}>
+                            {tpl.name}
+                            {!tpl.isActive
+                              ? t(
+                                  'crm.settings.company.fields.templateInactiveSuffix',
+                                )
+                              : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {emailTemplatesLoading && (
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          {t(
+                            'crm.settings.company.fields.aiWrapperTemplatesLoading',
+                          )}
+                        </p>
+                      )}
+                      {emailTemplatesError && (
+                        <p className="mt-1 text-[11px] text-red-600">
+                          {emailTemplatesError}
+                        </p>
+                      )}
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        {t('crm.settings.company.fields.aiWrapperTemplateHint')}
                       </p>
                     </div>
 
