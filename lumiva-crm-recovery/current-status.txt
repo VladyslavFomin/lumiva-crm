@@ -1,0 +1,127 @@
+ M backend/package-lock.json
+ M backend/package.json
+ M backend/src/app.module.ts
+ M backend/src/auth/auth.controller.ts
+ M backend/src/auth/auth.service.ts
+ M backend/src/common/decorators/current-user.decorator.ts
+ M backend/src/demo-requests/demo-requests.controller.ts
+ M backend/src/demo-requests/demo-requests.service.ts
+ M backend/src/leads/dto/create-lead.dto.ts
+ M backend/src/leads/lead.entity.ts
+ M backend/src/leads/leads.controller.ts
+ M backend/src/leads/leads.module.ts
+ M backend/src/leads/leads.service.ts
+ M backend/src/main.ts
+ M backend/src/marketing/marketing.controller.ts
+ M backend/src/marketing/marketing.module.ts
+ M backend/src/marketing/marketing.service.ts
+ M backend/src/platform-admin/platform-admin.controller.ts
+ M backend/src/platform-admin/platform-admin.guard.ts
+ M backend/src/platform-admin/platform-admin.service.ts
+ M backend/src/platform-admin/platform-auth.service.ts
+ M backend/src/platform-settings/platform-settings.controller.ts
+ M backend/src/platform-settings/platform-settings.entity.ts
+ M backend/src/platform-settings/platform-settings.service.ts
+ M backend/src/projects/dto/create-project.dto.ts
+ M backend/src/projects/project.entity.ts
+ M backend/src/projects/projects.controller.ts
+ M backend/src/projects/projects.module.ts
+ M backend/src/projects/projects.service.ts
+ M backend/src/public/public.controller.ts
+ M backend/src/rbac/permission.types.ts
+ M backend/src/rbac/rbac.guard.ts
+ M backend/src/rbac/rbac.service.ts
+ M backend/src/rbac/require-permission.decorator.ts
+ M backend/src/sales/dto/update-sale.dto.ts
+ M backend/src/sales/sale.entity.ts
+ M backend/src/sales/sales-import.controller.ts
+ M backend/src/sales/sales-import.service.ts
+ M backend/src/sales/sales.controller.ts
+ M backend/src/sales/sales.module.ts
+ M backend/src/sales/sales.service.ts
+ M backend/src/staff/staff-user.entity.ts
+ M backend/src/staff/staff-users.controller.ts
+ M backend/src/staff/staff-users.service.ts
+ M backend/src/tenants/platform-tenants.controller.ts
+ M backend/src/tenants/tenant.entity.ts
+ M backend/src/tenants/tenants.controller.ts
+ M backend/src/tenants/tenants.service.ts
+ M frontend/index.html
+ M frontend/package-lock.json
+ M frontend/package.json
+ M frontend/src/api/client.ts
+ M frontend/src/api/imports.ts
+ M frontend/src/api/leads.ts
+ M frontend/src/api/projects.ts
+ M frontend/src/api/rbac.ts
+ M frontend/src/api/sales.ts
+ M frontend/src/api/staff.ts
+ M frontend/src/auth/session.ts
+ M frontend/src/layout/MainLayout.tsx
+ M frontend/src/locales/en/translation.json
+ M frontend/src/locales/ru/translation.json
+ M frontend/src/locales/tr/translation.json
+ M frontend/src/main.tsx
+ M frontend/src/pages/LoginPage.tsx
+ M frontend/src/pages/leads/LeadFormPage.tsx
+ M frontend/src/pages/leads/LeadsBoardPage.tsx
+ M frontend/src/pages/leads/LeadsListPage.tsx
+ M frontend/src/pages/marketing/CampaignsPage.tsx
+ M frontend/src/pages/marketing/MarketingIntegrationsPage.tsx
+ M frontend/src/pages/marketing/SmmPage.tsx
+ M frontend/src/pages/marketing/TrafficPage.tsx
+ M frontend/src/pages/projects/ClosedProjectsPage.tsx
+ M frontend/src/pages/projects/InProgressProjectsPage.tsx
+ M frontend/src/pages/projects/ProjectFormPage.tsx
+ M frontend/src/pages/projects/ProjectTasksPage.tsx
+ M frontend/src/pages/projects/ProjectsBoardPage.tsx
+ M frontend/src/pages/projects/projectTypes.ts
+ M frontend/src/pages/sales/SaleDetailsPage.tsx
+ M frontend/src/pages/sales/SalesChannelsPage.tsx
+ M frontend/src/pages/sales/SalesImportPage.tsx
+ M frontend/src/pages/sales/SalesIntegrationsPage.tsx
+ M frontend/src/pages/sales/SalesPage.tsx
+ M frontend/src/router/AppRouter.tsx
+?? ENTITY_RELATIONS.md
+?? INTEGRATION_PLAN.md
+?? backend/src/auth/dto/signup.dto.ts
+?? backend/src/automations/
+?? backend/src/billing/
+?? backend/src/companies/
+?? backend/src/contacts/
+?? backend/src/custom-fields/
+?? backend/src/departments/
+?? backend/src/email/
+?? backend/src/marketing/dto/create-segment-request.dto.ts
+?? backend/src/notes/
+?? backend/src/projects/project-activity.entity.ts
+?? backend/src/sales/dto/sales-analytics-query.dto.ts
+?? backend/src/sales/dto/save-analytics-preset.dto.ts
+?? backend/src/sales/sales-analytics-preset.entity.ts
+?? backend/src/telegram-crm/
+?? backend/src/tenants/plan-entitlements.ts
+?? frontend/scripts/
+?? frontend/src/api/automations.ts
+?? frontend/src/api/companies.ts
+?? frontend/src/api/contacts.ts
+?? frontend/src/api/custom-fields.ts
+?? frontend/src/api/departments.ts
+?? frontend/src/api/email.ts
+?? frontend/src/api/notes.ts
+?? frontend/src/api/telegram-crm.ts
+?? frontend/src/api/tenants.ts
+?? frontend/src/components/
+?? frontend/src/pages/BillingPage.tsx
+?? frontend/src/pages/automations/
+?? frontend/src/pages/companies/
+?? frontend/src/pages/contacts/
+?? frontend/src/pages/departments/
+?? frontend/src/pages/email/
+?? frontend/src/pages/leads/LeadsArchivePage.tsx
+?? frontend/src/pages/leads/LeadsTrashPage.tsx
+?? frontend/src/pages/marketing/EmailTemplateFormPage.tsx
+?? frontend/src/pages/marketing/EmailTemplatesPage.tsx
+?? frontend/src/pages/projects/ProjectsArchivePage.tsx
+?? frontend/src/pages/projects/ProjectsBulkEditPage.tsx
+?? frontend/src/pages/projects/ProjectsTrashPage.tsx
+?? frontend/src/pages/telegram-crm/

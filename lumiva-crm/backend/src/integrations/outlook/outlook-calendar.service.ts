@@ -1,0 +1,92 @@
+import { Injectable } from '@nestjs/common';
+import axios from 'axios';
+
+const GRAPH = 'https://graph.microsoft.com/v1.0';
+
+/**
+ * Microsoft 365 / Outlook — календарь через Microsoft Graph (OAuth access token).
+ * @see https://learn.microsoft.com/en-us/graph/api/user-post-events
+ */
+@Injectable()
+export class OutlookCalendarService {
+  private isoInstantToGraphUtc(iso: string): { dateTime: string; timeZone: 'UTC' } {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      throw new Error('Outlook Calendar: неверная дата начала или окончания');
+    }
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return {
+      dateTime: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`,
+      timeZone: 'UTC',
+    };
+  }
+
+  async verifyCalendarAccess(accessToken: string): Promise<void> {
+    const tok = accessToken.trim();
+    if (!tok) {
+      throw new Error('Outlook Calendar: пустой access token');
+    }
+    const res = await axios.get(`${GRAPH}/me/calendar`, {
+      headers: { Authorization: `Bearer ${tok}` },
+      params: { $select: 'id,name' },
+      timeout: 15000,
+      validateStatus: () => true,
+    });
+    if (res.status !== 200) {
+      const detail =
+        typeof res.data === 'object' && res.data !== null
+          ? JSON.stringify(res.data)
+          : String(res.data ?? '');
+      throw new Error(`Microsoft Graph (календарь): HTTP ${res.status} ${detail}`.slice(0, 500));
+    }
+  }
+
+  async insertEvent(params: {
+    accessToken: string;
+    /** Graph id календаря; null / пусто — календарь по умолчанию (/me/events) */
+    calendarGraphId: string | null;
+    subject: string;
+    bodyText?: string;
+    startIsoUtc: string;
+    endIsoUtc: string;
+  }): Promise<{ id?: string }> {
+    const tok = params.accessToken.trim();
+    if (!tok) {
+      throw new Error('Outlook Calendar: пустой access token');
+    }
+    const calId = params.calendarGraphId?.trim();
+    const url = calId
+      ? `${GRAPH}/me/calendars/${encodeURIComponent(calId)}/events`
+      : `${GRAPH}/me/events`;
+
+    const start = this.isoInstantToGraphUtc(params.startIsoUtc);
+    const end = this.isoInstantToGraphUtc(params.endIsoUtc);
+    const bodyContent = (params.bodyText || '').slice(0, 32000);
+
+    const res = await axios.post(
+      url,
+      {
+        subject: params.subject.slice(0, 998),
+        body: { contentType: 'Text', content: bodyContent },
+        start,
+        end,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${tok}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 25000,
+        validateStatus: () => true,
+      },
+    );
+    if (res.status !== 200 && res.status !== 201) {
+      const detail =
+        typeof res.data === 'object' && res.data !== null
+          ? JSON.stringify(res.data)
+          : String(res.data ?? '');
+      throw new Error(`Outlook Calendar: HTTP ${res.status} ${detail}`.slice(0, 500));
+    }
+    return res.data as { id?: string };
+  }
+}

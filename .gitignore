@@ -1,0 +1,40 @@
+# --- Secrets & credentials (never commit) ---
+.env
+.env.*
+!.env.example
+.ssh/
+*.pem
+id_rsa*
+
+# --- Shell & DB history ---
+.bash_history
+.lesshst
+.mysql_history
+
+# --- Tool caches & heavy local dirs ---
+.cache/
+.codex/
+.config/
+.cursor-server/
+.dbclient/
+.docker/
+.dotnet/
+.expo/
+.gradle/
+.local/
+.npm/
+.vscode-server/
+.android/
+
+# --- Backup of old nested repo metadata (local only) ---
+nested-repos-git-backup*.tar.gz
+
+# --- Accidental / mistaken filenames ---
+s -tulpn | grep ':80'
+ystemctl enable nginx
+
+# --- Home dotfiles (not part of Lumiva source tree) ---
+.bashrc
+.profile
+.wget-hsts
+.selected_editor

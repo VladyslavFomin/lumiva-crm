@@ -1,0 +1,1584 @@
+Table - Reporting API reference | Yandex Metrica API
+
+[Request](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#request)
+
+- [Query parameters](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#query-parameters)
+
+[200 OK](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#200-ok)
+
+- [Body](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#body)
+- [QueryExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-QueryExternal)
+- [StaticRow](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-StaticRow)
+- [ParamMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-ParamMetaExternal)
+- [DimensionMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-DimensionMetaExternal)
+- [MetricMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-MetricMetaExternal)
+- [Meta](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-Meta)
+
+# Table
+
+ 
+
+Provides access to Yandex Metrica statistical data, including data available in reports. Returns results in the form of a table.
+
+## Request
+
+GET
+
+```
+https://api-metrika.yandex.net/stat/v1/data
+
+```
+
+### Query parameters
+
+Name
+
+Description
+
+ids
+
+Type: integer[]
+
+Comma-separated list of tag IDs.
+
+Example:`44147844,2215573`
+
+metrics
+
+Type: string
+
+Comma-separated list of metrics. Limit: 20 metrics per request.
+
+Example:`ym:s:pageviews`
+
+accuracy
+
+Type: string
+
+Sample size for the report. Use it to control the [sampling rate](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/sampling)(the number of sessions used for calculating results).
+
+Example: ``
+
+callback
+
+Type: string
+
+Callback function that processes the API response.
+
+Example: ``
+
+date1
+
+Type: string
+
+Start date of the sample period in YYYY-MM-DD format. You can also use the values:`today`,`yesterday`,`ndaysAgo`.
+
+Default:`6daysAgo`
+
+Example: ``
+
+date2
+
+Type: string
+
+End date of the sample period in YYYY-MM-DD format. You can also use the values:`today`,`yesterday`,`ndaysAgo`.
+
+Default:`today`
+
+Example: ``
+
+dimensions
+
+Type: string
+
+Comma-separated list of dimensions. Limit: 10 dimensions per request.
+
+Example:`ym:s:trafficSource`
+
+direct_client_logins
+
+Type: string[]
+
+Comma-separated usernames of Yandex Direct clients. They can be used for generating the [Yandex Direct — costs](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/direct-clicks) report.
+
+Example:`login1,login2`
+
+filters
+
+Type: string
+
+[Segmentation](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/segmentation) filter. Limits: up to 10 unique dimensions and metrics; up to 20 separate filters; up to 10,000 characters per filter row; and up to 100 values per filtering condition.
+
+Example: ``
+
+include_undefined
+
+Type: boolean
+
+Outputs rows that don't have defined dimension values. This only affects the first dimension. Disabled by default.
+
+lang
+
+Type: string
+
+Language.
+
+Example: ``
+
+limit
+
+Type: string
+
+Number of items on the results page. Limit: 100,000.
+
+Default:`100`
+
+Example: ``
+
+offset
+
+Type: string
+
+Index of the first row of requested data, starting from 1.
+
+Default:`1`
+
+Example: ``
+
+preset
+
+Type: string
+
+[Report presets](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/presets).
+
+Example:`sources_summary`
+
+pretty
+
+Type: string
+
+Specifies the formatting for results. To use formatting, set the value to`true`.
+
+Default:`false`
+
+Example: ``
+
+proposed_accuracy
+
+Type: boolean
+
+If the parameter is set to`true`, the API may automatically increase the accuracy to the recommended level. This can help you get meaningful results when querying small tables containing a very small sample of data.
+
+sort
+
+Type: string
+
+Comma-separated list of dimensions and metrics to use for sorting. By default, data is sorted in descending order (indicated by the`-` symbol in front of the dimension or metric). To sort data in ascending order, remove the`-` symbol.
+
+Example: ``
+
+timezone
+
+Type: string
+
+Time zone in ±hh:mm format within the range of [-23:59; +23:59] (the plus sign should be denoted as`%2B`). This time zone is used to calculate the request sample period as well as the date- and time-specific dimensions. By default, the tag's time zone is used.
+
+Example:`+03:00`
+
+## Responses
+
+## 200 OK
+
+OK
+
+### Body
+
+application/json
+
+```
+{
+  "query": {
+    "ids": [
+      0
+    ],
+    "timezone": "example",
+    "preset": "example",
+    "dimensions": [
+      "example"
+    ],
+    "metrics": [
+      "example"
+    ],
+    "sort": [
+      "example"
+    ],
+    "date1": "example",
+    "date2": "example",
+    "filters": "example",
+    "limit": 0,
+    "offset": 0
+  },
+  "data": [
+    {
+      "dimensions": [
+        {}
+      ],
+      "metrics": [
+        0.5
+      ]
+    }
+  ],
+  "meta": {
+    "dimensions": [
+      {
+        "id": "example",
+        "dim": "example",
+        "name": "example",
+        "short_name": "example",
+        "group_name": "example",
+        "description": "example",
+        "type": "example",
+        "disallow_by_time": true,
+        "allow_filters": true,
+        "parameter": {
+          "id": "example",
+          "description": "example",
+          "dim": "example"
+        },
+        "fields": {},
+        "allow_sort": true,
+        "default_sort": "example",
+        "allow_null": true,
+        "sub_table": "example",
+        "permission_scope": "example",
+        "since": "example",
+        "advanced": true,
+        "required_keys": [
+          "example"
+        ],
+        "features": [
+          "example"
+        ],
+        "chained_attributes_group_name": "example",
+        "chained_attributes_group_index": 0,
+        "secret": true,
+        "exposes_secret_data": true,
+        "disjoint": true,
+        "relations": [
+          "example"
+        ]
+      }
+    ],
+    "metrics": [
+      {
+        "dim": "example",
+        "metric_string": "example",
+        "name": "example",
+        "description": "example",
+        "allow_normalisation": true,
+        "require_dynamic_correction": true,
+        "allow_filters": true,
+        "type": "example",
+        "allow_sort": true,
+        "default_sort": "example",
+        "advanced": true,
+        "support_confidence": true,
+        "negative": true,
+        "parameters": [
+          null
+        ],
+        "sub_table": "example",
+        "required_dimension": "example",
+        "permission_scope": "example",
+        "since": "example",
+        "required_keys": [
+          "example"
+        ],
+        "features": [
+          "example"
+        ],
+        "secret": true,
+        "exposes_secret_data": true
+      }
+    ]
+  },
+  "total_rows": 0,
+  "total_rows_rounded": true,
+  "with_confidence": true,
+  "exclude_insignificant": true,
+  "sampled": true,
+  "sampleable": true,
+  "contains_sensitive_data": true,
+  "sample_share": 0.5,
+  "max_sample_share": 0.5,
+  "min_sample_share": 0.5,
+  "sample_size": 0,
+  "sample_space": 0,
+  "data_lag": 0,
+  "totals": [
+    0.5
+  ],
+  "min": [
+    0.5
+  ],
+  "max": [
+    0.5
+  ]
+}
+
+```
+
+Name
+
+Description
+
+contains_sensitive_data
+
+Type: boolean
+
+Indicates whether [sensitive data](https://yandex.com/support/metrica/reports/report-general.html#privacy) can be omitted from the response. This includes data calculated by Yandex algorithms: demographic data (gender, age, and other), login page addresses, search phrases, and robot information. If the value is`true`, the response will not display such data if the sample is less than 10 users. Possible values:`true`,`false`.
+
+data
+
+Type: [StaticRow](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-StaticRow) []
+
+Example
+
+```
+[
+  {
+    "dimensions": [
+      {}
+    ],
+    "metrics": [
+      0.5
+    ]
+  }
+]
+
+```
+
+data_lag
+
+Type: integer
+
+Delay in updating data, in seconds.
+
+exclude_insignificant
+
+Type: boolean
+
+max
+
+Type: number[]
+
+Example
+
+```
+[
+  0.5
+]
+
+```
+
+max_sample_share
+
+Type: number
+
+Maximum percentage of data that can be used for calculation. Available values range from 0 to 1.
+
+meta
+
+Type: [Meta](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-Meta)
+
+Request metadata. Contains a description of request dimensions and metrics.
+
+Example
+
+```
+{
+  "dimensions": [
+    {
+      "id": "example",
+      "dim": "example",
+      "name": "example",
+      "short_name": "example",
+      "group_name": "example",
+      "description": "example",
+      "type": "example",
+      "disallow_by_time": true,
+      "allow_filters": true,
+      "parameter": {
+        "id": "example",
+        "description": "example",
+        "dim": "example"
+      },
+      "fields": {},
+      "allow_sort": true,
+      "default_sort": "example",
+      "allow_null": true,
+      "sub_table": "example",
+      "permission_scope": "example",
+      "since": "example",
+      "advanced": true,
+      "required_keys": [
+        "example"
+      ],
+      "features": [
+        "example"
+      ],
+      "chained_attributes_group_name": "example",
+      "chained_attributes_group_index": 0,
+      "secret": true,
+      "exposes_secret_data": true,
+      "disjoint": true,
+      "relations": [
+        "example"
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "dim": "example",
+      "metric_string": "example",
+      "name": "example",
+      "description": "example",
+      "allow_normalisation": true,
+      "require_dynamic_correction": true,
+      "allow_filters": true,
+      "type": "example",
+      "allow_sort": true,
+      "default_sort": "example",
+      "advanced": true,
+      "support_confidence": true,
+      "negative": true,
+      "parameters": [
+        null
+      ],
+      "sub_table": "example",
+      "required_dimension": "example",
+      "permission_scope": "example",
+      "since": "example",
+      "required_keys": [
+        "example"
+      ],
+      "features": [
+        "example"
+      ],
+      "secret": true,
+      "exposes_secret_data": true
+    }
+  ]
+}
+
+```
+
+min
+
+Type: number[]
+
+Example
+
+```
+[
+  0.5
+]
+
+```
+
+min_sample_share
+
+Type: number
+
+Minimum percentage of data that can be used for calculation. Available values range from 0 to 1.
+
+query
+
+Type: [QueryExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-QueryExternal)
+
+Original request. Contains the request parameters, including detailed parameters from the template and parameters for attribute parametrization.
+
+Example
+
+```
+{
+  "ids": [
+    0
+  ],
+  "timezone": "example",
+  "preset": "example",
+  "dimensions": [
+    "example"
+  ],
+  "metrics": [
+    "example"
+  ],
+  "sort": [
+    "example"
+  ],
+  "date1": "example",
+  "date2": "example",
+  "filters": "example",
+  "limit": 0,
+  "offset": 0
+}
+
+```
+
+sample_share
+
+Type: number
+
+Percentage of data used for the calculation. Available values range from 0 to 1.
+
+sample_size
+
+Type: integer
+
+Number of rows in the requested data.
+
+sample_space
+
+Type: integer
+
+Number of data rows.
+
+sampleable
+
+Type: boolean
+
+Indicates whether sampling can be used. Indicates whether sampling can be used for this request. Possible values:`true`,`false`.
+
+sampled
+
+Type: boolean
+
+Sampling flag. Indicates whether sampling was applied. Possible values:`true`,`false`.
+
+total_rows
+
+Type: integer
+
+The total number of rows in the response for the entire dataset (after filtering).
+
+total_rows_rounded
+
+Type: boolean
+
+Indicates that the total number of rows was rounded.
+
+totals
+
+Type: number[]
+
+Example
+
+```
+[
+  0.5
+]
+
+```
+
+with_confidence
+
+Type: boolean
+
+### QueryExternal
+
+Original request. Contains the request parameters, including detailed parameters from the template and parameters for attribute parametrization.
+
+Name
+
+Description
+
+date1
+
+Type: string
+
+Start date of the sample period in YYYY-MM-DD format.
+
+Example:`example`
+
+date2
+
+Type: string
+
+End date of the sample period in YYYY-MM-DD format.
+
+Example:`example`
+
+dimensions
+
+Type: string[]
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+filters
+
+Type: string
+
+Segmentation filter.
+
+Example:`example`
+
+ids
+
+Type: integer[]
+
+Example
+
+```
+[
+  0
+]
+
+```
+
+limit
+
+Type: integer
+
+Number of items on the results page.
+
+metrics
+
+Type: string[]
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+offset
+
+Type: integer
+
+Index of the first row of requested data, starting from 1.
+
+preset
+
+Type: string
+
+Report preset.
+
+Example:`example`
+
+sort
+
+Type: string[]
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+timezone
+
+Type: string
+
+Time zone of the sample period in ±hh:mm format.
+
+Example:`example`
+
+Example
+
+```
+{
+  "ids": [
+    0
+  ],
+  "timezone": "example",
+  "preset": "example",
+  "dimensions": [
+    "example"
+  ],
+  "metrics": [
+    "example"
+  ],
+  "sort": [
+    "example"
+  ],
+  "date1": "example",
+  "date2": "example",
+  "filters": "example",
+  "limit": 0,
+  "offset": 0
+}
+
+```
+
+### StaticRow
+
+Response rows. An array in which each item is a single row of the result.
+
+Name
+
+Description
+
+dimensions
+
+Type: object[]
+
+[additional]
+
+Type: string
+
+Example:`example`
+
+Array of dimension values for this row. Each dimension value is an object. It must have the`name` field, which is a text value. But it can also have additional fields, such as`id`.
+
+Example
+
+```
+[
+  {}
+]
+
+```
+
+metrics
+
+Type: number[]
+
+Example
+
+```
+[
+  0.5
+]
+
+```
+
+Example
+
+```
+{
+  "dimensions": [
+    {}
+  ],
+  "metrics": [
+    0.5
+  ]
+}
+
+```
+
+### ParamMetaExternal
+
+List of metric parameters
+
+Name
+
+Description
+
+description
+
+Type: string
+
+Parameter description
+
+Example:`example`
+
+dim
+
+Type: string
+
+Name of a dimension with values
+
+Example:`example`
+
+id
+
+Type: string
+
+Parameter ID
+
+Example:`example`
+
+Example
+
+```
+{
+  "id": "example",
+  "description": "example",
+  "dim": "example"
+}
+
+```
+
+### DimensionMetaExternal
+
+Name
+
+Description
+
+advanced
+
+Type: boolean
+
+Dimension for an advanced user
+
+allow_filters
+
+Type: boolean
+
+Whether filters can be used
+
+allow_null
+
+Type: boolean
+
+Whether "Undefined" can be shown for this dimension
+
+allow_sort
+
+Type: boolean
+
+Whether sorting by this dimension is allowed
+
+chained_attributes_group_index
+
+Type: integer
+
+Dimension order in a group of linked dimensions
+
+chained_attributes_group_name
+
+Type: string
+
+Name of a group of linked dimensions
+
+Example:`example`
+
+default_sort
+
+Type: string
+
+Sorting method:
+
+- `asc`
+- `desc`
+
+Example:`example`
+
+description
+
+Type: string
+
+Metric description
+
+Example:`example`
+
+dim
+
+Type: string
+
+Dimension
+
+Example:`example`
+
+disallow_by_time
+
+Type: boolean
+
+Whether this dimension is allowed along with grouping data by time.
+
+disjoint
+
+Type: boolean
+
+exposes_secret_data
+
+Type: boolean
+
+Discloses sensitive data
+
+features
+
+Type: string[]
+
+Tag characteristics required for dimension use
+
+Unique items:`true`
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+fields
+
+Type: object
+
+[additional]
+
+Type: [DimensionMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-DimensionMetaExternal)
+
+Example
+
+```
+{
+  "id": "example",
+  "dim": "example",
+  "name": "example",
+  "short_name": "example",
+  "group_name": "example",
+  "description": "example",
+  "type": "example",
+  "disallow_by_time": true,
+  "allow_filters": true,
+  "parameter": {
+    "id": "example",
+    "description": "example",
+    "dim": "example"
+  },
+  "fields": {},
+  "allow_sort": true,
+  "default_sort": "example",
+  "allow_null": true,
+  "sub_table": "example",
+  "permission_scope": "example",
+  "since": "example",
+  "advanced": true,
+  "required_keys": [
+    "example"
+  ],
+  "features": [
+    "example"
+  ],
+  "chained_attributes_group_name": "example",
+  "chained_attributes_group_index": 0,
+  "secret": true,
+  "exposes_secret_data": true,
+  "disjoint": true,
+  "relations": [
+    "example"
+  ]
+}
+
+```
+
+Additional fields for the current dimension
+
+Example
+
+```
+{}
+
+```
+
+group_name
+
+Type: string
+
+Names of dimensions when enumerating them
+
+Example:`example`
+
+id
+
+Type: string
+
+Dimension ID without any prefix or parameters
+
+Example:`example`
+
+name
+
+Type: string
+
+Dimension name
+
+Example:`example`
+
+parameter
+
+Type: [ParamMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-ParamMetaExternal)
+
+List of metric parameters
+
+Example
+
+```
+{
+  "id": "example",
+  "description": "example",
+  "dim": "example"
+}
+
+```
+
+permission_scope
+
+Type: string
+
+Dimension access group
+
+Example:`example`
+
+relations
+
+Type: string[]
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+required_keys
+
+Type: string[]
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+secret
+
+Type: boolean
+
+Contains sensitive data
+
+short_name
+
+Type: string
+
+Dimension name
+
+Example:`example`
+
+since
+
+Type: string
+
+Date when dimension data appeared
+
+Example:`example`
+
+sub_table
+
+Type: string
+
+Subtable
+
+Example:`example`
+
+type
+
+Type: string
+
+Dimension interface type
+
+Example:`example`
+
+Example
+
+```
+{
+  "id": "example",
+  "dim": "example",
+  "name": "example",
+  "short_name": "example",
+  "group_name": "example",
+  "description": "example",
+  "type": "example",
+  "disallow_by_time": true,
+  "allow_filters": true,
+  "parameter": {
+    "id": "example",
+    "description": "example",
+    "dim": "example"
+  },
+  "fields": {},
+  "allow_sort": true,
+  "default_sort": "example",
+  "allow_null": true,
+  "sub_table": "example",
+  "permission_scope": "example",
+  "since": "example",
+  "advanced": true,
+  "required_keys": [
+    "example"
+  ],
+  "features": [
+    "example"
+  ],
+  "chained_attributes_group_name": "example",
+  "chained_attributes_group_index": 0,
+  "secret": true,
+  "exposes_secret_data": true,
+  "disjoint": true,
+  "relations": [
+    "example"
+  ]
+}
+
+```
+
+### MetricMetaExternal
+
+Array of request metric metadata.
+
+Name
+
+Description
+
+advanced
+
+Type: boolean
+
+Metric for advanced users
+
+allow_filters
+
+Type: boolean
+
+Whether filters can be used
+
+allow_normalisation
+
+Type: boolean
+
+Whether values can be normalized
+
+allow_sort
+
+Type: boolean
+
+Whether data can be sorted by this metric
+
+default_sort
+
+Type: string
+
+Sorting method:
+
+- `asc`
+- `desc`
+
+Example:`example`
+
+description
+
+Type: string
+
+Metric description
+
+Example:`example`
+
+dim
+
+Type: string
+
+Yandex Metrica
+
+Example:`example`
+
+exposes_secret_data
+
+Type: boolean
+
+Discloses sensitive data
+
+features
+
+Type: string[]
+
+Tag characteristics required for metric use
+
+Unique items:`true`
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+metric_string
+
+Type: string
+
+Metric with a parameter value
+
+Example:`example`
+
+name
+
+Type: string
+
+Metric name
+
+Example:`example`
+
+negative
+
+Type: boolean
+
+Whether the metric is a negative indicator in terms of data interpretation, for example, the bounce rate, robot percentage, and so on.
+
+parameters
+
+Type: [ParamMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-ParamMetaExternal) []
+
+List of metric parameters
+
+Example
+
+```
+[
+  {
+    "id": "example",
+    "description": "example",
+    "dim": "example"
+  }
+]
+
+```
+
+permission_scope
+
+Type: string
+
+Metric access group
+
+Example:`example`
+
+require_dynamic_correction
+
+Type: boolean
+
+Whether values require adjustments in the time report
+
+required_dimension
+
+Type: string
+
+Dimension required for the metric
+
+Example:`example`
+
+required_keys
+
+Type: string[]
+
+Example
+
+```
+[
+  "example"
+]
+
+```
+
+secret
+
+Type: boolean
+
+Contains sensitive data
+
+since
+
+Type: string
+
+Date when metric data appeared
+
+Example:`example`
+
+sub_table
+
+Type: string
+
+Subtable
+
+Example:`example`
+
+support_confidence
+
+Type: boolean
+
+Whether confidence can be estimated by this metric
+
+type
+
+Type: string
+
+Metric type.
+
+- `int`
+- `double`
+- `second`
+- `millisecond`
+- `affinity`
+- `percents`
+- `currency`
+
+Example:`example`
+
+Example
+
+```
+{
+  "dim": "example",
+  "metric_string": "example",
+  "name": "example",
+  "description": "example",
+  "allow_normalisation": true,
+  "require_dynamic_correction": true,
+  "allow_filters": true,
+  "type": "example",
+  "allow_sort": true,
+  "default_sort": "example",
+  "advanced": true,
+  "support_confidence": true,
+  "negative": true,
+  "parameters": [
+    {
+      "id": "example",
+      "description": "example",
+      "dim": "example"
+    }
+  ],
+  "sub_table": "example",
+  "required_dimension": "example",
+  "permission_scope": "example",
+  "since": "example",
+  "required_keys": [
+    "example"
+  ],
+  "features": [
+    "example"
+  ],
+  "secret": true,
+  "exposes_secret_data": true
+}
+
+```
+
+### Meta
+
+Request metadata. Contains a description of request dimensions and metrics.
+
+Name
+
+Description
+
+dimensions
+
+Type: [DimensionMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-DimensionMetaExternal) []
+
+Example
+
+```
+[
+  {
+    "id": "example",
+    "dim": "example",
+    "name": "example",
+    "short_name": "example",
+    "group_name": "example",
+    "description": "example",
+    "type": "example",
+    "disallow_by_time": true,
+    "allow_filters": true,
+    "parameter": {
+      "id": "example",
+      "description": "example",
+      "dim": "example"
+    },
+    "fields": {},
+    "allow_sort": true,
+    "default_sort": "example",
+    "allow_null": true,
+    "sub_table": "example",
+    "permission_scope": "example",
+    "since": "example",
+    "advanced": true,
+    "required_keys": [
+      "example"
+    ],
+    "features": [
+      "example"
+    ],
+    "chained_attributes_group_name": "example",
+    "chained_attributes_group_index": 0,
+    "secret": true,
+    "exposes_secret_data": true,
+    "disjoint": true,
+    "relations": [
+      "example"
+    ]
+  }
+]
+
+```
+
+metrics
+
+Type: [MetricMetaExternal](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/data#entity-MetricMetaExternal) []
+
+Example
+
+```
+[
+  {
+    "dim": "example",
+    "metric_string": "example",
+    "name": "example",
+    "description": "example",
+    "allow_normalisation": true,
+    "require_dynamic_correction": true,
+    "allow_filters": true,
+    "type": "example",
+    "allow_sort": true,
+    "default_sort": "example",
+    "advanced": true,
+    "support_confidence": true,
+    "negative": true,
+    "parameters": [
+      {
+        "id": "example",
+        "description": "example",
+        "dim": "example"
+      }
+    ],
+    "sub_table": "example",
+    "required_dimension": "example",
+    "permission_scope": "example",
+    "since": "example",
+    "required_keys": [
+      "example"
+    ],
+    "features": [
+      "example"
+    ],
+    "secret": true,
+    "exposes_secret_data": true
+  }
+]
+
+```
+
+Example
+
+```
+{
+  "dimensions": [
+    {
+      "id": "example",
+      "dim": "example",
+      "name": "example",
+      "short_name": "example",
+      "group_name": "example",
+      "description": "example",
+      "type": "example",
+      "disallow_by_time": true,
+      "allow_filters": true,
+      "parameter": {
+        "id": "example",
+        "description": "example",
+        "dim": "example"
+      },
+      "fields": {},
+      "allow_sort": true,
+      "default_sort": "example",
+      "allow_null": true,
+      "sub_table": "example",
+      "permission_scope": "example",
+      "since": "example",
+      "advanced": true,
+      "required_keys": [
+        "example"
+      ],
+      "features": [
+        "example"
+      ],
+      "chained_attributes_group_name": "example",
+      "chained_attributes_group_index": 0,
+      "secret": true,
+      "exposes_secret_data": true,
+      "disjoint": true,
+      "relations": [
+        "example"
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "dim": "example",
+      "metric_string": "example",
+      "name": "example",
+      "description": "example",
+      "allow_normalisation": true,
+      "require_dynamic_correction": true,
+      "allow_filters": true,
+      "type": "example",
+      "allow_sort": true,
+      "default_sort": "example",
+      "advanced": true,
+      "support_confidence": true,
+      "negative": true,
+      "parameters": [
+        null
+      ],
+      "sub_table": "example",
+      "required_dimension": "example",
+      "permission_scope": "example",
+      "since": "example",
+      "required_keys": [
+        "example"
+      ],
+      "features": [
+        "example"
+      ],
+      "secret": true,
+      "exposes_secret_data": true
+    }
+  ]
+}
+
+```
+
+### Was the article helpful?
+
+YesNo
+
+Previous
+
+[List of dimensions and metrics](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/attrandmetr/dim_all)
+
+Next
+
+[Getting a pivot table](https://yandex.com/dev/metrika/en/stat/openapi/en/stat/openapi/pivot)
+

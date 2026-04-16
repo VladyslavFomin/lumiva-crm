@@ -1,0 +1,2434 @@
+{
+  "crm": {
+    "header": {
+      "realtime": "Gerçek zamanlı · bağlı",
+      "openMenu": "Menüyü aç",
+      "close": "Kapat",
+      "newMessages": "Yeni mesajlar",
+      "notifications": "Bildirimler",
+      "aiAssistant": "Yapay zeka asistanı"
+    },
+    "aiAssistant": {
+      "title": "Asistan",
+      "tabChat": "Sohbet",
+      "tabMemory": "Hafıza",
+      "greeting": "Merhaba {{name}}! Bugün ne üzerinde çalışalım?",
+      "subGreeting": "Metin, analitik, pazarlama, projeler ve CRM işlemleri tek yerde.",
+      "fallbackName": "ekip",
+      "inputPlaceholder": "Görevi yazın veya CRM analitiği isteyin…",
+      "addContextHint": "Uzun süreli bağlam — Hafıza sekmesi",
+      "chatHistoryTitle": "Sohbet geçmişi",
+      "chatHistoryEmpty": "Henüz kayıtlı sohbet yok — Sohbetten başlatın.",
+      "chatUntitled": "Adsız sohbet",
+      "chatTitleField": "Sohbet başlığı",
+      "chatTitlePlaceholder": "Örn. Mart analitiği",
+      "chatTitleHint": "İsteğe bağlı. Boş bırakılırsa başlık ilk mesajınızdan alınır.",
+      "memoryFragmentsTitle": "Hafıza parçaları",
+      "memoryListEmpty": "Kayıtlı parça yok.",
+      "chatPlaceholder": "Mesaj…",
+      "send": "Gönder",
+      "thinking": "Düşünüyor…",
+      "imageGenerating": "Görsel oluşturuluyor…",
+      "presetQuickActionTitle": "Hızlı senaryo: metni sohbet alanına ekler",
+      "deleteChatFromList": "Sil",
+      "notConfigured": "AI henüz yapılandırılmadı. Yöneticinize başvurun.",
+      "quotaLine": "Kota: ~{{left}} USD karş. · Depolama: {{storage}} / {{cap}}",
+      "newChat": "Yeni sohbet",
+      "pickSession": "Geçmiş…",
+      "deleteSession": "Sohbeti sil",
+      "backToHub": "Kısayollar",
+      "topupAi": "AI kredisi yükle",
+      "topupStorage": "+ depolama",
+      "memoryTitlePh": "Başlık",
+      "memoryContentPh": "Uzun süreli bağlam metni…",
+      "saveMemory": "Hafızaya kaydet",
+      "memoryUntitled": "Başlıksız",
+      "imagePrompt": "Görseli tarif edin",
+      "imageReady": "Görsel hazır",
+      "dismissImage": "Önizlemeyi gizle",
+      "genImage": "Görsel",
+      "imagePanelTitle": "Görsel açıklaması",
+      "imagePanelHint": "Stil, konular ve renkleri yazın; istek görsel üreticiye gider.",
+      "generateImageAction": "Görsel oluştur",
+      "addContextLabel": "Bağlam ekle",
+      "attachFileTitle": "CSV ekle (satış veya tablo)",
+      "attachedSales": "Satış içe aktarma",
+      "attachedWorkspaceCsv": "Çalışma alanı tablosu",
+      "removeAttachment": "Kaldır",
+      "attachParseError": "Dosya çözülemedi. CRM satış içe aktarma CSV/XML veya başlıklı CSV kullanın.",
+      "cardsIntro": "Önerilen başlangıçlar",
+      "presets": {
+        "board": {
+          "label": "Pano / proje",
+          "prompt": "Yeni CRM projesi planla: aşamalar, görevler."
+        },
+        "doc": {
+          "label": "Belge",
+          "prompt": "Hedefler ve sonraki adımlarla yapılandırılmış belge."
+        },
+        "data": {
+          "label": "Analitik",
+          "prompt": "Son 30 gün pazarlama özeti."
+        },
+        "brain": {
+          "label": "Fikirler",
+          "prompt": "Lead’den satışa dönüşüm için beyin fırtınası."
+        },
+        "image": {
+          "label": "Görsel",
+          "prompt": "Fiyat sayfası için görsel prompt öner."
+        },
+        "vibe": {
+          "label": "Makale",
+          "prompt": "Hizmetlerimiz için blog taslağı, profesyonel ton."
+        },
+        "search": {
+          "label": "CRM verisi",
+          "prompt": "Lead ve satışları özetle (araçları kullan)."
+        },
+        "more": {
+          "label": "Entegrasyonlar",
+          "prompt": "Hangi entegrasyonlar var, ne iyileştirilir?"
+        }
+      },
+      "cards": [
+        {
+          "title": "Ürün lansmanı kanban.",
+          "prompt": "Lansman kanbanı için sütun ve görevler.",
+          "tag": "Pano"
+        },
+        {
+          "title": "Çeyrek hedefleri ve KPI.",
+          "prompt": "Çeyrek hedefleri, KPI, sorumlular.",
+          "tag": "Belge"
+        },
+        {
+          "title": "Huni risk özeti.",
+          "prompt": "Lead verisiyle risk ve öncelik özeti.",
+          "tag": "Analitik"
+        },
+        {
+          "title": "Sosyal kampanya fikirleri.",
+          "prompt": "10 sosyal gönderi fikri.",
+          "tag": "Fikir"
+        },
+        {
+          "title": "Hangi kanalı büyüt.",
+          "prompt": "Kanal analizi ve bütçe odağı.",
+          "tag": "Pazarlama"
+        },
+        {
+          "title": "Landing görsel brifi.",
+          "prompt": "Fiyat landing görseli için prompt.",
+          "tag": "Görsel"
+        },
+        {
+          "title": "Müşteri onboarding taslağı.",
+          "prompt": "Yeni müşteri onboarding adımları.",
+          "tag": "Süreç"
+        },
+        {
+          "title": "Satış içe aktarma listesi.",
+          "prompt": "Satış içe aktarma hazırlık listesi.",
+          "tag": "İçe aktarma"
+        }
+      ]
+    },
+    "account": {
+      "kicker": "Hesap",
+      "title": "Hesap ve profil",
+      "subtitle": "Kişisel veriler, güvenlik ve çalışma alanı ayarlarına kısayollar.",
+      "nav": {
+        "groupAccount": "Hesap",
+        "overview": "Genel bakış",
+        "personal": "Profil",
+        "security": "Güvenlik",
+        "preferences": "Arayüz",
+        "groupWorkspace": "Çalışma alanı",
+        "company": "Şirket ve marka",
+        "api": "API anahtarları",
+        "billing": "Faturalama",
+        "staff": "Ekip",
+        "permissions": "Erişim hakları"
+      },
+      "overview": {
+        "hint": "Bu kiracıdaki hesabınızın özeti. Organizasyonlar birbirinden izolidir.",
+        "cardIdentity": "Oturum",
+        "cardTenant": "Organizasyon",
+        "tenantNameFallback": "Şirket",
+        "tenantId": "Kiracı ID",
+        "role": "Rol",
+        "status": "Durum",
+        "lastActive": "Son etkinlik",
+        "never": "—",
+        "memberSince": "Üyelik tarihi",
+        "quickLinks": "Kısayollar",
+        "quickLinksHint": "İlgili CRM bölümlerini açın."
+      },
+      "personal": {
+        "title": "Profil",
+        "subtitle": "Ad, telefon ve avatar.",
+        "avatarTitle": "Fotoğraf",
+        "avatarHint": "Görsel yükleyin (PNG, JPEG, WebP, GIF, en fazla 2 MB) veya hazır avatar seçin.",
+        "upload": "Fotoğraf yükle",
+        "uploading": "Yükleniyor…",
+        "presetsTitle": "Veya stil seçin",
+        "urlTitle": "Görsel bağlantısı",
+        "urlHint": "HTTPS veya CRM’e yüklenen dosya (/v1/uploads/…).",
+        "save": "Profili kaydet",
+        "saving": "Kaydediliyor…",
+        "success": "Profil güncellendi",
+        "errors": {
+          "load": "Profil yüklenemedi",
+          "save": "Kaydedilemedi",
+          "upload": "Yükleme başarısız"
+        }
+      },
+      "security": {
+        "title": "Parola",
+        "subtitle": "CRM giriş parolasını değiştirin.",
+        "current": "Mevcut parola",
+        "new": "Yeni parola",
+        "confirm": "Yeni parolayı tekrarlayın",
+        "save": "Parolayı değiştir",
+        "saving": "Güncelleniyor…",
+        "success": "Parola değiştirildi",
+        "errors": {
+          "required": "Mevcut ve yeni parolayı girin",
+          "mismatch": "Parolalar eşleşmiyor",
+          "failed": "Parola değiştirilemedi"
+        }
+      },
+      "preferences": {
+        "title": "Arayüz dili",
+        "subtitle": "Bu tarayıcı için. Yerelde saklanır ve hemen uygulanır.",
+        "language": "Dil",
+        "hint": "Daha fazla tercih (saat dilimi, bildirimler) sonra eklenebilir."
+      },
+      "badges": {
+        "owner": "Sahip",
+        "admin": "Yönetici",
+        "active": "Aktif",
+        "disabled": "Devre dışı"
+      }
+    },
+    "nav": {
+      "marketing": "Pazarlama",
+      "marketingTraffic": "Trafik",
+      "marketingCampaigns": "Kampanyalar (ROAS)",
+      "marketingUtms": "UTM etiketleri",
+      "marketingSegments": "Segmentler",
+      "marketingStatuses": "Lead / müşteri durumları",
+      "marketingChannels": "Kanallar ve yerleşimler",
+      "marketingSeo": "SEO ve içerik",
+      "marketingSmm": "SMM / sosyal",
+      "marketingIntegrations": "Pazarlama entegrasyonları",
+      "marketingAutomations": "Otomasyonlar (n8n)",
+      "marketingEmailTemplates": "E-postalar",
+      "mail": "Posta",
+      "mailInbox": "Gelen kutusu",
+      "mailAccounts": "Hesaplar ve ayarlar",
+      "tools": "Araçlar",
+      "toolsAutomations": "Otomasyonlar",
+      "integrationsHub": "Entegrasyonlar",
+      "toolsTelegram": "Telegram"
+    },
+    "marketingTraffic": {
+      "kicker": "Pazarlama · Trafik",
+      "title": "Trafik kaynakları ve performans",
+      "subtitle": "Veriler analitikten (GA4, Yandex.Metrica) ve reklam hesaplarından. Dönüşüm ve gelir analitikten; harcama ve tıklamalar Ads’ten.",
+      "periodLabel": "Dönem",
+      "periods": {
+        "7d": "7 gün",
+        "30d": "30 gün",
+        "90d": "90 gün",
+        "all": "Tüm zamanlar"
+      },
+      "loading": "Trafik verileri yükleniyor…",
+      "errors": {
+        "load": "Trafik verileri yüklenemedi"
+      },
+      "kpi": {
+        "sessions": "Oturumlar",
+        "sessionsHint": "Dönem için tüm kaynaklardaki toplam oturum.",
+        "conversions": "Dönüşümler",
+        "conversionsHint": "Toplam başvuru / lead.",
+        "cr": "Dönüşüm (CR)",
+        "crHint": "Lead olan oturumların payı.",
+        "revPerSession": "Oturum başına gelir",
+        "revPerSessionHint": "Bir oturumun getirdiği ortalama gelir.",
+        "dbRows": "Veritabanındaki satırlar (dönem)",
+        "dbRowsHint": "Filtreyle eşleşen marketing_traffic satırı sayısı"
+      },
+      "table": {
+        "title": "Trafik kaynakları",
+        "subtitle": "Kaynak başına oturum kanalları, dönüşümler ve gelir.",
+        "headers": {
+          "source": "Kaynak / kanal",
+          "type": "Tür",
+          "sessions": "Oturumlar",
+          "conversions": "Dönüşümler",
+          "cr": "CR",
+          "revenue": "Gelir"
+        },
+        "empty": "Seçilen dönem için henüz trafik verisi yok.",
+        "provider": "Sağlayıcı",
+        "rows": "Satırlar",
+        "sessions": "Oturumlar / ziyaretler",
+        "clicks": "Tıklamalar / görüntülenme",
+        "impressions": "Gösterimler",
+        "cost": "Harcama"
+      },
+      "types": {
+        "paid": "Ücretli",
+        "organic": "Organik arama",
+        "email": "Email",
+        "social": "Sosyal",
+        "direct": "Doğrudan",
+        "other": "Diğer"
+      },
+      "common": {
+        "empty": "—"
+      },
+      "dataSourceLabel": "Veri kaynağı",
+      "dataSourceAll": "Tümü",
+      "dataSources": {
+        "ga4Property": "Google Analytics 4 (kaynak {{id}})",
+        "meta_ads": "Meta Ads",
+        "yandex_metrika": "Yandex.Metrica",
+        "ga4": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "unknown": "Entegrasyon kanalı yok",
+        "import": "İçe aktar",
+        "manual": "Manuel"
+      },
+      "extendedMetricsTitle": "Genişletilmiş sağlayıcı metrikleri",
+      "extendedMetricsSubtitle": "Seçilen dönem için marketing_traffic içinde dataSource alanına göre özetler.",
+      "extendedMetricsEmpty": "Henüz genişletilmiş metrik yok: GA4, Yandex.Metrica, Meta Ads veya Google Ads senkronu yapın ya da «Tüm zamanlar» seçin.",
+      "extendedMetricsMismatch": "Seçimde {{count}} satır var ancak sağlayıcı dökümü boş. Önbelleği temizleyerek yenileyin.",
+      "rawRowsLabel": "Dönemdeki satırlar",
+      "impressionsLabel": "Gösterimler",
+      "spendLabel": "Harcama",
+      "summaryBreakdownEmpty": "Seçilen dönem için sağlayıcı dökümü yok.",
+      "summaryBreakdownChannel": "Kanal (veri kaynağı)",
+      "summaryBreakdownRows": "Satır"
+    },
+    "marketingChannels": {
+      "kicker": "Pazarlama · Kanallar ve yerleşimler",
+      "title": "Leadler nereden geliyor",
+      "subtitle": "Veriler UTM’lere göre kaynak ve kampanyada toplanır. Hangi kanalların trafik, lead ve gelir getirdiğini görün.",
+      "periodLabel": "Dönem",
+      "periods": {
+        "7d": "7 gün",
+        "30d": "30 gün",
+        "90d": "90 gün",
+        "all": "Tüm zamanlar"
+      },
+      "loading": "Kanal verileri yükleniyor…",
+      "errors": {
+        "load": "Kanal verileri yüklenemedi"
+      },
+      "kpi": {
+        "sessions": "Oturumlar",
+        "sessionsHint": "Tüm kanallar, seçilen dönem",
+        "leads": "Leadler",
+        "leadsHint": "Analitikten dönüşümler",
+        "revenue": "Gelir",
+        "revenueHint": "Analitik verilerinden"
+      },
+      "topSources": "En iyi kaynaklar",
+      "topMediums": "En iyi yerleşimler (medium)",
+      "topCampaigns": "Gelire göre en iyi kampanyalar",
+      "common": {
+        "unknown": "(unknown)",
+        "none": "(none)",
+        "noCampaign": "(utm_campaign yok)",
+        "noData": "Veri yok."
+      }
+    },
+    "marketingChannelBlocks": {
+      "thImpressions": "Gösterimler",
+      "thClicks": "Tıklamalar",
+      "thSessions": "Oturumlar",
+      "thLeads": "Leadler",
+      "thCost": "Harcama",
+      "thRevenue": "Gelir",
+      "allUnattributedHidden": "Tüm satırlar gizli: yalnızca entegrasyon kanalı olmayan kayıtlar kaldı. Aşağıdaki filtreyi kaldırın veya içe aktarımda dataSource ayarlayın.",
+      "hideUnattributed": "«Entegrasyon kanalı yok» satırlarını gizle",
+      "moreDetails": "Ayrıntılar",
+      "unknownExplain": "CRM'de veri kaynağı olmayan satırlar: genelde n8n/analitik içe aktarımı entegrasyon etiketi olmadan. Gösterimler ve harcama burada UTM'siz Meta/Google oturum dilimleriyle çakışabilir—komşu kartlara «ek reklam» gibi eklemeyin.",
+      "ctr": "CTR",
+      "cpc": "CPC",
+      "cpm": "CPM",
+      "cplShort": "CPL",
+      "topCampaigns": "Kampanyalar"
+    },
+    "marketingCampaigns": {
+      "kicker": "Pazarlama · Kampanyalar",
+      "title": "Reklam kampanyası performansı",
+      "subtitle": "Kampanyaya göre harcama, gelir ve dönüşümü karşılaştırın. Veriler analitik ve trafik kaynaklarından.",
+      "filters": {
+        "allSources": "Tüm kaynaklar",
+        "numbersLabel": "Gerçek sayılar",
+        "numbersAsStored": "CRM’de saklandığı gibi",
+        "numbersHint": "Senk sonrası marketing_traffic değerleri, istemci tarafında yeniden hesaplanmadan.",
+        "sumsLabel": "Toplamlar",
+        "sumsAsData": "Verideki gibi"
+      },
+      "periodLabel": "Dönem",
+      "periods": {
+        "7d": "7 gün",
+        "30d": "30 gün",
+        "90d": "90 gün",
+        "all": "Tüm zamanlar"
+      },
+      "loading": "Kampanyalar yükleniyor…",
+      "errors": {
+        "load": "Kampanyalar yüklenemedi"
+      },
+      "kpi": {
+        "campaigns": "Kampanya sayısı",
+        "campaignsHint": "Trafik / harcaması kayıtlı kampanyalar.",
+        "cost": "Kampanya harcaması",
+        "costHint": "Dönem için toplam pazarlama harcaması.",
+        "revenue": "Kampanyaya göre gelir",
+        "revenueHint": "İlgili leadler / satışlardan atfedilen gelir.",
+        "roasCpl": "ROAS & CPL",
+        "roas": "ROAS",
+        "cpl": "CPL",
+        "roasCplHint": "ROAS ve lead başına ortalama maliyet."
+      },
+      "top": {
+        "title": "En iyi kampanyalar",
+        "subtitle": "Seçilen dönem için gelire göre.",
+        "subtitleCost": "Harcamaya göre (bu top liste için gelir yok veya sıfır).",
+        "shown": "Gösterilen: {{count}}"
+      },
+      "table": {
+        "title": "Kampanya listesi",
+        "subtitle": "Kanallar, harcama, gelir ve verimlilik.",
+        "count": "Toplam: {{count}}",
+        "headers": {
+          "campaign": "Kampanya",
+          "source": "Kaynak",
+          "medium": "Medium",
+          "cost": "Harcama",
+          "revenue": "Gelir",
+          "leads": "Leadler",
+          "impressions": "Gösterimler",
+          "clicks": "Tıklamalar",
+          "roas": "ROAS",
+          "cpl": "CPL"
+        },
+        "empty": "Henüz kampanya yok."
+      },
+      "tooltip": {
+        "revenue": "Gelir",
+        "cost": "Harcama",
+        "leads": "Leadler",
+        "clicks": "Tıklamalar",
+        "sessions": "Oturumlar",
+        "roas": "ROAS",
+        "cpl": "CPL"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingIntegrations": {
+      "guide": {
+        "open": "Kılavuz: anahtarlar ve bağlantılar",
+        "openAria": "Pazarlama entegrasyonları için adım adım kılavuzu aç"
+      },
+      "kicker": "Pazarlama · Entegrasyonlar",
+      "title": "Pazarlama entegrasyonları",
+      "subtitle": "Analitik ve reklam hesaplarını yapılandırın (GA4, Metrica, Meta Ads, Google Ads vb.). Veriler raporlarda ve n8n senaryolarında kullanılır.",
+      "hint": "Senkron, trafik raporuna veri çeker (dataSource’a göre genişletilmiş metrikler).",
+      "empty": "Henüz entegrasyon yok. API veya form ile ekleyin (varsa).",
+      "syncZero": "Senkron bitti, yeni satır: 0 (dönem için boş API yanıtı, sayaç erişimi yok veya entegrasyon atlandı — backend günlüklerine bakın).",
+      "loading": "Entegrasyonlar yükleniyor…",
+      "providers": {
+        "google_analytics": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "yandex_metrika": "Yandex.Metrica",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "tiktok_ads": "TikTok Ads",
+        "other": "Diğer"
+      },
+      "form": {
+        "title": "Entegrasyon ekle",
+        "intro": "Yeni bağlantı sağdaki listede görünür. Senkron ayarları CRM’de saklanır; gerekirse API ile güncelleyin.",
+        "provider": "Sağlayıcı",
+        "currencyLabel": "Tutarların para birimi (trafikte maliyet / gelir)",
+        "currencyHint": "Senkron, trafik satırlarını bu para biriminde yazar. Trafik ekranında tutarlar Frankfurter (ECB) kurlarıyla rapor para birimine çevrilir.",
+        "name": "CRM’de ad",
+        "primaryId": "Birincil kimlik (property, sayaç, reklam hesabı vb.)",
+        "primaryIdHint": "GA4 property ID / Counter ID / Ad Account ID",
+        "primaryIdHintGoogleAds": "Google Ads müşteri kimliği (ör. 123-456-7890)",
+        "primaryIdHintGa4": "GA4 property kimliği (Admin URL veya akış ayarlarındaki sayı)",
+        "ga": {
+          "oauthWizardBanner": "Platformda Google OAuth istemcisi tanımlı: bu özelliğe erişebilen bir hesapla GA4’ü tek Google oturumuyla bağlayabilirsiniz.",
+          "manualServiceAccountToggle": "Gelişmiş: hizmet hesabı JSON (klasik)",
+          "serviceAccount": "Service Account JSON",
+          "conversionEvent": "Dönüşüm olayı (isteğe bağlı)",
+          "revenueMetric": "Gelir metriği (isteğe bağlı)"
+        },
+        "ym": {
+          "token": "OAuth jetonu",
+          "goalId": "Hedef kimliği (isteğe bağlı)",
+          "revenueMetric": "Gelir metriği (isteğe bağlı)",
+          "currency": "Para birimi (isteğe bağlı)"
+        },
+        "ads": {
+          "platformManagedBanner": "Google OAuth istemcisi ve (sunucuda tanımlıysa) developer token platform tarafından yönetilir. Reklam hesabı müşteri kimliğini ve bu hesaba erişebilen bir Google kullanıcısı için refresh token girin.",
+          "developerToken": "Developer token",
+          "clientId": "OAuth client ID",
+          "clientSecret": "OAuth client secret",
+          "refreshToken": "Refresh token",
+          "loginCustomerId": "Giriş müşteri kimliği (isteğe bağlı)",
+          "source": "Kaynak (isteğe bağlı)",
+          "medium": "Orta (isteğe bağlı)",
+          "currency": "Para birimi (isteğe bağlı)"
+        },
+        "meta": {
+          "platformAppBanner": "Meta uygulaması platformda yapılandırılmıştır; hesabınız için reklam izinli bir access token yine de gereklidir.",
+          "accessToken": "Access token",
+          "conversionAction": "Dönüşüm eylemi (isteğe bağlı)",
+          "revenueAction": "Gelir eylemi (isteğe bağlı)",
+          "source": "Kaynak (isteğe bağlı)",
+          "medium": "Orta (isteğe bağlı)",
+          "currency": "Para birimi (isteğe bağlı)"
+        },
+        "note": "«Client secret», refresh/access token ve Yandex OAuth jetonu, Google / Meta / Yandex API’sinin istediği kimlik bilgileridir; rastgele bir «CRM sırrı» değildir ve şifreli saklanır. Diğer alanlar kimlik, UTM vb. Bu bağlantıları raporlarda ve otomasyonlarda kullanabilirsiniz.",
+        "pickCurrency": "Para birimi seç",
+        "clearCurrency": "Sıfırla"
+      },
+      "actions": {
+        "create": "Entegrasyon oluştur",
+        "creating": "Oluşturuluyor…",
+        "sync": "Senkronize et",
+        "syncing": "Senk…",
+        "delete": "Sil",
+        "currency": "Para birimi"
+      },
+      "table": {
+        "title": "Mevcut entegrasyonlar",
+        "currencyShort": "Para birimi",
+        "subtitle": "Açık entegrasyonlar pazarlama raporlarında kullanılır.",
+        "total": "Toplam: {{count}}",
+        "empty": "Henüz entegrasyon yok. En az GA4 veya Metrica ekleyin.",
+        "headers": {
+          "name": "Ad",
+          "provider": "Sağlayıcı",
+          "primaryId": "Birincil kimlik",
+          "status": "Durum",
+          "actions": "İşlemler"
+        }
+      },
+      "status": {
+        "enabled": "Açık",
+        "disabled": "Kapalı"
+      },
+      "ga4": {
+        "oauth": {
+          "connectWithGoogle": "GA4’ü Google ile bağla",
+          "createHint": "Google ile oturum açın ve bu GA4 kaynağına erişebilen hesabı seçin. Başarılı olursa hizmet hesabı JSON olmadan entegrasyon oluşturulur.",
+          "reconnect": "GA4 Google erişimini yenile",
+          "startError": "GA4 OAuth başlatılamadı",
+          "callback": {
+            "connected": "Google Analytics 4: erişim kaydedildi; liste yenilendi.",
+            "error": "Google Analytics 4: oturum tamamlanamadı. Google Cloud’da redirect URI ve analytics.readonly kapsamını kontrol edin."
+          }
+        }
+      },
+      "oauth": {
+        "connectWithGoogle": "Google ile bağlan",
+        "createHint": "Google oturumu açılır; bu reklam müşterisine erişebilen hesabı seçin. Başarılı olursa refresh token yapıştırmadan entegrasyon oluşturulur.",
+        "createManualSubmit": "Formdan elle oluştur",
+        "manualRefreshToggle": "Gelişmiş: refresh token yapıştır",
+        "reconnect": "Google erişimini yenile",
+        "startError": "OAuth başlatılamadı",
+        "callback": {
+          "connected": "Google Ads: erişim güncellendi; liste yenilendi.",
+          "error": "Google Ads: Google oturumu tamamlanamadı. Google Cloud’daki redirect URI ve adwords OAuth kapsamını kontrol edin."
+        }
+      },
+      "errors": {
+        "load": "Entegrasyonlar yüklenemedi",
+        "requiredName": "Entegrasyon adını girin",
+        "requiredCustomerId": "Ads müşteri kimliğini girin",
+        "requiredGa4PropertyId": "GA4 property kimliğini girin",
+        "create": "Entegrasyon oluşturulamadı",
+        "update": "Entegrasyon güncellenemedi",
+        "delete": "Entegrasyon silinemedi",
+        "sync": "Senkronize edilemedi",
+        "patchCurrency": "Para birimi kaydedilemedi"
+      },
+      "confirmDelete": "«{{name}}» entegrasyonunu sil?",
+      "syncResult": "Senkronlanan satır: {{count}}",
+      "common": {
+        "empty": "—"
+      },
+      "list": {
+        "currencyTitle": "Veri kaynağı para birimi"
+      }
+    },
+    "integrationsHub": {
+      "title": "Entegrasyonlar",
+      "subtitle": "Konnektör kataloğu, bağlantılar, pazarlama ve senkron burada. IF/THEN senaryoları «Otomasyonlar» bölümünde oluşturulur ve düzenlenir.",
+      "hubConnectionsHint": "Yeni bağlantılar ve kanal kurulumu bu sayfada (Katalog ve Bağlantılar sekmeleri).",
+      "catalogHeading": "Katalog",
+      "catalogCategory": {
+        "sales": "Satışlar",
+        "marketing": "Pazarlama",
+        "leads": "Leadler",
+        "projects": "Projeler",
+        "workspace": "Workspace",
+        "calendar": "Takvim",
+        "automations": "Otomasyonlar"
+      },
+      "wooOpenSheet": "Bağlan",
+      "wooSheetTitle": "WooCommerce",
+      "wooSheetSubtitle": "Mağaza adresi ve API anahtarları. Senkron için «Bağlantılar» sekmesine bakın.",
+      "connectionsHeading": "Bağlantılar",
+      "wpLumivaSectionTitle": "WordPress ve Lumiva Wizard",
+      "wpLumivaSectionSubtitle": "Formlar (CF7), müşteri paneli ve çevrimiçi sohbet: her tür için birden fazla bağlantı oluşturabilirsiniz. Aşağıdaki kartlar ve «Yeni bağlantı» düğmesini kullanın.",
+      "wpLumivaConnectNew": "Yeni bağlantı",
+      "wpLumivaSectionHintsSummary": "Bölüm ipuçları",
+      "wpLumivaCatalogHintsSummary": "Bu bağlantı türü hakkında",
+      "wpLumivaEmptyRow": "Bu türde bağlantı yok — «Yeni bağlantı»ya tıklayın.",
+      "wpLumivaCatalogHint": {
+        "wordpress_cf7": "Contact Form 7 talepleri: CRM webhook ve Lumiva Wizard endpoint.",
+        "lumiva_client_cabinet": "Müşteri paneli (Lumiva Wizard): site modülü CRM ile senkronize olur.",
+        "lumiva_online_chat": "Site sohbeti: WordPress modülü CRM ile senkronize olur."
+      },
+      "otherHubConnectionsHeading": "Tablolar, mağazalar ve diğerleri",
+      "connectionTurnOn": "Aç",
+      "connectionTurnOff": "Kapat",
+      "toggleBusy": "Kaydediliyor…",
+      "toggleSaved": "Bağlantı durumu güncellendi",
+      "tabs": {
+        "catalog": "Katalog",
+        "connections": "Bağlantılar",
+        "marketing": "Pazarlama",
+        "store": "WooCommerce"
+      },
+      "navMarketingIntegrationTab": "Reklam ve analitik",
+      "marketingBlockTitle": "Reklam ve analitik",
+      "marketingBlockSubtitle": "Reklam hesapları ve sayaçları bağlayın — veriler raporlarda görünür.",
+      "wooSectionTitle": "WooCommerce bağlantısı",
+      "wooSectionSubtitle": "Mağaza adresi ve API anahtarları (okuma yetkisi yeterli). Senkron yönetimi «Bağlantılar» sekmesinde.",
+      "wooChannelsHint": "Satış kanalları ayrı yapılandırılır: mağazayı CRM metrikleriyle eşleştirin.",
+      "wooChannelsLink": "Satış kanalları",
+      "marketingSetup": "Yapılandır",
+      "marketingOpenTab": "«Pazarlama» sekmesi",
+      "marketingModalTitle": "Yapılandırma: {{name}}",
+      "marketingModalSubtitle": "Para birimi, API erişimi ve senkron — başka bölüme gitmeden burada.",
+      "marketingModalClose": "Kapat",
+      "ga4QuickConnect": {
+        "title": "Google Analytics 4",
+        "subtitle": "GA4 Property ID ve rapor para birimini girin. Ardından Google’a yönlendirilirsiniz; oturumdan sonra bağlantı «Pazarlama» sekmesinde görünür.",
+        "primaryIdLabel": "Birincil ID (Property)",
+        "primaryIdPlaceholder": "Örn. 123456789",
+        "primaryIdHint": "Google Analytics’teki sayısal Property ID (Yönetici → Mülk ayarları).",
+        "connect": "Google ile bağlan",
+        "connecting": "Google’a yönlendiriliyor…",
+        "defaultName": "GA4 {{id}}"
+      },
+      "googleCalendar": {
+        "oauthTitle": "Google Calendar",
+        "oauthSubtitle": "Google ile oturum açın — yenileme anahtarı CRM’de saklanır. Lider takvimindeki görüşmeler Google ile senkron olur; karttaki «Senkronize et» Google’daki değişiklikleri çeker.",
+        "oauthUsesPrimaryCalendar": "Ana Google takviminiz kullanılır — ayrı takvim kimliği girmeniz gerekmez.",
+        "oauthNameLabel": "CRM’de görünen ad (isteğe bağlı)",
+        "oauthConnect": "Google ile bağlan",
+        "reconnectGoogle": "Google erişimini güncelle",
+        "oauthBusy": "Google’a yönlendiriliyor…",
+        "oauthStartError": "Google oturumu başlatılamadı",
+        "oauthCallback": {
+          "connected": "Google Calendar bağlandı.",
+          "error": "Google Calendar bağlantısı tamamlanamadı."
+        }
+      },
+      "marketingModalPanelLead": "Bağlantı ve liste",
+      "marketingModalPanelHint": "Aşağıdaki formdan bağlantı oluşturun. Listede para birimi, senkron düğmesi ve silme vardır.",
+      "refresh": "Yenile",
+      "loadError": "Katalog veya bağlantılar yüklenemedi",
+      "openAutomationsIntegrations": "Bağlantı ekle",
+      "openAutomationsScenarios": "Senaryolara git",
+      "openAutomationsIntegrationsHint": "Senaryolarda tetikleyicilerde ve eylemlerde burada yapılandırdığınız bağlantıları seçin.",
+      "connectedCount": "Bağlı: {{count}}",
+      "lifecycle": {
+        "live": "Canlı",
+        "beta": "Beta",
+        "planned": "Plan",
+        "in_development": "Geliştiriliyor"
+      },
+      "modulesLabel": "CRM modülleri",
+      "capabilitiesLabel": "Özellikler",
+      "cap": {
+        "outboundAutomation": "Senaryo eylemleri",
+        "inboundWebhook": "Servisten veri alımı",
+        "oauthPlatform": "Servis hesabıyla giriş",
+        "salesImport": "Sipariş içe aktarma",
+        "workspaceSync": "Çalışma alanı tabloları",
+        "calendar": "Takvim",
+        "leadCapture": "Başvurular ve leadler"
+      },
+      "module": {
+        "automations": "Otomasyonlar",
+        "leads": "Leadler",
+        "sales": "Satışlar",
+        "marketing": "Pazarlama",
+        "projects": "Projeler",
+        "workspace": "Çalışma alanı",
+        "calendar": "Takvim"
+      },
+      "connectionsEmpty": "Henüz bağlantı yok.",
+      "otherConnectionsHeading": "Diğer bağlantılar (katalog dışı)",
+      "kind": "Tür",
+      "lastSync": "Son senkron",
+      "never": "—",
+      "test": "Test et",
+      "sync": "Senkronize et",
+      "testing": "Test ediliyor…",
+      "syncing": "Senkronize ediliyor…",
+      "testFailed": "Test başarısız",
+      "syncOk": "Senkron tamamlandı",
+      "syncFail": "Senkron hata ile bitti",
+      "catalogFilterLabel": "CRM alanına göre filtre",
+      "catalogFilterAll": "Tümü",
+      "connectCatalog": "Bağlan",
+      "viewConnectionsCount": "Bağlantılar ({{count}})",
+      "catalogEmptyFilter": "Bu filtreyle eşleşen kayıt yok — başka bir alan veya «Tümü» seçin.",
+      "googleSheetsImportSettings": "Tablo içe aktarma: hedef, önizleme, satırlar",
+      "googleSheetsSettingsTitle": "Google E-Tablolar — içe aktarma",
+      "googleSheetsSettingsIntro": "Sekme adı, hedef (lead’ler, çalışma alanı…), satır aralığı veya seçim, sütun eşlemesi. Jeton: yenisini yapıştırın veya saklananı korumak için boş bırakın.",
+      "googleSheetsSettingsWrongType": "Bu bağlantı Google E-Tablolar değil.",
+      "googleSheetsSettingsLoadError": "Bağlantı yüklenemedi.",
+      "googleSheetsSettingsSave": "Kaydet",
+      "googleSheetsTokenKeepPlaceholder": "Boş = jetonu değiştirme",
+      "editConnectionKeys": "Tüm bağlantılar ve anahtarlar: Satışlar → Entegrasyonlar"
+    },
+    "automations": {
+      "list": {
+        "title": "Automations",
+        "subtitle": "Rule-based automations (IF/THEN)",
+        "create": "Create automation",
+        "loading": "Yükleniyor…",
+        "empty": "No automations yet",
+        "emptyHint": "Create your first automation to streamline business processes",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this automation?",
+        "edit": "Edit",
+        "active": "Active",
+        "inactive": "Inactive",
+        "errors": {
+          "loadFailed": "Could not load automations",
+          "deleteFailed": "Could not delete"
+        }
+      },
+      "panel": {
+        "button": "Automation",
+        "kicker": "Automations",
+        "subtitle": "Manage IF/THEN rules",
+        "searchPlaceholder": "Search automations",
+        "filter": "Filter",
+        "edit": "Edit",
+        "banner": "Open the automation hub for full control over scenarios.",
+        "bannerLink": "Learn more",
+        "integrationsCallout": {
+          "title": "Harici sistemlerden veri",
+          "body": "Mağazayı, reklamları, takvimi ve daha fazlasını «Entegrasyonlar» bölümünden bağlayın. Bu sayfada IF/THEN otomasyonları oluşturur ve çalıştırma geçmişine bakarsınız.",
+          "ctaHub": "Entegrasyonları aç",
+          "ctaConnections": "Bağlantılarım"
+        },
+        "comingSoon": "This section is in development",
+        "history": {
+          "title": "Run history",
+          "subtitle": "Each scenario run: success, error, or skipped. Step details are inside the record.",
+          "searchPlaceholder": "Search by scenario, event, status…",
+          "filterStatus": "Status",
+          "allStatuses": "All statuses",
+          "statusSuccess": "Success",
+          "statusError": "Error",
+          "statusPending": "Queued",
+          "statusSkipped": "Skipped",
+          "colTime": "Time",
+          "colAutomation": "Scenario",
+          "colTrigger": "Event",
+          "colStatus": "Result",
+          "colEntity": "Entity",
+          "colActions": "Steps",
+          "empty": "No runs yet",
+          "openDetails": "Details",
+          "actionsCount": "{{ok}} of {{total}} steps",
+          "errorHint": "Error"
+        },
+        "listMeta": {
+          "runs": "Runs",
+          "errors": "Errors"
+        },
+        "integrations": {
+          "title": "Senaryolardaki entegrasyonlar",
+          "subtitle": "Burada yalnızca başka yerde yapılandırılmış bağlantılara senaryoları bağlarsınız.",
+          "hubIntro": "Servisleri bağlamak veya kesmek, anahtarları girmek ve senkron durumunu görmek için «Entegrasyonlar» bölümünü kullanın. Otomasyonlarda bu bağlantıları senaryo adımlarında seçersiniz.",
+          "openHub": "«Entegrasyonlar»ı aç",
+          "openHubConnections": "Bağlantılar",
+          "hubFootnote": "Senaryo listesi ve çalıştırmalar «Otomasyonlar» sekmesindedir.",
+          "scenariosAsideKicker": "Scenarios",
+          "scenariosAsideHint": "The list on the left keeps scenarios in view while you configure connections on the right.",
+          "searchPlaceholder": "Search integration…",
+          "connected": "Connected",
+          "adaptersTitle": "Available connection types",
+          "platformTitle": "Platform capabilities",
+          "roadmapTitle": "Popular integrations (phase 2)",
+          "roadmapPhase2": "Roadmap — phase 2",
+          "platformIntro": "Ready channels and CRM modules you can link to scenarios and reports.",
+          "roadmapIntro": "Systems most often requested in CRM. As adapters ship, they appear under “Available connection types”.",
+          "statusLive": "Live",
+          "statusBeta": "Beta",
+          "statusPlanned": "Planned",
+          "statusInDevelopment": "In development",
+          "statusOff": "Off",
+          "openSettings": "Configure",
+          "openSales": "Sales · integrations",
+          "openMarketing": "Marketing · API",
+          "openEmail": "Email",
+          "openModuleLink": "Open",
+          "oauthPlatformPending": "Service sign-in is not configured yet",
+          "connectClientHint": "Organisation-wide app secrets are managed by your hosting administrator. Here you only enter your URLs, tokens, and account details.",
+          "connectButton": "Connect",
+          "connectDefaultSuffix": "connection",
+          "connectError": "Could not save connection",
+          "connectTitle": "Connect: {{name}}",
+          "connectIntro": "Provide at least one value: HTTPS webhook (e.g. Slack Incoming Webhook), API token, or work email. A quick check runs after save.",
+          "connectLabelField": "Name in CRM",
+          "connectWebhook": "Webhook URL (HTTPS)",
+          "connectToken": "API / personal token",
+          "connectEmail": "Account email",
+          "connectPhoneNumberId": "WhatsApp · Phone number ID",
+          "connectPhoneNumberIdHint": "From your Meta WhatsApp Cloud API settings (numeric ID).",
+          "connectWhatsappVerifyToken": "WhatsApp · Verify token (Meta webhook)",
+          "connectWhatsappVerifyTokenHint": "Choose a string and enter the same in Meta → Webhook → Verify token.",
+          "whatsappInboundUrlTitle": "Callback URL for inbound (Meta)",
+          "whatsappInboundUrlHint": "Paste into WhatsApp webhook settings in Meta. Subscribe to “messages”.",
+          "whatsappInboundUrlMissingEnv": "Public callback URL is not available yet — ask your administrator to verify API settings.",
+          "connectMailchimpIntro": "Paste the full Mailchimp API key (Profile → Extras → API keys). It ends with a data-centre suffix such as …-us21. Then add a Mailchimp step to your scenario.",
+          "connectMailchimpTokenHint": "Copy the full key; after Save the CRM checks Mailchimp API access.",
+          "connectMailchimpTokenShort": "Enter the full Mailchimp API key (usually not shorter than 12 characters before the -us… suffix).",
+          "amocrmInboundUrlTitle": "amoCRM webhook URL",
+          "amocrmInboundUrlHint": "In amoMarket → Webhooks, set this address. We recommend ?secret= in the URL and the same secret below.",
+          "amocrmInboundUrlMissingEnv": "Public webhook URL is not available yet — ask your administrator to verify API settings.",
+          "siteFormInboundUrlTitle": "Website form URL (WordPress / CF7)",
+          "siteFormInboundUrlHint": "Set this URL in your form plugin or “CF7 to Webhook” as the POST endpoint. If you configured a secret on the connection, append the same ?secret= value.",
+          "siteFormInboundUrlMissingEnv": "Public form URL is not available yet — ask your administrator to verify API settings.",
+          "connectAmocrmWebhookSecret": "Webhook secret (optional, recommended)",
+          "connectAmocrmWebhookSecretHint": "If set, requests without matching ?secret=, X-Lumiva-Secret, or Bearer are rejected.",
+          "connectGoogleCalendarId": "Google Calendar · calendar ID",
+          "connectGoogleCalendarIdHint": "Leave primary or enter a calendar address. Access token must allow Calendar API.",
+          "connectOutlookCalendarId": "Outlook · calendar ID (Graph)",
+          "connectOutlookCalendarIdHint": "Optional Graph calendar GUID; empty = default calendar. Token needs calendar write access.",
+          "connectBitrixWebhookHint": "For Bitrix24, enter the full inbound webhook base URL ending with /rest/1/code/ (trailing slash).",
+          "connectAmocrmHint": "For amoCRM: Webhook URL = account base (https://subdomain.amocrm.ru); API token = long-lived API v4 token.",
+          "connectHubspotHint": "HubSpot: API token = private app key. Webhook URL can be empty (api.hubapi.com) or regional host.",
+          "connectGoogleAdsCustomerHint": "Google Ads: API token = OAuth access token with Google Ads access. Webhook URL field: digits-only Customer ID, or leave empty.",
+          "connectGoogleAdsDeveloperToken": "Google Ads · Developer token",
+          "connectMetaAdsHint": "Meta Ads: API token = user access token with ads_management or required Marketing API scopes. Webhook URL is not used.",
+          "connectWordpressCf7Intro": "Kaydettikten sonra kartta siteniz için POST URL’si görünür. Gizli anahtarı siz seçersiniz (en az 6 karakter) ve aynı değeri ?secret=… veya başlıkta kullanın; boş bırakılırsa her POST kabul edilir — canlıda gizli anahtar kullanın.",
+          "connectWordpressCf7InboundSecret": "Inbound webhook secret (optional, min 6 characters)",
+          "connectWordpressCf7InboundSecretHint": "Append the same value to the form URL as ?secret=… . Leave empty to disable secret checks.",
+          "connectWordpressCf7SecretShort": "Webhook secret: at least 6 characters, or leave the field empty.",
+          "connectWordpressCf7IntroShort": "Site gönderileri CRM lead’lerine düşer. Kısa sihirbaz: ad, gizli anahtar, kaydet, ardından URL’yi WordPress’e yapıştırın.",
+          "connectLumivaWizardAddonIntro": "Bu bağlantıyı açmak, WordPress’teki Lumiva Wizard için kiracı API’sinde ilgili modülü açar (sitede aynı API anahtarı). Kapatmak modülü API’de kapatır; ekstra gizli anahtar gerekmez.",
+          "connectWordpressCf7Step1Title": "CRM’de bu bağlantıya bir ad",
+          "connectWordpressCf7Step1Body": "Birden fazla siteniz varsa ayırt etmek için kullanın (ör. «Ana site formu»).",
+          "connectWordpressCf7Step2Title": "Gizli anahtar (otomatik dolduruldu — bırakabilirsiniz)",
+          "connectWordpressCf7Step2Body": "Her gönderimde CRM’ye aynı değer gider; kaydettikten sonra hazır URL’ye ekleriz. «Yeni üret» rastgele anahtar; «Sıfır (test)» — yalnızca yerel test için.",
+          "connectWordpressCf7Step3Title": "Bağlantıyı kaydedin",
+          "connectWordpressCf7Step3Body": "Pencerenin altındaki siyah «Save and verify» düğmesine tıklayın.",
+          "connectWordpressCf7Step4Title": "Sonrasında ne olacak",
+          "connectWordpressCf7Step4Body": "Hazır bir URL göreceksiniz — WordPress’te webhook eklentisi ayarlarına yapıştırın (listedeki bağlantı kartında da adımlar var).",
+          "connectWordpressCf7RegenerateSecret": "Yeni anahtar üret",
+          "connectWordpressCf7ClearSecret": "Gizli anahtar yok (test)",
+          "connectWordpressCf7FieldMappingNote": "Contact Form 7’nin standart alanları (your-name, your-email, your-message vb.) lead ile otomatik eşlenir — elle sütun seçmeniz gerekmez.",
+          "connectWordpressCf7SuccessTitle": "Bağlantı oluşturuldu",
+          "connectWordpressCf7SuccessBody": "Aşağıdaki bağlantıyı kopyalayıp WordPress’te POST adresi olarak yapıştırın («CF7 to Webhook» veya benzeri — URL / Endpoint alanı).",
+          "connectWordpressCf7PasteUrlLabel": "WordPress’e yapıştırılacak tam bağlantı",
+          "connectWordpressCf7CopyPasteUrl": "Bağlantıyı kopyala",
+          "connectWordpressCf7CopyBaseUrl": "Yalnızca CRM adresi (gizli anahtarsız)",
+          "connectWordpressCf7SuccessWpSteps": "WordPress’te: 1) gerekirse CF7 webhook eklentisi kurun; 2) form veya eklenti ayarlarında POST seçip CRM’den URL’yi yapıştırın; 3) test gönderin — CRM’de lead oluşmalı (e-posta veya telefon gerekli).",
+          "connectWordpressCf7WizardTitle": "Lumiva Wizard / CRM Connector",
+          "connectWordpressCf7WizardBody": "Başvurular Lumiva Wizard üzerinden gidiyorsa: CRM Connector ayarlarına aşağıdaki adresi yapıştırın. Anahtar, CRM’deki kiracı API jetonunuzla aynıdır (API / genel erişim). Wizard’da bu değer eklenti ayarlarındaki «API Key» alanıdır.",
+          "connectWordpressCf7WizardCopyUrl": "CF7 endpoint’ini kopyala",
+          "connectWordpressCf7DoneButton": "Tamam — bağlantılara dön",
+          "connectWordpressCf7CloseWithoutCopy": "Kapat",
+          "siteFormCf7WhereToPasteTitle": "WordPress’te nereye yapıştırılır",
+          "siteFormCf7Step1": "WP yönetiminde Contact Form 7 veya webhook eklentisini açın (ör. «CF7 to Webhook»).",
+          "siteFormCf7Step2": "Webhook URL / Endpoint / «Remote POST» alanına CRM’den kopyaladığınız adresi yapıştırın.",
+          "siteFormCf7Step3": "Formu/eklentiyi kaydedin ve test gönderin — CRM’de lead görünmeli (formda e-posta veya telefon olmalı).",
+          "siteFormCf7CopyBase": "CRM taban URL’sini kopyala",
+          "siteFormCf7CopyFull": "Gizli anahtarlı tam URL’yi kopyala",
+          "siteFormCf7Copied": "Panoya kopyalandı",
+          "siteFormCf7CopyEmpty": "URL alınamadı",
+          "siteFormCf7CopyFailed": "Kopyalanamadı — metni elle seçin",
+          "siteFormCf7WizardTitle": "Lumiva Wizard (CRM Connector)",
+          "siteFormCf7WizardBody": "Lumiva Wizard → CRM Connector ayarlarında bu alım URL’sini kullanın. Anahtar, Lumiva Wizard ayarlarındaki «API Key» ile aynıdır (CRM’deki kiracı jetonu).",
+          "siteFormCf7WizardCopyUrl": "Endpoint’i kopyala",
+          "connectGoogleSheetsIntro": "E-tablo kimliği ve API kimlik bilgilerini girin. Satırların nereye aktarılacağını seçin (şu an desteklenenler: lead’ler ve çalışma alanı), isteğe bağlı satır aralığı ve sütun eşlemesi ekleyin — eşleme yoksa yalnızca başlıklardan tanınan sütunlar alınır. Kayıttan sonra senkronizasyonu bağlantılar listesinden çalıştırın.",
+          "connectGoogleSheetsSpreadsheetId": "Spreadsheet ID",
+          "connectGoogleSheetsSpreadsheetIdHint": "Yalnızca kimliği veya tam e-tablo URL’sini yapıştırın — kimlik otomatik çıkarılır. /d/ ile /edit arasındaki bölüm (harf, rakam, tire, alt çizgi).",
+          "connectGoogleSheetsSpreadsheetRequired": "Enter the Google Sheets spreadsheet ID.",
+          "connectGoogleSheetsSpreadsheetInvalid": "The spreadsheet ID looks invalid — copy the segment from the sheet URL (often 40+ characters).",
+          "connectGoogleSheetsTokenHint": "Paste the service-account JSON key (client_email + private_key) or a long-lived OAuth access token with read access to the spreadsheet.",
+          "connectGoogleSheetsTokenShort": "Enter a token or service-account JSON (at least 12 characters).",
+          "connectGoogleSheetsImportTarget": "Satırları şuraya aktar",
+          "connectGoogleSheetsImportTargetLeads": "Lead’ler",
+          "connectGoogleSheetsImportTargetWorkspace": "Çalışma alanı (özel nesne)",
+          "connectGoogleSheetsImportTargetProjects": "Projeler (yakında)",
+          "connectGoogleSheetsImportTargetSales": "Satışlar (yakında)",
+          "connectGoogleSheetsImportTargetHint": "Projeler ve satışlar henüz sayfadan içe aktarılmıyor; yine de seçimi kaydedebilirsiniz. Çalışma alanı için aşağıdan nesne seçin.",
+          "connectGoogleSheetsTabName": "Sayfa sekmesi adı",
+          "connectGoogleSheetsTabNameHint": "Google Sheets’teki gibi, örn. Sheet1 veya Leads.",
+          "connectGoogleSheetsHeaderRow": "Başlık satırı (numara)",
+          "connectGoogleSheetsHeaderRowHint": "Genelde 1 — sütun adlarının olduğu satır.",
+          "connectGoogleSheetsFirstDataRow": "İlk veri satırı (isteğe bağlı)",
+          "connectGoogleSheetsFirstDataRowHint": "Boş = başlığın hemen altı. Doluysa ilk veri satırının numarası.",
+          "connectGoogleSheetsLastDataRow": "Son veri satırı (isteğe bağlı)",
+          "connectGoogleSheetsLastDataRowHint": "Boş = sayfa sonuna kadar. Gereksiz satırları çekmemek için sınır verin.",
+          "connectGoogleSheetsDedupeBy": "Mevcut lead ile eşleştirme",
+          "connectGoogleSheetsDedupeEmail": "E-posta",
+          "connectGoogleSheetsDedupePhone": "Telefon",
+          "connectGoogleSheetsDedupeExternalId": "Harici ID sütunu",
+          "connectGoogleSheetsExternalIdHeader": "Harici ID sütun başlığı",
+          "connectGoogleSheetsExternalIdHeaderHint": "Harici ID ile eşleştirme seçiliyse başlık satırındaki sütun adı.",
+          "connectGoogleSheetsWorkspaceObject": "Çalışma alanı nesnesi",
+          "connectGoogleSheetsWorkspaceObjectPlaceholder": "Nesne seçin",
+          "connectGoogleSheetsWorkspaceObjectHint": "Çalışma alanı içe aktarımı için zorunlu.",
+          "connectGoogleSheetsColumnMapJson": "Sütun eşlemesi (JSON, isteğe bağlı)",
+          "connectGoogleSheetsColumnMapJsonHint": "Nesne: \"sayfadaki sütun başlığı\" → \"CRM alanı\", örn. {\"Email\":\"email\",\"Phone\":\"phone\"}. Boş = yaygın başlıkları otomatik tanı. JSON doluysa yalnızca eşlenen sütunlar kullanılır.",
+          "connectGoogleSheetsColumnMapJsonInvalid": "Sütun eşlemesinde geçersiz JSON.",
+          "connectGoogleSheetsWorkspaceColumnMapTitle": "Sayfa sütunları → nesne alanları",
+          "connectGoogleSheetsWorkspaceColumnMapHint": "Başlıkları görmek için aşağıdan önizlemeyi yükleyin. Her sütunu bir nesne alanına eşleyin veya «içe aktarma» seçin. Üstteki JSON ile de aynı eşleme yapılabilir.",
+          "connectGoogleSheetsWorkspaceColumnMapNoFields": "Nesnenin alanı yok veya alanlar yüklenemedi.",
+          "connectGoogleSheetsWorkspaceColumnMapNeedPreview": "Sütun başlıkları için önce sayfa önizlemesini yükleyin.",
+          "connectGoogleSheetsWorkspaceColumnSkip": "Atla (içe aktarma)",
+          "connectGoogleSheetsWorkspaceObjectRequired": "Çalışma alanı için bir nesne seçin.",
+          "connectGoogleSheetsRowRangeInvalid": "Son veri satırı, ilk veri satırından küçük olamaz.",
+          "connectGoogleSheetsRowMode": "İçe aktarılacak satırlar",
+          "connectGoogleSheetsRowModeRange": "İlk ve son arasındaki tüm satırlar (yukarıdaki alanlar)",
+          "connectGoogleSheetsRowModeSelected": "Yalnızca seçilen satırlar (önizlemeden sonra)",
+          "connectGoogleSheetsRowModeHint": "Önizlemeyi yükleyip satırları işaretleyin. Önizleme dışındaki satırlar listelenmez — ilk/son satır aralığını genişletip önizlemeyi yenileyin.",
+          "connectGoogleSheetsPreviewLoad": "Sayfa önizlemesini yükle",
+          "connectGoogleSheetsPreviewLoading": "Yükleniyor…",
+          "connectGoogleSheetsPreviewRangeHint": "Satırlar {{from}}–{{to}} (önizleme sınırı; tam içe aktarma seçiminize veya aralığa göre).",
+          "connectGoogleSheetsPreviewColRow": "Satır no",
+          "connectGoogleSheetsSelectAllRows": "Önizlemedekilerin tümünü seç",
+          "connectGoogleSheetsClearRows": "Seçimi temizle",
+          "connectGoogleSheetsNoRowsSelected": "«Yalnızca seçilen» modunda en az bir satır işaretleyin veya aralık moduna dönün.",
+          "connectGoogleSheetsPreviewReadonlyHint": "Salt okunur önizleme; içe aktarma yukarıdaki satır aralığına göre. İşaretlemek için «yalnızca seçilen»e geçin.",
+          "connectSubmit": "Save and verify",
+          "connectCancel": "Cancel",
+          "lastSync": "Last sync",
+          "never": "—",
+          "emptyConnections": "No saved connections",
+          "loadError": "Could not load integrations",
+          "marketingLinkedTitle": "Already connected in Marketing",
+          "marketingLinkedHintGoogle": "You can pick the same credentials in the “Google Ads” scenario step — no need to duplicate tokens here.",
+          "marketingLinkedHintMeta": "The same access token can be used in the “Meta Ads” step.",
+          "nextStepLabel": "After connecting:",
+          "nextStepCreateLink": "Create scenario →",
+          "viaConnector": "Connector: {{name}}",
+          "webhookUrlDetails": "Technical details"
+        },
+        "usage": {
+          "title": "Automation usage",
+          "subtitle": "Summary for the selected period: runs, successes, errors, and trigger distribution.",
+          "period": "Period, days",
+          "runsTotal": "Total runs",
+          "runsSuccess": "Successful",
+          "runsError": "With errors",
+          "automations": "Scenarios in CRM",
+          "activeAutomations": "Active",
+          "topTitle": "Most frequent runs",
+          "triggersTitle": "By event type",
+          "empty": "No data for this period — create and enable scenarios or wait for the schedule."
+        },
+        "copySuffix": "(copy)",
+        "titleLeads": "Lead automations",
+        "titleProjects": "Project automations",
+        "titleSales": "Sales automations",
+        "actions": {
+          "duplicate": "Duplicate",
+          "archive": "Archive",
+          "sendNow": "Run now",
+          "sendNowRunning": "Running…",
+          "sendNowOk": "Scenario completed",
+          "sendNowFail": "Run failed"
+        },
+        "runModal": {
+          "title": "Run scenario",
+          "hint": "Pick a data window for report steps (e.g. “Send report”). Other actions run as configured.",
+          "presetLabel": "Data window",
+          "presets": {
+            "last7": "Last 7 days",
+            "last30": "Last 30 days",
+            "thisMonth": "Month to date",
+            "yesterday": "Yesterday",
+            "custom": "Custom range"
+          },
+          "dateFrom": "From",
+          "dateTo": "To",
+          "rangePreview": "Report will cover: {{from}} — {{to}} (UTC, calendar days).",
+          "submit": "Run",
+          "cancel": "Cancel",
+          "close": "Close",
+          "success": "Done — check email or run history.",
+          "customDatesRequired": "Enter both from and to dates for a custom range."
+        },
+        "filters": {
+          "all": "All",
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "tabs": {
+          "automations": "Automations",
+          "history": "Run history",
+          "integrations": "Integrations",
+          "usage": "Usage"
+        }
+      },
+      "form": {
+        "titleNew": "Otomasyon oluştur",
+        "titleEdit": "Otomasyonu düzenle",
+        "subtitle": "Süreçleri otomatikleştirmek için IF/THEN kuralı yapılandırın",
+        "sections": {
+          "basic": "Temel bilgiler",
+          "actions": "Eylemler (THEN)"
+        },
+        "fields": {
+          "name": "Ad *",
+          "description": "Açıklama",
+          "trigger": "Tetikleyici (olay) *",
+          "actionType": "Eylem türü",
+          "conditions": "Koşullar",
+          "active": "Aktif"
+        },
+        "hints": {
+          "activeOnly": "Otomasyon yalnızca açıkken çalışır.",
+          "actionsDesc": "Tetikleyici çalışınca ne yapılsın"
+        },
+        "builder": {
+          "scope": "Kapsam",
+          "ifTitle": "IF: Ne zaman",
+          "thenTitle": "THEN: Yap",
+          "previewTitle": "Senaryo önizlemesi",
+          "templatesTitle": "Varlığa göre hızlı başlangıç",
+          "step": "Adım",
+          "expand": "Genişlet",
+          "collapse": "Daralt",
+          "noActions": "Henüz eylem yok",
+          "noConfig": "Ek parametre yok",
+          "templates": {
+            "leads": "Yeni lead -> e-posta ve not",
+            "projects": "Yeni proje -> not ve durum",
+            "sales": "Yeni satış -> rapor ve not"
+          }
+        },
+        "triggerGroups": {
+          "contacts": "Kişiler",
+          "companies": "Şirketler",
+          "leads": "Leadler",
+          "sales": "Satışlar",
+          "projects": "Projeler",
+          "tasks": "Görevler",
+          "reports": "Raporlar",
+          "email": "E-posta",
+          "telegram": "Telegram",
+          "notes": "Notlar",
+          "customObjects": "Özel tablolar"
+        },
+        "triggers": {
+          "LEAD_CREATED": "Lead oluşturuldu",
+          "LEAD_UPDATED": "Lead güncellendi",
+          "LEAD_ASSIGNED": "Lead sorumluya atandı",
+          "LEAD_STATUS_CHANGED": "Lead durumu değişti",
+          "CONTACT_CREATED": "Kişi oluşturuldu",
+          "CONTACT_UPDATED": "Kişi güncellendi",
+          "COMPANY_CREATED": "Şirket oluşturuldu",
+          "COMPANY_UPDATED": "Şirket güncellendi",
+          "SALE_CREATED": "Satış oluşturuldu",
+          "SALE_UPDATED": "Satış güncellendi",
+          "SALE_STATUS_CHANGED": "Satış durumu değişti",
+          "PROJECT_CREATED": "Proje oluşturuldu",
+          "PROJECT_STATUS_CHANGED": "Proje durumu değişti",
+          "TASK_CREATED": "Görev oluşturuldu",
+          "TASK_UPDATED": "Görev güncellendi",
+          "TASK_STATUS_CHANGED": "Görev durumu değişti",
+          "REPORT_SCHEDULED": "Zamanlanmış rapor",
+          "SCHEDULED": "Zamanlanmış eylemler",
+          "SCHEDULED_ACTIONS_HINT": "Aşağıya adımlar ekleyin: örn. «Google Ads API isteği» (pazarlama entegrasyonu), ardından «Adım verisini gönder» — e-posta veya Telegram’a JSON/XLSX/PDF. Zamanlama: yukarıdaki blokta sıklık ve saat.",
+          "EMAIL_SENT": "E-posta gönderildi",
+          "EMAIL_RECEIVED": "E-posta alındı",
+          "TELEGRAM_MESSAGE_RECEIVED": "Telegram mesajı alındı",
+          "NOTE_CREATED": "Not oluşturuldu",
+          "CUSTOM_OBJECT_RECORD_CREATED": "Kayıt oluşturuldu (özel nesne)",
+          "CUSTOM_OBJECT_RECORD_UPDATED": "Kayıt güncellendi (özel nesne)",
+          "CUSTOM_OBJECT_STATUS_CHANGED": "Kayıt durumu değişti (özel nesne)"
+        },
+        "report": {
+          "type": "Rapor türü",
+          "types": {
+            "sales": "Satışlar",
+            "leads": "Leadler",
+            "projects": "Projeler",
+            "tasks": "Görevler",
+            "marketing": "Pazarlama (trafik ve reklamlar)"
+          },
+          "marketingHint": "CRM pazarlama trafiği tablosundan veri: Google Ads, Meta, Yandex.Metrica, GA4 senkronları ve içe aktarmalar. Entegrasyonlar yoksa veya çalışmadıysa raporda az veya satır olmayabilir.",
+          "dataRangeTitle": "Rapor veri dönemi (isteğe bağlı)",
+          "dataRangeHint": "Boşsa dönem «Sıklık»ten türetilir (bugünden geriye). Tarihler UTC takvim günüdür. Manuel «Şimdi çalıştır» için dönem ayrı pencerede.",
+          "dataRangeFrom": "Başlangıç tarihi",
+          "dataRangeTo": "Bitiş tarihi",
+          "channel": "Gönderim kanalı",
+          "channels": {
+            "email": "E-posta",
+            "telegram": "Telegram"
+          },
+          "frequency": "Sıklık",
+          "frequencies": {
+            "daily": "Günlük",
+            "weekly": "Haftalık",
+            "monthly": "Aylık",
+            "quarterly": "Üç aylık"
+          },
+          "time": "Saat",
+          "dayOfWeek": "Haftanın günü",
+          "weekdays": {
+            "mon": "Pazartesi",
+            "tue": "Salı",
+            "wed": "Çarşamba",
+            "thu": "Perşembe",
+            "fri": "Cuma",
+            "sat": "Cumartesi",
+            "sun": "Pazar"
+          },
+          "dayOfMonth": "Ayın günü",
+          "timezone": "Saat dilimi",
+          "emails": "E-posta alıcıları",
+          "subject": "E-posta konusu",
+          "currencyMode": "Para birimi modu",
+          "currencyNative": "Yalnızca seçilen",
+          "currencyConverted": "Dönüştür",
+          "displayCurrency": "Görüntüleme para birimi",
+          "dateField": "Tarih",
+          "dateSale": "Satış tarihi",
+          "dateCreated": "Oluşturulma tarihi",
+          "rateFor": "{{currency}} için kur"
+        },
+        "dataExport": {
+          "intro": "Önceki adımın sonucunu alır (ör. pazarlamadan Google Ads / Meta yanıtı), dosyalar oluşturur ve gönderir.",
+          "channel": "Teslimat kanalı",
+          "channelEmail": "E-posta",
+          "channelTelegram": "Telegram",
+          "fromPath": "Veri yolu (isteğe bağlı)",
+          "fromPathHint": "Boş — önceki adımın tam yanıtı. Örnek: lastActionResult.data",
+          "unwrap": "İç içe data alanını kullan (Google Ads / Meta yanıtı)",
+          "formats": "Ek biçimleri",
+          "formatJson": "JSON",
+          "formatXlsx": "Excel (XLSX)",
+          "formatPdf": "PDF (JSON metni)",
+          "subject": "E-posta konusu",
+          "to": "E-posta alıcıları (virgülle)",
+          "botId": "Bot UUID (Telegram CRM)",
+          "telegramUserId": "Telegram kullanıcı ID",
+          "telegramFilesHint": "Telegram’da her dosya ayrı mesajdır; bot sohbeti zaten olmalıdır (“Rapor gönder” gibi)."
+        },
+        "actions": {
+          "save": "Kaydet",
+          "saving": "Kaydediliyor…",
+          "cancel": "İptal",
+          "create": "Oluştur",
+          "addCondition": "Koşul ekle",
+          "addAction": "Eylem ekle",
+          "action": "Eylem",
+          "removeAction": "Sil"
+        },
+        "emailAction": {
+          "account": "E-posta hesabı *",
+          "to": "Alıcı",
+          "toPlaceholder": "email@example.com veya lead e-postasını kullanmak için boş bırakın",
+          "subject": "Konu",
+          "body": "Metin",
+          "template": "E-posta şablonu",
+          "noTemplate": "Şablon kullanma (elle gir)",
+          "bodyPlaceholder": "E-posta gövdesi. Değişkenler: {{lead.name}}, {{lead.email}}, {{lead.phone}}, {{lead.status}}, {{contact.email}}, {{contact.fullName}}",
+          "noAccounts": "Hesap yok",
+          "add": "Ekle",
+          "addAccount": "Hesap ekle",
+          "selectAccount": "E-posta hesabı seçin",
+          "loadingAccounts": "Hesaplar yükleniyor…",
+          "noTemplates": "Şablon yok",
+          "create": "Oluştur",
+          "loadingTemplates": "Şablonlar yükleniyor…",
+          "templateHint": "Konu ve gövde için şablon seçin veya manuel giriş için boş bırakın.",
+          "templateUsed": "Şablon kullanılıyor",
+          "templateUsedHint": "Konu ve gövde, tetikleyiciden değişkenlerle şablondan alınır"
+        },
+        "webhookAction": {
+          "url": "URL *",
+          "method": "Metot",
+          "headers": "Üst bilgiler (JSON)",
+          "body": "İstek gövdesi (JSON)"
+        },
+        "telegramAction": {
+          "botId": "Bot ID",
+          "userId": "Telegram kullanıcı ID",
+          "text": "Mesaj metni"
+        },
+        "slackAction": {
+          "intro": "Slack Incoming Webhook ile kanala gönderim. Önce Slack bağlantısı ekleyin (Otomasyonlar → Entegrasyonlar → Bağla), sonra burada seçin veya URL’yi elle yapıştırın.",
+          "connection": "CRM'den Slack bağlantısı",
+          "noConnections": "Kayıtlı Slack bağlantısı yok.",
+          "openIntegrations": "Entegrasyonları aç",
+          "pickConnection": "— bağlantı seçin —",
+          "webhookOverride": "Veya webhook URL’si elle",
+          "webhookOverrideHint": "Doldurulursa seçilen bağlantının üzerine yazar. https://hooks.slack.com/services/… olmalıdır.",
+          "text": "Mesaj metni",
+          "textPlaceholder": "Yeni lead: {{lead.name}} · {{lead.email}}"
+        },
+        "teamsAction": {
+          "intro": "Office 365 Incoming Webhook (Connector) ile Microsoft Teams’te kart.",
+          "connection": "CRM'den Teams bağlantısı",
+          "noConnections": "Teams bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "webhookOverride": "Veya webhook URL’si elle",
+          "title": "Kart başlığı",
+          "text": "Metin (Teams’te Markdown desteklenir)"
+        },
+        "mailchimpAction": {
+          "intro": "Seçilen Mailchimp kitlesinde aboneyi ekler veya günceller (Marketing API). E-posta tetikleyiciden (lead/kişi) veya aşağıdaki alandan gelir.",
+          "connection": "CRM’den Mailchimp bağlantısı",
+          "noConnections": "Mailchimp bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "listId": "Audience ID (Liste ID)",
+          "listIdHint": "Mailchimp: Audience → Settings → Audience name and defaults — Audience ID alanı.",
+          "email": "E-posta (isteğe bağlı)",
+          "emailHint": "Boş — tetikleyicideki lead veya kişiden ({{lead.email}}). Şablon: {{lead.email}}",
+          "mergeFields": "Birleştirme alanları (JSON, isteğe bağlı)",
+          "mergeFieldsHint": "Mailchimp birleştirme alanları nesnesi, örn. {\"FNAME\":\"{{lead.name}}\"}. Anahtarlar kitlenize uygun olmalı. JSON’daki sayı ve boolean değerler Mailchimp API için metne dönüştürülür.",
+          "subscriptionStatus": "Abonelik durumu",
+          "subscriptionSubscribed": "Abone (subscribed)",
+          "subscriptionPending": "Onay bekliyor (pending, çift onay)",
+          "subscriptionStatusHint": "Mailchimp’te kitle için çift onay (double opt-in) açıksa “Pending” anlamlıdır; aksi halde “Abone” kullanın."
+        },
+        "mailchimpCampaignAction": {
+          "intro": "Seçilen tüm kitle için Mailchimp’te regular kampanya oluşturur, HTML yerleştirir ve hemen gönderir. CRM olayında (ör. tabloda yeni ürün) veya zamanlamada uygun. Bir adım = senaryo çalışması başına bir gönderim.",
+          "connection": "CRM’den Mailchimp bağlantısı",
+          "noConnections": "Mailchimp bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "listId": "Audience ID (Liste ID)",
+          "listIdHint": "Mailchimp’tekiyle aynı kitle. Kitlede aboneler olmalı; yanıtla (reply-to) alanı Mailchimp’te doğrulanmış olmalı.",
+          "subject": "E-posta konusu *",
+          "subjectHint": "Değişkenler desteklenir, örn. {{lead.name}}.",
+          "fromName": "Gönderen adı",
+          "fromNameHint": "E-postada «Kimden» nasıl görünür. Varsayılan: Lumiva CRM.",
+          "replyTo": "Reply-To (e-posta) *",
+          "replyToHint": "Mailchimp’te doğrulanmış (Website / Domains) bir alan adındaki adres olmalıdır; aksi halde API hata döner.",
+          "campaignTitle": "Kampanya iç adı",
+          "campaignTitleHint": "Yalnızca Mailchimp’te görünür; varsayılan konu. En fazla 100 karakter.",
+          "htmlBody": "E-posta HTML *",
+          "htmlBodyHint": "Tüm kitle için tam e-posta. «E-postalar» / pazarlama şablonlarından kopyalayabilirsiniz.",
+          "textBody": "Düz metin sürümü (önerilir)",
+          "textBodyHint": "HTML olmayan istemciler için düz metin; spam riskini azaltır."
+        },
+        "zapierAction": {
+          "intro": "Zapier Catch Hook’a JSON gönderin (veya webhook ile Make benzeri).",
+          "connection": "CRM'den Zapier bağlantısı",
+          "noConnections": "Zapier bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "hookOverride": "Veya Catch Hook URL’si elle (hooks.zapier.com)",
+          "text": "Metin (aşağıda özel JSON yoksa)",
+          "textHint": "JSON alanı boşsa Zapier’a source, text, triggerEvent, at alanlı nesne gider.",
+          "jsonPayload": "Özel JSON gövdesi (isteğe bağlı)"
+        },
+        "bitrixAction": {
+          "intro": "Gelen webhook üzerinden Bitrix24 REST metodu çağrılır. Yetkiler portaldaki webhook ile sınırlıdır.",
+          "connection": "CRM’den Bitrix24 bağlantısı",
+          "noConnections": "Bitrix24 bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "webhookOverride": "Veya webhook temel URL’sini elle",
+          "webhookOverrideHint": "/rest/ içermeli ve slash ile bitmelidir (sunucuda otomatik eklenebilir).",
+          "method": "REST metodu",
+          "methodPlaceholder": "crm.lead.add",
+          "paramsJson": "İstek gövdesi (JSON nesnesi)",
+          "paramsJsonHint": "crm.lead.add için genelde {\"fields\":{\"TITLE\":\"…\",\"NAME\":\"…\"}}. Boş — {}. {{lead.name}} gibi yer tutucular desteklenir."
+        },
+        "amocrmAction": {
+          "intro": "amoCRM API v4 (Bearer) isteği. Gerekirse yol ve JSON gövdesi; GET için gövde yok.",
+          "connection": "CRM’den amoCRM bağlantısı",
+          "noConnections": "amoCRM bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "baseUrlOverride": "Hesap temel URL’si (üzerine yaz)",
+          "baseUrlOverrideHint": "Örn. https://company.amocrm.ru — bağlantıdaki gibi.",
+          "accessToken": "Erişim jetonu (üzerine yaz)",
+          "httpMethod": "HTTP metodu",
+          "apiPath": "API yolu",
+          "apiPathPlaceholder": "/api/v4/leads",
+          "paramsJson": "İstek gövdesi (JSON)",
+          "paramsJsonHint": "POST /api/v4/leads için genelde fırsat dizisi. Yer tutucular: {{lead.name}}. GET için boş bırakın."
+        },
+        "hubspotAction": {
+          "intro": "HubSpot CRM API (Bearer) isteği. Varsayılan https://api.hubapi.com; AB için override.",
+          "connection": "CRM’den HubSpot bağlantısı",
+          "noConnections": "HubSpot bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "apiHostOverride": "API ana makinesi (üzerine yaz)",
+          "apiHostOverrideHint": "Boş — bağlantıdan veya api.hubapi.com. Örnek: https://api-eu1.hubapi.com",
+          "accessToken": "Access token (üzerine yaz)",
+          "httpMethod": "HTTP metodu",
+          "apiPath": "API yolu",
+          "apiPathPlaceholder": "/crm/v3/objects/contacts",
+          "paramsJson": "İstek gövdesi (JSON)",
+          "paramsJsonHint": "Kişi oluşturma için properties nesnesi. Yer tutucular {{lead.email}}. GET için gövde kullanılmaz."
+        },
+        "googleAdsAction": {
+          "intro": "Serbest Google Ads API isteği: metot, yol ve JSON gövdesi (GAQL vb.). Entegrasyonlar ve özel senaryolar için. Tipik «CRM raporu» kullanıcıları bu adıma ihtiyaç duymaz — aşağıdaki bloğa bakın.",
+          "forClientTitle": "Haftada bir rapor yeterli mi?",
+          "forClientBody": "Bu bir rapor sihirbazı değil: burada doğrudan reklam API çağrısı ayarlanır. CRM’den hazır raporu (satışlar, leadler, görevler…) yol/JSON olmadan e-posta veya Telegram’a almak için «Rapor gönder» kullanın.",
+          "switchToSendReport": "Bu adımı «Rapor gönder» ile değiştir",
+          "marketingIntegration": "Pazarlama entegrasyonu (önerilir)",
+          "pickMarketingIntegration": "— pazarlama bağlantısı kullanma —",
+          "marketingIntegrationHint": "Adım çalışırken CRM refresh jetonunu access jetonuyla değiştirir (rapor senkronu gibi). Doldurulursa aşağıdaki override alanları önceliklidir.",
+          "noMarketingIntegrations": "Pazarlamada aktif Google Ads entegrasyonu yok.",
+          "connection": "CRM’den Google Ads bağlantısı (isteğe bağlı)",
+          "usingMarketingCredentials": "Pazarlama entegrasyonu seçildi — developer token, OAuth ve Customer ID adımda çekilir. Burada tekrarlamayın; alanlar yalnızca override içindir.",
+          "crmConnectionOptionalAbsent": "Otomasyonlar → Entegrasyonlar altında ayrı Google Ads bağlantısı yok — yukarıda pazarlama entegrasyonu seçildiyse bu adım için gerekmez.",
+          "noConnections": "Otomasyonlar → Entegrasyonlar’da Google Ads bağlantısı yok. Yukarıdaki pazarlama entegrasyonunu kullanmıyorsanız gerekir.",
+          "pickConnection": "— bağlantı seçin —",
+          "developerToken": "Developer token (üzerine yaz)",
+          "developerTokenHint": "Developer token’lı bağlantı seçildiyse alanı boş bırakabilirsiniz.",
+          "accessToken": "OAuth access token (üzerine yaz)",
+          "customerId": "Customer ID (üzerine yaz, yalnızca rakam)",
+          "customerIdHint": "Yola {{customerId}} olarak eklenir. Bağlantıda «Webhook URL» içinde Customer ID varsa otomatik alınır.",
+          "httpMethod": "HTTP metodu",
+          "apiPath": "API yolu",
+          "apiPathPlaceholder": "/customers/{{customerId}}/googleAds:searchStream",
+          "paramsJson": "İstek gövdesi (JSON)",
+          "paramsJsonHint": "POST/PATCH/PUT için Google Ads API gövdesi. Yer tutucular {{lead.name}} vb. GET için gönderilmez."
+        },
+        "metaAdsAction": {
+          "intro": "Serbest Meta Marketing API (Graph) isteği: yol, metot, gerekirse gövde. Entegrasyonlar için. Zamanlanmış tipik CRM raporu için «Rapor gönder» kullanın — aşağıya bakın.",
+          "forClientTitle": "Haftada bir rapor yeterli mi?",
+          "forClientBody": "Bu adım doğrudan Graph API çağrıları içindir. CRM’den hazır rapor e-posta/Telegram için «Rapor gönder» ile ayarlanır (rapor türü, kanal, zamanlama).",
+          "switchToSendReport": "Bu adımı «Rapor gönder» ile değiştir",
+          "marketingIntegration": "Pazarlama entegrasyonu (önerilir)",
+          "pickMarketingIntegration": "— pazarlama bağlantısı kullanma —",
+          "marketingIntegrationHint": "Erişim jetonu pazarlama entegrasyonu ayarlarından alınır. Aşağıdaki override alanı önceliklidir.",
+          "noMarketingIntegrations": "Pazarlamada aktif Meta Ads entegrasyonu yok.",
+          "connection": "CRM’den Meta Ads bağlantısı (isteğe bağlı)",
+          "usingMarketingCredentials": "Pazarlama entegrasyonu seçildi — erişim jetonu oradan gelir. Tekrar girmeyin; gerekirse aşağıdaki override.",
+          "crmConnectionOptionalAbsent": "Otomasyonlar → Entegrasyonlar altında ayrı Meta bağlantısı yok — pazarlama entegrasyonu seçiliyse zorunlu değil.",
+          "noConnections": "Otomasyonlar → Entegrasyonlar’da Meta Ads bağlantısı yok. Yukarıdaki pazarlama entegrasyonunu kullanmıyorsanız gerekir.",
+          "pickConnection": "— bağlantı seçin —",
+          "accessToken": "Access token (üzerine yaz)",
+          "httpMethod": "HTTP metodu",
+          "apiPath": "Graph yolu (/v…/ göreli)",
+          "apiPathPlaceholder": "me/adaccounts?fields=id,name",
+          "paramsJson": "İstek gövdesi (JSON)",
+          "paramsJsonHint": "POST/PATCH/PUT için JSON gövdesi. GET için kullanılmaz. Yer tutucular {{lead.name}} vb."
+        },
+        "whatsappAction": {
+          "intro": "WhatsApp Cloud API: text mesaj türü. Bağlantıda Meta’dan Phone number ID ve jeton olmalıdır.",
+          "connection": "CRM'den WhatsApp bağlantısı",
+          "noConnections": "WhatsApp bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "phoneNumberId": "Phone number ID (bağlantıdan değilse)",
+          "accessToken": "Geçici jeton üzerine yazma",
+          "to": "Alıcı numarası",
+          "toHint": "Boşsa tetikleyicideki lead/kişi telefonu kullanılır. Ülke kodlu rakamlar.",
+          "text": "Mesaj metni"
+        },
+        "googleCalendarAction": {
+          "intro": "Google Calendar API ile takvim etkinliği oluşturur. Bağlantıda takvim kapsamı OAuth erişim jetonu; gerekirse takvim ID (varsayılan primary).",
+          "connection": "CRM’den Google Calendar bağlantısı",
+          "noConnections": "Google Calendar bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "accessToken": "Access token override (bağlantı olmadan)",
+          "calendarId": "Takvim ID (üzerine yaz)",
+          "calendarIdHint": "Boş — bağlantıdan veya primary.",
+          "summary": "Etkinlik başlığı",
+          "summaryPlaceholder": "Lead: {{lead.name}}",
+          "description": "Açıklama (isteğe bağlı)",
+          "durationMinutes": "Süre, dk",
+          "startOffsetMinutes": "Tetik anından başlangıç kayması, dk",
+          "timeZone": "Saat dilimi (IANA)",
+          "timeZoneHint": "Örn. UTC veya Europe/Moscow — API’de start/end alanları için."
+        },
+        "outlookCalendarAction": {
+          "intro": "Microsoft Graph ile (kullanıcı takvimi) etkinlik oluşturur. Başlangıç/bitiş UTC’de gönderilir. Takvim izinli jeton gerekir.",
+          "connection": "CRM’den Microsoft 365 / Outlook bağlantısı",
+          "noConnections": "Outlook bağlantısı yok.",
+          "pickConnection": "— bağlantı seçin —",
+          "accessToken": "Access token override (bağlantı olmadan)",
+          "calendarId": "Graph takvim ID (üzerine yaz)",
+          "calendarIdHint": "Boş — varsayılan takvim veya bağlantıdaki değer.",
+          "summary": "Etkinlik konusu",
+          "summaryPlaceholder": "Lead: {{lead.name}}",
+          "description": "Etkinlik metni (isteğe bağlı)",
+          "durationMinutes": "Süre, dk",
+          "startOffsetMinutes": "Tetik anından başlangıç kayması, dk",
+          "timeZoneHint": "Graph’ta etkinlik aralığı UTC olarak ayarlanır (kullanıcı takviminde doğru an)."
+        },
+        "noteAction": {
+          "content": "Not içeriği"
+        },
+        "taskAction": {
+          "companyId": "Şirket ID (lead’den değilse)",
+          "title": "Görev başlığı",
+          "description": "Açıklama",
+          "status": "Durum",
+          "priority": "Öncelik (sayı)",
+          "dueDate": "Bitiş (tarih)",
+          "assignee": "Sorumlu (user id)",
+          "hint": "Şirketi olan leadlerde şirket UUID’si otomatik doldurulur."
+        },
+        "statusAction": {
+          "status": "Yeni durum *"
+        },
+        "fieldAction": {
+          "field": "Alan adı *",
+          "value": "Değer *"
+        },
+        "tagAction": {
+          "tag": "Etiket *"
+        },
+        "actionTypes": {
+          "trigger_webhook": "Webhook'u çağır",
+          "send_email": "E-posta gönder",
+          "send_telegram": "Telegram gönder",
+          "send_slack": "Slack'e gönder",
+          "send_teams": "Microsoft Teams'e gönder",
+          "send_mailchimp": "Mailchimp / kitle",
+          "send_mailchimp_campaign": "Mailchimp / kitle yayını",
+          "send_zapier": "Zapier'a gönder (Catch Hook)",
+          "send_whatsapp": "WhatsApp'a gönder",
+          "send_google_calendar": "Google Calendar etkinliği",
+          "send_outlook_calendar": "Outlook etkinliği (Microsoft 365)",
+          "send_bitrix": "Bitrix24 çağrısı (REST)",
+          "send_amocrm": "amoCRM isteği (API v4)",
+          "send_hubspot": "HubSpot isteği (CRM API)",
+          "send_google_ads": "Google Ads API isteği",
+          "send_meta_ads": "Meta Ads isteği (Graph)",
+          "send_report": "Rapor gönder",
+          "send_data_export": "Adım verisini gönder (JSON / Excel / PDF)",
+          "create_task": "Şirket görevi oluştur",
+          "create_note": "Not oluştur",
+          "update_field": "Alanı güncelle",
+          "add_tag": "Etiket ekle",
+          "change_status": "Durumu değiştir"
+        },
+        "openMarketingIntegrationsPage": "Pazarlama · entegrasyonlar",
+        "errors": {
+          "saveFailed": "Kaydetme hatası",
+          "loadFailed": "Otomasyon yüklenemedi"
+        },
+        "success": {
+          "saved": "Otomasyon kaydedildi."
+        }
+      },
+      "integrationsCatalog": {
+        "items": {
+          "webhooks": {
+            "name": "Giden webhook",
+            "description": "Olayda CRM, sisteminize HTTPS isteği gönderir — senaryo adımında ayarlanır.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "email": {
+            "name": "Kurumsal e-posta",
+            "description": "Bağlı IMAP/SMTP hesaplarıyla senaryolardan ve raporlardan e-posta.",
+            "linkLabel": "Posta",
+            "nextStep": ""
+          },
+          "telegram": {
+            "name": "Telegram",
+            "description": "Senaryolardan Telegram’a bildirim ve raporlar.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "woocommerce": {
+            "name": "WooCommerce",
+            "description": "Siparişler ve ödemeler — CRM satışlarına içe aktarma ve bağlantı.",
+            "linkLabel": "Satış · entegrasyonlar",
+            "nextStep": ""
+          },
+          "marketing_api": {
+            "name": "Pazarlama API",
+            "description": "Trafik ve reklam verilerini API ile pazarlama bölümüne aktarma.",
+            "linkLabel": "Pazarlama · entegrasyonlar",
+            "nextStep": ""
+          },
+          "ms_teams": {
+            "name": "Microsoft Teams",
+            "description": "Teams kanalına kartlar — Incoming Webhook URL’sini bir kez yapıştırın.",
+            "linkLabel": "Bu sayfa",
+            "nextStep": ""
+          },
+          "slack": {
+            "name": "Slack",
+            "description": "Incoming Webhook ile kanala mesaj.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "google_calendar": {
+            "name": "Google Calendar",
+            "description": "Google takvim etkinlikleri ve CRM takvimi ile senaryolarda eşleştirme.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "outlook": {
+            "name": "Microsoft 365 / Outlook",
+            "description": "Microsoft 365 takviminde etkinlikler.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "whatsapp": {
+            "name": "WhatsApp Business",
+            "description": "Senaryodan giden mesajlar ve Meta’dan gelen yanıtlar lead kartında.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "mailchimp": {
+            "name": "Mailchimp",
+            "description": "Abonelikler ve kampanyalar — Mailchimp API anahtarı.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "bitrix": {
+            "name": "Bitrix24",
+            "description": "Gelen webhook URL’si üzerinden REST çağrıları.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "amocrm": {
+            "name": "amoCRM",
+            "description": "API v4 ve gelen webhook’lar — lead ve notlar.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "hubspot": {
+            "name": "HubSpot",
+            "description": "Senaryodan HubSpot CRM API istekleri.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "zapier": {
+            "name": "Zapier / Make",
+            "description": "Catch Hook’a JSON; mantık Zapier/Make tarafında.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "google_ads": {
+            "name": "Google Ads",
+            "description": "Senaryolardan Google Ads API. Harcama özetleri — pazarlama bağlantılarıyla da.",
+            "linkLabel": "Pazarlama · entegrasyonlar",
+            "nextStep": ""
+          },
+          "google_analytics": {
+            "name": "Google Analytics 4",
+            "description": "GA4 olayları ve raporlar: Google ile giriş, trafik senkronu ve raporlama para birimi.",
+            "linkLabel": "Pazarlama · entegrasyonlar",
+            "nextStep": "Entegrasyonlar → Pazarlama: Property ID ve para birimini girin, Google ile oturum açın; senkron «Pazarlama» sekmesinde."
+          },
+          "meta_ads": {
+            "name": "Meta Ads",
+            "description": "Senaryolardan Marketing API. Özetler pazarlamada.",
+            "linkLabel": "Pazarlama · entegrasyonlar",
+            "nextStep": ""
+          },
+          "1c": {
+            "name": "1C:Enterprise",
+            "description": "Gelecek senaryolar için kimlik bilgisi saklama.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "sap": {
+            "name": "SAP / ERP",
+            "description": "Gelecek senaryolar için token/URL saklama.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "jira": {
+            "name": "Jira / Linear",
+            "description": "Görev ve proje bağlantıları (yol haritası).",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "openai": {
+            "name": "OpenAI / LLM",
+            "description": "API anahtarı saklama; çağrılar için webhook adımı.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "wordpress_cf7": {
+            "name": "WordPress + Contact Form 7",
+            "description": "Siteden gelen formların CRM lead’lerine bağlantı webhook URL’sine POST ile aktarılması (CF7 ve benzeri).",
+            "linkLabel": "",
+            "nextStep": "Bağlantı oluşturun, karttaki URL’yi kopyalayın, eklentiye yapıştırın (ör. «CF7 to Webhook»). İsterseniz CRM’de gizli anahtar ve URL’de aynı ?secret= kullanın."
+          },
+          "lumiva_client_cabinet": {
+            "name": "Client Cabinet Pro (WordPress)",
+            "description": "Lumiva Wizard ile sitede müşteri alanı: CRM’de açmak kiracı API’sinde clientcabinet modülünü etkinleştirir.",
+            "linkLabel": "",
+            "nextStep": "Bağlantı oluşturun; CRM’de kapatınca Wizard modül listesinde kapalı görünür."
+          },
+          "lumiva_online_chat": {
+            "name": "Lumiva çevrimiçi sohbet (WordPress)",
+            "description": "Sohbet widget’ı: CRM’de açmak chat modülünü kiracı API’sinde etkinleştirir.",
+            "linkLabel": "",
+            "nextStep": "Bağlantı oluşturun; kapatınca sitedeki Wizard için modül kapanır."
+          },
+          "google_sheets": {
+            "name": "Google E-Tablolar",
+            "description": "Tablo satırlarını lead’lere ve çalışma alanı nesnelerine aktarma: sütun eşlemesi, satır veya aralık seçimi.",
+            "linkLabel": "",
+            "nextStep": "Bağlantı: e-tablo kimliği, sekme, erişim jetonu; çalışma alanı için nesne ve sütun haritası (önizleme)."
+          }
+        }
+      },
+      "labels": {
+        "actions": {
+          "assign_task": "Assign task",
+          "assign_user": "Assign user",
+          "send_notification": "Notification",
+          "remove_tag": "Remove tag"
+        }
+      }
+    },
+    "salesIntegrations": {
+      "kicker": "Satış entegrasyonları",
+      "title": "Satış kanalı entegrasyonları",
+      "subtitle": "Harici sistemleri bağlayın, durumu ve satış senkronunu yönetin.",
+      "kinds": {
+        "woocommerce": "WooCommerce",
+        "manualImport": "Manuel içe aktarma",
+        "other": "Diğer",
+        "thirdPartyLink": "Harici servis (Slack, Teams…)"
+      },
+      "status": {
+        "never": "Hiç senkronize edilmedi",
+        "ok": "Senkronize",
+        "error": "Hata",
+        "enabled": "Açık",
+        "disabled": "Kapalı"
+      },
+      "defaults": {
+        "woocommerceName": "WooCommerce mağazası"
+      },
+      "available": {
+        "title": "Kullanılabilir entegrasyonlar",
+        "woocommerceHint": "WooCommerce REST API ile bağlantı.",
+        "newConnection": "Yeni bağlantı",
+        "woocommerceNote": "Okuma (Read) yetkili anahtar kullanın.",
+        "empty": "Bağdaştırıcı henüz yok.",
+        "movedToHubBody": "Yeni WooCommerce bağlantısı «Entegrasyonlar» bölümüne, «WooCommerce» sekmesine taşındı. Burada mağaza listesi, senkron ve düzenleme kalır.",
+        "movedToHubButton": "Entegrasyonlarda WooCommerce’i aç"
+      },
+      "new": {
+        "title": "Yeni bağlantı",
+        "close": "Kapat",
+        "name": "Bağlantı adı",
+        "namePlaceholder": "WooCommerce · ana mağaza",
+        "channel": "Satış kanalı",
+        "channelAuto": "Kanalı otomatik oluştur",
+        "description": "Kısa açıklama",
+        "descriptionPlaceholder": "Örn.: shop.example.com mağazası",
+        "url": "WooCommerce URL (https)",
+        "urlPlaceholder": "https://shop.example.com",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret"
+      },
+      "edit": {
+        "title": "Bağlantıyı düzenle: {{name}}",
+        "lumivaSimpleTitle": "Bağlantı ayrıntıları",
+        "lumivaSimpleHint": "Ad ve not. Modülü açıp kapatmak için aşağıdaki tabloda «Aç» / «Kapat» kullanın.",
+        "adapterSimpleHint": "Ad, satış kanalı ve not. İçe aktarmayı bozmamak için tam yapılandırma burada düzenlenmez.",
+        "close": "Kapat",
+        "name": "Bağlantı adı",
+        "channel": "Satış kanalı",
+        "channelAuto": "Kanal yok / otomatik",
+        "description": "Kısa açıklama",
+        "url": "WooCommerce URL (https)",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret (değiştirmemek için boş bırakın)",
+        "thirdPartyTitle": "Bağlantı parametreleri ve sırlar",
+        "thirdPartyHint": "JSON, tam bağlantı yapılandırmasıdır (API ile aynı). catalogId ve kritik anahtarları silmeyin. Geçersiz JSON kaydedilmez.",
+        "configJson": "Yapılandırma (JSON)",
+        "loadingDetails": "Tam bağlantı yükleniyor…"
+      },
+      "list": {
+        "title": "Entegrasyon listesi",
+        "subtitle": "Durumu yönetin, bağlantıyı test edin ve senkron başlatın.",
+        "filteredNote": "Yalnızca satışla ilgili entegrasyonlar gösterilir (WooCommerce, 1C, ERP vb.). Site formları, sohbet ve Google E-Tablolar «Entegrasyonlar» bölümündedir.",
+        "headers": {
+          "connection": "Bağlantı",
+          "type": "Tür",
+          "channel": "Satış kanalı",
+          "status": "Durum",
+          "lastSync": "Son senkron",
+          "sales": "Satışlar",
+          "amount": "Tutar",
+          "actions": "İşlemler"
+        },
+        "empty": "Henüz entegrasyon yok.",
+        "lastError": "Hata:"
+      },
+      "loading": "Entegrasyonlar yükleniyor…",
+      "common": {
+        "empty": "—",
+        "none": "—",
+        "cancel": "İptal",
+        "creating": "Oluşturuluyor…",
+        "create": "Bağlantı oluştur",
+        "saving": "Kaydediliyor…",
+        "save": "Değişiklikleri kaydet",
+        "testing": "Test…",
+        "test": "Test et",
+        "syncing": "Senk…",
+        "sync": "Senkronize et",
+        "enable": "Aç",
+        "disable": "Kapat",
+        "edit": "Düzenle",
+        "deleting": "Siliniyor…",
+        "delete": "Sil"
+      },
+      "errors": {
+        "load": "Entegrasyonlar yüklenemedi",
+        "toggle": "Durum değiştirilemedi",
+        "delete": "Entegrasyon silinemedi",
+        "test": "Bağlantı test edilemedi",
+        "sync": "Senkron çalıştırılamadı",
+        "create": "Entegrasyon oluşturulamadı",
+        "update": "Entegrasyon güncellenemedi",
+        "createMissing": "URL, Consumer Key ve Secret girin.",
+        "updateMissing": "URL ve Consumer Key zorunludur.",
+        "configJsonInvalid": "Yapılandırma alanında geçersiz JSON.",
+        "loadIntegrationFailed": "Bağlantı yüklenemedi: {{message}}"
+      },
+      "deleteConfirm": "«{{name}}» silinsin mi?",
+      "test": {
+        "ok": "Test başarılı: {{message}}",
+        "fail": "Test başarısız: {{message}}",
+        "defaultError": "Bilinmeyen hata"
+      },
+      "sync": {
+        "summary": "Senk: oluşturuldu {{created}}, güncellendi {{updated}}, atlandı {{skipped}}.",
+        "done": "Senkron tamamlandı. {{message}}"
+      }
+    },
+    "salesChannels": {
+      "kicker": "Satış kanalları",
+      "title": "Satış kanalları",
+      "subtitle": "Kanalları, durumu ve geliri yönetin.",
+      "summary": {
+        "channels": "Kanallar: {{count}}",
+        "sales": "Satışlar: {{count}}",
+        "revenue": "Gelir: {{amount}}"
+      },
+      "openIntegrations": "Entegrasyonlar",
+      "chart": {
+        "title": "Kanala göre gelir",
+        "hint": "Toplam gelire oranı",
+        "empty": "Henüz veri yok.",
+        "noRevenue": "Gelir yok"
+      },
+      "table": {
+        "title": "Kanal listesi",
+        "hint": "Kanal başına ayarlar ve istatistik",
+        "headers": {
+          "channel": "Kanal",
+          "type": "Tür",
+          "integration": "Entegrasyon",
+          "apiKey": "API anahtarı",
+          "connected": "Bağlı",
+          "sales": "Satışlar",
+          "amount": "Tutar",
+          "status": "Durum",
+          "lastSync": "Son senkron",
+          "actions": "İşlemler"
+        },
+        "empty": "Kanal bulunamadı."
+      },
+      "types": {
+        "b2b": "B2B",
+        "ota": "OTA",
+        "direct": "Doğrudan",
+        "gds": "GDS",
+        "other": "Diğer"
+      },
+      "status": {
+        "enabled": "Açık",
+        "disabled": "Kapalı"
+      },
+      "actions": {
+        "enable": "Aç",
+        "disable": "Kapat",
+        "delete": "Sil"
+      },
+      "loading": "Kanallar yükleniyor…",
+      "lastError": "Hata:",
+      "errors": {
+        "load": "Kanallar yüklenemedi",
+        "toggle": "Durum değiştirilemedi",
+        "delete": "Kanal silinemedi"
+      },
+      "deleteConfirm": "«{{name}}» silinsin mi?",
+      "common": {
+        "noCampaign": "(utm_campaign yok)",
+        "empty": "—",
+        "connected": "Evet",
+        "disconnected": "Hayır"
+      }
+    },
+    "marketingAutomations": {
+      "kicker": "Pazarlama · Otomasyonlar",
+      "title": "Pazarlama otomasyonları (n8n)",
+      "subtitle": "n8n senaryolarını izleyin: trafik içe aktarma, kampanyalar, kitle senkronu. Sonra durumu n8n API’sinden alabilirsiniz.",
+      "loading": "Otomasyonlar yükleniyor…",
+      "form": {
+        "title": "Yeni senaryo",
+        "name": "Senaryo adı",
+        "namePlaceholder": "GA4 → CRM içe aktarma (günlük)",
+        "webhook": "Webhook URL (n8n’den)",
+        "note": "Her senaryo için jeton, zamanlama ve çalışma durumu ekleyebilirsiniz."
+      },
+      "actions": {
+        "create": "Senaryo oluştur",
+        "creating": "Oluşturuluyor…",
+        "delete": "Sil"
+      },
+      "list": {
+        "title": "Mevcut otomasyonlar",
+        "subtitle": "Henüz n8n API’sine bağlı değil; kiracı başına açıklama ve webhook saklayabilirsiniz.",
+        "total": "Toplam: {{count}}",
+        "empty": "Henüz senaryo yok. En az n8n’den trafik içe aktarma ekleyin.",
+        "lastStatus": "Son durum: {{status}}",
+        "statusUnknown": "Durum henüz bilinmiyor"
+      },
+      "status": {
+        "enabled": "Açık",
+        "disabled": "Kapalı"
+      },
+      "errors": {
+        "load": "Otomasyonlar yüklenemedi",
+        "requiredName": "Senaryo adını girin",
+        "create": "Otomasyon oluşturulamadı",
+        "update": "Otomasyon güncellenemedi",
+        "delete": "Otomasyon silinemedi"
+      },
+      "confirmDelete": "«{{name}}» senaryosunu sil?"
+    },
+    "marketingSeo": {
+      "kicker": "Pazarlama · SEO ve içerik",
+      "title": "SEO ve site kalitesi",
+      "subtitle": "Bu sayfa sitenin büyümeye ne kadar hazır olduğunu gösterir: hız, dizinlenebilirlik, hatalar ve içerik yapısı. Bir kısmı analitikten; geri kalanı Search Console ve PageSpeed ile.",
+      "loading": "Veriler yükleniyor…",
+      "status": {
+        "saved": "Kaydedildi",
+        "updated": "Metrikler güncellendi",
+        "siteAdded": "Site eklendi",
+        "siteDeleted": "Site kaldırıldı"
+      },
+      "errors": {
+        "load": "Veri yüklenemedi",
+        "save": "Ayarlar kaydedilemedi",
+        "oauth": "OAuth açılamadı",
+        "update": "Metrikler güncellenemedi",
+        "gscNotSynced": "GSC senkron değil: property erişimini kontrol edin.",
+        "psiNotSynced": "PageSpeed senkron değil: anahtarı ve URL’yi kontrol edin.",
+        "siteRequired": "Site alan adını girin",
+        "siteAdd": "Site eklenemedi",
+        "siteApply": "Site uygulanamadı",
+        "siteDelete": "Site silinemedi"
+      },
+      "connections": {
+        "title": "Bağlantılar",
+        "subtitle": "Siteniz için Search Console ve PageSpeed kurun.",
+        "gscConnected": "GSC bağlı",
+        "connectGsc": "GSC bağla",
+        "refresh": "Metrikleri yenile",
+        "refreshing": "Yenileniyor…"
+      },
+      "period": {
+        "title": "Dönem",
+        "presets": {
+          "7": "7 gün",
+          "30": "30 gün",
+          "90": "90 gün"
+        },
+        "custom": "custom",
+        "apply": "Dönemi uygula"
+      },
+      "compare": {
+        "title": "Karşılaştır",
+        "subtitle": "Önceki dönemi göster."
+      },
+      "site": {
+        "title": "Site",
+        "placeholder": "Site seç",
+        "addOption": "Site ekle +",
+        "delete": "Sil",
+        "deleting": "Siliniyor…"
+      },
+      "newSite": {
+        "title": "Yeni site",
+        "placeholder": "example.com",
+        "add": "Ekle",
+        "adding": "İşleniyor…"
+      },
+      "wordpressModules": {
+        "title": "WordPress · site başına modüller",
+        "subtitle": "Eklentide site jetonunu (X-Site-Token) ayarlayın ve modülleri siteye göre geçersiz kılın. Jeton yoksa WordPress şirket geneli ayarları kullanır.",
+        "siteToken": "WordPress için site jetonu",
+        "tokenHint": "GET /v1/public/tenant/modules isteklerinde X-Api-Token ile birlikte X-Site-Token başlığını gönderin.",
+        "copyToken": "Kopyala",
+        "tokenCopied": "Jeton kopyalandı",
+        "copyFailed": "Panoya kopyalanamadı",
+        "colModule": "Modül",
+        "colCompany": "Şirket",
+        "colWp": "Sitede",
+        "colActions": "Geçersiz kıl",
+        "inherit": "Şirketle aynı",
+        "forceOn": "Açık",
+        "forceOff": "Kapalı",
+        "loading": "Yükleniyor…",
+        "saved": "Site ayarları kaydedildi",
+        "saveError": "Site ayarları kaydedilemedi",
+        "notOnPlan": "Planda yok",
+        "keys": {
+          "chat": "Çevrimiçi sohbet",
+          "telegram": "Telegram",
+          "cf7": "Contact Form 7",
+          "marketing": "Pazarlama",
+          "analytics": "Analitik",
+          "woo": "WooCommerce",
+          "reputation": "İtibar",
+          "smm": "SMM",
+          "clientcabinet": "Müşteri paneli",
+          "crm_connector": "CRM bağlayıcı",
+          "crm_dashboard": "CRM panosu",
+          "diagnostics": "Tanı",
+          "email_branding": "E-posta markalama",
+          "polylang_ai": "Polylang AI",
+          "site_checker": "Site denetimi",
+          "crm_bridge": "CRM köprüsü",
+          "crm": "CRM"
+        }
+      },
+      "fields": {
+        "gscPropertyUrl": "GSC property URL",
+        "pageSpeedUrl": "PageSpeed URL",
+        "pageSpeedApiKey": "PageSpeed API Key",
+        "pageSpeedStrategy": "PageSpeed stratejisi",
+        "strategy": {
+          "mobile": "mobile",
+          "desktop": "desktop"
+        }
+      },
+      "actions": {
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…"
+      },
+      "syncingOverlay": "Veriler yenileniyor…",
+      "gsc": {
+        "title": "Search Console",
+        "period": "Dönem",
+        "clicks": "Tıklamalar",
+        "impressions": "Gösterimler",
+        "ctr": "CTR",
+        "position": "Konum",
+        "trendTitle": "Spend / Leads",
+        "trendSource": "Search",
+        "legend": {
+          "current": "Mevcut dönem",
+          "previous": "Önceki dönem"
+        },
+        "metricTabs": {
+          "clicks": "clicks",
+          "impressions": "impressions",
+          "ctr": "ctr",
+          "position": "position"
+        },
+        "empty": "Veri yok. GSC bağlayın ve senkron çalıştırın."
+      },
+      "gscDonut": {
+        "title": "Kanala göre dönüşümler",
+        "subtitle": "Lead ve anlaşma hunisi",
+        "average": "ağ ortalaması",
+        "labels": {
+          "ctr": "CTR",
+          "rank": "Rank",
+          "visibility": "Visibility"
+        },
+        "was": "Önce: {{value}}%"
+      },
+      "psi": {
+        "title": "PageSpeed Insights",
+        "empty": "Veri yok. PageSpeed bağlayın ve senkron çalıştırın."
+      },
+      "psiDonut": {
+        "title": "Kanala göre dönüşümler",
+        "subtitle": "Lead ve anlaşma hunisi",
+        "average": "ağ ortalaması",
+        "labels": {
+          "performance": "Performance",
+          "seo": "SEO",
+          "accessibility": "Accessibility",
+          "best": "Best"
+        }
+      },
+      "psiMetrics": {
+        "lcp": "LCP: {{value}}s",
+        "cls": "CLS: {{value}}",
+        "fcp": "FCP: {{value}}s",
+        "tbt": "TBT: {{value}}s",
+        "speedIndex": "Speed Index: {{value}}s",
+        "strategy": "Strateji: {{value}}"
+      },
+      "control": {
+        "title": "CRM’de izleyebilecekleriniz",
+        "items": [
+          "Önemli sayfalar için sayfa hızı ve Core Web Vitals.",
+          "Dizinleme hataları, yinelenen sayfalar, site haritası sorunları.",
+          "Trafik ve dönüşüme göre en iyi organik sayfalar.",
+          "SEO kanallarını reklam ve sosyalle karşılaştırın."
+        ]
+      },
+      "connect": {
+        "title": "Neyi bağlamalısınız",
+        "items": [
+          "Google Search Console — dizinleme, hatalar, CTR.",
+          "PageSpeed Insights — hız ve Core Web Vitals.",
+          "Analytics (GA4 / Yandex.Metrica) — davranış ve dönüşümler."
+        ]
+      }
+    },
+    "marketingSmm": {
+      "kicker": "Pazarlama · SMM",
+      "title": "Sosyal ve kitle dinamikleri",
+      "subtitle": "Profiller ve günlük istatistik: takipçi, erişim, görüntülenme, etkileşim.",
+      "periodLabel": "Dönem",
+      "periods": {
+        "7d": "7 gün",
+        "30d": "30 gün",
+        "90d": "90 gün"
+      },
+      "compareLabel": "Önceki dönem",
+      "compare": {
+        "loading": "Yükleniyor…",
+        "noData": "Veri yok",
+        "dash": "—"
+      },
+      "errors": {
+        "profiles": "Profiller yüklenemedi",
+        "stats": "İstatistikler yüklenemedi",
+        "createProfile": "Profil eklenemedi",
+        "deleteProfile": "Profil silinemedi",
+        "metaConnect": "Meta bağlanamadı",
+        "metaAssets": "Meta hesapları yüklenemedi",
+        "metaAdd": "Meta hesabı bağlanamadı",
+        "metaRemove": "Meta hesabı bağlantısı kesilemedi",
+        "metaSync": "Meta verileri güncellenemedi"
+      },
+      "meta": {
+        "profileAdded": "Profil bağlandı",
+        "profileRemoved": "Profil bağlantısı kesildi",
+        "syncStatus": "{{label}} için senkronlandı",
+        "scope": {
+          "days": "son {{days}} gün",
+          "today": "bugün"
+        },
+        "connected": "bağlı",
+        "disconnected": "bağlı değil"
+      },
+      "kpi": {
+        "activeProfiles": "Aktif profiller",
+        "activeProfilesHint": "CRM’e bağlı profil toplamı.",
+        "followersCurrent": "Takipçiler (güncel)",
+        "followersHint": "Son tarihte tüm profillerdeki takipçi toplamı.",
+        "followersDelta": "Takipçi artışı",
+        "followersDeltaHint": "Seçilen dönemin başı ile sonu arasındaki fark.",
+        "reachEngagement": "Erişim ve etkileşim",
+        "reachLabel": "Erişim",
+        "videoViewsLabel": "Video görüntülenmeleri",
+        "likesLabel": "Beğeniler",
+        "commentsLabel": "Yorumlar",
+        "erLabel": "ER",
+        "totalHint": "Dönem için platformlar arası toplam."
+      },
+      "chart": {
+        "title": "Platforma göre trend",
+        "subtitle": "Seçilen metrik için günlük değerler.",
+        "metrics": {
+          "followers": "Takipçiler",
+          "reach": "Erişim",
+          "likes": "Beğeniler",
+          "comments": "Yorumlar",
+          "videoViews": "Görüntülenmeler"
+        },
+        "loading": "Grafik yükleniyor…",
+        "empty": "Seçilen dönem için veri yok.",
+        "prevSuffix": "önceki"
+      },
+      "profiles": {
+        "title": "Sosyal profiller",
+        "subtitle": "Seçilen ağlar için profiller ve günlük istatistik.",
+        "tabs": {
+          "profiles": "Profiller",
+          "integrations": "Entegrasyonlar"
+        },
+        "shown": "Gösterilen: {{shown}} / {{total}}",
+        "searchPlaceholder": "@hesaba göre ara",
+        "filterAll": "Tüm platformlar",
+        "form": {
+          "platform": "Platform",
+          "handle": "Handle / @hesap",
+          "url": "URL (isteğe bağlı)",
+          "handlePlaceholder": "@company",
+          "urlPlaceholder": "https://instagram.com/...",
+          "add": "Profil ekle",
+          "adding": "Ekleniyor…"
+        },
+        "table": {
+          "headers": {
+            "profile": "Profil",
+            "platform": "Platform",
+            "followers": "Takipçiler",
+            "reachLikesComments": "Erişim / beğeni / yorum",
+            "erViews": "ER / görüntülenme",
+            "date": "Tarih",
+            "actions": "İşlemler"
+          },
+          "loading": "Yükleniyor…",
+          "empty": "Seçilen filtreler için veri yok."
+        },
+        "delete": "Sil",
+        "confirmDelete": "{{platform}} {{handle}} profilini sil?",
+        "loadMore": "Daha fazla yükle"
+      },
+      "integrations": {
+        "kicker": "Entegrasyonlar",
+        "title": "Bağlantılar ve durum",
+        "subtitle": "Sosyal ağları bağlayın ve durumu kontrol edin.",
+        "connections": "Bağlantılar",
+        "metaStatus": "Meta durumu: {{status}}",
+        "manage": "Yönet",
+        "vkTitle": "VK Analytics",
+        "telegramTitle": "Telegram Analytics",
+        "inDev": "Geliştiriliyor"
+      },
+      "popup": {
+        "title": "Entegrasyonlar",
+        "close": "Kapat",
+        "metaTitle": "Meta (Facebook / Instagram)",
+        "statusLabel": "Durum: {{status}}",
+        "connect": "Meta bağla",
+        "reconnect": "Meta’yı yeniden bağla",
+        "syncNow": "Şimdi yenile",
+        "syncing": "Güncelleniyor…",
+        "accountList": "Hesap listesi",
+        "accountsTitle": "Meta hesapları",
+        "showHidden": "Gizlileri göster",
+        "loading": "Hesaplar yükleniyor…",
+        "empty": "Hesap bulunamadı.",
+        "hide": "Gizle",
+        "disconnectFacebook": "Bağlantıyı kes",
+        "addFacebook": "Facebook ekle",
+        "disconnectInstagram": "Bağlantıyı kes",
+        "addInstagram": "Instagram ekle",
+        "facebookPage": "Facebook Sayfası",
+        "instagramPrefix": "Instagram: {{handle}}",
+        "vkTitle": "VK Analytics",
+        "tgTitle": "Telegram Analytics",
+        "tiktokTitle": "TikTok",
+        "inDevLabel": "Geliştiriliyor",
+        "soon": "Yakında",
+        "vkDesc": "Yakında sitede — topluluklar ve metrik bağlantısı.",
+        "tgDesc": "Yakında sitede — kanal ve etkileşim analitiği.",
+        "tiktokDesc": "Görüntülenme ve erişim metrikleri — geliştiriliyor."
+      },
+      "platforms": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "telegram": "Telegram",
+        "vk": "VK",
+        "tiktok": "TikTok",
+        "other": "Diğer"
+      },
+      "zeroNotes": {
+        "igVideo": "Bazı profiller için Instagram video görüntülenmeleri kullanılamayabilir.",
+        "igEngagement": "Taze içerik yoksa beğeni ve yorumlar gecikmeli gelebilir.",
+        "fbReach": "Insights sınırları nedeniyle Facebook metrikleri gecikebilir."
+      }
+    },
+    "marketingUtms": {
+      "kicker": "Pazarlama · UTM etiketleri",
+      "title": "UTM bağlantı oluşturucu",
+      "subtitle": "Kampanyalar için UTM bağlantılarını hızlıca oluşturun. Kanal başına ön ayar kaydedebilirsiniz (Google Ads, Meta Ads, Yandex, e-posta vb.).",
+      "fields": {
+        "channel": "Kanal",
+        "baseUrl": "Temel URL",
+        "utm_source": "utm_source",
+        "utm_medium": "utm_medium",
+        "utm_campaign": "utm_campaign",
+        "utm_content": "utm_content (isteğe bağlı)",
+        "utm_term": "utm_term (isteğe bağlı)",
+        "generatedUrl": "Oluşturulan bağlantı",
+        "templateName": "Şablon adı"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com/landing",
+        "utm_campaign": "spring_2026_brand",
+        "utm_content": "banner_1",
+        "utm_term": "keyword",
+        "templateName": "Google Brand · RU · ilkbahar 2026"
+      },
+      "channels": {
+        "google_search": "Google Ads · Search",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "yandex_direct": "Yandex Direct",
+        "email": "E-posta bülteni",
+        "other": "Diğer"
+      },
+      "actions": {
+        "saveTemplate": "Şablonu kaydet",
+        "saving": "Kaydediliyor…",
+        "applyTemplate": "Uygula",
+        "deleteTemplate": "Sil"
+      },
+      "templates": {
+        "title": "Kayıtlı şablonlar",
+        "subtitle": "Şirket (tenant) başına saklanır. Yinelenen kampanyalar için parametreleri hızlıca uygulayın.",
+        "total": "Toplam: {{count}}",
+        "empty": "Henüz kayıtlı şablon yok. UTM bağlantısı oluşturup şablon olarak kaydedin."
+      },
+      "loading": "Şablonlar yükleniyor…",
+      "errors": {
+        "loadTemplates": "UTM şablonları yüklenemedi",
+        "nameRequired": "Şablon adını girin",
+        "saveTemplate": "Şablon kaydedilemedi",
+        "deleteTemplate": "Şablon silinemedi"
+      },
+      "confirmDelete": "«{{name}}» şablonunu sil?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingSegments": {
+      "kicker": "Pazarlama · Segmentler",
+      "title": "Lead segmentleri",
+      "subtitle": "Sık kullanılan lead seçimlerini kaydedin: durumlar, kanallar, ülkeler, yöneticiler. Sonra: e-posta, n8n görevleri.",
+      "errors": {
+        "load": "Segmentler yüklenemedi",
+        "save": "Segment kaydedilemedi"
+      },
+      "form": {
+        "name": "Segment adı",
+        "namePlaceholder": "Son 30 günde Google Ads RU leadleri",
+        "description": "Açıklama (isteğe bağlı)",
+        "descriptionPlaceholder": "Marka trafiğinden leadlere e-posta için",
+        "statuses": "Lead durumları",
+        "source": "Kaynak (source)",
+        "sourcePlaceholder": "google / facebook / crm…",
+        "country": "Ülke",
+        "countryPlaceholder": "TR / RU / PL / DE…",
+        "manager": "Yönetici (assignedTo)",
+        "managerPlaceholder": "Yönetici adı",
+        "createdFrom": "Oluşturulma (başlangıç)",
+        "createdTo": "Oluşturulma (bitiş)",
+        "helper": "Segmentler şimdilik yalnızca leadlerde çalışır. Sonra: e-posta, dışa aktarma, n8n webhook’ları."
+      },
+      "statuses": {
+        "new": "Yeni",
+        "in_progress": "Devam ediyor",
+        "waiting": "Beklemede",
+        "won": "Kazanıldı",
+        "lost": "Kaybedildi"
+      },
+      "actions": {
+        "create": "Segment oluştur",
+        "creating": "Kaydediliyor…",
+        "run": "Çalıştır",
+        "running": "Çalışıyor…"
+      },
+      "list": {
+        "title": "Kayıtlı segmentler",
+        "subtitle": "Segmente kaç leadin uyduğunu görmek için «Çalıştır»a tıklayın.",
+        "total": "Toplam: {{count}}",
+        "empty": "Henüz segment yok. Yukarıdan ilkini oluşturun.",
+        "meta": "varlık: {{entity}} · oluşturulma: {{date}}",
+        "found": "Bulundu: {{count}}"
+      },
+      "loading": "Segmentler yükleniyor…"
+    },
+    "common": {
+      "delete": "Sil",
+      "close": "Kapat",
+      "sync": "Senkronize et",
+      "loading": "…",
+      "cancel": "İptal",
+      "save": "Kaydet"
+    },
+    "marketingCurrency": {
+      "fxError": "Döviz kurları yüklenemedi",
+      "missingRateFootnote": "* Satır para birimi EUR/GBP/TRY/RUB içinde değil veya kur henüz yüklenmedi — tutar dönüşümsüz gösterilir.",
+      "mixedShort": "karışık pb",
+      "toolbar": {
+        "native": "Verideki gibi",
+        "convertedTo": "{{code}} cinsine çevrildi (ECB, iş günü)",
+        "label": "Rapor para birimi",
+        "configure": "Yapılandır",
+        "fxAsOf": "{{source}} {{date}}"
+      },
+      "modal": {
+        "title": "Kampanya ve trafik para birimi",
+        "introFx": "EUR, GBP, TRY, RUB kurları sunucudan yüklenir (Frankfurter / ECB). Entegrasyon para birimi, entegrasyon listesindeki «Para birimi» düğmesiyle ayarlanır.",
+        "modeConverted": "Tek para birimi (ECB kuru)",
+        "modeNative": "Verideki gibi (kanala göre)",
+        "fxTo": "Şuna çevir",
+        "refreshFx": "Kurları yenile"
+      },
+      "iso": {
+        "hint": "ISO para birimi kodunu seçin. Listeyi süzebilirsiniz.",
+        "search": "Ara…",
+        "empty": "Eşleşme yok"
+      }
+    },
+    "marketingChannelAnalytics": {
+      "dimEmpty": "(tanımsız)",
+      "other": "Diğer",
+      "mapTitleGa4": "Coğrafya (Google Analytics verisi)",
+      "mapHintGa4": "Ülke, GA4 senkronunda countryId alanından gelir. Yoğunluk oturumlara göre. Bunlar web analitiği özetleri, CRM'deki kişiler değil.",
+      "mapEmptyNoInfer": "Dönem için veritabanında coğrafya yok ve kampanya adından ülke çıkarılamadı. GA4 kanalları için güncellemeden sonra entegrasyonu senkronize edin.",
+      "geoUnknownCountry": "Ülke belirlenemedi",
+      "periodAll": "Kullanılabilir tüm dönem",
+      "close": "Kapat",
+      "sectionTrend": "Günlük trend",
+      "loadingSeries": "Seri yükleniyor…",
+      "emptySeries": "Seçilen filtre için günlük veri yok.",
+      "chartSessionsClicks": "Oturumlar ve tıklamalar",
+      "chartCostRevenue": "Harcama ve gelir (ham günlük toplamlar)",
+      "chartImpressions": "Gösterimler",
+      "sectionBreakdown": "Harcama ve trafik yapısı",
+      "pieCostCampaign": "Kampanyaya göre harcama",
+      "pieSessionsSource": "Kaynağa göre oturumlar",
+      "pieImprMedium": "Ortağa (medium) göre gösterimler",
+      "barTopImpressions": "Gösterime göre en iyi kampanyalar",
+      "sectionGeo": "Coğrafya",
+      "geoTableTitle": "Ülkelere göre oturum ve görüntülenme",
+      "geoTableHint": "Google Analytics'teki Geo raporu gibi: ülkeye göre oturum ve görüntülenme. Bireysel CRM kullanıcıları yok—yalnızca web analitiği özetleri.",
+      "geoColCountry": "Ülke",
+      "fullTable": "Seçimdeki tüm kampanyalar",
+      "fullTableHint": "Sütunlara göre sıralayın. Veriler trafik sayfasındaki dönem özetine uyar.",
+      "mapTitle": "Coğrafya (kampanya adlarından tahmin)",
+      "mapHint": "Oturumlara göre renklendirme. Ülke, kampanya adındaki anahtar kelimelerden tahmin edilir (ör. «Almanya», «Polonya»). Eşleşme yoksa haritada görünmez.",
+      "mapEmpty": "Kampanya adına göre ülkeye bağlı satır yok.",
+      "geoLoading": "Coğrafi veri yükleniyor…",
+      "mapNoCountryData": "Bu ülke için mevcut seçimde veri yok.",
+      "mapScale": "Oturumlar (yoğunluk)",
+      "roadmapTitle": "Sayfalar ve huni (geliştiriliyor)",
+      "roadmapBody": "GA4 kanalları için oturuma göre coğrafya senkronla gelir (countryId). Sayfa URL'si, şehirler ve huni adımları raporları şema/içe aktarma genişletmesinden sonra planlanıyor."
+    },
+    "marketingIntegrationsGuide": {
+      "kindVideo": "Video",
+      "kindConsole": "Konsol",
+      "kindArticle": "Makale",
+      "navAria": "Kılavuz bölümleri",
+      "navTitle": "Bölümler",
+      "whereLead": "Reklam ve analitik konsolları: jetonlar, sayaç kimlikleri ve API anahtarlarının bulunduğu yerler.",
+      "whatLead": "Pazarlama bağlantıları sayfasındaki «Entegrasyon ekle» formundaki alan eşlemesi.",
+      "keysLead": "Gerçek sırlar olmadan formatlar: doğru değeri kopyaladığınızı doğrulamayı kolaylaştırır.",
+      "helpCardsTitle": "Ekran görüntülü resmi yardım"
+    },
+    "emailTemplates": {
+      "list": {
+        "title": "E-postalar",
+        "subtitle": "Pazarlama kampanyaları için e-posta şablonları oluşturun ve yönetin",
+        "create": "Şablon oluştur",
+        "createFirst": "İlk şablonu oluştur",
+        "subject": "Konu",
+        "loading": "Yükleniyor…",
+        "empty": "Şablon yok",
+        "delete": "Sil",
+        "deleteConfirm": "Bu e-posta şablonunu silmek istiyor musunuz?",
+        "edit": "Düzenle",
+        "preview": "Önizleme",
+        "errors": {
+          "loadFailed": "Şablonlar yüklenemedi",
+          "deleteFailed": "Şablon silinemedi"
+        }
+      },
+      "form": {
+        "titleNew": "E-posta şablonu oluştur",
+        "titleEdit": "E-posta şablonunu düzenle",
+        "subtitle": "Değişken destekli şablon oluşturun",
+        "fields": {
+          "name": "Ad *",
+          "description": "Açıklama",
+          "subject": "E-posta konusu",
+          "htmlBody": "HTML gövde",
+          "textBody": "Düz metin sürümü",
+          "isActive": "Aktif",
+          "variables": "Kullanılabilir değişkenler",
+          "preview": "Önizleme"
+        },
+        "hints": {
+          "activeAvailable": "Şablon kullanıma açık olacak",
+          "availableVariables": "Kullanılabilir değişkenler"
+        },
+        "placeholders": {
+          "name": "Şablon adı",
+          "description": "Şablon açıklaması",
+          "subject": "Konu ({{lead.name}}, {{lead.email}} vb. kullanılabilir)",
+          "htmlBody": "HTML e-posta kodu…",
+          "textBody": "HTML desteklemeyen istemciler için düz metin"
+        },
+        "defaultTemplate": {
+          "greeting": "Merhaba {{lead.name}}!",
+          "body": "Bu, değişken kullanan örnek bir e-postadır.",
+          "phoneLabel": "Telefon:",
+          "statusLabel": "Durum:",
+          "signature": "Saygılarımızla,<br>Lumiva ekibi"
+        },
+        "variables": {
+          "lead": "Lead: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
+          "contact": "Kişi: {{contact.name}}, {{contact.email}}",
+          "company": "Şirket: {{company.name}}, {{company.email}}"
+        },
+        "actions": {
+          "save": "Kaydet",
+          "saving": "Kaydediliyor…",
+          "cancel": "İptal",
+          "preview": "Önizleme",
+          "useTemplate": "Şablonu kullan"
+        },
+        "errors": {
+          "saveFailed": "Kaydedilemedi",
+          "loadFailed": "Şablon yüklenemedi",
+          "previewFailed": "Önizleme başarısız"
+        },
+        "success": {
+          "saved": "Şablon kaydedildi"
+        }
+      }
+    },
+    "sales": {
+      "analytics": {
+        "settings": {
+          "currencyMode": "Para birimi modu",
+          "displayCurrency": "Görüntüleme para birimi"
+        }
+      }
+    }
+  }
+}

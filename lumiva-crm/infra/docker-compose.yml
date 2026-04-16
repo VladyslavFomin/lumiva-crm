@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: lumiva_crm_api
+    env_file:
+      - ../backend/.env
+    environment:
+      # Согласовано с volume ниже — иначе логотип и вложения теряются при пересборке контейнера (404 на /v1/uploads/...).
+      UPLOADS_ROOT: /app/uploads
+    ports:
+      - "3000:3000"
+    volumes:
+      - lumiva_crm_uploads:/app/uploads
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    container_name: lumiva_crm_db
+    environment:
+      POSTGRES_USER: lumiva
+      POSTGRES_PASSWORD: supersecret
+      POSTGRES_DB: lumiva_crm
+    volumes:
+      - lumiva_crm_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  lumiva_crm_db_data:
+  lumiva_crm_uploads:

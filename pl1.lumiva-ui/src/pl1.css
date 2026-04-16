@@ -1,0 +1,797 @@
+/* ============================================================
+   LUMIVA PLATFORM – НОВЫЙ ДИЗАЙН ПАНЕЛИ
+   (заменить весь файл src/pl1.css на этот)
+============================================================ */
+
+/* -------- Базовая раскладка -------- */
+
+.pl1-root {
+  min-height: 100vh;
+  display: flex;
+  color: #e5e7eb;
+  background:
+    radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.17), transparent 55%),
+    radial-gradient(circle at 100% 100%, rgba(129, 140, 248, 0.16), transparent 55%),
+    #020617;
+}
+
+/* -------- Сайдбар -------- */
+
+.pl1-sidebar {
+  width: 230px;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  background:
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.96), rgba(15, 23, 42, 0.98)),
+    radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.15), transparent 60%);
+  border-right: 1px solid rgba(30, 64, 175, 0.6);
+  box-shadow: 10px 0 30px rgba(15, 23, 42, 0.85);
+}
+
+/* Лого / название */
+
+.pl1-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.pl1-logo-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #020617;
+  background: radial-gradient(circle at 30% 25%, #38bdf8, #818cf8);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.9);
+}
+
+.pl1-logo-text {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #cbd5f5;
+}
+
+/* Навигация */
+
+.pl1-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.pl1-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  font-size: 13px;
+  color: #e5e7eb;
+  border-radius: 999px;
+  text-decoration: none;
+  position: relative;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.08s ease;
+}
+
+.pl1-nav-item::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  pointer-events: none;
+  transition: border-color 0.18s ease;
+}
+
+.pl1-nav-item:hover {
+  background: rgba(15, 23, 42, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(15, 23, 42, 0.8);
+}
+
+.pl1-nav-item:hover::before {
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+.pl1-nav-item.active {
+  background: linear-gradient(135deg, #38bdf8, #4f46e5);
+  color: #020617;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.9);
+}
+
+.pl1-nav-item.active::before {
+  border-color: rgba(15, 23, 42, 0.55);
+}
+
+/* -------- Основная область -------- */
+
+.pl1-main {
+  flex: 1;
+  min-height: 100vh;
+  padding: 40px 48px 64px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Верхняя шапка над страницами */
+
+.pl1-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 18px;
+  margin-bottom: 26px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.85);
+}
+
+.pl1-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 500;
+}
+
+.pl1-subtitle {
+  margin: 0;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+/* Контейнер страницы */
+
+/* Паддинги основного контента задаёт App (main); здесь только ограничение ширины */
+.pl1-page {
+  width: 100%;
+  max-width: 1800px !important;
+  margin: 0 auto;
+  padding: 0 0 20px;
+}
+
+@media (min-width: 1024px) {
+  .pl1-page {
+    padding: 0 0 28px;
+  }
+}
+
+/* ============================================================
+   HEADER ВНУТРИ СТРАНИЦЫ (ТЕНАНТЫ + КНОПКИ)
+============================================================ */
+
+.pl1-page-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pl1-page-title {
+  margin: 0 0 4px;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #f9fafb;
+}
+
+.pl1-page-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.pl1-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ============================================================
+   КНОПКИ
+============================================================ */
+
+.pl1-btn-primary,
+.pl1-btn-outline,
+.pl1-btn-ghost,
+.pl1-btn {
+  border-radius: 999px;
+  padding: 8px 18px;
+  font-size: 14px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.06s ease,
+    color 0.15s ease;
+}
+
+.pl1-btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  border-color: #0ea5e9;
+  color: #020617;
+  font-weight: 600;
+  box-shadow: 0 10px 22px rgba(8, 47, 73, 0.65);
+}
+
+.pl1-btn-primary:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px rgba(8, 47, 73, 0.8);
+}
+
+.pl1-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+  box-shadow: none;
+}
+
+.pl1-btn-outline {
+  background: rgba(15, 23, 42, 0.8);
+  border-color: rgba(30, 64, 175, 0.7);
+  color: #e5e7eb;
+}
+
+.pl1-btn-outline:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.25);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.8);
+}
+
+.pl1-btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: #9ca3af;
+}
+
+.pl1-btn-ghost:hover {
+  background: rgba(148, 163, 184, 0.14);
+}
+
+/* ============================================================
+   ФИЛЬТРЫ
+============================================================ */
+
+.pl1-filters {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.pl1-filters-left {
+  flex: 1;
+}
+
+.pl1-filters-right {
+  display: flex;
+  gap: 8px;
+}
+
+.pl1-input,
+.pl1-select {
+  width: 100%;
+  padding: 8px 14px;
+  font-size: 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(30, 64, 175, 0.75);
+  background: radial-gradient(circle at 0 0, rgba(30, 64, 175, 0.18), transparent 65%),
+              #020617;
+  color: #e5e7eb;
+  outline: none;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.pl1-input::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+}
+
+.pl1-input:focus,
+.pl1-select:focus {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.6);
+}
+
+/* ============================================================
+   КАРТОЧКИ / ТАБЛИЦА
+============================================================ */
+
+.pl1-card {
+  border-radius: 20px;
+  padding: 40px 42px 44px;
+  background:
+    radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.18), transparent 60%),
+    radial-gradient(circle at 100% 0, rgba(129, 140, 248, 0.16), transparent 55%),
+    #020617;
+  border: 1px solid rgba(15, 23, 42, 0.95);
+  box-shadow:
+    0 20px 50px rgba(15, 23, 42, 0.9),
+    0 0 0 1px rgba(15, 23, 42, 0.8);
+}
+
+.pl1-card-table {
+  padding: 32px 34px 36px;
+  overflow-x: auto;
+}
+
+@media (max-width: 768px) {
+  .pl1-card {
+    padding: 30px 26px 32px;
+  }
+
+  .pl1-card-table {
+    padding: 26px 24px 30px;
+  }
+}
+
+/* таблица */
+
+.pl1-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.pl1-table thead {
+  background: radial-gradient(circle at 0 0, rgba(30, 64, 175, 0.8), rgba(15, 23, 42, 1));
+}
+
+.pl1-table thead th {
+  padding: 22px 28px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  text-align: left;
+  color: #a5b4fc;
+  border-bottom: 1px solid rgba(30, 64, 175, 0.9);
+  white-space: nowrap;
+}
+
+.pl1-table tbody tr {
+  background: rgba(15, 23, 42, 0.96);
+  transition:
+    background 0.18s ease,
+    transform 0.1s ease,
+    box-shadow 0.18s ease;
+}
+
+.pl1-table tbody tr:nth-child(even) {
+  background: rgba(15, 23, 42, 0.9);
+}
+
+.pl1-table tbody tr:hover {
+  background: rgba(15, 23, 42, 1);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.9);
+}
+
+.pl1-table td {
+  padding: 20px 28px;
+  border-top: 1px solid rgba(15, 23, 42, 0.9);
+  vertical-align: middle;
+  color: #e5e7eb;
+  white-space: nowrap;
+}
+
+.pl1-table td:first-child {
+  color: #f9fafb;
+  font-weight: 500;
+}
+
+.pl1-table-empty {
+  text-align: center;
+  padding: 20px 18px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.pl1-col-actions {
+  white-space: nowrap;
+}
+
+/* моноширинные значения */
+
+.pl1-mono {
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 12px;
+  color: #cbd5ff;
+}
+
+/* ============================================================
+   PILL'Ы (статусы / API)
+============================================================ */
+
+.pl1-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+}
+
+.pl1-pill-green {
+  background: rgba(22, 163, 74, 0.16);
+  color: #86efac;
+  border-color: rgba(22, 163, 74, 0.7);
+}
+
+.pl1-pill-red {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fecaca;
+  border-color: rgba(239, 68, 68, 0.75);
+}
+
+.pl1-pill-gray {
+  background: rgba(148, 163, 184, 0.14);
+  color: #e5e7eb;
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.pl1-pill-clickable {
+  cursor: pointer;
+  transition: background 0.16s ease, box-shadow 0.16s ease, transform 0.08s ease;
+}
+
+.pl1-pill-clickable:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.9);
+}
+
+/* ============================================================
+   ALERT (ошибка загрузки)
+============================================================ */
+
+.pl1-alert {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.pl1-alert-error {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  color: #fecaca;
+}
+
+.pl1-alert-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.35);
+}
+
+/* ============================================================
+   КНОПКИ-ДЕЙСТВИЯ В ТАБЛИЦЕ
+============================================================ */
+
+.pl1-link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-right: 12px;
+  font-size: 13px;
+  color: #38bdf8;
+  cursor: pointer;
+  position: relative;
+}
+
+.pl1-link-button::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #38bdf8, transparent);
+  opacity: 0;
+  transform: scaleX(0.4);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.pl1-link-button:hover::after {
+  opacity: 1;
+  transform: scaleX(1);
+}
+
+/* ============================================================
+   МОДАЛЫ (создание / редактирование)
+============================================================ */
+
+.pl1-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}
+
+.pl1-modal {
+  width: 440px;
+  max-width: 100%;
+  background:
+    radial-gradient(circle at 0 0, rgba(56, 189, 248, 0.2), transparent 60%),
+    #020617;
+  border-radius: 24px;
+  border: 1px solid rgba(30, 64, 175, 0.85);
+  padding: 24px 26px 20px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.82),
+    0 0 0 1px rgba(15, 23, 42, 0.9);
+}
+
+.pl1-modal-title {
+  margin: 0 0 4px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.pl1-modal-subtitle {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.pl1-modal-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pl1-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  color: #cbd5e1;
+}
+
+.pl1-field span {
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.pl1-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.pl1-owner-email {
+  font-size: 11px;
+  color: #9ca3af;
+}
+
+/* переключатель API в модалке */
+
+.pl1-field-inline {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.pl1-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pl1-switch input {
+  display: none;
+}
+
+.pl1-switch-slider {
+  width: 38px;
+  height: 20px;
+  border-radius: 999px;
+  background: #1f2937;
+  position: relative;
+  transition: background 0.18s ease;
+}
+
+.pl1-switch-slider::before {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  transition: transform 0.18s ease;
+}
+
+.pl1-switch input:checked + .pl1-switch-slider {
+  background: #22c55e;
+}
+
+.pl1-switch input:checked + .pl1-switch-slider::before {
+  transform: translateX(14px);
+}
+
+.pl1-switch-label {
+  font-size: 13px;
+  color: #e5e7eb;
+}
+
+/* ============================================================
+   ЛОГИН ЭКРАН ПАНЕЛИ
+============================================================ */
+
+.pl1-login-screen {
+  min-height: 100vh;
+  width: 100%;
+  padding: 40px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(56, 189, 248, 0.22), transparent 60%),
+    radial-gradient(circle at 80% 80%, rgba(79, 70, 229, 0.22), transparent 60%),
+    #020617;
+}
+
+.pl1-login-box {
+  width: 420px;
+  padding: 32px 30px 28px;
+  border-radius: 26px;
+  background: rgba(15, 23, 42, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  box-shadow:
+    0 22px 50px rgba(0, 0, 0, 0.85),
+    0 0 0 1px rgba(15, 23, 42, 0.9);
+  backdrop-filter: blur(18px);
+  color: #e2e8f0;
+}
+
+.pl1-login-logo {
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 16px;
+}
+
+.pl1-login-title {
+  margin: 0 0 10px;
+  font-size: 27px;
+  font-weight: 600;
+}
+
+.pl1-login-desc {
+  margin: 0 0 22px;
+  font-size: 14px;
+  color: #94a3b8;
+}
+
+.pl1-error-box {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(239, 68, 68, 0.18);
+  border: 1px solid rgba(239, 68, 68, 0.65);
+  font-size: 13px;
+  color: #fecaca;
+}
+
+/* ============================================================
+   РЕСПОНСИВ
+============================================================ */
+
+@media (max-width: 1024px) {
+  .pl1-sidebar {
+    width: 200px;
+  }
+
+  .pl1-main {
+    padding-inline: 20px;
+  }
+}
+
+@media (max-width: 840px) {
+  .pl1-root {
+    flex-direction: column;
+  }
+
+  .pl1-sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: 20px;
+    padding-block: 12px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.9);
+  }
+
+  .pl1-main {
+    padding: 20px 16px 32px;
+  }
+
+  .pl1-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .pl1-header-actions {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .pl1-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .pl1-filters-right {
+    width: 100%;
+  }
+  /* ============================================================
+   OVERRIDE tailwind-контейнера внутри pl1
+   ============================================================ */
+
+/* любой .max-w-6xl внутри панели — на всю ширину */
+.pl1-main .max-w-6xl {
+  max-width: 100% !important;
+  width: 100% !important;
+}
+
+/* и убираем центрирование, чтобы не было зазоров слева/справа */
+.pl1-main .mx-auto {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+/* ============================================
+   OVERRIDE TAILWIND LAYOUT CONTAINER
+   ============================================ */
+
+/* Контейнер, который сжимает всю панель */
+.mx-auto.max-w-6xl {
+  max-width: 100% !important;
+  width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* На всякий случай уберём и на md-вариантах */
+@media (min-width: 768px) {
+  .mx-auto.max-w-6xl {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+}

@@ -1,0 +1,2514 @@
+{
+  "crm": {
+    "header": {
+      "realtime": "Real-time · connected",
+      "openMenu": "Open menu",
+      "close": "Close",
+      "newMessages": "New messages",
+      "notifications": "Notifications",
+      "aiAssistant": "AI assistant"
+    },
+    "aiAssistant": {
+      "title": "Assistant",
+      "tabChat": "Chat",
+      "tabMemory": "Memory",
+      "greeting": "Hi, {{name}}! What should we work on today?",
+      "subGreeting": "Copy, analytics, marketing, projects, and CRM actions in one place.",
+      "fallbackName": "there",
+      "inputPlaceholder": "Describe a task or ask for CRM analytics…",
+      "addContextHint": "Long-term context — Memory tab",
+      "chatHistoryTitle": "Chat history",
+      "chatHistoryEmpty": "No saved conversations yet — start one in Chat.",
+      "chatUntitled": "Untitled chat",
+      "chatTitleField": "Chat title",
+      "chatTitlePlaceholder": "e.g. March analytics",
+      "chatTitleHint": "Optional. If empty, the title is taken from your first message.",
+      "memoryFragmentsTitle": "Memory snippets",
+      "memoryListEmpty": "No saved snippets.",
+      "chatPlaceholder": "Message…",
+      "send": "Send",
+      "thinking": "Thinking…",
+      "imageGenerating": "Generating image…",
+      "presetQuickActionTitle": "Quick scenario: insert text into the chat field",
+      "deleteChatFromList": "Delete",
+      "notConfigured": "AI is not configured yet. Contact your administrator.",
+      "quotaLine": "Quota: ~{{left}} USD-eq. · Storage: {{storage}} / {{cap}}",
+      "newChat": "New chat",
+      "pickSession": "History…",
+      "deleteSession": "Delete chat",
+      "backToHub": "Shortcuts",
+      "topupAi": "Top up AI credits",
+      "topupStorage": "+ storage",
+      "memoryTitlePh": "Fragment title",
+      "memoryContentPh": "Text for long-term context…",
+      "saveMemory": "Save to memory",
+      "memoryUntitled": "Untitled",
+      "imagePrompt": "Describe the image",
+      "imageReady": "Image ready",
+      "dismissImage": "Hide preview",
+      "genImage": "Image",
+      "imagePanelTitle": "Image description",
+      "imagePanelHint": "Describe style, subjects, colours — sent to the image generator.",
+      "generateImageAction": "Generate image",
+      "addContextLabel": "Add context",
+      "attachFileTitle": "Attach CSV (sales or workspace table)",
+      "attachedSales": "Sales import",
+      "attachedWorkspaceCsv": "Workspace table",
+      "removeAttachment": "Remove",
+      "attachParseError": "Could not parse the file. Use CRM sales import CSV/XML, or a CSV with a header row for a workspace table.",
+      "cardsIntro": "Suggested starting points",
+      "emailComposer": {
+        "title": "Email to client",
+        "hintStyled": "Write plain text—the CRM wraps it in one branded layout (like signup emails). No HTML required.",
+        "sendFlowHintStyled": "Click Refresh preview, check the right pane, edit if needed, then Send.",
+        "account": "Sending account",
+        "pickAccount": "Select account",
+        "to": "To (emails, comma-separated)",
+        "headlineField": "Header title in the email",
+        "headlinePlaceholder": "e.g. A note from our team",
+        "contactId": "Contact (UUID)",
+        "leadId": "Lead (UUID)",
+        "fillFromEntity": "Fill JSON from contact/lead",
+        "variablesJson": "Variables for subject (JSON)",
+        "subject": "Subject",
+        "subjectRequired": "Enter a subject.",
+        "messagePlain": "Message",
+        "messagePlainHint": "The copy you agreed on with the AI. Blank line between paragraphs.",
+        "messagePlainPh": "Hello…",
+        "showAdvanced": "More: contact, variables, custom HTML",
+        "hideAdvanced": "Hide advanced fields",
+        "bodyHtmlFragment": "Custom HTML inside the email (optional)",
+        "bodyHtmlFragmentHint": "Only if you need a custom block; leave empty otherwise.",
+        "previewTitle": "Client preview",
+        "previewEmptyStyled": "Click Refresh preview to see the styled email.",
+        "refreshPreview": "Refresh preview",
+        "send": "Send email",
+        "toRequired": "Enter at least one email.",
+        "bodyRequired": "Enter the message body.",
+        "varsInvalid": "Invalid variables JSON.",
+        "applyEntityFailed": "Could not load contact or lead."
+      },
+      "openEmailComposer": "Email",
+      "presets": {
+        "board": {
+          "label": "Board / project",
+          "prompt": "Help plan a new CRM project: stages, tasks, owners."
+        },
+        "doc": {
+          "label": "Document",
+          "prompt": "Draft a structured doc with goals and next steps."
+        },
+        "data": {
+          "label": "Analytics",
+          "prompt": "Give a marketing overview for the last 30 days."
+        },
+        "brain": {
+          "label": "Ideas",
+          "prompt": "Brainstorm how to improve lead-to-sale conversion."
+        },
+        "image": {
+          "label": "Visual",
+          "prompt": "Suggest an image prompt for our pricing page."
+        },
+        "vibe": {
+          "label": "Article",
+          "prompt": "Write a blog draft about our services, professional tone."
+        },
+        "search": {
+          "label": "CRM data",
+          "prompt": "Summarise recent leads and sales using tools."
+        },
+        "more": {
+          "label": "Integrations",
+          "prompt": "Which integrations are connected and what to improve?"
+        }
+      },
+      "cards": [
+        {
+          "title": "Kanban for a product launch.",
+          "prompt": "Propose columns and tasks for a launch kanban.",
+          "tag": "Board"
+        },
+        {
+          "title": "Quarter goals document with KPIs.",
+          "prompt": "Create a Q goals doc with KPIs and owners.",
+          "tag": "Doc"
+        },
+        {
+          "title": "Funnel risk summary.",
+          "prompt": "Pull lead data and summarise risks and priorities.",
+          "tag": "Analytics"
+        },
+        {
+          "title": "Social promo ideas.",
+          "prompt": "Generate 10 social post ideas for a promo.",
+          "tag": "Ideas"
+        },
+        {
+          "title": "Which channels to scale.",
+          "prompt": "Analyse marketing channels and budget focus.",
+          "tag": "Marketing"
+        },
+        {
+          "title": "Landing visual brief.",
+          "prompt": "Write an image prompt for a pricing landing visual.",
+          "tag": "Image"
+        },
+        {
+          "title": "Client onboarding draft.",
+          "prompt": "Step-by-step onboarding for new CRM clients.",
+          "tag": "Process"
+        },
+        {
+          "title": "Sales import checklist.",
+          "prompt": "Checklist to prepare importing sales into CRM.",
+          "tag": "Import"
+        }
+      ]
+    },
+    "account": {
+      "kicker": "Account",
+      "title": "Account & profile",
+      "subtitle": "Personal data, security, and shortcuts to workspace settings.",
+      "nav": {
+        "groupAccount": "Account",
+        "overview": "Overview",
+        "personal": "Profile",
+        "security": "Security",
+        "preferences": "Interface",
+        "groupWorkspace": "Workspace",
+        "company": "Company & branding",
+        "api": "API keys",
+        "billing": "Billing",
+        "staff": "Team",
+        "permissions": "Access rights"
+      },
+      "overview": {
+        "hint": "Summary of your account in this tenant. Data is isolated per organisation.",
+        "cardIdentity": "Signed in as",
+        "cardTenant": "Organisation",
+        "tenantNameFallback": "Company",
+        "tenantId": "Tenant ID",
+        "role": "Role",
+        "status": "Status",
+        "lastActive": "Last activity",
+        "never": "—",
+        "memberSince": "Member since",
+        "quickLinks": "Shortcuts",
+        "quickLinksHint": "Open related CRM sections without leaving the account area."
+      },
+      "personal": {
+        "title": "Profile",
+        "subtitle": "Name, phone, and avatar as others see you in the CRM.",
+        "avatarTitle": "Photo",
+        "avatarHint": "Upload an image (PNG, JPEG, WebP, GIF, up to 2 MB) or pick a generated avatar.",
+        "upload": "Upload photo",
+        "uploading": "Uploading…",
+        "presetsTitle": "Or pick a style",
+        "urlTitle": "Image link",
+        "urlHint": "HTTPS URL or a file uploaded to this CRM (/v1/uploads/…).",
+        "save": "Save profile",
+        "saving": "Saving…",
+        "success": "Profile updated",
+        "errors": {
+          "load": "Could not load profile",
+          "save": "Could not save",
+          "upload": "Upload failed"
+        }
+      },
+      "security": {
+        "title": "Password",
+        "subtitle": "Change the password you use to sign in to the CRM.",
+        "current": "Current password",
+        "new": "New password",
+        "confirm": "Confirm new password",
+        "save": "Change password",
+        "saving": "Updating…",
+        "success": "Password changed",
+        "errors": {
+          "required": "Enter current and new password",
+          "mismatch": "Passwords do not match",
+          "failed": "Could not change password"
+        }
+      },
+      "preferences": {
+        "title": "Interface language",
+        "subtitle": "Applies to this browser. Stored locally and applied immediately.",
+        "language": "Language",
+        "hint": "More preferences (time zone, notifications) can be added later."
+      },
+      "badges": {
+        "owner": "Owner",
+        "admin": "Admin",
+        "active": "Active",
+        "disabled": "Disabled"
+      }
+    },
+    "nav": {
+      "marketing": "Marketing",
+      "marketingTraffic": "Traffic",
+      "marketingCampaigns": "Campaigns (ROAS)",
+      "marketingUtms": "UTM tags",
+      "marketingSegments": "Segments",
+      "marketingStatuses": "Lead / client statuses",
+      "marketingChannels": "Channels and placements",
+      "marketingSeo": "SEO & content",
+      "marketingSmm": "SMM / social",
+      "marketingIntegrations": "Marketing integrations",
+      "marketingAutomations": "Automations (n8n)",
+      "marketingEmailTemplates": "Emails",
+      "mail": "Mail",
+      "mailInbox": "Inbox",
+      "mailAccounts": "Accounts & settings",
+      "tools": "Tools",
+      "toolsAutomations": "Automations",
+      "integrationsHub": "Integrations",
+      "toolsTelegram": "Telegram"
+    },
+    "marketingTraffic": {
+      "kicker": "Marketing · Traffic",
+      "title": "Traffic sources and performance",
+      "subtitle": "Data from analytics (GA4, Yandex.Metrica) and ad accounts. Conversions and revenue from analytics; spend and clicks from Ads.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading traffic data…",
+      "errors": {
+        "load": "Could not load traffic data"
+      },
+      "kpi": {
+        "sessions": "Sessions",
+        "sessionsHint": "Total sessions across all sources for the period.",
+        "conversions": "Conversions",
+        "conversionsHint": "Total applications / leads.",
+        "cr": "Conversion (CR)",
+        "crHint": "Share of sessions that became leads.",
+        "revPerSession": "Revenue per session",
+        "revPerSessionHint": "Average revenue one session brings.",
+        "dbRows": "Rows in DB (period)",
+        "dbRowsHint": "How many marketing_traffic rows matched the filter"
+      },
+      "table": {
+        "title": "Traffic sources",
+        "subtitle": "Session channels, conversions, and revenue per source.",
+        "headers": {
+          "source": "Source / channel",
+          "type": "Type",
+          "sessions": "Sessions",
+          "conversions": "Conversions",
+          "cr": "CR",
+          "revenue": "Revenue"
+        },
+        "empty": "No traffic data for the selected period yet.",
+        "provider": "Provider",
+        "rows": "Rows",
+        "sessions": "Sessions / visits",
+        "clicks": "Clicks / views",
+        "impressions": "Impressions",
+        "cost": "Spend"
+      },
+      "types": {
+        "paid": "Paid",
+        "organic": "Organic search",
+        "email": "Email",
+        "social": "Social",
+        "direct": "Direct",
+        "other": "Other"
+      },
+      "common": {
+        "empty": "—"
+      },
+      "dataSourceLabel": "Data source",
+      "dataSourceAll": "All",
+      "dataSources": {
+        "ga4Property": "Google Analytics 4 (property {{id}})",
+        "meta_ads": "Meta Ads",
+        "yandex_metrika": "Yandex.Metrica",
+        "ga4": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "unknown": "No integration channel",
+        "import": "Import",
+        "manual": "Manual"
+      },
+      "extendedMetricsTitle": "Extended provider metrics",
+      "extendedMetricsSubtitle": "Aggregates by dataSource field in marketing_traffic for the selected period.",
+      "extendedMetricsEmpty": "No extended metrics yet: sync GA4, Yandex.Metrica, Meta Ads, or Google Ads, or pick “All time”.",
+      "extendedMetricsMismatch": "There are {{count}} rows in the selection but the provider breakdown is empty. Refresh with cache cleared.",
+      "rawRowsLabel": "Rows in period",
+      "impressionsLabel": "Impressions",
+      "spendLabel": "Spend",
+      "summaryBreakdownEmpty": "No provider breakdown for the selected period.",
+      "summaryBreakdownChannel": "Channel (data source)",
+      "summaryBreakdownRows": "Rows"
+    },
+    "marketingChannels": {
+      "kicker": "Marketing · Channels and placements",
+      "title": "Where leads come from",
+      "subtitle": "Data is aggregated by source and campaign from UTMs. See which channels drive traffic, leads, and revenue.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading channel data…",
+      "errors": {
+        "load": "Could not load channel data"
+      },
+      "kpi": {
+        "sessions": "Sessions",
+        "sessionsHint": "All channels, selected period",
+        "leads": "Leads",
+        "leadsHint": "Conversions from analytics",
+        "revenue": "Revenue",
+        "revenueHint": "From analytics data"
+      },
+      "topSources": "Top sources",
+      "topMediums": "Top placements (medium)",
+      "topCampaigns": "Top campaigns by revenue",
+      "common": {
+        "unknown": "(unknown)",
+        "none": "(none)",
+        "noCampaign": "(no utm_campaign)",
+        "noData": "No data."
+      }
+    },
+    "marketingChannelBlocks": {
+      "thImpressions": "Impressions",
+      "thClicks": "Clicks",
+      "thSessions": "Sessions",
+      "thLeads": "Leads",
+      "thCost": "Spend",
+      "thRevenue": "Revenue",
+      "allUnattributedHidden": "All rows are hidden: only records without an integration channel remain. Clear the filter below or set dataSource on import.",
+      "hideUnattributed": "Hide “no integration channel”",
+      "moreDetails": "Details",
+      "unknownExplain": "Rows without a data source in CRM: often imports from n8n/analytics without an integration tag. Impressions and spend here may overlap Meta/Google session slices without UTMs—do not add them to neighbors as “more ads.”",
+      "ctr": "CTR",
+      "cpc": "CPC",
+      "cpm": "CPM",
+      "cplShort": "CPL",
+      "topCampaigns": "Campaigns"
+    },
+    "marketingCampaigns": {
+      "kicker": "Marketing · Campaigns",
+      "title": "Ad campaign performance",
+      "subtitle": "Compare spend, revenue, and conversion by campaign. Data from analytics and traffic sources.",
+      "filters": {
+        "allSources": "All sources",
+        "numbersLabel": "Actual numbers in",
+        "numbersAsStored": "As stored in CRM",
+        "numbersHint": "Values from marketing_traffic after sync, without client-side recalculation.",
+        "sumsLabel": "Totals",
+        "sumsAsData": "As in data"
+      },
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days",
+        "all": "All time"
+      },
+      "loading": "Loading campaigns…",
+      "errors": {
+        "load": "Could not load campaigns"
+      },
+      "kpi": {
+        "campaigns": "Number of campaigns",
+        "campaignsHint": "Campaigns with traffic / spend recorded.",
+        "cost": "Campaign spend",
+        "costHint": "Total marketing spend for the period.",
+        "revenue": "Revenue by campaign",
+        "revenueHint": "Attributed revenue from related leads / sales.",
+        "roasCpl": "ROAS & CPL",
+        "roas": "ROAS",
+        "cpl": "CPL",
+        "roasCplHint": "ROAS and average cost per lead."
+      },
+      "top": {
+        "title": "Top campaigns",
+        "subtitle": "By revenue for the selected period.",
+        "subtitleCost": "By spend (revenue missing or zero for this top list).",
+        "shown": "Shown: {{count}}"
+      },
+      "table": {
+        "title": "Campaign list",
+        "subtitle": "Channels, spend, revenue, and efficiency.",
+        "count": "Total: {{count}}",
+        "headers": {
+          "campaign": "Campaign",
+          "source": "Source",
+          "medium": "Medium",
+          "cost": "Spend",
+          "revenue": "Revenue",
+          "leads": "Leads",
+          "impressions": "Impressions",
+          "clicks": "Clicks",
+          "roas": "ROAS",
+          "cpl": "CPL"
+        },
+        "empty": "No campaigns yet."
+      },
+      "tooltip": {
+        "revenue": "Revenue",
+        "cost": "Spend",
+        "leads": "Leads",
+        "clicks": "Clicks",
+        "sessions": "Sessions",
+        "roas": "ROAS",
+        "cpl": "CPL"
+      },
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingIntegrations": {
+      "guide": {
+        "open": "Guide: keys and links",
+        "openAria": "Open step-by-step guide for marketing integrations"
+      },
+      "kicker": "Marketing · Integrations",
+      "title": "Marketing integrations",
+      "subtitle": "Set up analytics and ad accounts (GA4, Metrica, Meta Ads, Google Ads, etc.). Data is used in reports and n8n scenarios.",
+      "hint": "Sync pulls data into the traffic report (extended metrics by dataSource).",
+      "empty": "No integrations yet. Add them via API or form (if available).",
+      "syncZero": "Sync finished, new rows: 0 (empty API response for the period, no counter access, or integration skipped — see backend logs).",
+      "loading": "Loading integrations…",
+      "providers": {
+        "google_analytics": "Google Analytics 4",
+        "google_ads": "Google Ads",
+        "yandex_metrika": "Yandex.Metrica",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "tiktok_ads": "TikTok Ads",
+        "other": "Other"
+      },
+      "form": {
+        "title": "Add integration",
+        "intro": "The new connection will appear in the list on the right. Sync settings are stored in CRM; update via API if needed.",
+        "provider": "Provider",
+        "currencyLabel": "Currency for amounts (cost / revenue in traffic)",
+        "currencyHint": "Sync writes traffic rows in this currency. On the Traffic screen, amounts convert to your report currency using Frankfurter (ECB) rates.",
+        "name": "Name in CRM",
+        "primaryId": "Primary ID (property, counter, ad account, etc.)",
+        "primaryIdHint": "GA4 property ID / Counter ID / Ad Account ID",
+        "primaryIdHintGoogleAds": "Google Ads customer ID (e.g. 123-456-7890)",
+        "primaryIdHintGa4": "GA4 property ID (numeric ID from Admin URL or stream settings)",
+        "ga": {
+          "oauthWizardBanner": "The platform Google OAuth client is configured: you can connect GA4 with one Google sign-in using an account that can read this property.",
+          "manualServiceAccountToggle": "Advanced: paste service account JSON (classic)",
+          "serviceAccount": "Service Account JSON",
+          "conversionEvent": "Conversion event (optional)",
+          "revenueMetric": "Revenue metric (optional)"
+        },
+        "ym": {
+          "token": "OAuth token",
+          "goalId": "Goal ID (optional)",
+          "revenueMetric": "Revenue metric (optional)",
+          "currency": "Currency (optional)"
+        },
+        "ads": {
+          "platformManagedBanner": "Google OAuth client and (when set on the server) the Ads developer token are managed by the platform. Enter your Ads customer ID and a refresh token for a Google user who can access that account.",
+          "developerToken": "Developer token",
+          "clientId": "OAuth client ID",
+          "clientSecret": "OAuth client secret",
+          "refreshToken": "Refresh token",
+          "loginCustomerId": "Login customer ID (optional)",
+          "source": "Source (optional)",
+          "medium": "Medium (optional)",
+          "currency": "Currency (optional)"
+        },
+        "meta": {
+          "platformAppBanner": "The Meta app is configured on the platform; you still need an access token with Ads permissions for your account.",
+          "accessToken": "Access token",
+          "conversionAction": "Conversion action (optional)",
+          "revenueAction": "Revenue action (optional)",
+          "source": "Source (optional)",
+          "medium": "Medium (optional)",
+          "currency": "Currency (optional)"
+        },
+        "note": "“Client secret”, refresh/access tokens, and the Yandex OAuth token are credentials required by Google, Meta, or Yandex—not an arbitrary “CRM secret”. They are stored encrypted. Other fields are IDs, UTMs, etc. You can then use these connections in reports and automations.",
+        "pickCurrency": "Choose currency",
+        "clearCurrency": "Clear"
+      },
+      "actions": {
+        "create": "Create integration",
+        "creating": "Creating…",
+        "sync": "Sync",
+        "syncing": "Syncing…",
+        "delete": "Delete",
+        "currency": "Currency"
+      },
+      "table": {
+        "title": "Current integrations",
+        "currencyShort": "Currency",
+        "subtitle": "Enabled integrations are used in marketing reports.",
+        "total": "Total: {{count}}",
+        "empty": "No integrations yet. Add at least GA4 or Metrica.",
+        "headers": {
+          "name": "Name",
+          "provider": "Provider",
+          "primaryId": "Primary ID",
+          "status": "Status",
+          "actions": "Actions"
+        }
+      },
+      "status": {
+        "enabled": "On",
+        "disabled": "Off"
+      },
+      "ga4": {
+        "oauth": {
+          "connectWithGoogle": "Connect GA4 with Google",
+          "createHint": "Sign in with Google and pick an account that can access this GA4 property. On success the integration is created without a service account JSON key.",
+          "reconnect": "Refresh GA4 Google access",
+          "startError": "Could not start GA4 OAuth",
+          "callback": {
+            "connected": "Google Analytics 4: access saved; integration list refreshed.",
+            "error": "Google Analytics 4: sign-in could not be completed. Check redirect URI and analytics.readonly scope in Google Cloud."
+          }
+        }
+      },
+      "oauth": {
+        "connectWithGoogle": "Connect with Google",
+        "createHint": "You will sign in with Google and pick an account that can access this Ads customer. On success the integration is created without pasting a refresh token.",
+        "createManualSubmit": "Create manually from form",
+        "manualRefreshToggle": "Advanced: paste refresh token",
+        "reconnect": "Refresh Google access",
+        "startError": "Could not start OAuth",
+        "callback": {
+          "connected": "Google Ads: access updated; integration list refreshed.",
+          "error": "Google Ads: Google sign-in could not be completed. Check the redirect URI in Google Cloud and the adwords OAuth scope."
+        }
+      },
+      "errors": {
+        "load": "Could not load integrations",
+        "requiredName": "Enter integration name",
+        "requiredCustomerId": "Enter the Ads customer ID",
+        "requiredGa4PropertyId": "Enter the GA4 property ID",
+        "create": "Could not create integration",
+        "update": "Could not update integration",
+        "delete": "Could not delete integration",
+        "sync": "Could not sync",
+        "patchCurrency": "Could not save currency"
+      },
+      "confirmDelete": "Delete integration “{{name}}”?",
+      "syncResult": "Synced rows: {{count}}",
+      "common": {
+        "empty": "—"
+      },
+      "list": {
+        "currencyTitle": "Data source currency"
+      }
+    },
+    "marketingAutomations": {
+      "kicker": "Marketing · Automations",
+      "title": "Marketing automations (n8n)",
+      "subtitle": "Track n8n scenarios: traffic import, campaigns, audience sync. Later you can pull status from the n8n API.",
+      "loading": "Loading automations…",
+      "form": {
+        "title": "New scenario",
+        "name": "Scenario name",
+        "namePlaceholder": "GA4 → CRM import (daily)",
+        "webhook": "Webhook URL (from n8n)",
+        "note": "You can add tokens, schedule, and run status for each scenario."
+      },
+      "actions": {
+        "create": "Create scenario",
+        "creating": "Creating…",
+        "delete": "Delete"
+      },
+      "list": {
+        "title": "Current automations",
+        "subtitle": "Not linked to the n8n API yet; you can still store descriptions and webhooks per tenant.",
+        "total": "Total: {{count}}",
+        "empty": "No scenarios yet. Add at least traffic import from n8n.",
+        "lastStatus": "Last status: {{status}}",
+        "statusUnknown": "Status unknown yet"
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "errors": {
+        "load": "Could not load automations",
+        "requiredName": "Enter scenario name",
+        "create": "Could not create automation",
+        "update": "Could not update automation",
+        "delete": "Could not delete automation"
+      },
+      "confirmDelete": "Delete scenario “{{name}}”?"
+    },
+    "marketingSeo": {
+      "kicker": "Marketing · SEO & content",
+      "title": "SEO and site quality",
+      "subtitle": "This page shows how ready the site is to grow: speed, indexability, errors, and content structure. Some data from analytics; the rest via Search Console and PageSpeed.",
+      "loading": "Loading data…",
+      "status": {
+        "saved": "Saved",
+        "updated": "Metrics updated",
+        "siteAdded": "Site added",
+        "siteDeleted": "Site removed"
+      },
+      "errors": {
+        "load": "Could not load data",
+        "save": "Could not save settings",
+        "oauth": "Could not open OAuth",
+        "update": "Could not update metrics",
+        "gscNotSynced": "GSC not synced: check property access.",
+        "psiNotSynced": "PageSpeed not synced: check key and URL.",
+        "siteRequired": "Enter site domain",
+        "siteAdd": "Could not add site",
+        "siteApply": "Could not apply site",
+        "siteDelete": "Could not delete site"
+      },
+      "connections": {
+        "title": "Connections",
+        "subtitle": "Set up Search Console and PageSpeed for your site.",
+        "gscConnected": "GSC connected",
+        "connectGsc": "Connect GSC",
+        "refresh": "Refresh metrics",
+        "refreshing": "Refreshing…"
+      },
+      "period": {
+        "title": "Period",
+        "presets": {
+          "7": "7 d",
+          "30": "30 d",
+          "90": "90 d"
+        },
+        "custom": "custom",
+        "apply": "Apply period"
+      },
+      "compare": {
+        "title": "Compare",
+        "subtitle": "Show previous period."
+      },
+      "site": {
+        "title": "Site",
+        "placeholder": "Select site",
+        "addOption": "Add site +",
+        "delete": "Delete",
+        "deleting": "Deleting…"
+      },
+      "newSite": {
+        "title": "New site",
+        "placeholder": "example.com",
+        "add": "Add",
+        "adding": "Working…"
+      },
+      "wordpressModules": {
+        "title": "WordPress · per-site modules",
+        "subtitle": "Set the site token in the plugin (X-Site-Token header) and override modules per WordPress install. Without the token, WordPress uses company-wide settings.",
+        "siteToken": "Site token for WordPress",
+        "tokenHint": "Send with your X-Api-Token on GET /v1/public/tenant/modules as header X-Site-Token.",
+        "copyToken": "Copy",
+        "tokenCopied": "Token copied",
+        "copyFailed": "Could not copy to clipboard",
+        "colModule": "Module",
+        "colCompany": "Company",
+        "colWp": "On site",
+        "colActions": "Override",
+        "inherit": "Match company",
+        "forceOn": "On",
+        "forceOff": "Off",
+        "loading": "Loading…",
+        "saved": "Site settings saved",
+        "saveError": "Could not save site settings",
+        "notOnPlan": "Not on current plan",
+        "keys": {
+          "chat": "Online chat",
+          "telegram": "Telegram",
+          "cf7": "Contact Form 7",
+          "marketing": "Marketing",
+          "analytics": "Analytics",
+          "woo": "WooCommerce",
+          "reputation": "Reputation",
+          "smm": "SMM",
+          "clientcabinet": "Client cabinet",
+          "crm_connector": "CRM connector",
+          "crm_dashboard": "CRM dashboard",
+          "diagnostics": "Diagnostics",
+          "email_branding": "Email branding",
+          "polylang_ai": "Polylang AI",
+          "site_checker": "Site checker",
+          "crm_bridge": "CRM bridge",
+          "crm": "CRM"
+        }
+      },
+      "fields": {
+        "gscPropertyUrl": "GSC property URL",
+        "pageSpeedUrl": "PageSpeed URL",
+        "pageSpeedApiKey": "PageSpeed API Key",
+        "pageSpeedStrategy": "PageSpeed strategy",
+        "strategy": {
+          "mobile": "mobile",
+          "desktop": "desktop"
+        }
+      },
+      "actions": {
+        "save": "Save",
+        "saving": "Saving…"
+      },
+      "syncingOverlay": "Refreshing data…",
+      "gsc": {
+        "title": "Search Console",
+        "period": "Period",
+        "clicks": "Clicks",
+        "impressions": "Impressions",
+        "ctr": "CTR",
+        "position": "Position",
+        "trendTitle": "Spend / Leads",
+        "trendSource": "Search",
+        "legend": {
+          "current": "Current period",
+          "previous": "Previous period"
+        },
+        "metricTabs": {
+          "clicks": "clicks",
+          "impressions": "impressions",
+          "ctr": "ctr",
+          "position": "position"
+        },
+        "empty": "No data. Connect GSC and run sync."
+      },
+      "gscDonut": {
+        "title": "Conversions by channel",
+        "subtitle": "Lead and deal funnel",
+        "average": "network average",
+        "labels": {
+          "ctr": "CTR",
+          "rank": "Rank",
+          "visibility": "Visibility"
+        },
+        "was": "Was: {{value}}%"
+      },
+      "psi": {
+        "title": "PageSpeed Insights",
+        "empty": "No data. Connect PageSpeed and run sync."
+      },
+      "psiDonut": {
+        "title": "Conversions by channel",
+        "subtitle": "Lead and deal funnel",
+        "average": "network average",
+        "labels": {
+          "performance": "Performance",
+          "seo": "SEO",
+          "accessibility": "Accessibility",
+          "best": "Best"
+        }
+      },
+      "psiMetrics": {
+        "lcp": "LCP: {{value}}s",
+        "cls": "CLS: {{value}}",
+        "fcp": "FCP: {{value}}s",
+        "tbt": "TBT: {{value}}s",
+        "speedIndex": "Speed Index: {{value}}s",
+        "strategy": "Strategy: {{value}}"
+      },
+      "control": {
+        "title": "What you can monitor in CRM",
+        "items": [
+          "Page speed and Core Web Vitals for key pages.",
+          "Indexing errors, duplicate pages, sitemap issues.",
+          "Top organic pages by traffic and conversion.",
+          "Compare SEO channels with ads and social."
+        ]
+      },
+      "connect": {
+        "title": "What to connect",
+        "items": [
+          "Google Search Console — indexing, errors, CTR.",
+          "PageSpeed Insights — speed and Core Web Vitals.",
+          "Analytics (GA4 / Yandex.Metrica) — behavior and conversions."
+        ]
+      }
+    },
+    "marketingSmm": {
+      "kicker": "Marketing · SMM",
+      "title": "Social and audience dynamics",
+      "subtitle": "Profiles and daily stats: followers, reach, views, engagement.",
+      "periodLabel": "Period",
+      "periods": {
+        "7d": "7 days",
+        "30d": "30 days",
+        "90d": "90 days"
+      },
+      "compareLabel": "Previous period",
+      "compare": {
+        "loading": "Loading…",
+        "noData": "No data",
+        "dash": "—"
+      },
+      "errors": {
+        "profiles": "Could not load profiles",
+        "stats": "Could not load statistics",
+        "createProfile": "Could not add profile",
+        "deleteProfile": "Could not delete profile",
+        "metaConnect": "Could not connect Meta",
+        "metaAssets": "Could not load Meta accounts",
+        "metaAdd": "Could not connect Meta account",
+        "metaRemove": "Could not disconnect Meta account",
+        "metaSync": "Could not update Meta data"
+      },
+      "meta": {
+        "profileAdded": "Profile connected",
+        "profileRemoved": "Profile disconnected",
+        "syncStatus": "Synced for {{label}}",
+        "scope": {
+          "days": "last {{days}} days",
+          "today": "today"
+        },
+        "connected": "connected",
+        "disconnected": "not connected"
+      },
+      "kpi": {
+        "activeProfiles": "Active profiles",
+        "activeProfilesHint": "Total profiles connected in CRM.",
+        "followersCurrent": "Followers (current)",
+        "followersHint": "Sum of followers across profiles on the latest date.",
+        "followersDelta": "Follower growth",
+        "followersDeltaHint": "Difference between start and end of the selected period.",
+        "reachEngagement": "Reach and engagement",
+        "reachLabel": "Reach",
+        "videoViewsLabel": "Video views",
+        "likesLabel": "Likes",
+        "commentsLabel": "Comments",
+        "erLabel": "ER",
+        "totalHint": "Total across platforms for the period."
+      },
+      "chart": {
+        "title": "Trend by platform",
+        "subtitle": "Daily values for the selected metric.",
+        "metrics": {
+          "followers": "Followers",
+          "reach": "Reach",
+          "likes": "Likes",
+          "comments": "Comments",
+          "videoViews": "Views"
+        },
+        "loading": "Loading chart…",
+        "empty": "No data for the selected period.",
+        "prevSuffix": "previous"
+      },
+      "profiles": {
+        "title": "Social profiles",
+        "subtitle": "Profiles and daily stats for selected networks.",
+        "tabs": {
+          "profiles": "Profiles",
+          "integrations": "Integrations"
+        },
+        "shown": "Shown: {{shown}} of {{total}}",
+        "searchPlaceholder": "Search by @account",
+        "filterAll": "All platforms",
+        "form": {
+          "platform": "Platform",
+          "handle": "Handle / @account",
+          "url": "URL (optional)",
+          "handlePlaceholder": "@company",
+          "urlPlaceholder": "https://instagram.com/...",
+          "add": "Add profile",
+          "adding": "Adding…"
+        },
+        "table": {
+          "headers": {
+            "profile": "Profile",
+            "platform": "Platform",
+            "followers": "Followers",
+            "reachLikesComments": "Reach / likes / comm",
+            "erViews": "ER / views",
+            "date": "Date",
+            "actions": "Actions"
+          },
+          "loading": "Loading…",
+          "empty": "No data for the selected filters."
+        },
+        "delete": "Delete",
+        "confirmDelete": "Delete profile {{platform}} {{handle}}?",
+        "loadMore": "Load more"
+      },
+      "integrations": {
+        "kicker": "Integrations",
+        "title": "Connections and status",
+        "subtitle": "Connect social networks and check status.",
+        "connections": "Connections",
+        "metaStatus": "Meta status: {{status}}",
+        "manage": "Manage",
+        "vkTitle": "VK Analytics",
+        "telegramTitle": "Telegram Analytics",
+        "inDev": "In development"
+      },
+      "popup": {
+        "title": "Integrations",
+        "close": "Close",
+        "metaTitle": "Meta (Facebook / Instagram)",
+        "statusLabel": "Status: {{status}}",
+        "connect": "Connect Meta",
+        "reconnect": "Reconnect Meta",
+        "syncNow": "Refresh now",
+        "syncing": "Updating…",
+        "accountList": "Account list",
+        "accountsTitle": "Meta accounts",
+        "showHidden": "Show hidden",
+        "loading": "Loading accounts…",
+        "empty": "No accounts found.",
+        "hide": "Hide",
+        "disconnectFacebook": "Disconnect",
+        "addFacebook": "Add Facebook",
+        "disconnectInstagram": "Disconnect",
+        "addInstagram": "Add Instagram",
+        "facebookPage": "Facebook Page",
+        "instagramPrefix": "Instagram: {{handle}}",
+        "vkTitle": "VK Analytics",
+        "tgTitle": "Telegram Analytics",
+        "tiktokTitle": "TikTok",
+        "inDevLabel": "In development",
+        "soon": "Coming soon",
+        "vkDesc": "Soon on the site — communities and metrics connection.",
+        "tgDesc": "Soon on the site — channel and engagement analytics.",
+        "tiktokDesc": "View and reach metrics — in development."
+      },
+      "platforms": {
+        "instagram": "Instagram",
+        "facebook": "Facebook",
+        "telegram": "Telegram",
+        "vk": "VK",
+        "tiktok": "TikTok",
+        "other": "Other"
+      },
+      "zeroNotes": {
+        "igVideo": "Instagram video views may be unavailable for some profiles.",
+        "igEngagement": "Likes and comments may arrive with delay when there is no fresh content.",
+        "fbReach": "Facebook metrics may lag due to Insights limits."
+      }
+    },
+    "marketingUtms": {
+      "kicker": "Marketing · UTM tags",
+      "title": "UTM link builder",
+      "subtitle": "Build UTM links for campaigns quickly. You can save presets per channel (Google Ads, Meta Ads, Yandex, email, etc.).",
+      "fields": {
+        "channel": "Channel",
+        "baseUrl": "Base URL",
+        "utm_source": "utm_source",
+        "utm_medium": "utm_medium",
+        "utm_campaign": "utm_campaign",
+        "utm_content": "utm_content (optional)",
+        "utm_term": "utm_term (optional)",
+        "generatedUrl": "Generated link",
+        "templateName": "Template name"
+      },
+      "placeholders": {
+        "baseUrl": "https://example.com/landing",
+        "utm_campaign": "spring_2026_brand",
+        "utm_content": "banner_1",
+        "utm_term": "keyword",
+        "templateName": "Google Brand · RU · spring 2026"
+      },
+      "channels": {
+        "google_search": "Google Ads · Search",
+        "meta_ads": "Meta Ads (Facebook/Instagram)",
+        "yandex_direct": "Yandex Direct",
+        "email": "Email newsletter",
+        "other": "Other"
+      },
+      "actions": {
+        "saveTemplate": "Save template",
+        "saving": "Saving…",
+        "applyTemplate": "Apply",
+        "deleteTemplate": "Delete"
+      },
+      "templates": {
+        "title": "Saved templates",
+        "subtitle": "Stored per company (tenant). Quickly apply parameters for recurring campaigns.",
+        "total": "Total: {{count}}",
+        "empty": "No saved templates yet. Build a UTM link and save it as a template."
+      },
+      "loading": "Loading templates…",
+      "errors": {
+        "loadTemplates": "Could not load UTM templates",
+        "nameRequired": "Enter template name",
+        "saveTemplate": "Could not save template",
+        "deleteTemplate": "Could not delete template"
+      },
+      "confirmDelete": "Delete template “{{name}}”?",
+      "common": {
+        "empty": "—"
+      }
+    },
+    "marketingSegments": {
+      "kicker": "Marketing · Segments",
+      "title": "Lead segments",
+      "subtitle": "Save frequent lead selections: statuses, channels, countries, managers. Later: email, tasks in n8n.",
+      "errors": {
+        "load": "Could not load segments",
+        "save": "Could not save segment"
+      },
+      "form": {
+        "name": "Segment name",
+        "namePlaceholder": "Leads from Google Ads RU in the last 30 days",
+        "description": "Description (optional)",
+        "descriptionPlaceholder": "For emailing leads from brand traffic",
+        "statuses": "Lead statuses",
+        "source": "Source (source)",
+        "sourcePlaceholder": "google / facebook / crm…",
+        "country": "Country",
+        "countryPlaceholder": "TR / RU / PL / DE…",
+        "manager": "Manager (assignedTo)",
+        "managerPlaceholder": "Manager name",
+        "createdFrom": "Created from",
+        "createdTo": "Created to",
+        "helper": "Segments work on leads only for now. Later: email, export, n8n webhooks."
+      },
+      "statuses": {
+        "new": "New",
+        "in_progress": "In progress",
+        "waiting": "Waiting",
+        "won": "Won",
+        "lost": "Lost"
+      },
+      "actions": {
+        "create": "Create segment",
+        "creating": "Saving…",
+        "run": "Run",
+        "running": "Running…"
+      },
+      "list": {
+        "title": "Saved segments",
+        "subtitle": "Click “Run” to see how many leads match the segment.",
+        "total": "Total: {{count}}",
+        "empty": "No segments yet. Create the first one above.",
+        "meta": "entity: {{entity}} · created: {{date}}",
+        "found": "Found: {{count}}"
+      },
+      "loading": "Loading segments…"
+    },
+    "common": {
+      "delete": "Delete",
+      "close": "Close",
+      "sync": "Sync",
+      "loading": "…",
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "marketingCurrency": {
+      "fxError": "Could not load exchange rates",
+      "missingRateFootnote": "* Row currency is not in EUR/GBP/TRY/RUB or the rate has not loaded yet — amount shown without conversion.",
+      "mixedShort": "mixed curr.",
+      "toolbar": {
+        "native": "As in data",
+        "convertedTo": "Converted to {{code}} (ECB, business day)",
+        "label": "Report currency",
+        "configure": "Configure",
+        "fxAsOf": "{{source}} {{date}}"
+      },
+      "modal": {
+        "title": "Campaign & traffic currency",
+        "introFx": "EUR, GBP, TRY, RUB rates are loaded from the server (Frankfurter / ECB). Integration currency is set with the “Currency” button in the integrations list.",
+        "modeConverted": "Single currency (ECB rate)",
+        "modeNative": "As in data (per channel)",
+        "fxTo": "Convert to",
+        "refreshFx": "Refresh rates"
+      },
+      "iso": {
+        "hint": "Pick an ISO currency code. You can filter the list.",
+        "search": "Search…",
+        "empty": "No matches"
+      }
+    },
+    "marketingChannelAnalytics": {
+      "dimEmpty": "(not set)",
+      "other": "Other",
+      "mapTitleGa4": "Geography (Google Analytics data)",
+      "mapHintGa4": "Country comes from countryId when syncing GA4. Intensity by sessions. These are web analytics aggregates, not individual CRM contacts.",
+      "mapEmptyNoInfer": "No geo in the database for the period and country could not be inferred from campaign names. For GA4 channels, sync the integration after updating.",
+      "geoUnknownCountry": "Country unknown",
+      "periodAll": "Full available period",
+      "close": "Close",
+      "sectionTrend": "Daily trend",
+      "loadingSeries": "Loading series…",
+      "emptySeries": "No daily data for the selected filter.",
+      "chartSessionsClicks": "Sessions and clicks",
+      "chartCostRevenue": "Spend and revenue (raw daily totals)",
+      "chartImpressions": "Impressions",
+      "sectionBreakdown": "Spend and traffic structure",
+      "pieCostCampaign": "Spend by campaign",
+      "pieSessionsSource": "Sessions by source",
+      "pieImprMedium": "Impressions by medium",
+      "barTopImpressions": "Top campaigns by impressions",
+      "sectionGeo": "Geography",
+      "geoTableTitle": "Sessions and views by country",
+      "geoTableHint": "Like the Geo report in Google Analytics: sessions and views by country. No individual CRM users—web analytics aggregates only.",
+      "geoColCountry": "Country",
+      "fullTable": "All campaigns in selection",
+      "fullTableHint": "Sort by column. Data matches the period aggregate on the traffic page.",
+      "mapTitle": "Geography (estimated from campaign names)",
+      "mapHint": "Colored by sessions. Country is guessed from keywords in campaign names (e.g. “Almanya”, “Polonya”). Without a match, data does not appear on the map.",
+      "mapEmpty": "No rows linked to a country from campaign names.",
+      "geoLoading": "Loading geo data…",
+      "mapNoCountryData": "No data for this country in the current selection.",
+      "mapScale": "Sessions (intensity)",
+      "roadmapTitle": "Pages and funnel (in development)",
+      "roadmapBody": "Geo by session for GA4 channels is pulled on sync (countryId). Reports by page URL, cities, and funnel steps are planned after schema/import extensions."
+    },
+    "marketingIntegrationsGuide": {
+      "kindVideo": "Video",
+      "kindConsole": "Console",
+      "kindArticle": "Article",
+      "navAria": "Guide sections",
+      "navTitle": "Sections",
+      "whereLead": "Ad and analytics consoles: where tokens, counter IDs, and API keys live.",
+      "whatLead": "Mapping fields in the “Add integration” form on the marketing connections page.",
+      "keysLead": "Formats without real secrets: easier to verify you copied the right value.",
+      "helpCardsTitle": "Official help with screenshots"
+    },
+    "emailTemplates": {
+      "list": {
+        "title": "Emails",
+        "subtitle": "Templates for “Send email” automations, campaigns, and client notifications",
+        "create": "Create template",
+        "createFirst": "Create your first template",
+        "subject": "Subject",
+        "loading": "Loading…",
+        "empty": "No templates yet — start from a preset below or a blank template",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this email template?",
+        "edit": "Edit",
+        "preview": "Preview",
+        "myTemplatesTitle": "Your templates",
+        "presetsTitle": "Starter presets",
+        "presetsSubtitle": "Ready subject + HTML: open in the editor, add your logo, links, and button colors",
+        "usePreset": "Use preset",
+        "errors": {
+          "loadFailed": "Could not load templates",
+          "deleteFailed": "Could not delete template"
+        }
+      },
+      "presets": {
+        "items": {
+          "lead_new": {
+            "name": "New lead",
+            "description": "Team alert for a new lead with key fields"
+          },
+          "lead_status": {
+            "name": "Lead status changed",
+            "description": "Pipeline stage update notification"
+          },
+          "project_new": {
+            "name": "New project",
+            "description": "New deal/project card with amount and status"
+          },
+          "sale_new": {
+            "name": "New sale",
+            "description": "Sale amount and status snapshot"
+          },
+          "client_broadcast": {
+            "name": "Client newsletter",
+            "description": "Neutral broadcast with contact greeting"
+          },
+          "funnel_nurture": {
+            "name": "Funnel nurture",
+            "description": "Soft follow-up to a lead with a CTA"
+          },
+          "meeting_reminder": {
+            "name": "Meeting reminder",
+            "description": "Lead-based reminder; add time and link"
+          },
+          "thank_you_post_sale": {
+            "name": "Post-sale thank you",
+            "description": "Thank-you with project and amount block"
+          },
+          "reactivation": {
+            "name": "Reactivation",
+            "description": "Win-back message tied to a company"
+          }
+        }
+      },
+      "form": {
+        "titleNew": "Create email template",
+        "titleEdit": "Edit email template",
+        "subtitle": "HTML editor and variables; presets speed you up — then tune layout for your brand",
+        "presetLibraryTitle": "Preset library",
+        "presetApply": "Import into template",
+        "presetReplaceConfirm": "Replace current template content with this preset?",
+        "constructorHint": "Builder tips: edit HTML — adjust inline styles on buttons and headings, add images with full https:// URLs, use nested tables for reliable email clients.",
+        "fields": {
+          "name": "Name *",
+          "description": "Description",
+          "subject": "Email subject",
+          "htmlBody": "HTML body",
+          "textBody": "Plain text version",
+          "isActive": "Active",
+          "variables": "Available variables",
+          "preview": "Preview"
+        },
+        "hints": {
+          "activeAvailable": "Template will be available for use",
+          "availableVariables": "Available variables"
+        },
+        "placeholders": {
+          "name": "Template name",
+          "description": "Template description",
+          "subject": "Subject (you can use {{lead.name}}, {{lead.email}}, etc.)",
+          "htmlBody": "HTML email code…",
+          "textBody": "Plain text for clients without HTML"
+        },
+        "defaultTemplate": {
+          "greeting": "Hello, {{lead.name}}!",
+          "body": "This is a sample email using variables.",
+          "phoneLabel": "Phone:",
+          "statusLabel": "Status:",
+          "signature": "Best regards,<br>The Lumiva team"
+        },
+        "variables": {
+          "lead": "Lead: {{lead.name}}, {{lead.email}}, {{lead.phone}}",
+          "contact": "Contact: {{contact.name}}, {{contact.email}}",
+          "company": "Company: {{company.name}}, {{company.email}}"
+        },
+        "actions": {
+          "save": "Save",
+          "saving": "Saving…",
+          "cancel": "Cancel",
+          "preview": "Preview",
+          "useTemplate": "Use template"
+        },
+        "errors": {
+          "saveFailed": "Could not save",
+          "loadFailed": "Could not load template",
+          "previewFailed": "Preview failed"
+        },
+        "success": {
+          "saved": "Template saved"
+        }
+      }
+    },
+    "sales": {
+      "analytics": {
+        "settings": {
+          "currencyMode": "Currency mode",
+          "displayCurrency": "Display currency"
+        }
+      }
+    },
+    "integrationsHub": {
+      "title": "Integrations",
+      "subtitle": "Connector catalog, connections, marketing, and sync live here. IF/THEN scenarios are created and edited under Automations.",
+      "hubConnectionsHint": "New connections and channel setup are on this page (Catalog and Connections tabs).",
+      "catalogHeading": "Catalog",
+      "catalogCategory": {
+        "sales": "Sales",
+        "marketing": "Marketing",
+        "leads": "Leads",
+        "projects": "Projects",
+        "workspace": "Workspace",
+        "calendar": "Calendar",
+        "automations": "Automations"
+      },
+      "wooOpenSheet": "Connect",
+      "wooSheetTitle": "WooCommerce",
+      "wooSheetSubtitle": "Store URL and API keys. Manage sync on the Connections tab.",
+      "connectionsHeading": "Connections",
+      "wpLumivaSectionTitle": "WordPress & Lumiva Wizard",
+      "wpLumivaSectionSubtitle": "Forms (CF7), client cabinet, and online chat: create multiple connections per type (different sites or entry points). Use the cards below and “New connection”.",
+      "wpLumivaConnectNew": "New connection",
+      "wpLumivaSectionHintsSummary": "Section tips",
+      "wpLumivaCatalogHintsSummary": "About this connection type",
+      "wpLumivaEmptyRow": "No connections of this type yet — click “New connection”.",
+      "wpLumivaCatalogHint": {
+        "wordpress_cf7": "Contact Form 7 leads: CRM webhook and Lumiva Wizard endpoint.",
+        "lumiva_client_cabinet": "Client cabinet (Lumiva Wizard): the site module syncs with the CRM.",
+        "lumiva_online_chat": "Site chat widget: the WordPress module syncs with the CRM."
+      },
+      "otherHubConnectionsHeading": "Sheets, stores, and more",
+      "connectionTurnOn": "Turn on",
+      "connectionTurnOff": "Turn off",
+      "toggleBusy": "Saving…",
+      "toggleSaved": "Connection state updated",
+      "tabs": {
+        "catalog": "Catalog",
+        "connections": "Connections",
+        "marketing": "Marketing",
+        "store": "WooCommerce"
+      },
+      "navMarketingIntegrationTab": "Ads & analytics",
+      "marketingBlockTitle": "Ads and analytics",
+      "marketingBlockSubtitle": "Connect ad accounts and analytics — data will show up in reports.",
+      "wooSectionTitle": "Connect WooCommerce",
+      "wooSectionSubtitle": "Store URL and API keys (read access is enough). Manage sync on the Connections tab.",
+      "wooChannelsHint": "Sales channels are configured separately: link the store to CRM metrics there.",
+      "wooChannelsLink": "Sales channels",
+      "marketingSetup": "Set up",
+      "marketingOpenTab": "Marketing tab",
+      "marketingModalTitle": "Configure {{name}}",
+      "marketingModalSubtitle": "Currency, API access, and sync — in one place.",
+      "marketingModalClose": "Close",
+      "ga4QuickConnect": {
+        "title": "Google Analytics 4",
+        "subtitle": "Enter your GA4 Property ID and reporting currency. You will be redirected to Google; after sign-in the connection appears on the Marketing tab.",
+        "primaryIdLabel": "Primary ID (Property)",
+        "primaryIdPlaceholder": "e.g. 123456789",
+        "primaryIdHint": "Numeric Property ID in Google Analytics (Admin → Property settings).",
+        "connect": "Connect with Google",
+        "connecting": "Redirecting to Google…",
+        "defaultName": "GA4 {{id}}"
+      },
+      "googleCalendar": {
+        "oauthTitle": "Google Calendar",
+        "oauthSubtitle": "Sign in with Google — the refresh token is stored in CRM. Lead calendar meetings sync with Google; use Sync on the connection card to pull changes from Google.",
+        "oauthUsesPrimaryCalendar": "Your primary Google calendar is used — you do not need to enter a calendar ID.",
+        "oauthNameLabel": "Name in CRM (optional)",
+        "oauthConnect": "Connect with Google",
+        "reconnectGoogle": "Update Google access",
+        "oauthBusy": "Redirecting to Google…",
+        "oauthStartError": "Could not start Google sign-in",
+        "oauthCallback": {
+          "connected": "Google Calendar connected.",
+          "error": "Google Calendar connection failed."
+        }
+      },
+      "marketingModalPanelLead": "Connection and list",
+      "marketingModalPanelHint": "Create a connection using the form below. In the list: currency, sync, and delete.",
+      "refresh": "Refresh",
+      "loadError": "Could not load catalog or connections",
+      "openAutomationsIntegrations": "Add connection",
+      "openAutomationsScenarios": "Scenarios",
+      "openAutomationsIntegrationsHint": "In scenarios, pick the connections you configure here when building triggers and actions.",
+      "connectedCount": "Connected: {{count}}",
+      "lifecycle": {
+        "live": "Live",
+        "beta": "Beta",
+        "planned": "Planned",
+        "in_development": "In development"
+      },
+      "modulesLabel": "CRM modules",
+      "capabilitiesLabel": "Capabilities",
+      "cap": {
+        "outboundAutomation": "Automation actions",
+        "inboundWebhook": "Data from the service",
+        "oauthPlatform": "Sign in with the service account",
+        "salesImport": "Order import",
+        "workspaceSync": "Workspace tables",
+        "calendar": "Calendar",
+        "leadCapture": "Leads and inquiries"
+      },
+      "module": {
+        "automations": "Automations",
+        "leads": "Leads",
+        "sales": "Sales",
+        "marketing": "Marketing",
+        "projects": "Projects",
+        "workspace": "Workspace",
+        "calendar": "Calendar"
+      },
+      "connectionsEmpty": "No connections yet.",
+      "otherConnectionsHeading": "Other connections (outside hub catalog)",
+      "kind": "Kind",
+      "lastSync": "Last sync",
+      "never": "—",
+      "test": "Test",
+      "sync": "Sync",
+      "testing": "Testing…",
+      "syncing": "Syncing…",
+      "testFailed": "Test failed",
+      "syncOk": "Sync completed",
+      "syncFail": "Sync finished with an error",
+      "catalogFilterLabel": "Filter by CRM area",
+      "catalogFilterAll": "All",
+      "connectCatalog": "Connect",
+      "viewConnectionsCount": "Connections ({{count}})",
+      "catalogEmptyFilter": "Nothing matches this filter — pick another area or “All”.",
+      "googleSheetsImportSettings": "Sheet import: target, preview, rows",
+      "googleSheetsSettingsTitle": "Google Sheets — import settings",
+      "googleSheetsSettingsIntro": "Tab name, target (leads, workspace, …), row range or selected rows, column map. Token: paste a new one or leave empty to keep the saved token.",
+      "googleSheetsSettingsWrongType": "This connection is not Google Sheets.",
+      "googleSheetsSettingsLoadError": "Could not load the connection.",
+      "googleSheetsSettingsSave": "Save",
+      "googleSheetsTokenKeepPlaceholder": "Empty = keep current token",
+      "editConnectionKeys": "All connections & keys: Sales → Integrations"
+    },
+    "salesIntegrations": {
+      "kicker": "Sales integrations",
+      "title": "Sales channel integrations",
+      "subtitle": "Connect external systems, manage status, and sync sales.",
+      "kinds": {
+        "woocommerce": "WooCommerce",
+        "manualImport": "Manual import",
+        "other": "Other",
+        "thirdPartyLink": "External service (Slack, Teams…)"
+      },
+      "status": {
+        "never": "Never synced",
+        "ok": "Synced",
+        "error": "Error",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "defaults": {
+        "woocommerceName": "WooCommerce store"
+      },
+      "available": {
+        "title": "Available integrations",
+        "woocommerceHint": "Connect WooCommerce via REST API.",
+        "newConnection": "New connection",
+        "woocommerceNote": "Use a key with Read access.",
+        "empty": "No adapters available yet.",
+        "movedToHubBody": "New WooCommerce setup moved to Integrations → WooCommerce tab. Here you still manage the store list, sync, and editing.",
+        "movedToHubButton": "Open WooCommerce in Integrations"
+      },
+      "new": {
+        "title": "New connection",
+        "close": "Close",
+        "name": "Connection name",
+        "namePlaceholder": "WooCommerce · main store",
+        "channel": "Sales channel",
+        "channelAuto": "Auto-create channel",
+        "description": "Short description",
+        "descriptionPlaceholder": "e.g. store on shop.example.com",
+        "url": "WooCommerce URL (https)",
+        "urlPlaceholder": "https://shop.example.com",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret"
+      },
+      "edit": {
+        "title": "Edit connection: {{name}}",
+        "lumivaSimpleTitle": "Connection details",
+        "lumivaSimpleHint": "Name and note for your team. Turn the module on or off with Enable / Disable in the table below.",
+        "adapterSimpleHint": "Name, sales channel and note. Full integration config is not edited here to avoid breaking import.",
+        "close": "Close",
+        "name": "Connection name",
+        "channel": "Sales channel",
+        "channelAuto": "No channel / auto-create",
+        "description": "Short description",
+        "url": "WooCommerce URL (https)",
+        "consumerKey": "Consumer Key",
+        "consumerSecret": "Consumer Secret (leave blank to keep unchanged)",
+        "thirdPartyTitle": "Connection parameters & secrets",
+        "thirdPartyHint": "JSON is the full connection config (same as API). Do not remove catalogId or critical keys. Invalid JSON cannot be saved.",
+        "configJson": "Configuration (JSON)",
+        "loadingDetails": "Loading full connection…"
+      },
+      "list": {
+        "title": "Integration list",
+        "subtitle": "Manage status, test the connection, and run sync.",
+        "filteredNote": "Only sales-related integrations are shown (WooCommerce, 1C, ERP, etc.). Site forms, chat, and Google Sheets are configured under Integrations.",
+        "headers": {
+          "connection": "Connection",
+          "type": "Type",
+          "channel": "Sales channel",
+          "status": "Status",
+          "lastSync": "Last sync",
+          "sales": "Sales",
+          "amount": "Amount",
+          "actions": "Actions"
+        },
+        "empty": "No integrations configured yet.",
+        "lastError": "Error:"
+      },
+      "loading": "Loading integrations…",
+      "common": {
+        "empty": "—",
+        "none": "—",
+        "cancel": "Cancel",
+        "creating": "Creating…",
+        "create": "Create connection",
+        "saving": "Saving…",
+        "save": "Save changes",
+        "testing": "Testing…",
+        "test": "Test",
+        "syncing": "Syncing…",
+        "sync": "Sync",
+        "enable": "Enable",
+        "disable": "Disable",
+        "edit": "Edit",
+        "deleting": "Deleting…",
+        "delete": "Delete"
+      },
+      "errors": {
+        "load": "Could not load integrations",
+        "toggle": "Could not change status",
+        "delete": "Could not delete integration",
+        "test": "Could not test connection",
+        "sync": "Could not run sync",
+        "create": "Could not create integration",
+        "update": "Could not update integration",
+        "createMissing": "Enter URL, Consumer Key, and Secret.",
+        "updateMissing": "URL and Consumer Key are required.",
+        "configJsonInvalid": "Invalid JSON in the configuration field.",
+        "loadIntegrationFailed": "Could not load connection: {{message}}"
+      },
+      "deleteConfirm": "Delete {{name}}?",
+      "test": {
+        "ok": "Test succeeded: {{message}}",
+        "fail": "Test failed: {{message}}",
+        "defaultError": "Unknown error"
+      },
+      "sync": {
+        "summary": "Sync: created {{created}}, updated {{updated}}, skipped {{skipped}}.",
+        "done": "Sync completed. {{message}}"
+      }
+    },
+    "salesChannels": {
+      "kicker": "Sales channels",
+      "title": "Sales channels",
+      "subtitle": "Manage channels, status, and revenue.",
+      "summary": {
+        "channels": "Channels: {{count}}",
+        "sales": "Sales: {{count}}",
+        "revenue": "Revenue: {{amount}}"
+      },
+      "openIntegrations": "Integrations",
+      "chart": {
+        "title": "Revenue by channel",
+        "hint": "Share of total revenue",
+        "empty": "No data yet.",
+        "noRevenue": "No revenue"
+      },
+      "table": {
+        "title": "Channel list",
+        "hint": "Settings and statistics per channel",
+        "headers": {
+          "channel": "Channel",
+          "type": "Type",
+          "integration": "Integration",
+          "apiKey": "API key",
+          "connected": "Connected",
+          "sales": "Sales",
+          "amount": "Amount",
+          "status": "Status",
+          "lastSync": "Last sync",
+          "actions": "Actions"
+        },
+        "empty": "No channels found."
+      },
+      "types": {
+        "b2b": "B2B",
+        "ota": "OTA",
+        "direct": "Direct",
+        "gds": "GDS",
+        "other": "Other"
+      },
+      "status": {
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "actions": {
+        "enable": "Enable",
+        "disable": "Disable",
+        "delete": "Delete"
+      },
+      "loading": "Loading channels…",
+      "lastError": "Error:",
+      "errors": {
+        "load": "Could not load channels",
+        "toggle": "Could not change status",
+        "delete": "Could not delete channel"
+      },
+      "deleteConfirm": "Delete {{name}}?",
+      "common": {
+        "noCampaign": "(no utm_campaign)",
+        "empty": "—",
+        "connected": "Yes",
+        "disconnected": "No"
+      }
+    },
+    "automations": {
+      "list": {
+        "title": "Automations",
+        "subtitle": "Rule-based automations (IF/THEN)",
+        "create": "Create automation",
+        "loading": "Loading…",
+        "empty": "No automations yet",
+        "emptyHint": "Create your first automation to streamline business processes",
+        "delete": "Delete",
+        "deleteConfirm": "Delete this automation?",
+        "edit": "Edit",
+        "active": "Active",
+        "inactive": "Inactive",
+        "errors": {
+          "loadFailed": "Could not load automations",
+          "deleteFailed": "Could not delete"
+        }
+      },
+      "panel": {
+        "button": "Automation",
+        "kicker": "Automations",
+        "subtitle": "Manage IF/THEN rules",
+        "searchPlaceholder": "Search automations",
+        "filter": "Filter",
+        "edit": "Edit",
+        "banner": "Open the automation hub for full control over scenarios.",
+        "bannerLink": "Learn more",
+        "integrationsCallout": {
+          "title": "Data from external systems",
+          "body": "Connect your store, ads, calendars, and more in Integrations. On this page you build IF/THEN automations and review run history.",
+          "ctaHub": "Open Integrations",
+          "ctaConnections": "My connections"
+        },
+        "comingSoon": "This section is in development",
+        "history": {
+          "title": "Run history",
+          "subtitle": "Each scenario run: success, error, or skipped. Step details are inside the record.",
+          "searchPlaceholder": "Search by scenario, event, status…",
+          "filterStatus": "Status",
+          "allStatuses": "All statuses",
+          "statusSuccess": "Success",
+          "statusError": "Error",
+          "statusPending": "Queued",
+          "statusSkipped": "Skipped",
+          "colTime": "Time",
+          "colAutomation": "Scenario",
+          "colTrigger": "Event",
+          "colStatus": "Result",
+          "colEntity": "Entity",
+          "colActions": "Steps",
+          "empty": "No runs yet",
+          "openDetails": "Details",
+          "actionsCount": "{{ok}} of {{total}} steps",
+          "errorHint": "Error"
+        },
+        "listMeta": {
+          "runs": "Runs",
+          "errors": "Errors"
+        },
+        "integrations": {
+          "title": "Integrations in scenarios",
+          "subtitle": "Here you only link scenarios to connections that are already configured elsewhere.",
+          "hubIntro": "Connect or disconnect services, enter credentials, and check sync status in Integrations. In Automations you select those connections in scenario steps.",
+          "openHub": "Open Integrations",
+          "openHubConnections": "Connections",
+          "hubFootnote": "The scenario list and runs are on the Automations tab.",
+          "scenariosAsideKicker": "Scenarios",
+          "scenariosAsideHint": "The list on the left keeps scenarios in view while you configure connections on the right.",
+          "searchPlaceholder": "Search integration…",
+          "connected": "Connected",
+          "adaptersTitle": "Available connection types",
+          "platformTitle": "Platform capabilities",
+          "roadmapTitle": "Popular integrations (phase 2)",
+          "roadmapPhase2": "Roadmap — phase 2",
+          "platformIntro": "Ready channels and CRM modules you can link to scenarios and reports.",
+          "roadmapIntro": "Systems most often requested in CRM. As adapters ship, they appear under “Available connection types”.",
+          "statusLive": "Live",
+          "statusBeta": "Beta",
+          "statusPlanned": "Planned",
+          "statusInDevelopment": "In development",
+          "statusOff": "Off",
+          "openSettings": "Configure",
+          "openSales": "Sales · integrations",
+          "openMarketing": "Marketing · API",
+          "openEmail": "Email",
+          "openModuleLink": "Open",
+          "oauthPlatformPending": "Service sign-in is not configured yet",
+          "connectClientHint": "Organisation-wide app secrets are managed by your hosting administrator. Here you only enter your URLs, tokens, and account details.",
+          "connectButton": "Connect",
+          "connectDefaultSuffix": "connection",
+          "connectError": "Could not save connection",
+          "connectTitle": "Connect: {{name}}",
+          "connectIntro": "Provide at least one value: HTTPS webhook (e.g. Slack Incoming Webhook), API token, or work email. A quick check runs after save.",
+          "connectLabelField": "Name in CRM",
+          "connectWebhook": "Webhook URL (HTTPS)",
+          "connectToken": "API / personal token",
+          "connectEmail": "Account email",
+          "connectPhoneNumberId": "WhatsApp · Phone number ID",
+          "connectPhoneNumberIdHint": "From your Meta WhatsApp Cloud API settings (numeric ID).",
+          "connectWhatsappVerifyToken": "WhatsApp · Verify token (Meta webhook)",
+          "connectWhatsappVerifyTokenHint": "Choose a string and enter the same in Meta → Webhook → Verify token.",
+          "whatsappInboundUrlTitle": "Callback URL for inbound (Meta)",
+          "whatsappInboundUrlHint": "Paste into WhatsApp webhook settings in Meta. Subscribe to “messages”.",
+          "whatsappInboundUrlMissingEnv": "Public callback URL is not available yet — ask your administrator to verify API settings.",
+          "connectMailchimpIntro": "Paste the full Mailchimp API key (Profile → Extras → API keys). It ends with a data-centre suffix such as …-us21. Then add a Mailchimp step to your scenario.",
+          "connectMailchimpTokenHint": "Copy the full key; after Save the CRM checks Mailchimp API access.",
+          "connectMailchimpTokenShort": "Enter the full Mailchimp API key (usually not shorter than 12 characters before the -us… suffix).",
+          "amocrmInboundUrlTitle": "amoCRM webhook URL",
+          "amocrmInboundUrlHint": "In amoMarket → Webhooks, set this address. We recommend ?secret= in the URL and the same secret below.",
+          "amocrmInboundUrlMissingEnv": "Public webhook URL is not available yet — ask your administrator to verify API settings.",
+          "siteFormInboundUrlTitle": "Website form URL (WordPress / CF7)",
+          "siteFormInboundUrlHint": "Set this URL in your form plugin or “CF7 to Webhook” as the POST endpoint. If you configured a secret on the connection, append the same ?secret= value.",
+          "siteFormInboundUrlMissingEnv": "Public form URL is not available yet — ask your administrator to verify API settings.",
+          "connectAmocrmWebhookSecret": "Webhook secret (optional, recommended)",
+          "connectAmocrmWebhookSecretHint": "If set, requests without matching ?secret=, X-Lumiva-Secret, or Bearer are rejected.",
+          "connectGoogleCalendarId": "Google Calendar · calendar ID",
+          "connectGoogleCalendarIdHint": "Leave primary or enter a calendar address. Access token must allow Calendar API.",
+          "connectOutlookCalendarId": "Outlook · calendar ID (Graph)",
+          "connectOutlookCalendarIdHint": "Optional Graph calendar GUID; empty = default calendar. Token needs calendar write access.",
+          "connectBitrixWebhookHint": "For Bitrix24, enter the full inbound webhook base URL ending with /rest/1/code/ (trailing slash).",
+          "connectAmocrmHint": "For amoCRM: Webhook URL = account base (https://subdomain.amocrm.ru); API token = long-lived API v4 token.",
+          "connectHubspotHint": "HubSpot: API token = private app key. Webhook URL can be empty (api.hubapi.com) or regional host.",
+          "connectGoogleAdsCustomerHint": "Google Ads: API token = OAuth access token with Google Ads access. Webhook URL field: digits-only Customer ID, or leave empty.",
+          "connectGoogleAdsDeveloperToken": "Google Ads · Developer token",
+          "connectMetaAdsHint": "Meta Ads: API token = user access token with ads_management or required Marketing API scopes. Webhook URL is not used.",
+          "connectWordpressCf7Intro": "After save, the connection card shows the POST URL for your site. You choose the secret (min 6 chars) and add the same value as ?secret=… or a header; with no secret the endpoint accepts any POST — set a secret in production.",
+          "connectWordpressCf7InboundSecret": "Inbound webhook secret (optional, min 6 characters)",
+          "connectWordpressCf7InboundSecretHint": "Append the same value to the form URL as ?secret=… . Leave empty to disable secret checks.",
+          "connectWordpressCf7SecretShort": "Webhook secret: at least 6 characters, or leave the field empty.",
+          "connectWordpressCf7IntroShort": "Site submissions become CRM leads. Follow the short wizard: name, secret, save, then copy the URL into WordPress.",
+          "connectLumivaWizardAddonIntro": "Enabling this connection turns on the matching tenant module for Lumiva Wizard on WordPress (same site API key). Disabling it turns the module off in the tenant public API — no extra secrets here.",
+          "connectWordpressCf7Step1Title": "Name this connection in the CRM",
+          "connectWordpressCf7Step1Body": "Useful if you have several sites, e.g. “Main site form” or “Landing contact”.",
+          "connectWordpressCf7Step2Title": "Secret (pre-filled — you can keep it)",
+          "connectWordpressCf7Step2Body": "The same value must reach the CRM with each submission; we embed it in the ready-to-paste URL after save. “Generate new” creates another random secret; “No secret (test)” clears it — only for local testing.",
+          "connectWordpressCf7Step3Title": "Save the connection",
+          "connectWordpressCf7Step3Body": "Click the black “Save and verify” button at the bottom of this window.",
+          "connectWordpressCf7Step4Title": "What happens next",
+          "connectWordpressCf7Step4Body": "You will see a ready URL — paste it into WordPress in your webhook plugin settings (see also the connection card in the list).",
+          "connectWordpressCf7RegenerateSecret": "Generate new secret",
+          "connectWordpressCf7ClearSecret": "No secret (test)",
+          "connectWordpressCf7FieldMappingNote": "Standard Contact Form 7 fields (your-name, your-email, your-message, etc.) are mapped to the lead automatically — you do not pick columns manually.",
+          "connectWordpressCf7SuccessTitle": "Connection created",
+          "connectWordpressCf7SuccessBody": "Copy the link below and paste it into WordPress as the POST URL (in “CF7 to Webhook”, “Contact Form 7 Webhook”, or similar — the URL / Endpoint / Webhook field).",
+          "connectWordpressCf7PasteUrlLabel": "Paste this full URL into WordPress",
+          "connectWordpressCf7CopyPasteUrl": "Copy link",
+          "connectWordpressCf7CopyBaseUrl": "CRM address only (no secret)",
+          "connectWordpressCf7SuccessWpSteps": "In WordPress: 1) install a CF7 webhook plugin if needed; 2) in the form or plugin settings set POST and paste the URL from the CRM; 3) send a test submission and check for a new lead (email or phone required).",
+          "connectWordpressCf7WizardTitle": "Lumiva Wizard / CRM Connector",
+          "connectWordpressCf7WizardBody": "If leads go through Lumiva Wizard: in the CRM Connector module paste the URL below. Use the same tenant API token as in the CRM (API / public access). In Wizard that value is the “API Key” field on the plugin settings page.",
+          "connectWordpressCf7WizardCopyUrl": "Copy CF7 endpoint",
+          "connectWordpressCf7DoneButton": "Done — back to connections",
+          "connectWordpressCf7CloseWithoutCopy": "Close",
+          "siteFormCf7WhereToPasteTitle": "Where to paste in WordPress",
+          "siteFormCf7Step1": "In WP admin open Contact Form 7 or your webhook plugin (e.g. “CF7 to Webhook”).",
+          "siteFormCf7Step2": "Find the webhook URL / Endpoint / “Remote POST” field and paste the URL you copied from the CRM.",
+          "siteFormCf7Step3": "Save the form/plugin and send a test — a lead should appear in the CRM (the form must include email or phone).",
+          "siteFormCf7CopyBase": "Copy CRM base URL",
+          "siteFormCf7CopyFull": "Copy URL with secret",
+          "siteFormCf7Copied": "Copied to clipboard",
+          "siteFormCf7CopyEmpty": "Could not load a URL",
+          "siteFormCf7CopyFailed": "Copy failed — select the text manually",
+          "siteFormCf7WizardTitle": "Lumiva Wizard (CRM Connector)",
+          "siteFormCf7WizardBody": "In Lumiva Wizard → CRM Connector settings, set this ingest URL. The key is the same as the “API Key” on the Lumiva Wizard settings page (your tenant token from the CRM).",
+          "siteFormCf7WizardCopyUrl": "Copy endpoint",
+          "connectGoogleSheetsIntro": "Provide the spreadsheet and API credentials. Choose where rows go (leads and workspace are supported today), optionally limit the row range, and set a column map — without a map, only columns whose headers look like email, phone, name, etc. are imported. Run sync from the connections list after save.",
+          "connectGoogleSheetsSpreadsheetId": "Spreadsheet ID",
+          "connectGoogleSheetsSpreadsheetIdHint": "Paste either the ID only or the full spreadsheet URL — the ID is extracted automatically. It is the part between /d/ and /edit (letters, digits, hyphen, underscore).",
+          "connectGoogleSheetsSpreadsheetRequired": "Enter the Google Sheets spreadsheet ID.",
+          "connectGoogleSheetsSpreadsheetInvalid": "The spreadsheet ID looks invalid — copy the segment from the sheet URL (often 40+ characters).",
+          "connectGoogleSheetsTokenHint": "Paste the service-account JSON key (client_email + private_key) or a long-lived OAuth access token with read access to the spreadsheet.",
+          "connectGoogleSheetsTokenShort": "Enter a token or service-account JSON (at least 12 characters).",
+          "connectGoogleSheetsImportTarget": "Import rows into",
+          "connectGoogleSheetsImportTargetLeads": "Leads",
+          "connectGoogleSheetsImportTargetWorkspace": "Workspace (custom object)",
+          "connectGoogleSheetsImportTargetProjects": "Projects (coming soon)",
+          "connectGoogleSheetsImportTargetSales": "Sales (coming soon)",
+          "connectGoogleSheetsImportTargetHint": "Projects and sales are not imported from the sheet yet; you can still save the choice for later. For workspace, pick an object below.",
+          "connectGoogleSheetsTabName": "Sheet tab name",
+          "connectGoogleSheetsTabNameHint": "As in Google Sheets, e.g. Sheet1 or Leads.",
+          "connectGoogleSheetsHeaderRow": "Header row (1-based)",
+          "connectGoogleSheetsHeaderRowHint": "Usually 1 — the row with column titles.",
+          "connectGoogleSheetsFirstDataRow": "First data row (optional)",
+          "connectGoogleSheetsFirstDataRowHint": "Empty = first row under the header. Otherwise the first row number that contains data.",
+          "connectGoogleSheetsLastDataRow": "Last data row (optional)",
+          "connectGoogleSheetsLastDataRowHint": "Empty = read to the end of the sheet. Set this to avoid importing trailing empty or unrelated rows.",
+          "connectGoogleSheetsDedupeBy": "Match existing leads by",
+          "connectGoogleSheetsDedupeEmail": "Email",
+          "connectGoogleSheetsDedupePhone": "Phone",
+          "connectGoogleSheetsDedupeExternalId": "External ID column",
+          "connectGoogleSheetsExternalIdHeader": "Header for external ID column",
+          "connectGoogleSheetsExternalIdHeaderHint": "Column title in the header row when using external ID dedupe.",
+          "connectGoogleSheetsWorkspaceObject": "Workspace object",
+          "connectGoogleSheetsWorkspaceObjectPlaceholder": "Select an object",
+          "connectGoogleSheetsWorkspaceObjectHint": "Required for workspace import.",
+          "connectGoogleSheetsColumnMapJson": "Column map (JSON, optional)",
+          "connectGoogleSheetsColumnMapJsonHint": "Object: \"column header as in the sheet\" → \"CRM field path\", e.g. {\"Email\":\"email\",\"Phone\":\"phone\"}. Empty = auto-detect common headers. Only columns listed in the map are imported when the map is set; otherwise auto-mapped columns only.",
+          "connectGoogleSheetsColumnMapJsonInvalid": "Invalid JSON in the column map.",
+          "connectGoogleSheetsWorkspaceColumnMapTitle": "Sheet columns → object fields",
+          "connectGoogleSheetsWorkspaceColumnMapHint": "Load the preview below to see headers. Map each column to an object field, or choose “do not import”. You can also edit the JSON map above.",
+          "connectGoogleSheetsWorkspaceColumnMapNoFields": "This object has no fields, or fields could not be loaded.",
+          "connectGoogleSheetsWorkspaceColumnMapNeedPreview": "Load a sheet preview first so column titles appear here.",
+          "connectGoogleSheetsWorkspaceColumnSkip": "Do not import",
+          "connectGoogleSheetsWorkspaceObjectRequired": "Select a workspace object for workspace import.",
+          "connectGoogleSheetsRowRangeInvalid": "Last data row cannot be before the first data row.",
+          "connectGoogleSheetsRowMode": "Rows to import",
+          "connectGoogleSheetsRowModeRange": "All rows between first and last (fields above)",
+          "connectGoogleSheetsRowModeSelected": "Only selected rows (after preview)",
+          "connectGoogleSheetsRowModeHint": "Load preview, then tick rows. Rows outside the preview window are not listed—widen first/last row and refresh preview.",
+          "connectGoogleSheetsPreviewLoad": "Load sheet preview",
+          "connectGoogleSheetsPreviewLoading": "Loading…",
+          "connectGoogleSheetsPreviewRangeHint": "Showing rows {{from}}–{{to}} (preview limit; full import uses your selection or range).",
+          "connectGoogleSheetsPreviewColRow": "Row #",
+          "connectGoogleSheetsSelectAllRows": "Select all in preview",
+          "connectGoogleSheetsClearRows": "Clear selection",
+          "connectGoogleSheetsNoRowsSelected": "Pick “selected rows” and tick at least one row, or switch back to range mode.",
+          "connectGoogleSheetsPreviewReadonlyHint": "Read-only preview; import uses the row range above. Switch to “selected rows” to tick rows.",
+          "connectSubmit": "Save and verify",
+          "connectCancel": "Cancel",
+          "lastSync": "Last sync",
+          "never": "—",
+          "emptyConnections": "No saved connections",
+          "loadError": "Could not load integrations",
+          "marketingLinkedTitle": "Already connected in Marketing",
+          "marketingLinkedHintGoogle": "You can pick the same credentials in the “Google Ads” scenario step — no need to duplicate tokens here.",
+          "marketingLinkedHintMeta": "The same access token can be used in the “Meta Ads” step.",
+          "nextStepLabel": "After connecting:",
+          "nextStepCreateLink": "Create scenario →",
+          "viaConnector": "Connector: {{name}}",
+          "webhookUrlDetails": "Technical details"
+        },
+        "usage": {
+          "title": "Automation usage",
+          "subtitle": "Summary for the selected period: runs, successes, errors, and trigger distribution.",
+          "period": "Period, days",
+          "runsTotal": "Total runs",
+          "runsSuccess": "Successful",
+          "runsError": "With errors",
+          "automations": "Scenarios in CRM",
+          "activeAutomations": "Active",
+          "topTitle": "Most frequent runs",
+          "triggersTitle": "By event type",
+          "empty": "No data for this period — create and enable scenarios or wait for the schedule."
+        },
+        "copySuffix": "(copy)",
+        "titleLeads": "Lead automations",
+        "titleProjects": "Project automations",
+        "titleSales": "Sales automations",
+        "actions": {
+          "duplicate": "Duplicate",
+          "archive": "Archive",
+          "sendNow": "Run now",
+          "sendNowRunning": "Running…",
+          "sendNowOk": "Scenario completed",
+          "sendNowFail": "Run failed"
+        },
+        "runModal": {
+          "title": "Run scenario",
+          "hint": "Pick a data window for report steps (e.g. “Send report”). Other actions run as configured.",
+          "presetLabel": "Data window",
+          "presets": {
+            "last7": "Last 7 days",
+            "last30": "Last 30 days",
+            "thisMonth": "Month to date",
+            "yesterday": "Yesterday",
+            "custom": "Custom range"
+          },
+          "dateFrom": "From",
+          "dateTo": "To",
+          "rangePreview": "Report will cover: {{from}} — {{to}} (UTC, calendar days).",
+          "submit": "Run",
+          "cancel": "Cancel",
+          "close": "Close",
+          "success": "Done — check email or run history.",
+          "customDatesRequired": "Enter both from and to dates for a custom range."
+        },
+        "filters": {
+          "all": "All",
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "tabs": {
+          "automations": "Automations",
+          "history": "Run history",
+          "integrations": "Integrations",
+          "usage": "Usage"
+        }
+      },
+      "form": {
+        "titleNew": "Create automation",
+        "titleEdit": "Edit automation",
+        "subtitle": "Configure an IF/THEN rule to automate processes",
+        "sections": {
+          "basic": "Basic information",
+          "actions": "Actions (THEN)"
+        },
+        "fields": {
+          "name": "Name *",
+          "description": "Description",
+          "trigger": "Trigger (event) *",
+          "actionType": "Action type",
+          "conditions": "Conditions",
+          "active": "Active"
+        },
+        "hints": {
+          "activeOnly": "The automation runs only when it is enabled.",
+          "actionsDesc": "What to run when the trigger fires"
+        },
+        "builder": {
+          "scope": "Scope",
+          "ifTitle": "IF: When",
+          "thenTitle": "THEN: Do",
+          "previewTitle": "Scenario preview",
+          "templatesTitle": "Quick start by entity",
+          "step": "Step",
+          "expand": "Expand",
+          "collapse": "Collapse",
+          "noActions": "No actions yet",
+          "noConfig": "No extra parameters",
+          "templates": {
+            "leads": "New lead -> email and note",
+            "projects": "New project -> note and status",
+            "sales": "New sale -> report and note"
+          }
+        },
+        "triggerGroups": {
+          "contacts": "Contacts",
+          "companies": "Companies",
+          "leads": "Leads",
+          "sales": "Sales",
+          "projects": "Projects",
+          "tasks": "Tasks",
+          "reports": "Reports",
+          "email": "Email",
+          "telegram": "Telegram",
+          "notes": "Notes",
+          "customObjects": "Custom tables"
+        },
+        "triggers": {
+          "LEAD_CREATED": "Lead created",
+          "LEAD_UPDATED": "Lead updated",
+          "LEAD_ASSIGNED": "Lead assigned to owner",
+          "LEAD_STATUS_CHANGED": "Lead status changed",
+          "CONTACT_CREATED": "Contact created",
+          "CONTACT_UPDATED": "Contact updated",
+          "COMPANY_CREATED": "Company created",
+          "COMPANY_UPDATED": "Company updated",
+          "SALE_CREATED": "Sale created",
+          "SALE_UPDATED": "Sale updated",
+          "SALE_STATUS_CHANGED": "Sale status changed",
+          "PROJECT_CREATED": "Project created",
+          "PROJECT_STATUS_CHANGED": "Project status changed",
+          "TASK_CREATED": "Task created",
+          "TASK_UPDATED": "Task updated",
+          "TASK_STATUS_CHANGED": "Task status changed",
+          "REPORT_SCHEDULED": "Scheduled report",
+          "SCHEDULED": "Scheduled actions",
+          "SCHEDULED_ACTIONS_HINT": "Add steps below: for example “Google Ads API request” (marketing integration), then “Send step data” — JSON/XLSX/PDF to email or Telegram. Schedule: frequency and time in the block above.",
+          "EMAIL_SENT": "Email sent",
+          "EMAIL_RECEIVED": "Email received",
+          "TELEGRAM_MESSAGE_RECEIVED": "Telegram message received",
+          "NOTE_CREATED": "Note created",
+          "CUSTOM_OBJECT_RECORD_CREATED": "Record created (custom object)",
+          "CUSTOM_OBJECT_RECORD_UPDATED": "Record updated (custom object)",
+          "CUSTOM_OBJECT_STATUS_CHANGED": "Record status changed (custom object)"
+        },
+        "report": {
+          "type": "Report type",
+          "types": {
+            "sales": "Sales",
+            "leads": "Leads",
+            "projects": "Projects",
+            "tasks": "Tasks",
+            "marketing": "Marketing (traffic and ads)"
+          },
+          "marketingHint": "Data from the CRM marketing traffic table: Google Ads, Meta, Yandex.Metrica, GA4 syncs and imports. If integrations are not set up or never ran, the report may have few or no rows.",
+          "dataRangeTitle": "Report data period (optional)",
+          "dataRangeHint": "If empty, the period is derived from “Frequency” (window back from today). Dates are calendar days in UTC. For manual “Run now”, the period is set in a separate dialog.",
+          "dataRangeFrom": "From date",
+          "dataRangeTo": "To date",
+          "channel": "Send channel",
+          "channels": {
+            "email": "Email",
+            "telegram": "Telegram"
+          },
+          "frequency": "Frequency",
+          "frequencies": {
+            "daily": "Daily",
+            "weekly": "Weekly",
+            "monthly": "Monthly",
+            "quarterly": "Quarterly"
+          },
+          "time": "Time",
+          "dayOfWeek": "Day of week",
+          "weekdays": {
+            "mon": "Monday",
+            "tue": "Tuesday",
+            "wed": "Wednesday",
+            "thu": "Thursday",
+            "fri": "Friday",
+            "sat": "Saturday",
+            "sun": "Sunday"
+          },
+          "dayOfMonth": "Day of month",
+          "timezone": "Time zone",
+          "emails": "Email recipients",
+          "subject": "Email subject",
+          "currencyMode": "Currency mode",
+          "currencyNative": "Selected only",
+          "currencyConverted": "Convert",
+          "displayCurrency": "Display currency",
+          "dateField": "Date",
+          "dateSale": "Sale date",
+          "dateCreated": "Created date",
+          "rateFor": "Rate for {{currency}}"
+        },
+        "dataExport": {
+          "intro": "Takes the previous step result (e.g. Google Ads / Meta response from marketing), builds files, and sends them.",
+          "channel": "Delivery channel",
+          "channelEmail": "Email",
+          "channelTelegram": "Telegram",
+          "fromPath": "Data path (optional)",
+          "fromPathHint": "Empty — full response from the previous step. Example: lastActionResult.data",
+          "unwrap": "Use nested data field (Google Ads / Meta response)",
+          "formats": "Attachment formats",
+          "formatJson": "JSON",
+          "formatXlsx": "Excel (XLSX)",
+          "formatPdf": "PDF (JSON text)",
+          "subject": "Email subject",
+          "to": "Email recipients (comma-separated)",
+          "botId": "Bot UUID (Telegram CRM)",
+          "telegramUserId": "Telegram User ID",
+          "telegramFilesHint": "In Telegram each file is sent as a separate message; the chat with the bot must already exist (as for “Send report”)."
+        },
+        "actions": {
+          "save": "Save",
+          "saving": "Saving…",
+          "cancel": "Cancel",
+          "create": "Create",
+          "addCondition": "Add condition",
+          "addAction": "Add action",
+          "action": "Action",
+          "removeAction": "Delete"
+        },
+        "emailAction": {
+          "account": "Email account *",
+          "to": "Recipient",
+          "toPlaceholder": "email@example.com or leave empty to use the lead’s email",
+          "subject": "Subject",
+          "body": "Text",
+          "template": "Email template",
+          "noTemplate": "Do not use template (enter manually)",
+          "bodyPlaceholder": "Email body. Variables: {{lead.name}}, {{lead.email}}, {{lead.phone}}, {{lead.status}}, {{contact.email}}, {{contact.fullName}}",
+          "noAccounts": "No accounts",
+          "add": "Add",
+          "addAccount": "Add account",
+          "selectAccount": "Select an email account",
+          "loadingAccounts": "Loading accounts…",
+          "noTemplates": "No templates",
+          "create": "Create",
+          "loadingTemplates": "Loading templates…",
+          "templateHint": "Pick a template to use subject and body from it, or leave empty for manual entry.",
+          "templateUsed": "Template in use",
+          "templateUsedHint": "Subject and body will be taken from the template with variables from the trigger"
+        },
+        "webhookAction": {
+          "url": "URL *",
+          "method": "Method",
+          "headers": "Headers (JSON)",
+          "body": "Request body (JSON)"
+        },
+        "telegramAction": {
+          "botId": "Bot ID",
+          "userId": "Telegram User ID",
+          "text": "Message text"
+        },
+        "slackAction": {
+          "intro": "Post to a channel via Slack Incoming Webhook. First add a Slack connection (Automations → Integrations → Connect), then select it here or paste the URL manually.",
+          "connection": "Slack connection from CRM",
+          "noConnections": "No saved Slack connection.",
+          "openIntegrations": "Open integrations",
+          "pickConnection": "— select a connection —",
+          "webhookOverride": "Or webhook URL manually",
+          "webhookOverrideHint": "If set, it overrides the selected connection. Must be https://hooks.slack.com/services/…",
+          "text": "Message text",
+          "textPlaceholder": "New lead: {{lead.name}} · {{lead.email}}"
+        },
+        "teamsAction": {
+          "intro": "Card in Microsoft Teams via Office 365 Incoming Webhook (Connector).",
+          "connection": "Teams connection from CRM",
+          "noConnections": "No Teams connection.",
+          "pickConnection": "— select a connection —",
+          "webhookOverride": "Or webhook URL manually",
+          "title": "Card title",
+          "text": "Text (Markdown supported in Teams)"
+        },
+        "mailchimpAction": {
+          "intro": "Adds or updates a subscriber in the selected Mailchimp audience (Marketing API). Email comes from the trigger (lead/contact) or from the field below.",
+          "connection": "Mailchimp connection from CRM",
+          "noConnections": "No Mailchimp connection.",
+          "pickConnection": "— select a connection —",
+          "listId": "Audience ID (List ID)",
+          "listIdHint": "In Mailchimp: Audience → Settings → Audience name and defaults — the Audience ID field.",
+          "email": "Email (optional)",
+          "emailHint": "Empty — from the lead or contact in the trigger ({{lead.email}}). You can use a template: {{lead.email}}",
+          "mergeFields": "Merge fields (JSON, optional)",
+          "mergeFieldsHint": "Mailchimp merge fields object, e.g. {\"FNAME\":\"{{lead.name}}\"}. Keys must match your audience. Numbers and booleans from JSON are coerced to strings for the Mailchimp API.",
+          "subscriptionStatus": "Subscription status",
+          "subscriptionSubscribed": "Subscribed",
+          "subscriptionPending": "Awaiting confirmation (pending, double opt-in)",
+          "subscriptionStatusHint": "“Pending” makes sense if double opt-in is enabled for the audience in Mailchimp; otherwise prefer “Subscribed”."
+        },
+        "mailchimpCampaignAction": {
+          "intro": "Creates a regular Mailchimp campaign for the whole selected audience, injects HTML, and sends immediately. Good for broadcasts on a CRM event (e.g. new product row) or on a schedule. One step = one send per scenario run.",
+          "connection": "Mailchimp connection from CRM",
+          "noConnections": "No Mailchimp connection.",
+          "pickConnection": "— select a connection —",
+          "listId": "Audience ID (List ID)",
+          "listIdHint": "Same audience as in Mailchimp. The audience must have subscribers; reply-to domain is verified in Mailchimp.",
+          "subject": "Email subject *",
+          "subjectHint": "Variables are supported, e.g. {{lead.name}}.",
+          "fromName": "From name",
+          "fromNameHint": "How “From” appears in email. Default: Lumiva CRM.",
+          "replyTo": "Reply-To (email) *",
+          "replyToHint": "Must be an address on a domain verified in Mailchimp (Website / Domains), otherwise the API returns an error.",
+          "campaignTitle": "Internal campaign name",
+          "campaignTitleHint": "Visible only in Mailchimp; defaults to subject. Max 100 characters.",
+          "htmlBody": "Email HTML *",
+          "htmlBodyHint": "Full email for the entire audience. You can copy from Emails / marketing templates.",
+          "textBody": "Plain text version (recommended)",
+          "textBodyHint": "Plain text for clients without HTML; reduces spam likelihood."
+        },
+        "zapierAction": {
+          "intro": "Send JSON to Zapier Catch Hook (or a Make equivalent via webhook).",
+          "connection": "Zapier connection from CRM",
+          "noConnections": "No Zapier connection.",
+          "pickConnection": "— select a connection —",
+          "hookOverride": "Or Catch Hook URL manually (hooks.zapier.com)",
+          "text": "Text (if custom JSON below is not set)",
+          "textHint": "If the JSON field is empty, Zapier receives an object with source, text, triggerEvent, at.",
+          "jsonPayload": "Custom JSON body (optional)"
+        },
+        "bitrixAction": {
+          "intro": "Calls a Bitrix24 REST method via an inbound webhook. Permissions follow the webhook rights on the portal.",
+          "connection": "Bitrix24 connection from CRM",
+          "noConnections": "No Bitrix24 connection.",
+          "pickConnection": "— select a connection —",
+          "webhookOverride": "Or webhook base URL manually",
+          "webhookOverrideHint": "Must contain /rest/ and end with a slash (or it will be appended on the server).",
+          "method": "REST method",
+          "methodPlaceholder": "crm.lead.add",
+          "paramsJson": "Request body (JSON object)",
+          "paramsJsonHint": "For crm.lead.add usually {\"fields\":{\"TITLE\":\"…\",\"NAME\":\"…\"}}. Empty — {}. Placeholders like {{lead.name}} are supported."
+        },
+        "amocrmAction": {
+          "intro": "Request to amoCRM API v4 (Bearer). Set path and JSON body if needed; GET sends no body.",
+          "connection": "amoCRM connection from CRM",
+          "noConnections": "No amoCRM connection.",
+          "pickConnection": "— select a connection —",
+          "baseUrlOverride": "Account base URL (override)",
+          "baseUrlOverrideHint": "For example https://company.amocrm.ru — as in the connection.",
+          "accessToken": "Access token (override)",
+          "httpMethod": "HTTP method",
+          "apiPath": "API path",
+          "apiPathPlaceholder": "/api/v4/leads",
+          "paramsJson": "Request body (JSON)",
+          "paramsJsonHint": "For POST /api/v4/leads usually an array of deals. Placeholders: {{lead.name}}. For GET leave empty."
+        },
+        "hubspotAction": {
+          "intro": "Request to HubSpot CRM API (Bearer). Default host https://api.hubapi.com; for EU set override.",
+          "connection": "HubSpot connection from CRM",
+          "noConnections": "No HubSpot connection.",
+          "pickConnection": "— select a connection —",
+          "apiHostOverride": "API host (override)",
+          "apiHostOverrideHint": "Empty — from the connection or api.hubapi.com. Example: https://api-eu1.hubapi.com",
+          "accessToken": "Access token (override)",
+          "httpMethod": "HTTP method",
+          "apiPath": "API path",
+          "apiPathPlaceholder": "/crm/v3/objects/contacts",
+          "paramsJson": "Request body (JSON)",
+          "paramsJsonHint": "For contact creation — a properties object. Placeholders {{lead.email}}. GET does not use a body."
+        },
+        "googleAdsAction": {
+          "intro": "Arbitrary Google Ads API request: method, path, and JSON body (GAQL, etc.). For integrations and non-standard flows. Typical “CRM report” users do not need this step — see the block below.",
+          "forClientTitle": "Need just a weekly report?",
+          "forClientBody": "This is not a report wizard: here you configure a direct ads API call. For a ready-made CRM report (sales, leads, tasks…) to email or Telegram without paths and JSON — use “Send report”.",
+          "switchToSendReport": "Replace this step with “Send report”",
+          "marketingIntegration": "Marketing integration (recommended)",
+          "pickMarketingIntegration": "— do not use marketing connection —",
+          "marketingIntegrationHint": "The CRM exchanges refresh token for access token when the step runs (as for report sync). Override fields below take priority if filled.",
+          "noMarketingIntegrations": "No active Google Ads integration in Marketing.",
+          "connection": "Google Ads connection from CRM (optional)",
+          "usingMarketingCredentials": "A marketing integration is selected — developer token, OAuth, and Customer ID are pulled when the step runs. You do not need to re-enter them here; fields below are overrides only.",
+          "crmConnectionOptionalAbsent": "There is no separate Google Ads connection under Automations → Integrations — not required for this step if a marketing integration is selected above.",
+          "noConnections": "No Google Ads connection under Automations → Integrations. Needed only if you do not use the marketing integration above.",
+          "pickConnection": "— select a connection —",
+          "developerToken": "Developer token (override)",
+          "developerTokenHint": "If a connection with developer token is selected, you can leave the field empty.",
+          "accessToken": "OAuth access token (override)",
+          "customerId": "Customer ID (override, digits only)",
+          "customerIdHint": "Inserted into the path as {{customerId}}. If Customer ID is set in “Webhook URL” on the connection, it is picked up automatically.",
+          "httpMethod": "HTTP method",
+          "apiPath": "API path",
+          "apiPathPlaceholder": "/customers/{{customerId}}/googleAds:searchStream",
+          "paramsJson": "Request body (JSON)",
+          "paramsJsonHint": "For POST/PATCH/PUT — Google Ads API body. Placeholders {{lead.name}}, etc. Not sent for GET."
+        },
+        "metaAdsAction": {
+          "intro": "Arbitrary Meta Marketing API (Graph) request: path, method, body if needed. For integrations. For a typical scheduled CRM report use “Send report” — see the block below.",
+          "forClientTitle": "Need just a weekly report?",
+          "forClientBody": "This step is for direct Graph API calls. A ready CRM report to email or Telegram is configured with “Send report” (report type, channel, schedule).",
+          "switchToSendReport": "Replace this step with “Send report”",
+          "marketingIntegration": "Marketing integration (recommended)",
+          "pickMarketingIntegration": "— do not use marketing connection —",
+          "marketingIntegrationHint": "Access token is taken from the marketing integration settings. The override field below takes priority.",
+          "noMarketingIntegrations": "No active Meta Ads integration in Marketing.",
+          "connection": "Meta Ads connection from CRM (optional)",
+          "usingMarketingCredentials": "A marketing integration is selected — the access token comes from there. No need to duplicate; use override below only if needed.",
+          "crmConnectionOptionalAbsent": "There is no separate Meta connection under Automations → Integrations — optional when a marketing integration is selected.",
+          "noConnections": "No Meta Ads connection under Automations → Integrations. Needed only if you do not use the marketing integration above.",
+          "pickConnection": "— select a connection —",
+          "accessToken": "Access token (override)",
+          "httpMethod": "HTTP method",
+          "apiPath": "Graph path (relative to /v…/)",
+          "apiPathPlaceholder": "me/adaccounts?fields=id,name",
+          "paramsJson": "Request body (JSON)",
+          "paramsJsonHint": "For POST/PATCH/PUT — JSON body. Not used for GET. Placeholders {{lead.name}}, etc."
+        },
+        "whatsappAction": {
+          "intro": "WhatsApp Cloud API: text message type. The connection must include Phone number ID and token from Meta.",
+          "connection": "WhatsApp connection from CRM",
+          "noConnections": "No WhatsApp connection.",
+          "pickConnection": "— select a connection —",
+          "phoneNumberId": "Phone number ID (if not from connection)",
+          "accessToken": "Temporary token override",
+          "to": "Recipient number",
+          "toHint": "If empty, the lead/contact phone from the trigger is used. Digits with country code.",
+          "text": "Message text"
+        },
+        "googleCalendarAction": {
+          "intro": "Creates a calendar event via Google Calendar API. The connection holds an OAuth access token with calendar scope; set calendar ID if needed (default primary).",
+          "connection": "Google Calendar connection from CRM",
+          "noConnections": "No Google Calendar connection.",
+          "pickConnection": "— select a connection —",
+          "accessToken": "Override access token (no connection)",
+          "calendarId": "Calendar ID (override)",
+          "calendarIdHint": "Empty — from the connection or primary.",
+          "summary": "Event title",
+          "summaryPlaceholder": "Lead: {{lead.name}}",
+          "description": "Description (optional)",
+          "durationMinutes": "Duration, min",
+          "startOffsetMinutes": "Start offset from trigger time, min",
+          "timeZone": "Time zone (IANA)",
+          "timeZoneHint": "For example UTC or Europe/Moscow — for start/end fields in the API."
+        },
+        "outlookCalendarAction": {
+          "intro": "Creates an event via Microsoft Graph (user calendar). Start and end are sent in UTC. Token must have calendar permissions.",
+          "connection": "Microsoft 365 / Outlook connection from CRM",
+          "noConnections": "No Outlook connection.",
+          "pickConnection": "— select a connection —",
+          "accessToken": "Override access token (no connection)",
+          "calendarId": "Graph calendar ID (override)",
+          "calendarIdHint": "Empty — default calendar or value from the connection.",
+          "summary": "Event subject",
+          "summaryPlaceholder": "Lead: {{lead.name}}",
+          "description": "Event text (optional)",
+          "durationMinutes": "Duration, min",
+          "startOffsetMinutes": "Start offset from trigger time, min",
+          "timeZoneHint": "The event interval in Graph is set in UTC (correct instant in the user’s calendar)."
+        },
+        "noteAction": {
+          "content": "Note content"
+        },
+        "taskAction": {
+          "companyId": "Company ID (if not from lead)",
+          "title": "Task title",
+          "description": "Description",
+          "status": "Status",
+          "priority": "Priority (number)",
+          "dueDate": "Due date",
+          "assignee": "Owner (user id)",
+          "hint": "For leads with a company, the company UUID is filled automatically."
+        },
+        "statusAction": {
+          "status": "New status *"
+        },
+        "fieldAction": {
+          "field": "Field name *",
+          "value": "Value *"
+        },
+        "tagAction": {
+          "tag": "Tag *"
+        },
+        "actionTypes": {
+          "trigger_webhook": "Call webhook",
+          "send_email": "Send Email",
+          "send_telegram": "Send Telegram",
+          "send_slack": "Send to Slack",
+          "send_teams": "Send to Microsoft Teams",
+          "send_mailchimp": "Mailchimp / audience",
+          "send_mailchimp_campaign": "Mailchimp / audience broadcast",
+          "send_zapier": "Send to Zapier (Catch Hook)",
+          "send_whatsapp": "Send to WhatsApp",
+          "send_google_calendar": "Google Calendar event",
+          "send_outlook_calendar": "Outlook event (Microsoft 365)",
+          "send_bitrix": "Bitrix24 call (REST)",
+          "send_amocrm": "amoCRM request (API v4)",
+          "send_hubspot": "HubSpot request (CRM API)",
+          "send_google_ads": "Google Ads API request",
+          "send_meta_ads": "Meta Ads request (Graph)",
+          "send_report": "Send report",
+          "send_data_export": "Send step data (JSON / Excel / PDF)",
+          "create_task": "Create company task",
+          "create_note": "Create note",
+          "update_field": "Update field",
+          "add_tag": "Add tag",
+          "change_status": "Change status"
+        },
+        "openMarketingIntegrationsPage": "Marketing · integrations",
+        "errors": {
+          "saveFailed": "Save failed",
+          "loadFailed": "Failed to load automation"
+        },
+        "success": {
+          "saved": "Automation saved."
+        }
+      },
+      "integrationsCatalog": {
+        "items": {
+          "webhooks": {
+            "name": "Outbound webhook",
+            "description": "The CRM sends an HTTPS request to your system URL on an event — configured in the scenario step.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "email": {
+            "name": "Corporate email",
+            "description": "Scenario and report emails via connected IMAP/SMTP accounts.",
+            "linkLabel": "Email",
+            "nextStep": ""
+          },
+          "telegram": {
+            "name": "Telegram",
+            "description": "Notifications and reports to Telegram from scenarios.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "woocommerce": {
+            "name": "WooCommerce",
+            "description": "Orders and payments — import and link to CRM sales.",
+            "linkLabel": "Sales · integrations",
+            "nextStep": ""
+          },
+          "marketing_api": {
+            "name": "Marketing API",
+            "description": "Traffic and ad data import via API into Marketing.",
+            "linkLabel": "Marketing · integrations",
+            "nextStep": ""
+          },
+          "ms_teams": {
+            "name": "Microsoft Teams",
+            "description": "Channel cards in Teams via Incoming Webhook — paste the connector URL once.",
+            "linkLabel": "This page",
+            "nextStep": ""
+          },
+          "slack": {
+            "name": "Slack",
+            "description": "Channel messages via Incoming Webhook. Slash commands and Slack lead capture are separate work.",
+            "linkLabel": "",
+            "nextStep": "Scenario → “Send to Slack” → pick this connection."
+          },
+          "google_calendar": {
+            "name": "Google Calendar",
+            "description": "Events in Google Calendar aligned with the CRM calendar: scenarios tie leads, tasks, and projects to dates.",
+            "linkLabel": "",
+            "nextStep": "Scenario → “Google Calendar event” → connection and fields."
+          },
+          "outlook": {
+            "name": "Microsoft 365 / Outlook",
+            "description": "Events in Microsoft 365 alongside CRM tasks and meetings.",
+            "linkLabel": "",
+            "nextStep": "Scenario → “Outlook (Microsoft 365) event”."
+          },
+          "whatsapp": {
+            "name": "WhatsApp Business",
+            "description": "Outbound messages from scenarios and inbound Meta events on the lead card. Use data from your Meta account.",
+            "linkLabel": "",
+            "nextStep": "Connect → copy Callback URL to Meta → “WhatsApp” step in scenarios. Inbound → lead notes."
+          },
+          "mailchimp": {
+            "name": "Mailchimp",
+            "description": "Audiences and campaigns: Mailchimp API key; “audience” and “campaign” actions in scenarios.",
+            "linkLabel": "",
+            "nextStep": "Scenario → Mailchimp audience or campaign → connection and Audience ID."
+          },
+          "bitrix": {
+            "name": "Bitrix24",
+            "description": "REST calls via inbound webhook URL from a scenario. Full deal mirror is not implied — only what your steps do.",
+            "linkLabel": "",
+            "nextStep": "Scenario → “Bitrix24 (REST)” → method and params."
+          },
+          "amocrm": {
+            "name": "amoCRM",
+            "description": "API v4 calls and inbound webhooks for deals and contacts into CRM leads and notes.",
+            "linkLabel": "",
+            "nextStep": "Connect → webhook URL in amoMarket; scenario → “amoCRM (API v4)”."
+          },
+          "hubspot": {
+            "name": "HubSpot",
+            "description": "HubSpot CRM API calls from a scenario. No full contact mirror — only your steps.",
+            "linkLabel": "",
+            "nextStep": "Scenario → “HubSpot (CRM API)”."
+          },
+          "zapier": {
+            "name": "Zapier / Make",
+            "description": "Send JSON to a Catch Hook; logic continues in Zapier or Make.",
+            "linkLabel": "",
+            "nextStep": "Scenario → “Zapier / Catch Hook”."
+          },
+          "google_ads": {
+            "name": "Google Ads",
+            "description": "Google Ads API calls from scenarios. Spend reports also via Marketing connections.",
+            "linkLabel": "Marketing · integrations",
+            "nextStep": "Scenario → “Google Ads API”; link Marketing to avoid duplicate tokens."
+          },
+          "google_analytics": {
+            "name": "Google Analytics 4",
+            "description": "GA4 events and reports in Marketing: Google sign-in, traffic sync, and reporting currency.",
+            "linkLabel": "Marketing · integrations",
+            "nextStep": "Integrations → Marketing: enter your Property ID and currency, sign in with Google; manage sync on the Marketing tab."
+          },
+          "meta_ads": {
+            "name": "Meta Ads",
+            "description": "Marketing API calls from scenarios. Account summaries in Marketing.",
+            "linkLabel": "Marketing · integrations",
+            "nextStep": "Scenario → “Meta Ads (Graph)”; token can come from Marketing."
+          },
+          "1c": {
+            "name": "1C:Enterprise",
+            "description": "Store credentials for future scenarios. No native “1C” step yet.",
+            "linkLabel": "",
+            "nextStep": "For now: “Call webhook” to your 1C HTTP bridge. Native step planned."
+          },
+          "sap": {
+            "name": "SAP / ERP",
+            "description": "Store token/URL for future scenarios. No native SAP step yet.",
+            "linkLabel": "",
+            "nextStep": "For now: “Call webhook” to SAP API Gateway / CPI."
+          },
+          "jira": {
+            "name": "Jira / Linear",
+            "description": "Store API token; no dedicated Jira step in the builder yet.",
+            "linkLabel": "",
+            "nextStep": "For now: “Call webhook” to Jira Cloud REST."
+          },
+          "openai": {
+            "name": "OpenAI / LLM",
+            "description": "Store API key; no dedicated OpenAI step yet — use “Call webhook”.",
+            "linkLabel": "",
+            "nextStep": "Scenario → “Call webhook” to the provider API with Authorization header."
+          },
+          "wordpress_cf7": {
+            "name": "WordPress + Contact Form 7",
+            "description": "Site form submissions into CRM leads via POST to your connection webhook URL (CF7 and similar).",
+            "linkLabel": "",
+            "nextStep": "Create a connection, copy the URL from the card, paste it into your form plugin (e.g. “CF7 to Webhook”). Optionally set a secret here and the same ?secret= on the URL."
+          },
+          "lumiva_client_cabinet": {
+            "name": "Client Cabinet Pro (WordPress)",
+            "description": "Client area on the site via Lumiva Wizard: enabling this connection turns on the clientcabinet module for your tenant API (same token on the site).",
+            "linkLabel": "",
+            "nextStep": "Create the connection and keep it enabled; turn it off here to hide the module from the Wizard / public modules API."
+          },
+          "lumiva_online_chat": {
+            "name": "Lumiva online chat (WordPress)",
+            "description": "Chat widget: enabling turns on the chat module for your tenant API.",
+            "linkLabel": "",
+            "nextStep": "Create the connection; disabling it turns the module off for Lumiva Wizard on the site."
+          },
+          "google_sheets": {
+            "name": "Google Sheets",
+            "description": "Import sheet rows into leads and workspace objects: column mapping and row selection or range.",
+            "linkLabel": "",
+            "nextStep": "Create a connection: spreadsheet ID, tab, access token; for workspace pick the object and column map (sheet preview)."
+          }
+        }
+      },
+      "labels": {
+        "actions": {
+          "assign_task": "Assign task",
+          "assign_user": "Assign user",
+          "send_notification": "Notification",
+          "remove_tag": "Remove tag"
+        }
+      }
+    }
+  }
+}
