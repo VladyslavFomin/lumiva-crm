@@ -1,0 +1,44 @@
+# GitHub loads workflows only from the repository root: .github/workflows/
+
+name: Deploy PL1 Panel
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "pl1.lumiva-ui/**"
+      - "admin-ui/**"
+      - ".github/workflows/deploy-pl1.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.PL1_HOST }}
+          username: ${{ secrets.PL1_USER }}
+          key: ${{ secrets.PL1_SSH_KEY }}
+          port: 22
+          script: |
+            set -e
+
+            echo "==> Переходим в проект PL1"
+            cd ${{ secrets.PL1_PROJECT_PATH }}
+
+            echo "==> Обновляем код из Git"
+            git pull origin main || git pull origin master
+
+            echo "==> Ставим зависимости и собираем"
+            npm ci
+            npm run build
+
+            echo "==> PL1 панель обновлена"
