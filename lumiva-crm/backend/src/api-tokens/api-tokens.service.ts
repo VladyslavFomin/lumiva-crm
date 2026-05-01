@@ -169,11 +169,30 @@ export class ApiTokensService {
 
     return token;
   }
-    async findTenantByToken(rawToken: string): Promise<Tenant | null> {
+
+  async findTenantByToken(rawToken: string): Promise<Tenant | null> {
     const tok = await this.findActiveByToken(String(rawToken || '').trim());
     if (!tok?.tenantId) return null;
 
     const tenant = await this.tenantRepo.findOne({ where: { id: tok.tenantId } });
     return tenant || null;
+  }
+
+  /**
+   * Отображение токена в UI: звёздочки + последние 5 символов (полное значение только после ввода пароля).
+   */
+  maskMarketingTokenDisplay(rawToken: string): { preview: string; suffix: string } {
+    const t = String(rawToken || '').trim();
+    if (!t) {
+      return { preview: '—', suffix: '' };
+    }
+    if (t.length <= 5) {
+      const pad = '*'.repeat(8);
+      return { preview: `${pad}${t}`, suffix: t };
+    }
+    const suffix = t.slice(-5);
+    const starCount = Math.min(36, Math.max(12, t.length - 5));
+    const preview = '*'.repeat(starCount) + suffix;
+    return { preview, suffix };
   }
 }

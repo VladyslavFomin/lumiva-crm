@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import './ProjectsListPage.css';
 import { MainLayout } from '../../layout/MainLayout';
 import type { Project, ProjectStatus } from './projectTypes';
 import {
@@ -16,13 +17,28 @@ import {
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { ProjectsViewsBar } from './ProjectsViewsBar';
-import { type ProjectsViewSettings } from './projectsViewsStore';
+import {
+  filterProjectsForCustomView,
+  loadProjectsViewsState,
+  type ProjectsViewSettings,
+} from './projectsViewsStore';
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
   if (lang.startsWith('en')) return 'en-US';
   return 'ru-RU';
 }
+
+/** Цвет левой границы карточки по колонке (как в канбане лидов). */
+const PROJECT_STATUS_ACCENT: Record<ProjectStatus, string> = {
+  Новый: '#3b82f6',
+  'В работе': '#22c55e',
+  'На проверке': '#f59e0b',
+  Заморожен: '#64748b',
+  Закрыт: '#6b7280',
+  Выиграно: '#10b981',
+  Проиграно: '#ef4444',
+};
 
 export const ProjectsBoardPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -45,16 +61,26 @@ export const ProjectsBoardPage: React.FC = () => {
   const [activeViewSettings, setActiveViewSettings] = useState<ProjectsViewSettings>({
     kanbanCardFields: ['amount', 'created', 'progress', 'tags'],
   });
-  const suggestedKeys = useMemo(() => {
-    const keys = new Set<string>();
-    projects.forEach((p) => {
-      Object.keys(p.customFields ?? {}).forEach((key) => keys.add(key));
-    });
-    return Array.from(keys);
-  }, [projects]);
 
   const navigate = useNavigate();
   const activeViewId = searchParams.get('view');
+  const activeCustomView = useMemo(() => {
+    if (!activeViewId) return null;
+    return loadProjectsViewsState().customViews.find((v) => v.id === activeViewId) ?? null;
+  }, [activeViewId]);
+
+  const visibleProjects = useMemo(
+    () => filterProjectsForCustomView(projects, activeCustomView),
+    [projects, activeCustomView],
+  );
+
+  const suggestedKeys = useMemo(() => {
+    const keys = new Set<string>();
+    visibleProjects.forEach((p) => {
+      Object.keys(p.customFields ?? {}).forEach((key) => keys.add(key));
+    });
+    return Array.from(keys);
+  }, [visibleProjects]);
   const statusLabels = useMemo<Record<ProjectStatus, string>>(
     () => ({
       Новый: t('crm.projects.statuses.new'),
@@ -88,15 +114,18 @@ export const ProjectsBoardPage: React.FC = () => {
     });
   };
 
-  const createProject = () => navigate('/app/projects/new');
-  const openProject = (id: string) => navigate(`/app/projects/${id}`);
+  const createProject = () => {
+    const q = activeViewId ? `?view=${encodeURIComponent(activeViewId)}` : '';
+    navigate(`/projects/new${q}`);
+  };
+  const openProject = (id: string) => navigate(`/projects/${id}`);
   const openView = (type: 'table' | 'kanban' | 'calendar', viewId?: string) => {
     const basePath =
       type === 'table'
-        ? '/app/projects'
+        ? '/projects'
         : type === 'kanban'
-          ? '/app/projects/board'
-          : '/app/projects/calendar';
+          ? '/projects/board'
+          : '/projects/calendar';
     navigate(viewId ? `${basePath}?view=${viewId}` : basePath);
   };
 
@@ -199,7 +228,7 @@ export const ProjectsBoardPage: React.FC = () => {
   };
 
   const projectsByStatus = (status: ProjectStatus) =>
-    projects.filter((p) => p.status === status);
+    visibleProjects.filter((p) => p.status === status);
   const isDoneStatus = (status?: string | null) => {
     if (!status) return false;
     const normalized = status.toString().trim().toLowerCase();
@@ -244,11 +273,6 @@ export const ProjectsBoardPage: React.FC = () => {
     if (value.includes('выс')) return 'Высокий';
     if (value.includes('низ')) return 'Низкий';
     return 'Обычный';
-  };
-  const priorityAccentColor = (priority: 'Высокий' | 'Обычный' | 'Низкий') => {
-    if (priority === 'Высокий') return '#ef4444';
-    if (priority === 'Низкий') return '#22c55e';
-    return '#3b82f6';
   };
 
   const handleDragStart = (id: string) => {
@@ -334,30 +358,32 @@ export const ProjectsBoardPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-5">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+      <div
+        className="lv-pt w-full pb-8 min-w-0 space-y-5"
+        style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24, width: 'calc(100% + 48px)' }}
+      >
+        <div className="lv-pt-head">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {t('crm.projects.board.title')}
-            </h1>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.projects.board.subtitle')}
-            </div>
+            <h1>{t('crm.projects.board.title')}</h1>
+            <div className="sub">{t('crm.projects.board.subtitle')}</div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCustomFieldsOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100"
-            >
+          <div className="lv-pt-head-actions">
+            <button type="button" className="lv-tb-btn" onClick={() => setCustomFieldsOpen(true)}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                <path d="M1 4h14M1 8h14M1 12h14" />
+              </svg>
               {t('crm.projects.list.columns.label')}
             </button>
             <button
+              type="button"
               onClick={createProject}
-              className="px-3 py-1.5 text-xs rounded-xl bg-[#222222] text-white font-semibold hover:bg-black"
+              className="lv-tb-btn"
+              style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
             >
-              + {t('crm.projects.actions.newProject')}
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              {t('crm.projects.actions.newProject')}
             </button>
           </div>
         </div>
@@ -367,6 +393,7 @@ export const ProjectsBoardPage: React.FC = () => {
           activeViewId={activeViewId}
           onOpenView={openView}
           onSettingsChange={setActiveViewSettings}
+          projectCount={visibleProjects.length}
         />
 
         {error && (
@@ -385,6 +412,7 @@ export const ProjectsBoardPage: React.FC = () => {
           <div className="flex gap-3 overflow-x-auto pb-1">
             {statuses.map((col) => {
               const columnProjects = projectsByStatus(col.id);
+              const columnAccent = PROJECT_STATUS_ACCENT[col.id] ?? '#3b82f6';
               return (
                 <div
                   key={col.id}
@@ -406,7 +434,6 @@ export const ProjectsBoardPage: React.FC = () => {
                       const percent = progressValue(project);
                       const color = progressColor(percent);
                       const priority = projectPriority(project);
-                      const accentColor = priorityAccentColor(priority);
                       return (
                       <div
                         key={project.id}
@@ -417,7 +444,7 @@ export const ProjectsBoardPage: React.FC = () => {
                           'group relative cursor-move rounded-2xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-colors ' +
                           (changing === project.id ? 'opacity-60' : '')
                         }
-                        style={{ borderLeftWidth: 4, borderLeftColor: accentColor }}
+                        style={{ borderLeftWidth: 4, borderLeftColor: columnAccent }}
                       >
                         <div className="flex items-start justify-between mb-1 gap-2">
                           <div className="flex min-w-0 items-center gap-1.5">

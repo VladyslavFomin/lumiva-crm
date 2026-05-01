@@ -1,15 +1,37 @@
 // src/pages/projects/ClosedProjectsPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
-import { fetchProjects, updateProject } from '../../api/projects';
-import type { Project } from './projectTypes';
+import { fetchProjects } from '../../api/projects';
+import { type Project } from './projectTypes';
 import { useTranslation } from 'react-i18next';
 import {
   fetchCustomFields,
   type CustomField,
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
+import { WorkspaceCrmEntityMultiField } from '../../components/workspace/WorkspaceCrmEntityMultiField';
+import {
+  fetchLeadsList,
+  isLeadOmittedFromAnalytics,
+  type Lead,
+} from '../../api/leads';
+import { fetchCompanies, type Company } from '../../api/companies';
+import { fetchStaff, type StaffUser } from '../../api/staff';
+import { ProjectTableOwnerCell } from '../../components/projects/ProjectTableOwnerCell';
+import './ProjectsListPage.css';
+
+/** Бейдж статуса как `rounded-full` + палитра в таблице workspace (select/status). */
+const PROJECT_STATUS_PILL_CLASS: Record<string, string> = {
+  Новый: 'bg-slate-100 text-slate-700 border border-slate-200',
+  'В работе': 'bg-sky-100 text-sky-700 border border-sky-200',
+  'На проверке': 'bg-violet-100 text-violet-700 border border-violet-200',
+  Заморожен: 'bg-amber-100 text-amber-700 border border-amber-200',
+  Выиграно: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  Проиграно: 'bg-rose-100 text-rose-700 border border-rose-200',
+  Закрыт: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+};
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
@@ -27,13 +49,26 @@ export const ClosedProjectsPage: React.FC = () => {
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     startX: number;
     startWidth: number;
   } | null>(null);
+  const [crmLeads, setCrmLeads] = useState<Lead[]>([]);
+  const [crmCompanies, setCrmCompanies] = useState<Company[]>([]);
+  const [staff, setStaff] = useState<StaffUser[]>([]);
   const navigate = useNavigate();
+
+  const reloadCrmLists = useCallback(() => {
+    void fetchLeadsList()
+      .then((list) =>
+        setCrmLeads(list.filter((l) => !isLeadOmittedFromAnalytics(l))),
+      )
+      .catch(() => setCrmLeads([]));
+    void fetchCompanies({ limit: 500 })
+      .then((res) => setCrmCompanies(res.items ?? []))
+      .catch(() => setCrmCompanies([]));
+  }, []);
   const statusLabels = useMemo<Record<string, string>>(
     () => ({
       Новый: t('crm.projects.statuses.new'),
@@ -81,6 +116,8 @@ export const ClosedProjectsPage: React.FC = () => {
       { id: 'category', label: t('crm.projects.closed.table.headers.category') },
       { id: 'status', label: t('crm.projects.closed.table.headers.status') },
       { id: 'owner', label: t('crm.projects.closed.table.headers.owner') },
+      { id: 'lead', label: t('crm.projects.closed.table.headers.lead') },
+      { id: 'company', label: t('crm.projects.closed.table.headers.company') },
       { id: 'amount', label: t('crm.projects.closed.table.headers.amount') },
       { id: 'created', label: t('crm.projects.closed.table.headers.created') },
     ],
@@ -115,32 +152,23 @@ export const ClosedProjectsPage: React.FC = () => {
   const getColumnWidth = (id: string, fallback: number) =>
     columnWidths[id] ?? fallback;
 
-  const statusOptions: Project['status'][] = [
-    'Новый',
-    'В работе',
-    'На проверке',
-    'Заморожен',
-    'Выиграно',
-    'Проиграно',
-  ];
+  useEffect(() => {
+    reloadCrmLists();
+  }, [reloadCrmLists]);
 
-  const updateProjectInline = async (
-    id: string,
-    patch: Partial<Project>,
-  ) => {
-    setItems((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...patch } : p)),
-    );
-    const target = items.find((p) => p.id === id);
-    if (!target) return;
-    try {
-      const updated = await updateProject({ ...target, ...patch });
-      setItems((prev) => prev.map((p) => (p.id === id ? updated : p)));
-    } catch (e: any) {
-      console.error(e);
-      setError(e.message || t('crm.projects.closed.errors.loadFailed'));
-    }
-  };
+  useEffect(() => {
+    let alive = true;
+    fetchStaff()
+      .then((list) => {
+        if (alive) setStaff(list);
+      })
+      .catch(() => {
+        if (alive) setStaff([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -204,204 +232,126 @@ export const ClosedProjectsPage: React.FC = () => {
     });
   };
 
-  const handleColumnDrop = (targetId: string) => {
-    if (!dragColumnId || dragColumnId === targetId) return;
+  const reorderColumns = useCallback((dragId: string, targetId: string) => {
     setColumnOrder((prev) => {
       const next = [...prev];
-      const from = next.indexOf(dragColumnId);
+      const from = next.indexOf(dragId);
       const to = next.indexOf(targetId);
       if (from === -1 || to === -1) return prev;
       next.splice(from, 1);
-      next.splice(to, 0, dragColumnId);
+      next.splice(to, 0, dragId);
       return next;
     });
-    setDragColumnId(null);
-  };
+  }, []);
+
+  const { getThProps, draggingColumnKey, columnDragOverKey } =
+    useWorkspaceStyleColumnDrag(reorderColumns, 'light');
 
   const renderCustomFieldCell = (project: Project, field: CustomField) => {
     const value = project.customFields?.[field.key];
-    const commonClass =
-      'w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 outline-none focus:border-slate-400';
+    const textMuted = 'text-[11px] text-slate-600 text-center';
 
     if (field.type === 'boolean') {
-      return (
-        <label className="inline-flex items-center gap-2 text-[11px] text-slate-600">
-          <input
-            type="checkbox"
-            checked={Boolean(value)}
-            onChange={(e) => {
-              const next = {
-                ...(project.customFields ?? {}),
-                [field.key]: e.target.checked,
-              };
-              updateProjectInline(project.id, { customFields: next });
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-          {Boolean(value) ? 'Да' : 'Нет'}
-        </label>
-      );
+      return <span className={textMuted}>{value ? 'Да' : 'Нет'}</span>;
     }
 
     if (field.type === 'select') {
+      const opt = (field.options || []).find((o) => o.value === value);
+      const label = opt?.label ?? (value != null && value !== '' ? String(value) : null);
       return (
-        <select
-          className={commonClass}
-          value={value ?? ''}
-          onChange={(e) => {
-            const next = {
-              ...(project.customFields ?? {}),
-              [field.key]: e.target.value || null,
-            };
-            updateProjectInline(project.id, { customFields: next });
-          }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <option value="">—</option>
-          {(field.options || []).map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        <span className={textMuted}>{label ?? '—'}</span>
       );
     }
 
-    return (
-      <input
-        className={commonClass}
-        value={value ?? ''}
-        onChange={(e) =>
-          setItems((prev) =>
-            prev.map((p) =>
-              p.id === project.id
-                ? {
-                    ...p,
-                    customFields: {
-                      ...(p.customFields ?? {}),
-                      [field.key]: e.target.value,
-                    },
-                  }
-                : p,
-            ),
-          )
-        }
-        onBlur={(e) => {
-          const next = {
-            ...(project.customFields ?? {}),
-            [field.key]: e.target.value,
-          };
-          updateProjectInline(project.id, { customFields: next });
-        }}
-        onClick={(e) => e.stopPropagation()}
-      />
-    );
+    if (value === null || value === undefined || value === '') {
+      return <span className={`${textMuted} text-slate-400`}>—</span>;
+    }
+    return <span className={textMuted}>{String(value)}</span>;
   };
 
-  const renderCell = (project: Project, column: any) => {
+  const renderCell = (project: Project, column: { id: string; label: string; field?: CustomField }) => {
     switch (column.id) {
       case 'name':
         return (
-          <input
-            value={project.name}
-            onChange={(e) =>
-              setItems((prev) =>
-                prev.map((p) =>
-                  p.id === project.id ? { ...p, name: e.target.value } : p,
-                ),
-              )
-            }
-            onBlur={(e) => updateProjectInline(project.id, { name: e.target.value })}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 outline-none focus:border-slate-400"
-          />
-        );
-      case 'category':
-        return (
-          <input
-            value={project.category ?? ''}
-            onChange={(e) =>
-              setItems((prev) =>
-                prev.map((p) =>
-                  p.id === project.id
-                    ? { ...p, category: e.target.value || null }
-                    : p,
-                ),
-              )
-            }
-            onBlur={(e) =>
-              updateProjectInline(project.id, {
-                category: e.target.value || null,
-              })
-            }
-            onClick={(e) => e.stopPropagation()}
-            className="w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 outline-none focus:border-slate-400"
-          />
-        );
-      case 'status':
-        return (
-          <select
-            value={project.status}
-            onChange={(e) =>
-              updateProjectInline(project.id, {
-                status: e.target.value as Project['status'],
-              })
-            }
-            onClick={(e) => e.stopPropagation()}
-            className="w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700"
+          <span
+            className="block text-xs font-medium text-slate-800 truncate"
+            title={project.name}
           >
-            {statusOptions.map((st) => (
-              <option key={st} value={st}>
-                {st}
-              </option>
-            ))}
-          </select>
+            {project.name || '—'}
+          </span>
         );
+      case 'category': {
+        const raw = project.category?.trim();
+        if (!raw) {
+          return <span className="text-[11px] text-slate-400 text-center block">—</span>;
+        }
+        return (
+          <span className="block text-[11px] text-slate-700 text-center">
+            {categoryLabels[raw] ?? raw}
+          </span>
+        );
+      }
+      case 'status': {
+        const st = project.status;
+        const pill =
+          PROJECT_STATUS_PILL_CLASS[st] ??
+          'bg-slate-100 text-slate-700 border border-slate-200';
+        return (
+          <div className="flex justify-center">
+            <span
+              className={`inline-flex max-w-full items-center justify-center rounded-full px-2.5 py-1 text-center text-xs font-medium ${pill}`}
+            >
+              <span className="truncate">{statusLabels[st] ?? st}</span>
+            </span>
+          </div>
+        );
+      }
       case 'owner':
         return (
-          <input
-            value={project.owner ?? ''}
-            onChange={(e) =>
-              setItems((prev) =>
-                prev.map((p) =>
-                  p.id === project.id
-                    ? { ...p, owner: e.target.value }
-                    : p,
-                ),
-              )
+          <ProjectTableOwnerCell
+            project={project}
+            staff={staff}
+            onUpdated={(up) =>
+              setItems((prev) => prev.map((x) => (x.id === up.id ? up : x)))
             }
-            onBlur={(e) =>
-              updateProjectInline(project.id, { owner: e.target.value || null })
-            }
-            onClick={(e) => e.stopPropagation()}
-            className="w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 outline-none focus:border-slate-400"
+          />
+        );
+      case 'lead':
+        return (
+          <WorkspaceCrmEntityMultiField
+            readOnly
+            entity="lead"
+            rawValue={project.leadId}
+            leads={crmLeads}
+            projects={[]}
+            companies={[]}
+            variant="table"
+          />
+        );
+      case 'company':
+        return (
+          <WorkspaceCrmEntityMultiField
+            readOnly
+            entity="company"
+            rawValue={project.companyId ?? ''}
+            leads={[]}
+            projects={[]}
+            companies={crmCompanies}
+            variant="table"
           />
         );
       case 'amount':
         return (
-          <input
-            type="number"
-            value={project.amount}
-            onChange={(e) =>
-              setItems((prev) =>
-                prev.map((p) =>
-                  p.id === project.id
-                    ? { ...p, amount: Number(e.target.value || 0) }
-                    : p,
-                ),
-              )
-            }
-            onBlur={(e) =>
-              updateProjectInline(project.id, {
-                amount: Number(e.target.value || 0),
-              })
-            }
-            onClick={(e) => e.stopPropagation()}
-            className="w-full px-2 py-1 rounded-lg bg-white border border-slate-200 text-[11px] text-slate-700 outline-none focus:border-slate-400"
-          />
+          <span className="block text-[11px] text-slate-800 text-center tabular-nums">
+            {formatAmount(project.amount)}
+          </span>
         );
       case 'created':
-        return project.createdAt;
+        return (
+          <span className="block text-[11px] text-slate-600 tabular-nums leading-snug">
+            {project.createdAt}
+          </span>
+        );
       default:
         if (column.field) return renderCustomFieldCell(project, column.field);
         return null;
@@ -523,71 +473,11 @@ export const ClosedProjectsPage: React.FC = () => {
               {t('crm.projects.closed.loading')}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full border-collapse text-[11px] table-fixed">
-                <thead>
-                  <tr className="border-b border-slate-200 text-slate-500">
-                    {orderedColumns.map((col) => {
-                      const fallback =
-                        col.id === 'name'
-                          ? 220
-                          : col.id === 'category'
-                            ? 160
-                            : col.id === 'status'
-                              ? 160
-                              : col.id === 'owner'
-                                ? 160
-                                : col.id === 'amount'
-                                  ? 140
-                                  : col.id === 'created'
-                                    ? 160
-                                    : 180;
-                      const width = getColumnWidth(col.id, fallback);
-                      return (
-                        <th
-                          key={col.id}
-                          draggable
-                          onDragStart={(e) => {
-                            setDragColumnId(col.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                            e.dataTransfer.setData('text/plain', col.id);
-                          }}
-                          onDragEnd={() => setDragColumnId(null)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleColumnDrop(col.id)}
-                          className="py-1.5 px-2 text-left font-normal relative group"
-                          style={{ width, minWidth: width }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="cursor-move">⋮⋮</span>
-                            <span>{col.label}</span>
-                          </div>
-                          <div
-                            className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
-                            onMouseDown={(e) => startResize(col.id, e)}
-                          />
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.length === 0 && (
+            <div className="lv-proj-wrap">
+              <div className="lv-proj-scroll">
+                <table className="lv-proj-table lv-leads-table">
+                  <thead>
                     <tr>
-                      <td
-                        colSpan={orderedColumns.length}
-                        className="py-3 text-center text-slate-500"
-                      >
-                        {t('crm.projects.closed.empty')}
-                      </td>
-                    </tr>
-                  )}
-                  {items.map((p) => (
-                    <tr
-                      key={p.id}
-                      onClick={() => navigate(`/app/projects/${p.id}`)}
-                      className="border-b border-slate-100 last:border-none hover:bg-slate-50 transition-colors cursor-pointer"
-                    >
                       {orderedColumns.map((col) => {
                         const fallback =
                           col.id === 'name'
@@ -598,26 +488,119 @@ export const ClosedProjectsPage: React.FC = () => {
                                 ? 160
                                 : col.id === 'owner'
                                   ? 160
-                                  : col.id === 'amount'
-                                    ? 140
-                                    : col.id === 'created'
-                                      ? 160
-                                      : 180;
+                                  : col.id === 'lead' || col.id === 'company'
+                                    ? 200
+                                    : col.id === 'amount'
+                                      ? 140
+                                      : col.id === 'created'
+                                        ? 160
+                                        : 180;
                         const width = getColumnWidth(col.id, fallback);
+                        const isDragging = draggingColumnKey === col.id;
+                        const isDropTarget = columnDragOverKey === col.id && !isDragging;
                         return (
-                          <td
+                          <th
                             key={col.id}
-                            className="py-1.5 px-2 text-slate-600"
+                            {...(() => {
+                              const props = getThProps(
+                                col.id,
+                                typeof col.label === 'string' ? col.label : String(col.label),
+                                '',
+                              );
+                              const { className: _c, ...rest } = props as any;
+                              return rest;
+                            })()}
                             style={{ width, minWidth: width }}
+                            className={[
+                              isDragging ? 'lv-col-dragging' : '',
+                              isDropTarget ? 'lv-col-drop-target' : '',
+                              col.id === 'name' ? 'lv-tcol-name' : 'lv-tcol-center',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
                           >
-                            {renderCell(p, col)}
-                          </td>
+                            <span className="lv-th-inner">
+                              <span className="lv-th-grip">⋮⋮</span>
+                              {col.label}
+                            </span>
+                            <span
+                              className="lv-th-resize"
+                              onMouseDown={(e) => startResize(col.id, e)}
+                            />
+                          </th>
                         );
                       })}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {items.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={orderedColumns.length}
+                          className="py-3 text-center text-[var(--fg-3)]"
+                        >
+                          {t('crm.projects.closed.empty')}
+                        </td>
+                      </tr>
+                    )}
+                    {items.map((p) => (
+                      <tr
+                        key={p.id}
+                        className="lv-proj-row"
+                        onClick={() => navigate(`/projects/${p.id}`)}
+                      >
+                        {orderedColumns.map((col) => {
+                          const fallback =
+                            col.id === 'name'
+                              ? 220
+                              : col.id === 'category'
+                                ? 160
+                                : col.id === 'status'
+                                  ? 160
+                                  : col.id === 'owner'
+                                    ? 160
+                                    : col.id === 'lead' || col.id === 'company'
+                                      ? 200
+                                      : col.id === 'amount'
+                                        ? 140
+                                        : col.id === 'created'
+                                          ? 160
+                                          : 180;
+                          const width = getColumnWidth(col.id, fallback);
+                          return (
+                            <td
+                              key={col.id}
+                              className={[
+                                ['owner', 'lead', 'company'].includes(col.id)
+                                  ? 'lv-td-popover'
+                                  : '',
+                                col.id === 'name' ? 'lv-tcol-name' : 'lv-tcol-center',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              style={{
+                                width,
+                                minWidth: width,
+                                maxWidth: width,
+                                padding: '10px 14px',
+                                verticalAlign: 'middle',
+                                whiteSpace: 'nowrap',
+                              }}
+                              onClick={(e) => {
+                                if (['owner', 'lead', 'company'].includes(col.id)) {
+                                  e.stopPropagation();
+                                }
+                              }}
+                            >
+                              {renderCell(p, col)}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </section>

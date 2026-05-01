@@ -4,9 +4,11 @@ import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchTelegramBots, deleteTelegramBot, type TelegramBot } from '../../api/telegram-crm';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 export const TelegramBotsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [bots, setBots] = useState<TelegramBot[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,7 +39,9 @@ export const TelegramBotsPage: React.FC = () => {
       await deleteTelegramBot(id);
       setBots(bots.filter((b) => b.id !== id));
     } catch (err: any) {
-      alert(err.message || t('crm.telegram.bots.errors.deleteFailed'));
+      showAlert(err.message || t('crm.telegram.bots.errors.deleteFailed'), {
+        variant: 'error',
+      });
     }
   };
 

@@ -445,6 +445,21 @@
       "notifications": "Уведомления",
       "aiAssistant": "AI-ассистент"
     },
+    "alertModal": {
+      "ok": "Понятно",
+      "defaultTitle": "Сообщение",
+      "errorTitle": "Ошибка"
+    },
+    "companySelect": {
+      "errors": {
+        "createFailed": "Не удалось создать компанию"
+      }
+    },
+    "contactSelect": {
+      "errors": {
+        "createFailed": "Не удалось создать контакт"
+      }
+    },
     "aiAssistant": {
       "title": "Ассистент",
       "tabChat": "Чат",
@@ -647,6 +662,7 @@
       "toolsAutomations": "Автоматизации",
       "integrationsHub": "Интеграции",
       "toolsTelegram": "Telegram",
+      "toolsWebForms": "Формы для сайта",
       "settingsCompany": "Настройки компании",
       "settingsApi": "API и интеграции",
       "chat": "Чат",
@@ -658,6 +674,164 @@
       "settings": "Настройки",
       "settingsAccount": "Аккаунт"
     },
+    "embedForms": {
+      "kicker": "Сайт",
+      "list": {
+        "title": "Формы для сайта",
+        "subtitle": "Создайте форму, настройте внешний вид и вставьте iframe на Tilda, WordPress или другой сайт. Заявки попадают в лиды.",
+        "create": "Новая форма",
+        "loading": "Загрузка…",
+        "empty": "Пока нет форм. Создайте по шаблону и привяжите к зарегистрированному сайту в CRM.",
+        "loadError": "Не удалось загрузить список",
+        "deleteConfirm": "Удалить эту форму? Встраивания на сайтах перестанут работать.",
+        "colName": "Название",
+        "colSite": "Сайт",
+        "colStatus": "Статус",
+        "published": "Опубликована",
+        "draft": "Черновик",
+        "edit": "Настроить",
+        "delete": "Удалить"
+      },
+      "create": {
+        "title": "Новая форма",
+        "hint": "Выберите зарегистрированный сайт (маркетинг / SEO) и шаблон. Потом откроется редактор: поля, дизайн, код вставки.",
+        "name": "Название в CRM",
+        "namePh": "Напр. заявка с главной",
+        "site": "Сайт (домен для проверки origin)",
+        "template": "Шаблон",
+        "noSites": "Добавьте сайт: Маркетинг → SEO, чтобы привязать форму к домену.",
+        "creating": "Создаём…",
+        "submit": "Создать и настроить",
+        "back": "К списку",
+        "validation": "Укажите название и выберите сайт",
+        "error": "Не удалось создать форму"
+      },
+      "editor": {
+        "loadError": "Ошибка загрузки",
+        "saveError": "Ошибка сохранения",
+        "loading": "Загружаем…",
+        "notFound": "Форма не найдена",
+        "notFoundHint": "Проверьте адрес в строке браузера: в CRM в ссылке должен быть id формы (из списка), а в коде вставки — публичный id в пути /embed/…. Откройте список форм и отредактируйте оттуда.",
+        "title": "Редактор формы",
+        "subtitle": "Публичный id: {{publicId}}",
+        "backList": "К списку форм",
+        "published": "Опубликована (доступна по ссылке и iframe)",
+        "preview": "Превью",
+        "save": "Сохранить",
+        "saving": "Сохраняем…",
+        "internalName": "Название в CRM",
+        "tab": {
+          "content": "Содержимое",
+          "design": "Дизайн",
+          "install": "Установка"
+        }
+      },
+      "selectOpt1": "Вариант 1",
+      "selectOpt2": "Вариант 2",
+      "fieldPaletteLabels": {
+        "text": "Текст",
+        "email": "E-mail",
+        "url": "Сайт (URL)",
+        "tel": "Телефон",
+        "number": "Число",
+        "date": "Дата",
+        "textarea": "Текст (несколько строк)",
+        "select": "Список",
+        "file": "Файл",
+        "checkbox_consent": "Согласие",
+        "messaging": "Канал связи"
+      },
+      "fieldPaletteShort": {
+        "text": "Текст",
+        "email": "E-mail",
+        "url": "URL",
+        "tel": "Телефон",
+        "number": "Число",
+        "date": "Дата",
+        "textarea": "Абзац",
+        "select": "Список",
+        "file": "Файл",
+        "checkbox_consent": "Согласие",
+        "messaging": "Канал"
+      },
+      "fieldPaletteKbd": {
+        "text": "text",
+        "email": "email",
+        "url": "url",
+        "tel": "tel",
+        "number": "num",
+        "date": "date",
+        "textarea": "area",
+        "select": "list",
+        "file": "file",
+        "checkbox_consent": "gdpr",
+        "messaging": "im"
+      },
+      "editorUi": {
+        "formSettings": "Параметры формы",
+        "addFieldHint": "Нажмите, чтобы добавить поле. Ширина: ½ — половина строки (два поля рядом), 100% — на всю ширину.",
+        "colWidth": "Ширина колонки",
+        "moveUp": "Выше",
+        "moveDown": "Ниже",
+        "remove": "Удалить поле",
+        "selectOptions": "Варианты",
+        "addOption": "Добавить вариант",
+        "newOption": "Новый"
+      },
+      "templates": {
+        "contact": "Форма обращения",
+        "callback": "Позвоните нам",
+        "consultation": "Заказать консультацию",
+        "quote": "Запросить коммерческое",
+        "support": "Техподдержка",
+        "brief": "Оставить бриф / задание"
+      }
+    },
+    "embedFields": {
+      "label": "Подпись",
+      "placeholder": "Плейсхолдер",
+      "successMessage": "Сообщение после отправки",
+      "successMessagePh": "Напр.: Спасибо! Мы свяжемся в течение дня",
+      "privacyUrl": "Ссылка на политику (показывается в согласии)",
+      "fieldsTitle": "Поля формы",
+      "required": "Обязательное"
+    },
+    "embedDesign": {
+      "tuningTitle": "Типографика и отступы",
+      "tuningHint": "Все величины в пикселях, как на публичной странице формы.",
+      "livePreview": "Живое превью",
+      "livePreviewHint": "Упрощённый макет: так же выглядит блок полей и кнопка на сайте.",
+      "fontSize": "Размер текста, px",
+      "headingSize": "Заголовок, px",
+      "fieldPad": "Поля, отступ, px",
+      "gap": "Расстояние между полями, px",
+      "radius": "Скругление полей, px",
+      "btnPadX": "Кнопка: отступ по горизонтали, px",
+      "btnPadY": "Кнопка: отступ по вертикали, px",
+      "btnRadius": "Скругление кнопки, px",
+      "btnWeight": "Начертание кнопки (100–900)",
+      "labelWeight": "Начертание подписей (100–900)",
+      "formOuterPadX": "Отступ по горизонтали (px, об iframe)",
+      "formOuterPadY": "Отступ по вертикали (px, об iframe)",
+      "formMaxWidth": "Макс. ширина (px, 0 — на всю ширину)",
+      "text": "Текст",
+      "bg": "Фон формы",
+      "fieldBg": "Фон поля",
+      "border": "Рамка",
+      "btnBg": "Фон кнопки",
+      "btnText": "Текст кнопки",
+      "accent": "Акцент (ссылки)",
+      "fontFamily": "Шрифт (CSS font-family)",
+      "btnWidth": "Ширина кнопки",
+      "btnWidthFull": "На всю ширину",
+      "btnWidthAuto": "По содержимому"
+    },
+    "embedInstall": {
+      "hint": "Скопируйте URL или iframe. Страница формы на домене CRM, поэтому стили с вашего сайта на неё не влияют — это нормально.",
+      "url": "Прямая ссылка",
+      "iframe": "Код iframe",
+      "copy": "Скопировать код"
+    },
     "workspace": {
       "views": {
         "table": "Таблица",
@@ -666,7 +840,69 @@
         "analytics": "Аналитика",
         "settings": "Настройки",
         "add": "Добавить",
-        "addView": "Добавить вид"
+        "addView": "Добавить вид",
+        "gantt": "Гант"
+      },
+      "gantt": {
+        "title": "Диаграмма Ганта",
+        "subtitle": "Сроки по полям даты (первая — начало, вторая — окончание; иначе дата создания).",
+        "today": "Сегодня",
+        "search": "Поиск…",
+        "tasks": "Задачи / строки",
+        "empty": "Нет записей в этом диапазоне",
+        "needDates": "Добавьте в таблицу хотя бы одно поле типа «дата», чтобы построить диаграмму.",
+        "todayMarker": "Сегодня"
+      },
+      "area": {
+        "switcherLoading": "Загрузка областей…",
+        "noArea": "Рабочая область",
+        "addArea": "Новая рабочая область",
+        "searchAreas": "Найти рабочую область…",
+        "myAreas": "Мои рабочие области",
+        "emptySearch": "Ничего не найдено",
+        "newAreaPlaceholder": "Название новой области",
+        "browseIntegrations": "Все интеграции в каталоге",
+        "homeTitle": "Рабочая область",
+        "coverHint": "URL обложки (фон шапки)",
+        "descriptionPlaceholder": "Добавьте описание рабочей области…",
+        "saveMeta": "Сохранить",
+        "tabRecent": "Недавние",
+        "tabContent": "Содержимое",
+        "tabPermissions": "Права доступа",
+        "integrations": "Интеграции",
+        "integrationsLead": "Подключите WooCommerce, рекламу и аналитику к этой области. Данные можно импортировать в таблицы и строить отчёты с нужными столбцами.",
+        "integrationsCatalogFooter": "В списке доступны типы из каталога: продажи, маркетинг, календарь, лиды и почта. Раньше календарь и часть источников скрывались фильтром — это исправлено. Корпоративную почту (IMAP/SMTP) подключают в разделе «Почта»; лиды из писем и сценариев можно направлять в таблицы через автоматизации.",
+        "integrationsEmailLink": "Открыть «Почта»",
+        "openIntegrations": "Настроить связи",
+        "permissionsPlaceholder": "Скоро: выдача прав на рабочую область по ролям сотрудников.",
+        "permissionsLead": "Доступ к рабочим таблицам и областям задаётся модулем «Пользовательские таблицы» в матрице прав сотрудников.",
+        "permissionsNote": "Владелец аккаунта всегда видит все разделы. Для остальных ролей включите «Пользовательские таблицы», чтобы открыть Workspace и эту область.",
+        "permissionsCta": "Открыть права доступа",
+        "contentSubtitle": "Основная «Таблица» задаёт фокус области; «Таблицы данных» держат импорты и интеграции. Представления: таблица, канбан, календарь, аналитика, Гант.",
+        "tableKindColumn": "Тип таблицы",
+        "newTable": "Новая таблица",
+        "newBoardTable": "Таблица",
+        "newDataTable": "Таблица данных",
+        "star": "Избранное",
+        "iconLabel": "Иконка области",
+        "bindingsTitle": "Связанные интеграции",
+        "bindingsEmpty": "Пока нет привязок. Добавьте источники данных.",
+        "addBinding": "Добавить",
+        "catalogPick": "Выберите интеграцию из каталога",
+        "pickCatalogFirst": "Сначала выберите тип интеграции выше",
+        "connectionOptional": "Подключение (если есть)",
+        "connectionMarketingBadge": "Маркетинг",
+        "connectionPickEmpty": "Нет подходящего активного подключения: ни в «Автоматизации → Интеграции», ни в «Маркетинг». Добавьте интеграцию в одном из разделов и включите её.",
+        "saveBindings": "Сохранить",
+        "aiHint": "ИИ-ассистент может подсказать структуру таблиц под вашу область — откройте чат справа.",
+        "namePlaceholder": "Название рабочей области",
+        "coverUploadLabel": "Обложка шапки",
+        "coverUploadButton": "Загрузить изображение",
+        "coverReplace": "Заменить обложку",
+        "coverRemove": "Убрать обложку",
+        "coverUploadHint": "PNG, JPG, WebP или GIF, до 4 МБ.",
+        "deleteArea": "Удалить область",
+        "deleteAreaConfirm": "Удалить рабочую область «{{name}}»? Таблицы из неё будут перенесены в основную область; саму область восстановить нельзя."
       },
       "common": {
         "loading": "Загрузка...",
@@ -675,7 +911,10 @@
         "active": "Активна",
         "disabled": "Отключена",
         "created": "Создано",
-        "noRecords": "Нет записей"
+        "noRecords": "Нет записей",
+        "newRecord": "Новая запись",
+        "create": "Создать",
+        "cancel": "Отмена"
       },
       "tablesList": {
         "title": "Рабочая область без кода",
@@ -697,19 +936,67 @@
         "duplicateWithRecords": "Дублировать вместе с записями (данными)",
         "copyCommentsActivity": "Копировать комментарии и активность"
       },
+      "kindBadge": {
+        "board": "Основная таблица (доска)",
+        "data": "Таблица данных",
+        "shortBoard": "Таблица",
+        "shortData": "Данные",
+        "dataLayerTitle": "Данные: импорты и интеграции",
+        "dataShortOnly": "данные"
+      },
       "newTable": {
-        "title": "Создать таблицу",
-        "subtitle": "Укажите название, затем добавьте поля, импортируйте данные и откройте таблицу, канбан или календарь.",
-        "name": "Название таблицы",
+        "title": "Новая таблица в области",
+        "subtitle": "Выберите тип: основная «Таблица» для работы команды или «Таблица данных» для импортов и интеграций.",
+        "kindLegend": "Тип",
+        "kindBoard": "Таблица",
+        "kindBoardHint": "Центр рабочей области: сюда позже можно подтягивать и структурировать данные из таблиц данных.",
+        "kindData": "Таблица данных",
+        "kindDataHint": "Сюда загружают Excel, интеграции и сырые строки; удобно как источник для основной таблицы.",
+        "name": "Название",
         "description": "Описание",
-        "placeholderName": "Счета",
-        "placeholderDescription": "Отслеживание жизненного цикла счетов и оплат.",
+        "placeholderName": "Например: Воронка Q2",
+        "placeholderDescription": "Кратко, для чего эта таблица.",
         "creating": "Создание...",
-        "create": "Создать таблицу",
+        "create": "Создать",
         "error": "Не удалось создать таблицу"
+      },
+      "pushToBoard": {
+        "title": "Передать в основную таблицу",
+        "subtitle": "Строки копируются в выбранную «Таблицу»; совпадающие по имени поля заполняются автоматически.",
+        "targetTable": "Таблица назначения",
+        "pickBoard": "Выберите таблицу…",
+        "autoMapHint": "Совпадений полей по имени ключей: {{count}}.",
+        "explicitMapHint": "Ручных переназначений: {{count}}.",
+        "fieldMapSection": "Колонки: откуда куда",
+        "fieldMapHelp": "По умолчанию значение копируется в поле с тем же ключом. Выберите другое поле источника или «Не копировать».",
+        "colTarget": "Поле в таблице",
+        "colSource": "Брать из таблицы данных",
+        "mapAuto": "Как в источнике (тот же ключ)",
+        "mapOmit": "Не копировать",
+        "sourceBusy": "занято",
+        "dupFieldTarget": "Поле в таблице для проверки дубликатов",
+        "dupFieldNone": "— не проверять —",
+        "skipDup": "Не создавать строку, если значение в этом поле уже есть",
+        "running": "Передача…",
+        "submit": "Передать",
+        "created": "Создано: {{count}}",
+        "skipped": "Пропущено (дубликат): {{count}}",
+        "errors": "Ошибок: {{count}}",
+        "noArea": "У таблицы не указана рабочая область.",
+        "noBoards": "В области нет основной «Таблицы» (board). Создайте её в области."
       },
       "import": {
         "title": "Импорт данных",
+        "areaIntegrationsTitle": "Интеграции рабочей области",
+        "areaIntegrationsSubtitle": "Здесь показаны все подключения, привязанные к этой рабочей области. Для поддерживаемых каналов доступны превью, маппинг колонок и импорт в таблицу.",
+        "areaChannelsCompactTitle": "Каналы импорта",
+        "areaChannelsCompactSubtitle": "{{count}} каналов — превью и загрузка в окне",
+        "areaChannelsOpen": "Открыть",
+        "areaChannelsClose": "Закрыть",
+        "boundIntegrationsStale": "К области привязаны подключения, но они не найдены в списке (удалены или отключены). Обновите привязки в настройках области.",
+        "channelImportUnsupported": "Импорт строк в эту таблицу из этого типа подключения пока не настроен. Подключение к области сохраняется для других сценариев CRM.",
+        "bindingNeedsHubConnection": "В области указано «{{label}}», но нет включённого подключения этого типа в разделе «Интеграции» (или оно отключено). Создайте подключение в каталоге и при необходимости выберите его в настройках области.",
+        "openIntegrationsCatalog": "Каталог интеграций",
         "backToTable": "К таблице",
         "chooseFile": "Выберите файл",
         "fileNotSelected": "Файл не выбран",
@@ -739,10 +1026,80 @@
         "createFieldError": "Не удалось создать поле для колонки «{{column}}»",
         "mapRequired": "Перед импортом сопоставьте обязательные поля: {{fields}}",
         "applyFailed": "Не удалось применить импорт",
-        "fieldCreated": "Создано поле «{{label}}», колонка «{{column}}» сопоставлена"
+        "fieldCreated": "Создано поле «{{label}}», колонка «{{column}}» сопоставлена",
+        "wooTitle": "WooCommerce",
+        "wooSubtitle": "Сначала загрузите превью заказов Woo, сопоставьте колонки с полями таблицы, отметьте что импортировать и при необходимости укажите поле статуса. Синхронизация дублирует заказы в «Продажи» и записывает строки в эту таблицу по выбранному маппингу.",
+        "wooPickStore": "Магазин",
+        "wooLoadPreview": "Загрузить превью заказов",
+        "wooPreviewError": "Не удалось загрузить превью WooCommerce",
+        "wooPreviewEmpty": "В магазине нет заказов для превью.",
+        "wooPreviewSample": "Пример данных (заказов в выборке: {{count}})",
+        "wooPreviewMoreCols": "В превью показаны первые 16 колонок; полный список — в маппинге ниже.",
+        "wooStatusField": "Поле статуса в таблице",
+        "wooStatusFieldNone": "— не указывать —",
+        "wooStatusFieldHint": "Какое поле таблицы соответствует статусу заказа Woo — оно должно быть сопоставлено с колонкой Woo (часто status).",
+        "wooColumnMapping": "Колонки Woo: импорт и сопоставление с полями",
+        "wooSyncWithMapping": "Синхронизировать (Продажи + таблица)",
+        "wooNeedPreview": "Сначала нажмите «Загрузить превью заказов» и настройте маппинг.",
+        "wooNoColumnsSelected": "Включите и сопоставьте хотя бы одну колонку.",
+        "wooNoWorkspaceArea": "У этой таблицы не указана рабочая область — список WooCommerce для импорта недоступен.",
+        "wooNoBindingsForArea": "К этой рабочей области не подключены интеграции. Добавьте подключение WooCommerce в настройках области.",
+        "channelNoBindingsForArea": "К этой рабочей области не подключены интеграции. Добавьте подключение (WooCommerce, Meta Ads и др.) в настройках области.",
+        "wooOpenAreaIntegrations": "Настроить интеграции области",
+        "wooNotWooAmongBindings": "В подключениях этой области нет WooCommerce. Добавьте магазин WooCommerce или привяжите существующее подключение.",
+        "wooEmpty": "Нет активного подключения WooCommerce. Добавьте магазин в интеграциях.",
+        "wooOpenIntegrations": "Настроить интеграции",
+        "wooOpenSales": "Открыть «Продажи»",
+        "wooSync": "Синхронизировать заказы",
+        "wooSyncing": "Синхронизация…",
+        "wooLastSync": "Последняя синхронизация: {{date}}",
+        "wooSyncDataInSalesNotInTable": "Заказы дублируются в «Продажи». Строки этой таблицы создаются/обновляются при синке отсюда — см. в сообщении счётчик «Рабочая область». Не подошедшие строки (обязательные поля без значения) могут быть пропущены — проверьте типы колонок.",
+        "importGranularityTitle": "Объём импорта",
+        "importGranularityLead": "Все строки — как в источнике. Суммирование группирует по выбранным колонкам и складывает числовые поля; несколько колонок задают составной ключ (например источник и страна).",
+        "importModeFull": "Все строки",
+        "importModeAggregate": "Суммировать (группировать)",
+        "aggregateGroupByLabel": "Группировать по колонкам источника",
+        "aggregateGroupHint": "Отметьте одно или несколько полей. Разные комбинации дают отдельные строки; числовые колонки суммируются.",
+        "aggregateNeedGroupColumns": "При суммировании отметьте хотя бы одну колонку группировки среди включённых к импорту.",
+        "wooSyncResultDetailed": "Продажи: +{{salesCreated}} / ~{{salesUpdated}}. Таблица: +{{workspaceCreated}} / ~{{workspaceUpdated}}{{skippedPart}}",
+        "syncSkippedSuffix": ", пропущено {{count}}",
+        "channelWorkspaceSyncOk": "Таблица: +{{workspaceCreated}} / ~{{workspaceUpdated}}",
+        "metaTitle": "Meta Ads",
+        "metaSubtitle": "Загрузите превью метрик (кампания × день), сопоставьте колонки с полями таблицы и импортируйте. Данные берутся из подключения Meta Ads, привязанного к этой рабочей области.",
+        "metaNotAmongBindings": "В подключениях этой области нет Meta Ads. Добавьте коннектор Meta Ads в интеграциях и привяжите его к области.",
+        "metaPickAccount": "Аккаунт",
+        "metaLoadPreview": "Загрузить превью данных",
+        "metaPreviewError": "Не удалось загрузить превью Meta Ads",
+        "metaPreviewEmpty": "Нет строк для превью (проверьте токен и рекламный аккаунт).",
+        "metaPreviewSample": "Пример данных (строк в выборке: {{count}})",
+        "metaPreviewMoreCols": "В превью показаны первые 16 колонок; полный список — в маппинге ниже.",
+        "metaStatusField": "Поле статуса в таблице (необязательно)",
+        "metaStatusFieldHint": "Если нужно хранить статус строки в отдельном поле таблицы — выберите его; иначе оставьте пустым.",
+        "metaColumnMapping": "Колонки Meta: импорт и сопоставление с полями",
+        "metaSyncWithMapping": "Импортировать в таблицу",
+        "metaNeedPreview": "Сначала нажмите «Загрузить превью данных» и настройте маппинг.",
+        "metaNoColumnsSelected": "Включите и сопоставьте хотя бы одну колонку.",
+        "metaSyncing": "Импорт…",
+        "metaLastSync": "Последняя синхронизация: {{date}}",
+        "metaFromMarketing": "Подключение из раздела «Маркетинг» (те же данные, что синхронизация Meta в отчётах).",
+        "gaFromMarketing": "Google Analytics 4 из раздела «Маркетинг» (отчёт по сессиям и источникам за ~30 дней).",
+        "gaLoadPreview": "Загрузить превью GA4",
+        "gaPreviewError": "Не удалось загрузить превью GA4",
+        "gaPreviewEmpty": "Нет строк для превью (проверьте OAuth/сервисный аккаунт и ID свойства).",
+        "gaNeedPreview": "Сначала нажмите «Загрузить превью GA4» и настройте маппинг.",
+        "gaNoColumnsSelected": "Включите и сопоставьте хотя бы одну колонку.",
+        "gaSyncing": "Импорт GA4…",
+        "gaSyncWithMapping": "Импортировать GA4 в таблицу",
+        "boardTableHint": "This object is the main “Table”. Imports from files and channels usually target a “Data table”; you can still connect sources here if you intentionally manage the board from imports.",
+        "skippedEmptyHint": "Пустые строки пропущены."
       },
       "settings": {
         "title": "Настройки таблицы",
+        "workspaceNavIconKicker": "Внешний вид",
+        "workspaceNavIconTitle": "Иконка в боковом меню",
+        "workspaceNavIconHint": "Отображается рядом с названием таблицы в списке Workspace. По умолчанию — папка.",
+        "saveWorkspaceNavIcon": "Сохранить иконку",
+        "workspaceNavIconDefault": "По умолчанию",
         "importData": "Импорт данных",
         "backToTable": "К таблице",
         "saveCardMapping": "Сохранить карточки",
@@ -782,14 +1139,22 @@
         "additionalFields": "Дополнительные поля",
         "additionalFieldsCount": "Дополнительные поля: {{count}}",
         "saveStructure": "Сохранить структуру",
-        "statusPreview": "Предпросмотр: {{label}}"
+        "statusPreview": "Предпросмотр: {{label}}",
+        "dataSourcesKicker": "Источники",
+        "dataSourcesTitle": "Таблицы данных в этой области",
+        "dataSourcesHint": "Отметьте таблицы, из которых обычно подпитываете эту основную таблицу. Это подсказка для команды; перенос строк делается из таблицы данных.",
+        "dataSourcesEmpty": "В области пока нет других таблиц данных.",
+        "dataSourcesOpen": "Открыть",
+        "dataSourcesSave": "Сохранить привязки"
       },
       "kanban": {
         "title": "Канбан",
         "subtitle": "Статусы и цвета берутся из настроек таблицы.",
         "searchPlaceholder": "Поиск по карточкам...",
         "cardsTotal": "Всего карточек: {{count}}",
-        "dismiss": "Скрыть"
+        "dismiss": "Скрыть",
+        "addCard": "Добавить карточку",
+        "cardNamePlaceholder": "Название записи..."
       },
       "calendar": {
         "title": "Календарь",
@@ -836,6 +1201,15 @@
       },
       "table": {
         "startFromScratch": "С нуля",
+        "boardEmptyTitle": "Ваша доска готова",
+        "boardEmptySubtitle": "Это конструктор — собирайте нужные данные из разных источников в одном месте.",
+        "boardEmptyStep1Title": "Создайте группу",
+        "boardEmptyStep1Desc": "Группы объединяют строки по статусу, каналу или любому другому критерию.",
+        "boardEmptyStep2Title": "Добавьте строку",
+        "boardEmptyStep2Desc": "В каждой строке можно привязать Лид, Проект или Компанию из CRM.",
+        "boardEmptyStep3Title": "Подключите данные",
+        "boardEmptyStep3Desc": "Колонки с биндингом тянут агрегаты из WooCommerce, Google Таблиц и других источников.",
+        "boardEmptyStartBtn": "Создать первую группу",
         "filterRows": "Фильтр строк",
         "fieldPlaceholder": "Поле...",
         "valuePlaceholder": "Значение...",
@@ -851,6 +1225,7 @@
         "editColumn": "Изменить колонку",
         "duplicateColumn": "Дублировать колонку",
         "hideColumn": "Скрыть колонку",
+        "deleteColumn": "Удалить колонку",
         "deleteColumnInGroup": "Удалить колонку в этой группе",
         "deleteConfirm": "Подтверждение удаления",
         "addFieldTitle": "Новое поле",
@@ -863,6 +1238,25 @@
         "addField": "Добавить поле",
         "adding": "Добавление...",
         "addingRow": "Добавление...",
+        "fieldTypeCrmLead": "Связь: лид CRM",
+        "fieldTypeCrmProject": "Связь: проект CRM",
+        "fieldTypeCrmCompany": "Связь: компания CRM",
+        "fieldTypeReadonly": "Фиксированное (только чтение)",
+        "crmLinkLabel": "Связь с CRM",
+        "crmLinkNone": "Нет (обычный текст)",
+        "crmEntityPlaceholder": "Выберите…",
+        "crmEntityOpen": "Открыть в CRM",
+        "crmLeadUnknown": "Лид (ID из данных)",
+        "crmProjectUnknown": "Проект (ID из данных)",
+        "crmCompanyUnknown": "Компания (ID из данных)",
+        "crmMultiAdd": "Добавить",
+        "crmMultiRemove": "Убрать из ячейки",
+        "crmMultiSearchLeadPlaceholder": "Поиск лида по имени, email, телефону…",
+        "crmMultiSearchProjectPlaceholder": "Поиск проекта по названию…",
+        "crmMultiSearchCompanyPlaceholder": "Поиск компании по названию…",
+        "crmMultiTypeToSearch": "Введите запрос — показываются только актуальные лиды (не из корзины и архива).",
+        "crmMultiSearching": "Поиск…",
+        "crmMultiNoResults": "Ничего не найдено",
         "addItem": "+ Добавить строку",
         "newGroupTitle": "Название группы",
         "addGroup": "Добавить группу",
@@ -885,6 +1279,38 @@
         "groupsCountLabel": "Групп: {{count}}",
         "selectedCount": "Выбрано: {{count}}",
         "footerItemsCount": "{{count}} записей",
+        "footerItemsPage": "Показаны {{from}}–{{to}} из {{total}}",
+        "paginationRange": "Строки {{from}}–{{to}} из {{total}}",
+        "pageSize": "На странице",
+        "prevPage": "Назад",
+        "nextPage": "Вперёд",
+        "groupHeaderItemsPage": "На странице: {{count}} · всего {{total}}",
+        "sumOnPageSuffix": "(по странице)",
+        "deleteGroupDisabledPaged": "Удаление всей группы недоступно при постраничном режиме",
+        "filterOnlyCurrentPage": "Фильтр по колонке действует только среди строк текущей страницы. Для поиска по всей таблице используйте поле поиска выше.",
+        "viewModeRows": "Строки",
+        "viewModeSummary": "Сводка",
+        "viewModeDataTable": "Таблица",
+        "viewModeDataRollup": "Агрегация",
+        "mondayBoardSubtitle": "Доска в духе Monday: группы по статусу, колонки с привязкой к данным (◇), добавление и порядок — как в режиме «Строки».",
+        "boardToolbarNew": "Новая запись",
+        "boardOpenDrawer": "Открыть карточку",
+        "dataLayerSubtitle": "Колонки можно сопоставить с ключами из импорта (продажи Woo и т.д.): при добавлении или редактировании колонки выберите «Ключ в данных». На доске — привязки ◇ к таблицам данных.",
+        "groupByStatusLocked": "Группировка по полю «{{field}}» (статус). Группы строятся автоматически.",
+        "dataRowsBulkHint": "Таблица подгружает записи постранично. Откройте строку для полных деталей или используйте фильтр по полю на текущей странице.",
+        "summaryHint": "Режим агрегации в базе: группировка и суммы без загрузки всех строк. Это не замена основной таблицы — счета и строки с привязками к данным создаются во вкладке «Таблица».",
+        "summaryGroupBy": "Группировать по",
+        "summaryLoading": "Загрузка сводки…",
+        "summaryNoNumericFields": "Добавьте в таблицу числовые поля — здесь появятся суммы по группам.",
+        "summaryEmptyGroups": "Нет записей для выбранной группировки (или таблица пуста).",
+        "summaryCountOnlyHint": "Добавьте столбцы агрегации: числа, метрики (sessions…) или текст — порядок колонок как во вкладке «Таблица».",
+        "summaryColRows": "Строк",
+        "summaryEmptyGroup": "(пусто)",
+        "summaryShowHiddenMeasures": "Показать скрытые в сводке ({{count}})",
+        "summaryHideColumn": "Скрыть в сводке",
+        "summarySampleBadge": "образец",
+        "summarySampleBadgeTitle": "Одно значение в группе (агрегат MAX по тексту в БД)",
+        "summaryTextEmpty": "—",
         "move": "Переместить",
         "hide": "Скрыть",
         "deleting": "Удаление...",
@@ -893,6 +1319,10 @@
         "importButton": "Импорт",
         "loadingData": "Загрузка данных...",
         "duplicateRow": "Дублировать строку",
+        "pushToBoardRow": "В основную таблицу…",
+        "pushToBoardBulk": "В основную таблицу",
+        "dataSourceLink": "Данные",
+        "dataSourceLinkTitle": "Открыть таблицу данных-источник",
         "hideRow": "Скрыть строку",
         "deleteRow": "Удалить строку",
         "subitemColTask": "Задача",
@@ -907,10 +1337,44 @@
         "addItemOnlyDefault": "Добавление строки доступно только при группировке по умолчанию",
         "summary": "Итого",
         "groupCreationOnlyDefault": "Создание группы доступно только для поля группировки по умолчанию.",
-        "deleteColumnConfirm": "Удалить колонку «{{label}}»?",
+        "deleteColumnConfirm": "Удалить колонку «{{label}}» для всей таблицы? Она исчезнет во всех группах.",
         "deleteGroupConfirm": "Удалить группу «{{title}}» и {{count}} записей?",
         "deleteIrreversible": "Действие нельзя отменить. Связанные данные будут удалены навсегда.",
         "cancel": "Отмена",
+        "columnBindingSection": "Данные из таблицы данных",
+        "columnBindingOff": "Без привязки",
+        "columnBindingPushed": "Поле из строки-источника (после «Передать в таблицу»)",
+        "columnBindingLookup": "Подстановка по ключу из таблицы данных",
+        "columnBindingPickFromData": "Список значений из таблицы данных (ID заказа и т.д.)",
+        "columnBindingPickFromDataField": "Поле в данных для списка",
+        "columnBindingHintPickFromData": "В ячейке — выпадающий список всех значений выбранного поля из таблицы данных (например id или number заказов Woo).",
+        "pickFromDataPlaceholder": "Выберите…",
+        "pickFromDataTitle": "Значение из таблицы данных",
+        "clearAllButton": "Очистить таблицу",
+        "clearAllConfirm": "Удалить все строки этой таблицы? Действие необратимо.",
+        "columnBindingSourceField": "Ключ поля в строке данных",
+        "columnBindingDataTable": "Таблица данных",
+        "columnBindingBoardKey": "Поле на доске для сопоставления",
+        "columnBindingDataMatch": "Поле в данных (совпадение)",
+        "columnBindingDataDisplay": "Поле в данных (показать)",
+        "columnBindingHintPushed": "Если ячейка пуста, подставляется значение из связанной строки данных (workspaceDataLink).",
+        "columnBindingHintLookup": "Если ячейка пуста: ищется строка в выбранной таблице данных, где поле совпадения равно полю на доске; в ячейку попадает выбранное поле отображения.",
+        "columnBindingRollup": "Агрегат по таблице данных",
+        "columnBindingGroupBy": "Группировка в данных (ключ среза)",
+        "columnBindingValueField": "Числовое поле в данных",
+        "columnBindingAggSum": "Сумма",
+        "columnBindingAggCount": "Количество строк",
+        "columnBindingAggAvg": "Среднее",
+        "columnBindingAggMin": "Минимум",
+        "columnBindingAggMax": "Максимум",
+        "columnBindingHintRollup": "По значению поля на доске подбирается группа в данных; в пустую ячейку подставляется агрегат (например сумма трафика по стране).",
+        "columnBindingBadgeTitle": "Колонка с подстановкой из данных",
+        "columnImportKeySection": "Ключ в данных (импорт)",
+        "columnImportKeyHint": "Список строится из колонок таблицы и фактических ключей в записях. Выберите ключ, как в импорте (например id, billing_email), если он не совпадает с ключом колонки.",
+        "columnImportKeySameAsColumn": "Совпадает с ключом колонки",
+        "columnBindingPickSourceField": "Поле в строке данных…",
+        "columnBindingPickBoardKey": "Колонка на доске…",
+        "columnBindingPickDataKey": "Поле в таблице данных…",
         "editColumnTitle": "Изменить колонку",
         "saving": "Сохранение...",
         "booleanYes": "Да",
@@ -946,6 +1410,11 @@
         "presetStDone": "Готово",
         "presetStStuck": "Стоп",
         "presetStReview": "На проверке",
+        "presetCrmLead": "Лид CRM",
+        "presetCrmProject": "Проект CRM",
+        "fieldTypeGroupBasic": "Типы полей",
+        "fieldTypeGroupCrm": "CRM",
+        "fieldTypeGroupOther": "Прочее",
         "saveRecordFailed": "Не удалось сохранить запись",
         "newGroupNameRequired": "Укажите название группы",
         "subitemDefaultName": "Новая задача",
@@ -955,10 +1424,16 @@
     },
     "sidebar": {
       "brandFallback": "Lumiva CRM",
+      "tableListSection": "Таблицы",
+      "tableMenu": "Меню таблицы",
+      "openView": "Открыть вид",
+      "enableView": "Добавить вид",
       "workspaces": "Рабочие области",
       "add": "Создать",
       "addMenuTitle": "Добавить",
       "newTable": "Таблица",
+      "newBoardTable": "Таблица",
+      "newDataTable": "Таблица данных",
       "newKanban": "Канбан",
       "newAnalytics": "Аналитика",
       "newWorkspace": "Новая рабочая область",
@@ -976,8 +1451,8 @@
       "moveUp": "Выше",
       "moveDown": "Ниже",
       "duplicateWorkspace": "Дублировать",
-      "deleteWorkspace": "Удалить область",
-      "deleteWorkspaceConfirm": "Удалить область «{{name}}»? Данные будут удалены.",
+      "deleteWorkspace": "Удалить таблицу",
+      "deleteWorkspaceConfirm": "Удалить таблицу «{{name}}»? Все строки и настройки этой таблицы будут удалены без восстановления.",
       "newGroupInWorkspace": "Новая группа",
       "uncategorized": "Без категории",
       "categoryTitle": "Категория в меню",
@@ -1000,7 +1475,11 @@
       "collapseCategory": "Свернуть группу",
       "expandCategory": "Развернуть группу",
       "collapseSidebar": "Свернуть меню",
-      "expandSidebar": "Развернуть меню"
+      "expandSidebar": "Развернуть меню",
+      "sectionMain": "Главное",
+      "sectionClients": "Работа с клиентами",
+      "sectionTools": "Инструменты",
+      "sectionManagement": "Управление"
     },
     "common": {
       "delete": "Удалить",
@@ -1026,7 +1505,11 @@
         "active": "Активен",
         "inactive": "Неактивен",
         "archived": "Архив"
-      }
+      },
+      "sync": "Синхронизация",
+      "all": "Все",
+      "done": "Готово",
+      "template": "Шаблон"
     },
     "notifications": {
       "title": "Уведомления по задачам",
@@ -1380,7 +1863,8 @@
         "revenue": "Выручка (EUR)",
         "revenueHint": "по выигранным проектам",
         "tasksTotal": "Задачи всего",
-        "tasksSubtitle": "Сегодня: {{today}}, просрочено: {{overdue}}"
+        "tasksSubtitle": "Сегодня: {{today}}, просрочено: {{overdue}}",
+        "sectionTitle": "Ключевые метрики"
       },
       "leadsTimeline": {
         "title": "Динамика моих лидов (14 дней)",
@@ -1391,9 +1875,11 @@
       "projects": {
         "title": "Структура моих проектов",
         "subtitle": "Открытые, выигранные и проигранные сделки",
+        "sub": "По приоритету и прогрессу задач",
         "total": "Всего:",
         "openPotential": "Потенциал (open):",
         "empty": "У вас пока нет проектов.",
+        "tasksLabel": "задач",
         "chips": {
           "open": "Открытые",
           "won": "Выигранные",
@@ -1415,6 +1901,7 @@
       "channels": {
         "title": "Лиды по каналам (мои)",
         "period": "за всё время",
+        "allChannels": "Все каналы в CRM",
         "empty": "Пока нет лидов с привязкой к вам."
       },
       "pipeline": {
@@ -1443,7 +1930,8 @@
         "owner": "Владелец",
         "admin": "Администратор",
         "superadmin": "Суперадмин",
-        "user": "Пользователь"
+        "user": "Пользователь",
+        "manager": "Менеджер"
       },
       "fallbacks": {
         "user": "Коллега",
@@ -1489,8 +1977,11 @@
           "staff": "Команда",
           "projects-analytics": "Аналитика проектов",
           "leads-analytics": "Аналитика лидов",
-          "sales-analytics": "Аналитика продаж"
-        }
+          "sales-analytics": "Аналитика продаж",
+          "profile-completion": "Завершите профиль",
+          "learn-inspire": "Учитесь и вдохновляйтесь"
+        },
+        "addBlockHint": "метрики, отчёты, виджеты с других страниц"
       },
       "detailModal": {
         "open": "Подробнее"
@@ -1499,6 +1990,8 @@
         "title": "Продажи по каналам (выигранные проекты)"
       },
       "staff": {
+        "subLabel": "закрытая выручка",
+        "leadsLabel": "лидов",
         "headers": {
           "name": "Сотрудник",
           "leads": "Лиды",
@@ -1514,6 +2007,9 @@
         "workspaces": "Рабочие области"
       },
       "activity": {
+        "sub": "Что происходит в кабинете",
+        "crmTimeline": "Лента CRM",
+        "unnamedLead": "Без названия",
         "todayLeads": "Лидов сегодня",
         "openLeads": "Все лиды",
         "overdue": "Просрочено задач",
@@ -1521,7 +2017,89 @@
         "recentLeads": "Недавние лиды",
         "noRecentLeads": "Пока нет недавних лидов.",
         "focusTasks": "Задачи в фокусе",
-        "noUrgentTasks": "Нет задач с ближайшим сроком."
+        "noUrgentTasks": "Нет задач с ближайшим сроком.",
+        "types": {
+          "created": "Лид создан",
+          "status_changed": "Смена статуса",
+          "assignee_changed": "Смена ответственного",
+          "comment": "Комментарий",
+          "meeting": "Встреча"
+        },
+        "empty": "Активности пока нет"
+      },
+      "profileCompletion": {
+        "kicker": "Профиль",
+        "openProfile": "Открыть профиль",
+        "createLead": "Создать лида",
+        "steps": {
+          "display_name": {
+            "label": "Имя в системе",
+            "hint": "Так вас видят коллеги в CRM."
+          },
+          "phone": {
+            "label": "Телефон",
+            "hint": "Для обратной связи и истории."
+          },
+          "avatar": {
+            "label": "Фото профиля",
+            "hint": "Добавьте портрет или логотип."
+          },
+          "first_lead": {
+            "label": "Лиды в воронке",
+            "hint": "В рабочей области есть хотя бы один лид."
+          },
+          "team_invited": {
+            "label": "Пригласить команду",
+            "hint": "В рабочей области есть минимум 2 сотрудника."
+          }
+        },
+        "title": "Завершите профиль",
+        "progressLine": "{{done}} из {{total}} шагов · {{percent}}%"
+      },
+      "layoutTemplate": {
+        "title": "Шаблон главной",
+        "hint": "Выберите набор и порядок блоков. Пресеты с других страниц сохраняются в конце списка.",
+        "applied": "Шаблон применён",
+        "options": {
+          "sales": {
+            "title": "Продажи",
+            "desc": "Каналы, сделки, последние лиды и воронка — в фокусе."
+          },
+          "marketing": {
+            "title": "Маркетинг",
+            "desc": "Динамика лидов, каналы и активность — первыми."
+          },
+          "operations": {
+            "title": "Операционка",
+            "desc": "Проекты, задачи, календарь и сроки в центре внимания."
+          }
+        }
+      },
+      "learn": {
+        "subtitle": "Короткие материалы, чтобы эффективнее работать в Lumiva.",
+        "readMore": "Читать",
+        "openBlog": "Все статьи блога",
+        "posts": {
+          "crm-adoption": {
+            "title": "Как внедрять CRM, чтобы команда реально работала в системе",
+            "excerpt": "План запуска, регламенты и чек-лист внедрения из 12 пунктов — без сопротивления."
+          },
+          "analytics-dashboards": {
+            "title": "Дашборды для руководителя: что смотреть каждый день",
+            "excerpt": "Набор здоровых метрик и как настроить аналитику примерно за полчаса."
+          },
+          "automation-triggers": {
+            "title": "Триггерные автоматизации: 8 сценариев для отдела продаж",
+            "excerpt": "Задачи, уведомления и смена статусов на реальных воронках — без кода."
+          }
+        },
+        "sidebarTitle": "Учитесь и вдохновляйтесь",
+        "links": {
+          "quickstart": "Быстрый старт за 5 минут",
+          "helpCenter": "Центр помощи",
+          "whatsNew": "Что нового в Lumiva",
+          "requestDemo": "Запросить демо команды"
+        }
       },
       "calendar": {
         "hintSources": "Фиолетовые — встречи в карточках лидов (в т.ч. от ИИ). Голубые — ваши записи на этом устройстве.",
@@ -1605,6 +2183,22 @@
         "previewHint": "Превью",
         "embedFallback": "Нет данных для этого вида виджета",
         "formulaOnFullPage": "Откройте полную аналитику для настройки формулы"
+      },
+      "greeting": {
+        "morning": "Доброе утро",
+        "afternoon": "Добрый день",
+        "evening": "Добрый вечер"
+      },
+      "sections": {
+        "myBlocks": "Мои блоки"
+      },
+      "sidebar": {
+        "personalizeTitle": "Сделайте главную своей",
+        "personalizeDesc": "Выберите шаблон главной под вашу команду — продажи, маркетинг или операционка.",
+        "personalizeBtn": "Выбрать шаблон",
+        "templatesTitle": "Готовые шаблоны",
+        "templatesDesc": "Запустите процессы за пару минут — воронки, проекты, кампании.",
+        "templatesBtn": "Открыть шаблоны"
       }
     },
     "leads": {
@@ -1626,7 +2220,12 @@
           "createCalendar": "Новый календарь",
           "renameView": "Переименовать вид",
           "deleteView": "Удалить вид",
-          "viewNamePrompt": "Название вида"
+          "viewNamePrompt": "Название вида",
+          "renameViewModalTitle": "Переименовать вид",
+          "createTableModalTitle": "Новая таблица",
+          "createKanbanModalTitle": "Новый канбан",
+          "createCalendarModalTitle": "Новый календарь",
+          "viewModalConfirmCreate": "Создать"
         },
         "boolean": {
           "yes": "Да",
@@ -1899,7 +2498,23 @@
       },
       "list": {
         "title": "Лиды · Таблица",
-        "subtitle": "Табличный вид: удобно фильтровать и быстро искать",
+        "subtitle": "Список лидов: статус, компания, ответственный, контакт, канал и дата создания",
+        "search": "Поиск…",
+        "export": "Экспорт",
+        "groupSummary": "{{count}} лидов",
+        "footerTotal": "Всего",
+        "groupMode": {
+          "label": "Группировка",
+          "status": "Статус",
+          "company": "Компания",
+          "channel": "Канал",
+          "custom": "Мои группы",
+          "none": "Без группировки"
+        },
+        "filters": {
+          "companyLabel": "Фильтр по компании",
+          "allCompanies": "Все компании"
+        },
         "viewKanban": "Канбан",
         "viewList": "Таблица",
         "create": "Создать лид",
@@ -1914,6 +2529,8 @@
           "label": "Колонки",
           "add": "Добавить колонку",
           "name": "Имя",
+          "assignee": "Ответственный",
+          "company": "Компания",
           "contact": "Контакт",
           "channel": "Канал",
           "utm": "UTM",
@@ -1956,6 +2573,7 @@
         }
       },
       "calendar": {
+        "title": "Лиды · Календарь",
         "subtitle": "Календарь встреч с лидами, ссылок и email-приглашений",
         "loading": "Загрузка...",
         "filters": {
@@ -2092,7 +2710,15 @@
           "delete": "Удалить лид",
           "save": "Сохранить",
           "saving": "Сохраняем…",
-          "send": "Отправить"
+          "send": "Отправить",
+          "configureFields": "Настроить поля",
+          "addCompany": "+ Компания",
+          "addAccount": "+ Аккаунт",
+          "email": "Письмо",
+          "meeting": "Встреча",
+          "task": "Задача",
+          "automation": "Авто.",
+          "integrations": "Интеграции"
         },
         "alerts": {
           "createAccount": "Здесь будет логика создания аккаунта на стороне WordPress клиента и линковки с лидом.",
@@ -2138,7 +2764,10 @@
           "leadCreated": "Лид создан",
           "leadSaved": "Изменения по лиду сохранены",
           "leadDeleted": "Лид удалён",
-          "commentAdded": "Комментарий добавлен"
+          "commentAdded": "Комментарий добавлен",
+          "contactCreated": "Контакт создан и привязан к лиду",
+          "meetingCreated": "Встреча создана",
+          "noteCreated": "Заметка создана"
         },
         "errors": {
           "loadLead": "Ошибка загрузки лида",
@@ -2149,7 +2778,9 @@
           "commentFailed": "Не удалось добавить комментарий",
           "metaInvalid": "Meta: некорректный JSON",
           "projectsLoad": "Не удалось загрузить проекты лида",
-          "projectHistoryLoad": "Не удалось загрузить историю по проектам лида"
+          "salesLoad": "Не удалось загрузить заказы лида",
+          "projectHistoryLoad": "Не удалось загрузить историю по проектам лида",
+          "createContact": "Ошибка создания контакта"
         },
         "activity": {
           "created": "Лид создан",
@@ -2164,12 +2795,27 @@
           "projectsNeedSave": "Сохраните лид, чтобы увидеть связанные проекты.",
           "projectsLoading": "Загрузка проектов…",
           "projectsEmpty": "Пока нет проектов с этим лидом. Создайте проект в разделе «Проекты» и укажите этого лида.",
+          "salesWooTitle": "Заказы из WooCommerce",
+          "salesWooOpenList": "Все продажи",
+          "salesWooLoading": "Загрузка заказов…",
+          "salesWooEmpty": "Пока нет заказов, привязанных к этому лиду в CRM.",
+          "salesWooColOrderId": "№ заказа",
+          "salesWooColProduct": "Товар",
+          "salesWooColProductLink": "Товар (URL)",
+          "salesWooProductLinkShort": "Товар",
+          "salesWooColAmount": "Сумма",
+          "salesWooColCurrency": "Валюта",
+          "salesWooColStatus": "Статус",
+          "salesWooColWp": "WordPress",
           "channelJourneyHint": "UTM и детали пути — вкладка «Путь клиента».",
           "historyEmptyNew": "История появится после того, как вы сохраните лид.",
           "historyEmpty": "Пока нет событий по этому лиду и его проектам.",
           "historyLoading": "Загружаем историю…",
           "addComment": "Добавить комментарий",
-          "user": "Пользователь"
+          "user": "Пользователь",
+          "actionsTitle": "ДЕЙСТВИЯ",
+          "assigneesTitle": "ОТВЕТСТВЕННЫЕ",
+          "timelineTitle": "ПУТЬ КЛИЕНТА"
         },
         "journey": {
           "title": "Путь клиента",
@@ -2204,7 +2850,36 @@
           "company": "Компания",
           "companyPlaceholder": "Выберите или создайте компанию...",
           "createCompany": "Создать компанию",
-          "companyCreated": "Компания создана и привязана к лиду"
+          "companyCreated": "Компания создана и привязана к лиду",
+          "contact": "Контакт",
+          "openContact": "Открыть контакт",
+          "createContact": "Создать контакт",
+          "selectContact": "Выберите контакт",
+          "statusLabel": "Статус",
+          "createdLabel": "Создан",
+          "notesLabel": "Текст лида / запрос",
+          "customFieldsLabel": "Кастомные поля",
+          "customFieldsConfigBtn": "Настроить",
+          "customFieldsLoading": "Загрузка полей...",
+          "customFieldsEmpty": "Полей нет. Добавьте через настройку.",
+          "utmTitle": "UTM · ИСТОЧНИК ТРАФИКА",
+          "assigneesHint": "Ctrl/⌘ для нескольких"
+        },
+        "idKicker": "ЛИД",
+        "newLeadKicker": "НОВЫЙ ЛИД",
+        "customFieldsManagerTitle": "Кастомные поля лидов",
+        "email": {
+          "title": "Новое письмо",
+          "to": "Кому",
+          "subject": "Тема",
+          "body": "Текст",
+          "noAccounts": "Нет подключённых почтовых аккаунтов.",
+          "connectAccounts": "Подключить →",
+          "sending": "Отправка...",
+          "send": "Отправить",
+          "sent": "Письмо отправлено",
+          "errorNoRecipient": "Укажите аккаунт и получателя",
+          "errorSend": "Ошибка отправки"
         }
       },
       "lost": {
@@ -2379,7 +3054,13 @@
           "size": "Размер компании",
           "sizePlaceholder": "Выберите размер",
           "status": "Статус",
-          "description": "Описание"
+          "description": "Описание",
+          "phonePlaceholder": "+7 ...",
+          "websitePlaceholder": "https://...",
+          "countryPlaceholder": "Страна",
+          "cityPlaceholder": "Город",
+          "addressPlaceholder": "Адрес",
+          "industryPlaceholder": "Индустрия"
         },
         "sizeOptions": {
           "1-10": "1-10 сотрудников",
@@ -2395,7 +3076,9 @@
         },
         "errors": {
           "loadFailed": "Ошибка загрузки компании",
-          "saveFailed": "Ошибка сохранения"
+          "saveFailed": "Ошибка сохранения",
+          "nameRequired": "Название компании обязательно",
+          "createFailed": "Ошибка создания компании"
         },
         "analytics": {
           "title": "Аналитика по компаниям",
@@ -2433,7 +3116,11 @@
           "loading": "Загрузка...",
           "nameRequired": "Название компании обязательно",
           "createFailed": "Ошибка создания компании"
-        }
+        },
+        "cancel": "Отмена",
+        "save": "Сохранить",
+        "saving": "Сохранение...",
+        "titleCreate": "Создать компанию"
       },
       "details": {
         "page": {
@@ -3397,6 +4084,16 @@
           "activeOnly": "Автоматизация будет выполняться только если включена",
           "actionsDesc": "Что выполнить при срабатывании триггера"
         },
+        "leadContext": {
+          "defaultName": "Рассылка для {{name}}",
+          "defaultDescription": "По расписанию отправляется письмо выбранному лиду.",
+          "loadFailed": "Не удалось загрузить лида. Проверьте ссылку.",
+          "bannerTitle": "Режим «один лид»: {{name}}",
+          "bannerBody": "Вы зашли из карточки лида — мы выбрали триггер «По расписанию» и действие «Отправить email». Укажите почтовый аккаунт и шаблон ниже; рассылка идёт на email лида (или на тот адрес, что в поле «Кому», если заполните его).",
+          "noEmailWarning": "В карточке нет email — заполните поле «Кому» в действии или добавьте email в лиде.",
+          "backToLead": "К карточке лида",
+          "scheduledLinkedLeadHint": "К этой автоматизации привязан конкретный лид: при каждом запуске по расписанию в письмо подставятся его данные для шаблона."
+        },
         "builder": {
           "scope": "Сфера",
           "ifTitle": "IF: Когда",
@@ -3762,6 +4459,12 @@
         "noteAction": {
           "content": "Содержание заметки"
         },
+        "workspacePushAction": {
+          "hint": "Триггер: запись в пользовательской таблице. Копирует строку в указанную основную «Таблицу» (board). Добавьте условие objectId = ваша таблица данных.",
+          "targetObjectId": "UUID целевой таблицы (board)",
+          "dupField": "Поле в целевой таблице для антидубликата (необязательно)",
+          "skipDup": "Пропускать, если значение уже есть"
+        },
         "taskAction": {
           "companyId": "ID компании (если не из лида)",
           "title": "Заголовок задачи",
@@ -3805,7 +4508,8 @@
           "create_note": "Создать заметку",
           "update_field": "Обновить поле",
           "add_tag": "Добавить тег",
-          "change_status": "Изменить статус"
+          "change_status": "Изменить статус",
+          "create_custom_object_record": "Копировать строку в другую таблицу"
         },
         "openMarketingIntegrationsPage": "Маркетинг · интеграции",
         "errors": {
@@ -4127,6 +4831,7 @@
         "empty": "Нет проектов"
       },
       "calendar": {
+        "title": "Проекты · Календарь",
         "subtitle": "Календарь дедлайнов задач проектов, ответственных и бюджетов",
         "noCompany": "Без компании",
         "view": {
@@ -4174,7 +4879,8 @@
           "status": "Группировка: Статус",
           "owner": "Группировка: Ответственный",
           "company": "Группировка: Компания",
-          "none": "Без группировки"
+          "none": "Без группировки",
+          "label": "Группировка"
         },
         "filters": {
           "companyLabel": "Фильтр по компании:",
@@ -4183,11 +4889,17 @@
         "columns": {
           "label": "Колонки",
           "hide": "Скрыть колонку",
-          "add": "Добавить колонку"
+          "add": "Добавить колонку",
+          "search": "Поиск колонки…"
         },
         "groupByStatus": "Группировать по статусу",
         "groupSummary": "{{count}} проектов • {{amount}}",
-        "summary": "Всего: {{count}} • Сумма: {{amount}}",
+        "summary": {
+          "active": "Активные",
+          "amount": "Сумма",
+          "count": "Количество",
+          "updated": "Обновлено"
+        },
         "bulk": {
           "selected": "Выбрано: {{count}}",
           "status": "Статус",
@@ -4220,7 +4932,18 @@
           "amount": "Сумма",
           "created": "Создан"
         },
-        "empty": "Проектов пока нет"
+        "projectCol": {
+          "leadPlaceholder": "Лид",
+          "companyPlaceholder": "Компания"
+        },
+        "empty": "Проектов пока нет",
+        "lead": {
+          "search": "Поиск лида...",
+          "clear": "Очистить лид",
+          "empty": "Лиды не найдены"
+        },
+        "search": "Поиск проектов…",
+        "export": "Экспорт"
       },
       "archive": {
         "title": "Архив проектов",
@@ -4266,6 +4989,8 @@
             "category": "Категория",
             "status": "Статус",
             "owner": "Ответственный",
+            "lead": "Лид CRM",
+            "company": "Компания",
             "amount": "Сумма",
             "created": "Создан"
           }
@@ -4293,6 +5018,8 @@
             "category": "Категория",
             "status": "Статус",
             "owner": "Ответственный",
+            "lead": "Лид CRM",
+            "company": "Компания",
             "amount": "Сумма",
             "created": "Создан"
           }
@@ -4392,7 +5119,8 @@
       "views": {
         "kanban": "Канбан",
         "table": "Таблица",
-        "calendar": "Календарь"
+        "calendar": "Календарь",
+        "addTab": "Добавить вкладку"
       },
       "viewsBar": {
         "prompts": {
@@ -4490,6 +5218,12 @@
       "detail": {
         "titleNew": "Новый проект",
         "titleExisting": "Проект #{{id}}",
+        "back": "Назад к списку проектов",
+        "idKicker": "Проект",
+        "messages": {
+          "saved": "Проект сохранён",
+          "created": "Проект создан"
+        },
         "loading": "Загрузка данных проекта…",
         "confirmDelete": "Удалить проект?",
         "tabs": {
@@ -4503,6 +5237,7 @@
           "ownerEmpty": "Ответственный не назначен",
           "owner": "Ответственный",
           "description": "Описание проекта",
+          "lead": "Лид",
           "leadEmpty": "Без лида",
           "leadNameFallback": "Без имени",
           "leadName": "Имя лида (можно подправить вручную)",
@@ -4553,6 +5288,7 @@
           "inTask": "Вас упомянули в задаче"
         },
         "history": {
+          "managerField": "Менеджер",
           "loading": "Загружаем историю…",
           "empty": "История изменений пуста.",
           "loadFailed": "Не удалось загрузить историю",
@@ -4707,7 +5443,8 @@
             "donut": "Пончик",
             "bar": "График",
             "table": "Таблица",
-            "formula": "Формула"
+            "formula": "Формула",
+            "pivot": "Сводная таблица"
           }
         },
         "ownersTable": {
@@ -4746,7 +5483,13 @@
           "title": "Название блока",
           "size": "Размер",
           "editTitle": "Настройки блока",
-          "addTitle": "Новый блок аналитики"
+          "addTitle": "Новый блок аналитики",
+          "sumField": "Поле суммы",
+          "valueMetric": "Метрика значения",
+          "valueMode": {
+            "count": "Количество",
+            "sum": "Сумма"
+          }
         },
         "sizes": {
           "sm": "Компактный",
@@ -4794,7 +5537,8 @@
           },
           "mode": {
             "count": "Количество",
-            "percent": "Процент"
+            "percent": "Процент",
+            "sum": "Сумма"
           }
         },
         "reset": {
@@ -4803,6 +5547,48 @@
           "message": "Мы вернём первоначальный вид аналитики. Настройки можно изменить снова.",
           "cancel": "Отмена",
           "confirm": "Сбросить"
+        },
+        "blockConditions": {
+          "title": "Условия блока",
+          "conditionLabel": "Условие",
+          "allValues": "Все значения",
+          "emptyHint": "Добавьте хотя бы одно условие.",
+          "emptyHintFormula": "Для формулы задайте условия SUMIF.",
+          "multiHint": "Несколько условий объединяются по И."
+        },
+        "metric": {
+          "filteredPercent": "Доля отфильтрованного",
+          "suffix": {
+            "sum": "Σ",
+            "avg": "средн."
+          }
+        },
+        "pivot": {
+          "section": "Сводная таблица",
+          "rowDim": "Строки",
+          "colDim": "Столбцы",
+          "measures": "Показатели",
+          "addMeasure": "Добавить показатель",
+          "measure": {
+            "count": "Количество",
+            "sum": "Сумма"
+          },
+          "emptyBucket": "(пусто)",
+          "noData": "Нет данных для сводной таблицы.",
+          "sameAxisHint": "Строки и столбцы не должны совпадать.",
+          "truncated": "обрезано",
+          "shortLabelPlaceholder": "Краткая подпись"
+        },
+        "tableMetric": {
+          "sum": "Сумма"
+        },
+        "tableMulti": {
+          "addColumn": "Добавить колонку",
+          "columnN": "Колонка {{n}}",
+          "extraHint": "Дополнительные колонки метрик.",
+          "extraSection": "Доп. колонки",
+          "maxColumnsHint": "Максимум колонок: {{max}}",
+          "removeColumn": "Убрать колонку"
         }
       }
     },
@@ -4934,6 +5720,8 @@
         "roleAndDepartment": "Роль и отдел",
         "department": "Отдел",
         "departmentPlaceholder": "не указан",
+        "saveDepartment": "Сохранить отдел",
+        "departmentUnsaved": "Изменения не сохранены — нажмите «Сохранить отдел».",
         "statusTitle": "Статус сотрудника",
         "statusChanging": "Меняем…",
         "statusDisable": "Отключить",
@@ -5026,6 +5814,9 @@
           "department": "Не удалось изменить отдел",
           "status": "Не удалось изменить статус сотрудника",
           "delete": "Не удалось удалить сотрудника"
+        },
+        "common": {
+          "empty": "—"
         }
       }
     },
@@ -5266,23 +6057,43 @@
       },
       "api": {
         "sectionLabel": "Настройки · API и интеграции",
-        "title": "API для импорта маркетингового трафика",
-        "subtitle": "Этот токен позволяет отправлять данные трафика и рекламы в CRM из n8n, Google Apps Script и других интеграций. У каждого предприятия свой токен, данные не пересекаются между компаниями.",
-        "cardTitle": "Маркетинг: импорт трафика",
-        "cardHint": "Используйте этот токен в заголовке X-Api-Token при запросах на POST /v1/marketing/traffic/import. Все строки трафика будут автоматически привязаны к вашей компании (tenant).",
-        "confirmRotate": "Пересоздать токен? Старый перестанет работать.",
+        "title": "API-токен арендатора",
+        "subtitle": "Один секретный ключ для серверных интеграций: WordPress, n8n, собственные скрипты и любые запросы к защищённым endpoint CRM с заголовком X-Api-Token. Данные изолированы по вашей организации.",
+        "cardTitle": "Персональный доступ к API",
+        "cardHint": "Токен действует как пароль приложения: передавайте его только на своём сервере или в защищённых сценариях, не вставляйте в публичный фронт сайта.",
         "rotate": "Пересоздать токен",
         "rotating": "Пересоздание…",
-        "loading": "Загружаем токен…",
+        "loading": "Загрузка…",
         "tokenLabel": "Текущий токен",
-        "copy": "Копировать",
+        "tokenSecurityHint": "Полное значение показывается только после ввода вашего пароля от аккаунта. В обычном режиме видны только символы маски и последние 5 символов.",
+        "copy": "Скопировать",
+        "copyDisabledHint": "Сначала раскройте токен (иконка глаза) и введите пароль",
         "copied": "Скопировано",
-        "exampleTitle": "Пример запроса из n8n / curl",
+        "showToken": "Показать полный токен",
+        "hideToken": "Скрыть",
+        "usageTitle": "Где используется этот токен",
+        "usageBody": "Во всех таких запросах передавайте заголовок X-Api-Token с этим секретом.",
+        "usageBulletTraffic": "Импорт маркетингового трафика — POST …/marketing/traffic/import (таблица каналов и рекламы в CRM).",
+        "usageBulletWp": "WordPress / Lumiva Connector — отправка лидов и форм (например POST …/marketing/leads/cf7), если в документации плагина указан этот же заголовок.",
+        "usageBulletOther": "Любые другие методы API, где в документации указано «Bearer / X-Api-Token для тенанта» — один и тот же ключ.",
+        "exampleTitle": "Пример: curl",
+        "exampleIntro": "Подставьте полный токен после раскрытия. Ниже — тот же базовый URL, что использует ваше приложение ({{baseUrl}}).",
         "tokenPlaceholder": "<ВАШ_ТОКЕН>",
+        "modalRevealTitle": "Показать токен",
+        "modalRevealBody": "Введите пароль от вашего аккаунта Lumiva CRM.",
+        "modalRotateTitle": "Пересоздать токен",
+        "modalRotateBody": "Старый токен сразу перестанет работать во всех интеграциях. Введите пароль от аккаунта для подтверждения.",
+        "passwordLabel": "Пароль",
+        "modalCancel": "Отмена",
+        "modalConfirm": "Подтвердить",
+        "modalSubmitting": "Проверка…",
         "empty": "—",
         "errors": {
-          "load": "Не удалось загрузить API-токен для маркетинга",
-          "rotate": "Не удалось пересоздать API-токен для маркетинга"
+          "load": "Не удалось загрузить данные токена",
+          "rotate": "Не удалось пересоздать токен",
+          "reveal": "Не удалось получить токен",
+          "wrongPassword": "Неверный пароль",
+          "passwordRequired": "Введите пароль"
         }
       },
       "app": {
@@ -5470,6 +6281,7 @@
         "market": "Рынок",
         "company": "Компания",
         "openProduct": "Открыть",
+        "openInWpAdmin": "Открыть",
         "boolean": {
           "yes": "Да",
           "no": "Нет"
@@ -5496,11 +6308,19 @@
         "confirmed": "Подтверждён",
         "cancelled": "Отменён",
         "refunded": "Возврат",
-        "other": "Другое"
+        "other": "Другое",
+        "paid": "Оплачен",
+        "on_hold": "На удержании",
+        "failed": "Ошибка"
       },
       "details": {
         "title": "Заказ {{id}}…",
-        "subtitle": "Детальная информация по заказу из любых источников (интернет-магазин, внешние интеграции и др.). Отображаются все поля, переданные в CRM.",
+        "titleWithOrder": "Заказ №{{orderNo}}",
+        "subtitle": "Сводка — вверху; ниже содержимое заказа (CRM и магазин), затем действия команды и сохранение.",
+        "structure": {
+          "heroKicker": "Сводка заказа",
+          "orderContentsKicker": "Товары и оплата"
+        },
         "back": "Назад к списку",
         "loading": "Загружаем заказ…",
         "sections": {
@@ -5510,35 +6330,76 @@
           "management": "Управление заказом",
           "customFields": "Кастомные поля",
           "product": "Продукт",
-          "allSaleFields": "Все поля заказа (Sale)",
+          "orderContents": "Содержимое заказа",
+          "allSaleFields": "Дополнительные поля",
           "metaFields": "Дополнительные данные (meta)"
+        },
+        "orderContentsHint": "Сводка из CRM и данные из магазина (при синхронизации).",
+        "orderContentsFromCrm": "В CRM",
+        "orderContentsFromStore": "Магазин (WooCommerce)",
+        "managementIntro": "Ответственные, лид и заметки сохраняются кнопкой внизу (статус заказа — в сводке выше).",
+        "subsections": {
+          "status": "Статус",
+          "team": "Ответственные",
+          "lead": "Лид",
+          "customFields": "Кастомные поля",
+          "notes": "Заметки"
+        },
+        "allSaleFieldsHint": "Другие поля записи CRM, если они есть и не продублированы блоками выше.",
+        "wooOrder": {
+          "sectionTitle": "Данные заказа WooCommerce",
+          "hint": "Значения из ответа REST API заказа в магазине (поля total_tax, total, line_items и др.).",
+          "currency": "Валюта",
+          "itemsHeading": "Товары и услуги в заказе",
+          "colProduct": "Наименование",
+          "colQty": "Кол-во",
+          "colLineTotal": "Сумма строки",
+          "totalTax": "Налоги",
+          "orderTotal": "Итого по заказу"
+        },
+        "links": {
+          "wpOrder": "Заказ в WordPress"
         },
         "fields": {
           "productId": "ID продукта",
+          "externalOrderNo": "Номер заказа в магазине",
+          "internalRecordId": "ID записи в CRM",
           "purchaseDate": "Дата покупки",
           "updatedAt": "Дата изменения",
           "status": "Статус",
           "channel": "Канал",
+          "channelUnresolved": "Канал не найден в списке (возможно удалён)",
+          "channelIdInternal": "Внутренний ID канала",
           "integration": "Интеграция",
           "country": "Страна покупки",
           "orderStatus": "Статус заказа",
           "manager": "Ответственный менеджер",
           "leadId": "Лид (ID)",
+          "lead": "Лид",
           "searchLead": "Поиск лида (имя, телефон, email)",
           "notes": "Комментарий (внутренние заметки)",
-          "productName": "Название продукта",
+          "productName": "Товар",
           "productLink": "Ссылка на продукт"
         },
+        "saleFieldLabels": {
+          "hotel": "Товар",
+          "guestName": "Покупатель",
+          "agentName": "Контрагент",
+          "market": "Страна / регион"
+        },
+        "metaFieldLabels": {},
         "actions": {
           "open": "Открыть",
           "createLead": "Создать лид",
           "creatingLead": "Создаём…",
           "configure": "Настроить",
           "saving": "Сохраняем…",
-          "save": "Сохранить изменения"
+          "save": "Сохранить изменения",
+          "unlinkLead": "Отвязать"
         },
         "placeholders": {
           "selectValue": "Выберите значение",
+          "managerNone": "Не выбран",
           "manager": "Например: Анна Иванова",
           "leadId": "UUID лида или пусто",
           "searchLead": "Начните вводить для поиска",
@@ -5546,7 +6407,8 @@
         },
         "hints": {
           "manager": "Позже можно будет выбрать менеджера из списка сотрудников.",
-          "lead": "Можно вручную вставить ID лида, выбрать через поиск ниже или создать нового из данных заказа."
+          "lead": "Выберите лида через поиск ниже или создайте из данных заказа.",
+          "leadAuto": "При синхронизации с WooCommerce лид создаётся или подбирается по email покупателя: один email — один лид, новые заказы того же клиента привязываются к нему."
         },
         "fallbacks": {
           "noName": "Без имени",
@@ -5562,7 +6424,8 @@
           "save": "Не удалось сохранить изменения заказа",
           "loadCustomFields": "Не удалось загрузить кастомные поля",
           "createLead": "Не удалось создать лид из заказа"
-        }
+        },
+        "loadingCustomFields": "Загружаем кастомные поля…"
       },
       "analytics": {
         "kicker": "Продажи · Аналитика",
@@ -5897,7 +6760,12 @@
       "extendedMetricsMismatch": "Есть {{count}} строк в выборке, но разбивка по провайдерам пуста. Обновите страницу с очисткой кэша.",
       "rawRowsLabel": "Строк в периоде",
       "impressionsLabel": "Показы",
-      "spendLabel": "Расход"
+      "spendLabel": "Расход",
+      "summaryBreakdownChannel": "Channel (data source)",
+      "summaryBreakdownEmpty": "No provider breakdown for the selected period.",
+      "summaryBreakdownRows": "Rows",
+      "summaryStripTitle": "Сводка периода",
+      "summaryStripSubtitle": "Ключевые метрики по выбранному интервалу."
     },
     "marketingCurrency": {
       "fxError": "Не удалось загрузить курсы",
@@ -5963,7 +6831,20 @@
       "thSessions": "Сессии",
       "thLeads": "Лиды",
       "thCost": "Расход",
-      "thRevenue": "Выручка"
+      "thRevenue": "Выручка",
+      "allUnattributedHidden": "All rows are hidden: only records without an integration channel remain. Clear the filter below or set dataSource on import.",
+      "cpc": "CPC",
+      "cplShort": "CPL",
+      "cpm": "CPM",
+      "ctr": "CTR",
+      "hideUnattributed": "Hide “no integration channel”",
+      "moreDetails": "Details",
+      "topCampaigns": "Campaigns",
+      "unknownExplain": "Rows without a data source in CRM: often imports from n8n/analytics without an integration tag. Impressions and spend here may overlap Meta/Google session slices without UTMs—do not add them to neighbors as “more ads.”",
+      "title": "Трафик и кампании",
+      "titleCampaigns": "Кампании",
+      "subtitleTraffic": "Сводка по сессиям, кликам и расходу.",
+      "subtitleCampaigns": "Топ кампаний и эффективность."
     },
     "marketingCampaigns": {
       "kicker": "Маркетинг · Кампании",
@@ -5998,13 +6879,18 @@
         "roasCpl": "ROAS & CPL",
         "roas": "ROAS",
         "cpl": "CPL",
-        "roasCplHint": "Окупаемость и средняя стоимость лида."
+        "roasCplHint": "Окупаемость и средняя стоимость лида.",
+        "clicksHint": "Суммарные клики по кампаниям за период.",
+        "impressionsHint": "Суммарные показы.",
+        "sessionsHint": "Сессии из связанной аналитики."
       },
       "top": {
         "title": "Топ кампаний",
         "subtitle": "По выручке за выбранный период.",
         "subtitleCost": "По расходу (выручка в данных отсутствует или нулевая для выбранного топа).",
-        "shown": "Показано: {{count}}"
+        "shown": "Показано: {{count}}",
+        "subtitleClicks": "По кликам за выбранный период.",
+        "subtitleImpressions": "По показам за выбранный период."
       },
       "table": {
         "title": "Список кампаний",
@@ -6226,7 +7112,10 @@
         "siteRequired": "Введите домен сайта",
         "siteAdd": "Не удалось добавить сайт",
         "siteApply": "Не удалось применить сайт",
-        "siteDelete": "Не удалось удалить сайт"
+        "siteDelete": "Не удалось удалить сайт",
+        "gscReauthRequired": "Нужно заново авторизовать Google Search Console.",
+        "loadMetrics": "Не удалось загрузить метрики SEO.",
+        "loadSettings": "Не удалось загрузить настройки SEO."
       },
       "connections": {
         "title": "Подключения",
@@ -6388,6 +7277,10 @@
           "PageSpeed Insights — скорость и Core Web Vitals.",
           "Analytics (GA4/Метрика) — поведение и конверсии."
         ]
+      },
+      "oauthCallback": {
+        "connected": "Подключение выполнено.",
+        "generic": "Результат OAuth."
       }
     },
     "marketingSmm": {
@@ -6798,6 +7691,23 @@
       "sync": {
         "summary": "Синк: создано {{created}}, обновлено {{updated}}, пропущено {{skipped}}.",
         "done": "Синхронизация завершена. {{message}}"
+      },
+      "modal": {
+        "close": "Понятно",
+        "syncTitle": "Результат синхронизации",
+        "testOkTitle": "Подключение доступно",
+        "testFailTitle": "Проверка не пройдена",
+        "errorTitle": "Ошибка",
+        "validationTitle": "Проверьте данные",
+        "salesStatsHint": "Продажи (импорт)",
+        "workspaceStatsHint": "Рабочая область",
+        "statCreated": "Создано",
+        "statUpdated": "Обновлено",
+        "statSkipped": "Пропущено",
+        "statWsCreated": "Создано",
+        "statWsUpdated": "Обновлено",
+        "statWsSkipped": "Пропущено",
+        "detailLabel": "Подробности"
       }
     },
     "salesIntegrationNew": {
@@ -6904,6 +7814,41 @@
       "apply": {
         "summary": "Импорт выполнен: создано {{created}}, пропущено {{skipped}}."
       }
+    },
+    "marketingChannelAnalytics": {
+      "barTopImpressions": "Top campaigns by impressions",
+      "chartCostRevenue": "Spend and revenue (raw daily totals)",
+      "chartImpressions": "Impressions",
+      "chartSessionsClicks": "Sessions and clicks",
+      "close": "Close",
+      "dimEmpty": "(not set)",
+      "emptySeries": "No daily data for the selected filter.",
+      "fullTable": "All campaigns in selection",
+      "fullTableHint": "Sort by column. Data matches the period aggregate on the traffic page.",
+      "geoColCountry": "Country",
+      "geoLoading": "Loading geo data…",
+      "geoTableHint": "Like the Geo report in Google Analytics: sessions and views by country. No individual CRM users—web analytics aggregates only.",
+      "geoTableTitle": "Sessions and views by country",
+      "geoUnknownCountry": "Country unknown",
+      "loadingSeries": "Loading series…",
+      "mapEmpty": "No rows linked to a country from campaign names.",
+      "mapEmptyNoInfer": "No geo in the database for the period and country could not be inferred from campaign names. For GA4 channels, sync the integration after updating.",
+      "mapHint": "Colored by sessions. Country is guessed from keywords in campaign names (e.g. “Almanya”, “Polonya”). Without a match, data does not appear on the map.",
+      "mapHintGa4": "Country comes from countryId when syncing GA4. Intensity by sessions. These are web analytics aggregates, not individual CRM contacts.",
+      "mapNoCountryData": "No data for this country in the current selection.",
+      "mapScale": "Sessions (intensity)",
+      "mapTitle": "Geography (estimated from campaign names)",
+      "mapTitleGa4": "Geography (Google Analytics data)",
+      "other": "Other",
+      "periodAll": "Full available period",
+      "pieCostCampaign": "Spend by campaign",
+      "pieImprMedium": "Impressions by medium",
+      "pieSessionsSource": "Sessions by source",
+      "roadmapBody": "Geo by session for GA4 channels is pulled on sync (countryId). Reports by page URL, cities, and funnel steps are planned after schema/import extensions.",
+      "roadmapTitle": "Pages and funnel (in development)",
+      "sectionBreakdown": "Spend and traffic structure",
+      "sectionGeo": "Geography",
+      "sectionTrend": "Daily trend"
     }
   },
   "publicPages": {
@@ -6918,12 +7863,99 @@
       "sales": "Продажи",
       "pricing": "Тарифы",
       "blog": "Блог",
-      "privacy": "Конфиденциальность"
+      "privacy": "Конфиденциальность",
+      "features": "Функции",
+      "about": "О нас",
+      "contact": "Контакты",
+      "faq": "FAQ",
+      "terms": "Условия",
+      "changelog": "Обновления"
     },
     "common": {
-      "kicker": "Публичные страницы",
+      "kicker": "Lumiva CRM",
       "primaryCta": "Войти в CRM",
-      "secondaryCta": "Вернуться на главную"
+      "secondaryCta": "Вернуться на главную",
+      "tryFree": "Попробовать бесплатно",
+      "requestDemo": "Запросить демо",
+      "learnMore": "Узнать больше",
+      "getStarted": "Начать работу"
+    },
+    "features": {
+      "title": "Всё что нужно для роста",
+      "subtitle": "Lumiva CRM объединяет CRM, базу данных, автоматизацию и аналитику в одном продукте.",
+      "heroKicker": "Платформа",
+      "ctaTitle": "Начните работу сегодня",
+      "ctaSubtitle": "Зарегистрируйтесь и получите полный доступ. Без скрытых платежей.",
+      "integrationsTitle": "Подключается к вашим инструментам",
+      "integrationsSubtitle": "20+ готовых интеграций из коробки",
+      "allFeaturesTitle": "Все возможности платформы",
+      "allFeaturesKicker": "Функциональность"
+    },
+    "about": {
+      "title": "О Lumiva CRM",
+      "subtitle": "Мы создаём CRM, которая помогает малому и среднему бизнесу расти быстрее.",
+      "missionKicker": "Наша миссия",
+      "missionQuote": "Сделать профессиональные инструменты управления бизнесом доступными для каждой команды.",
+      "valuesKicker": "Ценности",
+      "valuesTitle": "Что нас объединяет",
+      "historyKicker": "История",
+      "historyTitle": "Как мы развивались",
+      "techKicker": "Технологии",
+      "techTitle": "На чём построено",
+      "ctaTitle": "Хотите познакомиться ближе?",
+      "ctaSubtitle": "Запишитесь на демо и мы расскажем всё о продукте",
+      "statsClients": "Клиентов",
+      "statsIntegrations": "Интеграций",
+      "statsUptime": "Uptime",
+      "statsYears": "На рынке"
+    },
+    "contact": {
+      "title": "Запросить демо",
+      "subtitle": "Оставьте заявку и мы свяжемся с вами в течение рабочего дня.",
+      "formTitle": "Расскажите о вашем бизнесе",
+      "fieldName": "Имя",
+      "fieldEmail": "Email",
+      "fieldCompany": "Компания",
+      "fieldPhone": "Телефон",
+      "fieldTeamSize": "Размер команды",
+      "fieldMessage": "Расскажите о задаче",
+      "fieldTeamSizePlaceholder": "Выберите...",
+      "submitBtn": "Запросить демо →",
+      "submitting": "Отправляем...",
+      "successTitle": "Заявка отправлена!",
+      "successText": "Мы свяжемся с вами в течение одного рабочего дня.",
+      "sendAnother": "Отправить ещё",
+      "sidebarTitle": "Что вы получите на демо",
+      "responseTime": "Ответим за 24 часа",
+      "responseHours": "Работаем по будням с 9:00 до 18:00 МСК"
+    },
+    "faq": {
+      "title": "Часто задаваемые вопросы",
+      "subtitle": "Ответы на самые популярные вопросы. Не нашли ответ? Напишите нам.",
+      "allCategory": "Все",
+      "notFoundTitle": "Не нашли ответ?",
+      "notFoundText": "Наша команда поддержки ответит в течение 24 часов.",
+      "contactBtn": "Написать нам",
+      "usefulLinks": "Полезные ссылки"
+    },
+    "terms": {
+      "title": "Пользовательское соглашение",
+      "subtitle": "Условия использования платформы Lumiva CRM.",
+      "toc": "Содержание",
+      "lastUpdated": "Дата последнего обновления"
+    },
+    "changelog": {
+      "title": "История обновлений",
+      "subtitle": "Что нового в Lumiva CRM. Мы постоянно улучшаем платформу.",
+      "latest": "Последняя",
+      "subscribeTitle": "Будьте в курсе",
+      "subscribeSubtitle": "Подпишитесь на Telegram-канал, чтобы узнавать о новых функциях первыми.",
+      "telegramBtn": "Telegram-канал",
+      "suggestBtn": "Предложить функцию",
+      "tagNew": "Новое",
+      "tagImproved": "Улучшение",
+      "tagFixed": "Исправлено",
+      "tagSecurity": "Безопасность"
     },
     "development": {
       "title": "Разработка CRM под ваш процесс",
@@ -7026,6 +8058,14 @@
           "text": "Подход к запуску, регламентам и адаптации сотрудников без сопротивления."
         }
       ]
+    },
+    "footer": {
+      "tagline": "Умная CRM для роста вашего бизнеса",
+      "product": "Продукт",
+      "company": "Компания",
+      "rights": "Все права защищены.",
+      "privacy": "Конфиденциальность",
+      "terms": "Условия использования"
     }
   }
 }

@@ -1,5 +1,5 @@
 // src/pages/sales/SalesChannelsPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
@@ -10,6 +10,8 @@ import {
   type SalesChannel,
 } from '../../api/salesChannels';
 import { getLocale } from '../../i18n/utils';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const actionBtnClass =
   'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 text-[11px] font-medium border border-slate-500/45 text-slate-100 bg-slate-500/[0.08] hover:bg-slate-500/[0.14] disabled:opacity-50 transition-colors';
@@ -18,6 +20,7 @@ const actionBtnDangerClass =
 
 export const SalesChannelsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const locale = getLocale();
   const typeLabels: Record<SalesChannel['type'], string> = {
     b2b: t('crm.salesChannels.types.b2b'),
@@ -32,7 +35,6 @@ export const SalesChannelsPage: React.FC = () => {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     startX: number;
@@ -170,19 +172,19 @@ export const SalesChannelsPage: React.FC = () => {
     });
   };
 
-  const handleColumnDrop = (targetId: string) => {
-    if (!dragColumnId || dragColumnId === targetId) return;
+  const reorderColumns = useCallback((dragId: string, targetId: string) => {
     setColumnOrder((prev) => {
       const next = [...prev];
-      const from = next.indexOf(dragColumnId);
+      const from = next.indexOf(dragId);
       const to = next.indexOf(targetId);
       if (from === -1 || to === -1) return prev;
       next.splice(from, 1);
-      next.splice(to, 0, dragColumnId);
+      next.splice(to, 0, dragId);
       return next;
     });
-    setDragColumnId(null);
-  };
+  }, []);
+
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'dark');
 
   const renderCell = (ch: SalesChannel, columnId: string) => {
     switch (columnId) {
@@ -291,7 +293,9 @@ export const SalesChannelsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.salesChannels.errors.toggle'));
+      showAlert(e.message || t('crm.salesChannels.errors.toggle'), {
+        variant: 'error',
+      });
     } finally {
       setSavingId(null);
     }
@@ -311,7 +315,9 @@ export const SalesChannelsPage: React.FC = () => {
       setChannels((prev) => prev.filter((c) => c.id !== ch.id));
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.salesChannels.errors.delete'));
+      showAlert(e.message || t('crm.salesChannels.errors.delete'), {
+        variant: 'error',
+      });
     } finally {
       setSavingId(null);
     }
@@ -427,24 +433,22 @@ export const SalesChannelsPage: React.FC = () => {
                     return (
                       <th
                         key={col.id}
-                        draggable
-                        onDragStart={(e) => {
-                          setDragColumnId(col.id);
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('text/plain', col.id);
-                        }}
-                        onDragEnd={() => setDragColumnId(null)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => handleColumnDrop(col.id)}
-                        className="text-left font-normal px-2 py-1 relative group"
+                        {...columnDrag.getThProps(
+                          col.id,
+                          typeof col.label === 'string' ? col.label : String(col.label),
+                          'text-left font-normal px-2 py-1 relative group/colhdr select-none transition-colors duration-150',
+                        )}
                         style={{ width, minWidth: width }}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="cursor-move">⋮⋮</span>
+                        <div className="flex min-h-[28px] items-center gap-2">
+                          <span className="text-[10px] text-slate-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                            ⋮⋮
+                          </span>
                           <span>{col.label}</span>
                         </div>
                         <div
-                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                          data-col-resize
+                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover/colhdr:opacity-100"
                           onMouseDown={(e) => startResize(col.id, e)}
                         />
                       </th>

@@ -6,12 +6,14 @@ import {
   fetchCustomObjects,
   fetchCustomObjectFields,
   fetchCustomObjectRecords,
+  createCustomObjectRecord,
   type CustomObject,
   type CustomObjectField,
   type CustomObjectRecord,
 } from '../../api/customObjects';
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
+import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
 import { dayKeysFromStartEndStrings, toLocalDateKey } from '../../utils/calendarLocalDates';
 
 export const WorkspaceCalendarViewPage: React.FC = () => {
@@ -26,19 +28,23 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
   const [viewMode, setViewMode] = useState<'month' | 'week'>('month');
   const [anchorDate, setAnchorDate] = useState<Date>(new Date());
   const [search, setSearch] = useState('');
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [newRecordName, setNewRecordName] = useState('');
+  const [creatingRecord, setCreatingRecord] = useState(false);
 
   useEffect(() => {
     if (!objectId) return;
     setLoading(true);
-    Promise.all([
-      fetchCustomObjectFields(objectId),
-      fetchCustomObjectRecords(objectId),
-      fetchCustomObjects().catch(() => [] as CustomObject[]),
-    ])
-      .then(([loadedFields, res, objects]) => {
+    Promise.all([fetchCustomObjectFields(objectId), fetchCustomObjects().catch(() => [] as CustomObject[])])
+      .then(async ([loadedFields, objects]) => {
+        const object = objects.find((item) => item.id === objectId);
+        const enrich =
+          getWorkspaceTableKind(object?.meta as Record<string, unknown> | null) === 'board';
+        const res = await fetchCustomObjectRecords(objectId, undefined, {
+          enrichColumnBindings: enrich,
+        });
         setFields(loadedFields.filter((field) => field.isActive));
         setRecords(res.items);
-        const object = objects.find((item) => item.id === objectId);
         setObjectMeta((object?.meta as Record<string, any> | null) || null);
       })
       .finally(() => setLoading(false));
@@ -169,16 +175,73 @@ export const WorkspaceCalendarViewPage: React.FC = () => {
 
   const hasItems = records.length > 0;
 
+  const createRecord = async () => {
+    const name = newRecordName.trim();
+    if (!name || creatingRecord) return;
+    setCreatingRecord(true);
+    try {
+      const created = await createCustomObjectRecord(objectId, { values: { name } });
+      setRecords((prev) => [created, ...prev]);
+      setNewRecordName('');
+      setShowNewModal(false);
+    } catch {
+      // ignore
+    } finally {
+      setCreatingRecord(false);
+    }
+  };
+
   return (
     <MainLayout>
-      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="max-w-[120rem] mx-auto space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.calendar.title')}</h1>
             <p className="text-sm text-slate-500">{t('crm.workspace.calendar.subtitle')}</p>
           </div>
-          <WorkspaceViewTabs objectId={objectId} active="calendar" />
+          <button
+            type="button"
+            onClick={() => { setShowNewModal(true); setNewRecordName(''); }}
+            className="rounded-xl bg-lumiva-accent px-3 py-2 text-sm font-medium text-white hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+          >
+            + {t('crm.workspace.common.newRecord')}
+          </button>
         </div>
+        <WorkspaceViewTabs objectId={objectId} active="calendar" />
+
+        {showNewModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/30" onClick={() => setShowNewModal(false)} />
+            <div className="relative z-10 w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+              <h2 className="text-base font-semibold text-slate-900 mb-3">{t('crm.workspace.common.newRecord')}</h2>
+              <input
+                autoFocus
+                value={newRecordName}
+                onChange={(e) => setNewRecordName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void createRecord(); if (e.key === 'Escape') setShowNewModal(false); }}
+                placeholder={t('crm.workspace.kanban.cardNamePlaceholder')}
+                className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm mb-3"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => void createRecord()}
+                  disabled={!newRecordName.trim() || creatingRecord}
+                  className="rounded-xl bg-lumiva-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+                >
+                  {creatingRecord ? t('crm.workspace.common.updating') : t('crm.workspace.common.create')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowNewModal(false)}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  {t('crm.workspace.common.cancel')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
             <div className="text-sm text-slate-600">{monthLabel}</div>

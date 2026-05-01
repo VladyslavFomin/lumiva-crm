@@ -1,11 +1,12 @@
 import React from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import type { Lead } from '../../api/leads';
 import { fetchLeads, updateLead } from '../../api/leads';
 import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/email';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { ViewNameModal } from '../../components/ViewNameModal';
 import {
   createLeadsCustomView,
   deleteLeadsCustomView,
@@ -14,6 +15,7 @@ import {
   updateLeadsCustomView,
 } from './leadsViewsStore';
 import { dayKeysFromStartEndStrings, toLocalDateKey } from '../../utils/calendarLocalDates';
+import '../projects/ProjectsListPage.css';
 
 type LeadMeeting = {
   id: string;
@@ -151,8 +153,16 @@ const resolveLocale = (lang: string) => {
 export const LeadsCalendarPage: React.FC = () => {
   const { i18n, t } = useTranslation();
   const locale = resolveLocale(i18n.language || 'ru');
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const path = location.pathname;
+  const isListTab = path === '/leads' || path === '/leads/list';
+  const isKanbanTab = path === '/leads/board';
+  const isCalendarTab = path === '/leads/calendar';
+  const goList = () => navigate('/leads');
+  const goBoard = () => navigate('/leads/board');
+  const goCalendarTab = () => navigate('/leads/calendar');
   const [leads, setLeads] = React.useState<Lead[]>([]);
   const [staffUsers, setStaffUsers] = React.useState<StaffUser[]>([]);
   const [emailAccounts, setEmailAccounts] = React.useState<EmailAccount[]>([]);
@@ -172,17 +182,20 @@ export const LeadsCalendarPage: React.FC = () => {
   const [upcomingQuery, setUpcomingQuery] = React.useState('');
   const [customViews, setCustomViews] = React.useState<LeadsCustomView[]>(() => loadLeadsCustomViews());
   const [viewsMenuOpen, setViewsMenuOpen] = React.useState(false);
+  const [nameModalOpen, setNameModalOpen] = React.useState(false);
+  const [nameModalMode, setNameModalMode] = React.useState<'create' | 'rename'>('create');
+  const [nameModalCreateType, setNameModalCreateType] = React.useState<'table' | 'kanban' | 'calendar'>(
+    'calendar',
+  );
   const viewsMenuRef = React.useRef<HTMLDivElement | null>(null);
   const activeViewId = searchParams.get('view');
   const activeCustomView = customViews.find((view) => view.id === activeViewId) || null;
-  const leadsTitle = t('crm.leads.board.pageTitle');
   const calendarLabel = t('crm.leads.board.viewCalendar');
   const menuCreateTable = t('crm.leads.board.menu.createTable');
   const menuCreateKanban = t('crm.leads.board.menu.createKanban');
   const menuCreateCalendar = t('crm.leads.board.menu.createCalendar');
   const menuRename = t('crm.leads.board.menu.renameView');
   const menuDelete = t('crm.leads.board.menu.deleteView');
-  const viewNamePrompt = t('crm.leads.board.menu.viewNamePrompt');
   const archivedLabel = t('crm.leads.calendar.filters.showArchived');
   const upcomingTitle = t('crm.leads.calendar.upcoming.title');
   const autoReminderHint = t('crm.leads.calendar.upcoming.autoReminderHint');
@@ -249,26 +262,40 @@ export const LeadsCalendarPage: React.FC = () => {
   const openView = (type: 'table' | 'kanban' | 'calendar', viewId?: string) => {
     const basePath =
       type === 'table'
-        ? '/app/leads'
+        ? '/leads'
         : type === 'kanban'
-          ? '/app/leads/board'
-          : '/app/leads/calendar';
+          ? '/leads/board'
+          : '/leads/calendar';
     navigate(viewId ? `${basePath}?view=${viewId}` : basePath);
   };
 
-  const handleCreateView = (type: 'table' | 'kanban' | 'calendar') => {
-    const name = window.prompt(viewNamePrompt);
-    if (!name || !name.trim()) return;
+  const confirmCreateView = (name: string) => {
     setCustomViews((prev) => {
-      const next = createLeadsCustomView(prev, type, name);
+      const next = createLeadsCustomView(prev, nameModalCreateType, name);
       const created = next[next.length - 1];
-      if (created) openView(type, created.id);
+      if (created) openView(nameModalCreateType, created.id);
       return next;
     });
     setViewsMenuOpen(false);
   };
 
+  const confirmRenameView = (name: string) => {
+    if (!activeCustomView) return;
+    setCustomViews((prev) =>
+      updateLeadsCustomView(prev, activeCustomView.id, { name: name.trim() }),
+    );
+    setViewsMenuOpen(false);
+  };
+
   const isArchivedLead = (lead: Lead) => Boolean(lead.meta?.archived);
+  const isDeletedLead = (lead: Lead) => Boolean(lead.meta?.deleted);
+  const leadsTabBadgeCount = React.useMemo(
+    () =>
+      leads.filter(
+        (lead) => !isDeletedLead(lead) && (showArchived || !isArchivedLead(lead)),
+      ).length,
+    [leads, showArchived],
+  );
   const filteredLeads = React.useMemo(
     () => (showArchived ? leads : leads.filter((lead) => !isArchivedLead(lead))),
     [leads, showArchived],
@@ -593,98 +620,160 @@ export const LeadsCalendarPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
-        <div className="space-y-3">
+      <ViewNameModal
+        open={nameModalOpen}
+        title={
+          nameModalMode === 'rename'
+            ? t('crm.leads.board.menu.renameViewModalTitle')
+            : nameModalCreateType === 'table'
+              ? t('crm.leads.board.menu.createTableModalTitle')
+              : nameModalCreateType === 'kanban'
+                ? t('crm.leads.board.menu.createKanbanModalTitle')
+                : t('crm.leads.board.menu.createCalendarModalTitle')
+        }
+        label={t('crm.leads.board.menu.viewNamePrompt')}
+        initialValue={nameModalMode === 'rename' && activeCustomView ? activeCustomView.name : ''}
+        confirmLabel={
+          nameModalMode === 'rename'
+            ? t('crm.common.save')
+            : t('crm.leads.board.menu.viewModalConfirmCreate')
+        }
+        cancelLabel={t('crm.common.cancel')}
+        onClose={() => setNameModalOpen(false)}
+        onConfirm={(name) => {
+          if (nameModalMode === 'rename') confirmRenameView(name);
+          else confirmCreateView(name);
+        }}
+      />
+      <div
+        className="lv-pt w-full pb-8 min-w-0"
+        style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24, width: 'calc(100% + 48px)' }}
+      >
+        <div className="lv-pt-head">
           <div>
-            <h1 className="text-lg font-semibold text-slate-50">{leadsTitle}</h1>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.leads.calendar.subtitle')}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex items-end gap-1 border-b border-slate-700/70 overflow-x-auto">
-              <button
-                className="px-3 py-2 text-sm text-slate-300 hover:text-slate-100"
-                type="button"
-                onClick={() => navigate('/app/leads/board')}
-              >
-                {t('crm.leads.board.viewKanban')}
-              </button>
-              <button
-                className="px-3 py-2 text-sm text-slate-300 hover:text-slate-100"
-                type="button"
-                onClick={() => navigate('/app/leads')}
-              >
-                {t('crm.leads.list.viewList')}
-              </button>
-              <button className="px-3 py-2 text-sm text-slate-50 border-b-2 border-lumiva-accent" type="button">
-                {calendarLabel}
-              </button>
-              {customViews.map((view) => (
-                <button
-                  key={view.id}
-                  type="button"
-                  onClick={() => openView(view.type, view.id)}
-                  className={`whitespace-nowrap px-3 py-2 text-sm ${
-                    activeCustomView?.id === view.id
-                      ? 'text-slate-50 border-b-2 border-lumiva-accent'
-                      : 'text-slate-300 hover:text-slate-100'
-                  }`}
-                >
-                  {view.name}
-                </button>
-              ))}
-            </div>
-            <div className="relative" ref={viewsMenuRef}>
-              <button
-                type="button"
-                onClick={() => setViewsMenuOpen((prev) => !prev)}
-                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
-              >
-                ...
-              </button>
-              {viewsMenuOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-800 bg-slate-950 shadow-xl p-2 z-20">
-                  <button type="button" onClick={() => handleCreateView('table')} className="w-full text-left px-2 py-1.5 text-[11px] rounded-lg text-slate-200 hover:bg-slate-900/80">{menuCreateTable}</button>
-                  <button type="button" onClick={() => handleCreateView('kanban')} className="w-full text-left px-2 py-1.5 text-[11px] rounded-lg text-slate-200 hover:bg-slate-900/80">{menuCreateKanban}</button>
-                  <button type="button" onClick={() => handleCreateView('calendar')} className="w-full text-left px-2 py-1.5 text-[11px] rounded-lg text-slate-200 hover:bg-slate-900/80">{menuCreateCalendar}</button>
-                  {activeCustomView ? (
-                    <>
-                      <div className="my-1 border-t border-slate-800" />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const nextName = window.prompt(viewNamePrompt, activeCustomView.name);
-                          if (!nextName || !nextName.trim()) return;
-                          setCustomViews((prev) =>
-                            updateLeadsCustomView(prev, activeCustomView.id, { name: nextName.trim() }),
-                          );
-                          setViewsMenuOpen(false);
-                        }}
-                        className="w-full text-left px-2 py-1.5 text-[11px] rounded-lg text-slate-200 hover:bg-slate-900/80"
-                      >
-                        {menuRename}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCustomViews((prev) => deleteLeadsCustomView(prev, activeCustomView.id));
-                          setViewsMenuOpen(false);
-                          navigate('/app/leads/calendar');
-                        }}
-                        className="w-full text-left px-2 py-1.5 text-[11px] rounded-lg text-rose-300 hover:bg-rose-950/30"
-                      >
-                        {menuDelete}
-                      </button>
-                    </>
-                  ) : null}
-                </div>
-              )}
-            </div>
+            <h1>{t('crm.leads.calendar.title')}</h1>
+            <div className="sub">{t('crm.leads.calendar.subtitle')}</div>
           </div>
         </div>
 
+        <div className="lv-view-tabs">
+          <button type="button" className={`lv-view-tab${isListTab ? ' active' : ''}`} onClick={goList}>
+            {t('crm.leads.list.viewList')}
+            <span className="badge">{leadsTabBadgeCount}</span>
+          </button>
+          <button type="button" className={`lv-view-tab${isKanbanTab ? ' active' : ''}`} onClick={goBoard}>
+            {t('crm.leads.list.viewKanban')}
+          </button>
+          <button type="button" className={`lv-view-tab${isCalendarTab ? ' active' : ''}`} onClick={goCalendarTab}>
+            {calendarLabel}
+          </button>
+          {customViews.map((view) => (
+            <button
+              key={view.id}
+              type="button"
+              onClick={() => openView(view.type, view.id)}
+              className={`group lv-view-tab${activeCustomView?.id === view.id ? ' active' : ''}`}
+            >
+              {view.name}
+              {activeCustomView?.id === view.id && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  className="lv-view-tab-menu-btn visible"
+                  aria-label="menu"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setViewsMenuOpen((v) => !v);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setViewsMenuOpen((v) => !v);
+                    }
+                  }}
+                >
+                  ⋯
+                </span>
+              )}
+            </button>
+          ))}
+          <div className="relative" ref={viewsMenuRef}>
+            <button type="button" className="lv-view-tabs-add" onClick={() => setViewsMenuOpen((v) => !v)} title="…">
+              +
+            </button>
+            {viewsMenuOpen && (
+              <div className="lv-popover" style={{ top: 'calc(100% + 6px)', left: 0, zIndex: 40 }}>
+                <div className="lv-popover-title">{t('crm.leads.board.pageTitle')}</div>
+                <button
+                  type="button"
+                  className="lv-st-popover-item"
+                  onClick={() => {
+                    setNameModalCreateType('table');
+                    setNameModalMode('create');
+                    setNameModalOpen(true);
+                    setViewsMenuOpen(false);
+                  }}
+                >
+                  {menuCreateTable}
+                </button>
+                <button
+                  type="button"
+                  className="lv-st-popover-item"
+                  onClick={() => {
+                    setNameModalCreateType('kanban');
+                    setNameModalMode('create');
+                    setNameModalOpen(true);
+                    setViewsMenuOpen(false);
+                  }}
+                >
+                  {menuCreateKanban}
+                </button>
+                <button
+                  type="button"
+                  className="lv-st-popover-item"
+                  onClick={() => {
+                    setNameModalCreateType('calendar');
+                    setNameModalMode('create');
+                    setNameModalOpen(true);
+                    setViewsMenuOpen(false);
+                  }}
+                >
+                  {menuCreateCalendar}
+                </button>
+                {activeCustomView ? (
+                  <>
+                    <div style={{ borderTop: '1px solid var(--line-2)', margin: '6px 0' }} />
+                    <button
+                      type="button"
+                      className="lv-st-popover-item"
+                      onClick={() => {
+                        setNameModalMode('rename');
+                        setNameModalOpen(true);
+                        setViewsMenuOpen(false);
+                      }}
+                    >
+                      {menuRename}
+                    </button>
+                    <button
+                      type="button"
+                      className="lv-st-popover-item"
+                      onClick={() => {
+                        setCustomViews((prev) => deleteLeadsCustomView(prev, activeCustomView.id));
+                        setViewsMenuOpen(false);
+                        navigate('/leads/calendar');
+                      }}
+                    >
+                      {menuDelete}
+                    </button>
+                  </>
+                ) : null}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
         {(actionMessage || actionError) && (
           <div
             className={`rounded-xl border px-3 py-2 text-xs ${
@@ -784,7 +873,7 @@ export const LeadsCalendarPage: React.FC = () => {
                           >
                             <button
                               type="button"
-                              onClick={() => navigate(`/app/leads/${lead.id}`)}
+                              onClick={() => navigate(`/leads/${lead.id}`)}
                               className="w-full text-left"
                             >
                               <div className="flex items-center gap-1.5">
@@ -1076,6 +1165,7 @@ export const LeadsCalendarPage: React.FC = () => {
               ))
             )}
           </div>
+        </div>
         </div>
       </div>
 

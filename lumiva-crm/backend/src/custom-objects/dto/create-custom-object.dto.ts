@@ -6,6 +6,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   Min,
   ValidateNested,
@@ -70,6 +71,10 @@ export class CreateCustomObjectDto {
   @IsOptional()
   @IsObject()
   meta?: Record<string, any>;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceAreaId?: string | null;
 
   @IsOptional()
   @IsArray()

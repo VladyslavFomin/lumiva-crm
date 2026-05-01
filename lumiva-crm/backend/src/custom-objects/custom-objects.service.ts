@@ -32,12 +32,25 @@ import {
   joinUploadsAbsolute,
   unlinkUploadsRelative,
 } from '../common/uploads-root.util';
+import { parseDecimalString } from '../lib/locale-number.util';
 import type { CustomObjectFieldType } from './custom-object-field.entity';
 import {
   buildSuggestedCustomObjectFieldMapping,
   makeUniqueHeaders,
   parseCsvRobust,
 } from '../lib/import-spreadsheet.util';
+import {
+  getWorkspaceTableKind,
+  WORKSPACE_DATA_LINK_META_KEY,
+} from './workspace-table-kind';
+import {
+  wooImportColumnApplicationRank,
+  wooOrderTotalNumber,
+} from '../integrations/woocommerce/woo-order-flat.util';
+import {
+  parseWorkspaceColumnBindingV1,
+  type WorkspaceColumnBindingV1,
+} from './workspace-column-binding';
 
 export interface ImportPreviewResponse {
   importId: string;
@@ -234,14 +247,19 @@ export class CustomObjectsService {
       if (!source) continue;
 
       const options = Array.isArray(field.options) ? [...field.options] : [];
-      let nextValue = this.optionToken(source);
-      if (!nextValue) {
-        nextValue =
+      let baseToken = this.optionToken(source);
+      if (!baseToken) {
+        baseToken =
           source
             .toLowerCase()
             .trim()
             .replace(/\s+/g, '_')
             .replace(/[^a-z0-9_а-яё-]/gi, '') || source;
+      }
+      let nextValue = baseToken;
+      let suffix = 2;
+      while (options.some((opt) => String(opt.value) === nextValue)) {
+        nextValue = `${baseToken}_${suffix++}`;
       }
 
       const sourceKan = this.normalizeKanbanToken(source);
@@ -499,12 +517,17 @@ export class CustomObjectsService {
     const optionValues = new Set(options.map((o) => String(o.value)));
     if (type === 'text') return String(raw);
     if (type === 'number') {
-      const value =
-        typeof raw === 'number' ? raw : Number(String(raw).replace(',', '.'));
-      if (Number.isNaN(value)) {
+      if (typeof raw === 'number') {
+        if (Number.isNaN(raw)) {
+          throw new BadRequestException(`Field "${field.key}" expects number`);
+        }
+        return raw;
+      }
+      const parsed = parseDecimalString(raw);
+      if (parsed === null) {
         throw new BadRequestException(`Field "${field.key}" expects number`);
       }
-      return value;
+      return parsed;
     }
     if (type === 'boolean') {
       return this.parseBoolean(raw);
@@ -578,6 +601,34 @@ export class CustomObjectsService {
     return raw;
   }
 
+  /** Пустое значение канонического ключа + данные под mapsToImportedKey (импорт) → копируем в field.key для валидации и coerce. */
+  private isWorkspaceCellEmpty(value: any): boolean {
+    if (value === undefined || value === null || value === '') return true;
+    if (Array.isArray(value)) return value.length === 0;
+    return false;
+  }
+
+  private mergeWorkspaceImportKeyAliases(
+    fields: CustomObjectField[],
+    rawValues: Record<string, any>,
+  ): Record<string, any> {
+    const raw = { ...(rawValues || {}) };
+    for (const field of fields) {
+      const meta = field.meta as Record<string, unknown> | null | undefined;
+      const mapped =
+        meta && typeof meta === 'object' ? meta['mapsToImportedKey'] : undefined;
+      if (typeof mapped !== 'string' || !mapped.trim()) continue;
+      const importKey = mapped.trim();
+      if (importKey === field.key) continue;
+      const vCanon = raw[field.key];
+      const vImport = raw[importKey];
+      if (this.isWorkspaceCellEmpty(vCanon) && !this.isWorkspaceCellEmpty(vImport)) {
+        raw[field.key] = vImport;
+      }
+    }
+    return raw;
+  }
+
   private normalizeRecordValues(
     fields: CustomObjectField[],
     rawValues: Record<string, any>,
@@ -585,9 +636,10 @@ export class CustomObjectsService {
     changedKeys?: string[],
     tenantId?: string,
   ) {
+    const merged = this.mergeWorkspaceImportKeyAliases(fields, rawValues);
     const normalized: Record<string, any> = {};
     const byKey = new Map(fields.map((f) => [f.key, f]));
-    Object.entries(rawValues || {}).forEach(([key, value]) => {
+    Object.entries(merged).forEach(([key, value]) => {
       const field = byKey.get(key);
       if (!field) {
         // Keep unknown keys for backward compatibility while enforcing known types.
@@ -632,11 +684,14 @@ export class CustomObjectsService {
     }
   }
 
-  async listObjects(tenantId: string) {
-    return this.objectRepo.find({
-      where: { tenantId },
-      order: { updatedAt: 'DESC' },
-    });
+  async listObjects(tenantId: string, workspaceAreaId?: string | null) {
+    const qb = this.objectRepo
+      .createQueryBuilder('o')
+      .where('o.tenantId = :tid', { tid: tenantId });
+    if (workspaceAreaId) {
+      qb.andWhere('o.workspaceAreaId = :wid', { wid: workspaceAreaId });
+    }
+    return qb.orderBy('o.updatedAt', 'DESC').getMany();
   }
 
   async getObject(tenantId: string, objectId: string) {
@@ -661,6 +716,7 @@ export class CustomObjectsService {
         description: dto.description || null,
         isActive: dto.isActive ?? true,
         meta,
+        workspaceAreaId: dto.workspaceAreaId ?? null,
       }),
     );
     let fields: CustomObjectField[] = [];
@@ -695,6 +751,9 @@ export class CustomObjectsService {
     if (dto.description !== undefined) object.description = dto.description || null;
     if (dto.isActive !== undefined) object.isActive = dto.isActive;
     if (dto.meta !== undefined) object.meta = dto.meta || null;
+    if (dto.workspaceAreaId !== undefined) {
+      object.workspaceAreaId = dto.workspaceAreaId;
+    }
     return this.objectRepo.save(object);
   }
 
@@ -716,6 +775,7 @@ export class CustomObjectsService {
         slug,
         description: src.description || null,
         isActive: true,
+        workspaceAreaId: src.workspaceAreaId ?? null,
         meta: {
           ...(src.meta && typeof src.meta === 'object' ? src.meta : {}),
           enabledViews: ['table'],
@@ -736,6 +796,24 @@ export class CustomObjectsService {
       await this.createDefaultViews(tenantId, created.id, []);
     }
     return this.getObject(tenantId, created.id);
+  }
+
+  /**
+   * Ключи, реально встречающиеся в values (импорт может добавить поля до объявления колонок).
+   */
+  async listDistinctValueKeys(tenantId: string, objectId: string): Promise<{ keys: string[] }> {
+    await this.getObject(tenantId, objectId);
+    const rows: Array<{ k: string }> = await this.recordRepo.query(
+      `SELECT DISTINCT k AS k
+       FROM custom_object_records r,
+       LATERAL jsonb_object_keys(COALESCE(r."values", '{}'::jsonb)) AS k
+       WHERE r."tenantId" = $1 AND r."objectId" = $2::uuid
+       ORDER BY k
+       LIMIT 2000`,
+      [tenantId, objectId],
+    );
+    const keys = rows.map((r) => r.k).filter((k) => typeof k === 'string' && k.length > 0);
+    return { keys };
   }
 
   async listFields(tenantId: string, objectId: string) {
@@ -839,7 +917,16 @@ export class CustomObjectsService {
       where: { id: fieldId, tenantId, objectId },
     });
     if (!field) throw new NotFoundException('Field not found');
-    if (dto.key !== undefined) field.key = this.slugify(dto.key).replace(/-/g, '_');
+    if (dto.key !== undefined) {
+      const newKey = this.slugify(dto.key).replace(/-/g, '_');
+      const clash = await this.fieldRepo.findOne({
+        where: { tenantId, objectId, key: newKey },
+      });
+      if (clash && clash.id !== field.id) {
+        throw new BadRequestException('Field key already exists');
+      }
+      field.key = newKey;
+    }
     if (dto.label !== undefined) field.label = dto.label;
     if (dto.type !== undefined) field.type = dto.type;
     if (dto.required !== undefined) field.required = dto.required;
@@ -922,6 +1009,7 @@ export class CustomObjectsService {
       sortBy?: string;
       sortOrder?: 'ASC' | 'DESC';
       search?: string;
+      enrichColumnBindings?: boolean;
     },
   ) {
     await this.getObject(tenantId, objectId);
@@ -936,10 +1024,25 @@ export class CustomObjectsService {
     }
     const total = await qb.getCount();
     if (options?.sortBy) {
+      let sortKey = options.sortBy;
+      if (
+        sortKey !== 'createdAt' &&
+        sortKey !== 'updatedAt' &&
+        CustomObjectsService.SAFE_VALUES_KEY.test(sortKey)
+      ) {
+        const sortField = await this.fieldRepo.findOne({
+          where: { tenantId, objectId, key: sortKey },
+        });
+        const meta = sortField?.meta as Record<string, unknown> | undefined;
+        const mapped = meta?.mapsToImportedKey;
+        if (typeof mapped === 'string' && CustomObjectsService.SAFE_VALUES_KEY.test(mapped.trim())) {
+          sortKey = mapped.trim();
+        }
+      }
       const sortExpr =
-        options.sortBy === 'createdAt' || options.sortBy === 'updatedAt'
-          ? `record.${options.sortBy}`
-          : `record.values ->> '${options.sortBy}'`;
+        sortKey === 'createdAt' || sortKey === 'updatedAt'
+          ? `record.${sortKey}`
+          : `record.values ->> '${sortKey}'`;
       qb.orderBy(sortExpr, options.sortOrder || 'DESC');
     } else {
       qb.orderBy('record.updatedAt', 'DESC');
@@ -947,7 +1050,344 @@ export class CustomObjectsService {
     qb.limit(options?.limit || 50);
     qb.offset(options?.offset || 0);
     const items = await qb.getMany();
+    if (options?.enrichColumnBindings && items.length > 0) {
+      const enriched = await this.enrichRecordsColumnBindings(tenantId, objectId, items);
+      return { items: enriched, total };
+    }
     return { items, total };
+  }
+
+  private static readonly SAFE_VALUES_KEY = /^[a-zA-Z0-9_]+$/;
+
+  private static readonly MAPS_TO_IMPORTED_KEY = 'mapsToImportedKey';
+
+  private getFieldValueStorageKey(field: CustomObjectField): string {
+    const meta = field.meta as Record<string, unknown> | null | undefined;
+    const m = meta?.[CustomObjectsService.MAPS_TO_IMPORTED_KEY];
+    if (typeof m === 'string' && CustomObjectsService.SAFE_VALUES_KEY.test(m.trim())) {
+      return m.trim();
+    }
+    return field.key;
+  }
+
+  private getValuesStorageKeyForFieldMap(
+    fieldMap: Map<string, CustomObjectField>,
+    fieldKey: string,
+  ): string {
+    const f = fieldMap.get(fieldKey);
+    return f ? this.getFieldValueStorageKey(f) : fieldKey;
+  }
+
+  private isCellValueEmpty(raw: any): boolean {
+    if (raw === null || raw === undefined) return true;
+    if (typeof raw === 'string') return raw.trim() === '';
+    return false;
+  }
+
+  /** Агрегаты по таблице данных, сгруппированные по полю (для columnBinding mode rollup). */
+  private async computeRollupByGroupKey(
+    tenantId: string,
+    dataObjectId: string,
+    groupByFieldKey: string,
+    valueFieldKey: string,
+    aggregate: 'sum' | 'count' | 'avg' | 'min' | 'max',
+  ): Promise<Map<string, number>> {
+    if (
+      !CustomObjectsService.SAFE_VALUES_KEY.test(groupByFieldKey) ||
+      !CustomObjectsService.SAFE_VALUES_KEY.test(valueFieldKey)
+    ) {
+      return new Map();
+    }
+    try {
+      await this.getObject(tenantId, dataObjectId);
+    } catch {
+      return new Map();
+    }
+    const g = groupByFieldKey;
+    const v = valueFieldKey;
+    const numExpr = `
+      CASE
+        WHEN (record.values->>'${v}') IS NULL OR trim(record.values->>'${v}') = '' THEN NULL::double precision
+        WHEN (record.values->>'${v}') ~ '^-?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$'
+          THEN (record.values->>'${v}')::double precision
+        ELSE NULL::double precision
+      END`;
+
+    let aggExpr: string;
+    switch (aggregate) {
+      case 'sum':
+        aggExpr = `COALESCE(SUM(${numExpr}), 0)::double precision`;
+        break;
+      case 'count':
+        aggExpr = `COUNT(*)::double precision`;
+        break;
+      case 'avg':
+        aggExpr = `AVG(${numExpr})`;
+        break;
+      case 'min':
+        aggExpr = `MIN(${numExpr})`;
+        break;
+      case 'max':
+        aggExpr = `MAX(${numExpr})`;
+        break;
+      default:
+        return new Map();
+    }
+
+    const sql = `
+      SELECT COALESCE(record.values->>'${g}', '') AS "groupKey",
+             ${aggExpr} AS "agg"
+      FROM "custom_object_records" record
+      WHERE record."tenantId" = $1 AND record."objectId" = $2::uuid
+      GROUP BY COALESCE(record.values->>'${g}', '')
+    `;
+
+    const rows: Array<{ groupKey: string; agg: unknown }> = await this.recordRepo.query(sql, [
+      tenantId,
+      dataObjectId,
+    ]);
+    const map = new Map<string, number>();
+    for (const row of rows) {
+      const k = String(row.groupKey ?? '');
+      const a = row.agg;
+      if (a === null || a === undefined) continue;
+      const n = typeof a === 'string' ? parseFloat(a) : Number(a);
+      if (Number.isFinite(n)) map.set(k, n);
+    }
+    return map;
+  }
+
+  /**
+   * Подставляет в ответ значения для колонок с meta.columnBinding.
+   * Lookup и rollup пересчитываются по текущему ключу сопоставления (в т.ч. при смене ID на доске).
+   */
+  private async enrichRecordsColumnBindings(
+    tenantId: string,
+    objectId: string,
+    items: CustomObjectRecord[],
+  ): Promise<CustomObjectRecord[]> {
+    const fields = await this.listFields(tenantId, objectId);
+    const pushed: Array<{ fieldKey: string; binding: Extract<WorkspaceColumnBindingV1, { mode: 'from_pushed_source' }> }> =
+      [];
+    const lookups: Array<{ fieldKey: string; binding: Extract<WorkspaceColumnBindingV1, { mode: 'lookup_by_key' }> }> =
+      [];
+    const rollups: Array<{ fieldKey: string; binding: Extract<WorkspaceColumnBindingV1, { mode: 'rollup' }> }> = [];
+    for (const f of fields) {
+      if (!f.isActive) continue;
+      const b = parseWorkspaceColumnBindingV1(f.meta);
+      if (!b) continue;
+      if (b.mode === 'from_pushed_source') pushed.push({ fieldKey: f.key, binding: b });
+      else if (b.mode === 'lookup_by_key') lookups.push({ fieldKey: f.key, binding: b });
+      else if (b.mode === 'rollup') rollups.push({ fieldKey: f.key, binding: b });
+    }
+    if (!pushed.length && !lookups.length && !rollups.length) return items;
+
+    const boardFieldByKey = new Map(fields.map((f) => [f.key, f]));
+    const dataFieldCache = new Map<string, Map<string, CustomObjectField>>();
+    const ensureDataFieldMap = async (
+      oid: string,
+    ): Promise<Map<string, CustomObjectField> | null> => {
+      const cached = dataFieldCache.get(oid);
+      if (cached) return cached;
+      try {
+        await this.getObject(tenantId, oid);
+      } catch {
+        return null;
+      }
+      const fl = await this.listFields(tenantId, oid);
+      const m = new Map(fl.map((f) => [f.key, f]));
+      dataFieldCache.set(oid, m);
+      return m;
+    };
+
+    const overlays: Record<string, Record<string, unknown>> = {};
+    const addOverlay = (recordId: string, fieldKey: string, val: unknown) => {
+      if (!overlays[recordId]) overlays[recordId] = {};
+      overlays[recordId][fieldKey] = val;
+    };
+
+    if (pushed.length) {
+      const grouped = new Map<string, Set<string>>();
+      for (const item of items) {
+        const link = item.meta?.[WORKSPACE_DATA_LINK_META_KEY];
+        if (!link || typeof link !== 'object' || Array.isArray(link)) continue;
+        const o = link as Record<string, unknown>;
+        const sid = typeof o.sourceObjectId === 'string' ? o.sourceObjectId : '';
+        const rid = typeof o.sourceRecordId === 'string' ? o.sourceRecordId : '';
+        if (!sid || !rid) continue;
+        if (!grouped.has(sid)) grouped.set(sid, new Set());
+        grouped.get(sid)!.add(rid);
+      }
+      const cache = new Map<string, CustomObjectRecord>();
+      for (const [srcObjId, idSet] of grouped) {
+        try {
+          await this.getObject(tenantId, srcObjId);
+        } catch {
+          continue;
+        }
+        const ids = [...idSet];
+        if (!ids.length) continue;
+        const rows = await this.recordRepo
+          .createQueryBuilder('r')
+          .where('r.tenantId = :tenantId', { tenantId })
+          .andWhere('r.objectId = :oid', { oid: srcObjId })
+          .andWhere('r.id IN (:...ids)', { ids })
+          .getMany();
+        for (const row of rows) {
+          cache.set(`${srcObjId}:${row.id}`, row);
+        }
+      }
+      for (const item of items) {
+        const link = item.meta?.[WORKSPACE_DATA_LINK_META_KEY];
+        if (!link || typeof link !== 'object' || Array.isArray(link)) continue;
+        const o = link as Record<string, unknown>;
+        const sid = typeof o.sourceObjectId === 'string' ? o.sourceObjectId : '';
+        const rid = typeof o.sourceRecordId === 'string' ? o.sourceRecordId : '';
+        if (!sid || !rid) continue;
+        const src = cache.get(`${sid}:${rid}`);
+        if (!src?.values || typeof src.values !== 'object') continue;
+        const srcVals = src.values as Record<string, unknown>;
+        const curVals =
+          item.values && typeof item.values === 'object' && !Array.isArray(item.values)
+            ? (item.values as Record<string, unknown>)
+            : {};
+        for (const { fieldKey, binding } of pushed) {
+          const storage = this.getValuesStorageKeyForFieldMap(boardFieldByKey, fieldKey);
+          if (!CustomObjectsService.SAFE_VALUES_KEY.test(storage)) continue;
+          if (this.isCellValueEmpty(curVals[storage])) {
+            const v = srcVals[binding.sourceFieldKey];
+            if (!this.isCellValueEmpty(v)) addOverlay(item.id, storage, v);
+          }
+        }
+      }
+    }
+
+    for (const { fieldKey, binding } of lookups) {
+      const { dataObjectId, boardMatchFieldKey, dataMatchFieldKey, dataDisplayFieldKey } = binding;
+      const dataFields = await ensureDataFieldMap(dataObjectId);
+      if (!dataFields) continue;
+
+      const matchStorageBoard = this.getValuesStorageKeyForFieldMap(boardFieldByKey, boardMatchFieldKey);
+      const matchStorageData = this.getValuesStorageKeyForFieldMap(dataFields, dataMatchFieldKey);
+      const displayStorageData = this.getValuesStorageKeyForFieldMap(dataFields, dataDisplayFieldKey);
+      const targetStorage = this.getValuesStorageKeyForFieldMap(boardFieldByKey, fieldKey);
+
+      if (
+        !CustomObjectsService.SAFE_VALUES_KEY.test(matchStorageBoard) ||
+        !CustomObjectsService.SAFE_VALUES_KEY.test(matchStorageData) ||
+        !CustomObjectsService.SAFE_VALUES_KEY.test(displayStorageData) ||
+        !CustomObjectsService.SAFE_VALUES_KEY.test(targetStorage)
+      ) {
+        continue;
+      }
+
+      const matchVals = new Set<string>();
+      for (const item of items) {
+        const curVals =
+          item.values && typeof item.values === 'object' && !Array.isArray(item.values)
+            ? (item.values as Record<string, unknown>)
+            : {};
+        const raw = curVals[matchStorageBoard];
+        if (this.isCellValueEmpty(raw)) continue;
+        matchVals.add(String(raw));
+      }
+      if (!matchVals.size) {
+        for (const item of items) {
+          addOverlay(item.id, targetStorage, null);
+        }
+        continue;
+      }
+      const rows = await this.recordRepo
+        .createQueryBuilder('r')
+        .where('r.tenantId = :tenantId', { tenantId })
+        .andWhere('r.objectId = :oid', { oid: dataObjectId })
+        .andWhere(`r.values->>'${matchStorageData}' IN (:...vals)`, { vals: [...matchVals] })
+        .getMany();
+      const byMatch = new Map<string, CustomObjectRecord>();
+      for (const row of rows) {
+        const mv =
+          row.values && typeof row.values === 'object' && !Array.isArray(row.values)
+            ? (row.values as Record<string, unknown>)[matchStorageData]
+            : undefined;
+        if (this.isCellValueEmpty(mv)) continue;
+        byMatch.set(String(mv), row);
+      }
+      for (const item of items) {
+        const curVals =
+          item.values && typeof item.values === 'object' && !Array.isArray(item.values)
+            ? (item.values as Record<string, unknown>)
+            : {};
+        const mk = curVals[matchStorageBoard];
+        if (this.isCellValueEmpty(mk)) {
+          addOverlay(item.id, targetStorage, null);
+          continue;
+        }
+        const src = byMatch.get(String(mk));
+        if (!src?.values || typeof src.values !== 'object') {
+          addOverlay(item.id, targetStorage, null);
+          continue;
+        }
+        const dv = (src.values as Record<string, unknown>)[displayStorageData];
+        addOverlay(item.id, targetStorage, this.isCellValueEmpty(dv) ? null : dv);
+      }
+    }
+
+    for (const { fieldKey, binding } of rollups) {
+      const { dataObjectId, groupByFieldKey, boardMatchFieldKey, valueFieldKey, aggregate } = binding;
+      const dataFields = await ensureDataFieldMap(dataObjectId);
+      if (!dataFields) continue;
+
+      const groupStorageData = this.getValuesStorageKeyForFieldMap(dataFields, groupByFieldKey);
+      const valueStorageData = this.getValuesStorageKeyForFieldMap(dataFields, valueFieldKey);
+      const matchStorageBoard = this.getValuesStorageKeyForFieldMap(boardFieldByKey, boardMatchFieldKey);
+      const targetStorage = this.getValuesStorageKeyForFieldMap(boardFieldByKey, fieldKey);
+
+      if (
+        !CustomObjectsService.SAFE_VALUES_KEY.test(groupStorageData) ||
+        !CustomObjectsService.SAFE_VALUES_KEY.test(valueStorageData) ||
+        !CustomObjectsService.SAFE_VALUES_KEY.test(matchStorageBoard) ||
+        !CustomObjectsService.SAFE_VALUES_KEY.test(targetStorage)
+      ) {
+        continue;
+      }
+      const aggMap = await this.computeRollupByGroupKey(
+        tenantId,
+        dataObjectId,
+        groupStorageData,
+        valueStorageData,
+        aggregate,
+      );
+      for (const item of items) {
+        const curVals =
+          item.values && typeof item.values === 'object' && !Array.isArray(item.values)
+            ? (item.values as Record<string, unknown>)
+            : {};
+        const mk = curVals[matchStorageBoard];
+        if (this.isCellValueEmpty(mk)) {
+          addOverlay(item.id, targetStorage, null);
+          continue;
+        }
+        const gk = String(mk);
+        const v = aggMap.get(gk);
+        if (v !== undefined && Number.isFinite(v)) addOverlay(item.id, targetStorage, v);
+        else addOverlay(item.id, targetStorage, null);
+      }
+    }
+
+    if (!Object.keys(overlays).length) return items;
+
+    return items.map((r) => {
+      const patch = overlays[r.id];
+      if (!patch) return r;
+      const base =
+        r.values && typeof r.values === 'object' && !Array.isArray(r.values)
+          ? { ...(r.values as Record<string, unknown>) }
+          : {};
+      return {
+        ...r,
+        values: { ...base, ...patch },
+      } as CustomObjectRecord;
+    });
   }
 
   async createRecord(
@@ -977,6 +1417,169 @@ export class CustomObjectsService {
     );
     await this.triggerRecordEvent(tenantId, objectId, created, 'created');
     return created;
+  }
+
+  /**
+   * Копирует строки из таблицы данных в основную «Таблицу» (board) той же области.
+   */
+  async pushRecordsToBoard(
+    tenantId: string,
+    sourceObjectId: string,
+    dto: {
+      targetObjectId: string;
+      recordIds: string[];
+      fieldMap?: Record<string, string>;
+      omitAutoTargetKeys?: string[];
+      duplicateKeyTargetField?: string | null;
+      skipDuplicates?: boolean;
+    },
+  ): Promise<{
+    created: CustomObjectRecord[];
+    skipped: Array<{ recordId: string; reason: string }>;
+    errors: Array<{ recordId: string; message: string }>;
+  }> {
+    const targetObjectId = dto.targetObjectId?.trim();
+    if (!targetObjectId) {
+      throw new BadRequestException('targetObjectId is required');
+    }
+    if (sourceObjectId === targetObjectId) {
+      throw new BadRequestException('Source and target table must differ');
+    }
+    const ids = (dto.recordIds || []).map((id) => id?.trim()).filter(Boolean);
+    if (!ids.length) {
+      throw new BadRequestException('At least one record id is required');
+    }
+
+    const sourceObj = await this.getObject(tenantId, sourceObjectId);
+    const targetObj = await this.getObject(tenantId, targetObjectId);
+
+    if (!sourceObj.workspaceAreaId || sourceObj.workspaceAreaId !== targetObj.workspaceAreaId) {
+      throw new BadRequestException('Tables must belong to the same workspace area');
+    }
+
+    if (getWorkspaceTableKind(sourceObj.meta as Record<string, any>) === 'board') {
+      throw new BadRequestException('Only a data table can be the source');
+    }
+    if (getWorkspaceTableKind(targetObj.meta as Record<string, any>) !== 'board') {
+      throw new BadRequestException('Target must be the main table (board)');
+    }
+
+    const dupField = (dto.duplicateKeyTargetField || '').trim();
+    if (dupField && !/^[a-zA-Z0-9_]+$/.test(dupField)) {
+      throw new BadRequestException('Invalid duplicateKeyTargetField');
+    }
+
+    const sourceFields = (await this.listFields(tenantId, sourceObjectId)).filter((f) => f.isActive);
+    const targetFields = (await this.listFields(tenantId, targetObjectId)).filter((f) => f.isActive);
+    const targetKeys = new Set(targetFields.map((f) => f.key));
+    const sourceKeySet = new Set(sourceFields.map((f) => f.key));
+
+    const explicit = dto.fieldMap || {};
+    const sourceToTarget = new Map<string, string>();
+    for (const [sk, tk] of Object.entries(explicit)) {
+      const s = String(sk || '').trim();
+      const t = String(tk || '').trim();
+      if (s && t && targetKeys.has(t) && sourceKeySet.has(s)) {
+        sourceToTarget.set(s, t);
+      }
+    }
+    const omitAuto = new Set(
+      (dto.omitAutoTargetKeys || [])
+        .map((k) => String(k || '').trim())
+        .filter((k) => /^[a-zA-Z0-9_]+$/.test(k) && targetKeys.has(k)),
+    );
+    for (const tf of targetFields) {
+      if (omitAuto.has(tf.key)) continue;
+      if ([...sourceToTarget.values()].includes(tf.key)) continue;
+      if (sourceKeySet.has(tf.key)) {
+        sourceToTarget.set(tf.key, tf.key);
+      }
+    }
+
+    const skipDup = dto.skipDuplicates !== false;
+    const created: CustomObjectRecord[] = [];
+    const skipped: Array<{ recordId: string; reason: string }> = [];
+    const errors: Array<{ recordId: string; message: string }> = [];
+
+    const baseDefaults = this.defaultValuesForRequiredFields(targetFields);
+
+    for (const recordId of ids) {
+      try {
+        const srcRec = await this.recordRepo.findOne({
+          where: { id: recordId, tenantId, objectId: sourceObjectId },
+        });
+        if (!srcRec) {
+          errors.push({ recordId, message: 'Record not found' });
+          continue;
+        }
+        const srcVals =
+          srcRec.values && typeof srcRec.values === 'object' && !Array.isArray(srcRec.values)
+            ? (srcRec.values as Record<string, any>)
+            : {};
+
+        const incoming: Record<string, any> = { ...baseDefaults };
+        for (const [sk, tk] of sourceToTarget.entries()) {
+          if (Object.prototype.hasOwnProperty.call(srcVals, sk)) {
+            incoming[tk] = srcVals[sk];
+          }
+        }
+
+        if (dupField && skipDup) {
+          const raw = incoming[dupField];
+          const cmp = this.serializeValueForDuplicateCheck(raw);
+          const existing = await this.findRecordByTargetFieldValue(
+            tenantId,
+            targetObjectId,
+            dupField,
+            cmp,
+          );
+          if (existing) {
+            skipped.push({ recordId, reason: 'duplicate' });
+            continue;
+          }
+        }
+
+        const linkMeta = {
+          sourceObjectId,
+          sourceRecordId: recordId,
+          pushedAt: new Date().toISOString(),
+        };
+
+        const row = await this.createRecord(tenantId, targetObjectId, {
+          values: incoming,
+          meta: { [WORKSPACE_DATA_LINK_META_KEY]: linkMeta },
+        });
+        created.push(row);
+      } catch (e: any) {
+        errors.push({
+          recordId,
+          message: e?.message || String(e),
+        });
+      }
+    }
+
+    return { created, skipped, errors };
+  }
+
+  private serializeValueForDuplicateCheck(val: any): string {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'object') return JSON.stringify(val);
+    return String(val);
+  }
+
+  private async findRecordByTargetFieldValue(
+    tenantId: string,
+    objectId: string,
+    fieldKey: string,
+    compareVal: string,
+  ): Promise<CustomObjectRecord | null> {
+    if (!/^[a-zA-Z0-9_]+$/.test(fieldKey)) return null;
+    return this.recordRepo
+      .createQueryBuilder('r')
+      .where('r.tenantId = :tenantId', { tenantId })
+      .andWhere('r.objectId = :objectId', { objectId })
+      .andWhere(`r.values->>'${fieldKey}' = :val`, { val: compareVal })
+      .getOne();
   }
 
   async updateRecord(
@@ -1032,12 +1635,8 @@ export class CustomObjectsService {
           await unlinkUploadsRelative(oldPath).catch(() => {});
         }
       }
-      await this.ensureSelectOptionsForIncomingPatch(
-        tenantId,
-        objectId,
-        fields,
-        dto.values || {},
-      );
+      /** Иначе PATCH по одному полю падает: в merged уже есть status из Woo, не попавший в options доски. */
+      await this.ensureSelectOptionsForIncomingPatch(tenantId, objectId, fields, mergedValues);
       const normalizedValues = this.normalizeRecordValues(
         fields,
         mergedValues,
@@ -1113,6 +1712,387 @@ export class CustomObjectsService {
     }
     await this.recordRepo.remove(record);
     return { ok: true };
+  }
+
+  /** Уникальные непустые строковые значения поля (выпадающий список ID заказов и т.д.). */
+  async listDistinctFieldValues(tenantId: string, objectId: string, fieldKey: string) {
+    await this.getObject(tenantId, objectId);
+    const fk = fieldKey.trim();
+    if (!fk) {
+      throw new BadRequestException('fieldKey is required');
+    }
+    if (!CustomObjectsService.SAFE_VALUES_KEY.test(fk)) {
+      throw new BadRequestException('Invalid fieldKey');
+    }
+    const esc = fk.replace(/'/g, "''");
+    const rows: Array<{ v: string }> = await this.recordRepo.query(
+      `SELECT DISTINCT COALESCE(NULLIF(TRIM(r."values"->>'${esc}'), ''), '') AS v
+       FROM custom_object_records r
+       WHERE r."tenantId" = $1 AND r."objectId" = $2::uuid
+       AND NULLIF(TRIM(r."values"->>'${esc}'), '') IS NOT NULL
+       ORDER BY v ASC
+       LIMIT 5000`,
+      [tenantId, objectId],
+    );
+    return { values: rows.map((r) => r.v).filter((x) => x && String(x).trim()) };
+  }
+
+  /** Удалить все строки объекта (очистка таблицы). Вложенные файлы в storage не чистятся пакетно. */
+  async deleteAllRecordsForObject(tenantId: string, objectId: string) {
+    await this.getObject(tenantId, objectId);
+    const res = await this.recordRepo.delete({ tenantId, objectId });
+    return { ok: true, deleted: res.affected ?? 0 };
+  }
+
+  /**
+   * Injects crmLeadId into the patch if any field on the object carries
+   * meta.workspaceEntityRef === 'lead'. Skips if crmLeadId is blank or already set.
+   */
+  private injectCrmLeadIntoWooPatch(
+    fields: CustomObjectField[],
+    patch: Record<string, any>,
+    crmLeadId?: string | null,
+  ): void {
+    if (!crmLeadId) return;
+    const leadRefField = fields.find(
+      (f) =>
+        f.type === 'text' &&
+        typeof f.meta === 'object' &&
+        f.meta !== null &&
+        (f.meta as Record<string, unknown>)['workspaceEntityRef'] === 'lead',
+    );
+    if (!leadRefField) return;
+    // Only write if not already set (don't overwrite a manually selected lead)
+    if (!patch[leadRefField.key]) {
+      patch[leadRefField.key] = crmLeadId;
+    }
+  }
+
+  /**
+   * Синхронизация WooCommerce → строка пользовательской таблицы (по externalId = id заказа).
+   * Поля заполняются эвристикой по key/label; при конфликте типов строка может быть пропущена.
+   */
+  async upsertRecordFromWooOrder(
+    tenantId: string,
+    objectId: string,
+    order: Record<string, any>,
+    crmLeadId?: string | null,
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    const oid =
+      order?.id !== undefined && order?.id !== null ? String(order.id) : '';
+    if (!oid) return 'skipped';
+
+    try {
+      const fields = (await this.listFields(tenantId, objectId)).filter(
+        (f) => f.isActive,
+      );
+      const patch = this.buildWooDerivedValuesForFields(fields, order);
+      this.injectCrmLeadIntoWooPatch(fields, patch, crmLeadId);
+
+      const allMatching = await this.recordRepo.find({
+        where: { tenantId, objectId, externalId: oid },
+        order: { updatedAt: 'DESC' },
+      });
+
+      // Удаляем дубли, оставляем только самую свежую запись
+      if (allMatching.length > 1) {
+        const dupIds = allMatching.slice(1).map((r) => r.id);
+        await this.recordRepo.delete(dupIds);
+        this.logger.warn(
+          `upsertRecordFromWooOrder: removed ${dupIds.length} duplicate(s) for externalId=${oid} objectId=${objectId}`,
+        );
+      }
+
+      const existing = allMatching[0] ?? null;
+
+      if (existing) {
+        const prev =
+          existing.values &&
+          typeof existing.values === 'object' &&
+          !Array.isArray(existing.values)
+            ? { ...(existing.values as Record<string, any>) }
+            : {};
+        const merged = { ...prev, ...patch };
+        await this.updateRecord(tenantId, objectId, existing.id, {
+          values: merged,
+          externalId: oid,
+        });
+        return 'updated';
+      }
+
+      const base = this.defaultValuesForRequiredFields(fields);
+      const mergedCreate = { ...base, ...patch };
+      await this.createRecord(tenantId, objectId, {
+        externalId: oid,
+        values: mergedCreate,
+      });
+      return 'created';
+    } catch (e) {
+      this.logger.warn(
+        `upsertRecordFromWooOrder skipped objectId=${objectId} order=${String(
+          order?.id,
+        )}: ${(e as Error).message}`,
+      );
+      return 'skipped';
+    }
+  }
+
+  /**
+   * Woo → таблица по явному маппингу колонок (после превью на фронте).
+   */
+  async upsertRecordFromWooMapped(
+    tenantId: string,
+    objectId: string,
+    flat: Record<string, string>,
+    cfg: {
+      enabledWooColumns: string[];
+      wooColumnToFieldKey: Record<string, string>;
+      statusFieldKey?: string | null;
+    },
+    crmLeadId?: string | null,
+  ): Promise<'created' | 'updated' | 'skipped'> {
+    const oid = (flat.id ?? '').trim();
+    if (!oid) return 'skipped';
+
+    const enabled = new Set(
+      cfg.enabledWooColumns.filter((c) => typeof c === 'string' && c.trim()),
+    );
+    try {
+      const fields = (await this.listFields(tenantId, objectId)).filter(
+        (f) => f.isActive,
+      );
+      const byKey = new Map(fields.map((f) => [f.key, f]));
+
+      const rawValues: Record<string, any> = {};
+      const enabledList = [...enabled].sort(
+        (a, b) =>
+          wooImportColumnApplicationRank(a) - wooImportColumnApplicationRank(b),
+      );
+      for (const wooCol of enabledList) {
+        const fieldKey = (cfg.wooColumnToFieldKey[wooCol] || '').trim();
+        if (!fieldKey) continue;
+        const f = byKey.get(fieldKey);
+        if (!f) continue;
+        const cell = flat[wooCol];
+        if (cell === undefined || String(cell).trim() === '') {
+          // Не кладём null: иначе при create затрём placeholder из defaultValuesForRequiredFields
+          // (типичный случай: обязательное «name» сопоставлено с пустой колонкой Woo).
+          continue;
+        }
+        rawValues[fieldKey] = cell;
+      }
+      this.injectCrmLeadIntoWooPatch(fields, rawValues, crmLeadId);
+
+      if (cfg.statusFieldKey?.trim()) {
+        const sk = cfg.statusFieldKey.trim();
+        if (!byKey.has(sk)) {
+          this.logger.warn(
+            `upsertRecordFromWooMapped: statusFieldKey ${sk} not found on object`,
+          );
+        }
+      }
+
+      const allMatching = await this.recordRepo.find({
+        where: { tenantId, objectId, externalId: oid },
+        order: { updatedAt: 'DESC' },
+      });
+
+      // Удаляем дубли, оставляем только самую свежую запись
+      if (allMatching.length > 1) {
+        const dupIds = allMatching.slice(1).map((r) => r.id);
+        await this.recordRepo.delete(dupIds);
+        this.logger.warn(
+          `upsertRecordFromWooMapped: removed ${dupIds.length} duplicate(s) for externalId=${oid} objectId=${objectId}`,
+        );
+      }
+
+      const existing = allMatching[0] ?? null;
+
+      if (existing) {
+        const prev =
+          existing.values &&
+          typeof existing.values === 'object' &&
+          !Array.isArray(existing.values)
+            ? { ...(existing.values as Record<string, any>) }
+            : {};
+        const merged = { ...prev, ...rawValues };
+        await this.updateRecord(tenantId, objectId, existing.id, {
+          values: merged,
+          externalId: oid,
+        });
+        return 'updated';
+      }
+
+      const base = this.defaultValuesForRequiredFields(fields);
+      const mergedCreate = { ...base, ...rawValues };
+      await this.createRecord(tenantId, objectId, {
+        externalId: oid,
+        values: mergedCreate,
+      });
+      return 'created';
+    } catch (e) {
+      this.logger.warn(
+        `upsertRecordFromWooMapped skipped objectId=${objectId} order=${oid}: ${
+          (e as Error).message
+        }`,
+      );
+      return 'skipped';
+    }
+  }
+
+  private defaultValuesForRequiredFields(
+    fields: CustomObjectField[],
+  ): Record<string, any> {
+    const out: Record<string, any> = {};
+    for (const f of fields) {
+      if (!f.required) continue;
+      const t = f.type as CustomObjectFieldType;
+      if (t === 'text') out[f.key] = '—';
+      else if (t === 'number') out[f.key] = 0;
+      else if (t === 'boolean') out[f.key] = false;
+      else if (t === 'date')
+        out[f.key] = new Date().toISOString().slice(0, 10);
+      else if (t === 'datetime') out[f.key] = new Date().toISOString();
+      else if (t === 'select' || t === 'status') {
+        const first = f.options?.[0]?.value;
+        if (first != null) out[f.key] = String(first);
+      } else if (t === 'multiselect') {
+        const first = f.options?.[0]?.value;
+        out[f.key] = first != null ? [String(first)] : [];
+      }
+    }
+    return out;
+  }
+
+  private buildWooDerivedValuesForFields(
+    fields: CustomObjectField[],
+    order: Record<string, any>,
+  ): Record<string, any> {
+    const billing = order.billing || {};
+    const shipping = order.shipping || {};
+    const fullName = `${billing.first_name || ''} ${billing.last_name || ''}`
+      .trim()
+      .replace(/\s+/g, ' ');
+    const email =
+      billing.email != null ? String(billing.email).trim() : '';
+    const lineItems = Array.isArray(order.line_items) ? order.line_items : [];
+    const firstLine = lineItems[0] as Record<string, any> | undefined;
+    const productName = firstLine?.name ? String(firstLine.name) : '';
+    const productUrl = firstLine?.permalink ? String(firstLine.permalink) : '';
+    const orderNum = order.number != null ? String(order.number) : '';
+    const titleStr =
+      productName ||
+      (orderNum ? `Order #${orderNum}` : `Woo #${order.id}`);
+    const safeAmount = wooOrderTotalNumber(order);
+    const wooStatus = order.status != null ? String(order.status) : '';
+    const saleDateStr = order.date_created_gmt || order.date_created || null;
+    const currency = order.currency != null ? String(order.currency) : '';
+    const noteParts = [order.customer_note, productUrl].filter(Boolean);
+    const notesJoined = noteParts.map(String).join('\n').trim() || null;
+
+    const out: Record<string, any> = {};
+
+    for (const f of fields) {
+      const k = f.key.toLowerCase();
+      const lab = (f.label || '').toLowerCase();
+      const hay = `${k} ${lab}`;
+
+      if (f.type === 'number') {
+        if (
+          k === 'id' ||
+          k === 'order_id' ||
+          (k.includes('order') &&
+            (k.includes('id') || k.includes('no')) &&
+            !k.includes('product'))
+        ) {
+          const oid = Number(order.id);
+          if (order.id != null && Number.isFinite(oid)) {
+            out[f.key] = oid;
+          }
+        } else if (
+          k.includes('amount') ||
+          k.includes('total') ||
+          k.includes('sum') ||
+          k.includes('price') ||
+          lab.includes('сумм')
+        ) {
+          out[f.key] = safeAmount;
+        }
+        continue;
+      }
+
+      if (f.type === 'boolean') {
+        if (k.includes('paid') || lab.includes('оплачен')) {
+          out[f.key] = ['completed', 'processing'].includes(
+            String(order.status || '').toLowerCase(),
+          );
+        }
+        continue;
+      }
+
+      if (f.type === 'text') {
+        if (
+          k.includes('title') ||
+          k === 'name' ||
+          (k.includes('subject') && !k.includes('first')) ||
+          lab.includes('назван')
+        ) {
+          out[f.key] = titleStr;
+        } else if (
+          k.includes('client') ||
+          k.includes('customer') ||
+          k.includes('guest') ||
+          lab.includes('клиент')
+        ) {
+          out[f.key] = fullName || null;
+        } else if (k.includes('email') || lab.includes('почт') || lab.includes('email')) {
+          out[f.key] = email || null;
+        } else if (k.includes('currency') || lab.includes('валют')) {
+          out[f.key] = currency || null;
+        } else if (
+          k.includes('note') ||
+          k.includes('comment') ||
+          k.includes('link') ||
+          lab.includes('коммент') ||
+          lab.includes('ссылк')
+        ) {
+          out[f.key] = notesJoined;
+        } else if (
+          (k.includes('order') && (k.includes('id') || k.includes('no'))) ||
+          k === 'woo_order_id' ||
+          k.includes('external')
+        ) {
+          out[f.key] = orderNum || String(order.id);
+        }
+        continue;
+      }
+
+      if (f.type === 'date' || f.type === 'datetime') {
+        if (
+          hay.includes('date') ||
+          hay.includes('дат') ||
+          hay.includes('created') ||
+          hay.includes('врем')
+        ) {
+          out[f.key] = saleDateStr;
+        }
+        continue;
+      }
+
+      if (f.type === 'select' || f.type === 'status' || f.type === 'multiselect') {
+        if (
+          k.includes('status') ||
+          k.includes('state') ||
+          lab.includes('статус') ||
+          lab.includes('состоян')
+        ) {
+          out[f.key] = wooStatus;
+        }
+        continue;
+      }
+    }
+
+    return out;
   }
 
   private async triggerRecordEvent(

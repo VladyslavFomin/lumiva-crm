@@ -6,6 +6,7 @@ import { Repository } from 'typeorm';
 import { SalesChannel } from './sales-channel.entity';
 import { SalesChannelDto } from './dto/sales-channel.dto';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
+import { Sale } from '../sales/sale.entity';
 
 @Injectable()
 export class SalesChannelsService {
@@ -15,6 +16,9 @@ export class SalesChannelsService {
 
     @InjectRepository(IntegrationConnection)
     private readonly integrationsRepo: Repository<IntegrationConnection>,
+
+    @InjectRepository(Sale)
+    private readonly saleRepo: Repository<Sale>,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -133,8 +137,13 @@ async softDeleteForTenant(tenantId: string, id: string): Promise<void> {
   const ch = await this.repo.findOne({ where: { id, tenantId } as any });
   if (!ch) return;
 
+  await this.saleRepo.delete({
+    tenantId,
+    channelId: id,
+  } as any);
+
   ch.isDeleted = true;
   ch.isEnabled = false;
   await this.repo.save(ch);
-  }
+}
 }

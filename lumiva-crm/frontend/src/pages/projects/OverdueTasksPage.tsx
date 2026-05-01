@@ -146,7 +146,7 @@ export const OverdueTasksPage: React.FC = () => {
                       <td className="py-1.5 px-2 text-lumiva-accent font-semibold">{task.title}</td>
                       <td
                         className="py-1.5 px-2 text-slate-600 cursor-pointer hover:text-slate-900"
-                        onClick={() => navigate(`/app/projects/${task.projectId}`)}
+                        onClick={() => navigate(`/projects/${task.projectId}`)}
                       >
                         {task.projectName}
                       </td>

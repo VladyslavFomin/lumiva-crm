@@ -9,13 +9,13 @@ export class PublicLeadsController {
 
   @Post()
   async create(@Req() req: Request, @Body() body: any) {
-    // для публичного API требуем apiToken
     if (!body || !body.apiToken) {
       throw new BadRequestException('apiToken is required');
     }
-
-    // вся логика: проверка apiToken, поиск сайта, tenantId, siteId —
-    // уже внутри LeadsService.createFromPublic(...)
-    return this.leadsService.createFromPublic(body, req.headers.referer);
+    return this.leadsService.createFromPublic(
+      body,
+      typeof req.headers.referer === 'string' ? req.headers.referer : null,
+      typeof req.headers.origin === 'string' ? req.headers.origin : null,
+    );
   }
 }

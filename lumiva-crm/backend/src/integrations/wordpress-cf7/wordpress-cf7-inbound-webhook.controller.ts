@@ -7,12 +7,14 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { WordpressCf7InboundWebhookService } from './wordpress-cf7-inbound-webhook.service';
 
 /**
  * Входящие заявки с сайта (WordPress Contact Form 7 и аналоги), без JWT.
  * URL: POST /v1/webhooks/site-forms/:connectionId?secret=…
  */
+@SkipThrottle()
 @Controller('webhooks/site-forms')
 export class WordpressCf7InboundWebhookController {
   private readonly log = new Logger(WordpressCf7InboundWebhookController.name);

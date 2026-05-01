@@ -552,7 +552,11 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
     };
   }
 
-  async syncSales(entity: IntegrationConnection): Promise<SyncResult> {
+  async syncSales(
+    entity: IntegrationConnection,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _context?: import('../sales-integration.adapter').IntegrationSyncContext,
+  ): Promise<SyncResult> {
     const cfg = parseConfig(entity);
     if (cfg?.catalogId === 'mailchimp') {
       return {

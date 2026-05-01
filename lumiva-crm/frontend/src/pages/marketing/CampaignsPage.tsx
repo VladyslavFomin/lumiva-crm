@@ -22,6 +22,19 @@ import {
   normalizeMarketingTrafficStats,
   type MarketingTrafficStats,
 } from '../../api/marketing';
+
+const MARKETING_CAMPAIGNS_TABLE_COLUMNS_KEY = 'marketing_campaigns_table_columns_v1';
+
+type CampaignTrafficRow = MarketingTrafficStats['items'][number];
+
+type CampaignTableColId =
+  | 'campaign'
+  | 'source'
+  | 'medium'
+  | 'impressions'
+  | 'clicks'
+  | 'sessions'
+  | 'cost';
 import { getLocale } from '../../i18n/utils';
 import { marketingDataSourceLabel } from '../../utils/marketingDataSourceLabel';
 import {
@@ -62,6 +75,7 @@ import {
   useMarketingDisplayCurrencyPrefs,
 } from './MarketingDisplayCurrencyToolbar';
 import { convertMarketingAmount } from './marketingDisplayCurrencyStorage';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
 
 type PeriodPreset = '7d' | '30d' | '90d' | 'all';
 
@@ -80,6 +94,7 @@ export const CampaignsPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hideUnattributedChannel, setHideUnattributedChannel] = useState(false);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
 
   const formatNumber = useCallback(
     (v: number) => v.toLocaleString(locale, { maximumFractionDigits: 0 }),
@@ -354,6 +369,147 @@ export const CampaignsPage: React.FC = () => {
   const tableRows = useMemo(() => {
     return [...view.items].sort((a, b) => b.cost - a.cost || b.revenue - a.revenue);
   }, [view.items]);
+
+  const campaignColumnDefs = useMemo((): Array<{ id: CampaignTableColId; label: string; thExtra: string }> => {
+    return [
+      { id: 'campaign', label: t('crm.marketingCampaigns.table.headers.campaign'), thExtra: '' },
+      { id: 'source', label: t('crm.marketingCampaigns.table.headers.source'), thExtra: '' },
+      { id: 'medium', label: t('crm.marketingCampaigns.table.headers.medium'), thExtra: '' },
+      {
+        id: 'impressions',
+        label: t('crm.marketingCampaigns.table.headers.impressions'),
+        thExtra: 'text-right tabular-nums',
+      },
+      {
+        id: 'clicks',
+        label: t('crm.marketingCampaigns.table.headers.clicks'),
+        thExtra: 'text-right tabular-nums',
+      },
+      {
+        id: 'sessions',
+        label: t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' }),
+        thExtra: 'text-right tabular-nums',
+      },
+      { id: 'cost', label: t('crm.marketingCampaigns.table.headers.cost'), thExtra: 'text-right' },
+    ];
+  }, [t]);
+
+  const orderedCampaignColumns = useMemo(() => {
+    if (!campaignColumnDefs.length) return [];
+    const map = new Map(campaignColumnDefs.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : campaignColumnDefs.map((col) => col.id);
+    const result: typeof campaignColumnDefs = [];
+    order.forEach((id) => {
+      const col = map.get(id as CampaignTableColId);
+      if (col) result.push(col);
+    });
+    campaignColumnDefs.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [campaignColumnDefs, columnOrder]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(MARKETING_CAMPAIGNS_TABLE_COLUMNS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        MARKETING_CAMPAIGNS_TABLE_COLUMNS_KEY,
+        JSON.stringify({ order: columnOrder }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [columnOrder]);
+
+  useEffect(() => {
+    if (!campaignColumnDefs.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return campaignColumnDefs.map((c) => c.id);
+      const ids = campaignColumnDefs.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id as CampaignTableColId));
+      const missing = ids.filter((cid) => !filtered.includes(cid));
+      return [...filtered, ...missing];
+    });
+  }, [campaignColumnDefs]);
+
+  const reorderCampaignColumns = useCallback((dragId: string, targetId: string) => {
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragId);
+      return next;
+    });
+  }, []);
+
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderCampaignColumns, 'light');
+
+  const renderCampaignTableCell = (row: CampaignTrafficRow, colId: CampaignTableColId): React.ReactNode => {
+    switch (colId) {
+      case 'campaign':
+        return (
+          <td
+            key={colId}
+            className={`${marketingTd} max-w-[200px] truncate font-medium text-[#222222]`}
+            title={formatMarketingChannelDimension(t, row.campaign, 'campaign')}
+          >
+            {formatMarketingChannelDimension(t, row.campaign, 'campaign')}
+          </td>
+        );
+      case 'source':
+        return (
+          <td key={colId} className={marketingTd}>
+            {formatMarketingChannelDimension(t, row.source, 'source')}
+          </td>
+        );
+      case 'medium':
+        return (
+          <td key={colId} className={marketingTd}>
+            {formatMarketingChannelDimension(t, row.medium, 'medium')}
+          </td>
+        );
+      case 'impressions':
+        return (
+          <td key={colId} className={`${marketingTd} text-right tabular-nums`}>
+            {formatNumber(row.impressions || 0)}
+          </td>
+        );
+      case 'clicks':
+        return (
+          <td key={colId} className={`${marketingTd} text-right tabular-nums`}>
+            {formatNumber(row.clicks || 0)}
+          </td>
+        );
+      case 'sessions':
+        return (
+          <td key={colId} className={`${marketingTd} text-right tabular-nums`}>
+            {formatNumber(row.sessions || 0)}
+          </td>
+        );
+      case 'cost':
+        return (
+          <td key={colId} className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
+            {fmtCell(row.cost || 0, row.currency)}
+          </td>
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <MainLayout>
@@ -681,50 +837,37 @@ export const CampaignsPage: React.FC = () => {
                 <table className="w-full min-w-[880px] text-left">
                   <thead className={marketingThead}>
                     <tr>
-                      <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.campaign')}</th>
-                      <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.source')}</th>
-                      <th className={marketingTh}>{t('crm.marketingCampaigns.table.headers.medium')}</th>
-                      <th className={`${marketingTh} text-right tabular-nums`}>
-                        {t('crm.marketingCampaigns.table.headers.impressions')}
-                      </th>
-                      <th className={`${marketingTh} text-right tabular-nums`}>
-                        {t('crm.marketingCampaigns.table.headers.clicks')}
-                      </th>
-                      <th className={`${marketingTh} text-right tabular-nums`}>
-                        {t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' })}
-                      </th>
-                      <th className={`${marketingTh} text-right`}>
-                        {t('crm.marketingCampaigns.table.headers.cost')}
-                      </th>
+                      {orderedCampaignColumns.map((col) => (
+                        <th
+                          key={col.id}
+                          {...columnDrag.getThProps(
+                            col.id,
+                            col.label,
+                            [marketingTh, col.thExtra, 'relative group/colhdr select-none transition-colors duration-150']
+                              .filter(Boolean)
+                              .join(' '),
+                          )}
+                        >
+                          <div
+                            className={`flex min-h-[28px] items-center gap-2 ${
+                              col.thExtra.includes('text-right') ? 'justify-end' : ''
+                            }`}
+                          >
+                            <span className="text-[10px] text-[#222222]/45 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                              ⋮⋮
+                            </span>
+                            <span>{col.label}</span>
+                          </div>
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {tableRows.map((row, idx) => (
                       <tr key={`${row.source}-${row.medium}-${row.campaign}-${idx}`} className={marketingTr}>
-                        <td
-                          className={`${marketingTd} max-w-[200px] truncate font-medium text-[#222222]`}
-                          title={formatMarketingChannelDimension(t, row.campaign, 'campaign')}
-                        >
-                          {formatMarketingChannelDimension(t, row.campaign, 'campaign')}
-                        </td>
-                        <td className={marketingTd}>
-                          {formatMarketingChannelDimension(t, row.source, 'source')}
-                        </td>
-                        <td className={marketingTd}>
-                          {formatMarketingChannelDimension(t, row.medium, 'medium')}
-                        </td>
-                        <td className={`${marketingTd} text-right tabular-nums`}>
-                          {formatNumber(row.impressions || 0)}
-                        </td>
-                        <td className={`${marketingTd} text-right tabular-nums`}>
-                          {formatNumber(row.clicks || 0)}
-                        </td>
-                        <td className={`${marketingTd} text-right tabular-nums`}>
-                          {formatNumber(row.sessions || 0)}
-                        </td>
-                        <td className={`${marketingTd} text-right tabular-nums font-medium text-[#222222]`}>
-                          {fmtCell(row.cost || 0, row.currency)}
-                        </td>
+                        {orderedCampaignColumns.map((col) =>
+                          renderCampaignTableCell(row, col.id as CampaignTableColId),
+                        )}
                       </tr>
                     ))}
                   </tbody>

@@ -5,7 +5,7 @@ import { parseEnabledViews } from './workspaceEnabledViews';
 
 export function useWorkspaceViewAccess(
   objectId: string,
-  view: 'kanban' | 'calendar' | 'analytics',
+  view: 'kanban' | 'calendar' | 'analytics' | 'gantt',
 ) {
   const navigate = useNavigate();
   const [allowed, setAllowed] = useState<boolean | null>(null);
@@ -18,7 +18,13 @@ export function useWorkspaceViewAccess(
         if (!alive) return;
         const v = parseEnabledViews(o.meta);
         const ok =
-          view === 'kanban' ? v.kanban : view === 'calendar' ? v.calendar : v.analytics;
+          view === 'kanban'
+            ? v.kanban
+            : view === 'calendar'
+              ? v.calendar
+              : view === 'analytics'
+                ? v.analytics
+                : v.gantt;
         setAllowed(ok);
         if (!ok) {
           navigate(`/workspace/${objectId}/table`, { replace: true });

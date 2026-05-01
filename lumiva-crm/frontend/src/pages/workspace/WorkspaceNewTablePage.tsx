@@ -1,14 +1,30 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { createCustomObject, createCustomObjectField } from '../../api/customObjects';
+import {
+  WORKSPACE_TABLE_KIND_KEY,
+  type WorkspaceTableKind,
+} from '../../workspace/workspaceTableKind';
 
 export const WorkspaceNewTablePage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const finish = (searchParams.get('finish') || 'settings').toLowerCase();
+  const workspaceAreaIdRaw = searchParams.get('workspaceAreaId');
+  const workspaceAreaId =
+    workspaceAreaIdRaw && /^[0-9a-f-]{36}$/i.test(workspaceAreaIdRaw)
+      ? workspaceAreaIdRaw
+      : undefined;
+  const kindParam = searchParams.get('kind')?.toLowerCase();
+  const initialKind: WorkspaceTableKind = useMemo(() => {
+    if (kindParam === 'board') return 'board';
+    if (kindParam === 'data') return 'data';
+    return 'data';
+  }, [kindParam]);
+  const [tableKind, setTableKind] = useState<WorkspaceTableKind>(initialKind);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
@@ -23,6 +39,11 @@ export const WorkspaceNewTablePage: React.FC = () => {
       const created = await createCustomObject({
         name: name.trim(),
         description: description.trim() || undefined,
+        workspaceAreaId: workspaceAreaId ?? null,
+        meta: {
+          enabledViews: ['table'],
+          [WORKSPACE_TABLE_KIND_KEY]: tableKind,
+        },
       });
       await Promise.all([
         createCustomObjectField(created.id, {
@@ -57,11 +78,39 @@ export const WorkspaceNewTablePage: React.FC = () => {
     <MainLayout>
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.newTable.title')}</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          {t('crm.workspace.newTable.subtitle')}
-        </p>
+        <p className="text-sm text-slate-500 mt-1">{t('crm.workspace.newTable.subtitle')}</p>
 
         <form onSubmit={handleSubmit} className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 space-y-4">
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-slate-700 mb-2">{t('crm.workspace.newTable.kindLegend')}</legend>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 hover:bg-slate-50/80">
+              <input
+                type="radio"
+                name="workspace-table-kind"
+                checked={tableKind === 'board'}
+                onChange={() => setTableKind('board')}
+                className="mt-1"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-900">{t('crm.workspace.newTable.kindBoard')}</span>
+                <span className="block text-xs text-slate-500 mt-0.5">{t('crm.workspace.newTable.kindBoardHint')}</span>
+              </span>
+            </label>
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 p-3 hover:bg-slate-50/80">
+              <input
+                type="radio"
+                name="workspace-table-kind"
+                checked={tableKind === 'data'}
+                onChange={() => setTableKind('data')}
+                className="mt-1"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-900">{t('crm.workspace.newTable.kindData')}</span>
+                <span className="block text-xs text-slate-500 mt-0.5">{t('crm.workspace.newTable.kindDataHint')}</span>
+              </span>
+            </label>
+          </fieldset>
+
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">{t('crm.workspace.newTable.name')}</label>
             <input
@@ -105,4 +154,3 @@ export const WorkspaceNewTablePage: React.FC = () => {
     </MainLayout>
   );
 };
-

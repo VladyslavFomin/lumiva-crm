@@ -33,6 +33,7 @@ interface ApiProject {
   id: string;
   tenantId: string;
   leadId: string | null;
+  companyId?: string | null;
   name: string;
   description: string | null;
   amount: string;               // numeric → string
@@ -56,17 +57,48 @@ interface ApiProject {
   deletedAt?: string | null;
 }
 
+/** UUID-списки с PG/TypeORM иногда приходят строкой `{id1,id2}` или с snake_case в JSON. */
+function coerceUuidList(raw: unknown): string[] {
+  if (raw == null) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map((x) => (typeof x === 'string' || typeof x === 'number' ? String(x).trim() : ''))
+      .filter((x) => x.length > 0);
+  }
+  if (typeof raw === 'string') {
+    const s = raw.trim();
+    if (!s) return [];
+    if (s.startsWith('{') && s.endsWith('}')) {
+      const inner = s.slice(1, -1).trim();
+      if (!inner) return [];
+      return inner
+        .split(/,\s*/)
+        .map((part) => part.replace(/^"(.*)"$/, '$1').trim())
+        .filter(Boolean);
+    }
+    return s.split(',').map((x) => x.trim()).filter(Boolean);
+  }
+  return [];
+}
+
 // ---- Маппинг API → фронт ----
 function mapProject(p: ApiProject): Project {
   const normalizedStatus =
     p.status === 'Закрыт' ? ('Выиграно' as ProjectStatus) : p.status;
   const tasks = normalizeTasks(p.tasks);
-  const ownerUserIds =
-    p.ownerUserIds && p.ownerUserIds.length
-      ? p.ownerUserIds
-      : p.ownerUserId
-        ? [p.ownerUserId]
-        : [];
+  const raw = p as ApiProject & Record<string, unknown>;
+  const ids = coerceUuidList(
+    raw.ownerUserIds ?? raw.owner_user_ids ?? raw.ownerUserIDs,
+  );
+  const single =
+    (typeof raw.ownerUserId === 'string' && raw.ownerUserId.trim()) ||
+    (typeof raw.owner_user_id === 'string' && raw.owner_user_id.trim()) ||
+    '';
+  const ownerUserIds = ids.length > 0 ? ids : single ? [single] : [];
+  const ownerName =
+    (typeof p.ownerName === 'string' && p.ownerName) ||
+    (typeof raw.owner_name === 'string' && raw.owner_name) ||
+    null;
   return {
     id: p.id,
     name: p.name,
@@ -78,16 +110,17 @@ function mapProject(p: ApiProject): Project {
     tags: p.tags ?? [],
 
     // ответственный
-    ownerUserId: p.ownerUserId ?? null,
+    ownerUserId: (ownerUserIds[0] ?? p.ownerUserId ?? single) || null,
     ownerUserIds,
-    owner: p.ownerName,
+    owner: ownerName,
 
-    // лид
+    // лид / компания
     leadId: p.leadId,
-    // пока лида как объекта нет, берём name/email как null –
-    // их мы заполняем только на фронте при выборе лида
+    companyId: p.companyId != null ? p.companyId : null,
+    // name/email — заполняем на фронте при выборе лида
     leadName: null,
     leadEmail: null,
+    companyName: null,
 
     // файлы / доп.поля
     briefFileName: p.briefFileName ?? null,
@@ -135,8 +168,14 @@ function projectToDto(
       p.ownerUserIds && p.ownerUserIds.length ? p.ownerUserIds : undefined,
     ownerName: p.owner ?? undefined,
 
-    // лид
-    leadId: p.leadId ?? undefined,
+    // лид / компания (null явно, чтобы сбрасывать ссылку)
+    leadId: p.leadId === null ? null : p.leadId || undefined,
+    companyId:
+      p.companyId === null
+        ? null
+        : p.companyId === undefined
+          ? undefined
+          : p.companyId,
 
     // файлы / доп.поля
     briefFileName: p.briefFileName ?? undefined,

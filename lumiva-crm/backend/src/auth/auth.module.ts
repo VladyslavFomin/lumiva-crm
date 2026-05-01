@@ -29,7 +29,7 @@ import { UserSessionsModule } from './user-sessions.module';
 
     JwtModule.registerAsync({
       useFactory: () => ({
-        secret: process.env.JWT_SECRET || 'changeme',
+        secret: process.env.JWT_SECRET,
         signOptions: {
           expiresIn:
             process.env.JWT_EXPIRES_IN !== undefined

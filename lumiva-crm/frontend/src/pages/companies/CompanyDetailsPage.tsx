@@ -15,8 +15,74 @@ import {
 import { fetchCompanyAnalytics, type CompanyAnalytics } from '../../api/companies';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { useTranslation } from 'react-i18next';
+import '../projects/ProjectsListPage.css';
+import {
+  OwnerAvatarsRow,
+  resolveCompanyOwnersDisplay,
+  resolveContactManagerDisplay,
+  resolveLeadAssigneesDisplay,
+  resolveProjectOwnersWithContext,
+} from '../../components/crm/OwnerAvatarsRow';
 
 type TabId = 'main' | 'contacts' | 'leads' | 'projects' | 'tasks' | 'analytics';
+
+function isInternalContactCustomFieldKey(key: string): boolean {
+  const compact = key.replace(/[\s_-]/g, '');
+  if (/^assignedtolist$/i.test(compact)) return true;
+  if (/^assigneduserids?$/i.test(compact)) return true;
+  return false;
+}
+
+function leadTabStatusCls(status?: string | null): string {
+  switch (status || '') {
+    case 'Новый клиент':
+      return 'lv-st lv-st-new';
+    case 'В работе':
+      return 'lv-st lv-st-progress';
+    case 'Ожидает ответа':
+      return 'lv-st lv-st-review';
+    case 'Закрыт (успех)':
+      return 'lv-st lv-st-won';
+    case 'Закрыт (проигран)':
+      return 'lv-st lv-st-lost';
+    default:
+      return 'lv-st lv-st-closed';
+  }
+}
+
+function projectTabStatusCls(status?: string | null): string {
+  switch (status || '') {
+    case 'Новый':
+      return 'lv-st lv-st-new';
+    case 'В работе':
+      return 'lv-st lv-st-progress';
+    case 'На проверке':
+      return 'lv-st lv-st-review';
+    case 'Заморожен':
+      return 'lv-st lv-st-paused';
+    case 'Закрыт':
+      return 'lv-st lv-st-closed';
+    case 'Выиграно':
+      return 'lv-st lv-st-won';
+    case 'Проиграно':
+      return 'lv-st lv-st-lost';
+    default:
+      return 'lv-st lv-st-closed';
+  }
+}
+
+function formatTabIsoDate(emptyLabel: string, iso: string | null | undefined): React.ReactNode {
+  if (!iso) return <span className="lv-cell-date">{emptyLabel}</span>;
+  const dateStr = String(iso);
+  if (!dateStr.includes('T')) return <span className="lv-cell-date">{dateStr}</span>;
+  const [datePart, timePart] = dateStr.split('T');
+  return (
+    <span className="lv-cell-date">
+      {datePart}
+      {timePart ? <span className="time"> {timePart.slice(0, 5)}</span> : null}
+    </span>
+  );
+}
 
 export const CompanyDetailsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -119,8 +185,10 @@ export const CompanyDetailsPage: React.FC = () => {
         setContacts(contactsData.items);
         setLeads(companyLeads);
         setProjects(
-          projectsData.items.filter((project) =>
-            project.leadId ? leadIds.has(project.leadId) : false,
+          projectsData.items.filter(
+            (project) =>
+              (project.companyId != null && project.companyId === id) ||
+              (project.leadId != null && leadIds.has(project.leadId)),
           ),
         );
       })
@@ -156,12 +224,21 @@ export const CompanyDetailsPage: React.FC = () => {
     };
   }, [id, tab, loading]);
 
+  const companyOwnersFallback = useMemo(
+    () => (company ? resolveCompanyOwnersDisplay(company, staff) : []),
+    [company, staff],
+  );
+
+  const leadById = useMemo(() => new Map(leads.map((l) => [l.id, l])), [leads]);
+
   const contactCustomFieldKeys = useMemo(() => {
     const keys = new Set<string>();
     contacts.forEach((contact) => {
-      Object.keys(contact.customFields || {}).forEach((key) => keys.add(key));
+      Object.keys(contact.customFields || {}).forEach((key) => {
+        if (!isInternalContactCustomFieldKey(key)) keys.add(key);
+      });
     });
-    return Array.from(keys).slice(0, 4);
+    return Array.from(keys).slice(0, 8);
   }, [contacts]);
   const projectNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -579,67 +656,108 @@ export const CompanyDetailsPage: React.FC = () => {
           {tab === 'contacts' && (
             <div className="space-y-3">
               {contacts.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">
+                <div
+                  className="rounded-[10px] border py-10 text-center text-[12px] text-[var(--fg-3)]"
+                  style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
+                >
                   {t('crm.companies.details.contacts.empty')}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-xs">
-                    <thead className="bg-slate-50 text-slate-600">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.firstName')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.position')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">Email</th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.phone')}
-                        </th>
-                        {contactCustomFieldKeys.map((key) => (
-                          <th key={key} className="px-3 py-2 text-left font-medium">
-                            {key}
+                <div className="lv-proj-wrap">
+                  <div className="lv-proj-scroll">
+                    <table className="lv-proj-table lv-leads-table min-w-[860px]">
+                      <thead>
+                        <tr>
+                          <th className="lv-tcol-name">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.firstName')}</span>
                           </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {contacts.map((contact) => {
-                        const fullName =
-                          contact.fullName ||
-                          `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
-                          contact.email ||
-                          contact.phone ||
-                          `${t('crm.contacts.list.title')} ${contact.id.slice(0, 6)}`;
-                        return (
-                          <tr
-                            key={contact.id}
-                            onClick={() => navigate(`/contacts/${contact.id}/edit`)}
-                            className="cursor-pointer hover:bg-sky-50/50"
-                          >
-                            <td className="px-3 py-2 text-slate-800 font-medium">{fullName}</td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {contact.position || t('crm.projects.common.emptyValue')}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {contact.email || t('crm.projects.common.emptyValue')}
-                            </td>
-                            <td className="px-3 py-2 text-slate-600">
-                              {contact.phone || t('crm.projects.common.emptyValue')}
-                            </td>
-                            {contactCustomFieldKeys.map((key) => (
-                              <td key={key} className="px-3 py-2 text-slate-600">
-                                {contact.customFields?.[key] != null
-                                  ? String(contact.customFields?.[key])
-                                  : t('crm.projects.common.emptyValue')}
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.position')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">Email</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.phone')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.list.table.manager')}</span>
+                          </th>
+                          {contactCustomFieldKeys.map((key) => (
+                            <th key={key} className="lv-tcol-center">
+                              <span className="lv-th-inner">{key}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {contacts.map((contact) => {
+                          const fullName =
+                            contact.fullName ||
+                            `${contact.firstName || ''} ${contact.lastName || ''}`.trim() ||
+                            contact.email ||
+                            contact.phone ||
+                            `${t('crm.contacts.list.title')} ${contact.id.slice(0, 6)}`;
+                          const managerItems = resolveContactManagerDisplay(contact, staff);
+                          const managerShown =
+                            managerItems.length > 0 ? managerItems : companyOwnersFallback;
+                          return (
+                            <tr
+                              key={contact.id}
+                              onClick={() => navigate(`/contacts/${contact.id}`)}
+                              className="lv-proj-row"
+                            >
+                              <td className="lv-tcol-name">
+                                <span className="text-[12.5px] font-medium text-[var(--ink)]">{fullName}</span>
                               </td>
-                            ))}
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              <td className="lv-tcol-center">
+                                <span className="text-[12.5px] text-[var(--ink)]">
+                                  {contact.position || t('crm.projects.common.emptyValue')}
+                                </span>
+                              </td>
+                              <td className="lv-tcol-center">
+                                <span className="text-[12.5px] text-[var(--ink)]">
+                                  {contact.email || t('crm.projects.common.emptyValue')}
+                                </span>
+                              </td>
+                              <td className="lv-tcol-center">
+                                <span className="text-[12.5px] text-[var(--ink)]">
+                                  {contact.phone || t('crm.projects.common.emptyValue')}
+                                </span>
+                              </td>
+                              <td
+                                className="lv-tcol-center lv-td-popover"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {managerShown.length ? (
+                                  <OwnerAvatarsRow items={managerShown} readOnly />
+                                ) : (
+                                  <span className="text-[var(--fg-3)]">—</span>
+                                )}
+                              </td>
+                              {contactCustomFieldKeys.map((key) => (
+                                <td key={key} className="lv-tcol-center">
+                                  <span className="text-[12.5px] text-[var(--ink)]">
+                                    {contact.customFields?.[key] != null
+                                      ? String(contact.customFields?.[key])
+                                      : t('crm.projects.common.emptyValue')}
+                                  </span>
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="lv-proj-foot">
+                    <div className="lv-proj-foot-stats">
+                      <span>
+                        <span className="lbl">{t('crm.leads.list.footerTotal')}:</span>
+                        <strong>{contacts.length}</strong>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -648,56 +766,97 @@ export const CompanyDetailsPage: React.FC = () => {
           {tab === 'leads' && (
             <div className="space-y-2">
               {leads.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">
+                <div
+                  className="rounded-[10px] border py-10 text-center text-[12px] text-[var(--fg-3)]"
+                  style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
+                >
                   {t('crm.companies.details.leads.empty')}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-xs">
-                    <thead className="bg-slate-50 text-slate-600">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.companies.details.page.tables.leads.lead')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">Email</th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.phone')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.status')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.companies.details.page.tables.leads.owner')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {leads.map((lead) => (
-                        <tr
-                          key={lead.id}
-                          onClick={() => navigate(`/leads/${lead.id}`)}
-                          className="cursor-pointer hover:bg-sky-50/50"
-                        >
-                          <td className="px-3 py-2 font-medium text-slate-800">
-                            {lead.name ||
-                              lead.email ||
-                              lead.phone ||
-                              `${t('crm.companies.details.page.tables.leads.lead')} ${lead.id.slice(0, 6)}`}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {lead.email || t('crm.projects.common.emptyValue')}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {lead.phone || t('crm.projects.common.emptyValue')}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">{lead.status}</td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {lead.assignedTo || t('crm.projects.common.emptyValue')}
-                          </td>
+                <div className="lv-proj-wrap">
+                  <div className="lv-proj-scroll">
+                    <table className="lv-proj-table lv-leads-table min-w-[820px]">
+                      <thead>
+                        <tr>
+                          <th className="lv-tcol-name">
+                            <span className="lv-th-inner">{t('crm.companies.details.page.tables.leads.lead')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">Email</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.phone')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.companies.details.page.tables.leads.owner')}</span>
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {leads.map((lead) => {
+                          const leadOwners = resolveLeadAssigneesDisplay(lead, staff);
+                          const leadOwnersShown =
+                            leadOwners.length > 0 ? leadOwners : companyOwnersFallback;
+                          const leadTitle =
+                            lead.name ||
+                            lead.email ||
+                            lead.phone ||
+                            `${t('crm.companies.details.page.tables.leads.lead')} ${lead.id.slice(0, 6)}`;
+                          return (
+                            <tr
+                              key={lead.id}
+                              onClick={() => navigate(`/leads/${lead.id}`)}
+                              className="lv-proj-row"
+                            >
+                              <td className="lv-tcol-name">
+                                <span className="text-[12.5px] font-medium text-[var(--ink)]">{leadTitle}</span>
+                              </td>
+                              <td className="lv-tcol-center">
+                                <span className="text-[12.5px] text-[var(--ink)]">
+                                  {lead.email || t('crm.projects.common.emptyValue')}
+                                </span>
+                              </td>
+                              <td className="lv-tcol-center">
+                                <span className="text-[12.5px] text-[var(--ink)]">
+                                  {lead.phone || t('crm.projects.common.emptyValue')}
+                                </span>
+                              </td>
+                              <td className="lv-tcol-center">
+                                <span
+                                  className={leadTabStatusCls(lead.status)}
+                                  style={{ cursor: 'default', pointerEvents: 'none' }}
+                                >
+                                  <span className="dot" />
+                                  {lead.status || t('crm.projects.common.emptyValue')}
+                                </span>
+                              </td>
+                              <td
+                                className="lv-tcol-center lv-td-popover"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {leadOwnersShown.length ? (
+                                  <OwnerAvatarsRow items={leadOwnersShown} readOnly />
+                                ) : (
+                                  <span className="text-[var(--fg-3)]">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="lv-proj-foot">
+                    <div className="lv-proj-foot-stats">
+                      <span>
+                        <span className="lbl">{t('crm.leads.list.footerTotal')}:</span>
+                        <strong>{leads.length}</strong>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -706,57 +865,94 @@ export const CompanyDetailsPage: React.FC = () => {
           {tab === 'projects' && (
             <div className="space-y-2">
               {projects.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">
+                <div
+                  className="rounded-[10px] border py-10 text-center text-[12px] text-[var(--fg-3)]"
+                  style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
+                >
                   {t('crm.companies.details.projects.empty')}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-xs">
-                    <thead className="bg-slate-50 text-slate-600">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.companies.details.page.tables.projects.project')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.status')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.companies.details.page.tables.projects.owner')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.companies.details.page.tables.projects.budget')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.companies.details.page.tables.projects.updated')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {projects.map((project) => (
-                        <tr
-                          key={project.id}
-                          onClick={() => navigate(`/projects/${project.id}`)}
-                          className="cursor-pointer hover:bg-sky-50/50"
-                        >
-                          <td className="px-3 py-2 font-medium text-slate-800">{project.name}</td>
-                          <td className="px-3 py-2 text-slate-600">{project.status}</td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {project.owner || t('crm.projects.common.emptyValue')}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {new Intl.NumberFormat(locale, {
-                              style: 'currency',
-                              currency: project.currency || 'EUR',
-                              minimumFractionDigits: 0,
-                            }).format(Number(project.amount || 0))}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {project.updatedAt || t('crm.projects.common.emptyValue')}
-                          </td>
+                <div className="lv-proj-wrap">
+                  <div className="lv-proj-scroll">
+                    <table className="lv-proj-table lv-leads-table min-w-[820px]">
+                      <thead>
+                        <tr>
+                          <th className="lv-tcol-name">
+                            <span className="lv-th-inner">{t('crm.companies.details.page.tables.projects.project')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.companies.details.page.tables.projects.owner')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.companies.details.page.tables.projects.budget')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.companies.details.page.tables.projects.updated')}</span>
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {projects.map((project) => {
+                          const projOwnersShown = resolveProjectOwnersWithContext(project, staff, {
+                            lead: project.leadId ? leadById.get(project.leadId) : undefined,
+                            companyOwners: companyOwnersFallback,
+                          });
+                          const budgetStr = new Intl.NumberFormat(locale, {
+                            style: 'currency',
+                            currency: project.currency || 'EUR',
+                            minimumFractionDigits: 0,
+                          }).format(Number(project.amount || 0));
+                          return (
+                            <tr
+                              key={project.id}
+                              onClick={() => navigate(`/projects/${project.id}`)}
+                              className="lv-proj-row"
+                            >
+                              <td className="lv-tcol-name">
+                                <span className="text-[12.5px] font-medium text-[var(--ink)]">{project.name}</span>
+                              </td>
+                              <td className="lv-tcol-center">
+                                <span
+                                  className={projectTabStatusCls(project.status)}
+                                  style={{ cursor: 'default', pointerEvents: 'none' }}
+                                >
+                                  <span className="dot" />
+                                  {project.status || t('crm.projects.common.emptyValue')}
+                                </span>
+                              </td>
+                              <td
+                                className="lv-tcol-center lv-td-popover"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {projOwnersShown.length ? (
+                                  <OwnerAvatarsRow items={projOwnersShown} readOnly />
+                                ) : (
+                                  <span className="text-[var(--fg-3)]">—</span>
+                                )}
+                              </td>
+                              <td className="lv-tcol-center">
+                                <span className="lv-cell-amount">{budgetStr}</span>
+                              </td>
+                              <td className="lv-tcol-center">
+                                {formatTabIsoDate(t('crm.projects.common.emptyValue'), project.updatedAt)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="lv-proj-foot">
+                    <div className="lv-proj-foot-stats">
+                      <span>
+                        <span className="lbl">{t('crm.leads.list.footerTotal')}:</span>
+                        <strong>{projects.length}</strong>
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -772,57 +968,78 @@ export const CompanyDetailsPage: React.FC = () => {
                 Object.entries(tasksGroupedByProject).map(([projectName, groupedTasks]) => (
                   <div key={projectName} className="space-y-2">
                     <div className="text-xs font-semibold text-slate-700">{projectName}</div>
-                    <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                      <table className="min-w-full divide-y divide-slate-200 text-xs">
-                        <thead className="bg-slate-50 text-slate-600">
-                          <tr>
-                            <th className="px-3 py-2 text-left font-medium">
-                              {t('crm.companies.tasks.fields.title')}
-                            </th>
-                            <th className="px-3 py-2 text-left font-medium">
-                              {t('crm.companies.tasks.fields.status')}
-                            </th>
-                            <th className="px-3 py-2 text-left font-medium">
-                              {t('crm.companies.tasks.fields.priority')}
-                            </th>
-                            <th className="px-3 py-2 text-left font-medium">
-                              {t('crm.companies.tasks.fields.assignedTo')}
-                            </th>
-                            <th className="px-3 py-2 text-left font-medium">
-                              {t('crm.companies.tasks.fields.dueDate')}
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-100">
-                          {groupedTasks.map((task) => (
-                            <tr key={task.id} className="hover:bg-sky-50/50">
-                              <td className="px-3 py-2 text-slate-800 font-medium">{task.title}</td>
-                              <td className="px-3 py-2">
-                                <span
-                                  className="rounded-full px-2 py-0.5 text-[11px] font-medium"
-                                  style={{
-                                    backgroundColor: STATUS_COLORS[task.status] + '20',
-                                    color: STATUS_COLORS[task.status],
-                                  }}
-                                >
-                                  {t(`crm.companies.tasks.statuses.${task.status}`)}
-                                </span>
-                              </td>
-                              <td className="px-3 py-2 text-slate-600">
-                                {task.priority || t('crm.projects.common.emptyValue')}
-                              </td>
-                              <td className="px-3 py-2 text-slate-600">
-                                {task.assignedTo || t('crm.projects.common.emptyValue')}
-                              </td>
-                              <td className="px-3 py-2 text-slate-600">
-                                {task.dueDate
-                                  ? new Date(task.dueDate).toLocaleDateString(locale)
-                                  : t('crm.projects.common.emptyValue')}
-                              </td>
+                    <div className="lv-proj-wrap">
+                      <div className="lv-proj-scroll">
+                        <table className="lv-proj-table lv-leads-table">
+                          <thead>
+                            <tr>
+                              <th className="lv-tcol-name">
+                                <span className="lv-th-inner">{t('crm.companies.tasks.fields.title')}</span>
+                              </th>
+                              <th className="lv-tcol-center">
+                                <span className="lv-th-inner">{t('crm.companies.tasks.fields.status')}</span>
+                              </th>
+                              <th className="lv-tcol-center">
+                                <span className="lv-th-inner">{t('crm.companies.tasks.fields.priority')}</span>
+                              </th>
+                              <th className="lv-tcol-center">
+                                <span className="lv-th-inner">{t('crm.companies.tasks.fields.assignedTo')}</span>
+                              </th>
+                              <th className="lv-tcol-center">
+                                <span className="lv-th-inner">{t('crm.companies.tasks.fields.dueDate')}</span>
+                              </th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {groupedTasks.map((task) => (
+                              <tr key={task.id} className="lv-proj-row">
+                                <td className="lv-tcol-name">{task.title}</td>
+                                <td className="lv-tcol-center">
+                                  <span
+                                    className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                                    style={{
+                                      backgroundColor: STATUS_COLORS[task.status] + '20',
+                                      color: STATUS_COLORS[task.status],
+                                    }}
+                                  >
+                                    {t(`crm.companies.tasks.statuses.${task.status}`)}
+                                  </span>
+                                </td>
+                                <td className="lv-tcol-center">
+                                  {task.priority || t('crm.projects.common.emptyValue')}
+                                </td>
+                                <td className="lv-tcol-center lv-td-popover">
+                                  {resolveContactManagerDisplay(
+                                    {
+                                      assignedUserId: task.assignedUserId,
+                                      assignedTo: task.assignedTo,
+                                    },
+                                    staff,
+                                  ).length ? (
+                                    <OwnerAvatarsRow
+                                      items={resolveContactManagerDisplay(
+                                        {
+                                          assignedUserId: task.assignedUserId,
+                                          assignedTo: task.assignedTo,
+                                        },
+                                        staff,
+                                      )}
+                                      readOnly
+                                    />
+                                  ) : (
+                                    <span className="text-[var(--fg-3)]">—</span>
+                                  )}
+                                </td>
+                                <td className="lv-tcol-center">
+                                  {task.dueDate
+                                    ? new Date(task.dueDate).toLocaleDateString(locale)
+                                    : t('crm.projects.common.emptyValue')}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 ))

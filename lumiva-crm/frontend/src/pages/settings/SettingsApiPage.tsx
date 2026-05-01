@@ -1,37 +1,65 @@
 // frontend/src/pages/settings/SettingsApiPage.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
-  fetchMarketingApiToken,
+  fetchMarketingApiTokenMasked,
+  revealMarketingApiToken,
   regenerateMarketingApiToken,
+  type MarketingApiTokenMasked,
 } from '../../api/marketing';
+import { API_BASE } from '../../api/client';
+import '../projects/ProjectsListPage.css';
+
+function resolvePublicApiBase(): string {
+  const b = API_BASE.replace(/\/$/, '');
+  if (typeof window === 'undefined') return b || '/v1';
+  if (b.startsWith('http')) return b;
+  return `${window.location.origin}${b.startsWith('/') ? '' : '/'}${b}`;
+}
 
 export const SettingsApiPage: React.FC = () => {
   const { t } = useTranslation();
-  const [token, setToken] = useState<string | null>(null);
+  const [masked, setMasked] = useState<MarketingApiTokenMasked | null>(null);
+  const [revealedToken, setRevealedToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [rotating, setRotating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  useEffect(() => {
+  const [modalMode, setModalMode] = useState<'reveal' | 'rotate' | null>(null);
+  const [password, setPassword] = useState('');
+  const [modalError, setModalError] = useState<string | null>(null);
+  const [modalBusy, setModalBusy] = useState(false);
+
+  const apiBaseUrl = useMemo(() => resolvePublicApiBase(), []);
+
+  const loadMasked = useCallback(() => {
     setLoading(true);
     setError(null);
-
-    fetchMarketingApiToken()
-      .then((t) => setToken(t))
-      .catch((e: any) => {
+    fetchMarketingApiTokenMasked()
+      .then((m) => setMasked(m))
+      .catch((e: unknown) => {
         console.error(e);
-        setError(e?.message || t('crm.settings.api.errors.load'));
+        const msg =
+          e && typeof e === 'object' && 'message' in e
+            ? String((e as { message?: string }).message)
+            : '';
+        setError(msg || t('crm.settings.api.errors.load'));
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [t]);
+
+  useEffect(() => {
+    loadMasked();
+  }, [loadMasked]);
+
+  const displayValue = revealedToken ?? masked?.preview ?? '—';
+  const tokenForDocs = revealedToken ?? t('crm.settings.api.tokenPlaceholder');
 
   const handleCopy = async () => {
-    if (!token) return;
+    if (!revealedToken) return;
     try {
-      await navigator.clipboard.writeText(token);
+      await navigator.clipboard.writeText(revealedToken);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
@@ -39,132 +67,264 @@ export const SettingsApiPage: React.FC = () => {
     }
   };
 
-  const handleRotate = async () => {
-    if (!confirm(t('crm.settings.api.confirmRotate'))) return;
+  const openModal = (mode: 'reveal' | 'rotate') => {
+    setModalMode(mode);
+    setPassword('');
+    setModalError(null);
+  };
 
-    setRotating(true);
-    setError(null);
+  const closeModal = () => {
+    if (modalBusy) return;
+    setModalMode(null);
+    setPassword('');
+    setModalError(null);
+  };
+
+  const submitModal = async () => {
+    if (!modalMode) return;
+    const pwd = password.trim();
+    if (!pwd) {
+      setModalError(t('crm.settings.api.errors.passwordRequired'));
+      return;
+    }
+    setModalBusy(true);
+    setModalError(null);
     try {
-      const newToken = await regenerateMarketingApiToken();
-      setToken(newToken);
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || t('crm.settings.api.errors.rotate'));
+      if (modalMode === 'reveal') {
+        const full = await revealMarketingApiToken(pwd);
+        setRevealedToken(full);
+        closeModal();
+      } else {
+        const full = await regenerateMarketingApiToken(pwd);
+        setRevealedToken(full);
+        await loadMasked();
+        closeModal();
+      }
+    } catch (e: unknown) {
+      const status =
+        e && typeof e === 'object' && 'status' in e ? Number((e as { status: number }).status) : 0;
+      if (status === 403) {
+        setModalError(t('crm.settings.api.errors.wrongPassword'));
+      } else {
+        const msg =
+          e && typeof e === 'object' && 'message' in e
+            ? String((e as { message?: string }).message)
+            : '';
+        setModalError(
+          modalMode === 'rotate'
+            ? msg || t('crm.settings.api.errors.rotate')
+            : msg || t('crm.settings.api.errors.reveal'),
+        );
+      }
     } finally {
-      setRotating(false);
+      setModalBusy(false);
     }
   };
 
+  const curlExample = `curl -sS -X POST "${apiBaseUrl}/marketing/traffic/import" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Api-Token: ${tokenForDocs}" \\
+  -d '{"items":[{"date":"2025-11-01","source":"google","medium":"cpc","campaign":"brand","sessions":120,"clicks":95,"leads":8,"cost":57.3,"revenue":1350,"currency":"EUR"}]}'`;
+
   return (
     <MainLayout>
-      <div className="max-w-3xl mx-auto space-y-5 md:space-y-6 pb-10">
-        <section>
-          <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-            {t('crm.settings.api.sectionLabel')}
+      <div
+        className="lv-pt w-full pb-10 min-w-0"
+        style={{
+          marginLeft: -24,
+          marginRight: -24,
+          paddingLeft: 24,
+          paddingRight: 24,
+          width: 'calc(100% + 48px)',
+        }}
+      >
+        <div className="lv-pt-head">
+          <div>
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase',
+                color: 'var(--fg-4)',
+                marginBottom: 6,
+              }}
+            >
+              {t('crm.settings.api.sectionLabel')}
+            </div>
+            <h1>{t('crm.settings.api.title')}</h1>
+            <div className="sub max-w-2xl">{t('crm.settings.api.subtitle')}</div>
           </div>
-          <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-            {t('crm.settings.api.title')}
-          </h1>
-          <p className="mt-1 text-xs text-slate-400 max-w-2xl">
-            {t('crm.settings.api.subtitle')}
-          </p>
-        </section>
+        </div>
 
-        <section className="rounded-3xl border border-slate-800/80 bg-slate-950/80 p-4 md:p-5 space-y-4">
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+        {error ? (
+          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-[8px] px-3 py-2 mb-[14px]">
+            {error}
+          </div>
+        ) : null}
+
+        <section className="rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-6 shadow-sm space-y-5 mb-[14px]">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-sm font-semibold text-slate-50">
+              <h2 className="text-[15px] font-semibold text-[var(--ink)]">
                 {t('crm.settings.api.cardTitle')}
               </h2>
-              <p className="text-[11px] text-slate-500 max-w-xl">
+              <p className="mt-1 max-w-xl text-[12px] leading-relaxed text-[var(--fg-3)]">
                 {t('crm.settings.api.cardHint')}
               </p>
             </div>
-
             <button
               type="button"
-              onClick={handleRotate}
-              disabled={rotating || loading}
-              className={
-                'inline-flex items-center justify-center rounded-xl border px-3 py-1.5 text-[11px] transition ' +
-                (rotating
-                  ? 'border-slate-700 text-slate-400 cursor-wait'
-                  : 'border-rose-500/60 text-rose-200 hover:bg-rose-500/10')
-              }
+              onClick={() => openModal('rotate')}
+              disabled={loading}
+              className="lv-tb-btn shrink-0 border-rose-200 text-rose-800 hover:border-rose-400 hover:bg-rose-50"
             >
-              {rotating
-                ? t('crm.settings.api.rotating')
-                : t('crm.settings.api.rotate')}
+              {t('crm.settings.api.rotate')}
             </button>
           </div>
 
-          {loading && (
-            <div className="text-[11px] text-slate-500">
-              {t('crm.settings.api.loading')}
-            </div>
-          )}
-
-          {error && (
-            <div className="text-[11px] text-red-400">{error}</div>
-          )}
-
-          {!loading && !error && (
+          {loading ? (
+            <div className="text-[12px] text-[var(--fg-3)]">{t('crm.settings.api.loading')}</div>
+          ) : (
             <>
-              <div className="flex flex-col gap-2">
-                <label
-                  htmlFor="marketing-token"
-                  className="text-[11px] text-slate-400"
-                >
+              <div className="space-y-2">
+                <label htmlFor="tenant-api-token" className="text-[11px] font-medium text-[var(--fg-3)]">
                   {t('crm.settings.api.tokenLabel')}
                 </label>
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 rounded-2xl bg-slate-900/80 border border-slate-700/80 px-3 py-2 text-[11px] font-mono text-slate-100 break-all">
-                    {token || t('crm.settings.api.empty')}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    disabled={!token}
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-700/80 px-3 py-1.5 text-[11px] text-slate-200 hover:bg-slate-900/70 disabled:opacity-50"
+                <div className="flex flex-wrap items-stretch gap-2">
+                  <div
+                    id="tenant-api-token"
+                    className="min-h-[40px] flex-1 min-w-0 rounded-lg border border-[var(--line-2)] bg-[var(--bg-muted)] px-3 py-2 font-mono text-[12px] leading-relaxed text-[var(--ink)] break-all"
                   >
-                    {copied ? t('crm.settings.api.copied') : t('crm.settings.api.copy')}
-                  </button>
+                    {displayValue}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!revealedToken ? (
+                      <button
+                        type="button"
+                        onClick={() => openModal('reveal')}
+                        className="lv-tb-btn px-2.5"
+                        title={t('crm.settings.api.showToken')}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                          <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setRevealedToken(null)}
+                        className="lv-tb-btn px-2.5"
+                        title={t('crm.settings.api.hideToken')}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                          <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                          <path d="M1 1l22 22" />
+                        </svg>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleCopy}
+                      disabled={!revealedToken}
+                      title={
+                        revealedToken ? t('crm.settings.api.copy') : t('crm.settings.api.copyDisabledHint')
+                      }
+                      className="lv-tb-btn px-2.5 disabled:opacity-40 disabled:pointer-events-none"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden>
+                        <rect x="9" y="9" width="13" height="13" rx="2" />
+                        <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
+                <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t('crm.settings.api.tokenSecurityHint')}</p>
+                {copied ? (
+                  <div className="text-[11px] font-medium text-emerald-700">{t('crm.settings.api.copied')}</div>
+                ) : null}
               </div>
 
-              <div className="rounded-2xl bg-slate-950/80 border border-slate-800/80 px-3 py-3 text-[11px] text-slate-400 space-y-1.5">
-                <div className="font-semibold text-slate-200">
-                  {t('crm.settings.api.exampleTitle')}
-                </div>
-                <pre className="text-[10px] leading-snug text-slate-300 overflow-auto">
-{`POST https://crm.lumiva.agency/v1/marketing/traffic/import
-Headers:
-  Content-Type: application/json
-  X-Api-Token: ${token || t('crm.settings.api.tokenPlaceholder')}
+              <div className="rounded-[10px] border border-[var(--line-2)] bg-[var(--bg-soft)] px-3 py-3 space-y-3">
+                <div className="text-[12px] font-semibold text-[var(--ink)]">{t('crm.settings.api.usageTitle')}</div>
+                <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t('crm.settings.api.usageBody')}</p>
+                <ul className="list-disc pl-5 space-y-1 text-[11px] text-[var(--fg-2)]">
+                  <li>{t('crm.settings.api.usageBulletTraffic')}</li>
+                  <li>{t('crm.settings.api.usageBulletWp')}</li>
+                  <li>{t('crm.settings.api.usageBulletOther')}</li>
+                </ul>
+              </div>
 
-Body:
-{
-  "items": [
-    {
-      "date": "2025-11-01",
-      "source": "google",
-      "medium": "cpc",
-      "campaign": "brand_search",
-      "sessions": 120,
-      "clicks": 95,
-      "leads": 8,
-      "cost": 57.3,
-      "revenue": 1350,
-      "currency": "EUR"
-    }
-  ]
-}`}
+              <div className="rounded-[10px] border border-[var(--line-2)] bg-[var(--bg-muted)] px-3 py-3 space-y-2">
+                <div className="text-[12px] font-semibold text-[var(--ink)]">{t('crm.settings.api.exampleTitle')}</div>
+                <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">
+                  {t('crm.settings.api.exampleIntro', { baseUrl: apiBaseUrl })}
+                </p>
+                <pre className="text-[10px] leading-snug text-[var(--ink)] overflow-auto max-h-[280px] rounded-lg bg-white border border-[var(--line-2)] p-3 font-mono">
+                  {curlExample}
                 </pre>
               </div>
             </>
           )}
         </section>
       </div>
+
+      {modalMode ? (
+        <div
+          className="fixed inset-0 z-[280] flex items-center justify-center bg-black/55 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="api-token-modal-title"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !modalBusy) closeModal();
+          }}
+        >
+          <div className="w-full max-w-md rounded-2xl border border-[var(--line-2)] bg-white p-5 shadow-xl">
+            <h2 id="api-token-modal-title" className="text-[15px] font-semibold text-[var(--ink)]">
+              {modalMode === 'reveal'
+                ? t('crm.settings.api.modalRevealTitle')
+                : t('crm.settings.api.modalRotateTitle')}
+            </h2>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-[var(--fg-3)]">
+              {modalMode === 'reveal'
+                ? t('crm.settings.api.modalRevealBody')
+                : t('crm.settings.api.modalRotateBody')}
+            </p>
+            <label className="mt-4 block text-[11px] font-medium text-[var(--fg-3)]">
+              {t('crm.settings.api.passwordLabel')}
+            </label>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') void submitModal();
+              }}
+              className="mt-1 w-full rounded-lg border border-[var(--line-2)] px-3 py-2 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--ink)]"
+            />
+            {modalError ? (
+              <div className="mt-2 text-[11px] text-rose-600">{modalError}</div>
+            ) : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" className="lv-tb-btn" onClick={closeModal} disabled={modalBusy}>
+                {t('crm.settings.api.modalCancel')}
+              </button>
+              <button
+                type="button"
+                className="lv-tb-btn"
+                style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
+                onClick={() => void submitModal()}
+                disabled={modalBusy}
+              >
+                {modalBusy
+                  ? t('crm.settings.api.modalSubmitting')
+                  : t('crm.settings.api.modalConfirm')}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </MainLayout>
   );
 };

@@ -7,12 +7,14 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { AmocrmInboundWebhookService } from './amocrm-inbound-webhook.service';
 
 /**
  * Входящие вебхуки amoCRM (x-www-form-urlencoded или JSON), без JWT.
  * URL: POST /v1/webhooks/amocrm/:connectionId?secret=… (секрет опционален, но рекомендуется).
  */
+@SkipThrottle()
 @Controller('webhooks/amocrm')
 export class AmocrmInboundWebhookController {
   private readonly log = new Logger(AmocrmInboundWebhookController.name);

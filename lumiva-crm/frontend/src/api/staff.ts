@@ -29,14 +29,47 @@ export interface StaffUser {
   lastActiveAt?: string | null;
 }
 
+/** Приводит ответ бэка к одному виду (camelCase + departmentId). */
+export function normalizeStaffUser(raw: unknown): StaffUser {
+  const r = raw as Record<string, unknown>;
+  if (!r || typeof r !== 'object') {
+    throw new Error('Invalid staff user payload');
+  }
+  const departmentIdRaw = r.departmentId ?? r.department_id;
+  const departmentId =
+    departmentIdRaw === undefined || departmentIdRaw === ''
+      ? null
+      : (departmentIdRaw as string | null);
+  return {
+    id: String(r.id ?? ''),
+    tenantId: String(r.tenantId ?? r.tenant_id ?? ''),
+    email: String(r.email ?? ''),
+    fullName: String(r.fullName ?? r.full_name ?? r.email ?? ''),
+    role: r.role as StaffRole,
+    department: (r.department != null ? String(r.department) : null) as string | null,
+    departmentId,
+    phone: r.phone != null ? String(r.phone) : null,
+    avatarUrl: (r.avatarUrl ?? r.avatar_url ?? null) as string | null,
+    isActive: Boolean(r.isActive ?? r.is_active ?? true),
+    inviteStatus: String(r.inviteStatus ?? r.invite_status ?? 'active'),
+    externalId: (r.externalId ?? r.external_id ?? null) as string | null,
+    lastLoginAt: (r.lastLoginAt ?? r.last_login_at ?? null) as string | null,
+    createdAt: String(r.createdAt ?? r.created_at ?? ''),
+    updatedAt: String(r.updatedAt ?? r.updated_at ?? ''),
+    lastActiveAt: (r.lastActiveAt ?? r.last_active_at ?? null) as string | null,
+  };
+}
+
 // ---------- LIST ----------
 export async function fetchStaff(): Promise<StaffUser[]> {
-  return api.get<StaffUser[]>('/staff-users');
+  const rows = await api.get<unknown[]>('/staff-users');
+  return rows.map((row) => normalizeStaffUser(row));
 }
 
 // ---------- ONE BY ID ----------
 export async function fetchStaffById(id: string): Promise<StaffUser> {
-  return api.get<StaffUser>(`/staff-users/${id}`);
+  const row = await api.get<unknown>(`/staff-users/${id}`);
+  return normalizeStaffUser(row);
 }
 
 // ---------- CREATE ----------
@@ -47,7 +80,8 @@ export async function createStaffUser(payload: {
   department?: string;
   avatarUrl?: string;
 }): Promise<StaffUser> {
-  return api.post<StaffUser>('/staff-users', payload);
+  const row = await api.post<unknown>('/staff-users', payload);
+  return normalizeStaffUser(row);
 }
 
 // ---------- UPDATE (универсальный) ----------
@@ -63,7 +97,8 @@ export async function updateStaffUser(
     isActive: boolean;
   }>,
 ): Promise<StaffUser> {
-  return api.patch<StaffUser>(`/staff-users/${id}`, payload);
+  const row = await api.patch<unknown>(`/staff-users/${id}`, payload);
+  return normalizeStaffUser(row);
 }
 
 // Специальные хелперы – просто обёртки над updateStaffUser
@@ -115,9 +150,11 @@ export async function inviteStaffMember(payload: {
   role: StaffRole;
   departmentId?: string | null;
 }): Promise<StaffUser> {
-  return api.post<StaffUser>('/staff-users/invite', payload);
+  const row = await api.post<unknown>('/staff-users/invite', payload);
+  return normalizeStaffUser(row);
 }
 
 export async function resendStaffInvite(id: string): Promise<StaffUser> {
-  return api.post<StaffUser>(`/staff-users/${id}/resend-invite`, {});
+  const row = await api.post<unknown>(`/staff-users/${id}/resend-invite`, {});
+  return normalizeStaffUser(row);
 }

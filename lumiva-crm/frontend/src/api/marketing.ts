@@ -705,15 +705,27 @@ export async function updateMarketingIntegration(
   return api.patch<MarketingIntegrationRow>(`/marketing/integrations/${id}`, body);
 }
 
-export async function fetchMarketingApiToken(): Promise<string> {
-  const res = await api.get<{ token: string }>('/api-tokens/marketing');
+/** Маскированное отображение (GET) — без полного токена. */
+export type MarketingApiTokenMasked = {
+  preview: string;
+  suffix: string;
+};
+
+export async function fetchMarketingApiTokenMasked(): Promise<MarketingApiTokenMasked> {
+  return api.get<MarketingApiTokenMasked>('/api-tokens/marketing');
+}
+
+export async function revealMarketingApiToken(password: string): Promise<string> {
+  const res = await api.post<{ token: string }>('/api-tokens/marketing/reveal', {
+    password,
+  });
   return res.token;
 }
 
-export async function regenerateMarketingApiToken(): Promise<string> {
+export async function regenerateMarketingApiToken(password: string): Promise<string> {
   const res = await api.post<{ token: string }>(
     '/api-tokens/marketing/regenerate',
-    {},
+    { password },
   );
   return res.token;
 }

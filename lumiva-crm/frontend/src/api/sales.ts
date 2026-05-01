@@ -45,6 +45,17 @@ export interface Sale {
   notes: string | null;
   customFields?: Record<string, any> | null;
 
+  /** Сырой payload Woo и др. (для ссылки на товар из line_items). */
+  rawPayload?: Record<string, unknown> | null;
+
+  /** Ссылка на редактирование заказа в WP admin (если бэкенд смог собрать из интеграции WooCommerce). */
+  wooAdminEditUrl?: string | null;
+
+  /** Домен сайта канала (из URL интеграции или имени канала). */
+  channelSiteLabel?: string | null;
+  /** Тип интеграции для отображения (напр. WooCommerce). */
+  channelIntegrationLabel?: string | null;
+
   // Привязанный лид (опционально)
   leadId?: string | null;
 
@@ -99,6 +110,8 @@ export interface ListSalesParams {
   status?: SaleStatus;
   channelId?: string;
   search?: string;
+  /** Продажи, привязанные к лиду */
+  leadId?: string;
 }
 
 export interface SalesByStatusDto {

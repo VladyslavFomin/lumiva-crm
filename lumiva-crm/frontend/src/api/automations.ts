@@ -56,7 +56,8 @@ export type ActionType =
   | 'trigger_webhook'
   | 'create_note'
   | 'send_report'
-  | 'send_data_export';
+  | 'send_data_export'
+  | 'create_custom_object_record';
 
 export interface Condition {
   field: string;

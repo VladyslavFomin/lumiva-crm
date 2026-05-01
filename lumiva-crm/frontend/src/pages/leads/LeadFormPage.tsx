@@ -1,6 +1,8 @@
 // src/pages/leads/LeadFormPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { CalendarEntryModal } from '../../components/CalendarEntryModal';
+import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/email';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
 import { deleteLead } from '../../api/leads';
@@ -29,6 +31,11 @@ import {
   type ProjectActivity,
 } from '../../api/projects';
 import type { Project } from '../projects/projectTypes';
+import { fetchSales, type Sale } from '../../api/sales';
+import { translateSaleStatus } from '../sales/saleStatusI18n';
+import { useAlertModal } from '../../contexts/AlertModalContext';
+import { saleOrderDisplayNumber } from '../../utils/saleOrderDisplay';
+import { extractSaleProductUrl } from '../../utils/saleLinks';
 
 type TabId = 'main' | 'journey' | 'history';
 
@@ -58,6 +65,7 @@ function createEmptyLead(): Lead {
     country: '',
     status: 'Новый клиент', // человекочитаемый статус
     channel: 'manual',
+    source: null,
     customFields: {},
     utmSource: '',
     utmMedium: '',
@@ -79,6 +87,7 @@ export const LeadFormPage: React.FC = () => {
   const isNew = !id || id === 'new';
 
   const { t, i18n } = useTranslation();
+  const { showAlert } = useAlertModal();
   const locale = resolveLocale(i18n.language);
   const navigate = useNavigate();
 
@@ -108,6 +117,9 @@ export const LeadFormPage: React.FC = () => {
   const [leadProjects, setLeadProjects] = useState<Project[]>([]);
   const [leadProjectsLoading, setLeadProjectsLoading] = useState(false);
   const [leadProjectsError, setLeadProjectsError] = useState<string | null>(null);
+  const [leadSales, setLeadSales] = useState<Sale[]>([]);
+  const [leadSalesLoading, setLeadSalesLoading] = useState(false);
+  const [leadSalesError, setLeadSalesError] = useState<string | null>(null);
   const [projectActivities, setProjectActivities] = useState<ProjectActivity[]>([]);
   const [projectActivitiesLoading, setProjectActivitiesLoading] = useState(false);
   const [projectActivitiesError, setProjectActivitiesError] = useState<string | null>(null);
@@ -163,6 +175,26 @@ export const LeadFormPage: React.FC = () => {
     }),
     [t],
   );
+
+  /** Лид из Woo / из заказа: по source, каналу или meta. */
+  const isWooRelatedLead = useMemo(() => {
+    const meta = lead.meta as Record<string, unknown> | undefined;
+    if (meta?.fromSaleId) return true;
+    if (meta?.saleExternalOrderNo || meta?.saleExternalId) return true;
+    const norm = (s: string) => s.trim().toLowerCase();
+    const src = norm(String(lead.source ?? ''));
+    const ch = norm(String(lead.channel ?? ''));
+    if (src === 'woocommerce' || ch === 'woocommerce') return true;
+    if (ch.includes('woocommerce') || src.includes('woocommerce')) return true;
+    return false;
+  }, [lead.source, lead.channel, lead.meta]);
+
+  const showLeadSalesSection =
+    !isNew &&
+    (isWooRelatedLead ||
+      leadSales.length > 0 ||
+      leadSalesLoading ||
+      Boolean(leadSalesError));
 
   const getActivityLabel = (a: LeadActivity): string => {
     switch (a.type) {
@@ -268,11 +300,11 @@ export const LeadFormPage: React.FC = () => {
   const renderCustomFieldInput = (field: CustomField) => {
     const value = getCustomFieldValue(field);
     const commonClass =
-      'px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft';
+      'px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm outline-none focus:border-neutral-400 w-full text-neutral-900 placeholder:text-neutral-400';
     const label = (
-      <div className="text-[11px] text-slate-400 mb-1">
+      <div style={{ fontFamily: "'JetBrains Mono',ui-monospace,monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#888", marginBottom: 6 }}>
         {field.label}
-        {field.required && <span className="text-rose-400 ml-1">*</span>}
+        {field.required && <span style={{ color: "#ef4444", marginLeft: 4 }}>*</span>}
       </div>
     );
 
@@ -317,7 +349,7 @@ export const LeadFormPage: React.FC = () => {
             className={commonClass}
           >
             <option value="">
-              {field.placeholder || 'Выберите значение'}
+              {field.placeholder || t('crm.leads.form.fields.selectContact')}
             </option>
             {(field.options || []).map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -444,7 +476,7 @@ export const LeadFormPage: React.FC = () => {
       .catch((e) => {
         if (!alive) return;
         console.error(e);
-        setCustomFieldsError(e.message || 'Не удалось загрузить кастомные поля');
+        setCustomFieldsError(e.message || t('crm.leads.form.fields.customFieldsLoading'));
       })
       .finally(() => {
         if (!alive) return;
@@ -580,6 +612,39 @@ export const LeadFormPage: React.FC = () => {
     };
   }, [id, isNew, t]);
 
+  /** Продажи CRM по лиду — всегда при !isNew (для таблицы и ссылок). */
+  useEffect(() => {
+    if (isNew || !id) {
+      setLeadSales([]);
+      setLeadSalesError(null);
+      setLeadSalesLoading(false);
+      return;
+    }
+    let alive = true;
+    setLeadSalesLoading(true);
+    setLeadSalesError(null);
+    fetchSales({ leadId: id, pageSize: 100 })
+      .then((res) => {
+        if (!alive) return;
+        setLeadSales(res.items);
+      })
+      .catch((e) => {
+        console.error('Ошибка загрузки продаж лида', e);
+        if (!alive) return;
+        setLeadSales([]);
+        setLeadSalesError(
+          (e as Error).message || t('crm.leads.form.errors.salesLoad'),
+        );
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLeadSalesLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, isNew, t]);
+
   // История по всем проектам этого лида (как на странице проекта)
   useEffect(() => {
     if (isNew || !id || leadProjectsLoading) {
@@ -639,22 +704,75 @@ export const LeadFormPage: React.FC = () => {
     setLead((prev) => ({ ...prev, status: value }));
   };
 
-  // выбор ответственных из справочника сотрудников
-  const handleAssigneeSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedIds = Array.from(e.target.selectedOptions)
-      .map((opt) => opt.value)
-      .filter(Boolean);
-    const names = staff
-      .filter((u) => selectedIds.includes(u.id))
-      .map((u) => u.fullName);
+  const leadAssignableStaff = useMemo(
+    () =>
+      staff
+        .filter((u) => u.isActive)
+        .sort((a, b) => a.fullName.localeCompare(b.fullName, locale)),
+    [staff, locale],
+  );
 
-    setLead((prev) => ({
-      ...prev,
-      assignedUserIds: selectedIds,
-      assignedUserId: selectedIds[0] ?? null,
-      assignedToList: names,
-      assignedTo: names.length ? names.join(', ') : null,
-    }));
+  const leadOwnerDepartmentGroups = useMemo(() => {
+    const groups = new Map<string, StaffUser[]>();
+    const noDept = t('crm.projects.detail.owner.noDepartment');
+    leadAssignableStaff.forEach((u) => {
+      const key = (u.department || '').trim() || noDept;
+      const list = groups.get(key) || [];
+      list.push(u);
+      groups.set(key, list);
+    });
+    return Array.from(groups.entries())
+      .map(([department, users]) => ({
+        department,
+        users: users.slice().sort((a, b) => a.fullName.localeCompare(b.fullName, locale)),
+      }))
+      .sort((a, b) => {
+        if (a.department === noDept) return 1;
+        if (b.department === noDept) return -1;
+        return a.department.localeCompare(b.department, locale);
+      });
+  }, [leadAssignableStaff, t, locale]);
+
+  const toggleLeadOwnerUser = (userId: string, checked: boolean) => {
+    setLead((prev) => {
+      const current = prev.assignedUserIds ?? [];
+      const nextRaw = checked
+        ? current.includes(userId)
+          ? current
+          : [...current, userId]
+        : current.filter((id) => id !== userId);
+      const next = Array.from(new Set(nextRaw));
+      const selected = staff.filter((u) => next.includes(u.id));
+      const names = selected.map((u) => u.fullName);
+      return {
+        ...prev,
+        assignedUserIds: next,
+        assignedUserId: next[0] ?? null,
+        assignedToList: names,
+        assignedTo: names.length ? names.join(', ') : null,
+      };
+    });
+  };
+
+  const toggleLeadOwnerDepartment = (department: string, checked: boolean) => {
+    const group = leadOwnerDepartmentGroups.find((g) => g.department === department);
+    if (!group) return;
+    const ids = group.users.map((u) => u.id);
+    setLead((prev) => {
+      const current = prev.assignedUserIds ?? [];
+      const next = checked
+        ? Array.from(new Set([...current, ...ids]))
+        : current.filter((id) => !ids.includes(id));
+      const selected = staff.filter((u) => next.includes(u.id));
+      const names = selected.map((u) => u.fullName);
+      return {
+        ...prev,
+        assignedUserIds: next,
+        assignedUserId: next[0] ?? null,
+        assignedToList: names,
+        assignedTo: names.length ? names.join(', ') : null,
+      };
+    });
   };
 
   const handleSave = async () => {
@@ -670,7 +788,7 @@ export const LeadFormPage: React.FC = () => {
           phone: lead.phone,
           country: lead.country,
           status: lead.status, // русская строка — в api/leads будет замаплена на код
-          source: lead.channel || 'manual',
+          source: lead.channel?.trim() || lead.source || 'manual',
           assignedTo: lead.assignedTo ?? undefined,
           assignedToList: lead.assignedToList ?? undefined,
           assignedUserId: lead.assignedUserId ?? undefined,
@@ -682,7 +800,7 @@ export const LeadFormPage: React.FC = () => {
         });
         setLead(saved);
         showSuccess(t('crm.leads.form.messages.leadCreated'));
-        navigate(`/app/leads/${saved.id}`, { replace: true });
+        navigate(`/leads/${saved.id}`, { replace: true });
       } else {
         const saved = await updateLead(lead.id, {
           name: lead.name,
@@ -690,7 +808,7 @@ export const LeadFormPage: React.FC = () => {
           phone: lead.phone,
           country: lead.country,
           status: lead.status,
-          source: lead.channel || undefined,
+          source: lead.channel?.trim() || lead.source || undefined,
           assignedTo: lead.assignedTo ?? undefined,
           assignedToList: lead.assignedToList ?? undefined,
           assignedUserId: lead.assignedUserId ?? undefined,
@@ -727,7 +845,7 @@ export const LeadFormPage: React.FC = () => {
   };
 
   const handleBack = () => {
-    navigate('/app/leads');
+    navigate('/leads');
   };
 
   const handleCreateContactFromLead = async () => {
@@ -760,10 +878,10 @@ export const LeadFormPage: React.FC = () => {
         email: prev.email || created.email || '',
         phone: prev.phone || created.phone || '',
       }));
-      showSuccess('Контакт создан и привязан к лиду');
+      showSuccess(t('crm.leads.form.messages.contactCreated'));
     } catch (e: any) {
       console.error(e);
-      setError(e.message || 'Ошибка создания контакта');
+      setError(e.message || t('crm.leads.form.errors.createContact'));
     }
   };
 
@@ -909,7 +1027,7 @@ export const LeadFormPage: React.FC = () => {
   try {
     await deleteLead(lead.id);
     showSuccess(t('crm.leads.form.messages.leadDeleted'));
-    navigate('/app/leads');
+    navigate('/leads');
   } catch (e: any) {
     console.error(e);
 
@@ -930,7 +1048,9 @@ export const LeadFormPage: React.FC = () => {
 
   const handleSendComment = async () => {
     if (!id || isNew) {
-      alert(t('crm.leads.form.alerts.commentRequiresSave'));
+      showAlert(t('crm.leads.form.alerts.commentRequiresSave'), {
+        variant: 'info',
+      });
       return;
     }
     const text = newComment.trim();
@@ -948,992 +1068,668 @@ export const LeadFormPage: React.FC = () => {
     }
   };
 
+  // ── calendar entry modal ────────────────────────────────────────
+  const [calendarModal, setCalendarModal] = useState<'meeting' | 'note' | null>(null);
+
+  // ── email compose state ─────────────────────────────────────────
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+  const [emailAccountId, setEmailAccountId] = useState('');
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!emailOpen || emailAccounts.length > 0) return;
+    fetchEmailAccounts()
+      .then(accs => { setEmailAccounts(accs); if (accs.length) setEmailAccountId(accs[0].id); })
+      .catch(e => console.error('email accounts load error', e));
+  }, [emailOpen]);
+
+  const handleSendEmail = async () => {
+    if (!emailAccountId || !emailTo.trim()) { setEmailError(t('crm.leads.form.email.errorNoRecipient')); return; }
+    setEmailSending(true); setEmailError(null);
+    try {
+      await sendEmail({ accountId: emailAccountId, to: [emailTo.trim()], subject: emailSubject.trim() || undefined, textBody: emailBody.trim() || undefined, leadId: isNew ? undefined : id });
+      setEmailOpen(false); setEmailTo(''); setEmailSubject(''); setEmailBody('');
+      showSuccess(t('crm.leads.form.email.sent'));
+    } catch (e: any) { setEmailError(e.message || t('crm.leads.form.email.errorSend')); }
+    finally { setEmailSending(false); }
+  };
+
+  // ── design tokens ───────────────────────────────────────────────
+  const FF  = "'Inter Tight','Helvetica Neue',Helvetica,Arial,sans-serif";
+  const FM  = "'JetBrains Mono',ui-monospace,monospace";
+  const INK = "#222";
+  const FG2 = "#555";
+  const FG3 = "#888";
+  const FG4 = "#b5b5b5";
+  const LINE  = "#e7e7e7";
+  const LINE3 = "#f0f0f0";
+  const BG_MUTED = "#fafafa";
+
+  const inpCls = "w-full px-3 py-2.5 text-sm rounded-xl border border-neutral-200 bg-white outline-none focus:border-neutral-400 transition-colors placeholder:text-neutral-400 text-neutral-900";
+  const lblCls = "block text-[10px] font-semibold uppercase tracking-[0.12em] mb-1.5" as string;
+
+  const STATUS_DOT: Record<string, string> = {
+    'Новый клиент': '#2563eb', 'В работе': '#ea580c',
+    'Ожидает ответа': '#d97706', 'Закрыт (успех)': '#16a34a', 'Закрыт (проигран)': '#dc2626',
+  };
+  const dot = STATUS_DOT[lead.status] ?? FG3;
+
+  const inlineInp: React.CSSProperties = { width: "100%", padding: "10px 12px", fontSize: 13, borderRadius: 10, border: `1px solid ${LINE}`, background: "#fff", color: INK, outline: "none", boxSizing: "border-box" };
+  const lblInline: React.CSSProperties = { display: "block", fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 6 };
+
   return (
     <MainLayout>
-      <div className="space-y-4">
-        {/* Верхняя панель */}
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <button
-              type="button"
-              onClick={handleBack}
-              className="text-[11px] text-slate-400 hover:text-slate-200 mb-1"
-            >
-              {t('crm.leads.form.back')}
-            </button>
-            <div className="text-[11px] text-slate-500">{title}</div>
-            <h1 className="text-lg font-semibold text-slate-50">
-              {lead.name || t('crm.leads.form.nameFallback')}
-            </h1>
-          </div>
+      {/* toasts */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-[9999] flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs text-emerald-700 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />{successMessage}
+        </div>
+      )}
+      {error && (
+        <div className="fixed top-4 right-4 z-[9999] rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-xs text-rose-600 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">{error}</div>
+      )}
 
-          <div className="flex items-center gap-2">
-            {!isNew && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleCreateCompany}
-                  className="px-3 py-1.5 text-xs rounded-xl border border-lumiva-accent-soft text-lumiva-accent hover:bg-slate-900/80"
-                >
-                  Создать Компанию
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCreateAccount}
-                  className="px-3 py-1.5 text-xs rounded-xl border border-lumiva-accent-soft text-lumiva-accent hover:bg-slate-900/80"
-                >
-                  {t('crm.leads.form.actions.createAccount')}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDeleteLead}
-                  className="px-3 py-1.5 text-xs rounded-xl border border-rose-500/60 text-rose-300 hover:bg-rose-950/60"
-                >
-                  {t('crm.leads.form.actions.delete')}
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={() => setCustomFieldsOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
-            >
-              Настроить поля
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
-            >
-              {saving ? t('crm.leads.form.actions.saving') : t('crm.leads.form.actions.save')}
-            </button>
+      <div style={{ fontFamily: FF, color: INK }}>
+        {/* ── header ─────────────────────────────────────────────── */}
+        <div style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 20, marginBottom: 28 }}>
+          <button type="button" onClick={handleBack}
+            style={{ fontFamily: FM, fontSize: 11, color: FG3, letterSpacing: "0.06em", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+            ← {t('crm.leads.form.back')}
+          </button>
+          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginTop: 10, gap: 12, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontFamily: FM, fontSize: 10, color: FG4, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                {isNew ? t('crm.leads.form.newLeadKicker') : `${t('crm.leads.form.idKicker')} · ${String(id || '').slice(0, 8).toUpperCase()}`}
+              </div>
+              <h1 style={{ fontFamily: FF, fontSize: 26, fontWeight: 500, letterSpacing: "-0.02em", color: INK, marginTop: 6, lineHeight: 1.1 }}>
+                {lead.name || t('crm.leads.form.nameFallback')}
+              </h1>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, padding: "4px 10px", borderRadius: 999, border: `1px solid ${LINE}`, background: BG_MUTED, fontSize: 12, color: FG2 }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot, flexShrink: 0 }} />
+                {statusLabels[lead.status] ?? lead.status}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {!isNew && (
+                <>
+                  <button type="button" onClick={handleCreateCompany} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.leads.form.actions.addCompany')}</button>
+                  <button type="button" onClick={handleCreateAccount} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.leads.form.actions.addAccount')}</button>
+                  <button type="button" onClick={handleDeleteLead} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer" }}>{t('crm.leads.form.actions.delete')}</button>
+                </>
+              )}
+              <button type="button" onClick={() => setCustomFieldsOpen(true)} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.leads.form.actions.configureFields')}</button>
+              <button type="button" onClick={handleSave} disabled={saving}
+                style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: saving ? 0.65 : 1 }}>
+                {saving ? t('crm.leads.form.actions.saving') : t('crm.leads.form.actions.save')}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Уведомление об успехе */}
-        {successMessage && !error && (
-          <div className="text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/60 rounded-xl px-3 py-2 flex items-center gap-2 shadow-lg shadow-emerald-900/40">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>{successMessage}</span>
-          </div>
-        )}
-
-        {/* Ошибка */}
-        {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
-            {error}
-          </div>
-        )}
-
-        {/* Лоадер */}
-        {loading && (
-          <div className="text-xs text-slate-400">{t('crm.leads.form.loadingLead')}</div>
-        )}
+        {loading && <div style={{ fontFamily: FM, fontSize: 11, color: FG4, letterSpacing: "0.08em" }}>{t('crm.leads.form.loadingLead')}</div>}
 
         {!loading && (
-          <>
-            {/* Вкладки */}
-            <div className="inline-flex bg-slate-900/70 border border-slate-800/80 rounded-2xl p-1 text-[13px]">
-              <button
-                type="button"
-                onClick={() => setTab('main')}
-                className={
-                  'px-4 py-1.5 rounded-xl ' +
-                  (tab === 'main'
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:text-slate-100')
-                }
-              >
-                {t('crm.leads.form.tabs.main')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('journey')}
-                className={
-                  'px-4 py-1.5 rounded-xl ' +
-                  (tab === 'journey'
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:text-slate-100')
-                }
-              >
-                {t('crm.leads.form.tabs.journey')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab('history')}
-                className={
-                  'px-4 py-1.5 rounded-xl ' +
-                  (tab === 'history'
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:text-slate-100')
-                }
-              >
-                {t('crm.leads.form.tabs.history')}
-              </button>
-            </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
 
-            {/* Контент вкладок */}
-            {tab === 'main' && (
-              <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-                {/* Имя / Контакты */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <input
-                    value={lead.name}
-                    onChange={handleChange('name')}
-                    placeholder={t('crm.leads.form.fields.namePlaceholder')}
-                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                  />
-                  <input
-                    value={lead.email}
-                    onChange={handleChange('email')}
-                    placeholder={t('crm.leads.form.fields.emailPlaceholder')}
-                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                  />
-                </div>
+            {/* ════ LEFT PANEL ════════════════════════════════════ */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
-                {/* Компания */}
+              {/* Name + Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[11px] text-slate-400">{t('crm.leads.form.fields.company')}</label>
-                    <button
-                      type="button"
-                      onClick={handleCreateCompany}
-                      className="px-2 py-1 text-[10px] rounded-lg border border-lumiva-accent-soft text-lumiva-accent hover:bg-slate-900/80 transition-colors"
-                    >
-                      + {t('crm.leads.form.fields.createCompany')}
-                    </button>
-                  </div>
-                  <CompanySelect
-                    value={lead.companyId ?? null}
-                    onChange={(companyId, company) => {
-                      const cid = companyId ?? null;
-                      setLead((prev) => ({
-                        ...prev,
-                        companyId: cid,
-                        contactId: cid === prev.companyId ? prev.contactId : null,
-                        companyName: company?.name || null,
-                      }));
-                    }}
-                    placeholder={t('crm.leads.form.fields.companyPlaceholder')}
-                    className="w-full"
-                    allowCreate={true}
-                    onCompanyCreated={(company) => {
-                      setCompanies([company, ...companies]);
-                      setLead((prev) => ({
-                        ...prev,
-                        companyId: company.id,
-                        companyName: company.name,
-                      }));
-                    }}
-                  />
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.namePlaceholder')}</label>
+                  <input className={inpCls} value={lead.name} onChange={handleChange('name')} placeholder={t('crm.leads.form.fields.namePlaceholder')} />
                 </div>
-
-                {/* Контакт, связанный с лидом */}
                 <div>
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <label className="block text-[11px] text-slate-400">Контакт</label>
-                    <div className="flex items-center gap-1.5">
-                      {lead.contactId && (
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/app/contacts/${lead.contactId}`)}
-                          className="px-2 py-1 text-[10px] rounded-lg border border-slate-700 text-slate-300 hover:text-slate-100 hover:border-slate-600 transition-colors"
-                        >
-                          Открыть контакт
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={handleCreateContactFromLead}
-                        className="px-2 py-1 text-[10px] rounded-lg border border-lumiva-accent-soft text-lumiva-accent hover:bg-slate-900/80 transition-colors"
-                      >
-                        + Создать контакт
-                      </button>
-                    </div>
-                  </div>
-                  <ContactSelect
-                    value={lead.contactId ?? null}
-                    companyId={lead.companyId ?? null}
-                    onChange={(contactId, contact) => {
-                      setLead((prev) => ({
-                        ...prev,
-                        contactId,
-                        name:
-                          prev.name?.trim().length > 0
-                            ? prev.name
-                            : contact?.fullName ||
-                              `${contact?.firstName || ''} ${contact?.lastName || ''}`.trim() ||
-                              prev.name,
-                        email: prev.email?.trim().length > 0 ? prev.email : contact?.email || prev.email,
-                        phone: prev.phone?.trim().length > 0 ? prev.phone : contact?.phone || prev.phone,
-                        companyId: prev.companyId || contact?.companyId || null,
-                      }));
-                    }}
-                    placeholder="Выберите контакт"
-                    className="w-full"
-                    allowCreate={true}
-                    theme="dark"
-                  />
-                </div>
-
-                {/* Проекты лида */}
-                <div className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-3 space-y-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                      {t('crm.leads.form.sections.projectsTitle')}
-                    </div>
-                    {!isNew && (
-                      <button
-                        type="button"
-                        onClick={() => navigate('/app/projects')}
-                        className="px-2 py-1 text-[10px] rounded-lg border border-slate-700/80 text-slate-300 hover:bg-slate-900/80"
-                      >
-                        {t('crm.leads.form.sections.projectsOpenList')}
-                      </button>
-                    )}
-                  </div>
-                  {isNew && (
-                    <div className="text-[11px] text-slate-500 italic">
-                      {t('crm.leads.form.sections.projectsNeedSave')}
-                    </div>
-                  )}
-                  {!isNew && leadProjectsLoading && (
-                    <div className="text-[11px] text-slate-500">
-                      {t('crm.leads.form.sections.projectsLoading')}
-                    </div>
-                  )}
-                  {!isNew && leadProjectsError && (
-                    <div className="text-[11px] text-rose-400">{leadProjectsError}</div>
-                  )}
-                  {!isNew &&
-                    !leadProjectsLoading &&
-                    leadProjects.length === 0 && (
-                      <div className="text-[11px] text-slate-500">
-                        {t('crm.leads.form.sections.projectsEmpty')}
-                      </div>
-                    )}
-                  {!isNew && leadProjects.length > 0 && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {leadProjects.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => navigate(`/app/projects/${p.id}`)}
-                          className="text-left rounded-xl bg-slate-950/80 border border-slate-800/80 px-3 py-2.5 text-xs hover:border-lumiva-accent-soft hover:bg-slate-900/60 transition-colors"
-                        >
-                          <div className="font-medium text-slate-100">{p.name}</div>
-                          <div className="text-slate-500 text-[11px] mt-0.5">
-                            {t('crm.leads.form.fields.projectStatus', {
-                              status: p.status,
-                              id: String(p.id).slice(0, 6),
-                            })}
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Телефон / страна / ответственный */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <input
-                    value={lead.phone}
-                    onChange={handleChange('phone')}
-                    placeholder={t('crm.leads.form.fields.phonePlaceholder')}
-                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                  />
-                  <input
-                    value={lead.country}
-                    onChange={handleChange('country')}
-                    placeholder={t('crm.leads.form.fields.countryPlaceholder')}
-                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                  />
-
-                  {/* Ответственный (выбор из сотрудников) */}
-                  <select
-                    multiple
-                    value={lead.assignedUserIds ?? []}
-                    onChange={handleAssigneeSelect}
-                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft min-h-[44px]"
-                  >
-                    {staff.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.fullName} {u.email ? `· ${u.email}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Статус / Канал / дата создания */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <select
-                    value={lead.status}
-                    onChange={handleStatusChange}
-                    className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                  >
-                    {STATUS_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {statusLabels[s] ?? s}
-                      </option>
-                    ))}
-                  </select>
-                  <div>
-                    <input
-                      value={lead.channel}
-                      onChange={handleChange('channel')}
-                      placeholder={t('crm.leads.form.fields.channelPlaceholder')}
-                      className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                    />
-                    <div className="text-[10px] text-slate-500 mt-1">
-                      {t('crm.leads.form.sections.channelJourneyHint')}
-                    </div>
-                  </div>
-                  <input
-                    disabled
-                    value={new Date(lead.createdAt).toLocaleString(locale)}
-                    className="px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-800/80 text-xs text-slate-500"
-                  />
-                </div>
-
-                {/* Кастомные поля */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="text-xs text-slate-400">Кастомные поля</div>
-                    <button
-                      type="button"
-                      onClick={() => setCustomFieldsOpen(true)}
-                      className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
-                    >
-                      Настроить
-                    </button>
-                  </div>
-                  {customFieldsError && (
-                    <div className="text-[11px] text-red-400">
-                      {customFieldsError}
-                    </div>
-                  )}
-                  {customFieldsLoading && (
-                    <div className="text-[11px] text-slate-500">
-                      Загрузка полей...
-                    </div>
-                  )}
-                  {!customFieldsLoading && activeCustomFields.length === 0 && (
-                    <div className="text-[11px] text-slate-500 italic">
-                      Полей нет. Добавьте через настройку.
-                    </div>
-                  )}
-                  {activeCustomFields.length > 0 && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {activeCustomFields.map((field) =>
-                        renderCustomFieldInput(field),
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Текст лида */}
-                <div>
-                  <textarea
-                    value={
-                      (lead.meta && (lead.meta as any).comment) ||
-                      (lead.meta && (lead.meta as any).message) ||
-                      ''
-                    }
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setLead((prev) => ({
-                        ...prev,
-                        meta: {
-                          ...(prev.meta || {}),
-                          comment: val,
-                        },
-                      }));
-                    }}
-                    placeholder={t('crm.leads.form.fields.notesPlaceholder')}
-                    rows={6}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-y min-h-[140px]"
-                  />
+                  <label className={lblCls} style={{ color: FG3 }}>E-mail</label>
+                  <input className={inpCls} value={lead.email} type="email" onChange={handleChange('email')} placeholder="email@..." />
                 </div>
               </div>
-            )}
 
-            {tab === 'journey' && (
-              <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4 text-sm text-slate-100">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-50">
-                    {t('crm.leads.form.journey.title')}
-                  </h2>
-                  <p className="text-[11px] text-slate-500 mt-1">
-                    {t('crm.leads.form.journey.subtitle')}
-                  </p>
+              {/* Company */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3 }}>{t('crm.leads.form.fields.company')}</span>
+                  <button type="button" onClick={handleCreateCompany} style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.06em", color: FG3, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ {t('crm.leads.form.fields.createCompany')}</button>
                 </div>
-
-                <div className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-3 space-y-3">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                    {t('crm.leads.form.journey.acquisitionTitle')}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <div className="text-[10px] text-slate-500 mb-1">
-                        {t('crm.leads.form.journey.channelLabel')}
-                      </div>
-                      <div className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm text-slate-200">
-                        {lead.channel?.trim() || '—'}
-                      </div>
-                      <p className="text-[10px] text-slate-500 mt-1">
-                        {t('crm.leads.form.journey.channelHint')}
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-800/80 bg-slate-950/60 px-3 py-2">
-                      <div className="text-[11px] font-medium text-slate-200">
-                        {t('crm.leads.form.journey.directTitle')}
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        {t('crm.leads.form.journey.directBody')}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-3 space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                      {t('crm.leads.form.journey.utmTitle')}
-                    </div>
-                    {!hasUtmCaptured && (
-                      <span className="text-[10px] text-slate-500">
-                        {t('crm.leads.form.journey.utmEmpty')}
-                      </span>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {(
-                      [
-                        ['utm_source', lead.utmSource],
-                        ['utm_medium', lead.utmMedium],
-                        ['utm_campaign', lead.utmCampaign],
-                        ['utm_content', lead.utmContent],
-                        ['utm_term', lead.utmTerm],
-                      ] as const
-                    ).map(([key, val]) => (
-                      <div key={key} className="space-y-1">
-                        <div className="text-[10px] text-slate-500 font-mono">{key}</div>
-                        <div className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-200 min-h-[40px]">
-                          {String(val ?? '').trim() || '—'}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[10px] text-slate-500">{t('crm.leads.form.journey.metaHint')}</p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-800/60 bg-slate-950/40 p-3 space-y-2">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                    {t('crm.leads.form.journey.metaJsonTitle')}
-                  </div>
-                  <textarea
-                    value={JSON.stringify(lead.meta ?? {}, null, 2)}
-                    onChange={(e) => {
-                      try {
-                        const obj = JSON.parse(e.target.value || '{}');
-                        setLead((prev) => ({ ...prev, meta: obj }));
-                        setError(null);
-                      } catch {
-                        setError(t('crm.leads.form.errors.metaInvalid'));
-                      }
-                    }}
-                    placeholder={t('crm.leads.form.fields.metaPlaceholder')}
-                    rows={10}
-                    spellCheck={false}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-[11px] font-mono text-slate-200 outline-none focus:border-lumiva-accent-soft resize-y min-h-[160px]"
-                  />
-                  <p className="text-[10px] text-slate-500">
-                    {t('crm.leads.form.journey.metaJsonHint')}
-                  </p>
-                </div>
+                <CompanySelect
+                  value={lead.companyId ?? null}
+                  onChange={(companyId, company) => { const cid = companyId ?? null; setLead(prev => ({ ...prev, companyId: cid, contactId: cid === prev.companyId ? prev.contactId : null, companyName: company?.name || null })); }}
+                  placeholder={t('crm.leads.form.fields.companyPlaceholder')}
+                  className="w-full" allowCreate={true}
+                  onCompanyCreated={company => { setCompanies([company, ...companies]); setLead(prev => ({ ...prev, companyId: company.id, companyName: company.name })); }}
+                />
               </div>
-            )}
 
-            {tab === 'history' && (
-              <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-3 text-sm text-slate-100">
-                {isNew && (
-                  <div className="text-xs text-slate-400">
-                    {t('crm.leads.form.sections.historyEmptyNew')}
+              {/* Contact */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                  <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3 }}>{t('crm.leads.form.fields.contact')}</span>
+                  <div style={{ display: "flex", gap: 10 }}>
+                    {lead.contactId && (
+                      <button type="button" onClick={() => navigate(`/app/contacts/${lead.contactId}`)} style={{ fontFamily: FM, fontSize: 10, color: FG3, background: "none", border: "none", cursor: "pointer", padding: 0 }}>↗ {t('crm.leads.form.fields.openContact')}</button>
+                    )}
+                    <button type="button" onClick={handleCreateContactFromLead} style={{ fontFamily: FM, fontSize: 10, color: FG3, background: "none", border: "none", cursor: "pointer", padding: 0 }}>+ {t('crm.leads.form.fields.createContact')}</button>
+                  </div>
+                </div>
+                <ContactSelect
+                  value={lead.contactId ?? null} companyId={lead.companyId ?? null}
+                  onChange={(contactId, contact) => { setLead(prev => ({ ...prev, contactId, name: prev.name?.trim().length > 0 ? prev.name : contact?.fullName || `${contact?.firstName || ''} ${contact?.lastName || ''}`.trim() || prev.name, email: prev.email?.trim().length > 0 ? prev.email : contact?.email || prev.email, phone: prev.phone?.trim().length > 0 ? prev.phone : contact?.phone || prev.phone, companyId: prev.companyId || contact?.companyId || null })); }}
+                  placeholder={t('crm.leads.form.fields.selectContact')} className="w-full" allowCreate={true}
+                />
+              </div>
+
+              {/* Projects */}
+              <div style={{ background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3 }}>{t('crm.leads.form.sections.projectsTitle')}</span>
+                  {!isNew && <button type="button" onClick={() => navigate('/projects')} style={{ fontFamily: FM, fontSize: 10, color: FG3, background: "none", border: "none", cursor: "pointer" }}>{t('crm.leads.form.sections.projectsOpenList')} ↗</button>}
+                </div>
+                {isNew && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.projectsNeedSave')}</div>}
+                {!isNew && leadProjectsLoading && <div style={{ fontSize: 12, color: FG4 }}>{t('crm.leads.form.sections.projectsLoading')}</div>}
+                {!isNew && !leadProjectsLoading && leadProjects.length === 0 && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.projectsEmpty')}</div>}
+                {!isNew && leadProjects.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {leadProjects.map(p => (
+                      <button key={p.id} type="button" onClick={() => navigate(`/projects/${p.id}`)}
+                        style={{ textAlign: "left", background: "#fff", border: `1px solid ${LINE}`, borderRadius: 8, padding: "10px 12px", cursor: "pointer" }}
+                        onMouseEnter={e => (e.currentTarget.style.borderColor = INK)} onMouseLeave={e => (e.currentTarget.style.borderColor = LINE)}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: INK }}>{p.name}</div>
+                        <div style={{ fontFamily: FM, fontSize: 10, color: FG4, marginTop: 2 }}>{p.status} · #{String(p.id).slice(0, 6)}</div>
+                      </button>
+                    ))}
                   </div>
                 )}
+              </div>
 
-                {!isNew && (
-                  <>
-                    {(historyError || projectActivitiesError) && (
-                      <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2 mb-2 space-y-1">
-                        {historyError && <div>{historyError}</div>}
-                        {projectActivitiesError && <div>{projectActivitiesError}</div>}
-                      </div>
-                    )}
-
-                    {(historyLoading ||
-                      (leadProjects.length > 0 && projectActivitiesLoading)) && (
-                      <div className="text-xs text-slate-400 mb-2">
-                        {historyLoading
-                          ? t('crm.leads.form.sections.historyLoading')
-                          : t('crm.leads.form.timeline.loadingProjectActivities')}
-                      </div>
-                    )}
-
-                    {!historyLoading &&
-                      !(leadProjects.length > 0 && projectActivitiesLoading) &&
-                      mergedTimeline.length === 0 && (
-                      <div className="text-xs text-slate-500">
-                        {t('crm.leads.form.sections.historyEmpty')}
-                      </div>
-                    )}
-
-                    <div className="space-y-2">
-                      {mergedTimeline.map((row) => {
-                        if (row.kind === 'lead') {
-                          const a = row.activity;
-                          return (
-                        <div
-                          key={`lead-${a.id}`}
-                          className="rounded-2xl bg-slate-950/80 border border-slate-800/80 px-3 py-2"
-                        >
-                          <div className="flex flex-wrap justify-between gap-2 text-[11px] text-slate-500 mb-1">
-                            <span className="inline-flex items-center rounded-full border border-slate-700/80 bg-slate-900/80 px-2 py-0.5 text-[10px] text-slate-300">
-                              {t('crm.leads.form.timeline.leadScope')}
-                            </span>
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span>{getActivityLabel(a)}</span>
-                              <span>
-                                {new Date(a.createdAt).toLocaleString(locale)}
-                              </span>
-                            </span>
-                          </div>
-
-                          {(a.userName || a.userEmail) && (
-                            <div className="text-[11px] text-slate-400 mb-1">
-                              {t('crm.leads.form.sections.user')}: {a.userName || a.userEmail}
-                            </div>
-                          )}
-
-                          {a.comment && (
-                            <div className="text-slate-100">{a.comment}</div>
-                          )}
-
-                          {(a.fromValue || a.toValue) && (
-                            <div className="text-[11px] text-slate-400 mt-1">
-                              {a.fromValue && (
-                                <span className="line-through text-slate-500 mr-1">
-                                  {a.fromValue}
-                                </span>
-                              )}
-                              {a.toValue && (
-                                <span className="text-emerald-300">
-                                  {a.toValue}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                          );
-                        }
-
-                        const activity = row.activity;
-                        const label =
-                          projectActivityLabels[activity.action] ?? activity.action;
-                        const actor =
-                          activity.actorName ||
-                          activity.actorEmail ||
-                          t('crm.projects.detail.fallbacks.user');
-                        const changes = activity.payload?.changes ?? [];
-                        const pname =
-                          projectNameById.get(activity.projectId) ??
-                          String(activity.projectId).slice(0, 8);
-                        return (
-                          <div
-                            key={`proj-${activity.id}`}
-                            className="rounded-2xl border border-slate-800/80 bg-slate-950/80 px-3 py-2 text-sm text-slate-100"
-                          >
-                            <div className="flex flex-wrap justify-between gap-2 text-[11px] text-slate-500 mb-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  navigate(`/app/projects/${activity.projectId}`)
-                                }
-                                className="inline-flex items-center rounded-full border border-lumiva-accent-soft/50 bg-slate-900/80 px-2 py-0.5 text-[10px] text-lumiva-accent hover:bg-slate-900"
+              {/* Продажи WooCommerce / CRM */}
+              {showLeadSalesSection && (
+                <div style={{ background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3 }}>
+                      {t('crm.leads.form.sections.salesWooTitle')}
+                    </span>
+                    <button type="button" onClick={() => navigate('/app/sales')} style={{ fontFamily: FM, fontSize: 10, color: FG3, background: 'none', border: 'none', cursor: 'pointer' }}>
+                      {t('crm.leads.form.sections.salesWooOpenList')} ↗
+                    </button>
+                  </div>
+                  {leadSalesLoading && (
+                    <div style={{ fontSize: 12, color: FG4 }}>{t('crm.leads.form.sections.salesWooLoading')}</div>
+                  )}
+                  {leadSalesError && (
+                    <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 8 }}>{leadSalesError}</div>
+                  )}
+                  {!leadSalesLoading && !leadSalesError && leadSales.length === 0 && isWooRelatedLead && (
+                    <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>{t('crm.leads.form.sections.salesWooEmpty')}</div>
+                  )}
+                  {!leadSalesLoading && leadSales.length > 0 && (
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: INK }}>
+                        <thead>
+                          <tr style={{ borderBottom: `1px solid ${LINE}` }}>
+                            <th style={{ textAlign: 'left', padding: '8px 6px', fontFamily: FM, color: FG3, fontWeight: 600, whiteSpace: 'nowrap' }}>{t('crm.leads.form.sections.salesWooColOrderId')}</th>
+                            <th style={{ textAlign: 'left', padding: '8px 6px', fontFamily: FM, color: FG3, fontWeight: 600 }}>{t('crm.leads.form.sections.salesWooColProduct')}</th>
+                            <th style={{ textAlign: 'left', padding: '8px 6px', fontFamily: FM, color: FG3, fontWeight: 600 }}>{t('crm.leads.form.sections.salesWooColProductLink')}</th>
+                            <th style={{ textAlign: 'right', padding: '8px 6px', fontFamily: FM, color: FG3, fontWeight: 600 }}>{t('crm.leads.form.sections.salesWooColAmount')}</th>
+                            <th style={{ textAlign: 'left', padding: '8px 6px', fontFamily: FM, color: FG3, fontWeight: 600 }}>{t('crm.leads.form.sections.salesWooColCurrency')}</th>
+                            <th style={{ textAlign: 'left', padding: '8px 6px', fontFamily: FM, color: FG3, fontWeight: 600 }}>{t('crm.leads.form.sections.salesWooColStatus')}</th>
+                            <th style={{ textAlign: 'center', padding: '8px 6px', fontFamily: FM, color: FG3, fontWeight: 600 }}>{t('crm.leads.form.sections.salesWooColWp')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {leadSales.map((s) => {
+                            const saleRec = s as unknown as Record<string, unknown>;
+                            const wpUrl = s.wooAdminEditUrl?.trim() || '';
+                            const productUrl = extractSaleProductUrl(saleRec);
+                            return (
+                              <tr
+                                key={s.id}
+                                style={{ borderBottom: `1px solid ${LINE3}` }}
                               >
-                                {t('crm.leads.form.timeline.projectScope', {
-                                  name: pname,
-                                })}
-                              </button>
-                              <span>
-                                {new Date(activity.createdAt).toLocaleString(locale)} · {actor}
-                              </span>
-                            </div>
-                            <div className="text-[12px] text-slate-200 font-semibold">
-                              {label}
-                            </div>
-                            {activity.action === 'status_change' && activity.payload && (
-                              <div className="text-[11px] text-slate-400 mt-1">
-                                {activity.payload.from} → {activity.payload.to}
-                              </div>
-                            )}
-                            {changes.length > 0 && (
-                              <div className="mt-2 space-y-1 text-[11px] text-slate-400">
-                                {changes.map((change: any, idx: number) => (
-                                  <div key={`${change.field}-${idx}`}>
-                                    <span className="text-slate-300">
-                                      {projectActivityFieldLabels[change.field] ??
-                                        change.field}
-                                      :
-                                    </span>{' '}
-                                    <span>{formatProjectHistoryValue(change.from)}</span> →{' '}
-                                    <span>{formatProjectHistoryValue(change.to)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                                <td style={{ padding: '8px 6px', fontFamily: FM, whiteSpace: 'nowrap' }}>
+                                  <Link
+                                    to={`/app/sales/${s.id}`}
+                                    style={{ color: '#2563eb', fontWeight: 600, textDecoration: 'none' }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.textDecoration = 'underline'; }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.textDecoration = 'none'; }}
+                                  >
+                                    {saleOrderDisplayNumber(saleRec)}
+                                  </Link>
+                                </td>
+                                <td style={{ padding: '8px 6px', maxWidth: 160 }}>{s.hotel || t('crm.projects.common.emptyValue')}</td>
+                                <td style={{ padding: '8px 6px', maxWidth: 120 }} onClick={(e) => e.stopPropagation()}>
+                                  {productUrl ? (
+                                    <a href={productUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', fontFamily: FM, fontSize: 10 }}>
+                                      {t('crm.leads.form.sections.salesWooProductLinkShort')} ↗
+                                    </a>
+                                  ) : (
+                                    <span style={{ color: FG4 }}>—</span>
+                                  )}
+                                </td>
+                                <td style={{ padding: '8px 6px', textAlign: 'right', fontFamily: FM }}>{typeof s.amount === 'number' ? s.amount.toLocaleString(locale, { maximumFractionDigits: 2 }) : '—'}</td>
+                                <td style={{ padding: '8px 6px', fontFamily: FM }}>{s.currency || '—'}</td>
+                                <td style={{ padding: '8px 6px' }}>{translateSaleStatus(t, i18n, s.status)}</td>
+                                <td style={{ padding: '8px 6px', textAlign: 'center' }}>
+                                  {wpUrl ? (
+                                    <a href={wpUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none', fontFamily: FM }}>
+                                      WP ↗
+                                    </a>
+                                  ) : (
+                                    <span style={{ color: FG4 }}>—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
+                  )}
+                </div>
+              )}
 
-                    {/* Добавление комментария */}
-                    <div className="mt-4 pt-3 border-t border-slate-800/80">
-                      <div className="text-xs text-slate-400 mb-1">
-                        {t('crm.leads.form.sections.addComment')}
-                      </div>
-                      <div className="flex gap-2">
-                        <input
-                          value={newComment}
-                          onChange={(e) => setNewComment(e.target.value)}
-                          placeholder={t('crm.leads.form.fields.commentPlaceholder')}
-                          className="flex-1 px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleSendComment}
-                          className="px-3 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft"
-                        >
-                          {t('crm.leads.form.actions.send')}
-                        </button>
-                      </div>
-                    </div>
-                  </>
+              {/* Phone + Country */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.phonePlaceholder')}</label>
+                  <input className={inpCls} value={lead.phone} onChange={handleChange('phone')} placeholder={t('crm.leads.form.fields.phonePlaceholder')} />
+                </div>
+                <div>
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.countryPlaceholder')}</label>
+                  <input className={inpCls} value={lead.country} onChange={handleChange('country')} placeholder={t('crm.leads.form.fields.countryPlaceholder')} />
+                </div>
+              </div>
+
+              {/* Status + Channel + Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.statusLabel')}</label>
+                  <select className={inpCls} value={lead.status} onChange={handleStatusChange}>
+                    {STATUS_OPTIONS.map(s => <option key={s} value={s}>{statusLabels[s] ?? s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.channelPlaceholder')}</label>
+                  <input className={inpCls} value={lead.channel} onChange={handleChange('channel')} placeholder={t('crm.leads.form.fields.channelPlaceholder')} />
+                  <div style={{ fontFamily: FM, fontSize: 9.5, color: FG4, marginTop: 4 }}>{t('crm.leads.form.sections.channelJourneyHint')}</div>
+                </div>
+                <div>
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.createdLabel')}</label>
+                  <input disabled className={inpCls + " opacity-50"} value={new Date(lead.createdAt).toLocaleString(locale)} />
+                </div>
+              </div>
+
+              {/* Custom fields */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3 }}>{t('crm.leads.form.fields.customFieldsLabel')}</span>
+                  <button type="button" onClick={() => setCustomFieldsOpen(true)} style={{ fontFamily: FM, fontSize: 10, color: FG3, background: "none", border: "none", cursor: "pointer" }}>{t('crm.leads.form.fields.customFieldsConfigBtn')}</button>
+                </div>
+                {customFieldsError && <div style={{ fontSize: 11, color: "#ef4444" }}>{customFieldsError}</div>}
+                {customFieldsLoading && <div style={{ fontSize: 11, color: FG4 }}>{t('crm.leads.form.fields.customFieldsLoading')}</div>}
+                {!customFieldsLoading && activeCustomFields.length === 0 && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.fields.customFieldsEmpty')}</div>}
+                {activeCustomFields.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {activeCustomFields.map(field => renderCustomFieldInput(field))}
+                  </div>
                 )}
               </div>
-            )}
-          </>
-        )}
-      </div>
 
-      {accountModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 p-5">
-            <div className="flex items-start justify-between gap-3">
+              {/* Notes */}
               <div>
-                <div className="text-xs font-semibold text-slate-50">
-                  {t('crm.leads.form.account.title')}
-                </div>
-                <div className="mt-1 text-[11px] text-slate-500">
-                  {t('crm.leads.form.account.subtitle')}
-                </div>
-              </div>
-              <button
-                onClick={() => setAccountModalOpen(false)}
-                className="text-slate-400 hover:text-white text-xl leading-none"
-                aria-label={t('crm.common.close')}
-                type="button"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-4">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  {t('crm.leads.form.account.fields.site')}
-                </div>
-                <select
-                  value={accountSiteId}
-                  onChange={(e) => setAccountSiteId(e.target.value)}
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-                >
-                  <option value="">{t('crm.leads.form.account.fields.sitePlaceholder')}</option>
-                  {accountSites.map((site) => (
-                    <option key={site.id} value={site.id}>
-                      {site.siteHost || site.siteUrl || site.id}
-                    </option>
-                  ))}
-                </select>
-                {accountSites.length === 0 ? (
-                  <div className="mt-2 text-[11px] text-slate-500">
-                    {t('crm.leads.form.account.hints.noSites')}
-                  </div>
-                ) : null}
+                <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.notesLabel')}</label>
+                <textarea className={inpCls + " resize-y min-h-[140px]"} rows={6}
+                  value={(lead.meta && (lead.meta as any).comment) || (lead.meta && (lead.meta as any).message) || ''}
+                  onChange={e => { const val = e.target.value; setLead(prev => ({ ...prev, meta: { ...(prev.meta || {}), comment: val } })); }}
+                  placeholder={t('crm.leads.form.fields.notesPlaceholder')} />
               </div>
 
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {t('crm.leads.form.account.fields.name')}
+              {/* UTM (only if captured) */}
+              {hasUtmCaptured && (
+                <div style={{ background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                  <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 12 }}>{t('crm.leads.form.fields.utmTitle')}</div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {([['utm_source', lead.utmSource], ['utm_medium', lead.utmMedium], ['utm_campaign', lead.utmCampaign], ['utm_content', lead.utmContent], ['utm_term', lead.utmTerm]] as const).map(([key, val]) => (
+                      <div key={key}>
+                        <div style={{ fontFamily: FM, fontSize: 9.5, color: FG4, marginBottom: 3 }}>{key}</div>
+                        <div style={{ fontSize: 12, color: INK, background: "#fff", border: `1px solid ${LINE}`, borderRadius: 8, padding: "6px 10px", minHeight: 32 }}>{String(val ?? '').trim() || '—'}</div>
+                      </div>
+                    ))}
                   </div>
-                  <input
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-                    value={accountName}
-                    onChange={(e) => setAccountName(e.target.value)}
-                    placeholder={t('crm.leads.form.account.fields.namePlaceholder')}
-                  />
-                </div>
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {t('crm.leads.form.account.fields.email')}
-                  </div>
-                  <input
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-                    value={accountEmail}
-                    onChange={(e) => setAccountEmail(e.target.value)}
-                    placeholder={t('crm.leads.form.account.fields.emailPlaceholder')}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {t('crm.leads.form.account.fields.password')}
-                  </div>
-                  <input
-                    type="password"
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-                    value={accountPassword}
-                    onChange={(e) => setAccountPassword(e.target.value)}
-                    placeholder={t('crm.leads.form.account.fields.passwordPlaceholder')}
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {t('crm.leads.form.account.fields.balanceEur')}
-                  </div>
-                  <input
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-                    value={accountBalanceEur}
-                    onChange={(e) => setAccountBalanceEur(e.target.value)}
-                    placeholder={t('crm.leads.form.account.fields.balanceEurPlaceholder')}
-                  />
-                </div>
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    {t('crm.leads.form.account.fields.balanceUsd')}
-                  </div>
-                  <input
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 outline-none focus:border-sky-400"
-                    value={accountBalanceUsd}
-                    onChange={(e) => setAccountBalanceUsd(e.target.value)}
-                    placeholder={t('crm.leads.form.account.fields.balanceUsdPlaceholder')}
-                  />
-                </div>
-              </div>
-
-              {accountError && (
-                <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
-                  {accountError}
                 </div>
               )}
             </div>
 
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setAccountModalOpen(false)}
-                className="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-900"
-                disabled={accountBusy}
-              >
-                {t('crm.common.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleAccountSave}
-                className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
-                disabled={accountBusy}
-              >
-                {accountBusy ? t('crm.common.saving') : t('crm.leads.form.account.actions.create')}
-              </button>
+            {/* ════ RIGHT SIDEBAR ═════════════════════════════════ */}
+            <div className="lg:sticky lg:top-6" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* Actions */}
+              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 12 }}>{t('crm.leads.form.sections.actionsTitle')}</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {[
+                    { key: 'email', label: t('crm.leads.form.actions.email'), onClick: () => { setEmailTo(lead.email || ''); setEmailOpen(true); }, svg: <><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/></> },
+                    { key: 'meeting', label: t('crm.leads.form.actions.meeting'), onClick: () => setCalendarModal('meeting'), svg: <><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/></> },
+                    { key: 'task', label: t('crm.leads.form.actions.task'), onClick: () => setCalendarModal('note'), svg: <><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></> },
+                    { key: 'auto', label: t('crm.leads.form.actions.automation'), onClick: () => navigate(lead?.id ? `/app/automations/new?leadId=${encodeURIComponent(lead.id)}` : '/app/automations/new'), svg: <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z"/> },
+                  ].map(({ key, label, onClick, svg }) => (
+                    <button key={key} type="button" onClick={onClick}
+                      style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "12px 8px", border: `1px solid ${LINE}`, borderRadius: 10, background: "#fff", cursor: "pointer", fontSize: 11, color: FG2, transition: "all 0.15s" }}
+                      onMouseEnter={e => { e.currentTarget.style.borderColor = INK; e.currentTarget.style.color = INK; }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = LINE; e.currentTarget.style.color = FG2; }}>
+                      <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">{svg}</svg>
+                      {label}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => navigate('/app/integrations')}
+                    style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "12px 8px", border: `1px solid ${LINE}`, borderRadius: 10, background: "#fff", cursor: "pointer", fontSize: 11, color: FG2, transition: "all 0.15s", gridColumn: "span 2" }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = INK; e.currentTarget.style.color = INK; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = LINE; e.currentTarget.style.color = FG2; }}>
+                    <svg width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7L11 7"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7L13 17"/>
+                    </svg>
+                    {t('crm.leads.form.actions.integrations')}
+                  </button>
+                </div>
+              </div>
+
+              {/* Assignees — как блок ответственных в карточке проекта */}
+              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 12 }}>
+                  {t('crm.projects.detail.owner.byDepartment')}
+                </div>
+                <div style={{ fontFamily: FM, fontSize: 10, color: FG4, marginBottom: 8 }}>
+                  {t('crm.projects.detail.owner.selected', {
+                    count: (lead.assignedUserIds ?? []).length,
+                  })}
+                </div>
+                <div style={{ maxHeight: 208, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 4 }}>
+                  {leadOwnerDepartmentGroups.map((group) => {
+                    const groupIds = group.users.map((u) => u.id);
+                    const selectedInGroup = groupIds.filter((id) =>
+                      (lead.assignedUserIds ?? []).includes(id),
+                    ).length;
+                    const allChecked =
+                      selectedInGroup > 0 && selectedInGroup === groupIds.length;
+                    return (
+                      <div
+                        key={group.department}
+                        style={{
+                          borderRadius: 8,
+                          border: `1px solid ${LINE}`,
+                          background: BG_MUTED,
+                          padding: 8,
+                        }}
+                      >
+                        <div style={{ marginBottom: 6, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: INK, lineHeight: 1.25, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }} title={group.department}>
+                            {group.department}
+                          </div>
+                          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: FG3, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" }}>
+                            <input
+                              type="checkbox"
+                              checked={allChecked}
+                              onChange={(e) =>
+                                toggleLeadOwnerDepartment(group.department, e.target.checked)
+                              }
+                              style={{ accentColor: "#1769d1", width: 14, height: 14, margin: 0, cursor: "pointer" }}
+                            />
+                            <span>{t('crm.projects.detail.owner.wholeDepartment')}</span>
+                          </label>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                          {group.users.map((u) => {
+                            const checked = (lead.assignedUserIds ?? []).includes(u.id);
+                            return (
+                              <label
+                                key={u.id}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: 8,
+                                  fontSize: 11,
+                                  color: FG2,
+                                  cursor: "pointer",
+                                  padding: "3px 0",
+                                  lineHeight: 1.35,
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => toggleLeadOwnerUser(u.id, e.target.checked)}
+                                  style={{ accentColor: "#1769d1", width: 14, height: 14, margin: "2px 0 0", flexShrink: 0, cursor: "pointer" }}
+                                />
+                                <span style={{ minWidth: 0, wordBreak: "break-word" }}>
+                                  {u.fullName}
+                                  {u.email ? ` · ${u.email}` : ''}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 14 }}>{t('crm.leads.form.sections.timelineTitle')}</div>
+                {isNew && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.projectsNeedSave')}</div>}
+                {!isNew && (historyLoading || (leadProjects.length > 0 && projectActivitiesLoading)) && <div style={{ fontSize: 11, color: FG4 }}>{t('crm.leads.form.sections.historyLoading')}</div>}
+                {!isNew && mergedTimeline.length === 0 && !historyLoading && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.historyEmpty')}</div>}
+                {(historyError || projectActivitiesError) && (
+                  <div style={{ fontSize: 11, color: "#ef4444", marginBottom: 8 }}>
+                    {historyError && <div>{historyError}</div>}{projectActivitiesError && <div>{projectActivitiesError}</div>}
+                  </div>
+                )}
+                {!isNew && mergedTimeline.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column" }}>
+                    {mergedTimeline.map(row => {
+                      if (row.kind === 'lead') {
+                        const a = row.activity;
+                        return (
+                          <div key={`lead-${a.id}`} style={{ padding: "10px 0", borderBottom: `1px solid ${LINE3}` }}>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 3 }}>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 999, padding: "2px 7px", color: FG2 }}>{getActivityLabel(a)}</span>
+                              <span style={{ fontFamily: FM, fontSize: 9.5, color: FG4 }}>{new Date(a.createdAt).toLocaleString(locale)}</span>
+                            </div>
+                            {(a.userName || a.userEmail) && <div style={{ fontSize: 11, color: FG2 }}>{a.userName || a.userEmail}</div>}
+                            {a.comment && <div style={{ fontSize: 12, color: INK, marginTop: 3 }}>{a.comment}</div>}
+                            {(a.fromValue || a.toValue) && (
+                              <div style={{ fontSize: 11, color: FG3, marginTop: 3 }}>
+                                {a.fromValue && <span style={{ textDecoration: "line-through", marginRight: 4 }}>{a.fromValue}</span>}
+                                {a.toValue && <span style={{ color: "#16a34a" }}>→ {a.toValue}</span>}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      const activity = row.activity;
+                      const label = projectActivityLabels[activity.action] ?? activity.action;
+                      const actor = activity.actorName || activity.actorEmail || t('crm.projects.detail.fallbacks.user');
+                      const pname = projectNameById.get(activity.projectId) ?? String(activity.projectId).slice(0, 8);
+                      return (
+                        <div key={`proj-${activity.id}`} style={{ padding: "10px 0", borderBottom: `1px solid ${LINE3}` }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 3 }}>
+                            <button type="button" onClick={() => navigate(`/projects/${activity.projectId}`)}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 999, padding: "2px 7px", color: FG2, cursor: "pointer" }}>
+                              {t('crm.leads.form.timeline.projectScope', { name: pname })}
+                            </button>
+                            <span style={{ fontFamily: FM, fontSize: 9.5, color: FG4 }}>{new Date(activity.createdAt).toLocaleString(locale)}</span>
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 500, color: INK }}>{label}</div>
+                          <div style={{ fontSize: 11, color: FG3 }}>{actor}</div>
+                          {activity.action === 'status_change' && activity.payload && <div style={{ fontSize: 11, color: FG3, marginTop: 2 }}>{activity.payload.from} → {activity.payload.to}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {/* Comment input */}
+                {!isNew && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${LINE}` }}>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input className="flex-1 min-w-0 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-400 text-neutral-900"
+                        value={newComment} onChange={e => setNewComment(e.target.value)}
+                        placeholder={t('crm.leads.form.fields.commentPlaceholder')}
+                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendComment(); } }} />
+                      <button type="button" onClick={handleSendComment}
+                        style={{ padding: "7px 14px", fontSize: 11, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
+                        {t('crm.leads.form.actions.send')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ══ EMAIL COMPOSE MODAL ══════════════════════════════════ */}
+      {emailOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 30px 80px rgba(0,0,0,0.20)", fontFamily: FF }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: `1px solid ${LINE}` }}>
+              <h3 style={{ fontFamily: FF, fontSize: 17, fontWeight: 500, color: INK }}>{t('crm.leads.form.email.title')}</h3>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="button" onClick={() => setEmailOpen(false)} style={{ padding: "7px 16px", fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.common.cancel')}</button>
+                <button type="button" onClick={handleSendEmail} disabled={emailSending} style={{ padding: "7px 16px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: emailSending ? 0.65 : 1 }}>{emailSending ? t('crm.leads.form.email.sending') : t('crm.leads.form.email.send')}</button>
+              </div>
+            </div>
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={lblInline}>{t('crm.leads.form.email.title').toUpperCase()}</label>
+                {emailAccounts.length === 0
+                  ? <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.email.noAccounts')} <a href="/app/email/accounts" style={{ color: INK }}>{t('crm.leads.form.email.connectAccounts')}</a></div>
+                  : <select value={emailAccountId} onChange={e => setEmailAccountId(e.target.value)} style={inlineInp}>
+                      {emailAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.email}{acc.name ? ` · ${acc.name}` : ''}</option>)}
+                    </select>
+                }
+              </div>
+              <div>
+                <label style={lblInline}>{t('crm.leads.form.email.to').toUpperCase()}</label>
+                <input type="email" value={emailTo} onChange={e => setEmailTo(e.target.value)} placeholder="email@..." style={inlineInp} />
+              </div>
+              <div>
+                <label style={lblInline}>{t('crm.leads.form.email.subject').toUpperCase()}</label>
+                <input type="text" value={emailSubject} onChange={e => setEmailSubject(e.target.value)} style={inlineInp} />
+              </div>
+              <div>
+                <label style={lblInline}>{t('crm.leads.form.email.body').toUpperCase()}</label>
+                <div style={{ border: `1px solid ${LINE}`, borderRadius: 10, overflow: "hidden" }}>
+                  <div style={{ display: "flex", gap: 4, padding: "8px 12px", borderBottom: `1px solid ${LINE}`, background: BG_MUTED }}>
+                    {(['B','I','U','S'] as const).map(b => (
+                      <button key={b} type="button" style={{ width: 28, height: 28, fontSize: 12, fontWeight: b==='B' ? 700 : 400, fontStyle: b==='I' ? 'italic' : 'normal', textDecoration: b==='U' ? 'underline' : b==='S' ? 'line-through' : 'none', border: `1px solid ${LINE}`, borderRadius: 6, background: "#fff", color: FG2, cursor: "pointer" }}>{b}</button>
+                    ))}
+                    <div style={{ width: 1, background: LINE, margin: "0 4px" }} />
+                    {['•','1.'].map(b => <button key={b} type="button" style={{ width: 28, height: 28, fontSize: 11, border: `1px solid ${LINE}`, borderRadius: 6, background: "#fff", color: FG2, cursor: "pointer" }}>{b}</button>)}
+                    <div style={{ width: 1, background: LINE, margin: "0 4px" }} />
+                    <button type="button" style={{ width: 32, height: 28, fontSize: 11, border: `1px solid ${LINE}`, borderRadius: 6, background: "#fff", color: FG2, cursor: "pointer" }}>H2</button>
+                  </div>
+                  <textarea value={emailBody} onChange={e => setEmailBody(e.target.value)} rows={10}
+                    style={{ width: "100%", padding: "10px 12px", fontSize: 13, border: "none", background: "#fff", color: INK, outline: "none", resize: "vertical", minHeight: 200, boxSizing: "border-box", fontFamily: "inherit" }} />
+                </div>
+              </div>
+              {emailError && <div style={{ fontSize: 12, color: "#ef4444", padding: "8px 12px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>{emailError}</div>}
             </div>
           </div>
         </div>
       )}
 
-      {/* Модальное окно создания компании */}
+      {/* ══ ACCOUNT MODAL ════════════════════════════════════════ */}
+      {accountModalOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 540, boxShadow: "0 30px 80px rgba(0,0,0,0.20)", fontFamily: FF }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "18px 24px", borderBottom: `1px solid ${LINE}` }}>
+              <div>
+                <h3 style={{ fontSize: 16, fontWeight: 500, color: INK }}>{t('crm.leads.form.account.title')}</h3>
+                <div style={{ fontFamily: FM, fontSize: 11, color: FG3, marginTop: 4 }}>{t('crm.leads.form.account.subtitle')}</div>
+              </div>
+              <button type="button" onClick={() => setAccountModalOpen(false)} style={{ background: "none", border: "none", fontSize: 20, color: FG3, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={lblInline}>{t('crm.leads.form.account.fields.site')}</label>
+                <select value={accountSiteId} onChange={e => setAccountSiteId(e.target.value)} style={inlineInp}>
+                  <option value="">{t('crm.leads.form.account.fields.sitePlaceholder')}</option>
+                  {accountSites.map(site => <option key={site.id} value={site.id}>{site.siteHost || site.siteUrl || site.id}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label style={lblInline}>{t('crm.leads.form.account.fields.name')}</label><input value={accountName} onChange={e => setAccountName(e.target.value)} placeholder={t('crm.leads.form.account.fields.namePlaceholder')} style={inlineInp} /></div>
+                <div><label style={lblInline}>{t('crm.leads.form.account.fields.email')}</label><input type="email" value={accountEmail} onChange={e => setAccountEmail(e.target.value)} placeholder={t('crm.leads.form.account.fields.emailPlaceholder')} style={inlineInp} /></div>
+              </div>
+              <div><label style={lblInline}>{t('crm.leads.form.account.fields.password')}</label><input type="password" value={accountPassword} onChange={e => setAccountPassword(e.target.value)} placeholder={t('crm.leads.form.account.fields.passwordPlaceholder')} style={inlineInp} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label style={lblInline}>{t('crm.leads.form.account.fields.balanceEur')}</label><input value={accountBalanceEur} onChange={e => setAccountBalanceEur(e.target.value)} placeholder={t('crm.leads.form.account.fields.balanceEurPlaceholder')} style={inlineInp} /></div>
+                <div><label style={lblInline}>{t('crm.leads.form.account.fields.balanceUsd')}</label><input value={accountBalanceUsd} onChange={e => setAccountBalanceUsd(e.target.value)} placeholder={t('crm.leads.form.account.fields.balanceUsdPlaceholder')} style={inlineInp} /></div>
+              </div>
+              {accountError && <div style={{ fontSize: 12, color: "#ef4444", padding: "8px 12px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>{accountError}</div>}
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button type="button" onClick={() => setAccountModalOpen(false)} disabled={accountBusy} style={{ padding: "8px 18px", fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.common.cancel')}</button>
+                <button type="button" onClick={handleAccountSave} disabled={accountBusy} style={{ padding: "8px 18px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: accountBusy ? 0.65 : 1 }}>{accountBusy ? t('crm.common.saving') : t('crm.leads.form.account.actions.create')}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ══ COMPANY MODAL ════════════════════════════════════════ */}
       {companyModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-3xl rounded-3xl border border-slate-800 bg-slate-950 p-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-start justify-between gap-3 mb-4">
-              <div>
-                <div className="text-xs font-semibold text-slate-50">
-                  Создать Компанию
-                </div>
-                <div className="mt-1 text-[11px] text-slate-500">
-                  {t('crm.leads.form.fields.companyCreated')}
-                </div>
-              </div>
-              <button
-                onClick={() => setCompanyModalOpen(false)}
-                className="text-slate-400 hover:text-white text-xl leading-none"
-                aria-label="Закрыть"
-                type="button"
-              >
-                ×
-              </button>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 600, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 30px 80px rgba(0,0,0,0.20)", fontFamily: FF }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "18px 24px", borderBottom: `1px solid ${LINE}` }}>
+              <h3 style={{ fontSize: 16, fontWeight: 500, color: INK }}>{t('crm.companies.form.titleCreate')}</h3>
+              <button type="button" onClick={() => setCompanyModalOpen(false)} style={{ background: "none", border: "none", fontSize: 20, color: FG3, cursor: "pointer", lineHeight: 1 }}>×</button>
             </div>
-
-            {companyError && (
-              <div className="mb-4 text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
-                {companyError}
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              {companyError && <div style={{ fontSize: 12, color: "#ef4444", padding: "8px 12px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>{companyError}</div>}
+              <div><label style={lblInline}>{t('crm.companies.form.fields.name')}</label><input type="text" required value={companyName} onChange={e => setCompanyName(e.target.value)} placeholder={t('crm.companies.form.fields.name')} style={inlineInp} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label style={lblInline}>{t('crm.companies.form.fields.email')}</label><input type="email" value={companyEmail} onChange={e => setCompanyEmail(e.target.value)} placeholder="email@..." style={inlineInp} /></div>
+                <div><label style={lblInline}>{t('crm.companies.form.fields.phone')}</label><input type="tel" value={companyPhone} onChange={e => setCompanyPhone(e.target.value)} placeholder={t('crm.companies.form.fields.phonePlaceholder')} style={inlineInp} /></div>
               </div>
-            )}
-
-            <div className="space-y-4">
-              {/* Основная информация */}
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">
-                  {t('crm.companies.form.fields.name')}
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder={t('crm.companies.form.fields.name')}
-                />
+              <div><label style={lblInline}>{t('crm.companies.form.fields.website')}</label><input type="url" value={companyWebsite} onChange={e => setCompanyWebsite(e.target.value)} placeholder={t('crm.companies.form.fields.websitePlaceholder')} style={inlineInp} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label style={lblInline}>{t('crm.companies.form.fields.country')}</label><input type="text" value={companyCountry} onChange={e => setCompanyCountry(e.target.value)} placeholder={t('crm.companies.form.fields.countryPlaceholder')} style={inlineInp} /></div>
+                <div><label style={lblInline}>{t('crm.companies.form.fields.city')}</label><input type="text" value={companyCity} onChange={e => setCompanyCity(e.target.value)} placeholder={t('crm.companies.form.fields.cityPlaceholder')} style={inlineInp} /></div>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">Email</label>
-                  <input
-                    type="email"
-                    value={companyEmail}
-                    onChange={(e) => setCompanyEmail(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                    placeholder="email@example.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">Телефон</label>
-                  <input
-                    type="tel"
-                    value={companyPhone}
-                    onChange={(e) => setCompanyPhone(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                    placeholder="+7 (999) 123-45-67"
-                  />
-                </div>
+              <div><label style={lblInline}>{t('crm.companies.form.fields.address')}</label><input type="text" value={companyAddress} onChange={e => setCompanyAddress(e.target.value)} placeholder={t('crm.companies.form.fields.addressPlaceholder')} style={inlineInp} /></div>
+              <div className="grid grid-cols-2 gap-3">
+                <div><label style={lblInline}>{t('crm.companies.form.fields.industry')}</label><input type="text" value={companyIndustry} onChange={e => setCompanyIndustry(e.target.value)} placeholder={t('crm.companies.form.fields.industryPlaceholder')} style={inlineInp} /></div>
+                <div><label style={lblInline}>{t('crm.companies.form.fields.size')}</label><input type="text" value={companySize} onChange={e => setCompanySize(e.target.value)} placeholder={t('crm.companies.form.fields.sizePlaceholder')} style={inlineInp} /></div>
               </div>
-
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">Сайт</label>
-                <input
-                  type="url"
-                  value={companyWebsite}
-                  onChange={(e) => setCompanyWebsite(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="https://example.com"
-                />
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button type="button" onClick={() => setCompanyModalOpen(false)} style={{ padding: "8px 18px", fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.companies.form.cancel')}</button>
+                <button type="button" onClick={handleCompanySave} disabled={companyBusy || !companyName.trim()} style={{ padding: "8px 18px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: (companyBusy || !companyName.trim()) ? 0.55 : 1 }}>{companyBusy ? t('crm.companies.form.saving') : t('crm.companies.form.save')}</button>
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">Страна</label>
-                  <input
-                    type="text"
-                    value={companyCountry}
-                    onChange={(e) => setCompanyCountry(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                    placeholder="Страна"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">Город</label>
-                  <input
-                    type="text"
-                    value={companyCity}
-                    onChange={(e) => setCompanyCity(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                    placeholder="Город"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">Адрес</label>
-                <input
-                  type="text"
-                  value={companyAddress}
-                  onChange={(e) => setCompanyAddress(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="Адрес"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">Индустрия</label>
-                  <input
-                    type="text"
-                    value={companyIndustry}
-                    onChange={(e) => setCompanyIndustry(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                    placeholder="Индустрия"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">Размер компании</label>
-                  <input
-                    type="text"
-                    value={companySize}
-                    onChange={(e) => setCompanySize(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                    placeholder="Например: 1-10, 11-50, 51-200"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setCompanyModalOpen(false)}
-                className="px-4 py-2 text-xs rounded-xl border border-slate-700 text-slate-300 hover:text-slate-50 hover:bg-slate-900 transition-colors"
-              >
-                {t('crm.companies.form.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={handleCompanySave}
-                className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                disabled={companyBusy || !companyName.trim()}
-              >
-                {companyBusy ? t('crm.companies.form.saving') : t('crm.companies.form.save')}
-              </button>
             </div>
           </div>
         </div>
       )}
+
       {customFieldsOpen && (
-        <CustomFieldsManager
-          entityType="lead"
-          title="Кастомные поля лидов"
-          suggestedKeys={suggestedKeys}
+        <CustomFieldsManager entityType="lead" title={t('crm.leads.form.customFieldsManagerTitle')} suggestedKeys={suggestedKeys}
           onClose={() => setCustomFieldsOpen(false)}
-          onUpdated={(items) => {
-            const sorted = [...items].sort((a, b) => a.order - b.order);
-            setCustomFields(sorted);
-          }}
+          onUpdated={items => { const sorted = [...items].sort((a, b) => a.order - b.order); setCustomFields(sorted); }} />
+      )}
+
+      {calendarModal && (
+        <CalendarEntryModal
+          initialKind={calendarModal}
+          preselectedLeadId={isNew ? undefined : id}
+          preselectedLeadName={lead.name || undefined}
+          onClose={() => setCalendarModal(null)}
+          onSaved={() => { showSuccess(calendarModal === 'meeting' ? t('crm.leads.form.messages.meetingCreated') : t('crm.leads.form.messages.noteCreated')); }}
         />
       )}
     </MainLayout>

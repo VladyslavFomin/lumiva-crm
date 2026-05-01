@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
+import { CalendarEntryModal } from '../../components/CalendarEntryModal';
+import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/email';
 
 import {
   PROJECT_CATEGORIES,
@@ -37,8 +39,14 @@ import {
   readProjectTasksCache,
   writeProjectTasksCache,
 } from './projectTasksCache';
-
-type TabId = 'props' | 'tasks' | 'comments' | 'history';
+import { appendProjectToCustomView } from './projectsViewsStore';
+import {
+  isTaskAssigneeSelected,
+  normalizeAssigneesToStaffIds,
+  resolveStaffForAssigneeEntry,
+  taskAssigneesMatchNormalizedLabels,
+  toggleTaskAssigneeIds,
+} from './taskAssignees';
 
 const generateId = (prefix: string) => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -72,6 +80,47 @@ function resolveLocale(lang: string) {
   return 'ru-RU';
 }
 
+function toNumberValue(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number' && !Number.isNaN(value)) return value;
+  if (typeof value === 'string') {
+    const n = parseFloat(value.replace(/\s/g, '').replace(',', '.'));
+    if (!Number.isNaN(n)) return n;
+  }
+  return null;
+}
+
+/** Сравнение old/new для скрытия ложных диффов (1000 vs 1000.00, порядок в списках и т.д.) */
+function historyComparable(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '';
+  if (field === 'amount') {
+    const n = toNumberValue(value);
+    return n !== null ? String(n) : String(value).trim();
+  }
+  if (field === 'tags' || field === 'ownerUserIds') {
+    const arr = Array.isArray(value)
+      ? value.map((v) => String(v).trim()).filter(Boolean)
+      : String(value)
+          .split(/[,;]+/)
+          .map((s) => s.trim())
+          .filter(Boolean);
+    return [...arr].sort().join('|');
+  }
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => String(v).trim())
+      .filter(Boolean)
+      .sort()
+      .join('|');
+  }
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value).trim();
+}
+
+function historyValuesEqual(field: string, from: unknown, to: unknown): boolean {
+  return historyComparable(field, from) === historyComparable(field, to);
+}
+
 /** Не начинать drag строки с полей, кнопок и зон с data-no-task-drag */
 function isProjectTaskRowDragBlockedTarget(target: EventTarget | null): boolean {
   if (!target || !(target instanceof Element)) return false;
@@ -82,6 +131,30 @@ function isProjectTaskRowDragBlockedTarget(target: EventTarget | null): boolean 
   );
 }
 
+/** Токены и классы в духе страницы лида (LeadFormPage) */
+const FF = "'Inter Tight','Helvetica Neue',Helvetica,Arial,sans-serif";
+const FM = "'JetBrains Mono',ui-monospace,monospace";
+const INK = '#222';
+const FG2 = '#555';
+const FG3 = '#888';
+const FG4 = '#b5b5b5';
+const LINE = '#e7e7e7';
+const LINE3 = '#f0f0f0';
+const BG_MUTED = '#fafafa';
+const inpCls =
+  'w-full px-3 py-2.5 text-sm rounded-xl border border-neutral-200 bg-white outline-none focus:border-neutral-400 transition-colors placeholder:text-neutral-400 text-neutral-900';
+const lblCls = 'block text-[10px] font-semibold uppercase tracking-[0.12em] mb-1.5';
+
+const PROJECT_STATUS_DOT: Record<string, string> = {
+  Новый: '#2563eb',
+  'В работе': '#ea580c',
+  'На проверке': '#d97706',
+  Заморожен: '#64748b',
+  Закрыт: '#64748b',
+  Выиграно: '#16a34a',
+  Проиграно: '#dc2626',
+};
+
 export const ProjectFormPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
@@ -90,26 +163,36 @@ export const ProjectFormPage: React.FC = () => {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-
-  const [tab, setTab] = useState<TabId>(() => {
-    const q = searchParams.get('tab');
-    if (q === 'props' || q === 'tasks' || q === 'comments' || q === 'history') {
-      return q;
-    }
-    return 'props';
-  });
-
-  useEffect(() => {
-    const q = searchParams.get('tab');
-    if (q === 'props' || q === 'tasks' || q === 'comments' || q === 'history') {
-      setTab(q);
-    }
-  }, [searchParams]);
+  const viewFromQuery = searchParams.get('view');
 
   const [project, setProject] = useState<Project>(createEmptyProject());
   const [loading, setLoading] = useState<boolean>(!isNew);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const showSuccess = (msg: string) => {
+    setSuccessMessage(msg);
+    setTimeout(() => {
+      setSuccessMessage((current) => (current === msg ? null : current));
+    }, 2500);
+  };
+  const showErrorToast = (msg: string) => {
+    setError(msg);
+    setTimeout(() => {
+      setError((current) => (current === msg ? null : current));
+    }, 3500);
+  };
+
+  const [calendarModal, setCalendarModal] = useState<'meeting' | 'note' | null>(null);
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [emailAccounts, setEmailAccounts] = useState<EmailAccount[]>([]);
+  const [emailAccountId, setEmailAccountId] = useState('');
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
 
   // Лиды для селекта "Лид"
   const [allLeads, setAllLeads] = useState<Lead[]>([]);
@@ -215,6 +298,7 @@ export const ProjectFormPage: React.FC = () => {
       briefFileName: t('crm.projects.detail.files.title'),
       briefFileUrl: t('crm.projects.detail.files.urlPlaceholder'),
       tags: t('crm.projects.detail.fields.tags'),
+      ownerUserIds: t('crm.projects.detail.history.managerField'),
       tasks: t('crm.projects.detail.history.fields.tasks'),
       'customFields.projectNotes': t('crm.projects.detail.notes.title'),
     }),
@@ -255,7 +339,7 @@ export const ProjectFormPage: React.FC = () => {
     return parts.map((part, idx) => {
       if (part.startsWith('@')) {
         return (
-          <span key={`${part}-${idx}`} className="text-sky-300">
+          <span key={`${part}-${idx}`} className="text-sky-600 font-medium">
             {part}
           </span>
         );
@@ -338,6 +422,7 @@ export const ProjectFormPage: React.FC = () => {
         : [];
       return changes
         .filter((change) => change?.field === 'amount')
+        .filter((change) => !historyValuesEqual('amount', change.from, change.to))
         .map((change) => ({
           id: `${activity.id}-${change.field}`,
           actor:
@@ -354,9 +439,7 @@ export const ProjectFormPage: React.FC = () => {
   const canEditTask = (task: ProjectTask) =>
     isOwnerRole ||
     isProjectOwner ||
-    (task.assignees || [])
-      .map((value) => normalizeUser(value))
-      .some((value) => currentLabels.includes(value));
+    taskAssigneesMatchNormalizedLabels(task.assignees, staff, currentLabels);
   const isDoneStatus = (status?: string | null) => {
     if (!status) return false;
     const normalized = status.toString().trim().toLowerCase();
@@ -377,7 +460,9 @@ export const ProjectFormPage: React.FC = () => {
     ? Math.round((tasksDoneCount / tasks.length) * 100)
     : 0;
   const resolveAssignees = (task: ProjectTask) =>
-    (task.assignees || []).map((name) => staff.find((u) => u.fullName === name) || name);
+    (task.assignees || []).map(
+      (entry) => resolveStaffForAssigneeEntry(staff, entry) || entry,
+    );
   const normalizeTasks = (list: ProjectTask[]) =>
     list.map((task) => ({
       ...task,
@@ -424,6 +509,51 @@ export const ProjectFormPage: React.FC = () => {
     [t],
   );
 
+  const formatHistoryFieldValue = (field: string, value: unknown) => {
+    if (field === 'ownerUserIds') {
+      const ids = Array.isArray(value)
+        ? value.map((v) => String(v).trim()).filter(Boolean)
+        : String(value ?? '')
+            .split(/[,;]+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+      if (ids.length === 0) return t('crm.projects.common.emptyValue');
+      const names = ids
+        .map((id) => staff.find((u) => u.id === id)?.fullName?.trim())
+        .filter(Boolean) as string[];
+      return names.length ? names.join(', ') : t('crm.projects.common.emptyValue');
+    }
+    if (field === 'ownerUserId') {
+      const id = String(value ?? '').trim();
+      if (!id) return t('crm.projects.common.emptyValue');
+      return staff.find((u) => u.id === id)?.fullName?.trim() || t('crm.projects.common.emptyValue');
+    }
+    if (field === 'status') {
+      const s = String(value ?? '');
+      return statusLabels[s as ProjectStatus] ?? formatHistoryValue(value);
+    }
+    if (field === 'amount') {
+      if (value === null || value === undefined || value === '') return t('crm.projects.common.emptyValue');
+      const n = toNumberValue(value);
+      if (n !== null) return n.toLocaleString(locale);
+      return formatHistoryValue(value);
+    }
+    if (field === 'category') {
+      const s = String(value ?? '');
+      return categoryLabels[s] ?? formatHistoryValue(value);
+    }
+    if (field === 'tags') {
+      const parts = Array.isArray(value)
+        ? value.map((v) => String(v).trim()).filter(Boolean)
+        : String(value ?? '')
+            .split(/[,;]+/)
+            .map((s) => s.trim())
+            .filter(Boolean);
+      return parts.map((p) => tagLabels[p] ?? p).join(', ');
+    }
+    return formatHistoryValue(value);
+  };
+
   const activeCustomFields = useMemo(
     () => customFields.filter((field) => field.isActive),
     [customFields],
@@ -444,20 +574,18 @@ export const ProjectFormPage: React.FC = () => {
 
   const renderCustomFieldInput = (field: CustomField) => {
     const value = getCustomFieldValue(field);
-    const commonClass =
-      'px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft';
     const label = (
-      <div className="text-[11px] text-slate-400 mb-1">
+      <label className={lblCls} style={{ color: FG3 }}>
         {field.label}
-        {field.required && <span className="text-rose-400 ml-1">*</span>}
-      </div>
+        {field.required && <span className="text-rose-500 ml-1">*</span>}
+      </label>
     );
 
     if (field.type === 'boolean') {
       return (
         <label
           key={field.id}
-          className="flex items-center gap-2 text-xs text-slate-300"
+          className="flex items-center gap-2 text-xs text-neutral-700"
         >
           <input
             type="checkbox"
@@ -477,7 +605,7 @@ export const ProjectFormPage: React.FC = () => {
             value={value ?? ''}
             onChange={(e) => setCustomFieldValue(field, e.target.value)}
             placeholder={field.placeholder || ''}
-            className={commonClass}
+            className={inpCls + ' resize-y min-h-[80px]'}
             rows={3}
           />
         </div>
@@ -491,7 +619,7 @@ export const ProjectFormPage: React.FC = () => {
           <select
             value={value ?? ''}
             onChange={(e) => setCustomFieldValue(field, e.target.value)}
-            className={commonClass}
+            className={inpCls}
           >
             <option value="">
               {field.placeholder || t('crm.projects.detail.customFields.selectValue')}
@@ -524,7 +652,7 @@ export const ProjectFormPage: React.FC = () => {
                 Array.from(e.target.selectedOptions).map((o) => o.value),
               )
             }
-            className={commonClass}
+            className={inpCls + ' min-h-[72px]'}
           >
             {(field.options || []).map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -567,7 +695,7 @@ export const ProjectFormPage: React.FC = () => {
             setCustomFieldValue(field, next);
           }}
           placeholder={field.placeholder || ''}
-          className={commonClass}
+          className={inpCls}
         />
       </div>
     );
@@ -663,7 +791,7 @@ export const ProjectFormPage: React.FC = () => {
   }, [id, isNew]);
 
   useEffect(() => {
-    if (tab !== 'history' || isNew || !project.id) return;
+    if (isNew || !project.id) return;
     let alive = true;
     setActivitiesLoading(true);
     setActivitiesError(null);
@@ -684,7 +812,7 @@ export const ProjectFormPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [tab, isNew, project.id, t]);
+  }, [isNew, project.id, t]);
 
   useEffect(() => {
     let alive = true;
@@ -783,13 +911,6 @@ export const ProjectFormPage: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [newAssigneesOpen, taskAssigneesMenuId]);
 
-  const title = useMemo(
-    () =>
-      isNew
-        ? t('crm.projects.detail.titleNew')
-        : t('crm.projects.detail.titleExisting', { id: project.id }),
-    [isNew, project.id],
-  );
   const withLeadPresentation = useCallback(
     (nextProject: Project, source?: Project): Project => {
       if (!nextProject.leadId) {
@@ -841,6 +962,9 @@ export const ProjectFormPage: React.FC = () => {
       let saved: Project;
       if (isNew) {
         saved = await createProject(payload);
+        if (viewFromQuery && saved.id) {
+          appendProjectToCustomView(viewFromQuery, saved.id);
+        }
       } else {
         saved = await updateProject(payload, {
           includeEmptyTasks: true,
@@ -852,7 +976,12 @@ export const ProjectFormPage: React.FC = () => {
       setTasks(resolvedTasks);
       writeProjectTasksCache(saved.id, resolvedTasks);
       setComments(saved.comments || []);
-      navigate('/app/projects');
+      if (isNew) {
+        navigate(`/projects/${saved.id}`);
+        showSuccess(t('crm.projects.detail.messages.created'));
+      } else {
+        showSuccess(t('crm.projects.detail.messages.saved'));
+      }
     } catch (e: any) {
       console.error(e);
       setError(e.message || t('crm.projects.detail.errors.saveFailed'));
@@ -906,7 +1035,7 @@ export const ProjectFormPage: React.FC = () => {
 
   const handleDelete = async () => {
     if (isNew) {
-      navigate('/app/projects');
+      navigate('/projects');
       return;
     }
     if (!window.confirm(t('crm.projects.detail.confirmDelete'))) return;
@@ -915,7 +1044,7 @@ export const ProjectFormPage: React.FC = () => {
     setError(null);
     try {
       await deleteProject(project.id);
-      navigate('/app/projects');
+      navigate('/projects');
     } catch (e: any) {
       console.error(e);
       setError(e.message || t('crm.projects.detail.errors.deleteFailed'));
@@ -1007,9 +1136,7 @@ export const ProjectFormPage: React.FC = () => {
   const addTask = () => {
     const title = newTaskTitle.trim();
     if (!title || !isProjectOwner) return;
-    const assigneesArr = staff
-      .filter((u) => newTaskAssignees.includes(u.id))
-      .map((u) => u.fullName);
+    const assigneesArr = normalizeAssigneesToStaffIds(newTaskAssignees, staff);
 
     const newTask: ProjectTask = {
       id: generateId('t'),
@@ -1100,20 +1227,19 @@ export const ProjectFormPage: React.FC = () => {
     setTasks((prev) => prev.filter((t) => t.id !== taskId));
   };
 
-  const toggleAssigneeSelection = (list: string[], name: string) => {
-    if (list.includes(name)) {
-      return list.filter((item) => item !== name);
-    }
-    return [...list, name];
-  };
-
-  const toggleTaskAssignee = (taskId: string, name: string) => {
+  const toggleTaskAssignee = (taskId: string, user: StaffUser) => {
     const target = tasks.find((task) => task.id === taskId);
     if (!target || !canEditTask(target)) return;
     setTasks((prev) =>
       prev.map((t) =>
         t.id === taskId
-          ? { ...t, assignees: toggleAssigneeSelection(t.assignees || [], name) }
+          ? {
+              ...t,
+              assignees: normalizeAssigneesToStaffIds(
+                toggleTaskAssigneeIds(t.assignees, user),
+                staff,
+              ),
+            }
           : t,
       ),
     );
@@ -1211,258 +1337,349 @@ export const ProjectFormPage: React.FC = () => {
     setNewComment('');
   };
 
+  const handleBack = () => {
+    navigate('/projects');
+  };
+
+  useEffect(() => {
+    if (!emailOpen || emailAccounts.length > 0) return;
+    fetchEmailAccounts()
+      .then((accs) => {
+        setEmailAccounts(accs);
+        if (accs.length) setEmailAccountId(accs[0].id);
+      })
+      .catch((e) => console.error('email accounts load error', e));
+  }, [emailOpen, emailAccounts.length]);
+
+  const handleSendEmail = async () => {
+    if (!emailAccountId || !emailTo.trim()) {
+      setEmailError(t('crm.leads.form.email.errorNoRecipient'));
+      return;
+    }
+    setEmailSending(true);
+    setEmailError(null);
+    try {
+      await sendEmail({
+        accountId: emailAccountId,
+        to: [emailTo.trim()],
+        subject: emailSubject.trim() || undefined,
+        textBody: emailBody.trim() || undefined,
+        leadId: project.leadId || undefined,
+      });
+      setEmailOpen(false);
+      setEmailTo('');
+      setEmailSubject('');
+      setEmailBody('');
+      showSuccess(t('crm.leads.form.email.sent'));
+    } catch (e: any) {
+      setEmailError(e.message || t('crm.leads.form.email.errorSend'));
+    } finally {
+      setEmailSending(false);
+    }
+  };
+
+  const inlineInp: React.CSSProperties = {
+    width: '100%',
+    padding: '10px 12px',
+    fontSize: 13,
+    borderRadius: 10,
+    border: `1px solid ${LINE}`,
+    background: '#fff',
+    color: INK,
+    outline: 'none',
+    boxSizing: 'border-box',
+  };
+  const lblInline: React.CSSProperties = {
+    display: 'block',
+    fontFamily: FM,
+    fontSize: 10,
+    letterSpacing: '0.12em',
+    textTransform: 'uppercase',
+    color: FG3,
+    marginBottom: 6,
+  };
+
+  const statusDot = PROJECT_STATUS_DOT[project.status] ?? FG3;
+
   // ---------------- Рендер ----------------
 
   return (
     <MainLayout>
-      <div className="space-y-4">
-        {/* Верхняя панель проекта */}
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div className="min-w-0">
-            <div className="text-[11px] text-slate-500">{title}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <input
-                value={project.name}
-                onChange={handleChange('name')}
-                placeholder={t('crm.projects.detail.fields.name')}
-                className="w-full md:w-[420px] px-3 py-2 rounded-xl bg-slate-900/80 border border-slate-700/80 text-sm text-slate-50 outline-none focus:border-lumiva-accent-soft"
-              />
-              <span className="inline-flex items-center rounded-full border border-slate-700/80 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
-                {statusLabels[project.status]}
-              </span>
-            </div>
-            {loading && (
-              <div className="text-[11px] text-slate-500 mt-1">
-                {t('crm.projects.detail.loading')}
+      {successMessage && (
+        <div className="fixed top-4 right-4 z-[9999] flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs text-emerald-700 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          {successMessage}
+        </div>
+      )}
+      {error && (
+        <div className="fixed top-4 right-4 z-[9999] rounded-xl border border-rose-200 bg-white px-4 py-2.5 text-xs text-rose-600 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+          {error}
+        </div>
+      )}
+
+      <div style={{ fontFamily: FF, color: INK }}>
+        {/* header — как на странице лида */}
+        <div style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 20, marginBottom: 28 }}>
+          <button
+            type="button"
+            onClick={handleBack}
+            style={{
+              fontFamily: FM,
+              fontSize: 11,
+              color: FG3,
+              letterSpacing: '0.06em',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          >
+            ← {t('crm.projects.detail.back')}
+          </button>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              marginTop: 10,
+              gap: 12,
+              flexWrap: 'wrap',
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  fontFamily: FM,
+                  fontSize: 10,
+                  color: FG4,
+                  letterSpacing: '0.12em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                {isNew
+                  ? t('crm.projects.detail.titleNew')
+                  : `${t('crm.projects.detail.idKicker')} · ${String(id || '').slice(0, 8).toUpperCase()}`}
               </div>
-            )}
-            {error && (
-              <div className="text-[11px] text-rose-400 mt-1">{error}</div>
-            )}
-            {showMentionsHint && mentionTargets.length > 0 && (
-              <div className="mt-2 inline-flex items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/80 px-3 py-1.5 text-[11px] text-slate-200">
-                <span className="text-sky-300">🔔</span>
-                {t('crm.projects.detail.mentions.notice', {
-                  count: mentionTargets.length,
-                })}
+              <h1
+                style={{
+                  fontFamily: FF,
+                  fontSize: 26,
+                  fontWeight: 500,
+                  letterSpacing: '-0.02em',
+                  color: INK,
+                  marginTop: 6,
+                  lineHeight: 1.1,
+                }}
+              >
+                {project.name || t('crm.projects.detail.fallbacks.untitled')}
+              </h1>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 8,
+                  padding: '4px 10px',
+                  borderRadius: 999,
+                  border: `1px solid ${LINE}`,
+                  background: BG_MUTED,
+                  fontSize: 12,
+                  color: FG2,
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: statusDot,
+                    flexShrink: 0,
+                  }}
+                />
+                {statusLabels[project.status]}
+              </div>
+              {loading && (
+                <div style={{ fontFamily: FM, fontSize: 11, color: FG4, marginTop: 8 }}>
+                  {t('crm.projects.detail.loading')}
+                </div>
+              )}
+              {showMentionsHint && mentionTargets.length > 0 && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '8px 12px',
+                    borderRadius: 12,
+                    border: `1px solid ${LINE}`,
+                    background: BG_MUTED,
+                    fontSize: 11,
+                    color: FG2,
+                  }}
+                >
+                  <span aria-hidden>🔔</span>
+                  {t('crm.projects.detail.mentions.notice', {
+                    count: mentionTargets.length,
+                  })}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const key = `project_mentions_seen_${project.id}`;
+                      const seen = mentionTargets.map((c) => c.id);
+                      localStorage.setItem(key, JSON.stringify(seen));
+                      setShowMentionsHint(false);
+                    }}
+                    style={{
+                      fontFamily: FM,
+                      fontSize: 10,
+                      color: FG3,
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {t('crm.projects.detail.mentions.ok')}
+                  </button>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {!isNew && (
                 <button
                   type="button"
-                  onClick={() => {
-                    const key = `project_mentions_seen_${project.id}`;
-                    const seen = mentionTargets.map((c) => c.id);
-                    localStorage.setItem(key, JSON.stringify(seen));
-                    setShowMentionsHint(false);
+                  onClick={handleDelete}
+                  disabled={saving}
+                  style={{
+                    padding: '7px 14px',
+                    fontSize: 12,
+                    borderRadius: 8,
+                    border: '1px solid #fecaca',
+                    background: '#fff',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    opacity: saving ? 0.65 : 1,
                   }}
-                  className="ml-2 text-[11px] text-slate-300 hover:text-white"
                 >
-                  {t('crm.projects.detail.mentions.ok')}
+                  {t('crm.projects.detail.actions.delete')}
                 </button>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2 self-start">
-            {!isNew && (
+              )}
               <button
                 type="button"
-                onClick={handleDelete}
-                disabled={saving}
-                className="px-3 py-1.5 text-xs rounded-xl border border-rose-500/60 text-rose-300 hover:bg-rose-950/60 disabled:opacity-60"
+                onClick={() => setCustomFieldsOpen(true)}
+                style={{
+                  padding: '7px 14px',
+                  fontSize: 12,
+                  borderRadius: 8,
+                  border: `1px solid ${LINE}`,
+                  background: '#fff',
+                  color: FG2,
+                  cursor: 'pointer',
+                }}
               >
-                {t('crm.projects.detail.actions.delete')}
+                {t('crm.projects.detail.customFields.configure')}
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setCustomFieldsOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
-            >
-              {t('crm.projects.detail.customFields.configure')}
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={saving}
-              className="px-3 py-1.5 text-xs rounded-xl border border-lumiva-accent bg-lumiva-accent font-semibold text-white shadow-sm hover:opacity-90 disabled:opacity-60"
-            >
-              {saving
-                ? t('crm.projects.detail.actions.saving')
-                : t('crm.projects.detail.actions.save')}
-            </button>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                style={{
+                  padding: '8px 20px',
+                  fontSize: 13,
+                  fontWeight: 500,
+                  borderRadius: 8,
+                  border: `1px solid ${INK}`,
+                  background: INK,
+                  color: '#fff',
+                  cursor: 'pointer',
+                  opacity: saving ? 0.65 : 1,
+                }}
+              >
+                {saving
+                  ? t('crm.projects.detail.actions.saving')
+                  : t('crm.projects.detail.actions.save')}
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Вкладки */}
-        <div className="inline-flex bg-slate-900/70 border border-slate-800/80 rounded-2xl p-1 text-[13px]">
-          <button
-            type="button"
-            onClick={() => setTab('props')}
-            className={
-              'px-4 py-1.5 rounded-xl ' +
-              (tab === 'props'
-                ? 'bg-slate-800 text-slate-50'
-                : 'text-slate-400 hover:text-slate-100')
-            }
-          >
-            {t('crm.projects.detail.tabs.props')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('tasks')}
-            className={
-              'px-4 py-1.5 rounded-xl ' +
-              (tab === 'tasks'
-                ? 'bg-slate-800 text-slate-50'
-                : 'text-slate-400 hover:text-slate-100')
-            }
-          >
-            {t('crm.projects.detail.tabs.tasks')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('comments')}
-            className={
-              'px-4 py-1.5 rounded-xl ' +
-              (tab === 'comments'
-                ? 'bg-slate-800 text-slate-50'
-                : 'text-slate-400 hover:text-slate-100')
-            }
-          >
-            {t('crm.projects.detail.tabs.comments')}
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('history')}
-            className={
-              'px-4 py-1.5 rounded-xl ' +
-              (tab === 'history'
-                ? 'bg-slate-800 text-slate-50'
-                : 'text-slate-400 hover:text-slate-100')
-            }
-          >
-            {t('crm.projects.detail.tabs.history')}
-          </button>
-        </div>
-
-        {/* Контент вкладок */}
-        {tab === 'props' && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-5 space-y-5">
-            {/* Ответственные + лид */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-              <div className="rounded-xl bg-slate-950/80 border border-slate-800/80 p-2 self-start">
-                <div className="mb-2 flex items-center justify-between">
-                  <div className="text-[11px] text-slate-400">
-                    {t('crm.projects.detail.owner.byDepartment')}
-                  </div>
-                  <div className="text-[11px] text-slate-500">
-                    {t('crm.projects.detail.owner.selected', {
-                      count: (project.ownerUserIds || []).length,
-                    })}
-                  </div>
-                </div>
-              <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-                  {ownerDepartmentGroups.map((group) => {
-                    const groupIds = group.users.map((u) => u.id);
-                    const selectedInGroup = groupIds.filter((id) =>
-                      (project.ownerUserIds || []).includes(id),
-                    ).length;
-                    const allChecked = selectedInGroup > 0 && selectedInGroup === groupIds.length;
-                    return (
-                      <div
-                        key={group.department}
-                        className="rounded-lg border border-slate-800/90 bg-slate-900/70 p-2"
-                      >
-                        <div className="mb-1.5 flex items-center justify-between gap-2">
-                          <div className="text-[11px] font-semibold text-slate-200 truncate">
-                            {group.department}
-                          </div>
-                          <label className="flex items-center gap-1 text-[10px] text-slate-400">
-                            <input
-                              type="checkbox"
-                              checked={allChecked}
-                              onChange={(e) =>
-                                toggleOwnerDepartment(group.department, e.target.checked)
-                              }
-                            />
-                            {t('crm.projects.detail.owner.wholeDepartment')}
-                          </label>
-                        </div>
-                        <div className="space-y-1">
-                          {group.users.map((u) => {
-                            const checked = (project.ownerUserIds || []).includes(u.id);
-                            return (
-                              <label
-                                key={u.id}
-                                className="flex items-center gap-2 text-[11px] text-slate-300"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={(e) => toggleOwnerUser(u.id, e.target.checked)}
-                                />
-                                <span className="truncate">
-                                  {u.fullName}
-                                  {u.email ? ` · ${u.email}` : ''}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+        {!loading && (
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
+            {/* ——— ЛЕВАЯ КОЛОНКА ——— */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+              {/* Название в форме */}
+              <div>
+                <label className={lblCls} style={{ color: FG3 }}>
+                  {t('crm.projects.detail.fields.name')}
+                </label>
+                <input
+                  className={inpCls}
+                  value={project.name}
+                  onChange={handleChange('name')}
+                  placeholder={t('crm.projects.detail.fields.name')}
+                />
               </div>
-              <div className="space-y-2">
-                <select
-                  value={project.leadId || ''}
-                  onChange={handleLeadChange}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                >
-                  <option value="">
-                    {t('crm.projects.detail.fields.leadEmpty')}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Лид */}
+            <div className="space-y-2">
+              <label className={lblCls} style={{ color: FG3 }}>
+                {t('crm.projects.detail.fields.lead')}
+              </label>
+              <select
+                value={project.leadId || ''}
+                onChange={handleLeadChange}
+                className={inpCls}
+              >
+                <option value="">
+                  {t('crm.projects.detail.fields.leadEmpty')}
+                </option>
+                {allLeads.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {(l.name || t('crm.projects.detail.fields.leadNameFallback')) +
+                      (l.email ? ` · ${l.email}` : '')}
                   </option>
-                  {allLeads.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      {(l.name || t('crm.projects.detail.fields.leadNameFallback')) +
-                        (l.email ? ` · ${l.email}` : '')}
-                    </option>
-                  ))}
-                </select>
+                ))}
+              </select>
 
-                <input
-                  value={project.leadName || ''}
-                  onChange={(e) =>
-                    setProject((prev) => ({
-                      ...prev,
-                      leadName: e.target.value || null,
-                    }))
-                  }
-                  placeholder={t('crm.projects.detail.fields.leadName')}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                />
-                <input
-                  value={project.leadEmail || ''}
-                  onChange={(e) =>
-                    setProject((prev) => ({
-                      ...prev,
-                      leadEmail: e.target.value || null,
-                    }))
-                  }
-                  placeholder={t('crm.projects.detail.fields.leadEmail')}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
-                />
-              </div>
+              <input
+                value={project.leadName || ''}
+                onChange={(e) =>
+                  setProject((prev) => ({
+                    ...prev,
+                    leadName: e.target.value || null,
+                  }))
+                }
+                placeholder={t('crm.projects.detail.fields.leadName')}
+                className={inpCls}
+              />
+              <input
+                value={project.leadEmail || ''}
+                onChange={(e) =>
+                  setProject((prev) => ({
+                    ...prev,
+                    leadEmail: e.target.value || null,
+                  }))
+                }
+                placeholder={t('crm.projects.detail.fields.leadEmail')}
+                className={inpCls}
+              />
             </div>
 
             {/* Описание */}
-            <textarea
-              value={project.description}
-              onChange={handleChange('description')}
-              placeholder={t('crm.projects.detail.fields.description')}
-              rows={4}
-              className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
-            />
+            <div>
+              <label className={lblCls} style={{ color: FG3 }}>
+                {t('crm.projects.detail.fields.description')}
+              </label>
+              <textarea
+                value={project.description}
+                onChange={handleChange('description')}
+                placeholder={t('crm.projects.detail.fields.description')}
+                rows={4}
+                className={inpCls + ' resize-y min-h-[100px]'}
+              />
+            </div>
 
             {/* Компания (только для чтения, через лид) */}
             {project.leadId && (() => {
@@ -1472,7 +1689,7 @@ export const ProjectFormPage: React.FC = () => {
                 : null;
               return company ? (
                 <div>
-                  <label className="block text-[11px] text-slate-400 mb-1.5">
+                  <label className={lblCls} style={{ color: FG3 }}>
                     {t('crm.projects.detail.fields.company')}
                   </label>
                   <div className="flex items-center gap-2">
@@ -1480,12 +1697,21 @@ export const ProjectFormPage: React.FC = () => {
                       type="text"
                       value={company.name}
                       readOnly
-                      className="flex-1 px-3 py-2 rounded-xl bg-slate-900/50 border border-slate-700/50 text-sm text-slate-400 cursor-not-allowed"
+                      className={inpCls + ' flex-1 opacity-70 cursor-not-allowed bg-neutral-50'}
                     />
                     <button
                       type="button"
                       onClick={() => navigate(`/companies/${company.id}`)}
-                      className="px-3 py-2 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 hover:border-slate-600 transition-colors"
+                      style={{
+                        padding: '8px 14px',
+                        fontSize: 12,
+                        borderRadius: 8,
+                        border: `1px solid ${LINE}`,
+                        background: '#fff',
+                        color: FG2,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                      }}
                     >
                       {t('crm.projects.detail.fields.open')}
                     </button>
@@ -1501,18 +1727,18 @@ export const ProjectFormPage: React.FC = () => {
                 value={project.amount || ''}
                 onChange={handleChange('amount')}
                 placeholder={t('crm.projects.detail.fields.amount')}
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                className={inpCls}
               />
               <input
                 value={project.createdAt}
                 onChange={handleChange('createdAt')}
                 placeholder={t('crm.projects.detail.fields.createdAt')}
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                className={inpCls}
               />
               <select
                 value={project.status}
                 onChange={handleStatusChange}
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                className={inpCls}
               >
                 {PROJECT_STATUSES.map((st) => (
                   <option key={st} value={st}>
@@ -1523,7 +1749,7 @@ export const ProjectFormPage: React.FC = () => {
               <select
                 value={project.category || ''}
                 onChange={handleCategoryChange}
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                className={inpCls}
               >
                 <option value="">
                   {t('crm.projects.detail.fields.category')}
@@ -1545,7 +1771,7 @@ export const ProjectFormPage: React.FC = () => {
                     },
                   }))
                 }
-                className="px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                className={inpCls}
               >
                 <option value="Низкий">{t('crm.projects.detail.priority.lowUrgency')}</option>
                 <option value="Обычный">{t('crm.projects.detail.priority.normalUrgency')}</option>
@@ -1554,53 +1780,60 @@ export const ProjectFormPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/70 p-3 space-y-2">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+              <div
+                className="rounded-2xl p-3 space-y-2"
+                style={{ border: `1px solid ${LINE}`, background: BG_MUTED }}
+              >
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', color: FG3 }}>
                   {t('crm.projects.detail.metrics.title')}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
-                    <div className="text-[10px] text-slate-500">
+                  <div className="rounded-xl px-3 py-2 bg-white" style={{ border: `1px solid ${LINE}` }}>
+                    <div className="text-[10px]" style={{ color: FG3 }}>
                       {t('crm.projects.detail.metrics.budget')}
                     </div>
-                    <div className="text-sm font-semibold text-slate-100">
-                      {new Intl.NumberFormat(locale).format(Number(project.amount) || 0)} {project.currency || 'EUR'}
+                    <div className="text-sm font-semibold" style={{ color: INK }}>
+                      {new Intl.NumberFormat(locale).format(Number(project.amount) || 0)}{' '}
+                      {project.currency || 'EUR'}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
-                    <div className="text-[10px] text-slate-500">
+                  <div className="rounded-xl px-3 py-2 bg-white" style={{ border: `1px solid ${LINE}` }}>
+                    <div className="text-[10px]" style={{ color: FG3 }}>
                       {t('crm.projects.detail.metrics.taskProgress')}
                     </div>
-                    <div className="text-sm font-semibold text-slate-100">
+                    <div className="text-sm font-semibold" style={{ color: INK }}>
                       {tasksDoneCount}/{tasks.length} ({tasksCompletionPercent}%)
                     </div>
                   </div>
                 </div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-slate-800 bg-slate-900/70 px-2 py-1 text-[11px] text-slate-300">
+                <div
+                  className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-[11px] bg-white"
+                  style={{ border: `1px solid ${LINE}`, color: FG2 }}
+                >
                   <span>{t('crm.projects.detail.metrics.urgency')}</span>
                   <span
                     className={
                       projectPriority === 'Высокий'
-                        ? 'text-rose-400'
+                        ? 'text-rose-600'
                         : projectPriority === 'Низкий'
-                          ? 'text-emerald-400'
-                          : 'text-sky-400'
+                          ? 'text-emerald-600'
+                          : 'text-sky-600'
                     }
                   >
                     {projectPriority}
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                <div className="h-2 rounded-full overflow-hidden" style={{ background: LINE3 }}>
                   <div
-                    className="h-full rounded-full bg-sky-400 transition-all"
+                    className="h-full rounded-full bg-sky-500 transition-all"
                     style={{ width: `${tasksCompletionPercent}%` }}
                   />
                 </div>
               </div>
               <div className="space-y-1">
-                <div className="text-[11px] text-slate-400">
+                <label className={lblCls} style={{ color: FG3 }}>
                   {t('crm.projects.detail.notes.title')}
-                </div>
+                </label>
                 <textarea
                   value={projectNotes}
                   onChange={(e) =>
@@ -1614,16 +1847,16 @@ export const ProjectFormPage: React.FC = () => {
                   }
                   rows={5}
                   placeholder={t('crm.projects.detail.notes.placeholder')}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
+                  className={inpCls + ' resize-y min-h-[120px]'}
                 />
               </div>
             </div>
 
             {/* Метки */}
             <div className="space-y-2">
-              <div className="text-xs text-slate-400">
+              <label className={lblCls} style={{ color: FG3 }}>
                 {t('crm.projects.detail.fields.tags')}
-              </div>
+              </label>
               <div className="flex flex-wrap gap-2">
                 {PROJECT_TAGS.map((tag) => {
                   const active = project.tags.includes(tag);
@@ -1636,7 +1869,7 @@ export const ProjectFormPage: React.FC = () => {
                         'px-2 py-0.5 rounded-full text-[11px] border ' +
                         (active
                           ? 'bg-rose-500 text-rose-50 border-rose-500'
-                          : 'bg-slate-950/80 text-slate-300 border-slate-700/80')
+                          : 'bg-white text-neutral-700 border-neutral-200')
                       }
                     >
                       #{tagLabels[tag] ?? tag}
@@ -1649,29 +1882,29 @@ export const ProjectFormPage: React.FC = () => {
             {/* Кастомные поля */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-xs text-slate-400">
+                <span className={lblCls} style={{ color: FG3 }}>
                   {t('crm.projects.detail.customFields.title')}
-                </div>
+                </span>
                 <button
                   type="button"
                   onClick={() => setCustomFieldsOpen(true)}
-                  className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
+                  style={{ fontFamily: FM, fontSize: 10, color: FG3, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
                 >
                   {t('crm.projects.detail.customFields.configure')}
                 </button>
               </div>
               {customFieldsError && (
-                <div className="text-[11px] text-red-400">
+                <div className="text-[11px] text-red-600">
                   {customFieldsError}
                 </div>
               )}
               {customFieldsLoading && (
-                <div className="text-[11px] text-slate-500">
+                <div className="text-[11px]" style={{ color: FG4 }}>
                   {t('crm.projects.detail.customFields.loading')}
                 </div>
               )}
               {!customFieldsLoading && activeCustomFields.length === 0 && (
-                <div className="text-[11px] text-slate-500 italic">
+                <div className="text-[11px] italic" style={{ color: FG4 }}>
                   {t('crm.projects.detail.customFields.empty')}
                 </div>
               )}
@@ -1686,9 +1919,9 @@ export const ProjectFormPage: React.FC = () => {
 
             {/* Файлы (ТЗ / смета / договор) */}
             <div className="space-y-2">
-              <div className="text-xs text-slate-400">
+              <label className={lblCls} style={{ color: FG3 }}>
                 {t('crm.projects.detail.files.title')}
-              </div>
+              </label>
               <input
                 value={project.briefFileName || ''}
                 onChange={(e) =>
@@ -1698,7 +1931,7 @@ export const ProjectFormPage: React.FC = () => {
                   }))
                 }
                 placeholder={t('crm.projects.detail.files.namePlaceholder')}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                className={inpCls}
               />
               <input
                 value={project.briefFileUrl || ''}
@@ -1709,21 +1942,34 @@ export const ProjectFormPage: React.FC = () => {
                   }))
                 }
                 placeholder={t('crm.projects.detail.files.urlPlaceholder')}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft"
+                className={inpCls}
               />
             </div>
           </div>
-        )}
 
-        {/* Вкладка Задачи — список в духе Notion */}
-        {tab === 'tasks' && (
-          <div className="rounded-3xl border border-slate-700/50 bg-slate-900/50 p-4 sm:p-5 space-y-4">
+              <div style={{ marginTop: 8, marginBottom: 12 }}>
+                <span
+                  style={{
+                    fontFamily: FM,
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: FG3,
+                  }}
+                >
+                  {t('crm.projects.detail.tabs.tasks')}
+                </span>
+              </div>
+          <div
+            className="rounded-3xl p-4 sm:p-5 space-y-4"
+            style={{ border: `1px solid ${LINE}`, background: BG_MUTED }}
+          >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400">
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', color: FG3 }}>
                   {t('crm.projects.detail.tasks.title')}
                 </div>
-                <div className="mt-1 text-[12px] text-slate-500">
+                <div className="mt-1 text-[12px]" style={{ color: FG3 }}>
                   {tasks.filter((task) => isDoneStatus(task.status)).length}/
                   {tasks.length}
                   {tasks.length > 0 && (
@@ -2056,11 +2302,9 @@ export const ProjectFormPage: React.FC = () => {
                                         >
                                           <input
                                             type="checkbox"
-                                            checked={(task.assignees || []).includes(
-                                              u.fullName,
-                                            )}
+                                            checked={isTaskAssigneeSelected(task.assignees, u)}
                                             onChange={() =>
-                                              toggleTaskAssignee(task.id, u.fullName)
+                                              toggleTaskAssignee(task.id, u)
                                             }
                                           />
                                           <span className="text-xs text-slate-800">
@@ -2216,33 +2460,48 @@ export const ProjectFormPage: React.FC = () => {
               )}
             </div>
           </div>
-        )}
 
-        {/* Вкладка Комментарии */}
-        {tab === 'comments' && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
+              <div style={{ marginTop: 24, marginBottom: 12 }}>
+                <span
+                  style={{
+                    fontFamily: FM,
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: FG3,
+                  }}
+                >
+                  {t('crm.projects.detail.tabs.comments')}
+                </span>
+              </div>
+          <div
+            className="rounded-3xl p-4 space-y-4"
+            style={{ border: `1px solid ${LINE}`, background: '#fff' }}
+          >
             <div className="space-y-3">
               {comments.map((c) => (
                 <div
                   key={c.id}
-                  className="rounded-2xl bg-slate-950/80 border border-slate-800/80 px-3 py-2 text-sm text-slate-100"
+                  className="rounded-2xl px-3 py-2 text-sm"
+                  style={{ border: `1px solid ${LINE}`, background: BG_MUTED, color: INK }}
                 >
                   {(() => {
                     const mentions = c.mentions ?? extractMentions(c.text || '');
                     return (
                       <>
-                        <div className="text-[11px] text-slate-500 mb-1">
+                        <div className="text-[11px] mb-1" style={{ color: FG3 }}>
                           {c.createdAt} · {c.author}
                         </div>
                         <div className="whitespace-pre-wrap text-[13px]">
                           {renderMentions(c.text)}
                         </div>
                         {mentions.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-1 text-[11px] text-slate-400">
+                          <div className="mt-2 flex flex-wrap gap-1 text-[11px]" style={{ color: FG3 }}>
                             {mentions.map((m) => (
                               <span
                                 key={m}
-                                className="inline-flex items-center rounded-full border border-slate-700/80 bg-slate-900/80 px-2 py-0.5"
+                                className="inline-flex items-center rounded-full px-2 py-0.5 bg-white"
+                                style={{ border: `1px solid ${LINE}` }}
                               >
                                 @{m}
                               </span>
@@ -2256,100 +2515,138 @@ export const ProjectFormPage: React.FC = () => {
               ))}
 
               {comments.length === 0 && (
-                <div className="text-[11px] text-slate-500 italic">
+                <div className="text-[11px] italic" style={{ color: FG4 }}>
                   {t('crm.projects.detail.comments.empty')}
                 </div>
               )}
             </div>
 
-            <div className="border-t border-slate-800/80 pt-3 space-y-2">
+            <div className="border-t pt-3 space-y-2" style={{ borderColor: LINE }}>
               <textarea
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 placeholder={t('crm.projects.detail.comments.newPlaceholder')}
                 rows={3}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none focus:border-lumiva-accent-soft resize-none"
+                className={inpCls + ' resize-y min-h-[80px]'}
               />
               <button
                 type="button"
                 onClick={addComment}
-                className="px-3 py-1.5 text-xs rounded-xl !bg-slate-900 !text-white font-semibold hover:!bg-slate-800"
+                style={{
+                  padding: '8px 16px',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  borderRadius: 8,
+                  border: `1px solid ${INK}`,
+                  background: INK,
+                  color: '#fff',
+                  cursor: 'pointer',
+                }}
               >
                 {t('crm.projects.detail.actions.add')}
               </button>
             </div>
 
-            <div className="border-t border-slate-800/80 pt-3 space-y-2">
-              <div className="text-xs text-slate-400">
+            <div className="border-t pt-3 space-y-2" style={{ borderColor: LINE }}>
+              <div className="text-xs" style={{ color: FG3 }}>
                 {t('crm.projects.detail.comments.draftTitle')}
               </div>
               <div className="flex gap-2">
                 <input
                   placeholder={t('crm.projects.detail.comments.draftPlaceholder')}
-                  className="flex-1 px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none"
+                  className={inpCls + ' flex-1'}
                 />
                 <button
                   type="button"
-                  className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-300 hover:bg-slate-900/70"
+                  style={{
+                    padding: '7px 14px',
+                    fontSize: 12,
+                    borderRadius: 8,
+                    border: `1px solid ${LINE}`,
+                    background: '#fff',
+                    color: FG2,
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
                 >
                   {t('crm.projects.detail.actions.send')}
                 </button>
               </div>
             </div>
           </div>
-        )}
 
-        {/* Вкладка История */}
-        {tab === 'history' && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
+              <div style={{ marginTop: 24, marginBottom: 12 }}>
+                <span
+                  style={{
+                    fontFamily: FM,
+                    fontSize: 10,
+                    letterSpacing: '0.12em',
+                    textTransform: 'uppercase',
+                    color: FG3,
+                  }}
+                >
+                  {t('crm.projects.detail.tabs.history')}
+                </span>
+              </div>
+          <div
+            className="rounded-3xl p-4 space-y-4"
+            style={{ border: `1px solid ${LINE}`, background: '#fff' }}
+          >
             {!!activities.length && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
-                  <div className="text-[10px] text-slate-500">
+                <div className="rounded-xl px-3 py-2 bg-white" style={{ border: `1px solid ${LINE}` }}>
+                  <div className="text-[10px]" style={{ color: FG3 }}>
                     {t('crm.projects.detail.history.summary.events')}
                   </div>
-                  <div className="text-sm font-semibold text-slate-100">{activities.length}</div>
+                  <div className="text-sm font-semibold" style={{ color: INK }}>
+                    {activities.length}
+                  </div>
                 </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
-                  <div className="text-[10px] text-slate-500">
+                <div className="rounded-xl px-3 py-2 bg-white" style={{ border: `1px solid ${LINE}` }}>
+                  <div className="text-[10px]" style={{ color: FG3 }}>
                     {t('crm.projects.detail.history.summary.amountChanges')}
                   </div>
-                  <div className="text-sm font-semibold text-slate-100">{amountHistory.length}</div>
+                  <div className="text-sm font-semibold" style={{ color: INK }}>
+                    {amountHistory.length}
+                  </div>
                 </div>
-                <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-2">
-                  <div className="text-[10px] text-slate-500">
+                <div className="rounded-xl px-3 py-2 bg-white" style={{ border: `1px solid ${LINE}` }}>
+                  <div className="text-[10px]" style={{ color: FG3 }}>
                     {t('crm.projects.detail.history.summary.lastUpdate')}
                   </div>
-                  <div className="text-sm font-semibold text-slate-100">
+                  <div className="text-sm font-semibold" style={{ color: INK }}>
                     {new Date(activities[0]?.createdAt).toLocaleString(locale)}
                   </div>
                 </div>
               </div>
             )}
             {!!amountHistory.length && (
-              <div className="rounded-2xl border border-slate-800/80 bg-slate-950/80 p-3 space-y-1.5">
-                <div className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
+              <div
+                className="rounded-2xl p-3 space-y-1.5"
+                style={{ border: `1px solid ${LINE}`, background: BG_MUTED }}
+              >
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', color: FG3 }}>
                   {t('crm.projects.detail.history.amountTitle')}
                 </div>
                 {amountHistory.slice(0, 5).map((entry) => (
-                  <div key={entry.id} className="text-[11px] text-slate-300">
-                    {new Date(entry.at).toLocaleString(locale)} · {entry.actor}: {' '}
-                    <span className="text-slate-400">{formatHistoryValue(entry.from)}</span> →{' '}
-                    <span className="text-slate-100">{formatHistoryValue(entry.to)}</span>
+                  <div key={entry.id} className="text-[11px]" style={{ color: FG2 }}>
+                    {new Date(entry.at).toLocaleString(locale)} · {entry.actor}:{' '}
+                    <span style={{ color: FG3 }}>{formatHistoryFieldValue('amount', entry.from)}</span> →{' '}
+                    <span style={{ color: INK }}>{formatHistoryFieldValue('amount', entry.to)}</span>
                   </div>
                 ))}
               </div>
             )}
             {activitiesLoading && (
-              <div className="text-[11px] text-slate-500">
+              <div className="text-[11px]" style={{ color: FG4 }}>
                 {t('crm.projects.detail.history.loading')}
               </div>
             )}
             {activitiesError && (
-              <div className="text-[11px] text-rose-400">{activitiesError}</div>
+              <div className="text-[11px] text-rose-600">{activitiesError}</div>
             )}
             {!activitiesLoading && !activities.length && (
-              <div className="text-[11px] text-slate-500 italic">
+              <div className="text-[11px] italic" style={{ color: FG4 }}>
                 {t('crm.projects.detail.history.empty')}
               </div>
             )}
@@ -2358,32 +2655,43 @@ export const ProjectFormPage: React.FC = () => {
                 const label = activityLabels[activity.action] ?? activity.action;
                 const actor =
                   activity.actorName || activity.actorEmail || t('crm.projects.detail.fallbacks.user');
-                const changes = activity.payload?.changes ?? [];
+                const changesRaw = activity.payload?.changes ?? [];
+                const changes = changesRaw.filter(
+                  (c: { field?: string; from?: unknown; to?: unknown }) =>
+                    c?.field &&
+                    !historyValuesEqual(c.field, c.from, c.to) &&
+                    !(activity.action === 'status_change' && c.field === 'status'),
+                );
+                const statusPayload = activity.payload as { from?: unknown; to?: unknown } | undefined;
+                const showStatusDiff =
+                  activity.action === 'status_change' &&
+                  statusPayload &&
+                  !historyValuesEqual('status', statusPayload.from, statusPayload.to);
                 return (
                   <div
                     key={activity.id}
-                    className="rounded-2xl border border-slate-800/80 bg-slate-950/80 px-3 py-2 text-sm text-slate-100"
+                    className="rounded-2xl px-3 py-2 text-sm"
+                    style={{ border: `1px solid ${LINE}`, background: BG_MUTED, color: INK }}
                   >
-                    <div className="text-[11px] text-slate-500 mb-1">
+                    <div className="text-[11px] mb-1" style={{ color: FG3 }}>
                       {new Date(activity.createdAt).toLocaleString(locale)} · {actor}
                     </div>
-                    <div className="text-[12px] text-slate-200 font-semibold">
-                      {label}
-                    </div>
-                    {activity.action === 'status_change' && activity.payload && (
-                      <div className="text-[11px] text-slate-400 mt-1">
-                        {activity.payload.from} → {activity.payload.to}
+                    <div className="text-[12px] font-semibold">{label}</div>
+                    {showStatusDiff && (
+                      <div className="text-[11px] mt-1" style={{ color: FG3 }}>
+                        {formatHistoryFieldValue('status', statusPayload.from)} →{' '}
+                        {formatHistoryFieldValue('status', statusPayload.to)}
                       </div>
                     )}
                     {changes.length > 0 && (
-                      <div className="mt-2 space-y-1 text-[11px] text-slate-400">
+                      <div className="mt-2 space-y-1 text-[11px]" style={{ color: FG2 }}>
                         {changes.map((change: any, idx: number) => (
                           <div key={`${change.field}-${idx}`}>
-                            <span className="text-slate-300">
+                            <span style={{ color: FG3 }}>
                               {activityFieldLabels[change.field] ?? change.field}:
                             </span>{' '}
-                            <span>{formatHistoryValue(change.from)}</span> →{' '}
-                            <span>{formatHistoryValue(change.to)}</span>
+                            <span>{formatHistoryFieldValue(change.field, change.from)}</span> →{' '}
+                            <span>{formatHistoryFieldValue(change.field, change.to)}</span>
                           </div>
                         ))}
                       </div>
@@ -2393,7 +2701,299 @@ export const ProjectFormPage: React.FC = () => {
               })}
             </div>
           </div>
+
+            </div>
+
+            <div className="lg:sticky lg:top-6" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, marginBottom: 12 }}>
+                  {t('crm.leads.form.sections.actionsTitle')}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {[
+                    {
+                      key: 'email',
+                      label: t('crm.leads.form.actions.email'),
+                      onClick: () => {
+                        setEmailTo(project.leadEmail || '');
+                        setEmailOpen(true);
+                      },
+                      svg: (
+                        <>
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <path d="M3 7l9 6 9-6" />
+                        </>
+                      ),
+                    },
+                    {
+                      key: 'meeting',
+                      label: t('crm.leads.form.actions.meeting'),
+                      onClick: () => setCalendarModal('meeting'),
+                      svg: (
+                        <>
+                          <rect x="3" y="4" width="18" height="18" rx="2" />
+                          <path d="M3 10h18M8 2v4M16 2v4" />
+                        </>
+                      ),
+                    },
+                    {
+                      key: 'task',
+                      label: t('crm.leads.form.actions.task'),
+                      onClick: () => setCalendarModal('note'),
+                      svg: (
+                        <>
+                          <path d="M9 11l3 3L22 4" />
+                          <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                        </>
+                      ),
+                    },
+                    {
+                      key: 'auto',
+                      label: t('crm.leads.form.actions.automation'),
+                      onClick: () => navigate('/automations'),
+                      svg: <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />,
+                    },
+                  ].map(({ key, label, onClick, svg }) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={onClick}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '12px 8px',
+                        border: `1px solid ${LINE}`,
+                        borderRadius: 10,
+                        background: '#fff',
+                        cursor: 'pointer',
+                        fontSize: 11,
+                        color: FG2,
+                        transition: 'all 0.15s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = INK;
+                        e.currentTarget.style.color = INK;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = LINE;
+                        e.currentTarget.style.color = FG2;
+                      }}
+                    >
+                      <svg
+                        width={18}
+                        height={18}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.5}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        {svg}
+                      </svg>
+                      {label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => navigate('/integrations-hub')}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '12px 8px',
+                      border: `1px solid ${LINE}`,
+                      borderRadius: 10,
+                      background: '#fff',
+                      cursor: 'pointer',
+                      fontSize: 11,
+                      color: FG2,
+                      transition: 'all 0.15s',
+                      gridColumn: 'span 2',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = INK;
+                      e.currentTarget.style.color = INK;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = LINE;
+                      e.currentTarget.style.color = FG2;
+                    }}
+                  >
+                    <svg
+                      width={18}
+                      height={18}
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth={1.5}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7L11 7" />
+                      <path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7L13 17" />
+                    </svg>
+                    {t('crm.leads.form.actions.integrations')}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, marginBottom: 12 }}>
+                  {t('crm.projects.detail.owner.byDepartment')}
+                </div>
+                <div style={{ fontFamily: FM, fontSize: 10, color: FG4, marginBottom: 8 }}>
+                  {t('crm.projects.detail.owner.selected', {
+                    count: (project.ownerUserIds || []).length,
+                  })}
+                </div>
+                <div className="max-h-52 overflow-y-auto space-y-2 pr-1">
+                  {ownerDepartmentGroups.map((group) => {
+                    const groupIds = group.users.map((u) => u.id);
+                    const selectedInGroup = groupIds.filter((id) =>
+                      (project.ownerUserIds || []).includes(id),
+                    ).length;
+                    const allChecked = selectedInGroup > 0 && selectedInGroup === groupIds.length;
+                    return (
+                      <div
+                        key={group.department}
+                        style={{
+                          borderRadius: 8,
+                          border: `1px solid ${LINE}`,
+                          background: BG_MUTED,
+                          padding: 8,
+                        }}
+                      >
+                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                          <div style={{ fontSize: 11, fontWeight: 600, color: INK }} className="truncate">
+                            {group.department}
+                          </div>
+                          <label className="flex items-center gap-1 text-[10px]" style={{ color: FG3 }}>
+                            <input
+                              type="checkbox"
+                              checked={allChecked}
+                              onChange={(e) =>
+                                toggleOwnerDepartment(group.department, e.target.checked)
+                              }
+                            />
+                            {t('crm.projects.detail.owner.wholeDepartment')}
+                          </label>
+                        </div>
+                        <div className="space-y-1">
+                          {group.users.map((u) => {
+                            const checked = (project.ownerUserIds || []).includes(u.id);
+                            return (
+                              <label
+                                key={u.id}
+                                className="flex items-center gap-2 text-[11px]"
+                                style={{ color: FG2 }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={(e) => toggleOwnerUser(u.id, e.target.checked)}
+                                />
+                                <span className="truncate">
+                                  {u.fullName}
+                                  {u.email ? ` · ${u.email}` : ''}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, marginBottom: 14 }}>
+                  {t('crm.leads.form.sections.timelineTitle')}
+                </div>
+                {isNew && (
+                  <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>
+                    {t('crm.leads.form.sections.projectsNeedSave')}
+                  </div>
+                )}
+                {!isNew && activitiesLoading && (
+                  <div style={{ fontSize: 11, color: FG4 }}>{t('crm.projects.detail.history.loading')}</div>
+                )}
+                {activitiesError && (
+                  <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 8 }}>{activitiesError}</div>
+                )}
+                {!isNew && !activitiesLoading && activities.length === 0 && (
+                  <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>
+                    {t('crm.projects.detail.history.empty')}
+                  </div>
+                )}
+                {!isNew && activities.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {activities.slice(0, 12).map((activity) => {
+                      const label = activityLabels[activity.action] ?? activity.action;
+                      const actor =
+                        activity.actorName ||
+                        activity.actorEmail ||
+                        t('crm.projects.detail.fallbacks.user');
+                      return (
+                        <div
+                          key={activity.id}
+                          style={{ padding: '10px 0', borderBottom: `1px solid ${LINE3}` }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, marginBottom: 3 }}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                fontSize: 10,
+                                background: BG_MUTED,
+                                border: `1px solid ${LINE}`,
+                                borderRadius: 999,
+                                padding: '2px 7px',
+                                color: FG2,
+                              }}
+                            >
+                              {label}
+                            </span>
+                            <span style={{ fontFamily: FM, fontSize: 9.5, color: FG4 }}>
+                              {new Date(activity.createdAt).toLocaleString(locale)}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 11, color: FG3 }}>{actor}</div>
+                          {activity.action === 'status_change' &&
+                            activity.payload &&
+                            !historyValuesEqual(
+                              'status',
+                              (activity.payload as { from?: unknown }).from,
+                              (activity.payload as { to?: unknown }).to,
+                            ) && (
+                              <div style={{ fontSize: 11, color: FG3, marginTop: 2 }}>
+                                {formatHistoryFieldValue(
+                                  'status',
+                                  (activity.payload as { from?: unknown }).from,
+                                )}{' '}
+                                →{' '}
+                                {formatHistoryFieldValue(
+                                  'status',
+                                  (activity.payload as { to?: unknown }).to,
+                                )}
+                              </div>
+                            )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         )}
+      </div>
+
         {customFieldsOpen && (
           <CustomFieldsManager
             entityType="project"
@@ -2406,7 +3006,172 @@ export const ProjectFormPage: React.FC = () => {
             }}
           />
         )}
-      </div>
+
+        {emailOpen && (
+          <div
+            className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+            style={{ background: 'rgba(0,0,0,0.5)' }}
+          >
+            <div
+              style={{
+                background: '#fff',
+                borderRadius: 20,
+                width: '100%',
+                maxWidth: 560,
+                maxHeight: '92vh',
+                overflowY: 'auto',
+                boxShadow: '0 30px 80px rgba(0,0,0,0.20)',
+                fontFamily: FF,
+              }}
+            >
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '18px 24px',
+                  borderBottom: `1px solid ${LINE}`,
+                }}
+              >
+                <h3 style={{ fontFamily: FF, fontSize: 17, fontWeight: 500, color: INK }}>
+                  {t('crm.leads.form.email.title')}
+                </h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setEmailOpen(false)}
+                    style={{
+                      padding: '7px 16px',
+                      fontSize: 13,
+                      borderRadius: 8,
+                      border: `1px solid ${LINE}`,
+                      background: '#fff',
+                      color: FG2,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {t('crm.common.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSendEmail}
+                    disabled={emailSending}
+                    style={{
+                      padding: '7px 16px',
+                      fontSize: 13,
+                      fontWeight: 500,
+                      borderRadius: 8,
+                      border: `1px solid ${INK}`,
+                      background: INK,
+                      color: '#fff',
+                      cursor: 'pointer',
+                      opacity: emailSending ? 0.65 : 1,
+                    }}
+                  >
+                    {emailSending ? t('crm.leads.form.email.sending') : t('crm.leads.form.email.send')}
+                  </button>
+                </div>
+              </div>
+              <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <label style={lblInline}>{t('crm.leads.form.email.title').toUpperCase()}</label>
+                  {emailAccounts.length === 0 ? (
+                    <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>
+                      {t('crm.leads.form.email.noAccounts')}{' '}
+                      <a href="/email" style={{ color: INK }}>
+                        {t('crm.leads.form.email.connectAccounts')}
+                      </a>
+                    </div>
+                  ) : (
+                    <select
+                      value={emailAccountId}
+                      onChange={(e) => setEmailAccountId(e.target.value)}
+                      style={inlineInp}
+                    >
+                      {emailAccounts.map((acc) => (
+                        <option key={acc.id} value={acc.id}>
+                          {acc.email}
+                          {acc.name ? ` · ${acc.name}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+                <div>
+                  <label style={lblInline}>{t('crm.leads.form.email.to').toUpperCase()}</label>
+                  <input
+                    type="email"
+                    value={emailTo}
+                    onChange={(e) => setEmailTo(e.target.value)}
+                    placeholder="email@..."
+                    style={inlineInp}
+                  />
+                </div>
+                <div>
+                  <label style={lblInline}>{t('crm.leads.form.email.subject').toUpperCase()}</label>
+                  <input
+                    type="text"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    style={inlineInp}
+                  />
+                </div>
+                <div>
+                  <label style={lblInline}>{t('crm.leads.form.email.body').toUpperCase()}</label>
+                  <textarea
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    rows={10}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      fontSize: 13,
+                      border: `1px solid ${LINE}`,
+                      borderRadius: 10,
+                      background: '#fff',
+                      color: INK,
+                      outline: 'none',
+                      resize: 'vertical',
+                      minHeight: 200,
+                      boxSizing: 'border-box',
+                      fontFamily: 'inherit',
+                    }}
+                  />
+                </div>
+                {emailError && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      color: '#ef4444',
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      background: '#fef2f2',
+                      border: '1px solid #fecaca',
+                    }}
+                  >
+                    {emailError}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {calendarModal && (
+          <CalendarEntryModal
+            initialKind={calendarModal}
+            preselectedLeadId={project.leadId || undefined}
+            preselectedLeadName={project.leadName || undefined}
+            onClose={() => setCalendarModal(null)}
+            onSaved={() => {
+              showSuccess(
+                calendarModal === 'meeting'
+                  ? t('crm.leads.form.messages.meetingCreated')
+                  : t('crm.leads.form.messages.noteCreated'),
+              );
+            }}
+          />
+        )}
     </MainLayout>
   );
 };

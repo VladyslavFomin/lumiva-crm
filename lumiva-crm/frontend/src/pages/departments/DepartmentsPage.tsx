@@ -9,6 +9,7 @@ import {
   type Department,
 } from '../../api/departments';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 // Функция для получения инициалов
 const getInitials = (fullName: string): string => {
@@ -232,6 +233,7 @@ const DepartmentLevel: React.FC<DepartmentLevelProps> = ({
 
 export const DepartmentsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const navigate = useNavigate();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allStaff, setAllStaff] = useState<StaffUser[]>([]);
@@ -267,7 +269,9 @@ export const DepartmentsPage: React.FC = () => {
       await deleteDepartment(id);
       await loadData();
     } catch (err: any) {
-      alert(err.message || t('crm.departments.errors.deleteFailed'));
+      showAlert(err.message || t('crm.departments.errors.deleteFailed'), {
+        variant: 'error',
+      });
     }
   };
 

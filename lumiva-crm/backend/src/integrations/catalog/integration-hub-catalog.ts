@@ -274,7 +274,7 @@ export const INTEGRATION_HUB_CATALOG: IntegrationHubCatalogEntry[] = [
   {
     id: 'google_sheets',
     lifecycle: 'live',
-    modules: ['workspace', 'leads', 'sales', 'projects', 'automations'],
+    modules: ['workspace', 'leads', 'automations'],
     capabilities: {
       outboundAutomationActions: false,
       inboundWebhook: false,
@@ -311,6 +311,20 @@ export const INTEGRATION_HUB_CATALOG: IntegrationHubCatalogEntry[] = [
       workspaceTableSync: false,
       calendarSync: false,
       leadCapture: false,
+    },
+  },
+  {
+    id: 'email',
+    lifecycle: 'live',
+    modules: ['workspace', 'leads', 'automations', 'email'],
+    capabilities: {
+      outboundAutomationActions: true,
+      inboundWebhook: false,
+      oauthPlatformSupported: false,
+      salesImport: false,
+      workspaceTableSync: false,
+      calendarSync: false,
+      leadCapture: true,
     },
   },
 ];

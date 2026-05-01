@@ -13,6 +13,7 @@ import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { Automation, TriggerEvent } from './automation.entity';
 import { AutomationExecution } from './automation-execution.entity';
+import { Lead } from '../leads/lead.entity';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { EmailService } from '../email/email.service';
@@ -24,6 +25,7 @@ import { CompaniesService } from '../companies/companies.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { MarketingService } from '../marketing/marketing.service';
 import type { RunAutomationNowDto } from './dto/run-automation-now.dto';
+import { CustomObjectsService } from '../custom-objects/custom-objects.service';
 
 @Injectable()
 export class AutomationsService {
@@ -33,6 +35,8 @@ export class AutomationsService {
     private readonly automationRepo: Repository<Automation>,
     @InjectRepository(AutomationExecution)
     private readonly executionRepo: Repository<AutomationExecution>,
+    @InjectRepository(Lead)
+    private readonly leadRepo: Repository<Lead>,
     @Inject(forwardRef(() => EmailService))
     private readonly emailService: EmailService,
     @Inject(forwardRef(() => TelegramCrmService))
@@ -44,6 +48,8 @@ export class AutomationsService {
     private readonly reportsService: ReportsService,
     private readonly integrationsService: IntegrationsService,
     private readonly marketingService: MarketingService,
+    @Inject(forwardRef(() => CustomObjectsService))
+    private readonly customObjectsService: CustomObjectsService,
   ) {}
 
   /**
@@ -493,6 +499,34 @@ export class AutomationsService {
   }
 
   /**
+   * Для расписания с привязкой к лиду (meta.contextLeadId) — подмешиваем лид в triggerData,
+   * чтобы send_email и шаблоны получали {{lead.*}} и адрес из карточки.
+   */
+  private async mergeScheduledLeadContext(
+    automation: Automation,
+    triggerData: any,
+  ): Promise<any> {
+    const leadId = automation.meta?.contextLeadId as string | undefined;
+    if (!leadId || typeof leadId !== 'string') {
+      return triggerData;
+    }
+    const lead = await this.leadRepo.findOne({
+      where: { id: leadId, tenantId: automation.tenantId },
+    });
+    if (!lead) {
+      return triggerData;
+    }
+    return {
+      ...triggerData,
+      leadId: lead.id,
+      entityType: 'lead',
+      entityId: lead.id,
+      email: lead.email || triggerData.email,
+      lead: lead as any,
+    };
+  }
+
+  /**
    * Выполнить автоматизацию
    */
   private async executeAutomation(
@@ -500,17 +534,26 @@ export class AutomationsService {
     event: TriggerEvent,
     triggerData: any,
   ): Promise<void> {
-    // Добавляем tenantId в triggerData если его нет
-    if (!triggerData.tenantId) {
-      triggerData.tenantId = automation.tenantId;
+    let effectiveTriggerData =
+      typeof triggerData === 'object' && triggerData !== null && !Array.isArray(triggerData)
+        ? { ...triggerData }
+        : { _raw: triggerData };
+    if (!effectiveTriggerData.tenantId) {
+      effectiveTriggerData.tenantId = automation.tenantId;
+    }
+    if (event === TriggerEvent.SCHEDULED && automation.meta?.contextLeadId) {
+      effectiveTriggerData = await this.mergeScheduledLeadContext(
+        automation,
+        effectiveTriggerData,
+      );
     }
     const execution = this.executionRepo.create({
       tenantId: automation.tenantId,
       automationId: automation.id,
       triggerEvent: event,
-      triggerData,
-      entityType: triggerData?.entityType || null,
-      entityId: triggerData?.entityId || null,
+      triggerData: effectiveTriggerData,
+      entityType: effectiveTriggerData?.entityType || null,
+      entityId: effectiveTriggerData?.entityId || null,
       status: 'pending',
       actionsExecuted: 0,
     });
@@ -526,9 +569,11 @@ export class AutomationsService {
     let firstError: string | null = null;
 
     let ctx: any =
-      typeof triggerData === 'object' && triggerData !== null && !Array.isArray(triggerData)
-        ? { ...triggerData }
-        : { _trigger: triggerData };
+      typeof effectiveTriggerData === 'object' &&
+      effectiveTriggerData !== null &&
+      !Array.isArray(effectiveTriggerData)
+        ? { ...effectiveTriggerData }
+        : { _trigger: effectiveTriggerData };
 
     for (let i = 0; i < automation.actions.length; i++) {
       const action = automation.actions[i];
@@ -1771,6 +1816,40 @@ export class AutomationsService {
           textBody: this.stripHtml(html),
           attachments,
         } as any);
+      }
+
+      case 'create_custom_object_record': {
+        const targetObjectId = String(config.targetObjectId || '').trim();
+        if (!targetObjectId) {
+          throw new Error('create_custom_object_record: targetObjectId is required');
+        }
+        const sourceObjectId = triggerData.objectId;
+        const recordId = triggerData.recordId;
+        if (!sourceObjectId || !recordId) {
+          throw new Error(
+            'create_custom_object_record: use a custom object record trigger (objectId and recordId)',
+          );
+        }
+        const fieldMap =
+          config.fieldMap && typeof config.fieldMap === 'object'
+            ? (config.fieldMap as Record<string, string>)
+            : undefined;
+        const duplicateKeyTargetField =
+          config.duplicateKeyTargetField != null
+            ? String(config.duplicateKeyTargetField).trim() || null
+            : null;
+        const skipDuplicates = config.skipDuplicates !== false;
+        const omitAutoTargetKeys = Array.isArray(config.omitAutoTargetKeys)
+          ? (config.omitAutoTargetKeys as unknown[]).map((x) => String(x || '').trim()).filter(Boolean)
+          : undefined;
+        return await this.customObjectsService.pushRecordsToBoard(tenantId, String(sourceObjectId), {
+          targetObjectId,
+          recordIds: [String(recordId)],
+          fieldMap,
+          omitAutoTargetKeys,
+          duplicateKeyTargetField,
+          skipDuplicates,
+        });
       }
 
       default:

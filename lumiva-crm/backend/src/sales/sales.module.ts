@@ -14,6 +14,7 @@ import { SalesController } from './sales.controller';
 import { SalesImportController } from './sales-import.controller';
 import { SalesImportService } from './sales-import.service';
 import { AutomationsModule } from '../automations/automations.module';
+import { LeadsModule } from '../leads/leads.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { AutomationsModule } from '../automations/automations.module';
     ]),
     CustomFieldsModule,
     forwardRef(() => AutomationsModule),
+    forwardRef(() => LeadsModule),
   ],
   controllers: [SalesController, SalesImportController],
   providers: [SalesService, SalesImportService],

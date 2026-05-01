@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import {
@@ -16,6 +16,7 @@ import {
   type SmmProfileLastStat,
 } from '../../api/smm';
 import { getLocale } from '../../i18n/utils';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
 
 import {
   ResponsiveContainer,
@@ -102,7 +103,6 @@ export const SmmPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     startX: number;
@@ -393,19 +393,19 @@ export const SmmPage: React.FC = () => {
     });
   };
 
-  const handleColumnDrop = (targetId: string) => {
-    if (!dragColumnId || dragColumnId === targetId) return;
+  const reorderColumns = useCallback((dragId: string, targetId: string) => {
     setColumnOrder((prev) => {
       const next = [...prev];
-      const from = next.indexOf(dragColumnId);
+      const from = next.indexOf(dragId);
       const to = next.indexOf(targetId);
       if (from === -1 || to === -1) return prev;
       next.splice(from, 1);
-      next.splice(to, 0, dragColumnId);
+      next.splice(to, 0, dragId);
       return next;
     });
-    setDragColumnId(null);
-  };
+  }, []);
+
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'light');
 
   const renderProfileCell = (
     p: SmmProfile,
@@ -1410,26 +1410,28 @@ export const SmmPage: React.FC = () => {
                           return (
                             <th
                               key={col.id}
-                              draggable
-                              onDragStart={(e) => {
-                                setDragColumnId(col.id);
-                                e.dataTransfer.effectAllowed = 'move';
-                                e.dataTransfer.setData('text/plain', col.id);
-                              }}
-                              onDragEnd={() => setDragColumnId(null)}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={() => handleColumnDrop(col.id)}
-                              className={`py-1.5 px-3 font-normal relative group ${
-                                alignRight ? 'text-right' : 'text-left'
-                              }`}
+                              {...columnDrag.getThProps(
+                                col.id,
+                                typeof col.label === 'string' ? col.label : String(col.label),
+                                `py-1.5 px-3 font-normal relative group/colhdr select-none transition-colors duration-150 ${
+                                  alignRight ? 'text-right' : 'text-left'
+                                }`,
+                              )}
                               style={{ width, minWidth: width }}
                             >
-                              <div className="flex items-center gap-2">
-                                <span className="cursor-move">⋮⋮</span>
+                              <div
+                                className={`flex min-h-[28px] items-center gap-2 ${
+                                  alignRight ? 'justify-end' : ''
+                                }`}
+                              >
+                                <span className="text-[10px] text-neutral-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                                  ⋮⋮
+                                </span>
                                 <span>{col.label}</span>
                               </div>
                               <div
-                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                                data-col-resize
+                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover/colhdr:opacity-100"
                                 onMouseDown={(e) => startResize(col.id, e)}
                               />
                             </th>

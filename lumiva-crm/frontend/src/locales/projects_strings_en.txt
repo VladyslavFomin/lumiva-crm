@@ -1,0 +1,352 @@
+#crm #retail
++{{count}} more
+1 year
+10 000 EUR
+13.03.2026
+20.03.2026
+30 days
+65%
+7 days
+ADS
+CRM
+Custom
+Lead email
+IT
+SEO
+SMM
+WEB
+{{amount}} {{currency}}
+{{count}} projects • {{amount}}
+Active projects with status “In progress”. Track amounts and owners.
+Analytics
+Project analytics
+Project archive
+Archive
+Archive projects
+No grouping
+No name
+No category
+No company
+No lead
+Untitled
+No owner
+No department
+Upcoming deadlines
+Quick edit
+Budget
+No projects in archive yet.
+No projects in trash yet.
+In progress
+Currency
+You were mentioned in a task
+Whole department
+On
+Restore
+Total
+All time
+All tasks
+All project tasks. Owners see everything, managers see their own tasks.
+All companies
+All owners
+All projects
+All projects in trash will be permanently deleted.
+All projects with status “New”. Summary stats and table below.
+All task statuses
+Total projects
+Total: {{count}}
+Total: {{count}} • Amount: {{amount}}
+Tue
+You can quickly change statuses, archive or delete selected projects.
+Select a value
+Select card fields to show:
+Select a project
+Select at least one field
+Selected: {{count}}
+Won
+Off
+Expression
+High urgency
+High
+High priority
+Flexible dashboard by statuses, categories, managers and amounts.
+Done
+Chart
+Group by status
+Grouping: Company
+Grouping: Owner
+Grouping: Status
+SHARE
+Yes
+Date
+Created date
+Deadline
+Actions
+Add
+Add block
+Add task
+Add column
+Add condition
+Blocked
+Completed projects
+Completed projects
+No completed projects yet.
+Loading tasks…
+Loading closed projects…
+Loading history…
+Loading new projects…
+Loading in-progress projects…
+Loading projects…
+Loading project data…
+Loading fields...
+Loading projects…
+No tasks yet
+No tasks yet.
+Task
+Tasks
+Project tasks
+Project tasks
+Tasks with a past deadline not moved to “Done”.
+Closed
+Close settings
+Project notes
+Frozen
+Value
+Left value
+Right value
+Amount changes
+Change owners
+Change status
+Status changed
+Lead name (you can edit manually)
+Assignees
+History
+Change history is empty.
+Amount history
+To do
+Calendar
+Calendar (copy)
+Calendar of project task deadlines, owners and budgets
+Kanban
+Kanban (copy)
+Custom fields
+Project custom fields
+Categories
+Categories
+Category
+Count
+Colleague
+Columns
+No comments yet
+Comments
+Compact
+Company
+Builder
+Analytics builder
+Contact
+Context, agreements, risks, things not to forget…
+Duplicate tab
+Project trash
+Left part
+Lead
+Marketing
+Manager
+Manager: Anna
+Tab menu
+Month
+Tags
+Metric
+We will reset analytics to the initial view. You can change settings again.
+In review
+Back to project list
+Block name
+View name
+Task title
+Project name
+File name / document type (e.g. site brief)
+Configure
+Kanban card settings
+Settings
+Block settings
+Widget settings
+Table settings
+Failed to load project analytics
+Failed to load project tasks
+Failed to load closed projects
+Failed to load history
+Failed to load custom fields
+Failed to load new projects
+Failed to load in-progress projects
+Failed to load overdue tasks
+Failed to change project status
+Week
+Unknown
+No
+No tasks with deadlines
+No projects
+No overdue tasks.
+Low urgency
+Low
+Low priority
+New task
+New task: title
+New table
+New projects
+New
+New block
+New analytics block
+New calendar
+New kanban
+New comment… you can @mention a manager
+New project
+Project updated
+Normal urgency
+Normal
+Normal priority
+Bulk project edit window
+Project description
+Owners
+Owners ({{count}})
+Owners by department
+Owner
+No owner assigned
+Open
+Deferred
+Cancel
+Send
+Empty trash
+Empty project trash?
+Failed to load project
+Failed to load projects
+Failed to delete project
+Failed to save project
+PERCENT
+Drag cards between columns to change project status.
+Drag to reorder
+Period
+Mon
+Subtask…
+Search tasks
+Search staff
+No blocks yet. Add the first one with the button above.
+No projects with status “New” yet.
+Shown: {{count}}
+Show labels
+No fields. Add them in settings.
+Donut
+OK
+Last update
+Right part
+Apply
+Sample project card
+Priority
+Progress
+Task progress
+Project
+Project "{{name}}" will be permanently deleted.
+Project #{{id}}
+Project archived
+Project restored
+Project unarchived
+Project created
+Project saved
+Project deleted
+Projects
+No in-progress projects yet.
+No projects yet
+Projects · Analytics
+Projects · In progress
+Projects · Won/Lost
+Projects · Tasks
+Projects · Kanban
+Projects · New
+Projects · Overdue tasks
+Projects · Table
+In-progress projects
+Projects by category
+Projects by manager
+Projects by status
+Projects by tag
+Projects with status “Won” or “Lost”. Track final amounts and owners here.
+Projects that were archived.
+Projects that were deleted.
+Lost
+Overdue tasks
+Overdue (days)
+Percent
+Fri
+DIFFERENCE
+Unarchive
+Size
+Development
+Advertising
+SUMIF (condition)
+COUNT
+Sat
+Reset
+Reset blocks
+Reset dashboard?
+Clear filters
+Properties
+Move left
+Move right
+Hide column
+Next we will add column, density and grouping settings in this same window.
+Clear selection
+Build a dashboard: metrics, charts, tables.
+Events in history
+Created
+Project created
+Created: 24.09.2025, 03:00:00
+No staff found
+Saving…
+Save
+Project list: status, amount, owner and created date
+Overdue list
+Wed
+Medium
+Average amount
+Condition slice
+Urgency:
+File link (Google Drive / Dropbox / WP media)
+Status
+Statuses
+Cost and progress
+Amount
+Closed amount
+Project amount
+Table
+Table (copy)
+Projects table
+Tag
+Tags
+Block type
+Only important projects (high task priority)
+View only
+Drag to change height
+Drag to resize
+Drag to change width
+Delete
+Delete tab
+Delete permanently
+Delete project
+Delete project permanently?
+Delete project?
+Delete projects
+Delete current view?
+Deleting…
+Mentions: {{count}}
+Condition
+Files (brief, estimate, contract, etc.)
+Calendar filter
+Filter by company:
+Format
+Formula
+Color theme
+Checklist
+Draft with @mentions
+Draft message…
+Thu
+What we show
+Wide
+Stage
+—

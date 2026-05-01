@@ -460,88 +460,74 @@ export const DashboardCalendarMini: React.FC<{
         </button>
       </div>
 
-      <p className="text-[10px] leading-snug text-slate-500">
-        {t('crm.dashboard.calendar.hintSources')}
-      </p>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-600">
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-sm bg-sky-400" />
-          {t('crm.dashboard.calendar.legendLocal')}
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <span className="h-2 w-2 shrink-0 rounded-sm bg-violet-500" />
-          {t('crm.dashboard.calendar.legendLead')}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-7 gap-1 text-[10px] font-medium text-slate-500 text-center mb-1">
+      <div className="grid grid-cols-7 gap-[2px] text-[9px] text-slate-400 text-center mb-1 font-mono uppercase tracking-[0.06em]">
         {dowLabels.map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-[2px]">
         {grid.map((cell, idx) => {
           if (!cell) {
-            return <div key={`e-${idx}`} className="min-h-[72px]" />;
+            return <div key={`e-${idx}`} />;
           }
           const entries = entriesForDay(cell);
-          const count = entries.length;
-          const previews = entries.slice(0, 2);
+          const hasEvents = entries.length > 0;
           const isToday = sameDay(cell, new Date());
+          const isDim = cell.getMonth() !== cursor.getMonth();
           return (
             <button
               key={cell.toISOString()}
               type="button"
               onClick={() => openCreate(cell)}
+              style={{ aspectRatio: '1/1', position: 'relative' }}
               className={
-                'min-h-[72px] rounded-xl border text-left transition-colors flex flex-col p-1 ' +
+                'flex flex-col items-center justify-center rounded-[5px] text-[11px] font-mono cursor-pointer transition-colors ' +
                 (isToday
-                  ? 'border-sky-500 bg-sky-50/90 text-sky-950 ring-1 ring-sky-200'
-                  : 'border-slate-200/90 bg-white hover:bg-slate-50 text-slate-900')
+                  ? 'bg-slate-900 text-white font-medium'
+                  : isDim
+                  ? 'text-slate-300 hover:bg-slate-50'
+                  : 'text-slate-700 hover:bg-slate-100')
               }
             >
-              <span
-                className={
-                  'text-[12px] font-semibold tabular-nums ' +
-                  (isToday ? 'text-sky-800' : 'text-slate-800')
-                }
-              >
-                {cell.getDate()}
-              </span>
-              <div className="mt-0.5 flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden">
-                {previews.map((ent) => {
-                  const key =
-                    ent.source === 'local'
-                      ? ent.m.id
-                      : `lm-${ent.e.leadId}-${ent.e.meetingId}`;
-                  const label =
-                    ent.source === 'local' ? ent.m.title : ent.e.title;
-                  const chip =
-                    ent.source === 'local'
-                      ? 'bg-sky-100/90 text-sky-950'
-                      : 'bg-violet-100/90 text-violet-950';
-                  return (
-                    <div
-                      key={key}
-                      className={
-                        'truncate rounded px-1 py-0.5 text-[9px] font-medium leading-tight ' +
-                        chip
-                      }
-                    >
-                      {label || '—'}
-                    </div>
-                  );
-                })}
-                {count > 2 ? (
-                  <span className="text-[9px] font-semibold text-slate-500">
-                    +{count - 2}
-                  </span>
-                ) : null}
-              </div>
+              {cell.getDate()}
+              {hasEvents && (
+                <span
+                  style={{ position: 'absolute', bottom: 3, left: '50%', transform: 'translateX(-50%)', width: 3, height: 3, borderRadius: '50%', background: isToday ? '#fff' : '#222' }}
+                  aria-hidden
+                />
+              )}
             </button>
           );
         })}
       </div>
+
+      {/* Today's events list with colored markers */}
+      {(() => {
+        const todayEntries = entriesForDay(new Date());
+        if (!todayEntries.length) return null;
+        return (
+          <div className="border-t border-slate-100 pt-3 flex flex-col gap-1.5">
+            {todayEntries.map((ent) => {
+              const key = ent.source === 'local' ? ent.m.id : `lm-${ent.e.leadId}-${ent.e.meetingId}`;
+              const title = ent.source === 'local' ? ent.m.title : ent.e.title;
+              const timeStr = ent.source === 'local'
+                ? new Date(ent.m.startsAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+                : new Date(ent.e.startsAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
+              const kind = ent.source === 'local' ? ent.m.kind : 'meeting';
+              const markerColor = kind === 'note' ? '#1769d1' : '#1f8a5e';
+              return (
+                <div key={key} className="flex gap-2.5 items-start">
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10.5px] text-slate-400 w-[44px] shrink-0 pt-0.5 tracking-[0.02em]">{timeStr}</div>
+                  <div style={{ width: 3, background: markerColor, borderRadius: 2, minHeight: 30, alignSelf: 'stretch' }} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[12px] font-medium text-slate-900 truncate leading-snug">{title || '—'}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-2 gap-2">
         <button

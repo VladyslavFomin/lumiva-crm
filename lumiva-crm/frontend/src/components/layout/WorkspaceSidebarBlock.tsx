@@ -15,24 +15,30 @@ import {
   NavIconFolder,
   NavIconPlus,
   NAV_ICON_MAP,
+  type NavIconKey,
 } from './NavSidebarIcons';
 import {
   addEnabledView,
   parseEnabledViews,
   type ExtraWorkspaceViewKey,
 } from '../../workspace/workspaceEnabledViews';
+import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import { DataLayerNavIcon } from '../workspace/DataLayerNavIcon';
 
 type Props = {
   enabled: boolean;
   onMobileNavigate?: () => void;
   /** Узкий сайдбар: только иконки */
   compact?: boolean;
+  /** Фильтр таблиц по рабочей области (UUID); без пропа — все таблицы тенанта */
+  workspaceAreaIdFilter?: string | null;
+  /** Без верхней границы и с меньшим отступом — когда блок сразу под меню */
+  flushTop?: boolean;
 };
 
-const MENU_W = 208;
-const MENU_H = 340;
-const PLUS_MENU_W = 220;
-const PLUS_MENU_H = 280;
+/** Меню «⋯» у таблицы: переходы к видам и действия */
+const MENU_W = 260;
+const MENU_H = 440;
 
 const PLUS_MENU_EXTRA_VIEWS: Array<{
   key: ExtraWorkspaceViewKey;
@@ -41,6 +47,7 @@ const PLUS_MENU_EXTRA_VIEWS: Array<{
   { key: 'kanban', iconClass: 'text-teal-600' },
   { key: 'calendar', iconClass: 'text-violet-600' },
   { key: 'analytics', iconClass: 'text-sky-600' },
+  { key: 'gantt', iconClass: 'text-amber-600' },
 ];
 
 const COLLAPSED_CAT_STORAGE = 'lumiva_workspace_collapsed_categories';
@@ -90,6 +97,9 @@ function placeFixedMenu(
 
 function sortWorkspaceObjects(list: CustomObject[]): CustomObject[] {
   return [...list].sort((a, b) => {
+    const ka = getWorkspaceTableKind(a.meta as Record<string, unknown> | null) === 'board' ? 0 : 1;
+    const kb = getWorkspaceTableKind(b.meta as Record<string, unknown> | null) === 'board' ? 0 : 1;
+    if (ka !== kb) return ka - kb;
     const ra = typeof a.meta?.sidebarRank === 'number' ? a.meta.sidebarRank : null;
     const rb = typeof b.meta?.sidebarRank === 'number' ? b.meta.sidebarRank : null;
     if (ra !== null && rb !== null) return ra - rb;
@@ -103,6 +113,8 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   enabled,
   onMobileNavigate,
   compact = false,
+  workspaceAreaIdFilter = null,
+  flushTop = false,
 }) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -110,11 +122,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   const [objects, setObjects] = useState<CustomObject[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [dotsMenu, setDotsMenu] = useState<{ id: string; top: number; left: number } | null>(
-    null,
-  );
-  const [plusMenu, setPlusMenu] = useState<{ id: string; top: number; left: number } | null>(
     null,
   );
   const [renameTarget, setRenameTarget] = useState<CustomObject | null>(null);
@@ -133,7 +141,6 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
 
   const closeOverlays = useCallback(() => {
     setDotsMenu(null);
-    setPlusMenu(null);
   }, []);
 
   const persistCollapsedCategories = useCallback((next: Set<string>) => {
@@ -156,7 +163,11 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
     if (!enabled) return;
     setLoading(true);
     try {
-      const list = await fetchCustomObjects();
+      const list = await fetchCustomObjects(
+        workspaceAreaIdFilter && /^[0-9a-f-]{36}$/i.test(workspaceAreaIdFilter)
+          ? workspaceAreaIdFilter
+          : undefined,
+      );
       setObjects(list);
     } catch {
       setObjects([]);
@@ -167,7 +178,17 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
 
   useEffect(() => {
     void load();
-  }, [enabled]);
+  }, [enabled, workspaceAreaIdFilter]);
+
+  const newTableHref = (finish: string, kind?: 'board' | 'data') => {
+    const q = new URLSearchParams();
+    q.set('finish', finish);
+    if (kind) q.set('kind', kind);
+    if (workspaceAreaIdFilter && /^[0-9a-f-]{36}$/i.test(workspaceAreaIdFilter)) {
+      q.set('workspaceAreaId', workspaceAreaIdFilter);
+    }
+    return `/workspace/new?${q.toString()}`;
+  };
 
   useEffect(() => {
     if (!createOpen) return;
@@ -192,7 +213,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   }, [closeOverlays]);
 
   useLayoutEffect(() => {
-    if (!dotsMenu && !plusMenu && !categoryTarget) return;
+    if (!dotsMenu && !categoryTarget) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       if (categoryTarget && !categorySaving) setCategoryTarget(null);
@@ -200,7 +221,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dotsMenu, plusMenu, categoryTarget, categorySaving, closeOverlays]);
+  }, [dotsMenu, categoryTarget, categorySaving, closeOverlays]);
 
   const go = (path: string) => {
     navigate(path);
@@ -209,31 +230,12 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
     closeOverlays();
   };
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
   const openDots = (obj: CustomObject, e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setPlusMenu(null);
     const rect = e.currentTarget.getBoundingClientRect();
     const pos = placeFixedMenu(rect, MENU_W, MENU_H);
     setDotsMenu({ id: obj.id, ...pos });
-  };
-
-  const openPlus = (obj: CustomObject, e: React.MouseEvent<HTMLButtonElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDotsMenu(null);
-    const rect = e.currentTarget.getBoundingClientRect();
-    const pos = placeFixedMenu(rect, PLUS_MENU_W, PLUS_MENU_H);
-    setPlusMenu({ id: obj.id, ...pos });
   };
 
   const openRename = (obj: CustomObject) => {
@@ -262,6 +264,14 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   const hiddenSorted = useMemo(
     () => sortedObjects.filter((o) => !!o.meta?.sidebarHidden),
     [sortedObjects],
+  );
+
+  const inWorkspaceArea = Boolean(
+    workspaceAreaIdFilter && /^[0-9a-f-]{36}$/i.test(workspaceAreaIdFilter),
+  );
+  const tablesFlatSorted = useMemo(
+    () => sortWorkspaceObjects(visibleSorted),
+    [visibleSorted],
   );
 
   const workspaceGroups = useMemo(() => {
@@ -412,7 +422,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
         };
         const updated = await updateCustomObject(obj.id, { meta: mergedMeta });
         setObjects((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-        setPlusMenu(null);
+        setDotsMenu(null);
         navigate(`/workspace/${obj.id}/${key}`);
         onMobileNavigate?.();
       } catch {
@@ -431,14 +441,20 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   const KanbanIcon = NAV_ICON_MAP.kanban;
   const AnalyticsIcon = NAV_ICON_MAP.analytics;
   const CalendarIcon = NAV_ICON_MAP.calendar;
+  const GanttIcon = NAV_ICON_MAP.gantt;
   const WorkspaceNewIcon = NAV_ICON_MAP.workspaceNew;
 
   const renderWorkspaceItem = (obj: CustomObject) => {
     const base = `/workspace/${obj.id}`;
-    const enabledViews = parseEnabledViews(obj.meta);
-    const isActive =
+    const rowActive =
       location.pathname.startsWith(`${base}/`) || location.pathname === base;
-    const isOpen = expanded.has(obj.id);
+    const metaIcon = (obj.meta as Record<string, unknown> | null | undefined)?.workspaceNavIcon;
+    const ObjectNavIcon =
+      typeof metaIcon === 'string' && metaIcon in NAV_ICON_MAP
+        ? NAV_ICON_MAP[metaIcon as NavIconKey]
+        : NavIconFolder;
+    const isDataLayer = getWorkspaceTableKind(obj.meta as Record<string, unknown> | null) === 'data';
+
     return (
       <div key={obj.id} className="group relative">
         <div className={`flex items-center gap-0.5 ${compact ? 'justify-center' : ''}`}>
@@ -446,45 +462,39 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
             to={`${base}/table`}
             title={compact ? obj.name : undefined}
             onClick={() => onMobileNavigate?.()}
-            className={({ isActive: navActive }) =>
+            className={() =>
               [
-                'min-w-0 flex items-center gap-2 rounded-lg px-2 py-1.5 text-[12px] transition-colors',
+                'min-w-0 flex items-center gap-2.5 rounded-lg px-2 py-2 text-[13px] transition-colors',
                 compact ? 'justify-center flex-1' : 'flex-1',
-                navActive || isActive
-                  ? 'bg-sky-50 text-sky-900 font-medium'
+                rowActive
+                  ? 'bg-slate-100/95 text-slate-900 font-medium'
                   : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900',
               ].join(' ')
             }
           >
-            <NavIconFolder className={isActive ? 'text-sky-600' : 'text-slate-400'} />
+            <ObjectNavIcon className={rowActive ? 'text-slate-700' : 'text-slate-400'} />
             <span
               className={
-                compact ? 'sr-only' : 'line-clamp-2 min-w-0 break-words text-left leading-snug'
+                compact ? 'sr-only' : 'line-clamp-2 min-w-0 flex-1 break-words text-left leading-snug'
               }
             >
               {obj.name}
             </span>
+            {!compact && isDataLayer && (
+              <span
+                className="shrink-0 inline-flex h-5 w-5 items-center justify-center rounded-md bg-slate-100/90 text-slate-500"
+                title={t('crm.workspace.kindBadge.dataLayerTitle')}
+              >
+                <DataLayerNavIcon />
+              </span>
+            )}
           </NavLink>
-          {!compact && (
-            <button
-              type="button"
-              className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-emerald-800 hover:bg-emerald-50"
-              aria-expanded={isOpen}
-              title={t('crm.sidebar.toggleWorkspaceViews')}
-              onClick={(e) => {
-                e.preventDefault();
-                toggleExpand(obj.id);
-              }}
-            >
-              <NavChevronDown expanded={isOpen} />
-            </button>
-          )}
           {!compact && (
             <div className="shrink-0 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:focus-within:opacity-100">
               <button
                 type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                aria-label={t('crm.sidebar.workspaceMenu')}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                aria-label={t('crm.sidebar.tableMenu')}
                 onClick={(e) => openDots(obj, e)}
               >
                 <NavIconDots />
@@ -492,85 +502,6 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
             </div>
           )}
         </div>
-
-        {isOpen && !compact && (
-          <div className="mt-1 ml-1 border-l border-slate-200 pl-2 space-y-0.5">
-            <NavLink
-              to={`${base}/table`}
-              onClick={() => onMobileNavigate?.()}
-              className={({ isActive: a }) =>
-                [
-                  'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                  a || location.pathname === `${base}/table`
-                    ? 'bg-slate-100 text-slate-900 font-medium'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800',
-                ].join(' ')
-              }
-            >
-              <TableIcon className="text-slate-400" />
-              {t('crm.sidebar.linkTable')}
-            </NavLink>
-            {enabledViews.kanban && (
-              <NavLink
-                to={`${base}/kanban`}
-                onClick={() => onMobileNavigate?.()}
-                className={({ isActive: a }) =>
-                  [
-                    'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                    a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
-                  ].join(' ')
-                }
-              >
-                <KanbanIcon className="text-slate-400" />
-                {t('crm.sidebar.linkKanban')}
-              </NavLink>
-            )}
-            {enabledViews.calendar && (
-              <NavLink
-                to={`${base}/calendar`}
-                onClick={() => onMobileNavigate?.()}
-                className={({ isActive: a }) =>
-                  [
-                    'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                    a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
-                  ].join(' ')
-                }
-              >
-                <CalendarIcon className="text-slate-400" />
-                {t('crm.workspace.views.calendar')}
-              </NavLink>
-            )}
-            {enabledViews.analytics && (
-              <NavLink
-                to={`${base}/analytics`}
-                onClick={() => onMobileNavigate?.()}
-                className={({ isActive: a }) =>
-                  [
-                    'flex items-center gap-2 rounded-md px-2 py-1 text-[11px]',
-                    a ? 'bg-slate-100 text-slate-900 font-medium' : 'text-slate-500 hover:bg-slate-50',
-                  ].join(' ')
-                }
-              >
-                <AnalyticsIcon className="text-slate-400" />
-                {t('crm.sidebar.linkAnalytics')}
-              </NavLink>
-            )}
-            <div className="flex items-center justify-between gap-1 pt-1 pb-0.5">
-              <span className="text-[10px] uppercase tracking-wide text-slate-400 pl-0.5">
-                {t('crm.sidebar.quickAdd')}
-              </span>
-              <button
-                type="button"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm hover:bg-teal-700"
-                title={t('crm.sidebar.add')}
-                aria-label={t('crm.sidebar.add')}
-                onClick={(e) => openPlus(obj, e)}
-              >
-                <NavIconPlus className="!h-3.5 !w-3.5 text-white" />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   };
@@ -587,7 +518,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
         />
         <div
           role="menu"
-          className="fixed z-[10050] w-44 rounded-lg border border-slate-200 bg-white py-1 shadow-xl"
+          className="fixed z-[10050] max-h-[min(70vh,480px)] overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-xl"
           style={{ top: dotsMenu.top, left: dotsMenu.left, width: MENU_W }}
         >
           {objects
@@ -597,6 +528,10 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
               const idx = sortedObjects.findIndex((o) => o.id === obj.id);
               const canUp = idx > 0;
               const canDown = idx >= 0 && idx < sortedObjects.length - 1;
+              const ev = parseEnabledViews(obj.meta);
+              const viewsToAdd = PLUS_MENU_EXTRA_VIEWS.filter(({ key }) => !ev[key]);
+              const navCls =
+                'flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50';
               return (
                 <React.Fragment key={obj.id}>
                   <button
@@ -616,6 +551,107 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                     {t('crm.sidebar.moveDown')}
                   </button>
                   <div className="my-1 border-t border-slate-100" />
+                  <div className="px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                    {t('crm.sidebar.openView')}
+                  </div>
+                  <NavLink
+                    to={`${base}/table`}
+                    className={navCls}
+                    onClick={() => {
+                      setDotsMenu(null);
+                      onMobileNavigate?.();
+                    }}
+                  >
+                    <TableIcon className="text-slate-500" />
+                    {t('crm.sidebar.linkTable')}
+                  </NavLink>
+                  {ev.kanban && (
+                    <NavLink
+                      to={`${base}/kanban`}
+                      className={navCls}
+                      onClick={() => {
+                        setDotsMenu(null);
+                        onMobileNavigate?.();
+                      }}
+                    >
+                      <KanbanIcon className="text-teal-600" />
+                      {t('crm.sidebar.linkKanban')}
+                    </NavLink>
+                  )}
+                  {ev.calendar && (
+                    <NavLink
+                      to={`${base}/calendar`}
+                      className={navCls}
+                      onClick={() => {
+                        setDotsMenu(null);
+                        onMobileNavigate?.();
+                      }}
+                    >
+                      <CalendarIcon className="text-violet-600" />
+                      {t('crm.workspace.views.calendar')}
+                    </NavLink>
+                  )}
+                  {ev.analytics && (
+                    <NavLink
+                      to={`${base}/analytics`}
+                      className={navCls}
+                      onClick={() => {
+                        setDotsMenu(null);
+                        onMobileNavigate?.();
+                      }}
+                    >
+                      <AnalyticsIcon className="text-sky-600" />
+                      {t('crm.sidebar.linkAnalytics')}
+                    </NavLink>
+                  )}
+                  {ev.gantt && (
+                    <NavLink
+                      to={`${base}/gantt`}
+                      className={navCls}
+                      onClick={() => {
+                        setDotsMenu(null);
+                        onMobileNavigate?.();
+                      }}
+                    >
+                      <GanttIcon className="text-amber-600" />
+                      {t('crm.workspace.views.gantt')}
+                    </NavLink>
+                  )}
+                  {viewsToAdd.length > 0 && (
+                    <>
+                      <div className="my-1 border-t border-slate-100" />
+                      <div className="px-3 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        {t('crm.sidebar.enableView')}
+                      </div>
+                      {viewsToAdd.map(({ key, iconClass }) => {
+                        const Icon = NAV_ICON_MAP[key] ?? NAV_ICON_MAP.table;
+                        const label = `${t('crm.workspace.views.add')} ${t(`crm.workspace.views.${key}`)}`;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            disabled={plusEnablingKey !== null}
+                            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                            onClick={() => void enableViewAndGo(obj, key)}
+                          >
+                            <Icon className={iconClass} />
+                            {plusEnablingKey === key ? '…' : label}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
+                    disabled={plusEnablingKey !== null}
+                    onClick={() => go(`${base}/table?addGroup=1`)}
+                  >
+                    <TableIcon className="text-slate-500" />
+                    {t('crm.sidebar.newGroupInWorkspace')}
+                  </button>
+                  <div className="my-1 border-t border-slate-100" />
                   <button
                     type="button"
                     className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
@@ -633,6 +669,14 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                   >
                     {t('crm.sidebar.openSettings')}
                   </NavLink>
+                  <div className="my-1 border-t border-slate-100" />
+                  <button
+                    type="button"
+                    className="block w-full px-3 py-1.5 text-left text-[12px] text-rose-600 hover:bg-rose-50"
+                    onClick={() => openDeleteWorkspace(obj)}
+                  >
+                    {t('crm.sidebar.deleteWorkspace')}
+                  </button>
                   <button
                     type="button"
                     className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
@@ -654,71 +698,6 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                   >
                     {t('crm.sidebar.duplicateWorkspace')}
                   </button>
-                  <div className="my-1 border-t border-slate-100" />
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-1.5 text-left text-[12px] text-rose-600 hover:bg-rose-50"
-                    onClick={() => openDeleteWorkspace(obj)}
-                  >
-                    {t('crm.sidebar.deleteWorkspace')}
-                  </button>
-                </React.Fragment>
-              );
-            })}
-        </div>
-      </>,
-      document.body,
-    );
-
-  const plusPortal =
-    plusMenu &&
-    createPortal(
-      <>
-        <button
-          type="button"
-          className="fixed inset-0 z-[10040] cursor-default bg-transparent"
-          aria-label="Close menu"
-          onClick={() => setPlusMenu(null)}
-        />
-        <div
-          role="menu"
-          className="fixed z-[10050] rounded-xl border border-slate-200/90 bg-white py-1.5 shadow-xl ring-1 ring-slate-900/5"
-          style={{ top: plusMenu.top, left: plusMenu.left, width: PLUS_MENU_W }}
-        >
-          {objects
-            .filter((o) => o.id === plusMenu.id)
-            .map((obj) => {
-              const base = `/workspace/${obj.id}`;
-              const ev = parseEnabledViews(obj.meta);
-              const viewsToAdd = PLUS_MENU_EXTRA_VIEWS.filter(({ key }) => !ev[key]);
-              return (
-                <React.Fragment key={obj.id}>
-                  {viewsToAdd.map(({ key, iconClass }) => {
-                    const Icon = NAV_ICON_MAP[key];
-                    const label = `${t('crm.workspace.views.add')} ${t(`crm.workspace.views.${key}`)}`;
-                    return (
-                      <button
-                        key={key}
-                        type="button"
-                        disabled={plusEnablingKey !== null}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50 disabled:opacity-60"
-                        onClick={() => void enableViewAndGo(obj, key)}
-                      >
-                        <Icon className={iconClass} />
-                        {plusEnablingKey === key ? '…' : label}
-                      </button>
-                    );
-                  })}
-                  {viewsToAdd.length > 0 && <div className="my-1 border-t border-slate-100" />}
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                    disabled={plusEnablingKey !== null}
-                    onClick={() => go(`${base}/table?addGroup=1`)}
-                  >
-                    <TableIcon className="text-slate-500" />
-                    {t('crm.sidebar.newGroupInWorkspace')}
-                  </button>
                 </React.Fragment>
               );
             })}
@@ -729,12 +708,13 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
 
   return (
     <div
-      className={`border-t border-slate-200/90 overflow-visible ${
-        compact ? 'mt-3 pt-3' : 'mt-5 pt-4'
+      className={`overflow-visible ${
+        flushTop
+          ? 'border-0 mt-0 pt-1'
+          : `border-t border-slate-200/90 ${compact ? 'mt-3 pt-3' : 'mt-5 pt-4'}`
       }`}
     >
       {dotsPortal}
-      {plusPortal}
 
       <div
         className={`flex items-center gap-2 mb-2 px-0.5 ${
@@ -746,17 +726,19 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
             compact ? 'sr-only' : ''
           }`}
         >
-          {t('crm.sidebar.workspaces')}
+          {t('crm.sidebar.tableListSection')}
         </span>
-        <div className="relative" ref={createRef}>
+        <div className="relative flex items-center" ref={createRef}>
           <button
             type="button"
             onClick={() => setCreateOpen((v) => !v)}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500 to-teal-600 text-white shadow-md shadow-teal-500/25 hover:from-teal-600 hover:to-teal-700 transition-all hover:scale-[1.03] active:scale-[0.98]"
+            className={`inline-flex shrink-0 items-center justify-center rounded-lg border border-neutral-200/90 bg-white text-neutral-600 shadow-none transition-colors hover:bg-neutral-100/90 ${
+              compact ? 'h-9 w-9' : 'h-8 w-8'
+            }`}
             title={t('crm.sidebar.add')}
             aria-label={t('crm.sidebar.add')}
           >
-            <NavIconPlus className="!h-4 !w-4 text-white" />
+            <NavIconPlus className="!h-4 !w-4 text-current" />
           </button>
           {createOpen && (
             <div className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-xl border border-slate-200/90 bg-white py-1.5 shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/5">
@@ -766,15 +748,23 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
               <button
                 type="button"
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                onClick={() => go('/workspace/new?finish=table')}
+                onClick={() => go(newTableHref('table', 'board'))}
               >
                 <TableIcon className="text-slate-500" />
-                {t('crm.sidebar.newTable')}
+                {t('crm.sidebar.newBoardTable')}
               </button>
               <button
                 type="button"
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                onClick={() => go('/workspace/new?finish=kanban')}
+                onClick={() => go(newTableHref('table', 'data'))}
+              >
+                <TableIcon className="text-slate-400" />
+                {t('crm.sidebar.newDataTable')}
+              </button>
+              <button
+                type="button"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
+                onClick={() => go(newTableHref('kanban'))}
               >
                 <KanbanIcon className="text-teal-600" />
                 {t('crm.sidebar.newKanban')}
@@ -782,7 +772,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
               <button
                 type="button"
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                onClick={() => go('/workspace/new?finish=analytics')}
+                onClick={() => go(newTableHref('analytics'))}
               >
                 <AnalyticsIcon className="text-sky-600" />
                 {t('crm.sidebar.newAnalytics')}
@@ -791,7 +781,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
               <button
                 type="button"
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                onClick={() => go('/workspace/new')}
+                onClick={() => go(newTableHref('settings'))}
               >
                 <WorkspaceNewIcon className="text-indigo-600" />
                 {t('crm.sidebar.newWorkspace')}
@@ -809,7 +799,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="space-y-0.5 max-h-[min(42vh,360px)] overflow-y-auto overflow-x-visible pr-0.5 -mr-1">
+      <div className="max-h-[min(42vh,360px)] space-y-0.5 overflow-y-auto overflow-x-hidden pr-0.5">
         {loading && (
           <div className="space-y-2 py-1">
             {[1, 2, 3].map((i) => (
@@ -818,8 +808,12 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
           </div>
         )}
         {!loading && compact && visibleSorted.map((obj) => renderWorkspaceItem(obj))}
+        {!loading && !compact && inWorkspaceArea && (
+          <div className="space-y-0.5">{tablesFlatSorted.map((obj) => renderWorkspaceItem(obj))}</div>
+        )}
         {!loading &&
           !compact &&
+          !inWorkspaceArea &&
           workspaceGroups.map((group) => {
             const hideCategoryHeader =
               workspaceGroups.length === 1 && group.catKey === UNCATEGORIZED_KEY;

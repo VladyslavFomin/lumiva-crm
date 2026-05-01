@@ -78,6 +78,3 @@ export const deleteLeadsCustomView = (current: LeadsCustomView[], viewId: string
   saveLeadsCustomViews(result);
   return result;
 };
-
-
-

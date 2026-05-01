@@ -1,5 +1,5 @@
 // src/pages/companies/CompaniesListPage.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -11,9 +11,21 @@ import {
   type BulkUpdateCompaniesDto,
 } from '../../api/companies';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
+import '../projects/ProjectsListPage.css';
+import {
+  OwnerAvatarsRow,
+  resolveCompanyAssigneeDisplay,
+} from '../../components/crm/OwnerAvatarsRow';
+import { useAlertModal } from '../../contexts/AlertModalContext';
+
+const COMPANIES_TABLE_COLUMNS_KEY = 'companies_table_columns_v1';
+
+type CompanyTableColId = 'name' | 'contacts' | 'assignee' | 'status' | 'industry' | 'actions';
 
 export const CompaniesListPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,6 +39,7 @@ export const CompaniesListPage: React.FC = () => {
   const [bulkTags, setBulkTags] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [viewMode, setViewMode] = useState<'board' | 'table'>('table');
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -76,7 +89,9 @@ export const CompaniesListPage: React.FC = () => {
         return next;
       });
     } catch (err: any) {
-      alert(err.message || t('crm.companies.list.errors.deleteFailed'));
+      showAlert(err.message || t('crm.companies.list.errors.deleteFailed'), {
+        variant: 'error',
+      });
     }
   };
 
@@ -149,7 +164,9 @@ export const CompaniesListPage: React.FC = () => {
       setCompanies(data.items);
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.companies.bulk.errors.updateFailed'));
+      showAlert(e.message || t('crm.companies.bulk.errors.updateFailed'), {
+        variant: 'error',
+      });
     } finally {
       setBulkSaving(false);
     }
@@ -172,138 +189,327 @@ export const CompaniesListPage: React.FC = () => {
     return { total, active, inactive, archived };
   }, [companies]);
 
+  const companyColumnDefs = useMemo((): { id: CompanyTableColId; label: string }[] => {
+    return [
+      { id: 'name', label: t('crm.companies.list.table.headers.company') },
+      { id: 'contacts', label: t('crm.companies.list.table.headers.contacts') },
+      { id: 'assignee', label: t('crm.companies.list.table.headers.assignee') },
+      { id: 'status', label: t('crm.companies.list.table.headers.status') },
+      { id: 'industry', label: t('crm.companies.list.table.headers.industry') },
+      { id: 'actions', label: t('crm.companies.list.table.headers.actions') },
+    ];
+  }, [t]);
+
+  const orderedCompanyColumns = useMemo(() => {
+    if (!companyColumnDefs.length) return [];
+    const map = new Map(companyColumnDefs.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : companyColumnDefs.map((col) => col.id);
+    const result: typeof companyColumnDefs = [];
+    order.forEach((id) => {
+      const col = map.get(id as CompanyTableColId);
+      if (col) result.push(col);
+    });
+    companyColumnDefs.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [companyColumnDefs, columnOrder]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(COMPANIES_TABLE_COLUMNS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(COMPANIES_TABLE_COLUMNS_KEY, JSON.stringify({ order: columnOrder }));
+    } catch {
+      // ignore
+    }
+  }, [columnOrder]);
+
+  useEffect(() => {
+    if (!companyColumnDefs.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return companyColumnDefs.map((c) => c.id);
+      const ids = companyColumnDefs.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id as CompanyTableColId));
+      const missing = ids.filter((cid) => !filtered.includes(cid));
+      return [...filtered, ...missing];
+    });
+  }, [companyColumnDefs]);
+
+  const reorderColumns = useCallback((dragId: string, targetId: string) => {
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragId);
+      return next;
+    });
+  }, []);
+
+  const { getThProps, draggingColumnKey, columnDragOverKey } =
+    useWorkspaceStyleColumnDrag(reorderColumns, 'light');
+
+  const companyColClass = (colId: CompanyTableColId): string =>
+    colId === 'name' ? 'lv-tcol-name' : colId === 'actions' ? 'lv-tcol-actions' : 'lv-tcol-center';
+
+  const renderCompanyCellContent = (company: Company, colId: CompanyTableColId): React.ReactNode => {
+    switch (colId) {
+      case 'name':
+        return (
+          <>
+            <div className="font-medium text-[var(--ink)]">{company.name}</div>
+            {company.tags?.length ? (
+              <div className="mt-1 flex flex-wrap gap-1 justify-start">
+                {company.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="lv-cell-tag">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </>
+        );
+      case 'contacts':
+        return (
+          <span className="text-[12.5px] text-[var(--ink)]">
+            {[company.email, company.phone].filter(Boolean).join(' · ') || t('crm.companies.list.common.empty')}
+          </span>
+        );
+      case 'assignee': {
+        const items = resolveCompanyAssigneeDisplay(company, staff);
+        return items.length ? (
+          <OwnerAvatarsRow items={items} readOnly />
+        ) : (
+          <span className="text-[var(--fg-3)]">—</span>
+        );
+      }
+      case 'status':
+        return (
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700">
+            {formatCompanyStatus(company.status)}
+          </span>
+        );
+      case 'industry':
+        return (
+          <span className="text-[12.5px] text-[var(--ink)]">
+            {company.industry || t('crm.companies.list.common.empty')}
+          </span>
+        );
+      case 'actions':
+        return (
+          <div className="flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/companies/${company.id}/tasks`);
+              }}
+              className="lv-tb-btn"
+              style={{ fontSize: 10, padding: '4px 8px' }}
+            >
+              {t('crm.companies.list.tasks')}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => handleDelete(company.id, e)}
+              className="lv-tb-btn"
+              style={{ fontSize: 10, padding: '4px 8px', color: '#b91c1c', borderColor: '#fecaca' }}
+            >
+              {t('crm.companies.list.delete')}
+            </button>
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <MainLayout>
-      <div className="space-y-4">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+      <div
+        className="lv-pt w-full pb-8 min-w-0"
+        style={{
+          marginLeft: -24,
+          marginRight: -24,
+          paddingLeft: 24,
+          paddingRight: 24,
+          width: 'calc(100% + 48px)',
+        }}
+      >
+        <div className="lv-pt-head">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">{t('crm.companies.list.title')}</h1>
-            <div className="text-[11px] text-slate-500">
+            <h1>{t('crm.companies.list.title')}</h1>
+            <div className="sub">
               {t('crm.companies.list.subtitle')}
               {selectedIds.size > 0 && (
-                <span className="ml-2 text-[#222222]">
+                <span className="ml-2" style={{ color: 'var(--ink)' }}>
                   ({selectedIds.size} {t('crm.companies.list.selected')})
                 </span>
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="lv-pt-head-actions">
             {selectedIds.size > 0 && (
-              <button
-                onClick={() => setBulkModalOpen(true)}
-                className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
-              >
+              <button type="button" className="lv-tb-btn" onClick={() => setBulkModalOpen(true)}>
                 {t('crm.companies.list.bulkOperations')} ({selectedIds.size})
               </button>
             )}
             <button
+              type="button"
               onClick={handleCreate}
-              className="px-3 py-1.5 text-xs rounded-xl bg-[#222222] text-white font-semibold hover:bg-black transition-colors"
+              className="lv-tb-btn"
+              style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
             >
               + {t('crm.companies.list.create')}
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="rounded-2xl border border-slate-200 bg-white p-3">
-            <div className="text-[10px] text-slate-500">{t('crm.companies.list.stats.total')}</div>
-            <div className="text-lg font-semibold text-slate-900">{companiesStats.total}</div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-3">
-            <div className="text-[10px] text-slate-500">{t('crm.companies.list.stats.active')}</div>
-            <div className="text-lg font-semibold text-emerald-600">{companiesStats.active}</div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-3">
-            <div className="text-[10px] text-slate-500">{t('crm.companies.list.stats.inactive')}</div>
-            <div className="text-lg font-semibold text-amber-600">{companiesStats.inactive}</div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-white p-3">
-            <div className="text-[10px] text-slate-500">{t('crm.companies.list.stats.archived')}</div>
-            <div className="text-lg font-semibold text-slate-600">{companiesStats.archived}</div>
-          </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-1 text-[11px] text-[var(--fg-3)] mb-[14px]">
+          <span>
+            <span className="font-semibold text-[var(--ink)]">{companiesStats.total}</span> —{' '}
+            {t('crm.companies.list.stats.total')}
+          </span>
+          <span>
+            <span className="font-semibold text-emerald-600">{companiesStats.active}</span> —{' '}
+            {t('crm.companies.list.stats.active')}
+          </span>
+          <span>
+            <span className="font-semibold text-amber-600">{companiesStats.inactive}</span> —{' '}
+            {t('crm.companies.list.stats.inactive')}
+          </span>
+          <span>
+            <span className="font-semibold text-[var(--ink)]">{companiesStats.archived}</span> —{' '}
+            {t('crm.companies.list.stats.archived')}
+          </span>
         </div>
 
-        {/* Поиск + фильтры */}
-        <div className="rounded-3xl border border-slate-200 bg-white p-4">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
-            <input
-              type="text"
-              placeholder={t('crm.companies.list.search')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="md:col-span-2 w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-            />
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-500"
-            >
-              <option value="">{t('crm.companies.list.filters.allStatuses')}</option>
-              <option value="active">{t('crm.companies.form.statuses.active')}</option>
-              <option value="inactive">{t('crm.companies.form.statuses.inactive')}</option>
-              <option value="archived">{t('crm.companies.form.statuses.archived')}</option>
-            </select>
-            <div className="inline-flex rounded-xl border border-slate-300 p-1 bg-slate-50">
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className={`flex-1 px-3 py-1.5 text-xs rounded-lg ${viewMode === 'table' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              >
-                {t('crm.companies.list.view.table')}
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('board')}
-                className={`flex-1 px-3 py-1.5 text-xs rounded-lg ${viewMode === 'board' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500'}`}
-              >
-                {t('crm.companies.list.view.cards')}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Ошибка */}
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-[8px] px-3 py-2 mb-[14px]">
             {error}
           </div>
         )}
 
-        {/* Загрузка */}
         {loading ? (
-          <div className="text-center py-12 text-xs text-slate-400">{t('crm.companies.list.loading')}</div>
+          <div className="text-[12px] text-slate-400 mb-[14px]">{t('crm.companies.list.loading')}</div>
         ) : filteredCompanies.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-3xl p-8 text-center">
-            <div className="text-xs text-slate-400">
+          <div
+            className="rounded-[10px] border p-8 text-center"
+            style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
+          >
+            <div className="text-[12px] text-[var(--fg-3)]">
               {search ? t('crm.companies.list.notFound') : t('crm.companies.list.empty')}
             </div>
             {!search && (
               <button
+                type="button"
                 onClick={handleCreate}
-                className="mt-4 px-4 py-2 text-xs rounded-xl bg-[#222222] text-white font-semibold hover:bg-black transition-colors"
+                className="mt-4 lv-tb-btn"
+                style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
               >
                 {t('crm.companies.list.createFirst')}
               </button>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* Чекбокс "Выбрать все" */}
-            {filteredCompanies.length > 0 && (
-              <div className="flex items-center gap-2 px-2">
+          <>
+            <div className="lv-toolbar">
+              <div className="lv-tb-search" style={{ flex: '1 1 180px', maxWidth: 320 }}>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  style={{ color: 'var(--fg-4)', flexShrink: 0 }}
+                  aria-hidden
+                >
+                  <circle cx="6.5" cy="6.5" r="5.5" />
+                  <path d="M11 11l3.5 3.5" />
+                </svg>
                 <input
-                  type="checkbox"
-                  checked={filteredCompanies.length > 0 && filteredCompanies.every((company) => selectedIds.has(company.id))}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-lumiva-accent focus:ring-lumiva-accent"
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('crm.companies.list.search')}
                 />
-                <span className="text-xs text-slate-400">
-                  {t('crm.common.selectAll')} ({filteredCompanies.length})
-                </span>
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    style={{
+                      background: 'none',
+                      border: 0,
+                      cursor: 'pointer',
+                      color: 'var(--fg-3)',
+                      fontSize: 14,
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
-            )}
+
+              <div className="lv-toolbar-divider" />
+
+              <label className="lv-tb-select">
+                <span className="lbl">{t('crm.companies.form.fields.status')}:</span>
+                <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+                  <option value="">{t('crm.companies.list.filters.allStatuses')}</option>
+                  <option value="active">{t('crm.companies.form.statuses.active')}</option>
+                  <option value="inactive">{t('crm.companies.form.statuses.inactive')}</option>
+                  <option value="archived">{t('crm.companies.form.statuses.archived')}</option>
+                </select>
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ color: 'var(--fg-3)', flexShrink: 0 }}
+                  aria-hidden
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </label>
+
+              <div className="lv-toolbar-spacer" />
+
+              <button
+                type="button"
+                className={`lv-tb-btn${viewMode === 'table' ? ' active' : ''}`}
+                onClick={() => setViewMode('table')}
+              >
+                {t('crm.companies.list.view.table')}
+              </button>
+              <button
+                type="button"
+                className={`lv-tb-btn${viewMode === 'board' ? ' active' : ''}`}
+                onClick={() => setViewMode('board')}
+              >
+                {t('crm.companies.list.view.cards')}
+              </button>
+            </div>
+
             {viewMode === 'board' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
               {filteredCompanies.map((company) => (
@@ -392,84 +598,143 @@ export const CompaniesListPage: React.FC = () => {
             ))}
             </div>
             ) : (
-              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
-                <table className="min-w-[820px] w-full text-xs">
-                  <thead className="bg-slate-50 text-slate-500">
-                    <tr>
-                      <th className="px-3 py-2 text-left w-10" />
-                      <th className="px-3 py-2 text-left">{t('crm.companies.list.table.headers.company')}</th>
-                      <th className="px-3 py-2 text-left">{t('crm.companies.list.table.headers.contacts')}</th>
-                      <th className="px-3 py-2 text-left">{t('crm.companies.list.table.headers.assignee')}</th>
-                      <th className="px-3 py-2 text-left">{t('crm.companies.list.table.headers.status')}</th>
-                      <th className="px-3 py-2 text-left">{t('crm.companies.list.table.headers.industry')}</th>
-                      <th className="px-3 py-2 text-left">{t('crm.companies.list.table.headers.actions')}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredCompanies.map((company) => (
-                      <tr
-                        key={company.id}
-                        className="border-t border-slate-200 hover:bg-slate-50 cursor-pointer"
-                        onClick={() => handleOpen(company.id)}
-                      >
-                        <td className="px-3 py-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(company.id)}
-                            onChange={() => handleToggleSelect(company.id)}
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        </td>
-                        <td className="px-3 py-2">
-                          <div className="font-medium text-slate-900">{company.name}</div>
-                          {company.tags?.length ? (
-                            <div className="mt-1 flex flex-wrap gap-1">
-                              {company.tags.slice(0, 3).map((tag) => (
-                                <span key={tag} className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] text-slate-600">
-                                  #{tag}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-2 text-slate-600">
-                          {[company.email, company.phone].filter(Boolean).join(' · ') || t('crm.companies.list.common.empty')}
-                        </td>
-                        <td className="px-3 py-2 text-slate-700">{company.assignedTo || t('crm.companies.list.common.empty')}</td>
-                        <td className="px-3 py-2">
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-700">
-                            {formatCompanyStatus(company.status)}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2 text-slate-600">{company.industry || t('crm.companies.list.common.empty')}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/companies/${company.id}/tasks`);
-                              }}
-                              className="rounded-lg border border-slate-300 px-2 py-1 text-[10px] text-slate-700 hover:bg-slate-100"
+              <div className="lv-proj-wrap">
+                <div className="lv-proj-scroll">
+                  <table className="lv-proj-table lv-leads-table min-w-[820px]">
+                    <thead>
+                      <tr>
+                        <th className="lv-col-check">
+                          <button
+                            type="button"
+                            className={`lv-checkbox${
+                              filteredCompanies.length > 0 &&
+                              filteredCompanies.every((c) => selectedIds.has(c.id))
+                                ? ' checked'
+                                : selectedIds.size > 0
+                                  ? ' indet'
+                                  : ''
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectAll();
+                            }}
+                            role="checkbox"
+                            aria-checked={
+                              filteredCompanies.length > 0 &&
+                              filteredCompanies.every((c) => selectedIds.has(c.id))
+                            }
+                          >
+                            {selectedIds.size > 0 && (
+                              <svg
+                                width="10"
+                                height="10"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                aria-hidden
+                              >
+                                <path d="M5 12l4 4 10-10" />
+                              </svg>
+                            )}
+                          </button>
+                        </th>
+                        {orderedCompanyColumns.map((col) => {
+                          const isDragging = draggingColumnKey === col.id;
+                          const isDropTarget = columnDragOverKey === col.id && !isDragging;
+                          return (
+                            <th
+                              key={col.id}
+                              {...(() => {
+                                const props = getThProps(col.id, col.label, '');
+                                const { className: _c, ...rest } = props as any;
+                                return rest;
+                              })()}
+                              className={[
+                                isDragging ? 'lv-col-dragging' : '',
+                                isDropTarget ? 'lv-col-drop-target' : '',
+                                companyColClass(col.id as CompanyTableColId),
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
                             >
-                              {t('crm.companies.list.tasks')}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => handleDelete(company.id, e)}
-                              className="rounded-lg border border-rose-300 px-2 py-1 text-[10px] text-rose-600 hover:bg-rose-50"
-                            >
-                              {t('crm.companies.list.delete')}
-                            </button>
-                          </div>
-                        </td>
+                              <span className="lv-th-inner">
+                                <span className="lv-th-grip">⋮⋮</span>
+                                {col.label}
+                              </span>
+                            </th>
+                          );
+                        })}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredCompanies.map((company) => (
+                        <tr
+                          key={company.id}
+                          className={`lv-proj-row${selectedIds.has(company.id) ? ' selected' : ''}`}
+                          onClick={() => handleOpen(company.id)}
+                        >
+                          <td className="lv-col-check" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className={`lv-checkbox${selectedIds.has(company.id) ? ' checked' : ''}`}
+                              onClick={() => handleToggleSelect(company.id)}
+                              role="checkbox"
+                              aria-checked={selectedIds.has(company.id)}
+                            >
+                              {selectedIds.has(company.id) && (
+                                <svg
+                                  width="10"
+                                  height="10"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.4"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  aria-hidden
+                                >
+                                  <path d="M5 12l4 4 10-10" />
+                                </svg>
+                              )}
+                            </button>
+                          </td>
+                          {orderedCompanyColumns.map((col) => (
+                            <td
+                              key={col.id}
+                              className={[
+                                col.id === 'assignee' ? 'lv-td-popover' : '',
+                                companyColClass(col.id as CompanyTableColId),
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              onClick={(e) => {
+                                if (col.id === 'assignee' || col.id === 'actions') {
+                                  e.stopPropagation();
+                                }
+                              }}
+                            >
+                              {renderCompanyCellContent(company, col.id as CompanyTableColId)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="lv-proj-foot">
+                  <div className="lv-proj-foot-stats">
+                    <span>
+                      <span className="lbl">{t('crm.leads.list.footerTotal')}:</span>
+                      <strong>{filteredCompanies.length}</strong>
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
-          </div>
+          </>
         )}
 
         {/* Модальное окно массовых операций */}

@@ -1,13 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import './ProjectsListPage.css';
 import { MainLayout } from '../../layout/MainLayout';
+import { AutomationPanel } from '../../components/AutomationPanel';
 import { fetchProject, fetchProjects } from '../../api/projects';
 import type { Project, ProjectTask } from './projectTypes';
 import { useTranslation } from 'react-i18next';
 import { fetchLeadsList } from '../../api/leads';
 import { fetchCompanies } from '../../api/companies';
 import { ProjectsViewsBar } from './ProjectsViewsBar';
-import { type ProjectsViewSettings } from './projectsViewsStore';
+import {
+  filterProjectsForCustomView,
+  loadProjectsViewsState,
+  type ProjectsViewSettings,
+} from './projectsViewsStore';
 import { toLocalDateKey } from '../../utils/calendarLocalDates';
 
 const toDateKey = (value: string | Date) => {
@@ -58,16 +64,32 @@ export const ProjectsCalendarPage: React.FC = () => {
   const [companyFilter, setCompanyFilter] = useState('');
   const [projectCompanyMap, setProjectCompanyMap] = useState<Record<string, string>>({});
   const [activeViewSettings, setActiveViewSettings] = useState<ProjectsViewSettings>({});
+  const [automationOpen, setAutomationOpen] = useState(false);
 
   const activeViewId = searchParams.get('view');
+  const activeCustomView = useMemo(() => {
+    if (!activeViewId) return null;
+    return loadProjectsViewsState().customViews.find((v) => v.id === activeViewId) ?? null;
+  }, [activeViewId]);
+
+  const visibleProjects = useMemo(
+    () => filterProjectsForCustomView(projects, activeCustomView),
+    [projects, activeCustomView],
+  );
+
   const openView = (type: 'table' | 'kanban' | 'calendar', viewId?: string) => {
     const basePath =
       type === 'table'
-        ? '/app/projects'
+        ? '/projects'
         : type === 'kanban'
-          ? '/app/projects/board'
-          : '/app/projects/calendar';
+          ? '/projects/board'
+          : '/projects/calendar';
     navigate(viewId ? `${basePath}?view=${viewId}` : basePath);
+  };
+
+  const handleCreate = () => {
+    const q = activeViewId ? `?view=${encodeURIComponent(activeViewId)}` : '';
+    navigate(`/projects/new${q}`);
   };
 
   useEffect(() => {
@@ -138,7 +160,7 @@ export const ProjectsCalendarPage: React.FC = () => {
 
   const calendarItems = useMemo<CalendarItem[]>(() => {
     const out: CalendarItem[] = [];
-    projects.forEach((project) => {
+    visibleProjects.forEach((project) => {
       (project.tasks || []).forEach((task) => {
         const deadlineKey = toDateKey(task.deadline || '');
         if (!deadlineKey) return;
@@ -158,7 +180,7 @@ export const ProjectsCalendarPage: React.FC = () => {
       });
     });
     return out;
-  }, [projects, projectCompanyMap]);
+  }, [visibleProjects, projectCompanyMap, t]);
 
   const allAssignees = useMemo(() => {
     const set = new Set<string>();
@@ -253,11 +275,33 @@ export const ProjectsCalendarPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-5">
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-          <h1 className="text-lg font-semibold text-slate-900">{t('crm.projects.list.title')}</h1>
-          <div className="text-[11px] text-slate-500">
-            {t('crm.projects.calendar.subtitle')}
+      <div
+        className="lv-pt w-full pb-8 min-w-0 space-y-5"
+        style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24, width: 'calc(100% + 48px)' }}
+      >
+        <div className="lv-pt-head">
+          <div>
+            <h1>{t('crm.projects.calendar.title')}</h1>
+            <div className="sub">{t('crm.projects.calendar.subtitle')}</div>
+          </div>
+          <div className="lv-pt-head-actions">
+            <button type="button" className="lv-tb-btn" onClick={() => setAutomationOpen(true)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />
+              </svg>
+              {t('crm.automations.panel.button')}
+            </button>
+            <button
+              type="button"
+              onClick={handleCreate}
+              className="lv-tb-btn"
+              style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              {t('crm.projects.actions.newProject')}
+            </button>
           </div>
         </div>
 
@@ -266,6 +310,7 @@ export const ProjectsCalendarPage: React.FC = () => {
           activeViewId={activeViewId}
           onOpenView={openView}
           onSettingsChange={setActiveViewSettings}
+          projectCount={visibleProjects.length}
         />
 
         {error && (
@@ -415,7 +460,7 @@ export const ProjectsCalendarPage: React.FC = () => {
                           <button
                             key={item.taskId}
                             type="button"
-                            onClick={() => navigate(`/app/projects/${item.projectId}`)}
+                            onClick={() => navigate(`/projects/${item.projectId}`)}
                             className="w-full text-left rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 hover:bg-slate-100"
                           >
                             <div className="text-[10px] font-semibold text-slate-800 truncate">{item.projectName}</div>
@@ -459,7 +504,7 @@ export const ProjectsCalendarPage: React.FC = () => {
                     <td className="px-2 py-1.5">
                       <button
                         type="button"
-                        onClick={() => navigate(`/app/projects/${item.projectId}`)}
+                        onClick={() => navigate(`/projects/${item.projectId}`)}
                         className="text-sky-600 hover:text-sky-700 hover:underline"
                       >
                         {item.projectName}
@@ -490,6 +535,8 @@ export const ProjectsCalendarPage: React.FC = () => {
             </table>
           </div>
         </div>
+
+        <AutomationPanel open={automationOpen} onClose={() => setAutomationOpen(false)} entityType="project" />
       </div>
     </MainLayout>
   );

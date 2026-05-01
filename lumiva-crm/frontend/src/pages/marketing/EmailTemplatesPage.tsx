@@ -6,11 +6,13 @@ import { useTranslation } from 'react-i18next';
 import { fetchEmailTemplates, deleteEmailTemplate, type EmailTemplate } from '../../api/email';
 import { EMAIL_TEMPLATE_PRESET_CONTENTS } from '../../marketing/emailTemplatePresets';
 import { EmailTemplatePresetPreview } from '../../marketing/EmailTemplatePresetPreview';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const ACCENT = '#222222';
 
 export const EmailTemplatesPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,9 @@ export const EmailTemplatesPage: React.FC = () => {
       await deleteEmailTemplate(id);
       setTemplates(templates.filter((x) => x.id !== id));
     } catch (err: any) {
-      alert(err.message || t('crm.emailTemplates.list.errors.deleteFailed'));
+      showAlert(err.message || t('crm.emailTemplates.list.errors.deleteFailed'), {
+        variant: 'error',
+      });
     }
   };
 

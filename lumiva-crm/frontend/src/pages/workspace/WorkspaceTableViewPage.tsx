@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import '../projects/ProjectsListPage.css';
 import { ApiError } from '../../api/client';
 import { MainLayout } from '../../layout/MainLayout';
 import {
@@ -10,7 +11,10 @@ import {
   deleteCustomObjectField,
   deleteCustomObjectRecord,
   fetchCustomObjectFields,
-  fetchCustomObjectRecords,
+  fetchCustomObjectRecordsPage,
+  fetchCustomObjectValueKeys,
+  fetchCustomObjectDistinctFieldValues,
+  clearAllCustomObjectRecords,
   fetchCustomObjects,
   updateCustomObjectField,
   updateCustomObjectRecord,
@@ -22,7 +26,17 @@ import {
   type CustomObjectRecord,
   type WorkspaceFileFieldValue,
 } from '../../api/customObjects';
+import { PushToBoardModal } from '../../components/workspace/PushToBoardModal';
+import { getWorkspaceDataLink } from '../../workspace/workspaceRecordLink';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import {
+  fetchLeadsList,
+  isLeadOmittedFromAnalytics,
+  type Lead,
+} from '../../api/leads';
+import { fetchProjects, type Project } from '../../api/projects';
+import { fetchCompanies, type Company } from '../../api/companies';
+import { WorkspaceCrmEntityMultiField } from '../../components/workspace/WorkspaceCrmEntityMultiField';
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { WorkspaceRecordDetailDrawer } from '../../components/workspace/WorkspaceRecordDetailDrawer';
 import { WorkspaceFileViewerModal } from '../../components/workspace/WorkspaceFileViewerModal';
@@ -31,6 +45,22 @@ import {
   pickStatusLikeField,
 } from '../../components/workspace/workspaceStatusField';
 import { normalizeOptionToken } from '../../workspace/normalizeOptionToken';
+import { touchRecentWorkspaceTable } from '../../workspace/workspaceRecentTables';
+import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import { parseWorkspaceColumnBindingV1 } from '../../workspace/workspaceColumnBinding';
+import { createColumnDragGhostElement } from '../../components/table/columnDragGhost';
+import {
+  getWorkspaceFieldValueStorageKey,
+  WORKSPACE_MAPS_TO_IMPORTED_KEY,
+} from '../../workspace/workspaceFieldValueKey';
+import { isRenderableWorkspaceDateField } from '../../workspace/workspaceDateField';
+import {
+  isWorkspaceEntityRefField,
+  isWorkspaceReadOnlyField,
+  parseWorkspaceEntityRef,
+  WORKSPACE_ENTITY_REF_KEY,
+  WORKSPACE_IS_READONLY_KEY,
+} from '../../workspace/workspaceEntityRef';
 
 const GROUP_COLORS = ['#3b82f6', '#8b5cf6', '#14b8a6', '#f59e0b', '#ef4444', '#22c55e'];
 const FIELD_TYPES: CustomObjectFieldType[] = [
@@ -130,6 +160,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const { objectId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const newGroupInputRef = useRef<HTMLInputElement>(null);
+  const groupTableScrollRefs = useRef(new Map<string, HTMLDivElement>());
 
   const normalizePriorityLabel = useCallback(
     (raw: string) => {
@@ -210,13 +241,29 @@ export const WorkspaceTableViewPage: React.FC = () => {
             { value: 'in_review', label: t('crm.workspace.table.presetStReview') },
           ],
         },
+        {
+          key: 'crm_lead',
+          label: t('crm.workspace.table.presetCrmLead'),
+          type: 'text' as const,
+          meta: { [WORKSPACE_ENTITY_REF_KEY]: 'lead' as const },
+        },
+        {
+          key: 'crm_project',
+          label: t('crm.workspace.table.presetCrmProject'),
+          type: 'text' as const,
+          meta: { [WORKSPACE_ENTITY_REF_KEY]: 'project' as const },
+        },
       ] as const,
     [t],
   );
 
   const [fields, setFields] = useState<CustomObjectField[]>([]);
   const [objectMeta, setObjectMeta] = useState<CustomObject['meta'] | null>(null);
+  const [workspaceTableName, setWorkspaceTableName] = useState<string | null>(null);
   const [records, setRecords] = useState<CustomObjectRecord[]>([]);
+  const [recordsTotal, setRecordsTotal] = useState(0);
+  const [tablePage, setTablePage] = useState(0);
+  const [pageSize, setPageSize] = useState(100);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -253,6 +300,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const [holdingRowId, setHoldingRowId] = useState<string | null>(null);
   const [dragReadyColumnKey, setDragReadyColumnKey] = useState<string | null>(null);
   const [holdingColumnKey, setHoldingColumnKey] = useState<string | null>(null);
+  const [columnDragOverKey, setColumnDragOverKey] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     key: string;
     startX: number;
@@ -266,8 +314,18 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const [showAddField, setShowAddField] = useState(false);
   const [newFieldKey, setNewFieldKey] = useState('');
   const [newFieldLabel, setNewFieldLabel] = useState('');
-  const [newFieldType, setNewFieldType] = useState<CustomObjectFieldType>('text');
+  const [newFieldType, setNewFieldType] = useState<string>('text');
   const [newFieldOptionsText, setNewFieldOptionsText] = useState('');
+  /** Пусто — значение в json под ключом колонки; иначе — ключ из импорта (meta.mapsToImportedKey). */
+  const [newFieldMapsToImportKey, setNewFieldMapsToImportKey] = useState('');
+  const [importValueKeys, setImportValueKeys] = useState<string[]>([]);
+  const [editMapsToImportedKey, setEditMapsToImportedKey] = useState('');
+  const [editCrmEntityRef, setEditCrmEntityRef] = useState<'none' | 'lead' | 'project' | 'company'>('none');
+  const [crmLeadList, setCrmLeadList] = useState<Lead[]>([]);
+  const [crmProjectList, setCrmProjectList] = useState<Project[]>([]);
+  const [crmCompanyList, setCrmCompanyList] = useState<Company[]>([]);
+  const [dataBindingFieldKeys, setDataBindingFieldKeys] = useState<string[]>([]);
+  const [pushedSourceFieldKeys, setPushedSourceFieldKeys] = useState<string[]>([]);
   const [addingField, setAddingField] = useState(false);
   const [addFieldError, setAddFieldError] = useState<string | null>(null);
   const [activeMultiCell, setActiveMultiCell] = useState<ActiveMultiCellState | null>(null);
@@ -289,10 +347,90 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const [editingField, setEditingField] = useState<CustomObjectField | null>(null);
   const [editFieldKey, setEditFieldKey] = useState('');
   const [editFieldLabel, setEditFieldLabel] = useState('');
-  const [editFieldType, setEditFieldType] = useState<CustomObjectFieldType>('text');
+  const [editFieldType, setEditFieldType] = useState<CustomObjectFieldType | 'fixed'>('text');
   const [editFieldOptionsText, setEditFieldOptionsText] = useState('');
+  const [editBindMode, setEditBindMode] = useState<
+    'off' | 'from_pushed_source' | 'lookup_by_key' | 'pick_from_data' | 'rollup'
+  >('off');
+  const [editBindSourceField, setEditBindSourceField] = useState('');
+  const [editBindPickDataField, setEditBindPickDataField] = useState('');
+  const [editBindDataObjectId, setEditBindDataObjectId] = useState('');
+  const [editBindBoardMatch, setEditBindBoardMatch] = useState('');
+  const [editBindDataMatch, setEditBindDataMatch] = useState('');
+  const [editBindDataDisplay, setEditBindDataDisplay] = useState('');
+  const [editBindGroupBy, setEditBindGroupBy] = useState('');
+  const [editBindValueField, setEditBindValueField] = useState('');
+  const [editBindAggregate, setEditBindAggregate] = useState<'sum' | 'count' | 'avg' | 'min' | 'max'>(
+    'sum',
+  );
   const [updatingField, setUpdatingField] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [workspaceAreaId, setWorkspaceAreaId] = useState<string | null>(null);
+  const [areaObjects, setAreaObjects] = useState<CustomObject[]>([]);
+  const [pushBoardOpen, setPushBoardOpen] = useState(false);
+  const [pushBoardRecordIds, setPushBoardRecordIds] = useState<string[]>([]);
+
+  const workspaceTableKind = useMemo(
+    () => getWorkspaceTableKind(objectMeta as Record<string, unknown> | null),
+    [objectMeta],
+  );
+  const isDataTable = workspaceTableKind === 'data';
+  const isBoardTable = workspaceTableKind === 'board';
+  /** Доска: сетка в духе Monday (тулбар, заливка статусов). */
+  const mondayBoardUi = isBoardTable;
+
+  const dataTablesInArea = useMemo(
+    () =>
+      areaObjects.filter(
+        (o) => getWorkspaceTableKind(o.meta as Record<string, unknown> | null) === 'data',
+      ),
+    [areaObjects],
+  );
+
+  const importKeyOptions = useMemo(() => {
+    const s = new Set<string>();
+    fields.forEach((f) => s.add(f.key));
+    importValueKeys.forEach((k) => s.add(k));
+    return [...s].sort((a, b) => a.localeCompare(b));
+  }, [fields, importValueKeys]);
+
+  const boardFieldKeyOptions = useMemo(
+    () => fields.map((f) => f.key).sort((a, b) => a.localeCompare(b)),
+    [fields],
+  );
+
+  const [pickFromDataOptionsByKey, setPickFromDataOptionsByKey] = useState<Record<string, string[]>>(
+    {},
+  );
+
+  useEffect(() => {
+    if (!isBoardTable || !fields.length) return;
+    let cancelled = false;
+    const seen = new Set<string>();
+    const loads: Promise<void>[] = [];
+    for (const f of fields) {
+      const b = parseWorkspaceColumnBindingV1(f.meta as Record<string, unknown> | null);
+      if (b?.mode !== 'pick_from_data') continue;
+      const cacheKey = `${b.dataObjectId}\x1e${b.dataFieldKey}`;
+      if (seen.has(cacheKey)) continue;
+      seen.add(cacheKey);
+      loads.push(
+        fetchCustomObjectDistinctFieldValues(b.dataObjectId, b.dataFieldKey).then((res) => {
+          if (!cancelled) {
+            setPickFromDataOptionsByKey((prev) => ({
+              ...prev,
+              [cacheKey]: res.values || [],
+            }));
+          }
+        }),
+      );
+    }
+    void Promise.all(loads);
+    return () => {
+      cancelled = true;
+    };
+  }, [isBoardTable, fields]);
+
   const [filePreview, setFilePreview] = useState<{
     recordId: string;
     fieldKey: string;
@@ -307,42 +445,122 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const [activityByRecord, setActivityByRecord] = useState<
     Record<string, Array<{ id: string; text: string; createdAt: string }>>
   >({});
+  const [justCreatedRecordId, setJustCreatedRecordId] = useState<string | null>(null);
+  const justCreatedInputRef = useRef<HTMLInputElement | null>(null);
   const rowHoldTimerRef = useRef<number | null>(null);
   const columnHoldTimerRef = useRef<number | null>(null);
+  const prevObjectIdRef = useRef<string>('');
+
+  const buildRecordsListParams = () => ({
+    limit: pageSize,
+    offset: tablePage * pageSize,
+    search: search.trim() || undefined,
+    sortBy: sortFieldKey.trim() || undefined,
+    sortOrder: sortFieldKey.trim()
+      ? sortDirection === 'asc'
+        ? ('ASC' as const)
+        : ('DESC' as const)
+      : undefined,
+    /** Доска и слой данных: подстановка значений по columnBinding (rollup, lookup, импорт). */
+    enrichColumnBindings: isBoardTable || isDataTable,
+  });
 
   const loadRecords = async (showLoader = false) => {
+    if (!objectId) return;
     if (showLoader) setLoading(true);
     try {
-      const loadedRecords = await fetchCustomObjectRecords(objectId, search || undefined);
-      setRecords(loadedRecords.items);
+      const loaded = await fetchCustomObjectRecordsPage(objectId, buildRecordsListParams());
+      setRecords(loaded.items);
+      setRecordsTotal(loaded.total);
     } finally {
       if (showLoader) setLoading(false);
     }
   };
 
-  const load = async () => {
+  const reloadAll = async () => {
+    if (!objectId) return;
     setLoading(true);
     try {
-      const [loadedFields, loadedRecords, loadedStaff, objects] = await Promise.all([
+      const [loadedFields, loadedStaff, objects, vk] = await Promise.all([
         fetchCustomObjectFields(objectId),
-        fetchCustomObjectRecords(objectId, search || undefined),
         fetchStaff().catch(() => [] as StaffUser[]),
         fetchCustomObjects().catch(() => [] as CustomObject[]),
+        fetchCustomObjectValueKeys(objectId).catch(() => ({ keys: [] as string[] })),
       ]);
+      setImportValueKeys(vk.keys || []);
       setFields(loadedFields.filter((f) => f.isActive));
-      setRecords(loadedRecords.items);
       setStaff(loadedStaff.filter((u) => u.isActive));
       const object = objects.find((item) => item.id === objectId);
       setObjectMeta((object?.meta as Record<string, any> | null) || null);
+      setWorkspaceTableName(object?.name ?? null);
+      setWorkspaceAreaId(object?.workspaceAreaId ?? null);
+      if (object?.workspaceAreaId) {
+        touchRecentWorkspaceTable(object.workspaceAreaId, objectId);
+        const inArea = await fetchCustomObjects(object.workspaceAreaId);
+        setAreaObjects(inArea);
+      } else {
+        setAreaObjects([]);
+      }
+      const loaded = await fetchCustomObjectRecordsPage(objectId, buildRecordsListParams());
+      setRecords(loaded.items);
+      setRecordsTotal(loaded.total);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    if (!objectId) return;
-    void load();
+    setTablePage(0);
   }, [objectId]);
+
+  useEffect(() => {
+    setPushBoardOpen(false);
+    setPushBoardRecordIds([]);
+  }, [objectId]);
+
+  useEffect(() => {
+    if (!objectId) return;
+    let cancelled = false;
+    (async () => {
+      const objectChanged = prevObjectIdRef.current !== objectId;
+      if (objectChanged) prevObjectIdRef.current = objectId;
+      setLoading(true);
+      try {
+        if (objectChanged) {
+          const [loadedFields, loadedStaff, objects, vk] = await Promise.all([
+            fetchCustomObjectFields(objectId),
+            fetchStaff().catch(() => [] as StaffUser[]),
+            fetchCustomObjects().catch(() => [] as CustomObject[]),
+            fetchCustomObjectValueKeys(objectId).catch(() => ({ keys: [] as string[] })),
+          ]);
+          if (cancelled) return;
+          setImportValueKeys(vk.keys || []);
+          setFields(loadedFields.filter((f) => f.isActive));
+          setStaff(loadedStaff.filter((u) => u.isActive));
+          const object = objects.find((item) => item.id === objectId);
+          setObjectMeta((object?.meta as Record<string, any> | null) || null);
+          setWorkspaceTableName(object?.name ?? null);
+          setWorkspaceAreaId(object?.workspaceAreaId ?? null);
+          if (object?.workspaceAreaId) {
+            touchRecentWorkspaceTable(object.workspaceAreaId, objectId);
+            const inArea = await fetchCustomObjects(object.workspaceAreaId);
+            setAreaObjects(inArea);
+          } else {
+            setAreaObjects([]);
+          }
+        }
+        const loaded = await fetchCustomObjectRecordsPage(objectId, buildRecordsListParams());
+        if (cancelled) return;
+        setRecords(loaded.items);
+        setRecordsTotal(loaded.total);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [objectId, search, tablePage, pageSize, sortFieldKey, sortDirection]);
 
   /** Сайдбар: «новая таблица» в области → фокус на блоке создания группы */
   useEffect(() => {
@@ -360,15 +578,62 @@ export const WorkspaceTableViewPage: React.FC = () => {
   }, [searchParams, setSearchParams, loading]);
 
   useEffect(() => {
-    if (!objectId) return;
-    void loadRecords();
-  }, [search]);
-
-  useEffect(() => {
     if (!activeRecord) return;
     const fresh = records.find((r) => r.id === activeRecord.id);
     if (fresh) setActiveRecord(fresh);
   }, [records, activeRecord?.id]);
+
+  useEffect(() => {
+    if (!justCreatedRecordId || !justCreatedInputRef.current) return;
+    justCreatedInputRef.current.focus();
+    justCreatedInputRef.current.select();
+    setJustCreatedRecordId(null);
+  }, [justCreatedRecordId]);
+
+  useEffect(() => {
+    if (!showEditField || !editBindDataObjectId) {
+      setDataBindingFieldKeys([]);
+      return;
+    }
+    let cancelled = false;
+    fetchCustomObjectFields(editBindDataObjectId)
+      .then((list) => {
+        if (!cancelled) {
+          setDataBindingFieldKeys(
+            list.filter((f) => f.isActive).map((f) => f.key).sort((a, b) => a.localeCompare(b)),
+          );
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setDataBindingFieldKeys([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showEditField, editBindDataObjectId]);
+
+  useEffect(() => {
+    if (!showEditField || editBindMode !== 'from_pushed_source' || !dataTablesInArea.length) {
+      setPushedSourceFieldKeys([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(dataTablesInArea.map((o) => fetchCustomObjectFields(o.id)))
+      .then((arrays) => {
+        if (cancelled) return;
+        const s = new Set<string>();
+        arrays.flat().forEach((f) => {
+          if (f.isActive) s.add(f.key);
+        });
+        setPushedSourceFieldKeys([...s].sort((a, b) => a.localeCompare(b)));
+      })
+      .catch(() => {
+        if (!cancelled) setPushedSourceFieldKeys([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showEditField, editBindMode, dataTablesInArea]);
 
   useEffect(() => {
     if (!objectId) return;
@@ -447,10 +712,71 @@ export const WorkspaceTableViewPage: React.FC = () => {
     return result;
   }, [visibleColumns, columnOrder, hiddenColumns]);
 
+  const needsCrmLeads = useMemo(
+    () => orderedColumns.some((f) => isWorkspaceEntityRefField(f) === 'lead'),
+    [orderedColumns],
+  );
+  const needsCrmProjects = useMemo(
+    () => orderedColumns.some((f) => isWorkspaceEntityRefField(f) === 'project'),
+    [orderedColumns],
+  );
+  const needsCrmCompanies = useMemo(
+    () => orderedColumns.some((f) => isWorkspaceEntityRefField(f) === 'company'),
+    [orderedColumns],
+  );
+
+  useEffect(() => {
+    if (!needsCrmLeads) return;
+    let cancelled = false;
+    fetchLeadsList()
+      .then((list) => {
+        if (!cancelled)
+          setCrmLeadList(list.filter((l) => !isLeadOmittedFromAnalytics(l)));
+      })
+      .catch(() => {
+        if (!cancelled) setCrmLeadList([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsCrmLeads]);
+
+  useEffect(() => {
+    if (!needsCrmProjects) return;
+    let cancelled = false;
+    fetchProjects()
+      .then((res) => {
+        if (!cancelled)
+          setCrmProjectList(res.items.filter((p) => !p.isDeleted));
+      })
+      .catch(() => {
+        if (!cancelled) setCrmProjectList([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsCrmProjects]);
+
+  useEffect(() => {
+    if (!needsCrmCompanies) return;
+    let cancelled = false;
+    fetchCompanies({ limit: 500 })
+      .then((res) => {
+        if (!cancelled) setCrmCompanyList(res.items ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setCrmCompanyList([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [needsCrmCompanies]);
+
   const hiddenColumnList = useMemo(
     () => visibleColumns.filter((f) => hiddenColumns[f.key]),
     [visibleColumns, hiddenColumns],
   );
+
   const hiddenRowsCount = useMemo(
     () => Object.values(hiddenRows).filter(Boolean).length,
     [hiddenRows],
@@ -553,6 +879,16 @@ export const WorkspaceTableViewPage: React.FC = () => {
   );
   const effectiveGroupKey = groupByFieldKey || groupField?.key || 'group';
   const isPrimaryGrouping = effectiveGroupKey === (groupField?.key || 'group');
+  const isStatusGrouping = Boolean(statusField && effectiveGroupKey === statusField.key);
+  /** На доске новую строку можно добавить в любую группу (не только при группировке по «group»/статусу). */
+  const canAddRowInGroup =
+    Boolean(titleField) && (isBoardTable || isPrimaryGrouping || isStatusGrouping);
+
+  useEffect(() => {
+    if (!objectId || !isBoardTable || !statusField?.key) return;
+    setGroupByFieldKey(statusField.key);
+  }, [objectId, isBoardTable, statusField?.key]);
+
   const numberField = useMemo(
     () => orderedColumns.find((f) => f.type === 'number'),
     [orderedColumns],
@@ -631,9 +967,11 @@ export const WorkspaceTableViewPage: React.FC = () => {
 
   const fieldValueOptions = useMemo(() => {
     if (!filterFieldKey) return [];
+    const fld = fields.find((f) => f.key === filterFieldKey);
+    const sk = fld ? getWorkspaceFieldValueStorageKey(fld) : filterFieldKey;
     const values = new Set<string>();
     records.forEach((record) => {
-      const raw = record.values?.[filterFieldKey];
+      const raw = record.values?.[sk];
       if (raw === undefined || raw === null || raw === '') return;
       if (Array.isArray(raw)) {
         raw.forEach((value) => {
@@ -646,14 +984,17 @@ export const WorkspaceTableViewPage: React.FC = () => {
       if (text) values.add(text);
     });
     return Array.from(values).sort((a, b) => a.localeCompare(b));
-  }, [filterFieldKey, records]);
+  }, [filterFieldKey, fields, records]);
 
+  /** Фильтр по полю — только по загруженной странице; сортировка приходит с сервера (sortBy/sortOrder). */
   const filteredAndSortedRecords = useMemo(() => {
     let list = [...records];
     if (filterFieldKey && filterFieldValue) {
+      const fld = fields.find((f) => f.key === filterFieldKey);
+      const sk = fld ? getWorkspaceFieldValueStorageKey(fld) : filterFieldKey;
       const needle = filterFieldValue.trim().toLowerCase();
       list = list.filter((record) => {
-        const raw = record.values?.[filterFieldKey];
+        const raw = record.values?.[sk];
         if (raw === undefined || raw === null) return false;
         if (Array.isArray(raw)) {
           return raw.some((value) => String(value || '').trim().toLowerCase() === needle);
@@ -661,21 +1002,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
         return String(raw).trim().toLowerCase() === needle;
       });
     }
-    if (sortFieldKey) {
-      list.sort((a, b) => {
-        const av = a.values?.[sortFieldKey];
-        const bv = b.values?.[sortFieldKey];
-        const aNum = Number(av);
-        const bNum = Number(bv);
-        const bothNumeric = Number.isFinite(aNum) && Number.isFinite(bNum);
-        const delta = bothNumeric
-          ? aNum - bNum
-          : String(av ?? '').localeCompare(String(bv ?? ''), undefined, { sensitivity: 'base' });
-        return sortDirection === 'asc' ? delta : -delta;
-      });
-    }
     return list;
-  }, [records, filterFieldKey, filterFieldValue, sortFieldKey, sortDirection]);
+  }, [records, filterFieldKey, filterFieldValue, fields]);
 
   const groupedRecords = useMemo(() => {
     const map = new Map<string, CustomObjectRecord[]>();
@@ -710,6 +1038,19 @@ export const WorkspaceTableViewPage: React.FC = () => {
     () => groupedRecords.map((g) => g.title),
     [groupedRecords],
   );
+  /** Первая группа для кнопки «Новая запись» в тулбаре (если таблица пуста — первый статус из схемы). */
+  const primaryBoardToolbarGroup = useMemo(() => {
+    if (groupTitles.length > 0) return groupTitles[0];
+    if (isBoardTable && isStatusGrouping && statusOptions.length > 0) return statusOptions[0];
+    return '';
+  }, [groupTitles, isBoardTable, isStatusGrouping, statusOptions]);
+
+  /** Загружен не весь набор — удаление «всей группы» и суммы по группе неполные. */
+  const incompleteDataset = recordsTotal > records.length;
+  const showTablePagination =
+    recordsTotal > 0 && (recordsTotal > pageSize || tablePage > 0);
+  const pageRowFrom = recordsTotal === 0 ? 0 : tablePage * pageSize + 1;
+  const pageRowTo = Math.min((tablePage + 1) * pageSize, recordsTotal);
 
   const getStatusColor = (value: string) => {
     const idx = hashString(value || 'status') % STATUS_PALETTE.length;
@@ -793,11 +1134,27 @@ export const WorkspaceTableViewPage: React.FC = () => {
 
   const buildRequiredDefaults = (baseValues: Record<string, any>) => {
     const next = { ...baseValues };
+    const emptyish = (v: unknown) =>
+      v === undefined ||
+      v === null ||
+      v === '' ||
+      (Array.isArray(v) && v.length === 0);
     fields.forEach((field) => {
       if (!field.required) return;
-      const current = next[field.key];
-      if (current === undefined || current === null || current === '') {
-        next[field.key] = getDefaultValueForField(field);
+      const sk = getWorkspaceFieldValueStorageKey(field);
+      const current = next[sk];
+      if (!emptyish(current)) return;
+      let def = getDefaultValueForField(field);
+      if (emptyish(def)) {
+        if (field.type === 'text') {
+          def = '\u2014';
+        } else if (field.type === 'multiselect') {
+          def = field.options?.[0]?.value ?? '\u2014';
+        }
+      }
+      next[sk] = def;
+      if (sk !== field.key && !emptyish(def)) {
+        next[field.key] = def;
       }
     });
     return next;
@@ -854,6 +1211,25 @@ export const WorkspaceTableViewPage: React.FC = () => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!draggingColumnKey) return;
+    const onDragOver = (e: DragEvent) => {
+      groupTableScrollRefs.current.forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (e.clientY < r.top || e.clientY > r.bottom) return;
+        const margin = 56;
+        const speed = 18;
+        if (e.clientX < r.left + margin) {
+          el.scrollLeft = Math.max(0, el.scrollLeft - speed);
+        } else if (e.clientX > r.right - margin) {
+          el.scrollLeft += speed;
+        }
+      });
+    };
+    document.addEventListener('dragover', onDragOver);
+    return () => document.removeEventListener('dragover', onDragOver);
+  }, [draggingColumnKey]);
+
   const clearRowHoldTimer = () => {
     if (rowHoldTimerRef.current) {
       window.clearTimeout(rowHoldTimerRef.current);
@@ -903,29 +1279,32 @@ export const WorkspaceTableViewPage: React.FC = () => {
   const saveRecord = async (
     record: CustomObjectRecord,
     nextValues: Record<string, any>,
-    changedField?: string,
+    changedFieldUiKey?: string,
   ) => {
     setSavingRecordId(record.id);
     try {
       setActionError(null);
+      const changedField =
+        changedFieldUiKey && visibleColumns.find((f) => f.key === changedFieldUiKey);
+      const storageKey = changedField ? getWorkspaceFieldValueStorageKey(changedField) : undefined;
       const valuesForRequest =
-        changedField && Object.prototype.hasOwnProperty.call(nextValues, changedField)
-          ? { [changedField]: nextValues[changedField] }
+        changedFieldUiKey && storageKey && Object.prototype.hasOwnProperty.call(nextValues, storageKey)
+          ? { [storageKey]: nextValues[storageKey] }
           : nextValues;
       await updateCustomObjectRecord(objectId, record.id, {
         externalId: record.externalId || undefined,
         values: valuesForRequest,
       });
-      if (changedField) {
-        const field = visibleColumns.find((f) => f.key === changedField);
+      if (changedFieldUiKey) {
+        const field = visibleColumns.find((f) => f.key === changedFieldUiKey);
         pushActivity(
           record.id,
-          t('crm.workspace.table.activityUpdated', { field: field?.label || changedField }),
+          t('crm.workspace.table.activityUpdated', { field: field?.label || changedFieldUiKey }),
         );
       }
       await loadRecords();
     } catch (error) {
-      console.error('Failed to save record', { recordId: record.id, changedField, error });
+      console.error('Failed to save record', { recordId: record.id, changedFieldUiKey, error });
       const msg =
         error instanceof ApiError
           ? error.message
@@ -954,7 +1333,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
         : isStatusLikeColumn
           ? canonicalStatusPayloadValue(field, value as string)
           : value;
-    const nextValues = { ...(record.values || {}), [field.key]: storedValue };
+    const valueKey = getWorkspaceFieldValueStorageKey(field);
+    const nextValues = { ...(record.values || {}), [valueKey]: storedValue };
     const isPriorityLike =
       field.key.toLowerCase().includes('priority') ||
       field.label.toLowerCase().includes('priority') ||
@@ -979,14 +1359,33 @@ export const WorkspaceTableViewPage: React.FC = () => {
     if (!titleField) return;
     setSavingRecordId(`new-${groupTitle}`);
     try {
+      setActionError(null);
+      const titleSk = getWorkspaceFieldValueStorageKey(titleField);
+      const groupFieldDef =
+        fields.find((f) => f.key === effectiveGroupKey) ||
+        orderedColumns.find((f) => f.key === effectiveGroupKey);
+      const groupSk = groupFieldDef
+        ? getWorkspaceFieldValueStorageKey(groupFieldDef)
+        : effectiveGroupKey;
       const payloadBase: Record<string, any> = {
-        [titleField.key]: t('crm.workspace.table.newItem'),
-        [effectiveGroupKey]: groupTitle,
+        [titleSk]: t('crm.workspace.table.newItem'),
+        [groupSk]: groupTitle,
       };
-      if (statusField) payloadBase[statusField.key] = statusOptions[0] || 'working_on_it';
+      if (statusField && statusField.key !== effectiveGroupKey) {
+        payloadBase[getWorkspaceFieldValueStorageKey(statusField)] = statusOptions[0] || 'working_on_it';
+      }
       const payload = buildRequiredDefaults(payloadBase);
-      await createCustomObjectRecord(objectId, { values: payload });
+      const created = await createCustomObjectRecord(objectId, { values: payload });
       await loadRecords();
+      setJustCreatedRecordId(created.id);
+    } catch (e: unknown) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : e instanceof Error
+            ? e.message
+            : t('crm.workspace.table.saveRecordFailed');
+      setActionError(msg);
     } finally {
       setSavingRecordId(null);
     }
@@ -1001,11 +1400,20 @@ export const WorkspaceTableViewPage: React.FC = () => {
     setNewGroupError(null);
     setCreatingGroup(true);
     try {
+      const titleSk = getWorkspaceFieldValueStorageKey(titleField);
+      const groupFieldDef =
+        fields.find((f) => f.key === effectiveGroupKey) ||
+        orderedColumns.find((f) => f.key === effectiveGroupKey);
+      const groupSk = groupFieldDef
+        ? getWorkspaceFieldValueStorageKey(groupFieldDef)
+        : effectiveGroupKey;
       const payloadBase: Record<string, any> = {
-        [titleField.key]: t('crm.workspace.table.groupFirstRowTitle', { name: newGroupTitle.trim() }),
-        [effectiveGroupKey]: newGroupTitle.trim(),
+        [titleSk]: t('crm.workspace.table.groupFirstRowTitle', { name: newGroupTitle.trim() }),
+        [groupSk]: newGroupTitle.trim(),
       };
-      if (statusField) payloadBase[statusField.key] = statusOptions[0] || 'working_on_it';
+      if (statusField && statusField.key !== effectiveGroupKey) {
+        payloadBase[getWorkspaceFieldValueStorageKey(statusField)] = statusOptions[0] || 'working_on_it';
+      }
       const payload = buildRequiredDefaults(payloadBase);
       await createCustomObjectRecord(objectId, { values: payload });
       setNewGroupTitle('');
@@ -1046,8 +1454,9 @@ export const WorkspaceTableViewPage: React.FC = () => {
     try {
       const nextValues: Record<string, any> = {};
       fields.forEach((field) => {
-        const sanitized = sanitizeFieldValueForDuplicate(field, record.values?.[field.key]);
-        if (sanitized !== undefined) nextValues[field.key] = sanitized;
+        const sk = getWorkspaceFieldValueStorageKey(field);
+        const sanitized = sanitizeFieldValueForDuplicate(field, record.values?.[sk]);
+        if (sanitized !== undefined) nextValues[sk] = sanitized;
       });
       if (titleField) {
         const base = String(nextValues[titleField.key] || record.values?.[titleField.key] || 'Item').trim();
@@ -1087,6 +1496,22 @@ export const WorkspaceTableViewPage: React.FC = () => {
       return next;
     });
     setSelectedIds(new Set());
+  };
+
+  const handleClearTable = async () => {
+    if (!objectId) return;
+    if (!window.confirm(t('crm.workspace.table.clearAllConfirm'))) return;
+    setBulkProcessing(true);
+    setActionError(null);
+    try {
+      await clearAllCustomObjectRecords(objectId);
+      setSelectedIds(new Set());
+      await reloadAll();
+    } catch (e: unknown) {
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBulkProcessing(false);
+    }
   };
 
   const bulkDeleteRows = async () => {
@@ -1140,8 +1565,68 @@ export const WorkspaceTableViewPage: React.FC = () => {
     setEditingField(field);
     setEditFieldKey(field.key);
     setEditFieldLabel(field.label);
-    setEditFieldType(field.type);
+    setEditFieldType(isWorkspaceReadOnlyField(field) ? 'fixed' : field.type);
     setEditFieldOptionsText((field.options || []).map((o) => o.label || o.value).join(', '));
+    const b = parseWorkspaceColumnBindingV1(field.meta as Record<string, unknown> | null);
+    if (b?.mode === 'from_pushed_source') {
+      setEditBindMode('from_pushed_source');
+      setEditBindSourceField(b.sourceFieldKey);
+      setEditBindDataObjectId('');
+      setEditBindPickDataField('');
+      setEditBindBoardMatch('');
+      setEditBindDataMatch('');
+      setEditBindDataDisplay('');
+      setEditBindGroupBy('');
+      setEditBindValueField('');
+      setEditBindAggregate('sum');
+    } else if (b?.mode === 'lookup_by_key') {
+      setEditBindMode('lookup_by_key');
+      setEditBindSourceField('');
+      setEditBindDataObjectId(b.dataObjectId);
+      setEditBindBoardMatch(b.boardMatchFieldKey);
+      setEditBindDataMatch(b.dataMatchFieldKey);
+      setEditBindDataDisplay(b.dataDisplayFieldKey);
+      setEditBindPickDataField('');
+      setEditBindGroupBy('');
+      setEditBindValueField('');
+      setEditBindAggregate('sum');
+    } else if (b?.mode === 'pick_from_data') {
+      setEditBindMode('pick_from_data');
+      setEditBindSourceField('');
+      setEditBindDataObjectId(b.dataObjectId);
+      setEditBindPickDataField(b.dataFieldKey);
+      setEditBindBoardMatch('');
+      setEditBindDataMatch('');
+      setEditBindDataDisplay('');
+      setEditBindGroupBy('');
+      setEditBindValueField('');
+      setEditBindAggregate('sum');
+    } else if (b?.mode === 'rollup') {
+      setEditBindMode('rollup');
+      setEditBindSourceField('');
+      setEditBindDataObjectId(b.dataObjectId);
+      setEditBindPickDataField('');
+      setEditBindBoardMatch(b.boardMatchFieldKey);
+      setEditBindDataMatch('');
+      setEditBindDataDisplay('');
+      setEditBindGroupBy(b.groupByFieldKey);
+      setEditBindValueField(b.valueFieldKey);
+      setEditBindAggregate(b.aggregate);
+    } else {
+      setEditBindMode('off');
+      setEditBindSourceField('');
+      setEditBindDataObjectId('');
+      setEditBindPickDataField('');
+      setEditBindBoardMatch('');
+      setEditBindDataMatch('');
+      setEditBindDataDisplay('');
+      setEditBindGroupBy('');
+      setEditBindValueField('');
+      setEditBindAggregate('sum');
+    }
+    const mk = (field.meta as Record<string, unknown> | undefined)?.[WORKSPACE_MAPS_TO_IMPORTED_KEY];
+    setEditMapsToImportedKey(typeof mk === 'string' ? mk : '');
+    setEditCrmEntityRef(parseWorkspaceEntityRef(field.meta as Record<string, unknown> | null) ?? 'none');
     setShowEditField(true);
   };
 
@@ -1151,18 +1636,103 @@ export const WorkspaceTableViewPage: React.FC = () => {
     if (!normalizedKey) return;
     setUpdatingField(true);
     try {
+      const baseMeta: Record<string, unknown> = {
+        ...(editingField.meta && typeof editingField.meta === 'object' && !Array.isArray(editingField.meta)
+          ? (editingField.meta as Record<string, unknown>)
+          : {}),
+      };
+      const mapTrim = editMapsToImportedKey.trim();
+      if (mapTrim && mapTrim !== normalizedKey) {
+        baseMeta[WORKSPACE_MAPS_TO_IMPORTED_KEY] = mapTrim;
+      } else {
+        delete baseMeta[WORKSPACE_MAPS_TO_IMPORTED_KEY];
+      }
+      const isFixedEdit = editFieldType === 'fixed';
+      if (isFixedEdit) {
+        baseMeta[WORKSPACE_IS_READONLY_KEY] = true;
+      } else {
+        delete baseMeta[WORKSPACE_IS_READONLY_KEY];
+      }
+      if (editFieldType === 'text') {
+        if (
+          editCrmEntityRef === 'lead' ||
+          editCrmEntityRef === 'project' ||
+          editCrmEntityRef === 'company'
+        ) {
+          baseMeta[WORKSPACE_ENTITY_REF_KEY] = editCrmEntityRef;
+        } else {
+          delete baseMeta[WORKSPACE_ENTITY_REF_KEY];
+        }
+      } else {
+        delete baseMeta[WORKSPACE_ENTITY_REF_KEY];
+      }
+      if (isBoardTable) {
+        delete baseMeta.columnBinding;
+        if (editBindMode === 'from_pushed_source' && editBindSourceField.trim()) {
+          baseMeta.columnBinding = {
+            version: 1,
+            mode: 'from_pushed_source',
+            sourceFieldKey: editBindSourceField.trim(),
+          };
+        } else if (
+          editBindMode === 'lookup_by_key' &&
+          editBindDataObjectId &&
+          editBindBoardMatch.trim() &&
+          editBindDataMatch.trim() &&
+          editBindDataDisplay.trim()
+        ) {
+          baseMeta.columnBinding = {
+            version: 1,
+            mode: 'lookup_by_key',
+            dataObjectId: editBindDataObjectId,
+            boardMatchFieldKey: editBindBoardMatch.trim(),
+            dataMatchFieldKey: editBindDataMatch.trim(),
+            dataDisplayFieldKey: editBindDataDisplay.trim(),
+          };
+        } else if (
+          editBindMode === 'pick_from_data' &&
+          editBindDataObjectId &&
+          editBindPickDataField.trim()
+        ) {
+          baseMeta.columnBinding = {
+            version: 1,
+            mode: 'pick_from_data',
+            dataObjectId: editBindDataObjectId,
+            dataFieldKey: editBindPickDataField.trim(),
+          };
+        } else if (
+          editBindMode === 'rollup' &&
+          editBindDataObjectId &&
+          editBindBoardMatch.trim() &&
+          editBindGroupBy.trim() &&
+          editBindValueField.trim()
+        ) {
+          baseMeta.columnBinding = {
+            version: 1,
+            mode: 'rollup',
+            dataObjectId: editBindDataObjectId,
+            boardMatchFieldKey: editBindBoardMatch.trim(),
+            groupByFieldKey: editBindGroupBy.trim(),
+            valueFieldKey: editBindValueField.trim(),
+            aggregate: editBindAggregate,
+          };
+        }
+      }
+      const resolvedEditType: CustomObjectFieldType =
+        editFieldType === 'fixed' ? 'text' : (editFieldType as CustomObjectFieldType);
       await updateCustomObjectField(objectId, editingField.id, {
         key: normalizedKey,
         label: editFieldLabel.trim(),
-        type: editFieldType,
+        type: resolvedEditType,
         options:
-          editFieldType === 'select' || editFieldType === 'status' || editFieldType === 'multiselect'
+          resolvedEditType === 'select' || resolvedEditType === 'status' || resolvedEditType === 'multiselect'
             ? parseOptions(editFieldOptionsText)
             : undefined,
+        meta: baseMeta,
       });
       setShowEditField(false);
       setEditingField(null);
-      await load();
+      await reloadAll();
     } finally {
       setUpdatingField(false);
     }
@@ -1181,24 +1751,43 @@ export const WorkspaceTableViewPage: React.FC = () => {
     setAddFieldError(null);
     setAddingField(true);
     try {
+      const mapTrim = newFieldMapsToImportKey.trim();
+      const meta: Record<string, unknown> = {};
+      if (mapTrim && mapTrim !== normalizedKey) {
+        meta[WORKSPACE_MAPS_TO_IMPORTED_KEY] = mapTrim;
+      }
+      const isCrmLead = newFieldType === 'crm_lead';
+      const isCrmProject = newFieldType === 'crm_project';
+      const isCrmCompany = newFieldType === 'crm_company';
+      const isReadonlyPseudo = newFieldType === 'readonly';
+      const resolvedFieldType: CustomObjectFieldType =
+        isCrmLead || isCrmProject || isCrmCompany || isReadonlyPseudo
+          ? 'text'
+          : (newFieldType as CustomObjectFieldType);
+      if (isCrmLead) meta[WORKSPACE_ENTITY_REF_KEY] = 'lead';
+      if (isCrmProject) meta[WORKSPACE_ENTITY_REF_KEY] = 'project';
+      if (isCrmCompany) meta[WORKSPACE_ENTITY_REF_KEY] = 'company';
+      if (isReadonlyPseudo) meta[WORKSPACE_IS_READONLY_KEY] = true;
       await createCustomObjectField(objectId, {
         key: normalizedKey,
         label: newFieldLabel.trim(),
-        type: newFieldType,
+        type: resolvedFieldType,
         options:
-          newFieldType === 'select' ||
-          newFieldType === 'status' ||
-          newFieldType === 'multiselect'
+          resolvedFieldType === 'select' ||
+          resolvedFieldType === 'status' ||
+          resolvedFieldType === 'multiselect'
             ? parseOptions(newFieldOptionsText)
             : undefined,
+        meta: Object.keys(meta).length ? meta : undefined,
       });
       setNewFieldKey('');
       setNewFieldLabel('');
       setNewFieldType('text');
       setNewFieldOptionsText('');
+      setNewFieldMapsToImportKey('');
       setAddFieldError(null);
       setShowAddField(false);
-      await load();
+      await reloadAll();
     } finally {
       setAddingField(false);
     }
@@ -1213,9 +1802,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
       ...('options' in preset && preset.options
         ? { options: preset.options.map((o) => ({ ...o })) }
         : {}),
+      ...('meta' in preset && preset.meta ? { meta: { ...preset.meta } } : {}),
     };
     await createCustomObjectField(objectId, payload);
-    await load();
+    await reloadAll();
   };
 
   const duplicateColumn = async (field: CustomObjectField) => {
@@ -1232,18 +1822,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
       type: field.type,
       options: field.options?.length ? field.options.map((o) => ({ ...o })) : undefined,
       required: false,
+      meta:
+        field.meta && typeof field.meta === 'object' && !Array.isArray(field.meta)
+          ? { ...(field.meta as Record<string, unknown>) }
+          : undefined,
     });
-    await load();
-  };
-
-  const deleteColumnInGroup = (groupTitle: string, fieldKey: string) => {
-    setGroupHiddenColumns((prev) => ({
-      ...prev,
-      [groupTitle]: {
-        ...(prev[groupTitle] || {}),
-        [fieldKey]: true,
-      },
-    }));
+    await reloadAll();
   };
 
   const deleteGroup = async (groupTitle: string) => {
@@ -1258,7 +1842,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
     try {
       if (deleteDialog.kind === 'column') {
         await deleteCustomObjectField(objectId, deleteDialog.field.id);
-        await load();
+        await reloadAll();
       } else {
         const groupRecords = groupedRecords.find((g) => g.title === deleteDialog.groupTitle)?.items || [];
         await Promise.all(groupRecords.map((record) => deleteCustomObjectRecord(objectId, record.id)));
@@ -1367,7 +1951,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
   };
 
   const getMobilePreviewValue = (record: CustomObjectRecord, field: CustomObjectField) => {
-    const raw = record.values?.[field.key];
+    const raw = record.values?.[getWorkspaceFieldValueStorageKey(field)];
     if (raw === undefined || raw === null || raw === '') return '';
 
     if (field.type === 'status') {
@@ -1448,7 +2032,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
   ) => (
     <td key={field.id} className={`px-3 py-1.5 min-w-0 overflow-hidden ${stickyClass} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
       <div className="relative">
-        <span className="absolute left-2 top-1.5 text-slate-400 pointer-events-none">
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 0 24 24"
@@ -1471,43 +2055,262 @@ export const WorkspaceTableViewPage: React.FC = () => {
               ? t('crm.workspace.table.datePlaceholder')
               : t('crm.workspace.table.datetimePlaceholder')
           }
-          className="block w-full max-w-full md:hidden rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-2 py-1.5 text-xs leading-5 focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
+          className="block w-full max-w-full md:hidden rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 pr-8 text-center text-xs leading-5 focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
         />
         <input
           type={type === 'date' ? 'date' : 'datetime-local'}
           lang={i18n.language}
           defaultValue={type === 'date' ? value.slice(0, 10) : value.slice(0, 16)}
           onBlur={(e) => updateCell(record, field, e.target.value)}
-          className="hidden md:block w-full max-w-full rounded-xl border border-slate-200 bg-slate-50 pl-8 pr-7 py-1.5 text-xs leading-5 focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
+          className="hidden md:block w-full max-w-full rounded-xl border border-slate-200 bg-slate-50 px-2 py-1.5 pr-8 text-center text-xs leading-5 focus:bg-white focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
         />
       </div>
     </td>
   );
 
-  const isRenderableDateField = (field: CustomObjectField) => {
-    const type = String(field.type || '').toLowerCase();
-    if (type !== 'date' && type !== 'datetime') return false;
-    const key = String(field.key || '').toLowerCase();
-    const label = String(field.label || '').toLowerCase();
-    const isIdLike =
-      key.endsWith('id') ||
-      key.includes('_id') ||
-      key.includes('id_') ||
-      label.endsWith(' id');
-    if (isIdLike) return false;
-    return true;
-  };
-
   const renderCell = (record: CustomObjectRecord, field: CustomObjectField) => {
-    const value = record.values?.[field.key];
+    const value = record.values?.[getWorkspaceFieldValueStorageKey(field)];
     const textValue = String(value ?? '');
     const width = columnWidths[field.key] || 180;
-    const sticky = field.key === titleField?.key ? 'md:sticky md:left-44 bg-white md:z-10' : '';
+    const sticky = field.key === titleField?.key ? 'lv-ws-title-td' : '';
     const fieldType = String(field.type || '').toLowerCase();
-    const isDateField = isRenderableDateField(field);
+    const isDateField = isRenderableWorkspaceDateField(field);
+
+    if (isDataTable) {
+      // --- DATA TABLE: read-only display, no editing ---
+      if (field.type === 'file') {
+        const raw = record.values?.[getWorkspaceFieldValueStorageKey(field)];
+        const fileVal =
+          raw && typeof raw === 'object' && !Array.isArray(raw)
+            ? (raw as WorkspaceFileFieldValue)
+            : null;
+        const has = Boolean(fileVal?.relativePath && fileVal?.name);
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 160 }}>
+            {has ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setFilePreview({
+                    recordId: record.id,
+                    fieldKey: field.key,
+                    fileName: fileVal!.name,
+                    relativePath: fileVal!.relativePath,
+                  })
+                }
+                className="min-w-0 max-w-[220px] truncate rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-center text-xs font-medium text-slate-900 hover:bg-slate-100"
+              >
+                {fileVal!.name}
+              </button>
+            ) : (
+              <span className="text-center text-xs text-slate-400">—</span>
+            )}
+          </td>
+        );
+      }
+
+      const crmRefRo = isWorkspaceEntityRefField(field);
+      if (crmRefRo) {
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky} align-middle`} style={{ width, minWidth: 200 }}>
+            <WorkspaceCrmEntityMultiField
+              entity={crmRefRo}
+              rawValue={record.values?.[getWorkspaceFieldValueStorageKey(field)]}
+              leads={crmLeadList}
+              projects={crmProjectList}
+              companies={crmCompanyList}
+              readOnly
+              variant="table"
+            />
+          </td>
+        );
+      }
+
+      if (field.type === 'boolean') {
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+            <div className="flex justify-center">
+              <input
+                type="checkbox"
+                checked={Boolean(value)}
+                readOnly
+                className="h-4 w-4 rounded border-slate-300 opacity-60 cursor-default"
+              />
+            </div>
+          </td>
+        );
+      }
+
+      if (field.type === 'status') {
+        const normalizedOpts = (field.options || [])
+          .map((o) => ({ value: String(o.value ?? '').trim(), label: String(o.label ?? o.value ?? '').trim() }))
+          .filter((o) => o.value);
+        const fromRec = collectStatusValuesFromRecords([record], field.key);
+        const seenVals = new Set(normalizedOpts.map((o) => o.value));
+        const allOpts = [
+          ...normalizedOpts,
+          ...fromRec.filter((v) => v && !seenVals.has(v)).map((v) => ({ value: v, label: v.replace(/_/g, ' ') })),
+        ];
+        const colors = (field.meta?.statusColors || {}) as Record<string, string>;
+        const raw = textValue.trim();
+        const hit =
+          allOpts.find((o) => o.value === raw) ||
+          allOpts.find((o) => o.label === raw) ||
+          allOpts.find((o) => normalizeOptionToken(o.value) === normalizeOptionToken(raw));
+        const curVal = hit?.value || '';
+        const curLabel = hit?.label || curVal || raw;
+        const hex = colors[curVal];
+        const badgeStyle = hex
+          ? { backgroundColor: hex, color: pickTextColorForBg(hex), borderColor: hex }
+          : undefined;
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+            <span
+              className={`inline-block rounded-full px-2.5 py-1 text-center text-xs border ${badgeStyle ? 'bg-transparent' : getStatusColor(curVal)}`}
+              style={badgeStyle}
+            >
+              {curLabel || '—'}
+            </span>
+          </td>
+        );
+      }
+
+      if (field.type === 'multiselect') {
+        const selected = Array.isArray(value)
+          ? (value as string[])
+          : String(value || '').split(',').map((v) => v.trim()).filter(Boolean);
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+            <div className="flex flex-wrap items-center justify-center gap-1">
+              {selected.length === 0 ? (
+                <span className="text-xs text-slate-400">—</span>
+              ) : (
+                selected.map((tag) => (
+                  <span key={tag} className="inline-flex items-center rounded-full bg-slate-100 text-lumiva-accent text-[11px] px-2 py-0.5">
+                    {tag}
+                  </span>
+                ))
+              )}
+            </div>
+          </td>
+        );
+      }
+
+      if (field.type === 'select') {
+        const selectColors = (field.meta?.selectColors || {}) as Record<string, string>;
+        const selHex =
+          selectColors[textValue] ||
+          Object.entries(selectColors).find(
+            ([k]) => normalizeOptionToken(k) === normalizeOptionToken(textValue),
+          )?.[1];
+        const selStyle = selHex
+          ? { backgroundColor: selHex, color: pickTextColorForBg(selHex), borderColor: selHex }
+          : undefined;
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+            <span
+              className="inline-block rounded-full px-2.5 py-1 text-center text-xs border border-slate-200"
+              style={selStyle}
+            >
+              {textValue || '—'}
+            </span>
+          </td>
+        );
+      }
+
+      if (isDateField) {
+        const display = fieldType === 'datetime' ? textValue.slice(0, 16) : textValue.slice(0, 10);
+        return (
+          <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+            <span className="text-center text-xs text-slate-700">{display || '—'}</span>
+          </td>
+        );
+      }
+
+      return (
+        <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+          <div className="min-w-0 text-center text-xs text-slate-800 whitespace-pre-line break-words">
+            {textValue || '—'}
+          </div>
+        </td>
+      );
+    }
+
+    // Board table: readonly fields — display only, no editing
+    if (isWorkspaceReadOnlyField(field)) {
+      return (
+        <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+          <div className="min-w-0 text-center text-xs text-slate-700 whitespace-pre-line break-words">
+            {textValue || '—'}
+          </div>
+        </td>
+      );
+    }
+
+    const pickBind = isBoardTable
+      ? parseWorkspaceColumnBindingV1(field.meta as Record<string, unknown> | null)
+      : null;
+    if (
+      pickBind?.mode === 'pick_from_data' &&
+      (field.type === 'text' || field.type === 'number' || field.type === 'select')
+    ) {
+      const optKey = `${pickBind.dataObjectId}\x1e${pickBind.dataFieldKey}`;
+      const opts = pickFromDataOptionsByKey[optKey] || [];
+      const multiline = textValue.includes('\n');
+      return (
+        <td
+          key={field.id}
+          className={`px-3 py-1.5 ${sticky}`}
+          style={{ width, minWidth: 120 }}
+        >
+          {multiline ? (
+            <div className="mb-1 max-h-28 overflow-y-auto whitespace-pre-line text-center text-xs leading-snug text-slate-800">
+              {textValue}
+            </div>
+          ) : null}
+          <select
+            value={textValue}
+            onChange={(e) => updateCell(record, field, e.target.value)}
+            className="w-full max-w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs"
+            title={t('crm.workspace.table.pickFromDataTitle')}
+          >
+            <option value="">{t('crm.workspace.table.pickFromDataPlaceholder')}</option>
+            {opts.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </td>
+      );
+    }
+
+    const crmRef = isWorkspaceEntityRefField(field);
+    if (crmRef) {
+      const valueKey = getWorkspaceFieldValueStorageKey(field);
+      return (
+        <td
+          key={field.id}
+          className={`px-3 py-1.5 ${sticky} align-middle`}
+          style={{ width, minWidth: 200 }}
+        >
+          <WorkspaceCrmEntityMultiField
+            entity={crmRef}
+            rawValue={record.values?.[valueKey]}
+            leads={crmLeadList}
+            projects={crmProjectList}
+            companies={crmCompanyList}
+            onCommit={(serialized) =>
+              updateCell(record, field, serialized === '' ? null : serialized)
+            }
+            variant="table"
+          />
+        </td>
+      );
+    }
 
     if (field.type === 'file') {
-      const raw = record.values?.[field.key];
+      const raw = record.values?.[getWorkspaceFieldValueStorageKey(field)];
       const fileVal =
         raw && typeof raw === 'object' && !Array.isArray(raw)
           ? (raw as WorkspaceFileFieldValue)
@@ -1517,11 +2320,11 @@ export const WorkspaceTableViewPage: React.FC = () => {
       return (
         <td
           key={field.id}
-          className={`px-3 py-1.5 ${sticky} border-y border-slate-200`}
+          className={`px-3 py-1.5 ${sticky}`}
           style={{ width, minWidth: 160 }}
         >
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-col items-center gap-0.5">
+            <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
             <input
               id={inputId}
               type="file"
@@ -1557,7 +2360,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     relativePath: fileVal!.relativePath,
                   })
                 }
-                className="min-w-0 max-w-[220px] truncate rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-left text-xs font-medium text-slate-900 hover:bg-slate-100"
+                className="min-w-0 max-w-[220px] truncate rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 text-center text-xs font-medium text-slate-900 hover:bg-slate-100"
               >
                 {fileVal!.name}
               </button>
@@ -1580,7 +2383,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
               </button>
             )}
             </div>
-            <span className="text-[10px] leading-tight text-slate-400">
+            <span className="text-center text-[10px] leading-tight text-slate-400">
               {t('crm.workspace.table.fileMaxLine', { label: WORKSPACE_UPLOAD_MAX_FILE_LABEL })}
             </span>
           </div>
@@ -1620,16 +2423,26 @@ export const WorkspaceTableViewPage: React.FC = () => {
           }
         : undefined;
       return (
-        <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
+        <td
+          key={field.id}
+          className={`${mondayBoardUi ? 'p-0 align-stretch' : 'px-3 py-1.5'} ${sticky}`}
+          style={{ width, minWidth: 120 }}
+        >
           <select
             value={currentValue}
             onChange={(e) =>
               updateCell(record, field, canonicalStatusPayloadValue(field, e.target.value))
             }
             style={style}
-            className={`rounded-full px-2.5 py-1 text-xs border ${
-              style ? 'bg-transparent' : getStatusColor(currentValue)
-            }`}
+            className={
+              mondayBoardUi
+                ? `min-h-[42px] w-full max-w-full appearance-none rounded-none border-0 px-3 py-2.5 text-center text-xs font-semibold outline-none ring-0 focus:ring-2 focus:ring-inset focus:ring-black/10 ${
+                    style ? '' : getStatusColor(currentValue)
+                  }`
+                : `rounded-full px-2.5 py-1 text-center text-xs border ${
+                    style ? 'bg-transparent' : getStatusColor(currentValue)
+                  }`
+            }
           >
             {allOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -1649,14 +2462,24 @@ export const WorkspaceTableViewPage: React.FC = () => {
         resolveStatusOptionValue(textValue) || statusOptions[0] || 'working_on_it';
       const style = getStatusStyle(resolvedStatus);
       return (
-        <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
+        <td
+          key={field.id}
+          className={`${mondayBoardUi ? 'p-0 align-stretch' : 'px-3 py-1.5'} ${sticky}`}
+          style={{ width, minWidth: 120 }}
+        >
           <select
             value={resolvedStatus}
             onChange={(e) => updateCell(record, field, e.target.value)}
             style={style}
-            className={`rounded-full px-2.5 py-1 text-xs border ${
-              style ? 'bg-transparent' : getStatusColor(resolvedStatus)
-            }`}
+            className={
+              mondayBoardUi
+                ? `min-h-[42px] w-full max-w-full appearance-none rounded-none border-0 px-3 py-2.5 text-center text-xs font-semibold outline-none ring-0 focus:ring-2 focus:ring-inset focus:ring-black/10 ${
+                    style ? '' : getStatusColor(resolvedStatus)
+                  }`
+                : `rounded-full px-2.5 py-1 text-center text-xs border ${
+                    style ? 'bg-transparent' : getStatusColor(resolvedStatus)
+                  }`
+            }
           >
             {statusOptions.map((opt) => (
               <option key={opt} value={opt}>
@@ -1669,13 +2492,15 @@ export const WorkspaceTableViewPage: React.FC = () => {
     }
     if (field.type === 'boolean') {
       return (
-        <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
-          <input
-            type="checkbox"
-            checked={Boolean(value)}
-            onChange={(e) => updateCell(record, field, e.target.checked ? 'true' : 'false')}
-            className="h-4 w-4 rounded border-slate-300"
-          />
+        <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+          <div className="flex justify-center">
+            <input
+              type="checkbox"
+              checked={Boolean(value)}
+              onChange={(e) => updateCell(record, field, e.target.checked ? 'true' : 'false')}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+          </div>
         </td>
       );
     }
@@ -1692,8 +2517,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
             .map((v) => v.trim())
             .filter(Boolean);
       return (
-        <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
-          <div className="flex flex-wrap items-center gap-1">
+        <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+          <div className="flex flex-wrap items-center justify-center gap-1">
             {selected.slice(0, 2).map((tag) => (
               <span
                 key={tag}
@@ -1774,7 +2599,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
       if (!isPriorityField) {
         const seen = new Set(options.map((o) => o.value));
         records.forEach((r) => {
-          const raw = r.values?.[field.key];
+          const raw = r.values?.[getWorkspaceFieldValueStorageKey(field)];
           if (raw === undefined || raw === null || raw === '') return;
           const v = String(raw).trim();
           if (v && !seen.has(v)) {
@@ -1789,10 +2614,33 @@ export const WorkspaceTableViewPage: React.FC = () => {
         subitemPriorityOptions.find((opt) => opt.value === currentValue)?.label ||
         currentValue ||
         t('crm.workspace.table.subitemPriority.normal');
+      const selectColors = (field.meta?.selectColors || {}) as Record<string, string>;
+      const selectHex =
+        selectColors[currentValue] ||
+        Object.entries(selectColors).find(
+          ([k]) => normalizeOptionToken(k) === normalizeOptionToken(currentValue),
+        )?.[1];
+      const selectStyle = selectHex
+        ? {
+            backgroundColor: selectHex,
+            color: pickTextColorForBg(selectHex),
+            borderColor: selectHex,
+          }
+        : undefined;
+      const priorityHex = getPriorityStripHex(currentValue);
+      const priorityStyle = {
+        backgroundColor: priorityHex,
+        color: pickTextColorForBg(priorityHex),
+      };
+
       return (
-        <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
+        <td
+          key={field.id}
+          className={`${mondayBoardUi ? 'p-0 align-stretch' : 'px-3 py-1.5'} ${sticky}`}
+          style={{ width, minWidth: 120 }}
+        >
           {isPriorityField ? (
-            <div className="relative" data-workspace-inline-popover>
+            <div className="relative h-full min-h-[42px]" data-workspace-inline-popover>
               <button
                 type="button"
                 onClick={() =>
@@ -1802,11 +2650,16 @@ export const WorkspaceTableViewPage: React.FC = () => {
                       : { recordId: record.id, fieldKey: field.key },
                   )
                 }
-                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left text-xs font-medium text-slate-800 hover:bg-slate-50"
+                style={mondayBoardUi ? priorityStyle : undefined}
+                className={
+                  mondayBoardUi
+                    ? 'flex h-full min-h-[42px] w-full items-center justify-center gap-2 border-0 px-3 py-2.5 text-center text-xs font-semibold outline-none ring-0 focus:ring-2 focus:ring-inset focus:ring-black/10'
+                    : 'w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-medium text-slate-800 hover:bg-slate-50'
+                }
               >
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-1 items-center justify-center gap-2">
                   <span className="truncate">{currentLabel}</span>
-                  <span className="text-slate-400">▾</span>
+                  <span className={mondayBoardUi ? 'opacity-90' : 'text-slate-400'}>▾</span>
                 </div>
               </button>
               {activePriorityMenu?.recordId === record.id && activePriorityMenu?.fieldKey === field.key && (
@@ -1824,7 +2677,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                           updateCell(record, field, value, true);
                           setActivePriorityMenu(null);
                         }}
-                        className={`w-full rounded-lg px-2 py-1.5 text-left text-xs ${
+                        className={`w-full rounded-lg px-2 py-1.5 text-center text-xs ${
                           isActive ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
                         }`}
                       >
@@ -1836,18 +2689,90 @@ export const WorkspaceTableViewPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <select
-              value={currentValue}
-              onChange={(e) => updateCell(record, field, e.target.value)}
-              className="w-full rounded-lg border border-slate-300 bg-white text-slate-700 px-2 py-1.5 text-xs"
-            >
-              {options.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label || opt.value}
-                </option>
-              ))}
-            </select>
+            <>
+              {textValue.includes('\n') ? (
+                <div className="mb-1 max-h-24 overflow-y-auto whitespace-pre-line text-center text-xs leading-snug text-slate-800">
+                  {textValue}
+                </div>
+              ) : null}
+              <select
+                value={currentValue}
+                onChange={(e) => updateCell(record, field, e.target.value)}
+                style={mondayBoardUi ? selectStyle : undefined}
+                className={
+                  mondayBoardUi
+                    ? `min-h-[42px] w-full max-w-full appearance-none rounded-none border-0 px-3 py-2.5 text-center text-xs font-semibold outline-none ring-0 focus:ring-2 focus:ring-inset focus:ring-black/10 ${
+                        selectStyle ? '' : getStatusColor(currentValue)
+                      }`
+                    : 'w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-center text-xs text-slate-700'
+                }
+              >
+                {options.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label || opt.value}
+                  </option>
+                ))}
+              </select>
+            </>
           )}
+        </td>
+      );
+    }
+
+    if (mondayBoardUi && titleField && field.key === titleField.key) {
+      return (
+        <td
+          key={field.id}
+          className={`px-2 py-0 ${sticky}`}
+          style={{ width, minWidth: 200 }}
+        >
+          <div className="flex h-full min-h-[42px] items-center justify-center gap-1">
+            <span
+              className="hidden shrink-0 select-none text-slate-300 opacity-0 transition-opacity group-hover/row:opacity-100 sm:inline"
+              aria-hidden
+            >
+              ⋮⋮
+            </span>
+            {textValue.includes('\n') ? (
+              <textarea
+                key={`${record.id}-${field.key}-title`}
+                defaultValue={textValue}
+                rows={Math.min(6, textValue.split('\n').length + 1)}
+                onBlur={(e) => updateCell(record, field, e.target.value)}
+                className="min-w-0 flex-1 resize-y border-0 bg-transparent py-2 text-center text-sm text-slate-900 outline-none ring-0 focus:ring-0 whitespace-pre-line"
+              />
+            ) : (
+              <input
+                key={`${record.id}-${field.key}-title`}
+                ref={record.id === justCreatedRecordId ? justCreatedInputRef : undefined}
+                defaultValue={textValue}
+                onBlur={(e) => updateCell(record, field, e.target.value)}
+                className="min-w-0 flex-1 border-0 bg-transparent py-2 text-center text-sm text-slate-900 outline-none ring-0 focus:ring-0"
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setActiveRecord(record)}
+              className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"
+              title={t('crm.workspace.table.boardOpenDrawer')}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-4 w-4"
+                aria-hidden
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <path d="M14 2v6h6" />
+                <path d="M16 13H8" />
+                <path d="M16 17H8" />
+                <path d="M10 9H8" />
+              </svg>
+            </button>
+          </div>
         </td>
       );
     }
@@ -1859,12 +2784,12 @@ export const WorkspaceTableViewPage: React.FC = () => {
       field.key.includes('responsible');
     if (maybePerson) {
       const selectedOwners = textValue
-        .split(/[,;/]+/)
+        .split(/[,;\/\n]+/)
         .map((v) => v.trim())
         .filter(Boolean);
       return (
-        <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
-          <div className="flex flex-wrap items-center gap-1">
+        <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+          <div className="flex flex-wrap items-center justify-center gap-1">
             {selectedOwners.slice(0, 2).map((owner) => (
               <span
                 key={owner}
@@ -1902,12 +2827,26 @@ export const WorkspaceTableViewPage: React.FC = () => {
       );
     }
 
+    if (field.type === 'text' && textValue.includes('\n')) {
+      const lineCount = textValue.split('\n').length;
+      return (
+        <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
+          <textarea
+            defaultValue={textValue}
+            rows={Math.min(8, lineCount + 1)}
+            onBlur={(e) => updateCell(record, field, e.target.value)}
+            className="w-full min-h-[2.5rem] rounded-md border border-transparent px-2 py-1 text-center text-xs leading-snug focus:border-slate-300 focus:bg-white whitespace-pre-line"
+          />
+        </td>
+      );
+    }
+
     return (
-      <td key={field.id} className={`px-3 py-1.5 ${sticky} border-y border-slate-200`} style={{ width, minWidth: 120 }}>
+      <td key={field.id} className={`px-3 py-1.5 ${sticky}`} style={{ width, minWidth: 120 }}>
         <input
           defaultValue={textValue}
           onBlur={(e) => updateCell(record, field, e.target.value)}
-          className="w-full rounded-md border border-transparent px-2 py-1 text-sm focus:border-slate-300 focus:bg-white"
+          className="w-full rounded-md border border-transparent px-2 py-1 text-center text-sm focus:border-slate-300 focus:bg-white"
         />
       </td>
     );
@@ -1978,7 +2917,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     updateCell(rec, fld, next.join(','));
                     setActiveMultiCell(null);
                   }}
-                  className={`w-full text-left text-xs rounded-lg px-2 py-1 ${
+                  className={`w-full text-center text-xs rounded-lg px-2 py-1 ${
                     isActive ? 'bg-slate-100 text-lumiva-accent' : 'hover:bg-slate-50 text-slate-700'
                   }`}
                 >
@@ -2007,7 +2946,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                         updateCell(rec, fld, next.join(', '));
                         setActiveMultiCell(null);
                       }}
-                      className={`w-full text-left text-xs rounded-lg px-2 py-1.5 ${
+                      className={`w-full text-center text-xs rounded-lg px-2 py-1.5 ${
                         active ? 'bg-slate-100 text-lumiva-accent' : 'hover:bg-slate-50 text-slate-700'
                       }`}
                     >
@@ -2027,36 +2966,129 @@ export const WorkspaceTableViewPage: React.FC = () => {
   return (
     <MainLayout>
       {renderWorkspaceMultiCellPortal()}
-      <div className="max-w-[1700px] mx-auto space-y-4">
-        <div className="flex items-start justify-between gap-3 flex-wrap">
+      <div
+        className="lv-pt w-full pb-8 min-w-0"
+        style={{
+          marginLeft: -24,
+          marginRight: -24,
+          paddingLeft: 24,
+          paddingRight: 24,
+          width: 'calc(100% + 48px)',
+        }}
+      >
+      <div className="space-y-4">
+        <div className="lv-pt-head">
           <div className="min-w-0">
-            <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 break-words">
-              {t('crm.workspace.table.startFromScratch')}
-            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+            <h1>{workspaceTableName || t('crm.workspace.table.startFromScratch')}</h1>
+            {objectMeta &&
+              (getWorkspaceTableKind(objectMeta as Record<string, unknown>) === 'board' ? (
+                <span
+                  className="shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide border"
+                  style={{
+                    background: 'var(--ink)',
+                    color: '#fff',
+                    borderColor: 'var(--ink)',
+                  }}
+                  title={t('crm.workspace.kindBadge.board')}
+                >
+                  {t('crm.workspace.kindBadge.shortBoard')}
+                </span>
+              ) : (
+                <span
+                  className="shrink-0 inline-flex items-center gap-1 text-[12px] font-medium"
+                  style={{ color: 'var(--fg-3)' }}
+                  title={t('crm.workspace.kindBadge.dataLayerTitle')}
+                >
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--fg-4)]" aria-hidden />
+                  {t('crm.workspace.kindBadge.dataShortOnly')}
+                </span>
+              ))}
+            </div>
+            {isDataTable && (
+              <p className="sub max-w-2xl">{t('crm.workspace.table.dataLayerSubtitle')}</p>
+            )}
           </div>
-          <div className="flex w-full sm:w-auto gap-2">
+          <div className="lv-pt-head-actions">
             <button
               type="button"
               onClick={() => navigate(`/workspace/${objectId}/import`)}
-              className="flex-1 sm:flex-none px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+              className="lv-tb-btn"
             >
               {t('crm.workspace.table.importButton')}
             </button>
+            {(isBoardTable || isDataTable) && (
+              <button
+                type="button"
+                onClick={() => void handleClearTable()}
+                disabled={bulkProcessing || loading}
+                className="lv-tb-btn"
+                style={{ borderColor: '#fecaca', color: '#b91c1c' }}
+              >
+                {t('crm.workspace.table.clearAllButton')}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowAddField(true)}
-              className="flex-1 sm:flex-none px-3 py-2 rounded-xl bg-lumiva-accent text-white text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 hover:bg-lumiva-accent-soft hover:shadow-md whitespace-nowrap"
+              className="lv-tb-btn"
+              style={{ background: '#222', color: '#fff', borderColor: '#222' }}
             >
               {t('crm.workspace.table.addField')}
             </button>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-2 sm:p-3 flex flex-col gap-2 sm:gap-3 text-sm shadow-sm">
-          <div className="w-full min-w-0">
-            <WorkspaceViewTabs objectId={objectId} active="table" />
+        <WorkspaceViewTabs objectId={objectId} active="table" />
+
+        <div className="lv-toolbar">
+          {mondayBoardUi && (
+            <button
+              type="button"
+              disabled={
+                !titleField ||
+                !primaryBoardToolbarGroup ||
+                !canAddRowInGroup ||
+                Boolean(savingRecordId?.startsWith('new-'))
+              }
+              onClick={() => void createRowInGroup(primaryBoardToolbarGroup)}
+              className="lv-tb-btn shrink-0"
+              style={{ background: '#222', color: '#fff', borderColor: '#222' }}
+            >
+              <span className="text-lg leading-none">+</span>
+              {t('crm.workspace.table.boardToolbarNew')}
+            </button>
+          )}
+          <div className="lv-tb-search" style={{ flex: '1 1 180px', maxWidth: mondayBoardUi ? 320 : 300 }}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" style={{ color: 'var(--fg-4)', flexShrink: 0 }} aria-hidden>
+              <circle cx="6.5" cy="6.5" r="5.5" />
+              <path d="M11 11l3.5 3.5" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setTablePage(0);
+              }}
+              placeholder={t('crm.workspace.table.searchRecords')}
+            />
+            {search ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setTablePage(0);
+                }}
+                style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--fg-3)', fontSize: 14, padding: 0, lineHeight: 1 }}
+              >
+                ×
+              </button>
+            ) : null}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+
+          <div className="lv-toolbar-divider" />
+
           <div className="relative">
             <button
               type="button"
@@ -2065,7 +3097,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 setSortMenuOpen(false);
                 setGroupMenuOpen(false);
               }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs sm:text-sm whitespace-nowrap"
+              className={`lv-tb-btn whitespace-nowrap${filterMenuOpen ? ' active' : ''}`}
             >
               {t('crm.workspace.table.filterButton')}
               {filterFieldKey && filterFieldValue ? ' •' : ''}
@@ -2080,6 +3112,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   onChange={(e) => {
                     setFilterFieldKey(e.target.value);
                     setFilterFieldValue('');
+                    setTablePage(0);
                   }}
                   className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
                 >
@@ -2092,7 +3125,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 </select>
                 <select
                   value={filterFieldValue}
-                  onChange={(e) => setFilterFieldValue(e.target.value)}
+                  onChange={(e) => {
+                    setFilterFieldValue(e.target.value);
+                    setTablePage(0);
+                  }}
                   disabled={!filterFieldKey}
                   className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs disabled:bg-slate-50"
                 >
@@ -2108,6 +3144,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   onClick={() => {
                     setFilterFieldKey('');
                     setFilterFieldValue('');
+                    setTablePage(0);
                   }}
                   className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
                 >
@@ -2124,7 +3161,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 setFilterMenuOpen(false);
                 setGroupMenuOpen(false);
               }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs sm:text-sm whitespace-nowrap"
+              className={`lv-tb-btn whitespace-nowrap${sortMenuOpen ? ' active' : ''}`}
             >
               {t('crm.workspace.table.sortButton')}
               {sortFieldKey ? ' •' : ''}
@@ -2136,7 +3173,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 </div>
                 <select
                   value={sortFieldKey}
-                  onChange={(e) => setSortFieldKey(e.target.value)}
+                  onChange={(e) => {
+                    setSortFieldKey(e.target.value);
+                    setTablePage(0);
+                  }}
                   className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
                 >
                   <option value="">{t('crm.workspace.table.noSorting')}</option>
@@ -2148,7 +3188,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 </select>
                 <select
                   value={sortDirection}
-                  onChange={(e) => setSortDirection(e.target.value as 'asc' | 'desc')}
+                  onChange={(e) => {
+                    setSortDirection(e.target.value as 'asc' | 'desc');
+                    setTablePage(0);
+                  }}
                   className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
                 >
                   <option value="asc">{t('crm.workspace.table.ascending')}</option>
@@ -2157,6 +3200,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
               </div>
             )}
           </div>
+          {!mondayBoardUi && (
           <div className="relative">
             <button
               type="button"
@@ -2165,7 +3209,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 setSortMenuOpen(false);
                 setFilterMenuOpen(false);
               }}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 text-xs sm:text-sm whitespace-nowrap"
+              className={`lv-tb-btn whitespace-nowrap${groupMenuOpen ? ' active' : ''}`}
             >
               {t('crm.workspace.table.groupByButton')}
               {groupByFieldKey ? ' •' : ''}
@@ -2190,26 +3234,25 @@ export const WorkspaceTableViewPage: React.FC = () => {
               </div>
             )}
           </div>
+          )}
+          {mondayBoardUi && statusField && (
+            <span className="text-[11px] text-slate-500 px-2 py-1 rounded-md bg-slate-100 border border-slate-200/80">
+              {t('crm.workspace.table.groupByStatusLocked', { field: statusField.label })}
+            </span>
+          )}
           {hiddenColumnList.length > 0 && (
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs sm:text-sm whitespace-nowrap"
-              onClick={() => setHiddenColumns({})}
-            >
+            <button type="button" className="lv-tb-btn whitespace-nowrap" onClick={() => setHiddenColumns({})}>
               {t('crm.workspace.table.showHiddenColumns', { count: hiddenColumnList.length })}
             </button>
           )}
           {hiddenRowsCount > 0 && (
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs sm:text-sm whitespace-nowrap"
-              onClick={() => setHiddenRows({})}
-            >
+            <button type="button" className="lv-tb-btn whitespace-nowrap" onClick={() => setHiddenRows({})}>
               {t('crm.workspace.table.showHiddenRows', { count: hiddenRowsCount })}
             </button>
           )}
-          <div className="w-full md:w-auto md:ml-auto flex flex-wrap items-center gap-2">
-            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
+          <div className="lv-toolbar-spacer" />
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="lv-group-meta rounded-full bg-[var(--bg-soft)] px-2 py-0.5">
               {t('crm.workspace.table.groupsCountLabel', { count: groupTitles.length })}
             </span>
             {selectedIds.size > 0 && (
@@ -2220,7 +3263,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 <select
                   value={bulkTargetGroup}
                   onChange={(e) => setBulkTargetGroup(e.target.value)}
-                  className="rounded-lg border border-slate-300 px-2 py-1 text-xs bg-white text-slate-700"
+                  className="rounded-lg border border-[var(--line-2)] px-2 py-1 text-xs bg-white text-[var(--ink)]"
                 >
                   <option value="">{t('crm.workspace.table.moveToGroup')}</option>
                   {groupTitles.map((title) => (
@@ -2233,15 +3276,29 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   type="button"
                   onClick={() => void bulkMoveRowsToGroup()}
                   disabled={bulkProcessing || !bulkTargetGroup}
-                  className="px-2 py-1 rounded-lg border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                  className="lv-tb-btn px-2 py-1 text-xs disabled:opacity-60"
                 >
                   {t('crm.workspace.table.move')}
                 </button>
+                {isDataTable && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPushBoardRecordIds(Array.from(selectedIds));
+                      setPushBoardOpen(true);
+                    }}
+                    disabled={bulkProcessing}
+                    className="lv-tb-btn px-2 py-1 text-xs disabled:opacity-60"
+                    style={{ borderColor: '#bae6fd', background: '#f0f9ff', color: '#0369a1' }}
+                  >
+                    {t('crm.workspace.table.pushToBoardBulk')}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={bulkHideRows}
                   disabled={bulkProcessing}
-                  className="px-2 py-1 rounded-lg border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+                  className="lv-tb-btn px-2 py-1 text-xs disabled:opacity-60"
                 >
                   {t('crm.workspace.table.hide')}
                 </button>
@@ -2249,342 +3306,310 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   type="button"
                   onClick={() => void bulkDeleteRows()}
                   disabled={bulkProcessing}
-                  className="px-2 py-1 rounded-lg border border-rose-200 text-xs text-rose-600 hover:bg-rose-50 disabled:opacity-60"
+                  className="lv-tb-btn px-2 py-1 text-xs disabled:opacity-60"
+                  style={{ borderColor: '#fecaca', color: '#b91c1c' }}
                 >
                   {bulkProcessing ? t('crm.workspace.table.deleting') : t('crm.workspace.table.bulkDelete')}
                 </button>
               </>
             )}
-            <span className="text-xs text-slate-500">
+            <span className="lv-group-meta">
               {selectedIds.size > 0
                 ? t('crm.workspace.table.selectedCount', { count: selectedIds.size })
-                : t('crm.workspace.table.footerItemsCount', { count: records.length })}
+                : incompleteDataset
+                  ? t('crm.workspace.table.footerItemsPage', {
+                      total: recordsTotal,
+                      from: pageRowFrom,
+                      to: pageRowTo,
+                    })
+                  : t('crm.workspace.table.footerItemsCount', { count: recordsTotal })}
             </span>
-          </div>
           </div>
         </div>
         {actionError && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
+          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-[8px] px-3 py-2 mb-[14px]">
             {actionError}
           </div>
         )}
 
-        <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('crm.workspace.table.searchRecords')}
-              className="w-full md:w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
+        {isDataTable && (
+          <div className="text-[12px] text-amber-900 bg-amber-50 border border-amber-200 rounded-[8px] px-3 py-2 mb-[14px]">
+            {t('crm.workspace.table.dataRowsBulkHint')}
           </div>
+        )}
 
-          {loading ? (
-            <div className="text-sm text-slate-500">{t('crm.workspace.table.loadingData')}</div>
-          ) : (
-            <div className="space-y-4">
-              {groupedRecords.map((group) => {
-                const collapsed = !!collapsedGroups[group.title];
-                const visibleGroupItems = group.items.filter((record) => !hiddenRows[record.id]);
-                const groupColumns = orderedColumns.filter(
-                  (field) => !groupHiddenColumns[group.title]?.[field.key],
-                );
-                return (
-                  <div
-                    key={group.title}
-                    className="rounded-3xl border border-slate-200 overflow-hidden bg-white"
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setDragOverGroup(group.title);
-                    }}
-                    onDragLeave={() => setDragOverGroup(null)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const rowIdFromDnd = e.dataTransfer.getData('text/workspace-row-id');
-                      const rowId = rowIdFromDnd || draggingRowId;
-                      if (!rowId) return;
-                      void moveRecordToGroup(rowId, group.title);
-                      setDraggingRowId(null);
-                      setDragReadyRowId(null);
-                      setDragOverGroup(null);
-                    }}
-                  >
-                    <div
-                      className={`group/header flex items-center justify-between bg-slate-50 px-3 py-2 border-b border-slate-200 ${
-                        dragOverGroup === group.title ? 'ring-2 ring-slate-300' : ''
-                      }`}
-                      style={{ borderLeft: `4px solid ${group.color}` }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCollapsedGroups((prev) => ({
-                            ...prev,
-                            [group.title]: !prev[group.title],
-                          }))
-                        }
-                        className="text-sm font-semibold text-slate-700 flex items-center gap-2"
-                      >
-                        <span>{collapsed ? '▶' : '▼'}</span>
-                        {group.title}
-                      </button>
-                      <div className="text-xs text-slate-500 flex items-center gap-3">
-                        <span>
-                          {t('crm.workspace.table.groupHeaderItems', { count: group.items.length })}
-                        </span>
-                        {numberField && (
-                          <span>
-                            {t('crm.workspace.table.sumLabel', { label: numberField.label })}{' '}
-                            {group.items.reduce((sum, item) => {
-                              const raw = item.values?.[numberField.key];
-                              const parsed = typeof raw === 'number' ? raw : Number(raw || 0);
-                              return sum + (Number.isNaN(parsed) ? 0 : parsed);
-                            }, 0)}
-                          </span>
-                        )}
-                        {isPrimaryGrouping && (
-                          <button
-                            type="button"
-                            onClick={() => void deleteGroup(group.title)}
-                            className="h-6 w-6 rounded-full text-rose-500 hover:bg-rose-50 opacity-0 group-hover/header:opacity-100 transition-opacity"
-                            title={t('crm.workspace.table.deleteGroupTitle')}
+        {loading ? (
+          <div className="text-[12px] text-slate-400 mb-[14px]">{t('crm.workspace.table.loadingData')}</div>
+        ) : (
+          <div className="space-y-4">
+            {isDataTable ? (
+              <div className="lv-proj-wrap">
+                <div className="lv-proj-scroll">
+                  <table className="lv-proj-table min-w-[1000px] w-full text-[12.5px]">
+                    <thead>
+                      <tr>
+                        <th className="lv-ws-lead-th" />
+                        {orderedColumns.map((field) => (
+                          <th
+                            key={field.id}
+                            draggable={dragReadyColumnKey === field.key}
+                            onMouseDown={(e) => {
+                              const target = e.target as HTMLElement;
+                              if (target.closest('button')) return;
+                              armColumnDragAfterHold(field.key);
+                            }}
+                            onMouseUp={() => {
+                              clearColumnHoldTimer();
+                              setHoldingColumnKey((prev) => (prev === field.key ? null : prev));
+                              setDragReadyColumnKey((prev) => (prev === field.key ? null : prev));
+                            }}
+                            onMouseLeave={() => {
+                              clearColumnHoldTimer();
+                              setHoldingColumnKey((prev) => (prev === field.key ? null : prev));
+                              setDragReadyColumnKey((prev) => (prev === field.key ? null : prev));
+                            }}
+                            onDragStart={(e) => {
+                              if (dragReadyColumnKey !== field.key) {
+                                e.preventDefault();
+                                return;
+                              }
+                              setDraggingColumnKey(field.key);
+                              setColumnDragOverKey(null);
+                              const ghost = createColumnDragGhostElement(field.label);
+                              document.body.appendChild(ghost);
+                              e.dataTransfer.setDragImage(ghost, 26, 36);
+                              requestAnimationFrame(() => ghost.remove());
+                            }}
+                            onDragEnd={() => {
+                              setDraggingColumnKey(null);
+                              setDragReadyColumnKey(null);
+                              setColumnDragOverKey(null);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              if (draggingColumnKey && draggingColumnKey !== field.key) {
+                                setColumnDragOverKey(field.key);
+                              }
+                            }}
+                            onDrop={() => {
+                              if (!draggingColumnKey || draggingColumnKey === field.key) return;
+                              setColumnOrder((prev) => {
+                                const base = prev.length ? [...prev] : orderedColumns.map((c) => c.key);
+                                const from = base.indexOf(draggingColumnKey);
+                                const to = base.indexOf(field.key);
+                                if (from < 0 || to < 0) return base;
+                                const [moved] = base.splice(from, 1);
+                                base.splice(to, 0, moved);
+                                return base;
+                              });
+                              setDraggingColumnKey(null);
+                              setDragReadyColumnKey(null);
+                              setColumnDragOverKey(null);
+                            }}
+                            className={[
+                              field.key === titleField?.key ? 'lv-ws-title-th' : '',
+                              holdingColumnKey === field.key ? 'bg-slate-50 ring-1 ring-slate-300' : '',
+                              dragReadyColumnKey === field.key ? 'bg-slate-100 ring-2 ring-slate-400' : '',
+                              draggingColumnKey &&
+                              columnDragOverKey === field.key &&
+                              draggingColumnKey !== field.key
+                                ? 'ring-2 ring-emerald-500 ring-inset bg-emerald-50/40'
+                                : '',
+                            ]
+                              .filter(Boolean)
+                              .join(' ')}
+                            style={{ width: columnWidths[field.key] || 180, minWidth: 120 }}
                           >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.8"
-                              className="h-4 w-4 mx-auto"
-                            >
-                              <path d="M3 6h18" />
-                              <path d="M8 6V4h8v2" />
-                              <path d="M19 6l-1 14H6L5 6" />
-                              <path d="M10 11v6M14 11v6" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    {!collapsed && (
-                      <div className="overflow-x-auto max-h-[560px] px-1">
-                        <table className="min-w-[1000px] w-full text-xs border-separate border-spacing-y-1 table-fixed">
-                          <thead className="text-slate-500">
-                            <tr className="sticky top-0 bg-white z-20">
-                              <th className="px-3 py-1 w-44 md:sticky md:left-0 bg-white md:z-30" />
-                              {groupColumns.map((field) => (
-                                <th
-                                  key={field.id}
-                                  draggable={dragReadyColumnKey === field.key}
-                                  onMouseDown={(e) => {
-                                    const target = e.target as HTMLElement;
-                                    if (target.closest('button')) return;
-                                    armColumnDragAfterHold(field.key);
-                                  }}
-                                  onMouseUp={() => {
-                                    clearColumnHoldTimer();
-                                    setHoldingColumnKey((prev) => (prev === field.key ? null : prev));
-                                    setDragReadyColumnKey((prev) => (prev === field.key ? null : prev));
-                                  }}
-                                  onMouseLeave={() => {
-                                    clearColumnHoldTimer();
-                                    setHoldingColumnKey((prev) => (prev === field.key ? null : prev));
-                                    setDragReadyColumnKey((prev) => (prev === field.key ? null : prev));
-                                  }}
-                                  onDragStart={(e) => {
-                                    if (dragReadyColumnKey !== field.key) {
-                                      e.preventDefault();
-                                      return;
-                                    }
-                                    setDraggingColumnKey(field.key);
-                                  }}
-                                  onDragEnd={() => {
-                                    setDraggingColumnKey(null);
-                                    setDragReadyColumnKey(null);
-                                  }}
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={() => {
-                                    if (!draggingColumnKey || draggingColumnKey === field.key) return;
-                                    setColumnOrder((prev) => {
-                                      const base = prev.length ? [...prev] : orderedColumns.map((c) => c.key);
-                                      const from = base.indexOf(draggingColumnKey);
-                                      const to = base.indexOf(field.key);
-                                      if (from < 0 || to < 0) return base;
-                                      const [moved] = base.splice(from, 1);
-                                      base.splice(to, 0, moved);
-                                      return base;
-                                    });
-                                    setDraggingColumnKey(null);
-                                    setDragReadyColumnKey(null);
-                                  }}
-                                  className={`px-3 py-1 font-medium text-slate-600 whitespace-nowrap relative select-none ${
-                                    field.key === titleField?.key ? 'md:sticky md:left-44 bg-white md:z-20' : ''
-                                  } ${
-                                    holdingColumnKey === field.key
-                                      ? 'bg-slate-50 ring-1 ring-slate-300'
-                                      : ''
-                                  } ${
-                                    dragReadyColumnKey === field.key
-                                      ? 'bg-slate-100 ring-2 ring-slate-400'
-                                      : ''
-                                  }`}
-                                  style={{ width: columnWidths[field.key] || 180, minWidth: 120 }}
-                                >
-                                  <div className="group/colmenu flex items-center justify-between gap-2">
-                                    <span className="truncate">{field.label}</span>
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          setColumnMenuState((prev) =>
-                                            prev?.key === field.key && prev?.groupTitle === group.title
-                                              ? null
-                                              : { key: field.key, groupTitle: group.title },
-                                          )
-                                        }
-                                        className="h-5 w-5 rounded-full hover:bg-slate-100 text-slate-400 opacity-0 group-hover/colmenu:opacity-100 transition-opacity"
-                                      >
-                                        ⋯
-                                      </button>
-                                      <span className="text-[10px] text-slate-400 opacity-0 group-hover/colmenu:opacity-100 transition-opacity">⋮⋮</span>
-                                    </div>
-                                  </div>
-                                  {columnMenuState?.key === field.key &&
-                                    columnMenuState?.groupTitle === group.title && (
-                                    <div className="absolute right-2 top-8 z-40 w-48 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100">
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          openEditColumn(field);
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4"
-                                        >
-                                          <path d="M12 20h9" />
-                                          <path d="m16.5 3.5 4 4L7 21H3v-4L16.5 3.5Z" />
-                                        </svg>
-                                        <span>{t('crm.workspace.table.editColumn')}</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          void duplicateColumn(field);
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4"
-                                        >
-                                          <rect x="9" y="9" width="11" height="11" rx="2" />
-                                          <rect x="4" y="4" width="11" height="11" rx="2" />
-                                        </svg>
-                                        <span>{t('crm.workspace.table.duplicateColumn')}</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setGroupHiddenColumns((prev) => ({
-                                            ...prev,
-                                            [group.title]: {
-                                              ...(prev[group.title] || {}),
-                                              [field.key]: true,
-                                            },
-                                          }));
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4"
-                                        >
-                                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
-                                          <circle cx="12" cy="12" r="3" />
-                                        </svg>
-                                        <span>{t('crm.workspace.table.hideColumn')}</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          deleteColumnInGroup(group.title, field.key);
-                                          setColumnMenuState(null);
-                                        }}
-                                        className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center gap-2"
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          viewBox="0 0 24 24"
-                                          fill="none"
-                                          stroke="currentColor"
-                                          strokeWidth="1.8"
-                                          className="h-4 w-4"
-                                        >
-                                          <path d="M3 6h18" />
-                                          <path d="M8 6V4h8v2" />
-                                          <path d="M19 6l-1 14H6L5 6" />
-                                          <path d="M10 11v6M14 11v6" />
-                                        </svg>
-                                        <span>{t('crm.workspace.table.deleteColumnInGroup')}</span>
-                                      </button>
-                                    </div>
-                                  )}
-                                  <button
-                                    type="button"
-                                    onMouseDown={(e) => {
-                                      e.preventDefault();
-                                      setResizing({
-                                        key: field.key,
-                                        startX: e.clientX,
-                                        startWidth: columnWidths[field.key] || 180,
-                                      });
-                                    }}
-                                    className="absolute top-0 right-0 h-full w-1 cursor-col-resize bg-transparent hover:bg-slate-300/70"
-                                  />
-                                </th>
-                              ))}
-                              <th className="px-2 py-2 text-center w-12">
+                            <div className="group/colmenu relative flex min-h-[28px] items-center gap-2 pr-8">
+                              <span className="lv-th-inner min-w-0 flex-1 !cursor-grab">
+                                <span className="lv-th-grip">⋮⋮</span>
+                                <span className="flex min-w-0 items-center gap-1 truncate">
+                                {parseWorkspaceColumnBindingV1(
+                                  field.meta as Record<string, unknown> | null,
+                                ) && (
+                                  <span
+                                    className="shrink-0 text-teal-600"
+                                    title={t('crm.workspace.table.columnBindingBadgeTitle')}
+                                    aria-hidden
+                                  >
+                                    ◇
+                                  </span>
+                                )}
+                                <span className="truncate">{field.label}</span>
+                              </span>
+                              </span>
+                              <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
                                 <button
                                   type="button"
-                                  onClick={() => setShowAddField(true)}
-                                  className="h-6 w-6 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900"
+                                  onClick={() =>
+                                    setColumnMenuState((prev) =>
+                                      prev?.key === field.key && prev?.groupTitle === '__dt__'
+                                        ? null
+                                        : { key: field.key, groupTitle: '__dt__' },
+                                    )
+                                  }
+                                  className="h-5 w-5 rounded-full hover:bg-slate-100 text-slate-400 opacity-0 group-hover/colmenu:opacity-100 transition-opacity"
                                 >
-                                  +
+                                  ⋯
                                 </button>
-                              </th>
+                              </div>
+                            </div>
+                            {columnMenuState?.key === field.key && columnMenuState?.groupTitle === '__dt__' && (
+                              <div className="absolute right-2 top-8 z-40 min-w-[13rem] w-max max-w-[min(92vw,22rem)] rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    openEditColumn(field);
+                                    setColumnMenuState(null);
+                                  }}
+                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
+                                    <path d="M12 20h9" />
+                                    <path d="m16.5 3.5 4 4L7 21H3v-4L16.5 3.5Z" />
+                                  </svg>
+                                  <span className="min-w-0 whitespace-normal break-words leading-snug">{t('crm.workspace.table.editColumn')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void duplicateColumn(field);
+                                    setColumnMenuState(null);
+                                  }}
+                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
+                                    <rect x="9" y="9" width="11" height="11" rx="2" />
+                                    <rect x="4" y="4" width="11" height="11" rx="2" />
+                                  </svg>
+                                  <span className="min-w-0 whitespace-normal break-words leading-snug">{t('crm.workspace.table.duplicateColumn')}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setDeleteDialog({ kind: 'column', field });
+                                    setColumnMenuState(null);
+                                  }}
+                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center justify-center gap-2"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
+                                    <path d="M3 6h18" />
+                                    <path d="M8 6V4h8v2" />
+                                    <path d="M19 6l-1 14H6L5 6" />
+                                    <path d="M10 11v6M14 11v6" />
+                                  </svg>
+                                  <span className="min-w-0 whitespace-normal break-words leading-snug">{t('crm.workspace.table.deleteColumn')}</span>
+                                </button>
+                              </div>
+                            )}
+                            <span
+                              className="lv-th-resize"
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setResizing({
+                                  key: field.key,
+                                  startX: e.clientX,
+                                  startWidth: columnWidths[field.key] || 180,
+                                });
+                              }}
+                              role="presentation"
+                            />
+                          </th>
+                        ))}
+                        <th className="w-12 text-center align-middle" style={{ width: 48 }}>
+                          <button
+                            type="button"
+                            onClick={() => setShowAddField(true)}
+                            className="h-6 w-6 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900"
+                          >
+                            +
+                          </button>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupedRecords.map((group) => {
+                        const collapsed = !!collapsedGroups[group.title];
+                        const visibleGroupItems = group.items.filter((record) => !hiddenRows[record.id]);
+                        return (
+                          <React.Fragment key={group.title}>
+                            <tr
+                              className="lv-proj-group-row"
+                              onDragOver={(e) => {
+                                e.preventDefault();
+                                setDragOverGroup(group.title);
+                              }}
+                              onDragLeave={() => setDragOverGroup(null)}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                const rowIdFromDnd = e.dataTransfer.getData('text/workspace-row-id');
+                                const rowId = rowIdFromDnd || draggingRowId;
+                                if (!rowId) return;
+                                void moveRecordToGroup(rowId, group.title);
+                                setDraggingRowId(null);
+                                setDragReadyRowId(null);
+                                setDragOverGroup(null);
+                              }}
+                            >
+                              <td colSpan={orderedColumns.length + 2} style={{ borderLeft: `4px solid ${group.color}` }}>
+                                <div className="lv-proj-group-inner">
+                                  <button
+                                    type="button"
+                                    className={`lv-group-toggle${collapsed ? ' collapsed' : ''}`}
+                                    onClick={() =>
+                                      setCollapsedGroups((prev) => ({
+                                        ...prev,
+                                        [group.title]: !prev[group.title],
+                                      }))
+                                    }
+                                    aria-expanded={!collapsed}
+                                  >
+                                    <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                                      <path
+                                        d="M2.5 4.5L6 8L9.5 4.5"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="1.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                      />
+                                    </svg>
+                                  </button>
+                                  <span className="truncate font-medium" style={{ fontSize: 12.5, color: 'var(--ink)' }}>
+                                    {group.title}
+                                  </span>
+                                  <span className="lv-group-meta">
+                                    {incompleteDataset
+                                      ? t('crm.workspace.table.groupHeaderItemsPage', {
+                                          count: group.items.length,
+                                          total: recordsTotal,
+                                        })
+                                      : t('crm.workspace.table.groupHeaderItems', { count: group.items.length })}
+                                  </span>
+                                  {numberField && (
+                                    <span className="lv-group-meta">
+                                      {t('crm.workspace.table.sumLabel', { label: numberField.label })}{' '}
+                                      {group.items.reduce((sum, item) => {
+                                        const raw = item.values?.[numberField.key];
+                                        const parsed = typeof raw === 'number' ? raw : Number(raw || 0);
+                                        return sum + (Number.isNaN(parsed) ? 0 : parsed);
+                                      }, 0)}
+                                      {incompleteDataset ? ` ${t('crm.workspace.table.sumOnPageSuffix')}` : ''}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
-                          </thead>
-                          <tbody>
-                            {visibleGroupItems.map((record, rowIndex) => {
+                            {!collapsed && visibleGroupItems.map((record) => {
                               const subitems = getSubitems(record);
                               const expanded = !!expandedRows[record.id];
                               const recordPriorityValue = String(
                                 record.values?.[priorityField?.key || 'priority'] || 'normal',
                               );
-                              const mobilePreviewFields = groupColumns
-                                .filter((field) => field.key !== titleField?.key)
+                              const mobilePreviewFields = orderedColumns
+                                .filter((f) => f.key !== titleField?.key)
                                 .sort((a, b) => getMobilePreviewFieldRank(a) - getMobilePreviewFieldRank(b))
                                 .slice(0, 3);
-                              const isFirstRow = rowIndex === 0;
-                              const isLastRow = rowIndex === visibleGroupItems.length - 1;
                               return (
                                 <React.Fragment key={record.id}>
                                   <tr
@@ -2648,7 +3673,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                       setDraggingRowId(null);
                                       setDragReadyRowId(null);
                                     }}
-                                    className={`group/row relative border-b border-slate-100 hover:bg-slate-50/80 ${
+                                    className={`lv-proj-row group/row relative ${
                                       holdingRowId === record.id ? 'bg-slate-50 ring-1 ring-slate-300' : ''
                                     } ${dragReadyRowId === record.id ? 'bg-slate-100 ring-2 ring-slate-400' : ''} ${
                                       rowMenuRecordId === record.id ||
@@ -2659,18 +3684,16 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                     }`}
                                   >
                                     <td
-                                      className={`px-3 py-1.5 w-44 min-w-[11rem] md:sticky md:left-0 bg-white border-y border-slate-200 border-l-4 ${
-                                        isFirstRow ? 'rounded-tl-xl' : ''
-                                      } ${isLastRow ? 'rounded-bl-xl' : ''} ${
+                                      className={`lv-ws-lead-td px-2 py-1.5 ${
                                         rowMenuRecordId === record.id ||
                                         activeMultiCell?.recordId === record.id ||
                                         activePriorityMenu?.recordId === record.id
-                                          ? 'z-[220]'
-                                          : 'z-30'
+                                          ? 'lv-ws-lead-td--menu'
+                                          : ''
                                       }`}
                                       style={{ borderLeftColor: getRowStatusHex(record) || getPriorityStripHex(recordPriorityValue) }}
                                     >
-                                      <div className="flex w-full flex-wrap items-start gap-2">
+                                      <div className="flex w-full flex-wrap items-center gap-2">
                                         <div className="flex min-w-0 flex-1 items-center gap-2">
                                         <label className="inline-flex shrink-0 cursor-pointer items-center">
                                           <input
@@ -2708,7 +3731,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                         >
                                           Open
                                         </button>
-                                        <div className="relative ml-auto shrink-0">
+                                        <div className="relative shrink-0">
                                           <button
                                             type="button"
                                             onMouseDown={(e) => e.stopPropagation()}
@@ -2732,9 +3755,21 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   void duplicateRow(record);
                                                   setRowMenuRecordId(null);
                                                 }}
-                                                className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
                                               >
                                                 {t('crm.workspace.table.duplicateRow')}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onClick={() => {
+                                                  setPushBoardRecordIds([record.id]);
+                                                  setPushBoardOpen(true);
+                                                  setRowMenuRecordId(null);
+                                                }}
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                                              >
+                                                {t('crm.workspace.table.pushToBoardRow')}
                                               </button>
                                               <button
                                                 type="button"
@@ -2743,7 +3778,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   setHiddenRows((prev) => ({ ...prev, [record.id]: true }));
                                                   setRowMenuRecordId(null);
                                                 }}
-                                                className="w-full text-left text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
                                               >
                                                 {t('crm.workspace.table.hideRow')}
                                               </button>
@@ -2754,7 +3789,931 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   void deleteRow(record.id);
                                                   setRowMenuRecordId(null);
                                                 }}
-                                                className="w-full text-left text-xs px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
+                                              >
+                                                {t('crm.workspace.table.deleteRow')}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                        </div>
+                                        <div className="mt-1 basis-full space-y-1 md:hidden">
+                                          {mobilePreviewFields.map((f) => {
+                                            const preview = getMobilePreviewValue(record, f);
+                                            if (!preview) return null;
+                                            return (
+                                              <div
+                                                key={`mobile-preview-${record.id}-${f.key}`}
+                                                className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-1"
+                                              >
+                                                <span className="min-w-0 truncate text-[10px] uppercase tracking-wide text-slate-500">
+                                                  {f.label}
+                                                </span>
+                                                <span className="min-w-0 truncate text-center text-[11px] text-slate-800">
+                                                  {preview}
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </td>
+                                    {orderedColumns.map((f) => renderCell(record, f))}
+                                    <td />
+                                  </tr>
+                                  {expanded && (
+                                    <tr className="bg-sky-50/50">
+                                      <td
+                                        className="p-0 w-3 md:sticky md:left-0 bg-sky-50/60 md:z-10 text-xs text-slate-600 align-top border-r border-sky-100"
+                                        style={{ borderLeft: `4px solid ${getRowStatusHex(record) || getPriorityStripHex(recordPriorityValue)}` }}
+                                      >
+                                        <div className="h-full min-h-[42px]" />
+                                      </td>
+                                      <td colSpan={orderedColumns.length + 1} className="px-3 py-2">
+                                        <div className="mt-2 rounded-2xl border border-sky-100 bg-sky-50/30 p-3 pl-5 relative">
+                                          <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-sky-300/90" />
+                                          <div className="overflow-x-auto">
+                                          <table className="w-full min-w-[760px] text-xs [&_tbody>tr>td]:text-center [&_tbody>tr>td]:align-middle [&_thead>tr>th]:text-center [&_tbody>tr>td_select]:text-center [&_tbody>tr>td_input]:text-center [&_tbody>tr>td_button]:text-center">
+                                            <thead className="bg-sky-50/70">
+                                              <tr className="text-[10px] uppercase tracking-wide text-slate-500">
+                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColTask')}</th>
+                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColOwner')}</th>
+                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColStatus')}</th>
+                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColPriority')}</th>
+                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColDue')}</th>
+                                                <th className="px-2 py-2">{t('crm.workspace.table.subitemColActions')}</th>
+                                              </tr>
+                                            </thead>
+                                            <tbody>
+                                              {subitems.map((subitem) => {
+                                                const subStatus = String(subitem.values?.status || 'todo');
+                                                const subPriority = String(subitem.values?.priority || 'normal');
+                                                return (
+                                                  <tr key={subitem.id} className="border-t border-slate-100">
+                                                    <td className="px-2 py-1.5">
+                                                      <input
+                                                        defaultValue={String(subitem.values?.name || '')}
+                                                        onBlur={(e) => void updateSubitem(record, subitem.id, 'name', e.target.value)}
+                                                        placeholder={t('crm.workspace.table.subitemTitlePlaceholder')}
+                                                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700"
+                                                      />
+                                                    </td>
+                                                    <td className="px-2 py-1.5">
+                                                      <div className="relative" data-workspace-inline-popover>
+                                                        {(() => {
+                                                          const selectedOwners = parseOwnerValues(subitem.values?.owner);
+                                                          const menuOpen =
+                                                            activeSubitemOwnerMenu?.recordId === record.id &&
+                                                            activeSubitemOwnerMenu?.subitemId === subitem.id;
+                                                          return (
+                                                            <>
+                                                              <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                  setActiveSubitemOwnerMenu((prev) =>
+                                                                    prev?.recordId === record.id &&
+                                                                    prev?.subitemId === subitem.id
+                                                                      ? null
+                                                                      : { recordId: record.id, subitemId: subitem.id },
+                                                                  )
+                                                                }
+                                                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs"
+                                                              >
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                  <div className="flex items-center justify-center gap-1.5 min-w-0">
+                                                                    {selectedOwners.length ? (
+                                                                      <>
+                                                                        {selectedOwners.slice(0, 3).map((name) => (
+                                                                          <span
+                                                                            key={name}
+                                                                            title={name}
+                                                                            className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-slate-100 border border-slate-200 text-[10px] font-semibold text-slate-700"
+                                                                          >
+                                                                            {getInitials(name)}
+                                                                          </span>
+                                                                        ))}
+                                                                        {selectedOwners.length > 3 && (
+                                                                          <span className="text-[10px] text-slate-500">+{selectedOwners.length - 3}</span>
+                                                                        )}
+                                                                      </>
+                                                                    ) : (
+                                                                      <span className="truncate text-slate-500">{t('crm.workspace.table.selectOwner')}</span>
+                                                                    )}
+                                                                  </div>
+                                                                  <span className="text-[10px] text-slate-500">{selectedOwners.length}</span>
+                                                                </div>
+                                                              </button>
+                                                              {menuOpen && (
+                                                                <div className="absolute z-[220] mt-1 w-72 max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white shadow-2xl ring-1 ring-slate-100 p-2">
+                                                                  {staffByDepartment.map((dept) => {
+                                                                    const deptNames = dept.users.map((u) => u.fullName);
+                                                                    const deptSelected =
+                                                                      deptNames.length > 0 &&
+                                                                      deptNames.every((name) => selectedOwners.includes(name));
+                                                                    return (
+                                                                      <div key={dept.department} className="mb-2 last:mb-0">
+                                                                        <button
+                                                                          type="button"
+                                                                          onClick={() =>
+                                                                            void toggleSubitemDepartment(record, subitem.id, dept.users)
+                                                                          }
+                                                                          className={`w-full text-center rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                                                                            deptSelected
+                                                                              ? 'bg-slate-100 text-lumiva-accent'
+                                                                              : 'text-slate-600 hover:bg-slate-50'
+                                                                          }`}
+                                                                        >
+                                                                          {dept.department}
+                                                                        </button>
+                                                                        <div className="mt-1 space-y-1">
+                                                                          {dept.users.map((user) => {
+                                                                            const selected = selectedOwners.includes(user.fullName);
+                                                                            return (
+                                                                              <label
+                                                                                key={user.id}
+                                                                                className="flex items-center gap-2 rounded-lg px-2 py-1 hover:bg-slate-50"
+                                                                              >
+                                                                                <input
+                                                                                  type="checkbox"
+                                                                                  checked={selected}
+                                                                                  onChange={() =>
+                                                                                    void toggleSubitemOwner(record, subitem.id, user.fullName)
+                                                                                  }
+                                                                                />
+                                                                                <span className="text-xs text-slate-700">{user.fullName}</span>
+                                                                              </label>
+                                                                            );
+                                                                          })}
+                                                                        </div>
+                                                                      </div>
+                                                                    );
+                                                                  })}
+                                                                </div>
+                                                              )}
+                                                            </>
+                                                          );
+                                                        })()}
+                                                      </div>
+                                                    </td>
+                                                    <td className="px-2 py-1.5">
+                                                      <select
+                                                        value={subStatus}
+                                                        onChange={(e) => void updateSubitem(record, subitem.id, 'status', e.target.value)}
+                                                        className={`w-full rounded-lg px-2 py-1.5 text-center text-xs ${getSubitemStatusColor(subStatus)} font-medium`}
+                                                      >
+                                                        {subitemStatusOptions.map((opt) => (
+                                                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                        ))}
+                                                      </select>
+                                                    </td>
+                                                    <td className="px-2 py-1.5">
+                                                      <div className="relative" data-workspace-inline-popover>
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            setActiveSubitemPriorityMenu((prev) =>
+                                                              prev?.recordId === record.id &&
+                                                              prev?.subitemId === subitem.id
+                                                                ? null
+                                                                : { recordId: record.id, subitemId: subitem.id },
+                                                            )
+                                                          }
+                                                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-medium text-slate-800"
+                                                        >
+                                                          <div className="flex items-center justify-center gap-2">
+                                                            <span className="truncate">
+                                                              {subitemPriorityOptions.find((o) => o.value === subPriority)?.label || subPriority}
+                                                            </span>
+                                                            <span className="text-slate-400">▾</span>
+                                                          </div>
+                                                        </button>
+                                                        {activeSubitemPriorityMenu?.recordId === record.id &&
+                                                          activeSubitemPriorityMenu?.subitemId === subitem.id && (
+                                                            <div className="absolute z-40 mt-1 w-full rounded-xl border border-slate-200 bg-white shadow-lg p-1">
+                                                              {subitemPriorityOptions.map((opt) => {
+                                                                const isActive = opt.value === subPriority;
+                                                                return (
+                                                                  <button
+                                                                    key={opt.value}
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                      void updateSubitem(record, subitem.id, 'priority', opt.value);
+                                                                      setActiveSubitemPriorityMenu(null);
+                                                                    }}
+                                                                    className={`w-full rounded-lg px-2 py-1.5 text-center text-xs ${
+                                                                      isActive
+                                                                        ? 'bg-slate-100 text-slate-900'
+                                                                        : 'text-slate-700 hover:bg-slate-50'
+                                                                    }`}
+                                                                  >
+                                                                    {opt.label}
+                                                                  </button>
+                                                                );
+                                                              })}
+                                                            </div>
+                                                          )}
+                                                      </div>
+                                                    </td>
+                                                    <td className="px-2 py-1.5">
+                                                      <input
+                                                        type="date"
+                                                        lang={i18n.language}
+                                                        value={String(subitem.values?.due_date || '')}
+                                                        onChange={(e) => void updateSubitem(record, subitem.id, 'due_date', e.target.value)}
+                                                        className="w-full min-w-[132px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-center text-xs leading-5"
+                                                      />
+                                                    </td>
+                                                    <td className="px-2 py-1.5">
+                                                      <button
+                                                        type="button"
+                                                        onClick={() => void deleteSubitem(record, subitem.id)}
+                                                        className="mx-auto block text-[11px] text-rose-500 hover:text-rose-600"
+                                                      >
+                                                        {t('crm.workspace.table.bulkDelete')}
+                                                      </button>
+                                                    </td>
+                                                  </tr>
+                                                );
+                                              })}
+                                              <tr className="border-t border-slate-100">
+                                                <td colSpan={6} className="px-2 py-1.5">
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => void addSubitem(record)}
+                                                    className="mx-auto block text-xs text-sky-600 hover:text-sky-700"
+                                                  >
+                                                    {t('crm.workspace.table.addSubitem')}
+                                                  </button>
+                                                </td>
+                                              </tr>
+                                            </tbody>
+                                          </table>
+                                          </div>
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                            {!collapsed && (
+                              <tr className="lv-proj-row">
+                                <td className="lv-ws-lead-td px-2 py-2 text-[var(--fg-3)] text-xs font-medium">
+                                  +
+                                </td>
+                                <td colSpan={orderedColumns.length + 1} className="px-3 py-2">
+                                  {canAddRowInGroup ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => void createRowInGroup(group.title)}
+                                      disabled={savingRecordId === `new-${group.title}`}
+                                      className="mx-auto block text-sm text-slate-500 hover:text-slate-800"
+                                    >
+                                      {savingRecordId === `new-${group.title}`
+                                        ? t('crm.workspace.table.addingRow')
+                                        : t('crm.workspace.table.addItem')}
+                                    </button>
+                                  ) : (
+                                    <span className="mx-auto block text-xs text-slate-400">
+                                      {t('crm.workspace.table.addItemOnlyDefault')}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            )}
+                            {!collapsed && (
+                              <tr className="lv-ws-summary-row">
+                                <td className="lv-ws-lead-td px-2 py-2 text-xs font-semibold text-[var(--ink)]">
+                                  {t('crm.workspace.table.summary')}
+                                </td>
+                                {orderedColumns.map((f) => {
+                                  const keyNorm = f.key.toLowerCase();
+                                  const labelNorm = f.label.toLowerCase();
+                                  const isLikelyNumeric =
+                                    f.type === 'number' ||
+                                    keyNorm.includes('price') ||
+                                    keyNorm.includes('value') ||
+                                    keyNorm.includes('amount') ||
+                                    keyNorm.includes('sum') ||
+                                    keyNorm.includes('total') ||
+                                    keyNorm.includes('revenue') ||
+                                    keyNorm.includes('subtotal') ||
+                                    keyNorm.includes('qty') ||
+                                    keyNorm.includes('quantity') ||
+                                    keyNorm.includes('count') ||
+                                    labelNorm.includes('цена') ||
+                                    labelNorm.includes('стоим') ||
+                                    labelNorm.includes('сумм') ||
+                                    labelNorm.includes('итог') ||
+                                    labelNorm.includes('всег') ||
+                                    labelNorm.includes('колич') ||
+                                    labelNorm.includes('value') ||
+                                    labelNorm.includes('amount') ||
+                                    labelNorm.includes('total') ||
+                                    labelNorm.includes('revenue');
+                                  if (isLikelyNumeric) {
+                                    const sum = group.items.reduce((acc, item) => {
+                                      const raw = item.values?.[getWorkspaceFieldValueStorageKey(f)];
+                                      const value =
+                                        typeof raw === 'number'
+                                          ? raw
+                                          : Number(
+                                              String(raw ?? '')
+                                                .replace(/\s+/g, '')
+                                                .replace(',', '.')
+                                                .replace(/[^0-9.-]/g, '') || 0,
+                                            );
+                                      return acc + (Number.isNaN(value) ? 0 : value);
+                                    }, 0);
+                                    return (
+                                      <td key={f.id} className="px-3 py-2 text-left text-xs font-semibold text-[var(--ink)]">
+                                        {sum}
+                                      </td>
+                                    );
+                                  }
+                                  return (
+                                    <td key={f.id} className="px-3 py-2 text-left text-xs text-[var(--fg-3)]">
+                                      -
+                                    </td>
+                                  );
+                                })}
+                                <td />
+                              </tr>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+              {!isDataTable && groupedRecords.map((group) => {
+                const collapsed = !!collapsedGroups[group.title];
+                const visibleGroupItems = group.items.filter((record) => !hiddenRows[record.id]);
+                const groupColumns = orderedColumns.filter(
+                  (field) => !groupHiddenColumns[group.title]?.[field.key],
+                );
+                return (
+                  <div
+                    key={group.title}
+                    className={`group/header lv-proj-wrap${dragOverGroup === group.title ? ' lv-proj-wrap--drop' : ''}`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragOverGroup(group.title);
+                    }}
+                    onDragLeave={() => setDragOverGroup(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const rowIdFromDnd = e.dataTransfer.getData('text/workspace-row-id');
+                      const rowId = rowIdFromDnd || draggingRowId;
+                      if (!rowId) return;
+                      void moveRecordToGroup(rowId, group.title);
+                      setDraggingRowId(null);
+                      setDragReadyRowId(null);
+                      setDragOverGroup(null);
+                    }}
+                  >
+                    <div
+                      className={`lv-ws-group-banner${mondayBoardUi ? ' lv-ws-group-banner--board' : ''}`}
+                      style={{ borderLeft: `4px solid ${group.color}` }}
+                    >
+                      <div className="lv-proj-group-inner min-w-0 flex-1">
+                        <button
+                          type="button"
+                          className={`lv-group-toggle${collapsed ? ' collapsed' : ''}`}
+                          onClick={() =>
+                            setCollapsedGroups((prev) => ({
+                              ...prev,
+                              [group.title]: !prev[group.title],
+                            }))
+                          }
+                          aria-expanded={!collapsed}
+                        >
+                          <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                            <path
+                              d="M2.5 4.5L6 8L9.5 4.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+                        <span className="truncate font-medium" style={{ fontSize: 12.5, color: 'var(--ink)' }}>
+                          {group.title}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0" style={{ color: 'var(--fg-3)', fontSize: 11 }}>
+                        <span>
+                          {incompleteDataset
+                            ? t('crm.workspace.table.groupHeaderItemsPage', {
+                                count: group.items.length,
+                                total: recordsTotal,
+                              })
+                            : t('crm.workspace.table.groupHeaderItems', { count: group.items.length })}
+                        </span>
+                        {numberField && (
+                          <span>
+                            {t('crm.workspace.table.sumLabel', { label: numberField.label })}{' '}
+                            {group.items.reduce((sum, item) => {
+                              const raw = item.values?.[numberField.key];
+                              const parsed = typeof raw === 'number' ? raw : Number(raw || 0);
+                              return sum + (Number.isNaN(parsed) ? 0 : parsed);
+                            }, 0)}
+                            {incompleteDataset
+                              ? ` ${t('crm.workspace.table.sumOnPageSuffix')}`
+                              : ''}
+                          </span>
+                        )}
+                        {isPrimaryGrouping && !isStatusGrouping && (
+                          <button
+                            type="button"
+                            onClick={() => void deleteGroup(group.title)}
+                            disabled={incompleteDataset}
+                            className="h-6 w-6 rounded-full text-rose-500 hover:bg-rose-50 opacity-0 group-hover/header:opacity-100 transition-opacity disabled:opacity-30 disabled:pointer-events-none border-0 bg-transparent cursor-pointer"
+                            title={
+                              incompleteDataset
+                                ? t('crm.workspace.table.deleteGroupDisabledPaged')
+                                : t('crm.workspace.table.deleteGroupTitle')
+                            }
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              className="h-4 w-4 mx-auto"
+                            >
+                              <path d="M3 6h18" />
+                              <path d="M8 6V4h8v2" />
+                              <path d="M19 6l-1 14H6L5 6" />
+                              <path d="M10 11v6M14 11v6" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {!collapsed && (
+                      <div
+                        ref={(el) => {
+                          if (el) groupTableScrollRefs.current.set(group.title, el);
+                          else groupTableScrollRefs.current.delete(group.title);
+                        }}
+                        className="lv-proj-scroll max-h-[560px]"
+                      >
+                        <table className="lv-proj-table min-w-[1000px] w-full text-[12.5px]">
+                          <thead>
+                            <tr>
+                              <th className="lv-ws-lead-th" />
+                              {groupColumns.map((field) => (
+                                <th
+                                  key={field.id}
+                                  draggable={dragReadyColumnKey === field.key}
+                                  onMouseDown={(e) => {
+                                    const target = e.target as HTMLElement;
+                                    if (target.closest('button')) return;
+                                    armColumnDragAfterHold(field.key);
+                                  }}
+                                  onMouseUp={() => {
+                                    clearColumnHoldTimer();
+                                    setHoldingColumnKey((prev) => (prev === field.key ? null : prev));
+                                    setDragReadyColumnKey((prev) => (prev === field.key ? null : prev));
+                                  }}
+                                  onMouseLeave={() => {
+                                    clearColumnHoldTimer();
+                                    setHoldingColumnKey((prev) => (prev === field.key ? null : prev));
+                                    setDragReadyColumnKey((prev) => (prev === field.key ? null : prev));
+                                  }}
+                                  onDragStart={(e) => {
+                                    if (dragReadyColumnKey !== field.key) {
+                                      e.preventDefault();
+                                      return;
+                                    }
+                                    setDraggingColumnKey(field.key);
+                                    setColumnDragOverKey(null);
+                                    const ghost = createColumnDragGhostElement(field.label);
+                                    document.body.appendChild(ghost);
+                                    e.dataTransfer.setDragImage(ghost, 26, 36);
+                                    requestAnimationFrame(() => ghost.remove());
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggingColumnKey(null);
+                                    setDragReadyColumnKey(null);
+                                    setColumnDragOverKey(null);
+                                  }}
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    if (draggingColumnKey && draggingColumnKey !== field.key) {
+                                      setColumnDragOverKey(field.key);
+                                    }
+                                  }}
+                                  onDrop={() => {
+                                    if (!draggingColumnKey || draggingColumnKey === field.key) return;
+                                    setColumnOrder((prev) => {
+                                      const base = prev.length ? [...prev] : orderedColumns.map((c) => c.key);
+                                      const from = base.indexOf(draggingColumnKey);
+                                      const to = base.indexOf(field.key);
+                                      if (from < 0 || to < 0) return base;
+                                      const [moved] = base.splice(from, 1);
+                                      base.splice(to, 0, moved);
+                                      return base;
+                                    });
+                                    setDraggingColumnKey(null);
+                                    setDragReadyColumnKey(null);
+                                    setColumnDragOverKey(null);
+                                  }}
+                                  className={[
+                                    field.key === titleField?.key ? 'lv-ws-title-th' : '',
+                                    holdingColumnKey === field.key ? 'bg-slate-50 ring-1 ring-slate-300' : '',
+                                    dragReadyColumnKey === field.key ? 'bg-slate-100 ring-2 ring-slate-400' : '',
+                                    draggingColumnKey &&
+                                    columnDragOverKey === field.key &&
+                                    draggingColumnKey !== field.key
+                                      ? 'ring-2 ring-emerald-500 ring-inset bg-emerald-50/40'
+                                      : '',
+                                  ]
+                                    .filter(Boolean)
+                                    .join(' ')}
+                                  style={{ width: columnWidths[field.key] || 180, minWidth: 120 }}
+                                >
+                                  <div className="group/colmenu relative flex min-h-[28px] items-center gap-2 pr-8">
+                                    <span className="lv-th-inner min-w-0 flex-1 !cursor-grab">
+                                      <span className="lv-th-grip">⋮⋮</span>
+                                      <span className="flex min-w-0 items-center gap-1 truncate">
+                                      {parseWorkspaceColumnBindingV1(
+                                        field.meta as Record<string, unknown> | null,
+                                      ) && (
+                                        <span
+                                          className="shrink-0 text-teal-600"
+                                          title={t('crm.workspace.table.columnBindingBadgeTitle')}
+                                          aria-hidden
+                                        >
+                                          ◇
+                                        </span>
+                                      )}
+                                      <span className="truncate">{field.label}</span>
+                                    </span>
+                                    </span>
+                                    <div className="absolute right-0 top-1/2 flex -translate-y-1/2 items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setColumnMenuState((prev) =>
+                                            prev?.key === field.key && prev?.groupTitle === group.title
+                                              ? null
+                                              : { key: field.key, groupTitle: group.title },
+                                          )
+                                        }
+                                        className="h-5 w-5 rounded-full hover:bg-slate-100 text-slate-400 opacity-0 group-hover/colmenu:opacity-100 transition-opacity"
+                                      >
+                                        ⋯
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {columnMenuState?.key === field.key &&
+                                    columnMenuState?.groupTitle === group.title && (
+                                    <div className="absolute right-2 top-8 z-40 min-w-[13rem] w-max max-w-[min(92vw,22rem)] rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 ring-1 ring-slate-100">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          openEditColumn(field);
+                                          setColumnMenuState(null);
+                                        }}
+                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
+                                      >
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                          className="h-4 w-4 shrink-0"
+                                        >
+                                          <path d="M12 20h9" />
+                                          <path d="m16.5 3.5 4 4L7 21H3v-4L16.5 3.5Z" />
+                                        </svg>
+                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
+                                          {t('crm.workspace.table.editColumn')}
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          void duplicateColumn(field);
+                                          setColumnMenuState(null);
+                                        }}
+                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
+                                      >
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                          className="h-4 w-4 shrink-0"
+                                        >
+                                          <rect x="9" y="9" width="11" height="11" rx="2" />
+                                          <rect x="4" y="4" width="11" height="11" rx="2" />
+                                        </svg>
+                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
+                                          {t('crm.workspace.table.duplicateColumn')}
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setGroupHiddenColumns((prev) => ({
+                                            ...prev,
+                                            [group.title]: {
+                                              ...(prev[group.title] || {}),
+                                              [field.key]: true,
+                                            },
+                                          }));
+                                          setColumnMenuState(null);
+                                        }}
+                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50 flex items-center justify-center gap-2"
+                                      >
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                          className="h-4 w-4 shrink-0"
+                                        >
+                                          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+                                          <circle cx="12" cy="12" r="3" />
+                                        </svg>
+                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
+                                          {t('crm.workspace.table.hideColumn')}
+                                        </span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setDeleteDialog({ kind: 'column', field });
+                                          setColumnMenuState(null);
+                                        }}
+                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center justify-center gap-2"
+                                      >
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="1.8"
+                                          className="h-4 w-4 shrink-0"
+                                        >
+                                          <path d="M3 6h18" />
+                                          <path d="M8 6V4h8v2" />
+                                          <path d="M19 6l-1 14H6L5 6" />
+                                          <path d="M10 11v6M14 11v6" />
+                                        </svg>
+                                        <span className="min-w-0 whitespace-normal break-words leading-snug">
+                                          {t('crm.workspace.table.deleteColumn')}
+                                        </span>
+                                      </button>
+                                    </div>
+                                  )}
+                                  <span
+                                    className="lv-th-resize"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setResizing({
+                                        key: field.key,
+                                        startX: e.clientX,
+                                        startWidth: columnWidths[field.key] || 180,
+                                      });
+                                    }}
+                                    role="presentation"
+                                  />
+                                </th>
+                              ))}
+                              <th className="w-12 text-center align-middle" style={{ width: 48 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setShowAddField(true)}
+                                  className="h-6 w-6 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900"
+                                >
+                                  +
+                                </button>
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {visibleGroupItems.map((record) => {
+                              const subitems = getSubitems(record);
+                              const expanded = !!expandedRows[record.id];
+                              const recordPriorityValue = String(
+                                record.values?.[priorityField?.key || 'priority'] || 'normal',
+                              );
+                              const mobilePreviewFields = groupColumns
+                                .filter((field) => field.key !== titleField?.key)
+                                .sort((a, b) => getMobilePreviewFieldRank(a) - getMobilePreviewFieldRank(b))
+                                .slice(0, 3);
+                              return (
+                                <React.Fragment key={record.id}>
+                                  <tr
+                                    draggable={dragReadyRowId === record.id}
+                                    onMouseDown={(e) => {
+                                      const target = e.target as HTMLElement;
+                                      if (
+                                        target.closest('button') ||
+                                        target.closest('input') ||
+                                        target.closest('select') ||
+                                        target.closest('textarea') ||
+                                        target.closest('label')
+                                      ) {
+                                        return;
+                                      }
+                                      armRowDragAfterHold(record.id);
+                                    }}
+                                    onMouseUp={() => {
+                                      clearRowHoldTimer();
+                                      setHoldingRowId((prev) => (prev === record.id ? null : prev));
+                                      setDragReadyRowId((prev) => (prev === record.id ? null : prev));
+                                    }}
+                                    onMouseLeave={() => {
+                                      clearRowHoldTimer();
+                                      setHoldingRowId((prev) => (prev === record.id ? null : prev));
+                                      setDragReadyRowId((prev) => (prev === record.id ? null : prev));
+                                    }}
+                                    onDragStart={(e) => {
+                                      if (dragReadyRowId !== record.id) {
+                                        e.preventDefault();
+                                        return;
+                                      }
+                                      setDraggingRowId(record.id);
+                                      e.dataTransfer.effectAllowed = 'move';
+                                      e.dataTransfer.setData('text/workspace-row-id', record.id);
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggingRowId(null);
+                                      setDragOverGroup(null);
+                                      setDragReadyRowId(null);
+                                    }}
+                                    onDragOver={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                    }}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      const sourceId =
+                                        e.dataTransfer.getData('text/workspace-row-id') || draggingRowId;
+                                      if (!sourceId || sourceId === record.id) return;
+                                      const sourceRecord = records.find((r) => r.id === sourceId);
+                                      if (!sourceRecord) return;
+                                      const sourceGroup = getRecordGroupTitle(sourceRecord);
+                                      const targetGroup = group.title;
+                                      if (sourceGroup === targetGroup) {
+                                        reorderRowsInsideGroup(group.title, sourceId, record.id);
+                                      } else {
+                                        void moveRecordToGroup(sourceId, targetGroup);
+                                      }
+                                      setDraggingRowId(null);
+                                      setDragReadyRowId(null);
+                                    }}
+                                    className={`lv-proj-row group/row relative ${
+                                      holdingRowId === record.id ? 'bg-slate-50 ring-1 ring-slate-300' : ''
+                                    } ${dragReadyRowId === record.id ? 'bg-slate-100 ring-2 ring-slate-400' : ''} ${
+                                      rowMenuRecordId === record.id ||
+                                      activeMultiCell?.recordId === record.id ||
+                                      activePriorityMenu?.recordId === record.id
+                                        ? 'z-[210]'
+                                        : 'z-0'
+                                    }`}
+                                  >
+                                    <td
+                                      className={`lv-ws-lead-td px-2 py-1.5 ${
+                                        rowMenuRecordId === record.id ||
+                                        activeMultiCell?.recordId === record.id ||
+                                        activePriorityMenu?.recordId === record.id
+                                          ? 'lv-ws-lead-td--menu'
+                                          : ''
+                                      }`}
+                                      style={{ borderLeftColor: getRowStatusHex(record) || getPriorityStripHex(recordPriorityValue) }}
+                                    >
+                                      <div className="flex w-full flex-wrap items-center gap-2">
+                                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                                        <label className="inline-flex shrink-0 cursor-pointer items-center">
+                                          <input
+                                            type="checkbox"
+                                            checked={selectedIds.has(record.id)}
+                                            onChange={() => toggleSelected(record.id)}
+                                            className="peer sr-only"
+                                          />
+                                          <span className="flex h-[18px] w-[18px] items-center justify-center rounded-md border border-slate-300 bg-white text-white transition peer-checked:border-sky-600 peer-checked:bg-sky-600">
+                                            <svg className="h-3 w-3 opacity-0 peer-checked:opacity-100" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                                              <path d="M2.5 6.2L4.8 8.5L9.5 3.5" stroke="#ffffff" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                                            </svg>
+                                          </span>
+                                        </label>
+                                        <button
+                                          type="button"
+                                          onClick={() =>
+                                            setExpandedRows((prev) => ({
+                                              ...prev,
+                                              [record.id]: !prev[record.id],
+                                            }))
+                                          }
+                                          className="shrink-0 text-[11px] text-slate-500 hover:text-slate-800 opacity-0 group-hover/row:opacity-100 transition-opacity"
+                                        >
+                                          {expanded ? '▼' : '▶'}
+                                        </button>
+                                        {!mondayBoardUi && (
+                                        <button
+                                          type="button"
+                                          onMouseDown={(e) => e.stopPropagation()}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveRecord(record);
+                                          }}
+                                          className="shrink-0 whitespace-nowrap px-3 py-0.5 rounded-full border border-[#b8c6d8] text-[11px] text-slate-700"
+                                        >
+                                          Open
+                                        </button>
+                                        )}
+                                        {isBoardTable &&
+                                          (() => {
+                                            const dl = getWorkspaceDataLink(record.meta);
+                                            return dl ? (
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onClick={() => navigate(`/workspace/${dl.sourceObjectId}`)}
+                                                className="shrink-0 text-[10px] rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-900 hover:bg-amber-100"
+                                                title={t('crm.workspace.table.dataSourceLinkTitle')}
+                                              >
+                                                {t('crm.workspace.table.dataSourceLink')}
+                                              </button>
+                                            ) : null;
+                                          })()}
+                                        <div className="relative shrink-0">
+                                          <button
+                                            type="button"
+                                            onMouseDown={(e) => e.stopPropagation()}
+                                            onClick={() =>
+                                              setRowMenuRecordId((prev) => (prev === record.id ? null : record.id))
+                                            }
+                                            className={`h-6 w-6 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition-opacity ${
+                                              rowMenuRecordId === record.id
+                                                ? 'opacity-100'
+                                                : 'opacity-0 group-hover/row:opacity-100'
+                                            }`}
+                                          >
+                                            ⋯
+                                          </button>
+                                          {rowMenuRecordId === record.id && (
+                                            <div className="absolute left-full ml-1 top-0 z-[80] w-44 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5">
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onClick={() => {
+                                                  void duplicateRow(record);
+                                                  setRowMenuRecordId(null);
+                                                }}
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                                              >
+                                                {t('crm.workspace.table.duplicateRow')}
+                                              </button>
+                                              {isDataTable && (
+                                                <button
+                                                  type="button"
+                                                  onMouseDown={(e) => e.stopPropagation()}
+                                                  onClick={() => {
+                                                    setPushBoardRecordIds([record.id]);
+                                                    setPushBoardOpen(true);
+                                                    setRowMenuRecordId(null);
+                                                  }}
+                                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                                                >
+                                                  {t('crm.workspace.table.pushToBoardRow')}
+                                                </button>
+                                              )}
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onClick={() => {
+                                                  setHiddenRows((prev) => ({ ...prev, [record.id]: true }));
+                                                  setRowMenuRecordId(null);
+                                                }}
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-slate-50"
+                                              >
+                                                {t('crm.workspace.table.hideRow')}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onMouseDown={(e) => e.stopPropagation()}
+                                                onClick={() => {
+                                                  void deleteRow(record.id);
+                                                  setRowMenuRecordId(null);
+                                                }}
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
                                               >
                                                 {t('crm.workspace.table.deleteRow')}
                                               </button>
@@ -2774,7 +4733,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                 <span className="min-w-0 truncate text-[10px] uppercase tracking-wide text-slate-500">
                                                   {field.label}
                                                 </span>
-                                                <span className="min-w-0 truncate text-right text-[11px] text-slate-800">
+                                                <span className="min-w-0 truncate text-center text-[11px] text-slate-800">
                                                   {preview}
                                                 </span>
                                               </div>
@@ -2798,25 +4757,25 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                         <div className="mt-2 rounded-2xl border border-sky-100 bg-sky-50/30 p-3 pl-5 relative">
                                           <div className="absolute left-2 top-2 bottom-2 w-[3px] rounded-full bg-sky-300/90" />
                                           <div className="overflow-x-auto">
-                                          <table className="w-full min-w-[760px] text-xs">
+                                          <table className="w-full min-w-[760px] text-xs [&_tbody>tr>td]:text-center [&_tbody>tr>td]:align-middle [&_thead>tr>th]:text-center [&_tbody>tr>td_select]:text-center [&_tbody>tr>td_input]:text-center [&_tbody>tr>td_button]:text-center">
                                             <thead className="bg-sky-50/70">
                                               <tr className="text-[10px] uppercase tracking-wide text-slate-500">
-                                                <th className="px-2 py-2 text-left">
+                                                <th className="px-2 py-2">
                                                   {t('crm.workspace.table.subitemColTask')}
                                                 </th>
-                                                <th className="px-2 py-2 text-left">
+                                                <th className="px-2 py-2">
                                                   {t('crm.workspace.table.subitemColOwner')}
                                                 </th>
-                                                <th className="px-2 py-2 text-left">
+                                                <th className="px-2 py-2">
                                                   {t('crm.workspace.table.subitemColStatus')}
                                                 </th>
-                                                <th className="px-2 py-2 text-left">
+                                                <th className="px-2 py-2">
                                                   {t('crm.workspace.table.subitemColPriority')}
                                                 </th>
-                                                <th className="px-2 py-2 text-left">
+                                                <th className="px-2 py-2">
                                                   {t('crm.workspace.table.subitemColDue')}
                                                 </th>
-                                                <th className="px-2 py-2 text-left">
+                                                <th className="px-2 py-2">
                                                   {t('crm.workspace.table.subitemColActions')}
                                                 </th>
                                               </tr>
@@ -2834,7 +4793,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                           void updateSubitem(record, subitem.id, 'name', e.target.value)
                                                         }
                                                         placeholder={t('crm.workspace.table.subitemTitlePlaceholder')}
-                                                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-700"
+                                                        className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs text-slate-700"
                                                       />
                                                     </td>
                                                     <td className="px-2 py-1.5">
@@ -2856,10 +4815,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                                       : { recordId: record.id, subitemId: subitem.id },
                                                                   )
                                                                 }
-                                                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left text-xs"
+                                                                className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs"
                                                               >
-                                                                <div className="flex items-center justify-between gap-2">
-                                                                  <div className="flex items-center gap-1.5 min-w-0">
+                                                                <div className="flex items-center justify-center gap-2">
+                                                                  <div className="flex items-center justify-center gap-1.5 min-w-0">
                                                                     {selectedOwners.length ? (
                                                                       <>
                                                                         {selectedOwners.slice(0, 3).map((name) => (
@@ -2900,7 +4859,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                                           onClick={() =>
                                                                             void toggleSubitemDepartment(record, subitem.id, group.users)
                                                                           }
-                                                                          className={`w-full text-left rounded-lg px-2 py-1 text-[11px] font-semibold ${
+                                                                          className={`w-full text-center rounded-lg px-2 py-1 text-[11px] font-semibold ${
                                                                             groupSelected
                                                                               ? 'bg-slate-100 text-lumiva-accent'
                                                                               : 'text-slate-600 hover:bg-slate-50'
@@ -2944,7 +4903,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                         onChange={(e) =>
                                                           void updateSubitem(record, subitem.id, 'status', e.target.value)
                                                         }
-                                                        className={`w-full rounded-lg px-2 py-1.5 text-xs ${getSubitemStatusColor(subStatus)} font-medium`}
+                                                        className={`w-full rounded-lg px-2 py-1.5 text-center text-xs ${getSubitemStatusColor(subStatus)} font-medium`}
                                                       >
                                                         {subitemStatusOptions.map((opt) => (
                                                           <option key={opt.value} value={opt.value}>
@@ -2965,9 +4924,9 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                                 : { recordId: record.id, subitemId: subitem.id },
                                                             )
                                                           }
-                                                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left text-xs font-medium text-slate-800"
+                                                          className="w-full rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-center text-xs font-medium text-slate-800"
                                                         >
-                                                          <div className="flex items-center justify-between gap-2">
+                                                          <div className="flex items-center justify-center gap-2">
                                                             <span className="truncate">
                                                               {subitemPriorityOptions.find((o) => o.value === subPriority)?.label ||
                                                                 subPriority}
@@ -2988,7 +4947,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                                       void updateSubitem(record, subitem.id, 'priority', opt.value);
                                                                       setActiveSubitemPriorityMenu(null);
                                                                     }}
-                                                                    className={`w-full rounded-lg px-2 py-1.5 text-left text-xs ${
+                                                                    className={`w-full rounded-lg px-2 py-1.5 text-center text-xs ${
                                                                       isActive
                                                                         ? 'bg-slate-100 text-slate-900'
                                                                         : 'text-slate-700 hover:bg-slate-50'
@@ -3010,14 +4969,14 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                         onChange={(e) =>
                                                           void updateSubitem(record, subitem.id, 'due_date', e.target.value)
                                                         }
-                                                        className="w-full min-w-[132px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs leading-5"
+                                                        className="w-full min-w-[132px] rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-center text-xs leading-5"
                                                       />
                                                     </td>
                                                     <td className="px-2 py-1.5">
                                                       <button
                                                         type="button"
                                                         onClick={() => void deleteSubitem(record, subitem.id)}
-                                                        className="text-[11px] text-rose-500 hover:text-rose-600"
+                                                        className="mx-auto block text-[11px] text-rose-500 hover:text-rose-600"
                                                       >
                                                         {t('crm.workspace.table.bulkDelete')}
                                                       </button>
@@ -3030,7 +4989,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   <button
                                                     type="button"
                                                     onClick={() => void addSubitem(record)}
-                                                    className="text-xs text-sky-600 hover:text-sky-700"
+                                                    className="mx-auto block text-xs text-sky-600 hover:text-sky-700"
                                                   >
                                                     {t('crm.workspace.table.addSubitem')}
                                                   </button>
@@ -3046,29 +5005,31 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                 </React.Fragment>
                               );
                             })}
-                            <tr>
-                              <td className="px-3 py-2 text-slate-400 text-xs md:sticky md:left-0 bg-white md:z-10">+</td>
+                            <tr className="lv-proj-row">
+                              <td className="lv-ws-lead-td px-2 py-2 text-[var(--fg-3)] text-xs font-medium">
+                                +
+                              </td>
                               <td colSpan={groupColumns.length + 1} className="px-3 py-2">
-                                {isPrimaryGrouping ? (
+                                {canAddRowInGroup ? (
                                   <button
                                     type="button"
                                     onClick={() => void createRowInGroup(group.title)}
                                     disabled={savingRecordId === `new-${group.title}`}
-                                    className="text-sm text-slate-500 hover:text-slate-800"
+                                    className="mx-auto block text-sm text-slate-500 hover:text-slate-800"
                                   >
                                     {savingRecordId === `new-${group.title}`
                                       ? t('crm.workspace.table.addingRow')
                                       : t('crm.workspace.table.addItem')}
                                   </button>
                                 ) : (
-                                  <span className="text-xs text-slate-400">
+                                  <span className="mx-auto block text-xs text-slate-400">
                                     {t('crm.workspace.table.addItemOnlyDefault')}
                                   </span>
                                 )}
                               </td>
                             </tr>
-                            <tr className="border-t-2 border-slate-200 bg-slate-50">
-                              <td className="px-3 py-2 text-xs font-semibold text-slate-600 md:sticky md:left-0 bg-slate-50 md:z-10">
+                            <tr className="lv-ws-summary-row">
+                              <td className="lv-ws-lead-td px-2 py-2 text-xs font-semibold text-[var(--ink)]">
                                 {t('crm.workspace.table.summary')}
                               </td>
                               {groupColumns.map((field) => {
@@ -3080,14 +5041,25 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                   keyNorm.includes('value') ||
                                   keyNorm.includes('amount') ||
                                   keyNorm.includes('sum') ||
+                                  keyNorm.includes('total') ||
+                                  keyNorm.includes('revenue') ||
+                                  keyNorm.includes('subtotal') ||
+                                  keyNorm.includes('qty') ||
+                                  keyNorm.includes('quantity') ||
+                                  keyNorm.includes('count') ||
                                   labelNorm.includes('цена') ||
                                   labelNorm.includes('стоим') ||
                                   labelNorm.includes('сумм') ||
+                                  labelNorm.includes('итог') ||
+                                  labelNorm.includes('всег') ||
+                                  labelNorm.includes('колич') ||
                                   labelNorm.includes('value') ||
-                                  labelNorm.includes('amount');
+                                  labelNorm.includes('amount') ||
+                                  labelNorm.includes('total') ||
+                                  labelNorm.includes('revenue');
                                 if (isLikelyNumeric) {
                                   const sum = group.items.reduce((acc, item) => {
-                                    const raw = item.values?.[field.key];
+                                    const raw = item.values?.[getWorkspaceFieldValueStorageKey(field)];
                                     const value =
                                       typeof raw === 'number'
                                         ? raw
@@ -3100,12 +5072,16 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                     return acc + (Number.isNaN(value) ? 0 : value);
                                   }, 0);
                                   return (
-                                    <td key={field.id} className="px-3 py-2 text-xs font-semibold text-slate-700">
+                                    <td key={field.id} className="px-3 py-2 text-left text-xs font-semibold text-[var(--ink)]">
                                       {sum}
                                     </td>
                                   );
                                 }
-                                return <td key={field.id} className="px-3 py-2 text-xs text-slate-400">-</td>;
+                                return (
+                                  <td key={field.id} className="px-3 py-2 text-left text-xs text-[var(--fg-3)]">
+                                    -
+                                  </td>
+                                );
                               })}
                               <td />
                             </tr>
@@ -3116,6 +5092,125 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   </div>
                 );
               })}
+
+              {isBoardTable && !loading && groupedRecords.length === 0 && !search && (
+                <div className="rounded-2xl border border-dashed border-slate-200 bg-gradient-to-br from-slate-50 to-white p-8 text-center">
+                  <p className="text-base font-semibold text-slate-800">{t('crm.workspace.table.boardEmptyTitle')}</p>
+                  <p className="mt-1 text-sm text-slate-500">{t('crm.workspace.table.boardEmptySubtitle')}</p>
+                  <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                    {([
+                      {
+                        num: '1',
+                        title: t('crm.workspace.table.boardEmptyStep1Title'),
+                        desc: t('crm.workspace.table.boardEmptyStep1Desc'),
+                        icon: (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-5 w-5" aria-hidden>
+                            <rect x="3" y="3" width="18" height="4" rx="1" />
+                            <rect x="3" y="10" width="18" height="4" rx="1" />
+                            <rect x="3" y="17" width="18" height="4" rx="1" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        num: '2',
+                        title: t('crm.workspace.table.boardEmptyStep2Title'),
+                        desc: t('crm.workspace.table.boardEmptyStep2Desc'),
+                        icon: (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-5 w-5" aria-hidden>
+                            <path d="M12 5v14M5 12h14" />
+                          </svg>
+                        ),
+                      },
+                      {
+                        num: '3',
+                        title: t('crm.workspace.table.boardEmptyStep3Title'),
+                        desc: t('crm.workspace.table.boardEmptyStep3Desc'),
+                        icon: (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" className="h-5 w-5" aria-hidden>
+                            <path d="M4 20h16M4 4h16" />
+                            <path d="M9 4v16M15 4v16" />
+                          </svg>
+                        ),
+                      },
+                    ] as const).map((step) => (
+                      <div key={step.num} className="rounded-xl border border-slate-100 bg-white p-4 text-left shadow-sm">
+                        <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                          {step.icon}
+                        </div>
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">
+                          {step.num}
+                        </p>
+                        <p className="mt-0.5 text-sm font-semibold text-slate-800">{step.title}</p>
+                        <p className="mt-1 text-xs leading-relaxed text-slate-500">{step.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {isPrimaryGrouping && (
+                    <button
+                      type="button"
+                      onClick={() => newGroupInputRef.current?.focus()}
+                      className="mt-6 rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                      style={{ background: 'var(--ink)' }}
+                    >
+                      {t('crm.workspace.table.boardEmptyStartBtn')}
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {showTablePagination && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <div>
+                    {t('crm.workspace.table.paginationRange', {
+                      from: pageRowFrom,
+                      to: pageRowTo,
+                      total: recordsTotal,
+                    })}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1">
+                      <span>{t('crm.workspace.table.pageSize')}</span>
+                      <select
+                        value={pageSize}
+                        onChange={(e) => {
+                          setPageSize(Number(e.target.value));
+                          setTablePage(0);
+                        }}
+                        className="rounded border border-slate-300 bg-white px-2 py-1 text-xs"
+                      >
+                        <option value={50}>50</option>
+                        <option value={100}>100</option>
+                        <option value={200}>200</option>
+                      </select>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={tablePage === 0}
+                      onClick={() => setTablePage((p) => Math.max(0, p - 1))}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-100 disabled:opacity-40"
+                    >
+                      {t('crm.workspace.table.prevPage')}
+                    </button>
+                    <span className="tabular-nums">
+                      {tablePage + 1} / {Math.max(1, Math.ceil(recordsTotal / pageSize))}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={(tablePage + 1) * pageSize >= recordsTotal}
+                      onClick={() => setTablePage((p) => p + 1)}
+                      className="rounded border border-slate-300 bg-white px-2 py-1 hover:bg-slate-100 disabled:opacity-40"
+                    >
+                      {t('crm.workspace.table.nextPage')}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {filterFieldKey && filterFieldValue && incompleteDataset && (
+                <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                  {t('crm.workspace.table.filterOnlyCurrentPage')}
+                </p>
+              )}
 
               {isPrimaryGrouping ? (
                 <>
@@ -3152,7 +5247,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
               )}
             </div>
           )}
-        </div>
 
         <WorkspaceRecordDetailDrawer
           record={activeRecord}
@@ -3174,6 +5268,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
           onAddField={() => setShowAddField(true)}
           recordsForStatusOptions={records}
           objectId={objectId}
+          shelfLayout={isDataTable}
+          crmLeadOptions={crmLeadList}
+          crmProjectOptions={crmProjectList}
+          crmCompanyOptions={crmCompanyList}
         />
 
         {deleteDialog && (
@@ -3255,15 +5353,41 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 />
                 <select
                   value={editFieldType}
-                  onChange={(e) => setEditFieldType(e.target.value as CustomObjectFieldType)}
+                  onChange={(e) => setEditFieldType(e.target.value as CustomObjectFieldType | 'fixed')}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 >
-                  {FIELD_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
+                  <optgroup label={t('crm.workspace.table.fieldTypeGroupBasic')}>
+                    {FIELD_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={t('crm.workspace.table.fieldTypeGroupOther')}>
+                    <option value="fixed">{t('crm.workspace.table.fieldTypeReadonly')}</option>
+                  </optgroup>
                 </select>
+                {editFieldType === 'text' && (
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      {t('crm.workspace.table.crmLinkLabel')}
+                    </label>
+                    <select
+                      value={editCrmEntityRef}
+                      onChange={(e) =>
+                        setEditCrmEntityRef(
+                          e.target.value as 'none' | 'lead' | 'project' | 'company',
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="none">{t('crm.workspace.table.crmLinkNone')}</option>
+                      <option value="lead">{t('crm.workspace.table.fieldTypeCrmLead')}</option>
+                      <option value="project">{t('crm.workspace.table.fieldTypeCrmProject')}</option>
+                      <option value="company">{t('crm.workspace.table.fieldTypeCrmCompany')}</option>
+                    </select>
+                  </div>
+                )}
                 {(editFieldType === 'status' ||
                   editFieldType === 'select' ||
                   editFieldType === 'multiselect') && (
@@ -3273,6 +5397,267 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     placeholder={t('crm.workspace.table.selectOptionsPlaceholder')}
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   />
+                )}
+                {(isDataTable || isBoardTable) && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+                    <div className="text-xs font-semibold text-slate-700">
+                      {t('crm.workspace.table.columnImportKeySection')}
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      {t('crm.workspace.table.columnImportKeyHint')}
+                    </p>
+                    <select
+                      value={editMapsToImportedKey}
+                      onChange={(e) => setEditMapsToImportedKey(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="">{t('crm.workspace.table.columnImportKeySameAsColumn')}</option>
+                      {importKeyOptions.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {isBoardTable && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+                    <div className="text-xs font-semibold text-slate-700">
+                      {t('crm.workspace.table.columnBindingSection')}
+                    </div>
+                    <select
+                      value={editBindMode}
+                      onChange={(e) =>
+                        setEditBindMode(
+                          e.target.value as
+                            | 'off'
+                            | 'from_pushed_source'
+                            | 'lookup_by_key'
+                            | 'pick_from_data'
+                            | 'rollup',
+                        )
+                      }
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="off">{t('crm.workspace.table.columnBindingOff')}</option>
+                      <option value="from_pushed_source">
+                        {t('crm.workspace.table.columnBindingPushed')}
+                      </option>
+                      <option value="lookup_by_key">{t('crm.workspace.table.columnBindingLookup')}</option>
+                      <option value="pick_from_data">{t('crm.workspace.table.columnBindingPickFromData')}</option>
+                      <option value="rollup">{t('crm.workspace.table.columnBindingRollup')}</option>
+                    </select>
+                    {editBindMode === 'from_pushed_source' && (
+                      <>
+                        {pushedSourceFieldKeys.length > 0 ? (
+                          <select
+                            value={editBindSourceField}
+                            onChange={(e) => setEditBindSourceField(e.target.value)}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                          >
+                            <option value="">{t('crm.workspace.table.columnBindingPickSourceField')}</option>
+                            {pushedSourceFieldKeys.map((k) => (
+                              <option key={k} value={k}>
+                                {k}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            value={editBindSourceField}
+                            onChange={(e) => setEditBindSourceField(e.target.value)}
+                            placeholder={t('crm.workspace.table.columnBindingSourceField')}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                          />
+                        )}
+                        <p className="text-[11px] text-slate-500 leading-snug">
+                          {t('crm.workspace.table.columnBindingHintPushed')}
+                        </p>
+                      </>
+                    )}
+                    {editBindMode === 'pick_from_data' && (
+                      <>
+                        <select
+                          value={editBindDataObjectId}
+                          onChange={(e) => setEditBindDataObjectId(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingDataTable')}</option>
+                          {dataTablesInArea.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          {t('crm.workspace.table.columnBindingPickFromDataField')}
+                        </label>
+                        <select
+                          value={editBindPickDataField}
+                          onChange={(e) => setEditBindPickDataField(e.target.value)}
+                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white disabled:bg-slate-50"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
+                          {dataBindingFieldKeys.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-slate-500 leading-snug">
+                          {t('crm.workspace.table.columnBindingHintPickFromData')}
+                        </p>
+                      </>
+                    )}
+                    {editBindMode === 'lookup_by_key' && (
+                      <>
+                        <select
+                          value={editBindDataObjectId}
+                          onChange={(e) => setEditBindDataObjectId(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingDataTable')}</option>
+                          {dataTablesInArea.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          {t('crm.workspace.table.columnBindingBoardKey')}
+                        </label>
+                        <select
+                          value={editBindBoardMatch}
+                          onChange={(e) => setEditBindBoardMatch(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingPickBoardKey')}</option>
+                          {boardFieldKeyOptions.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          {t('crm.workspace.table.columnBindingDataMatch')}
+                        </label>
+                        <select
+                          value={editBindDataMatch}
+                          onChange={(e) => setEditBindDataMatch(e.target.value)}
+                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white disabled:bg-slate-50"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
+                          {dataBindingFieldKeys.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          {t('crm.workspace.table.columnBindingDataDisplay')}
+                        </label>
+                        <select
+                          value={editBindDataDisplay}
+                          onChange={(e) => setEditBindDataDisplay(e.target.value)}
+                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white disabled:bg-slate-50"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
+                          {dataBindingFieldKeys.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-[11px] text-slate-500 leading-snug">
+                          {t('crm.workspace.table.columnBindingHintLookup')}
+                        </p>
+                      </>
+                    )}
+                    {editBindMode === 'rollup' && (
+                      <>
+                        <select
+                          value={editBindDataObjectId}
+                          onChange={(e) => setEditBindDataObjectId(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingDataTable')}</option>
+                          {dataTablesInArea.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          {t('crm.workspace.table.columnBindingBoardKey')}
+                        </label>
+                        <select
+                          value={editBindBoardMatch}
+                          onChange={(e) => setEditBindBoardMatch(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingPickBoardKey')}</option>
+                          {boardFieldKeyOptions.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          {t('crm.workspace.table.columnBindingGroupBy')}
+                        </label>
+                        <select
+                          value={editBindGroupBy}
+                          onChange={(e) => setEditBindGroupBy(e.target.value)}
+                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white disabled:bg-slate-50"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
+                          {dataBindingFieldKeys.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                        <label className="block text-[11px] font-medium text-slate-600">
+                          {t('crm.workspace.table.columnBindingValueField')}
+                        </label>
+                        <select
+                          value={editBindValueField}
+                          onChange={(e) => setEditBindValueField(e.target.value)}
+                          disabled={!editBindDataObjectId || dataBindingFieldKeys.length === 0}
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white disabled:bg-slate-50"
+                        >
+                          <option value="">{t('crm.workspace.table.columnBindingPickDataKey')}</option>
+                          {dataBindingFieldKeys.map((k) => (
+                            <option key={k} value={k}>
+                              {k}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={editBindAggregate}
+                          onChange={(e) =>
+                            setEditBindAggregate(
+                              e.target.value as 'sum' | 'count' | 'avg' | 'min' | 'max',
+                            )
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                        >
+                          <option value="sum">{t('crm.workspace.table.columnBindingAggSum')}</option>
+                          <option value="count">{t('crm.workspace.table.columnBindingAggCount')}</option>
+                          <option value="avg">{t('crm.workspace.table.columnBindingAggAvg')}</option>
+                          <option value="min">{t('crm.workspace.table.columnBindingAggMin')}</option>
+                          <option value="max">{t('crm.workspace.table.columnBindingAggMax')}</option>
+                        </select>
+                        <p className="text-[11px] text-slate-500 leading-snug">
+                          {t('crm.workspace.table.columnBindingHintRollup')}
+                        </p>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
               <div className="mt-5 flex justify-end gap-2">
@@ -3298,7 +5683,13 @@ export const WorkspaceTableViewPage: React.FC = () => {
 
         {showAddField && (
           <div className="fixed inset-0 z-50">
-            <div className="absolute inset-0 bg-black/30" onClick={() => setShowAddField(false)} />
+            <div
+              className="absolute inset-0 bg-black/30"
+              onClick={() => {
+                setShowAddField(false);
+                setNewFieldMapsToImportKey('');
+              }}
+            />
             <div className="absolute left-1/2 top-1/2 w-full max-w-xl -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
               <h3 className="text-lg font-semibold text-slate-900">{t('crm.workspace.table.addFieldTitle')}</h3>
               <p className="text-xs text-slate-500 mt-1">{t('crm.workspace.table.addFieldHint')}</p>
@@ -3337,14 +5728,24 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 />
                 <select
                   value={newFieldType}
-                  onChange={(e) => setNewFieldType(e.target.value as CustomObjectFieldType)}
+                  onChange={(e) => setNewFieldType(e.target.value)}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 >
-                  {FIELD_TYPES.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
-                    </option>
-                  ))}
+                  <optgroup label={t('crm.workspace.table.fieldTypeGroupBasic')}>
+                    {FIELD_TYPES.map((ft) => (
+                      <option key={ft} value={ft}>
+                        {ft}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={t('crm.workspace.table.fieldTypeGroupCrm')}>
+                    <option value="crm_lead">{t('crm.workspace.table.fieldTypeCrmLead')}</option>
+                    <option value="crm_project">{t('crm.workspace.table.fieldTypeCrmProject')}</option>
+                    <option value="crm_company">{t('crm.workspace.table.fieldTypeCrmCompany')}</option>
+                  </optgroup>
+                  <optgroup label={t('crm.workspace.table.fieldTypeGroupOther')}>
+                    <option value="readonly">{t('crm.workspace.table.fieldTypeReadonly')}</option>
+                  </optgroup>
                 </select>
                 {(newFieldType === 'status' ||
                   newFieldType === 'select' ||
@@ -3356,6 +5757,28 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   />
                 )}
+                {(isDataTable || isBoardTable) && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-3 space-y-2">
+                    <div className="text-xs font-semibold text-slate-700">
+                      {t('crm.workspace.table.columnImportKeySection')}
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      {t('crm.workspace.table.columnImportKeyHint')}
+                    </p>
+                    <select
+                      value={newFieldMapsToImportKey}
+                      onChange={(e) => setNewFieldMapsToImportKey(e.target.value)}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="">{t('crm.workspace.table.columnImportKeySameAsColumn')}</option>
+                      {importKeyOptions.map((k) => (
+                        <option key={k} value={k}>
+                          {k}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 {addFieldError && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
                     {addFieldError}
@@ -3365,7 +5788,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
               <div className="mt-5 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddField(false)}
+                  onClick={() => {
+                    setShowAddField(false);
+                    setNewFieldMapsToImportKey('');
+                  }}
                   className="px-3 py-2 rounded-lg border border-slate-300 text-sm"
                 >
                   {t('crm.workspace.table.cancel')}
@@ -3383,6 +5809,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
           </div>
         )}
       </div>
+      </div>
       {filePreview && (
         <WorkspaceFileViewerModal
           open
@@ -3397,6 +5824,19 @@ export const WorkspaceTableViewPage: React.FC = () => {
           }}
         />
       )}
+      <PushToBoardModal
+        open={pushBoardOpen}
+        onClose={() => {
+          setPushBoardOpen(false);
+          setPushBoardRecordIds([]);
+        }}
+        sourceObjectId={objectId}
+        workspaceAreaId={workspaceAreaId}
+        areaObjects={areaObjects}
+        recordIds={pushBoardRecordIds}
+        sourceFields={fields}
+        onSuccess={() => void loadRecords(false)}
+      />
     </MainLayout>
   );
 };

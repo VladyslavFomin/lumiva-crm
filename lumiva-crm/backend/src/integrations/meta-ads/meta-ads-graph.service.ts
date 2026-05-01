@@ -65,4 +65,66 @@ export class MetaAdsGraphService {
     }
     return data;
   }
+
+  /**
+   * Дневные insights по кампаниям для импорта в рабочую область (превью / синк).
+   */
+  async fetchCampaignInsightsDaily(
+    accessToken: string,
+    actPath: string,
+    opts?: { limit?: number; maxPages?: number },
+  ): Promise<Array<Record<string, unknown>>> {
+    const raw = actPath.replace(/^\/+/, '').trim();
+    const base = raw.startsWith('act_') ? raw : `act_${raw.replace(/^act_/i, '')}`;
+    const limit = Math.min(Math.max(1, opts?.limit ?? 100), 500);
+    const maxPages = Math.min(Math.max(1, opts?.maxPages ?? 10), 50);
+    const fields =
+      'impressions,clicks,spend,date_start,campaign_name,campaign_id';
+    const out: Array<Record<string, unknown>> = [];
+    let nextUrl: string | null = null;
+
+    for (let page = 0; page < maxPages; page++) {
+      const isFirst = page === 0;
+      const res = await axios.get(
+        isFirst ? `${this.graphRoot()}/${base}/insights` : (nextUrl as string),
+        {
+          params: isFirst
+            ? {
+                fields,
+                level: 'campaign',
+                time_increment: 1,
+                date_preset: 'last_30d',
+                limit,
+                access_token: accessToken.trim(),
+              }
+            : undefined,
+          timeout: 60000,
+          validateStatus: () => true,
+        },
+      );
+      const body = res.data as {
+        data?: unknown[];
+        paging?: { next?: string };
+        error?: { message?: string };
+      };
+      if (res.status < 200 || res.status >= 300) {
+        const msg =
+          body?.error?.message ||
+          (typeof res.data === 'object' ? JSON.stringify(res.data).slice(0, 300) : String(res.data));
+        throw new Error(`Meta Ads insights: HTTP ${res.status} ${msg}`);
+      }
+      if (body?.error?.message) {
+        throw new Error(`Meta Ads insights: ${body.error.message}`);
+      }
+      const chunk = Array.isArray(body?.data) ? body.data : [];
+      for (const row of chunk) {
+        if (row && typeof row === 'object') {
+          out.push(row as Record<string, unknown>);
+        }
+      }
+      nextUrl = body?.paging?.next || null;
+      if (!nextUrl) break;
+    }
+    return out;
+  }
 }

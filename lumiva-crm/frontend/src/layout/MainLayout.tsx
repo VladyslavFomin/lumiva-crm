@@ -10,8 +10,10 @@ import {
   SESSION_USER_UPDATED_EVENT,
 } from '../auth/session';
 import { WorkspaceSidebarBlock } from '../components/layout/WorkspaceSidebarBlock';
-import { NAV_ICON_MAP, NavChevronDown, type NavIconKey } from '../components/layout/NavSidebarIcons';
+import { WorkspaceAreaSwitcher } from '../components/workspace/WorkspaceAreaSwitcher';
+import { NAV_ICON_MAP, NavChevronDown, NavIconDots, type NavIconKey } from '../components/layout/NavSidebarIcons';
 import { fetchChatSessions } from '../api/onlineChat';
+import { fetchLeadsList, isLeadOmittedFromAnalytics } from '../api/leads';
 import {
   fetchProject,
   fetchProjects,
@@ -23,13 +25,21 @@ import {
   readProjectTasksCache,
   writeProjectTasksCache,
 } from '../pages/projects/projectTasksCache';
+import {
+  assigneeEntryDisplayLabel,
+  isTaskAssigneeSelected,
+  normalizeAssigneesToStaffIds,
+  toggleTaskAssigneeIds,
+} from '../pages/projects/taskAssignees';
 import { fetchStaffPermissions, fetchUserPermissions, type PermissionKey, type RolePermissionMatrix, type UserPermissionMatrix } from '../api/rbac';
 import { fetchTenantComponents, type TenantComponent } from '../api/tenants';
+import { fetchCustomObject } from '../api/customObjects';
 import {
   fetchCompanySettings,
   TENANT_BRANDING_EVENT,
 } from '../api/settings';
 import { resolvePublicAssetUrl } from '../api/client';
+import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/withTimeout';
 import { AiAssistantPanel } from '../components/ai/AiAssistantPanel';
 import { AiAssistantTriggerIcon } from '../components/ai/AiAssistantTriggerIcon';
 
@@ -50,13 +60,19 @@ interface MainLayoutProps {
 }
 
 type NavChild = { label: string; path: string; matchPaths?: string[] };
+type NavSectionId = 'main' | 'clients' | 'tools' | 'management';
+type NavCountBadge = 'leads' | 'projects' | 'chat';
 type NavItem = {
   label: string;
   path: string;
   icon: NavIconKey;
+  section: NavSectionId;
+  countBadge?: NavCountBadge;
   children?: NavChild[];
   matchPaths?: string[];
 };
+
+const NAV_SECTION_ORDER: NavSectionId[] = ['main', 'clients', 'tools', 'management'];
 
 function normalizeLayoutPath(pathname: string): string {
   if (pathname.startsWith('/app/')) return pathname.slice(4);
@@ -124,10 +140,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const { t, i18n } = useTranslation();
   const [, bumpSessionUser] = useReducer((n: number) => n + 1, 0);
   const user = getStoredUser();
+  const staffRoleLabel = useMemo(() => {
+    const raw = String(user?.role ?? 'owner').toLowerCase();
+    const key = `crm.staff.roles.${raw}`;
+    if (i18n.exists(key)) return t(key);
+    return String(user?.role ?? 'owner');
+  }, [user?.role, i18n, t]);
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadChats, setUnreadChats] = useState(0);
+  const [navLeadCount, setNavLeadCount] = useState<number | null>(null);
+  const [navProjectCount, setNavProjectCount] = useState<number | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsPreviewOpen, setNotificationsPreviewOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
@@ -180,6 +204,50 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [tenantLogoUrl, setTenantLogoUrl] = useState<string | null>(null);
   const [tenantLogoFailed, setTenantLogoFailed] = useState(false);
   const [tenantNameDisplay, setTenantNameDisplay] = useState<string | null>(null);
+
+  const LUMIVA_WS_AREA = 'lumiva_workspace_area_id';
+  const [sidebarWorkspaceAreaId, setSidebarWorkspaceAreaId] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem(LUMIVA_WS_AREA);
+    } catch {
+      return null;
+    }
+  });
+
+  useEffect(() => {
+    const path = normalizeLayoutPath(location.pathname);
+    const am = path.match(/^\/workspace\/areas\/([0-9a-f-]{36})/i);
+    if (am) {
+      setSidebarWorkspaceAreaId(am[1]);
+      try {
+        localStorage.setItem(LUMIVA_WS_AREA, am[1]);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const path = normalizeLayoutPath(location.pathname);
+    if (path.match(/^\/workspace\/areas\//i)) return;
+    const tm = path.match(/^\/workspace\/([0-9a-f-]{36})\//i);
+    if (!tm) return;
+    let cancelled = false;
+    void fetchCustomObject(tm[1])
+      .then((o) => {
+        if (cancelled || !o.workspaceAreaId) return;
+        setSidebarWorkspaceAreaId(o.workspaceAreaId);
+        try {
+          localStorage.setItem(LUMIVA_WS_AREA, o.workspaceAreaId);
+        } catch {
+          /* ignore */
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname]);
 
   useEffect(() => {
     setTenantLogoFailed(false);
@@ -273,6 +341,32 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     };
     load();
     const timer = window.setInterval(load, 10000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  /** Счётчики лидов / проектов для бейджей в меню */
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const [leads, projRes] = await Promise.all([fetchLeadsList(), fetchProjects()]);
+        if (!alive) return;
+        const leadCount = leads.filter((l) => !isLeadOmittedFromAnalytics(l)).length;
+        setNavLeadCount(leadCount);
+        setNavProjectCount(
+          typeof projRes.total === 'number' ? projRes.total : projRes.items.length,
+        );
+      } catch {
+        if (!alive) return;
+        setNavLeadCount(null);
+        setNavProjectCount(null);
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 60000);
     return () => {
       alive = false;
       window.clearInterval(timer);
@@ -529,7 +623,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       return;
     }
     let alive = true;
-    Promise.all([fetchStaffPermissions(), fetchUserPermissions()])
+    withTimeout(
+      Promise.all([fetchStaffPermissions(), fetchUserPermissions()]),
+      DEFAULT_FETCH_TIMEOUT_MS,
+      'rbac permissions',
+    )
       .then(([roles, users]) => {
         if (!alive) return;
         setRoleMatrix(roles);
@@ -591,7 +689,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     let alive = true;
     setComponentsLoaded(false);
     
-    fetchTenantComponents()
+    withTimeout(
+      fetchTenantComponents(),
+      DEFAULT_FETCH_TIMEOUT_MS,
+      'tenant components',
+    )
       .then((components) => {
         if (!alive) return;
         setTenantComponents(components);
@@ -632,6 +734,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         label: t('crm.nav.dashboard'),
         path: '/dashboard',
         icon: 'home',
+        section: 'main',
         matchPaths: ['/app'],
       },
 
@@ -639,6 +742,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         label: t('crm.nav.leads'),
         path: '/app/leads',
         icon: 'leads',
+        section: 'clients',
+        countBadge: 'leads',
         children: [
           { label: t('crm.nav.leadsNew'), path: '/app/leads/new' },
           { label: t('crm.nav.leadsLost'), path: '/app/leads/lost' },
@@ -650,28 +755,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       },
 
       {
-        label: t('crm.nav.contacts'),
-        path: '/app/contacts',
-        icon: 'contacts',
-        matchPaths: ['/app/contacts', '/contacts', '/app/companies', '/companies'],
-        children: [
-          { label: t('crm.nav.companies'), path: '/app/companies' },
-          { label: t('crm.nav.companiesAnalytics'), path: '/app/companies/analytics' },
-        ],
-      },
-
-      {
         label: t('crm.nav.projects'),
-        path: '/app/projects',
+        path: '/projects',
         icon: 'projects',
+        section: 'clients',
+        countBadge: 'projects',
+        matchPaths: ['/app/projects'],
         children: [
-          { label: t('crm.nav.projectsClosed'), path: '/app/projects/closed' },
-          { label: t('crm.nav.projectsInProgress'), path: '/app/projects/in-progress' },
-          { label: t('crm.nav.projectsTasks'), path: '/app/projects/tasks' },
-          { label: t('crm.nav.projectsOverdue'), path: '/app/projects/tasks/overdue' },
-          { label: t('crm.nav.projectsArchive'), path: '/app/projects/archive' },
-          { label: t('crm.nav.projectsTrash'), path: '/app/projects/trash' },
-          { label: t('crm.nav.projectsAnalytics'), path: '/app/projects/analytics' },
+          { label: t('crm.nav.projectsClosed'), path: '/projects/closed' },
+          { label: t('crm.nav.projectsInProgress'), path: '/projects/in-progress' },
+          { label: t('crm.nav.projectsTasks'), path: '/projects/tasks' },
+          { label: t('crm.nav.projectsOverdue'), path: '/projects/tasks/overdue' },
+          { label: t('crm.nav.projectsArchive'), path: '/projects/archive' },
+          { label: t('crm.nav.projectsTrash'), path: '/projects/trash' },
+          { label: t('crm.nav.projectsAnalytics'), path: '/projects/analytics' },
         ],
       },
 
@@ -679,6 +776,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         label: t('crm.nav.sales'),
         path: '/app/sales',
         icon: 'sales',
+        section: 'clients',
         children: [
           { label: t('crm.nav.sales'), path: '/app/sales' },
           { label: t('crm.nav.salesAnalytics'), path: '/app/sales/analytics' },
@@ -689,9 +787,47 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       },
 
       {
+        label: t('crm.nav.contacts'),
+        path: '/app/contacts',
+        icon: 'contacts',
+        section: 'clients',
+        matchPaths: ['/app/contacts', '/contacts', '/app/companies', '/companies'],
+        children: [
+          { label: t('crm.nav.companies'), path: '/app/companies' },
+          { label: t('crm.nav.companiesAnalytics'), path: '/app/companies/analytics' },
+        ],
+      },
+
+      {
+        label: t('crm.nav.mail'),
+        path: '/app/email/inbox',
+        icon: 'mail',
+        section: 'clients',
+        matchPaths: [
+          '/app/email',
+          '/email',
+          '/app/email/inbox',
+          '/email/inbox',
+        ],
+        children: [
+          { label: t('crm.nav.mailInbox'), path: '/app/email/inbox' },
+          { label: t('crm.nav.mailAccounts'), path: '/app/email' },
+        ],
+      },
+
+      {
+        label: t('crm.nav.chat'),
+        path: '/app/chat',
+        icon: 'chat',
+        section: 'clients',
+        countBadge: 'chat',
+      },
+
+      {
         label: t('crm.nav.marketing'),
         path: '/app/marketing',
         icon: 'marketing',
+        section: 'tools',
         children: [
           { label: t('crm.nav.marketingTraffic'), path: '/app/marketing/traffic' },
           { label: t('crm.nav.marketingCampaigns'), path: '/app/marketing/campaigns' },
@@ -706,25 +842,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       },
 
       {
-        label: t('crm.nav.mail'),
-        path: '/app/email/inbox',
-        icon: 'mail',
-        matchPaths: [
-          '/app/email',
-          '/email',
-          '/app/email/inbox',
-          '/email/inbox',
-        ],
-        children: [
-          { label: t('crm.nav.mailInbox'), path: '/app/email/inbox' },
-          { label: t('crm.nav.mailAccounts'), path: '/app/email' },
-        ],
-      },
-
-      {
         label: t('crm.nav.tools'),
         path: '/app/automations',
         icon: 'tools',
+        section: 'tools',
         matchPaths: [
           '/app/automations',
           '/automations',
@@ -732,9 +853,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           '/telegram',
           '/app/integrations-hub',
           '/integrations-hub',
+          '/app/web-forms',
+          '/web-forms',
         ],
         children: [
           { label: t('crm.nav.toolsAutomations'), path: '/app/automations' },
+          {
+            label: t('crm.nav.toolsWebForms'),
+            path: '/app/web-forms',
+            matchPaths: ['/app/web-forms', '/web-forms'],
+          },
           {
             label: t('crm.nav.integrationsHub'),
             path: '/app/integrations-hub',
@@ -744,13 +872,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         ],
       },
 
-      { label: t('crm.nav.chat'), path: '/app/chat', icon: 'chat' },
-      { label: t('crm.nav.clientAccounts'), path: '/app/client-accounts', icon: 'invoice' },
+      {
+        label: t('crm.nav.clientAccounts'),
+        path: '/app/client-accounts',
+        icon: 'invoice',
+        section: 'management',
+      },
 
       {
         label: t('crm.nav.settings'),
         path: '/app/settings',
         icon: 'settings',
+        section: 'management',
         matchPaths: [
           '/app/settings',
           '/settings',
@@ -792,6 +925,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (p.startsWith('/contacts')) return 'contacts';
     if (p.startsWith('/companies')) return 'companies';
     if (p.startsWith('/automations')) return 'tools_automation';
+    if (p.startsWith('/web-forms')) return 'tools_automation';
     if (p.startsWith('/integrations-hub')) return 'tools_automation';
     if (p.startsWith('/email')) return 'email';
     if (p.startsWith('/telegram')) return 'telegram';
@@ -829,6 +963,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (p.startsWith('/contacts')) return 'contacts';
     if (p.startsWith('/companies')) return 'companies';
     if (p.startsWith('/automations')) return 'tools_automation';
+    if (p.startsWith('/web-forms')) return 'tools_automation';
     if (p.startsWith('/integrations-hub')) return 'tools_automation';
     if (p.startsWith('/email')) return 'tools_automation';
     if (p.startsWith('/telegram')) return 'tools_automation';
@@ -897,6 +1032,80 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return { ...item, children };
   }).filter(Boolean) as NavItem[];
 
+  const groupedNav = useMemo(() => {
+    const buckets = new Map<NavSectionId, NavItem[]>();
+    for (const id of NAV_SECTION_ORDER) buckets.set(id, []);
+    for (const item of filteredNav) {
+      buckets.get(item.section)?.push(item);
+    }
+    return NAV_SECTION_ORDER.map((id) => ({
+      id,
+      items: buckets.get(id) ?? [],
+    })).filter((g) => g.items.length > 0);
+  }, [filteredNav]);
+
+  const navSectionTitle = (id: NavSectionId) => {
+    switch (id) {
+      case 'main':
+        return t('crm.sidebar.sectionMain');
+      case 'clients':
+        return t('crm.sidebar.sectionClients');
+      case 'tools':
+        return t('crm.sidebar.sectionTools');
+      case 'management':
+        return t('crm.sidebar.sectionManagement');
+      default:
+        return '';
+    }
+  };
+
+  const renderNavBadge = (
+    item: NavItem,
+    sectionActive: boolean,
+    compact: boolean,
+  ): React.ReactNode => {
+    if (!item.countBadge) return null;
+    if (item.countBadge === 'chat') {
+      if (unreadChats <= 0) return null;
+      const txt = unreadChats > 99 ? '99+' : String(unreadChats);
+      if (compact) {
+        return (
+          <span className="absolute -right-1 -top-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center leading-none border-2 border-[#fafafa] z-10">
+            {unreadChats > 9 ? '9+' : txt}
+          </span>
+        );
+      }
+      return (
+        <span
+          className={`ml-auto shrink-0 min-h-5 min-w-5 px-1 rounded-md text-[11px] font-semibold tabular-nums flex items-center justify-center ${
+            sectionActive ? 'bg-white/20 text-white' : 'bg-rose-500 text-white'
+          }`}
+        >
+          {txt}
+        </span>
+      );
+    }
+    const val = item.countBadge === 'leads' ? navLeadCount : navProjectCount;
+    if (val == null) return null;
+    const txt = val > 999 ? '999+' : String(val);
+    if (compact) {
+      return (
+        <span className="absolute -right-1 -top-0.5 min-w-[15px] h-4 px-0.5 rounded-md bg-neutral-300/90 text-[9px] font-semibold text-neutral-800 flex items-center justify-center leading-none border-2 border-[#fafafa] z-10">
+          {val > 99 ? '99' : txt}
+        </span>
+      );
+    }
+    return (
+      <span
+        className={`ml-auto shrink-0 min-h-5 min-w-[1.25rem] px-1.5 rounded-md text-[11px] font-medium tabular-nums flex items-center justify-center ${
+          sectionActive ? 'bg-white/15 text-white' : 'bg-neutral-200/90 text-neutral-700'
+        }`}
+      >
+        {txt}
+      </span>
+    );
+  };
+
   const pathname = location.pathname;
   const scored = filteredNav
     .map((item) => ({ item, score: itemMatchScore(pathname, item) }))
@@ -928,6 +1137,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     ? `${activeRoot.label} · ${activeChild.label}`
     : activeRoot.label;
   const canOpenWorkspace = isComponentEnabled('custom_objects');
+  const normPathForWs = normalizeLayoutPath(pathname);
+  const workspaceAreaRouteMatch = normPathForWs.match(
+    /^\/workspace\/areas\/([0-9a-f-]{36})/i,
+  );
+  const activeWorkspaceAreaIdForSwitcher =
+    workspaceAreaRouteMatch?.[1] ?? sidebarWorkspaceAreaId;
 
   // инициалы для аватарки
   const initials = (() => {
@@ -1002,8 +1217,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         onMouseLeave={() => setSidebarEdgeHover(false)}
       >
         <aside
-          className={`flex flex-col h-full min-h-0 bg-white/95 border-r border-slate-200 py-5 shadow-[0_20px_60px_rgba(17,24,39,0.08)] backdrop-blur transition-[width,padding] duration-200 ease-out ${
-            sidebarCollapsed ? 'w-[4.5rem] px-2' : 'w-64 px-4'
+          className={`flex flex-col h-full min-h-0 bg-[#fafafa] border-r border-neutral-200/90 py-5 transition-[width,padding] duration-200 ease-out ${
+            sidebarCollapsed ? 'w-[4.5rem] px-2' : 'w-[17.5rem] px-3'
           }`}
         >
         {/* Компания */}
@@ -1019,27 +1234,40 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             className="h-9 w-9 rounded-2xl object-cover shadow-[0_10px_30px_rgba(34,34,34,0.18)] ring-1 ring-slate-200/80 bg-white"
           />
           <div className={`min-w-0 flex-1 ${sidebarCollapsed ? 'hidden' : ''}`}>
-            <div className="text-sm font-semibold text-slate-900 truncate">
+            <div className="text-[13px] font-semibold text-neutral-900 truncate tracking-tight">
               {sidebarTenantName || t('crm.sidebar.brandFallback')}
             </div>
-            <div className="text-[11px] text-slate-400">{t('crm.common.adminLabel')}</div>
+            <div className="text-[11px] text-neutral-500">{t('crm.common.adminLabel')}</div>
           </div>
         </div>
 
-        {/* Навигация (desktop) */}
-        <nav className="flex-1 min-h-0 overflow-y-auto space-y-1 text-[13px] pr-0.5">
+        {/* Навигация (desktop) + рабочие области сразу под пунктами меню (общий скролл) */}
+        <nav className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug pr-0.5 text-neutral-800">
           {(!componentsLoaded || !permsLoaded) ? (
             // Показываем скелетон загрузки вместо меню
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div
                   key={i}
-                  className="w-full h-10 rounded-xl bg-slate-100 animate-pulse"
+                  className="w-full h-10 rounded-xl bg-neutral-200/60 animate-pulse"
                 />
               ))}
             </div>
           ) : (
-            filteredNav.map((item) => {
+            <>
+            {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => (
+              <div key={sectionId} className={sectionIdx > 0 ? 'mt-1' : ''}>
+                {!sidebarCollapsed && (
+                  <div
+                    className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
+                      sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                    }`}
+                  >
+                    {navSectionTitle(sectionId)}
+                  </div>
+                )}
+                <div className="space-y-0.5">
+                  {secItems.map((item) => {
             const hasChildren = !!item.children?.length;
             const open = hasChildren && isSectionOpen(item.path);
             const sectionActive = activeRoot.path === item.path;
@@ -1053,28 +1281,38 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   onClick={(event) => handleNavClick(event, item.path)}
                   className={() =>
                     [
-                      'w-full text-left px-2.5 py-2 rounded-xl flex items-center gap-2 transition-all',
+                      'w-full text-left px-2.5 py-2 rounded-lg flex items-center gap-2.5 transition-colors duration-150',
                       sidebarCollapsed ? 'justify-center' : 'justify-between',
                       sectionActive
-                        ? 'bg-slate-100 text-lumiva-accent shadow-sm'
-                        : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
+                        ? 'bg-[#1a1a1a] text-white shadow-sm'
+                        : 'text-neutral-700 hover:bg-neutral-100/90',
                     ].join(' ')
                   }
                 >
                   <span
-                    className={`flex items-center gap-2 min-w-0 ${sidebarCollapsed ? 'justify-center' : 'flex-1'}`}
+                    className={`flex items-center gap-2.5 min-w-0 ${sidebarCollapsed ? 'justify-center' : 'flex-1'}`}
                   >
-                    <Icon
-                      className={
-                        sectionActive ? 'text-lumiva-accent' : 'text-slate-400'
-                      }
-                    />
-                    <span className={sidebarCollapsed ? 'sr-only' : 'truncate'}>{item.label}</span>
+                    <span className="relative inline-flex shrink-0">
+                      <Icon
+                        className={
+                          sectionActive ? 'text-white' : 'text-neutral-500'
+                        }
+                      />
+                      {sidebarCollapsed ? renderNavBadge(item, sectionActive, true) : null}
+                    </span>
+                    <span className={sidebarCollapsed ? 'sr-only' : 'truncate flex-1 text-left font-normal'}>
+                      {item.label}
+                    </span>
+                    {!sidebarCollapsed ? renderNavBadge(item, sectionActive, false) : null}
                   </span>
                   {hasChildren && !sidebarCollapsed && (
                     <button
                       type="button"
-                      className="ml-1 shrink-0 inline-flex items-center justify-center rounded-md p-0.5 text-emerald-800 hover:bg-emerald-50"
+                      className={`ml-1 shrink-0 inline-flex items-center justify-center rounded-md p-0.5 ${
+                        sectionActive
+                          ? 'text-white/70 hover:bg-white/10'
+                          : 'text-neutral-400 hover:bg-neutral-200/70'
+                      }`}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1088,7 +1326,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </NavLink>
 
                 {hasChildren && open && !sidebarCollapsed && (
-                  <div className="mt-1 mb-1 ml-3 space-y-0.5">
+                  <div className="mt-0.5 mb-1 ml-2 pl-2 border-l border-neutral-200/90 space-y-0.5">
                     {item.children!.map((child) => (
                       <NavLink
                         key={child.path}
@@ -1096,10 +1334,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         onClick={(event) => handleNavClick(event, child.path)}
                         className={() =>
                           [
-                            'block text-[12px] px-2 py-1 rounded-lg',
+                            'block text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
                             matchesNavPath(pathname, child.path)
-                              ? 'bg-slate-100 text-lumiva-accent shadow-sm'
-                              : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
+                              ? 'bg-[#f0f0f0] text-neutral-900 font-medium'
+                              : 'text-neutral-600 hover:bg-neutral-100',
                           ].join(' ')
                         }
                       >
@@ -1110,28 +1348,79 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 )}
               </div>
             );
-          })
+                  })}
+                </div>
+              </div>
+            ))}
+
+          {canOpenWorkspace && (
+            <div className="mt-2 min-w-0 border-t border-neutral-200/90 pt-3">
+              <WorkspaceAreaSwitcher
+                compact={sidebarCollapsed}
+                activeAreaId={activeWorkspaceAreaIdForSwitcher}
+              />
+              <WorkspaceSidebarBlock
+                enabled
+                compact={sidebarCollapsed}
+                workspaceAreaIdFilter={sidebarWorkspaceAreaId}
+                flushTop
+              />
+            </div>
+          )}
+            </>
           )}
         </nav>
 
-        {canOpenWorkspace && <WorkspaceSidebarBlock enabled compact={sidebarCollapsed} />}
-
         <div
-          className={`mt-auto pt-6 shrink-0 border-t border-slate-200 text-[11px] text-slate-500 ${
+          className={`mt-auto pt-5 shrink-0 border-t border-neutral-200/90 text-[11px] text-neutral-600 ${
             sidebarCollapsed ? 'flex flex-col items-center gap-2' : ''
           }`}
         >
           {!sidebarCollapsed && (
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3 mb-3 px-0.5">
               <button
-                onClick={() => (window.location.href = '/app/profile/overview')}
-                className="text-lumiva-accent hover:text-black"
+                type="button"
+                onClick={() => {
+                  window.location.href = '/app/profile/overview';
+                }}
+                className="h-10 w-10 shrink-0 rounded-full bg-neutral-200/70 border border-neutral-200/90 overflow-hidden flex items-center justify-center hover:bg-neutral-200 transition-colors"
+                aria-label={t('crm.nav.settingsAccount')}
               >
-                {user?.name ?? t('crm.common.user')}
+                {headerAvatarSrc ? (
+                  <img src={headerAvatarSrc} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <span className="text-[12px] font-semibold text-neutral-700">
+                    {initials.slice(0, 2) || 'U'}
+                  </span>
+                )}
               </button>
-              <span className="px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                {user?.role ?? 'owner'}
-              </span>
+              <div className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  className="text-left w-full min-w-0"
+                  onClick={() => {
+                    window.location.href = '/app/profile/overview';
+                  }}
+                >
+                  <div className="text-[13px] font-semibold text-neutral-900 truncate">
+                    {user?.name ?? t('crm.common.user')}
+                  </div>
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-neutral-500 truncate">
+                    {staffRoleLabel}
+                  </div>
+                </button>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-200/60 transition-colors"
+                title={t('crm.nav.settingsAccount')}
+                aria-label={t('crm.nav.settingsAccount')}
+                onClick={() => {
+                  window.location.href = '/app/profile/overview';
+                }}
+              >
+                <NavIconDots className="text-neutral-600" />
+              </button>
             </div>
           )}
           {sidebarCollapsed && (
@@ -1363,7 +1652,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   {user?.name || user?.email || t('crm.common.user')}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.16em] text-slate-400">
-                  {user?.role || 'owner'}
+                  {staffRoleLabel}
                 </span>
               </span>
             </button>
@@ -1554,7 +1843,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                             key={assignee}
                             className="inline-flex items-center rounded-full border border-slate-200 px-2 py-0.5 text-[10px] text-slate-600"
                           >
-                            {assignee}
+                            {assigneeEntryDisplayLabel(staff, assignee)}
                           </span>
                         ))}
                         <div className="relative">
@@ -1582,16 +1871,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                                 >
                                   <input
                                     type="checkbox"
-                                    checked={(item.task.assignees || []).includes(u.fullName)}
+                                    checked={isTaskAssigneeSelected(item.task.assignees, u)}
                                     onChange={() => {
-                                      const exists = (item.task.assignees || []).includes(
-                                        u.fullName,
+                                      const nextAssignees = normalizeAssigneesToStaffIds(
+                                        toggleTaskAssigneeIds(item.task.assignees, u),
+                                        staff,
                                       );
-                                      const nextAssignees = exists
-                                        ? (item.task.assignees || []).filter(
-                                            (name) => name !== u.fullName,
-                                          )
-                                        : [...(item.task.assignees || []), u.fullName];
                                       updateTaskField(item.projectId, item.taskId, {
                                         assignees: nextAssignees,
                                       });
@@ -1613,7 +1898,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="border-t border-slate-200 px-4 py-3">
                 <button
                   type="button"
-                  onClick={() => navigate('/app/projects/tasks')}
+                  onClick={() => navigate('/projects/tasks')}
                   className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
                 >
                   {t('crm.notifications.openTasks')}
@@ -1632,7 +1917,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               onClick={closeMobile}
             />
             {/* панель */}
-            <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[80%] bg-white border-r border-slate-200 px-4 py-4 flex flex-col shadow-[0_20px_60px_rgba(17,24,39,0.12)]">
+            <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[80%] bg-[#fafafa] border-r border-neutral-200/90 px-4 py-4 flex flex-col shadow-[0_20px_60px_rgba(17,24,39,0.12)]">
               {/* шапка меню */}
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2 min-w-0">
@@ -1663,20 +1948,31 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 </button>
               </div>
 
-              {/* Навигация (mobile) */}
-              <nav className="flex-1 min-h-0 overflow-y-auto text-[13px] space-y-1">
+              {/* Навигация (mobile) + workspace под меню */}
+              <nav className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug text-neutral-800">
                 {(!componentsLoaded || !permsLoaded) ? (
                   // Показываем скелетон загрузки вместо меню
                   <div className="space-y-2">
                     {[1, 2, 3, 4, 5].map((i) => (
                       <div
                         key={i}
-                        className="w-full h-10 rounded-xl bg-slate-100 animate-pulse"
+                        className="w-full h-10 rounded-xl bg-neutral-200/60 animate-pulse"
                       />
                     ))}
                   </div>
                 ) : (
-                  filteredNav.map((item) => {
+                  <>
+                  {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => (
+                    <div key={sectionId} className={sectionIdx > 0 ? 'mt-1' : ''}>
+                      <div
+                        className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
+                          sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                        }`}
+                      >
+                        {navSectionTitle(sectionId)}
+                      </div>
+                      <div className="space-y-0.5">
+                  {secItems.map((item) => {
                     const hasChildren = !!item.children?.length;
                     const open = hasChildren && isSectionOpen(item.path);
                     const sectionActive = activeRoot.path === item.path;
@@ -1689,25 +1985,32 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           onClick={(event) => handleNavClick(event, item.path, closeMobile)}
                           className={() =>
                             [
-                              'w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between gap-2 transition-all',
+                              'w-full text-left px-2.5 py-2 rounded-lg flex items-center justify-between gap-2.5 transition-colors duration-150',
                               sectionActive
-                                ? 'bg-slate-100 text-lumiva-accent shadow-sm'
-                                : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
+                                ? 'bg-[#1a1a1a] text-white shadow-sm'
+                                : 'text-neutral-700 hover:bg-neutral-100/90',
                             ].join(' ')
                           }
                         >
-                          <span className="flex items-center gap-2 min-w-0 flex-1">
-                            <Icon
-                              className={
-                                sectionActive ? 'text-lumiva-accent' : 'text-slate-400'
-                              }
-                            />
-                            <span className="truncate">{item.label}</span>
+                          <span className="flex items-center gap-2.5 min-w-0 flex-1">
+                            <span className="relative inline-flex shrink-0">
+                              <Icon
+                                className={
+                                  sectionActive ? 'text-white' : 'text-neutral-500'
+                                }
+                              />
+                            </span>
+                            <span className="truncate flex-1 text-left font-normal">{item.label}</span>
+                            {renderNavBadge(item, sectionActive, false)}
                           </span>
                           {hasChildren && (
                             <button
                               type="button"
-                              className="ml-1 shrink-0 inline-flex items-center justify-center rounded-md p-0.5 text-emerald-800 hover:bg-emerald-50"
+                              className={`ml-1 shrink-0 inline-flex items-center justify-center rounded-md p-0.5 ${
+                                sectionActive
+                                  ? 'text-white/70 hover:bg-white/10'
+                                  : 'text-neutral-400 hover:bg-neutral-200/70'
+                              }`}
                               onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -1721,7 +2024,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         </NavLink>
 
                         {hasChildren && open && (
-                          <div className="mt-1 mb-1 ml-3 space-y-0.5">
+                          <div className="mt-0.5 mb-1 ml-2 pl-2 border-l border-neutral-200/90 space-y-0.5">
                             {item.children!.map((child) => (
                               <NavLink
                                 key={child.path}
@@ -1731,10 +2034,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                                 }
                                 className={() =>
                                   [
-                                    'block text-[12px] px-2 py-1 rounded-lg',
+                                    'block text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
                                     matchesNavPath(pathname, child.path)
-                                      ? 'bg-slate-100 text-lumiva-accent shadow-sm'
-                                      : 'text-slate-500 hover:text-lumiva-accent hover:bg-slate-50',
+                                      ? 'bg-[#f0f0f0] text-neutral-900 font-medium'
+                                      : 'text-neutral-600 hover:bg-neutral-100',
                                   ].join(' ')
                                 }
                               >
@@ -1745,13 +2048,27 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         )}
                       </div>
                     );
-                  })
+                  })}
+                      </div>
+                    </div>
+                  ))}
+
+                  {canOpenWorkspace && (
+                    <div className="pt-3 mt-2 border-t border-slate-200">
+                      <WorkspaceAreaSwitcher
+                        activeAreaId={activeWorkspaceAreaIdForSwitcher}
+                      />
+                      <WorkspaceSidebarBlock
+                        enabled
+                        onMobileNavigate={closeMobile}
+                        workspaceAreaIdFilter={sidebarWorkspaceAreaId}
+                        flushTop
+                      />
+                    </div>
+                  )}
+                  </>
                 )}
               </nav>
-
-              {canOpenWorkspace && (
-                <WorkspaceSidebarBlock enabled onMobileNavigate={closeMobile} />
-              )}
 
               <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
                 <div className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
@@ -1775,7 +2092,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <div className="pt-3 mt-3 border-t border-slate-200 text-[11px] text-slate-500">
                 <div className="flex items-center justify-between mb-2">
                   <span className="px-1.5 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] uppercase tracking-[0.16em] text-slate-500">
-                    {user?.role ?? 'owner'}
+                    {staffRoleLabel}
                   </span>
                   <button
                     onClick={handleLogout}

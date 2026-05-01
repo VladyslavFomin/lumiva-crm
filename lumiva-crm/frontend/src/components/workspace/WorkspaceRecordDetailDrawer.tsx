@@ -8,9 +8,16 @@ import {
   type WorkspaceFileFieldValue,
 } from '../../api/customObjects';
 import type { StaffUser } from '../../api/staff';
+import type { Lead } from '../../api/leads';
+import type { Project } from '../../api/projects';
+import type { Company } from '../../api/companies';
 import { collectStatusValuesFromRecords } from './workspaceStatusField';
 import { normalizeOptionToken } from '../../workspace/normalizeOptionToken';
 import { WorkspaceFileViewerModal } from './WorkspaceFileViewerModal';
+import { getWorkspaceFieldValueStorageKey } from '../../workspace/workspaceFieldValueKey';
+import { isRenderableWorkspaceDateField } from '../../workspace/workspaceDateField';
+import { isWorkspaceEntityRefField, isWorkspaceReadOnlyField } from '../../workspace/workspaceEntityRef';
+import { WorkspaceCrmEntityMultiField } from './WorkspaceCrmEntityMultiField';
 
 const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
   const normalized = String(hex || '').trim().replace('#', '');
@@ -33,20 +40,6 @@ const pickTextColorForBg = (hex: string) => {
   const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
   return luminance > 0.6 ? '#0f172a' : '#ffffff';
 };
-
-function isRenderableDateField(field: CustomObjectField): boolean {
-  const type = String(field.type || '').toLowerCase();
-  if (type !== 'date' && type !== 'datetime') return false;
-  const key = String(field.key || '').toLowerCase();
-  const label = String(field.label || '').toLowerCase();
-  const isIdLike =
-    key.endsWith('id') ||
-    key.includes('_id') ||
-    key.includes('id_') ||
-    label.endsWith(' id');
-  if (isIdLike) return false;
-  return true;
-}
 
 export type WorkspaceRecordDetailDrawerProps = {
   record: CustomObjectRecord | null;
@@ -83,6 +76,12 @@ export type WorkspaceRecordDetailDrawerProps = {
   recordsForStatusOptions?: CustomObjectRecord[];
   /** Таблица (custom object id) — для загрузки файлов в полях типа file */
   objectId: string;
+  /** Слой «данные»: поля в сетке «по полочкам», удобно для импортов и больших строк */
+  shelfLayout?: boolean;
+  /** Колонки meta.workspaceEntityRef — списки для выбора лида/проекта */
+  crmLeadOptions?: Lead[];
+  crmProjectOptions?: Project[];
+  crmCompanyOptions?: Company[];
 };
 
 export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerProps> = ({
@@ -106,6 +105,10 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
   overlayZIndex = 40,
   recordsForStatusOptions,
   objectId,
+  shelfLayout = false,
+  crmLeadOptions = [],
+  crmProjectOptions = [],
+  crmCompanyOptions = [],
 }) => {
   const { t, i18n } = useTranslation();
   const [filePreview, setFilePreview] = useState<{
@@ -190,7 +193,11 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
   return (
     <div className="fixed inset-0" style={{ zIndex: overlayZIndex }}>
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="absolute right-0 top-0 h-full w-full max-w-xl bg-white border-l border-slate-200 shadow-2xl p-4 overflow-y-auto">
+      <div
+        className={`absolute right-0 top-0 h-full w-full bg-white border-l border-slate-200 shadow-2xl overflow-y-auto ${
+          shelfLayout ? 'max-w-2xl p-5' : 'max-w-xl p-4'
+        }`}
+      >
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-slate-900">
             {String(
@@ -206,16 +213,43 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
           </button>
         </div>
 
-        <div className="space-y-3">
-          {orderedColumns.map((field) => (
-            <div key={field.id}>
-              <label className="block text-xs text-slate-500 mb-1">{field.label}</label>
-              {statusField &&
+        <div
+          className={
+            shelfLayout
+              ? 'grid gap-3 sm:grid-cols-2'
+              : 'space-y-3'
+          }
+        >
+          {orderedColumns.map((field) => {
+            const valueKey = getWorkspaceFieldValueStorageKey(field);
+            return (
+            <div
+              key={field.id}
+              className={
+                shelfLayout
+                  ? 'rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/80 p-3 shadow-sm'
+                  : ''
+              }
+            >
+              <label
+                className={
+                  shelfLayout
+                    ? 'block text-[10px] font-medium uppercase tracking-wide text-slate-400 mb-1.5'
+                    : 'block text-xs text-slate-500 mb-1'
+                }
+              >
+                {field.label}
+              </label>
+              {isWorkspaceReadOnlyField(field) ? (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 min-h-[38px] break-words whitespace-pre-line">
+                  {String(activeRecord.values?.[valueKey] ?? '') || '—'}
+                </div>
+              ) : statusField &&
               field.key === statusField.key &&
               (field.type === 'status' || field.type === 'select') ? (
                 (() => {
                   const currentStatus =
-                    resolveStatusOptionValue(String(activeRecord.values?.[field.key] || '')) ||
+                    resolveStatusOptionValue(String(activeRecord.values?.[valueKey] || '')) ||
                     statusOptions[0] ||
                     '';
                   const style = getStatusStyle(currentStatus);
@@ -225,7 +259,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                       onChange={(e) => {
                         const nextValues = {
                           ...(activeRecord.values || {}),
-                          [field.key]: e.target.value,
+                          [valueKey]: e.target.value,
                         };
                         onEditRecord({ ...activeRecord, values: nextValues });
                         void saveRecord(activeRecord, nextValues, field.key);
@@ -245,7 +279,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                 })()
               ) : field.type === 'file' ? (
                 (() => {
-                  const raw = activeRecord.values?.[field.key];
+                  const raw = activeRecord.values?.[valueKey];
                   const fileVal =
                     raw && typeof raw === 'object' && !Array.isArray(raw)
                       ? (raw as WorkspaceFileFieldValue)
@@ -273,7 +307,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                             const uploaded = await uploadWorkspaceFile(objectId, f);
                             const nextValues = {
                               ...(activeRecord.values || {}),
-                              [field.key]: uploaded,
+                              [valueKey]: uploaded,
                             };
                             onEditRecord({ ...activeRecord, values: nextValues });
                             void saveRecord(activeRecord, nextValues, field.key);
@@ -316,7 +350,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                           type="button"
                           className="text-xs text-rose-600 underline"
                           onClick={() => {
-                            const nextValues = { ...(activeRecord.values || {}), [field.key]: null };
+                            const nextValues = { ...(activeRecord.values || {}), [valueKey]: null };
                             onEditRecord({ ...activeRecord, values: nextValues });
                             void saveRecord(activeRecord, nextValues, field.key);
                           }}
@@ -336,6 +370,28 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                     </div>
                   );
                 })()
+              ) : isWorkspaceEntityRefField(field) ? (
+                (() => {
+                  const ref = isWorkspaceEntityRefField(field)!;
+                  return (
+                    <WorkspaceCrmEntityMultiField
+                      entity={ref}
+                      rawValue={activeRecord.values?.[valueKey]}
+                      leads={crmLeadOptions}
+                      projects={crmProjectOptions}
+                      companies={crmCompanyOptions}
+                      variant="drawer"
+                      onCommit={(serialized) => {
+                        const nextValues = {
+                          ...(activeRecord.values || {}),
+                          [valueKey]: serialized === '' ? null : serialized,
+                        };
+                        onEditRecord({ ...activeRecord, values: nextValues });
+                        void saveRecord(activeRecord, nextValues, field.key);
+                      }}
+                    />
+                  );
+                })()
               ) : field.key.includes('owner') ||
                 field.key.includes('assignee') ||
                 field.key.includes('person') ||
@@ -348,7 +404,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                       </div>
                       <div className="space-y-1">
                         {group.users.map((user) => {
-                          const selected = String(activeRecord.values?.[field.key] || '')
+                          const selected = String(activeRecord.values?.[valueKey] || '')
                             .split(/[,;/]+/)
                             .map((v) => v.trim())
                             .filter(Boolean);
@@ -367,7 +423,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                                     : [...selected, user.fullName];
                                   const nextValues = {
                                     ...(activeRecord.values || {}),
-                                    [field.key]: nextOwners.join(', '),
+                                    [valueKey]: nextOwners.join(', '),
                                   };
                                   onEditRecord({ ...activeRecord, values: nextValues });
                                   void saveRecord(activeRecord, nextValues, field.key);
@@ -381,7 +437,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                     </div>
                   ))}
                 </div>
-              ) : isRenderableDateField(field) ? (
+              ) : isRenderableWorkspaceDateField(field) ? (
                 <div className="relative">
                   <span className="absolute left-2 top-2 text-slate-400 pointer-events-none">
                     <svg
@@ -399,7 +455,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                   <input
                     type={String(field.type || '').toLowerCase() === 'date' ? 'date' : 'datetime-local'}
                     lang={i18n.language}
-                    value={String(activeRecord.values?.[field.key] ?? '').slice(
+                    value={String(activeRecord.values?.[valueKey] ?? '').slice(
                       0,
                       String(field.type || '').toLowerCase() === 'date' ? 10 : 16,
                     )}
@@ -408,7 +464,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                         activeRecord
                           ? {
                               ...activeRecord,
-                              values: { ...activeRecord.values, [field.key]: e.target.value },
+                              values: { ...activeRecord.values, [valueKey]: e.target.value },
                             }
                           : activeRecord,
                       )
@@ -416,7 +472,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                     onBlur={(e) => {
                       const nextValues = {
                         ...(activeRecord.values || {}),
-                        [field.key]: e.target.value,
+                        [valueKey]: e.target.value,
                       };
                       void saveRecord(activeRecord, nextValues, field.key);
                     }}
@@ -425,13 +481,13 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                 </div>
               ) : (
                 <input
-                  value={String(activeRecord.values?.[field.key] ?? '')}
+                  value={String(activeRecord.values?.[valueKey] ?? '')}
                   onChange={(e) =>
                     onEditRecord(
                       activeRecord
                         ? {
                             ...activeRecord,
-                            values: { ...activeRecord.values, [field.key]: e.target.value },
+                            values: { ...activeRecord.values, [valueKey]: e.target.value },
                           }
                         : activeRecord,
                     )
@@ -439,7 +495,7 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                   onBlur={(e) => {
                     const nextValues = {
                       ...(activeRecord.values || {}),
-                      [field.key]: e.target.value,
+                      [valueKey]: e.target.value,
                     };
                     void saveRecord(activeRecord, nextValues, field.key);
                   }}
@@ -447,7 +503,8 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
                 />
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-6 pt-4 border-t border-slate-200">

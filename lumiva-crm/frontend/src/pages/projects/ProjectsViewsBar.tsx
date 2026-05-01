@@ -26,6 +26,7 @@ type Props = {
   activeViewId: string | null;
   onOpenView: (type: ProjectsViewType, viewId?: string) => void;
   onSettingsChange: (settings: ProjectsViewSettings) => void;
+  projectCount?: number;
 };
 
 type SettingsTarget = {
@@ -94,6 +95,7 @@ export const ProjectsViewsBar: React.FC<Props> = ({
   activeViewId,
   onOpenView,
   onSettingsChange,
+  projectCount,
 }) => {
   const { t } = useTranslation();
   const [viewsState, setViewsState] = useState<ProjectsViewsState>(() =>
@@ -301,52 +303,61 @@ export const ProjectsViewsBar: React.FC<Props> = ({
     setMenuTabId(null);
   };
 
+  const tabIcon = (type: ProjectsViewType) => {
+    if (type === 'table') return (
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><rect x="1" y="1" width="14" height="14" rx="2" /><path d="M1 5h14M5 5v10" /></svg>
+    );
+    if (type === 'kanban') return (
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><rect x="1" y="1" width="4" height="14" rx="1" /><rect x="6" y="1" width="4" height="10" rx="1" /><rect x="11" y="1" width="4" height="12" rx="1" /></svg>
+    );
+    return (
+      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden><rect x="1" y="2" width="14" height="13" rx="2" /><path d="M1 6h14M5 1v2M11 1v2" /></svg>
+    );
+  };
+
   return (
     <>
-      <div className="flex items-center justify-between gap-2 border-b border-slate-200 overflow-x-auto">
-        <div className="flex items-center gap-1">
-          {tabItems.map((tab) => (
-            <div key={tab.id} className="group relative flex items-center">
-              <button
-                className={`whitespace-nowrap px-3 py-2 text-sm ${
-                  activeTabId === tab.id
-                    ? 'text-slate-900 border-b-2 border-[#222222]'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-                type="button"
-                onClick={() => onOpenView(tab.type, tab.isBase ? undefined : tab.id)}
-              >
-                {tab.isBase
-                  ? t(
-                      tab.type === 'table'
-                        ? 'crm.projects.views.table'
-                        : tab.type === 'kanban'
-                          ? 'crm.projects.views.kanban'
-                          : 'crm.projects.views.calendar',
-                    )
-                  : (viewsById.get(tab.id)?.name ?? '')}
-              </button>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                  setMenuPosition({
-                    top: rect.bottom + 6,
-                    left: Math.min(rect.left, window.innerWidth - 240),
-                  });
-                  setMenuTabId((prev) => (prev === tab.id ? null : tab.id));
-                }}
-                className={`px-1 text-sm leading-none text-slate-400 transition-opacity hover:text-slate-700 ${
-                  menuTabId === tab.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                }`}
-                title={t('crm.projects.viewsBar.menu.tabMenu')}
-              >
-                ...
-              </button>
-            </div>
-          ))}
-        </div>
+      <div className="lv-view-tabs">
+        {tabItems.map((tab) => (
+          <div key={tab.id} className="group relative flex items-center">
+            <button
+              className={`lv-view-tab${activeTabId === tab.id ? ' active' : ''}`}
+              type="button"
+              onClick={() => onOpenView(tab.type, tab.isBase ? undefined : tab.id)}
+            >
+              {tabIcon(tab.type)}
+              {tab.isBase
+                ? t(
+                    tab.type === 'table'
+                      ? 'crm.projects.views.table'
+                      : tab.type === 'kanban'
+                        ? 'crm.projects.views.kanban'
+                        : 'crm.projects.views.calendar',
+                  )
+                : (viewsById.get(tab.id)?.name ?? '')}
+              {tab.isBase && tab.type === 'table' && activeTabId === tab.id && typeof projectCount === 'number' && (
+                <span className="badge">{projectCount}</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                setMenuPosition({
+                  top: rect.bottom + 6,
+                  left: Math.min(rect.left, window.innerWidth - 240),
+                });
+                setMenuTabId((prev) => (prev === tab.id ? null : tab.id));
+              }}
+              className={`lv-view-tab-menu-btn${menuTabId === tab.id ? ' visible' : ''}`}
+              title={t('crm.projects.viewsBar.menu.tabMenu')}
+            >
+              ···
+            </button>
+          </div>
+        ))}
+        <button type="button" className="lv-view-tabs-add" title={t('crm.projects.views.addTab', 'Добавить вид')}>+</button>
       </div>
 
       {menuOpen && (

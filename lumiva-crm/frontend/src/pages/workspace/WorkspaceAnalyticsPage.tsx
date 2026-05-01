@@ -12,6 +12,7 @@ import { ProjectsAnalyticsPage } from '../projects/ProjectsAnalyticsPage';
 import type { Project } from '../projects/projectTypes';
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
+import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
 
 const keyIncludes = (field: CustomObjectField, query: string) =>
   field.key.toLowerCase().includes(query) || field.label.toLowerCase().includes(query);
@@ -40,15 +41,16 @@ export const WorkspaceAnalyticsPage: React.FC = () => {
   useEffect(() => {
     if (!objectId) return;
     let alive = true;
-    Promise.all([
-      fetchCustomObjectFields(objectId),
-      fetchCustomObjectRecords(objectId),
-      fetchCustomObjects().catch(() => [] as CustomObject[]),
-    ])
-      .then(([loadedFields, loadedRecords, loadedObjects]) => {
+    Promise.all([fetchCustomObjectFields(objectId), fetchCustomObjects().catch(() => [] as CustomObject[])])
+      .then(async ([loadedFields, loadedObjects]) => {
         if (!alive) return;
-        setFields(loadedFields);
         const object = loadedObjects.find((item) => item.id === objectId);
+        const enrich =
+          getWorkspaceTableKind(object?.meta as Record<string, unknown> | null) === 'board';
+        const loadedRecords = await fetchCustomObjectRecords(objectId, undefined, {
+          enrichColumnBindings: enrich,
+        });
+        setFields(loadedFields);
         if (object?.name) setObjectName(object.name);
 
         const titleField =

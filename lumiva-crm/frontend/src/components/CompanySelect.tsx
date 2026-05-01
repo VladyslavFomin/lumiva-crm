@@ -1,6 +1,8 @@
 // src/components/CompanySelect.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchCompanies, createCompany, type Company } from '../api/companies';
+import { useAlertModal } from '../contexts/AlertModalContext';
 
 interface CompanySelectProps {
   value: string | null;
@@ -21,6 +23,8 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
   onCompanyCreated,
   theme = 'light',
 }) => {
+  const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [search, setSearch] = useState<string>('');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [filteredCompanies, setFilteredCompanies] = useState<Company[]>([]);
@@ -130,7 +134,10 @@ export const CompanySelect: React.FC<CompanySelectProps> = ({
       }
     } catch (e: any) {
       console.error('Ошибка создания компании:', e);
-      alert(e.message || 'Ошибка создания компании');
+      showAlert(
+        e.message || t('crm.companySelect.errors.createFailed'),
+        { variant: 'error' },
+      );
     } finally {
       setCreating(false);
     }

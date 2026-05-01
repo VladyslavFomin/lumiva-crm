@@ -6,7 +6,9 @@ export type IntegrationCrmModule =
   | 'marketing'
   | 'projects'
   | 'workspace'
-  | 'calendar';
+  | 'calendar'
+  /** Корпоративная почта (IMAP/SMTP), сценарии и раздел «Почта» */
+  | 'email';
 
 /** Стадия зрелости коннектора. */
 export type IntegrationLifecycle =

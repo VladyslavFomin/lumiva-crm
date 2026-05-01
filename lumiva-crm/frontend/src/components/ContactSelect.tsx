@@ -1,6 +1,8 @@
 // src/components/ContactSelect.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchContacts, createContact, type Contact } from '../api/contacts';
+import { useAlertModal } from '../contexts/AlertModalContext';
 
 interface ContactSelectProps {
   value: string | null;
@@ -23,6 +25,8 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
   onContactCreated,
   theme = 'light',
 }) => {
+  const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [search, setSearch] = useState<string>('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [filteredContacts, setFilteredContacts] = useState<Contact[]>([]);
@@ -156,7 +160,10 @@ export const ContactSelect: React.FC<ContactSelectProps> = ({
       }
     } catch (e: any) {
       console.error('Ошибка создания контакта:', e);
-      alert(e.message || 'Ошибка создания контакта');
+      showAlert(
+        e.message || t('crm.contactSelect.errors.createFailed'),
+        { variant: 'error' },
+      );
     } finally {
       setCreating(false);
     }

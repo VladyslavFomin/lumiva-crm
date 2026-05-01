@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const mode = process.argv[2] || '--source';
-const srcPath = new URL('../src/pages/analytics/LeadsAnalyticsPage.tsx', import.meta.url);
+const srcPath = new URL('../src/pages/analytics/LeadsAnalyticsPageV2.tsx', import.meta.url);
 const distDir = fileURLToPath(new URL('../dist', import.meta.url));
 
 function fail(message) {
@@ -13,14 +13,11 @@ function fail(message) {
 
 function checkSource() {
   const content = readFileSync(srcPath, 'utf8');
-  if (content.includes('MAIN DASHBOARD')) {
-    fail('Found legacy MAIN DASHBOARD block. Constructor must be used.');
+  if (!content.includes('ProjectsAnalyticsPage')) {
+    fail('LeadsAnalyticsPageV2.tsx must delegate to ProjectsAnalyticsPage.');
   }
-  if (!content.includes('Конструктор аналитики')) {
-    fail('Constructor UI missing in LeadsAnalyticsPage.tsx.');
-  }
-  if (!content.includes('addOpen')) {
-    fail('Constructor add modal missing in LeadsAnalyticsPage.tsx.');
+  if (!content.includes('storageNamespace')) {
+    fail('LeadsAnalyticsPageV2.tsx missing storageNamespace prop.');
   }
 }
 
@@ -43,9 +40,9 @@ function findInDist(dir, needle) {
 }
 
 function checkDist() {
-  const ok = findInDist(distDir, 'Конструктор аналитики');
+  const ok = findInDist(distDir, 'storageNamespace');
   if (!ok) {
-    fail('Constructor text missing in dist bundle. Build likely using old layout.');
+    fail('storageNamespace missing in dist bundle. Analytics V2 may not be included.');
   }
 }
 
@@ -54,4 +51,3 @@ if (mode === '--dist') {
 } else {
   checkSource();
 }
-

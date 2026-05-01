@@ -8,7 +8,7 @@ import { MainLayout } from '../../layout/MainLayout';
 import {
   fetchStaffById,
   updateStaffRole,
-  updateStaffDepartment,
+  updateStaffUser,
   activateStaffUser,
   deactivateStaffUser,
   deleteStaffUser,
@@ -16,12 +16,14 @@ import {
   type StaffRole,
 } from '../../api/staff';
 
-import { fetchLeads, type Lead } from '../../api/leads';
+import { fetchLeads, type Lead, isLeadOmittedFromAnalytics } from '../../api/leads';
 import { fetchProjects } from '../../api/projects';
+import { fetchDepartments, type Department } from '../../api/departments';
 import type { Project, ProjectTask } from '../projects/projectTypes';
 import { getStoredUser } from '../../auth/session';
 import { adminProvisionUser } from '../../api/users';
 import { getLocale } from '../../i18n/utils';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type TabId = 'overview' | 'leads' | 'projects' | 'tasks';
 
@@ -32,12 +34,14 @@ interface TaskWithProject extends ProjectTask {
 
 export const StaffProfilePage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const [tab, setTab] = useState<TabId>('overview');
 
   const [staff, setStaff] = useState<StaffUser | null>(null);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [tasks, setTasks] = useState<TaskWithProject[]>([]);
@@ -54,6 +58,8 @@ export const StaffProfilePage: React.FC = () => {
   const [savingRole, setSavingRole] = useState(false);
   const [savingDept, setSavingDept] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
+  /** Черновик отдела до явного сохранения (избегает рассинхрона с ответом API). */
+  const [departmentDraft, setDepartmentDraft] = useState('');
 
   const currentUser = getStoredUser();
   const isOwner = currentUser?.role === 'owner';
@@ -88,12 +94,15 @@ export const StaffProfilePage: React.FC = () => {
         const isSelfView =
         !!(currentUser && currentUser.email && currentUser.email === user.email);
 
-        // 2) Параллельно грузим лиды и проекты
-        const [allLeads, projRes] = await Promise.all([
-          fetchLeads(), // Lead[]
-          fetchProjects(), // { total, items } или массив
+        // 2) Параллельно: лиды, проекты, справочник отделов
+        const [allLeads, projRes, deptList] = await Promise.all([
+          fetchLeads(),
+          fetchProjects(),
+          fetchDepartments(),
         ]);
         if (!alive) return;
+
+        setDepartments(deptList);
 
         const projectsItems: Project[] =
           (projRes as any).items ?? (projRes as any);
@@ -102,11 +111,8 @@ export const StaffProfilePage: React.FC = () => {
         let myLeads: Lead[];
 
         if (isSelfView) {
-          // Если сотрудник смотрит свой профиль — показываем ВСЕ его лиды,
-          // которые backend уже отфильтровал и вернул в fetchLeads().
           myLeads = allLeads;
         } else {
-          // Если владелец/менеджер смотрит профиль другого сотрудника — фильтруем вручную
           myLeads = allLeads.filter((l) => {
             if ((l as any).assignedUserId && (l as any).assignedUserId === user.id) {
               return true;
@@ -118,16 +124,21 @@ export const StaffProfilePage: React.FC = () => {
           });
         }
 
-        // Проекты: по ownerUserId или owner === fullName
-        const myProjects = projectsItems.filter((p) => {
-          if ((p as any).ownerUserId && (p as any).ownerUserId === user.id) {
-            return true;
-          }
-          if (p.owner && user.fullName && p.owner === user.fullName) {
-            return true;
-          }
-          return false;
-        });
+        // Только актуальные (не корзина / не архив для аналитики)
+        myLeads = myLeads.filter((l) => !isLeadOmittedFromAnalytics(l));
+
+        // Проекты: по ownerUserId или owner === fullName; без удалённых и архивных
+        const myProjects = projectsItems
+          .filter((p) => {
+            if ((p as any).ownerUserId && (p as any).ownerUserId === user.id) {
+              return true;
+            }
+            if (p.owner && user.fullName && p.owner === user.fullName) {
+              return true;
+            }
+            return false;
+          })
+          .filter((p) => !p.isDeleted && !p.isArchived);
 
         // Задачи: по assignees содержит ФИО
         const myTasks: TaskWithProject[] = [];
@@ -135,7 +146,11 @@ export const StaffProfilePage: React.FC = () => {
           const list = p.tasks || [];
           for (const t of list) {
             const hasAssignee = (t.assignees || []).some(
-              (a) => a && user.fullName && a.trim() === user.fullName,
+              (a) =>
+                !!a &&
+                !!user.id &&
+                (a.trim() === user.id ||
+                  (!!user.fullName && a.trim() === user.fullName)),
             );
             if (hasAssignee) {
               myTasks.push({
@@ -163,7 +178,13 @@ export const StaffProfilePage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [id]);
+  }, [id, currentUser?.email]);
+
+  useEffect(() => {
+    if (staff) {
+      setDepartmentDraft(staff.departmentId ?? '');
+    }
+  }, [staff?.id, staff?.departmentId]);
 
   const initials = useMemo(() => {
     if (!staff?.fullName) return '?';
@@ -174,6 +195,12 @@ export const StaffProfilePage: React.FC = () => {
       .map((p) => p[0]?.toUpperCase())
       .join('');
   }, [staff]);
+
+  const departmentLabel = useMemo(() => {
+    if (!staff) return '';
+    const d = departments.find((x) => x.id === staff.departmentId);
+    return (d?.name || staff.department || '').trim();
+  }, [staff, departments]);
 
   const leadsCount = leads.length;
   const projectsCount = projects.length;
@@ -186,7 +213,7 @@ export const StaffProfilePage: React.FC = () => {
   if (!id) {
     return (
       <MainLayout>
-        <div className="p-4 text-slate-200 text-sm">
+        <div className="p-4 text-sm text-neutral-600">
           {t('crm.staff.profile.invalidId')}
         </div>
       </MainLayout>
@@ -212,17 +239,25 @@ export const StaffProfilePage: React.FC = () => {
     }
   };
 
-  // ====== Смена отдела ======
-  const handleDeptBlur = async (value: string) => {
-    if (!staff) return;
-    const normalized = value.trim() || null;
-    if (normalized === (staff.department ?? null)) return;
+  // ====== Сохранение отдела (справочник /departments + departmentId) ======
+  const departmentDirty =
+    !!staff && (departmentDraft || '') !== (staff.departmentId || '');
 
+  const handleSaveDepartment = async () => {
+    if (!staff) return;
+    const nextId = departmentDraft.trim() || null;
+    if (nextId === (staff.departmentId ?? null)) return;
+
+    const dept = nextId ? departments.find((d) => d.id === nextId) : null;
     setSavingDept(true);
     setError(null);
     try {
-      const updated = await updateStaffDepartment(staff.id, normalized || '');
+      const updated = await updateStaffUser(staff.id, {
+        departmentId: nextId,
+        department: dept?.name ?? null,
+      });
       setStaff(updated);
+      setDepartmentDraft(updated.departmentId ?? '');
     } catch (e: any) {
       console.error(e);
       setError(e.message || t('crm.staff.profile.errors.department'));
@@ -273,7 +308,7 @@ export const StaffProfilePage: React.FC = () => {
     if (!staff?.email) return;
 
     if (!isOwner) {
-      window.alert(t('crm.staff.profile.access.onlyOwner'));
+      showAlert(t('crm.staff.profile.access.onlyOwner'), { variant: 'info' });
       return;
     }
 
@@ -304,7 +339,7 @@ export const StaffProfilePage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
+      <div className="space-y-4 text-neutral-800">
         {/* Верхняя панель */}
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-4">
@@ -312,25 +347,25 @@ export const StaffProfilePage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleBack}
-                className="text-[11px] text-slate-400 hover:text-slate-200 mb-1"
+                className="mb-1 text-[11px] text-neutral-500 transition-colors hover:text-neutral-900"
               >
                 ← {t('crm.staff.profile.back')}
               </button>
               <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-slate-800 flex items-center justify-center text-sm font-semibold text-slate-100">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-neutral-200/90 text-sm font-semibold text-neutral-700 ring-1 ring-neutral-200/80">
                   {initials}
                 </div>
                 <div>
-                  <div className="text-[11px] text-slate-500">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.08em] text-neutral-500">
                     {t('crm.staff.profile.title')}
                   </div>
-                  <h1 className="text-lg font-semibold text-slate-50">
+                  <h1 className="text-lg font-semibold tracking-tight text-neutral-900">
                     {staff?.fullName || staff?.email || t('crm.staff.profile.fallbackName')}
                   </h1>
                   {staff && (
-                    <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-[11px] text-neutral-500">
                       <span>{roleLabels[staff.role]}</span>
-                      <span className="opacity-40">·</span>
+                      <span className="text-neutral-300">·</span>
                       <span>{t('crm.staff.profile.idShort', { id: staff.id.slice(0, 8) })}</span>
                     </div>
                   )}
@@ -339,12 +374,11 @@ export const StaffProfilePage: React.FC = () => {
             </div>
           </div>
 
-          {/* справа — кнопка только если смотрим свой профиль */}
           {isSelf && (
             <button
               type="button"
               onClick={() => navigate('/app/profile/overview')}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-300 hover:bg-slate-900/70"
+              className="rounded-md border border-neutral-200/90 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
             >
               {t('crm.staff.profile.selfProfile')}
             </button>
@@ -352,70 +386,70 @@ export const StaffProfilePage: React.FC = () => {
         </div>
 
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
             {error}
           </div>
         )}
 
         {loading && (
-          <div className="text-xs text-slate-400">
+          <div className="text-xs text-neutral-500">
             {t('crm.staff.profile.loading')}
           </div>
         )}
 
         {!loading && staff && (
           <>
-            {/* KPI-строка */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="rounded-3xl bg-slate-900/80 border border-slate-800/80 px-4 py-3">
-                <div className="text-[11px] text-slate-500 mb-1">
+            {/* KPI */}
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className="rounded-lg border border-neutral-200/90 bg-white px-4 py-3 shadow-sm">
+                <div className="mb-1 text-[11px] font-medium text-neutral-500">
                   {t('crm.staff.profile.kpis.leadsTitle')}
                 </div>
-                <div className="text-2xl font-semibold text-slate-50">
+                <div className="text-2xl font-semibold tabular-nums text-neutral-900">
                   {leadsCount}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">
+                <div className="mt-1 text-[11px] text-neutral-500">
                   {t('crm.staff.profile.kpis.leadsHint', {
                     name: staff.fullName || t('crm.staff.profile.kpis.managerFallback'),
                   })}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-slate-900/80 border border-slate-800/80 px-4 py-3">
-                <div className="text-[11px] text-slate-500 mb-1">
+              <div className="rounded-lg border border-neutral-200/90 bg-white px-4 py-3 shadow-sm">
+                <div className="mb-1 text-[11px] font-medium text-neutral-500">
                   {t('crm.staff.profile.kpis.projectsTitle')}
                 </div>
-                <div className="text-2xl font-semibold text-slate-50">
+                <div className="text-2xl font-semibold tabular-nums text-neutral-900">
                   {projectsCount}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">
+                <div className="mt-1 text-[11px] text-neutral-500">
                   {t('crm.staff.profile.kpis.projectsHint')}
                 </div>
               </div>
 
-              <div className="rounded-3xl bg-slate-900/80 border border-slate-800/80 px-4 py-3">
-                <div className="text-[11px] text-slate-500 mb-1">
+              <div className="rounded-lg border border-neutral-200/90 bg-white px-4 py-3 shadow-sm">
+                <div className="mb-1 text-[11px] font-medium text-neutral-500">
                   {t('crm.staff.profile.kpis.tasksTitle')}
                 </div>
-                <div className="text-2xl font-semibold text-slate-50">
+                <div className="text-2xl font-semibold tabular-nums text-neutral-900">
                   {tasksCount}
                 </div>
-                <div className="text-[11px] text-slate-500 mt-1">
+                <div className="mt-1 text-[11px] text-neutral-500">
                   {t('crm.staff.profile.kpis.tasksHint')}
                 </div>
               </div>
             </div>
 
             {/* Вкладки */}
-            <div className="inline-flex bg-slate-900/70 border border-slate-800/80 rounded-2xl p-1 text-[13px]">
+            <div className="inline-flex rounded-lg border border-neutral-200/90 bg-neutral-50 p-0.5 text-[13px]">
               <button
                 type="button"
                 onClick={() => setTab('overview')}
                 className={
-                  'px-4 py-1.5 rounded-xl ' +
+                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'overview'
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:text-slate-100')
+                    ? 'bg-white text-neutral-900 shadow-sm'
+                    : 'text-neutral-600 hover:text-neutral-900')
                 }
               >
                 {t('crm.staff.profile.tabs.overview')}
@@ -424,10 +458,10 @@ export const StaffProfilePage: React.FC = () => {
                 type="button"
                 onClick={() => setTab('leads')}
                 className={
-                  'px-4 py-1.5 rounded-xl ' +
+                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'leads'
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:text-slate-100')
+                    ? 'bg-white text-neutral-900 shadow-sm'
+                    : 'text-neutral-600 hover:text-neutral-900')
                 }
               >
                 {t('crm.staff.profile.tabs.leads')}
@@ -436,10 +470,10 @@ export const StaffProfilePage: React.FC = () => {
                 type="button"
                 onClick={() => setTab('projects')}
                 className={
-                  'px-4 py-1.5 rounded-xl ' +
+                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'projects'
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:text-slate-100')
+                    ? 'bg-white text-neutral-900 shadow-sm'
+                    : 'text-neutral-600 hover:text-neutral-900')
                 }
               >
                 {t('crm.staff.profile.tabs.projects')}
@@ -448,10 +482,10 @@ export const StaffProfilePage: React.FC = () => {
                 type="button"
                 onClick={() => setTab('tasks')}
                 className={
-                  'px-4 py-1.5 rounded-xl ' +
+                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'tasks'
-                    ? 'bg-slate-800 text-slate-50'
-                    : 'text-slate-400 hover:text-slate-100')
+                    ? 'bg-white text-neutral-900 shadow-sm'
+                    : 'text-neutral-600 hover:text-neutral-900')
                 }
               >
                 {t('crm.staff.profile.tabs.tasks')}
@@ -460,40 +494,29 @@ export const StaffProfilePage: React.FC = () => {
 
             {/* Контент вкладок */}
             {tab === 'overview' && (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                {/* Левая колонка — профиль и доступ */}
-                <div className="lg:col-span-1 bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-3">
-                  {/* Контакты */}
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="space-y-4 rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm lg:col-span-1">
                   <div>
-                    <div className="text-xs text-slate-400 mb-1">
+                    <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                       {t('crm.staff.profile.contacts.title')}
                     </div>
-                    <div className="text-sm text-slate-50">
-                      {staff.email}
-                    </div>
+                    <div className="text-sm text-neutral-900">{staff.email}</div>
                     {staff.phone && (
-                      <div className="text-sm text-slate-300 mt-1">
-                        {staff.phone}
-                      </div>
+                      <div className="mt-1 text-sm text-neutral-600">{staff.phone}</div>
                     )}
                   </div>
 
-                  {/* Роль и отдел */}
                   <div>
-                    <div className="text-xs text-slate-400 mb-1">
+                    <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                       {t('crm.staff.profile.roleAndDepartment')}
                     </div>
-
-                    {/* Роль */}
-                    <div className="mb-2">
+                    <div className="mb-3">
                       {isOwner ? (
                         <select
                           value={staff.role}
                           disabled={savingRole}
-                          onChange={(e) =>
-                            handleChangeRole(e.target.value as StaffRole)
-                          }
-                          className="w-full px-2 py-1 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-50 outline-none"
+                          onChange={(e) => handleChangeRole(e.target.value as StaffRole)}
+                          className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-900 outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-200"
                         >
                           {Object.entries(roleLabels).map(([k, v]) => (
                             <option key={k} value={k}>
@@ -502,201 +525,211 @@ export const StaffProfilePage: React.FC = () => {
                           ))}
                         </select>
                       ) : (
-                        <div className="text-sm text-slate-50">
-                          {roleLabels[staff.role]}
-                        </div>
+                        <div className="text-sm text-neutral-900">{roleLabels[staff.role]}</div>
                       )}
                     </div>
 
-                    {/* Отдел */}
-                    <div className="text-xs text-slate-400 mb-1">
+                    <div className="mb-1 text-[11px] font-medium text-neutral-600">
                       {t('crm.staff.profile.department')}
                     </div>
                     {isOwner ? (
-                      <input
-                        defaultValue={staff.department || ''}
-                        disabled={savingDept}
-                        onBlur={(e) => handleDeptBlur(e.target.value)}
-                        className="w-full px-2 py-1 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs text-slate-50 outline-none"
-                        placeholder={t('crm.staff.profile.departmentPlaceholder')}
-                      />
+                      <div className="space-y-2">
+                        <select
+                          value={departmentDraft}
+                          disabled={savingDept}
+                          onChange={(e) => setDepartmentDraft(e.target.value)}
+                          className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-900 outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-200"
+                        >
+                          <option value="">{t('crm.staff.profile.departmentPlaceholder')}</option>
+                          {departments
+                            .filter(
+                              (d) =>
+                                d.isActive ||
+                                d.id === staff.departmentId ||
+                                d.id === departmentDraft,
+                            )
+                            .map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                                {!d.isActive ? ` (${t('crm.common.statusOptions.inactive')})` : ''}
+                              </option>
+                            ))}
+                        </select>
+                        {departmentDirty && (
+                          <p className="text-[10px] text-amber-800">
+                            {t('crm.staff.profile.departmentUnsaved')}
+                          </p>
+                        )}
+                        <button
+                          type="button"
+                          disabled={savingDept || !departmentDirty}
+                          onClick={() => void handleSaveDepartment()}
+                          className="rounded-md border border-neutral-200/90 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {savingDept ? t('crm.common.saving') : t('crm.staff.profile.saveDepartment')}
+                        </button>
+                      </div>
                     ) : (
-                      <div className="text-sm text-slate-50">
-                        {staff.department || t('crm.staff.profile.departmentPlaceholder')}
+                      <div className="text-sm text-neutral-900">
+                        {departmentLabel || t('crm.staff.profile.departmentPlaceholder')}
                       </div>
                     )}
                   </div>
 
-                  {/* Статус сотрудника */}
                   <div>
-                    <div className="text-xs text-slate-400 mb-1">
+                    <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                       {t('crm.staff.profile.statusTitle')}
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       {staff.isActive ? (
-                        <span className="inline-flex px-2 py-0.5 rounded-full bg-emerald-900/60 text-emerald-300 text-[11px]">
+                        <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-200/80">
                           {t('crm.staff.status.active')}
                         </span>
                       ) : (
-                        <span className="inline-flex px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[11px]">
+                        <span className="inline-flex rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200/80">
                           {t('crm.staff.status.disabled')}
                         </span>
                       )}
 
                       {isOwner && (
-                        <div className="flex items-center gap-2">
+                        <>
                           <button
                             type="button"
                             disabled={statusLoading}
                             onClick={handleToggleActive}
-                            className="px-2 py-1 text-[11px] rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/70 disabled:opacity-60"
+                            className="rounded-md border border-neutral-200/90 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-60"
                           >
                             {statusLoading
                               ? t('crm.staff.profile.statusChanging')
                               : staff.isActive
-                              ? t('crm.staff.profile.statusDisable')
-                              : t('crm.staff.profile.statusEnable')}
+                                ? t('crm.staff.profile.statusDisable')
+                                : t('crm.staff.profile.statusEnable')}
                           </button>
-
                           <button
                             type="button"
                             onClick={handleDeleteStaff}
-                            className="px-2 py-1 text-[11px] rounded-xl border border-rose-700/80 text-rose-300 hover:bg-rose-900/40"
+                            className="rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-50"
                           >
                             {t('crm.staff.profile.delete')}
                           </button>
-                        </div>
+                        </>
                       )}
                     </div>
                   </div>
 
-                  {/* Доступ в CRM — только для владельца */}
                   {isOwner && staff.email && (
-                    <div className="pt-3 border-t border-slate-800/70">
-                      <div className="text-xs text-slate-400 mb-1">
+                    <div className="border-t border-neutral-200/90 pt-3">
+                      <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                         {t('crm.staff.profile.access.title')}
                       </div>
                       <button
                         type="button"
                         onClick={handleGenerateLogin}
                         disabled={loginLoading}
-                        className="px-3 py-1.5 text-[11px] rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
+                        className="rounded-md bg-neutral-900 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-neutral-800 disabled:opacity-60"
                       >
                         {loginLoading
                           ? t('crm.staff.profile.access.creating')
                           : t('crm.staff.profile.access.createReset')}
                       </button>
-
                       {loginInfo && (
-                        <div className="mt-2 text-[11px] text-emerald-300 whitespace-pre-line">
+                        <div className="mt-2 whitespace-pre-line text-[11px] text-emerald-700">
                           {loginInfo}
                         </div>
                       )}
-
                       {loginError && (
-                        <div className="mt-2 text-[11px] text-rose-300">
-                          {loginError}
-                        </div>
+                        <div className="mt-2 text-[11px] text-red-600">{loginError}</div>
                       )}
                     </div>
                   )}
 
-                  {/* Активность */}
                   <div>
-                    <div className="text-xs text-slate-400 mb-1">
+                    <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                       {t('crm.staff.profile.activity.title')}
                     </div>
-                      <div className="text-sm text-slate-50">
-                        {staff.lastActiveAt
-                          ? t('crm.staff.profile.activity.last', {
-                              date: new Date(staff.lastActiveAt).toLocaleString(locale),
-                            })
-                          : t('crm.staff.profile.activity.never')}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-1">
-                        {t('crm.staff.profile.activity.since', {
-                          date: new Date(staff.createdAt).toLocaleDateString(locale),
-                        })}
-                      </div>
+                    <div className="text-sm text-neutral-900">
+                      {staff.lastActiveAt
+                        ? t('crm.staff.profile.activity.last', {
+                            date: new Date(staff.lastActiveAt).toLocaleString(locale),
+                          })
+                        : t('crm.staff.profile.activity.never')}
+                    </div>
+                    <div className="mt-1 text-xs text-neutral-500">
+                      {t('crm.staff.profile.activity.since', {
+                        date: new Date(staff.createdAt).toLocaleDateString(locale),
+                      })}
+                    </div>
                   </div>
                 </div>
 
-                {/* Правая — мини-таблицы */}
-                <div className="lg:col-span-2 space-y-4">
-                  {/* Последние лиды */}
-                  <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs text-slate-400">
+                <div className="space-y-4 lg:col-span-2">
+                  <div className="rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                         {t('crm.staff.profile.leads.recentTitle', { count: leadsCount })}
                       </div>
                       <button
                         type="button"
                         onClick={() => setTab('leads')}
-                        className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
+                        className="text-[11px] font-medium text-neutral-700 underline-offset-2 hover:underline"
                       >
                         {t('crm.staff.profile.leads.all')}
                       </button>
                     </div>
-
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {leads.slice(0, 5).map((l) => (
                         <button
                           key={l.id}
                           type="button"
                           onClick={() => navigate(`/app/leads/${l.id}`)}
-                          className="w-full text-left px-2 py-1.5 rounded-xl hover:bg-slate-950/70 text-xs"
+                          className="w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-neutral-50"
                         >
-                          <div className="text-slate-50">
+                          <div className="font-medium text-neutral-900">
                             {l.name || t('crm.staff.profile.leads.fallbackName')}
                           </div>
-                          <div className="text-[11px] text-slate-500">
+                          <div className="text-[11px] text-neutral-500">
                             {l.email || l.phone || t('crm.staff.profile.leads.fallbackContact')} ·{' '}
                             {l.status}
                           </div>
                         </button>
                       ))}
-
                       {leadsCount === 0 && (
-                        <div className="text-[11px] text-slate-500 italic">
+                        <div className="text-[11px] italic text-neutral-500">
                           {t('crm.staff.profile.leads.empty')}
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Последние проекты */}
-                  <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="text-xs text-slate-400">
+                  <div className="rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm">
+                    <div className="mb-2 flex items-center justify-between">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                         {t('crm.staff.profile.projects.recentTitle', { count: projectsCount })}
                       </div>
                       <button
                         type="button"
                         onClick={() => setTab('projects')}
-                        className="text-[11px] text-lumiva-accent hover:text-lumiva-accent-soft"
+                        className="text-[11px] font-medium text-neutral-700 underline-offset-2 hover:underline"
                       >
                         {t('crm.staff.profile.projects.all')}
                       </button>
                     </div>
-
-                    <div className="space-y-1">
+                    <div className="space-y-0.5">
                       {projects.slice(0, 5).map((p) => (
                         <button
                           key={p.id}
                           type="button"
-                          onClick={() => navigate(`/app/projects/${p.id}`)}
-                          className="w-full text-left px-2 py-1.5 rounded-xl hover:bg-slate-950/70 text-xs"
+                          onClick={() => navigate(`/projects/${p.id}`)}
+                          className="w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-neutral-50"
                         >
-                          <div className="text-slate-50">{p.name}</div>
-                          <div className="text-[11px] text-slate-500">
-                            {p.status} · {p.amount.toLocaleString(locale)}{' '}
-                            {p.currency}
+                          <div className="font-medium text-neutral-900">{p.name}</div>
+                          <div className="text-[11px] text-neutral-500">
+                            {p.status} · {p.amount.toLocaleString(locale)} {p.currency}
                           </div>
                         </button>
                       ))}
-
                       {projectsCount === 0 && (
-                        <div className="text-[11px] text-slate-500 italic">
+                        <div className="text-[11px] italic text-neutral-500">
                           {t('crm.staff.profile.projects.empty')}
                         </div>
                       )}
@@ -708,29 +741,29 @@ export const StaffProfilePage: React.FC = () => {
 
             {/* Вкладка Лиды */}
             {tab === 'leads' && (
-              <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-                <div className="text-xs text-slate-400 mb-2">
+              <div className="rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm">
+                <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                   {t('crm.staff.profile.leads.title', {
                     name: staff.fullName || staff.email,
                   })}
                 </div>
 
-                <table className="w-full text-xs border-separate border-spacing-y-1">
-                  <thead className="text-slate-500">
+                <table className="w-full border-separate border-spacing-y-0 text-xs">
+                  <thead className="text-neutral-500">
                     <tr>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.leads.table.headers.name')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.leads.table.headers.contacts')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.leads.table.headers.status')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.leads.table.headers.channel')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.leads.table.headers.created')}
                       </th>
                     </tr>
@@ -739,22 +772,18 @@ export const StaffProfilePage: React.FC = () => {
                     {leads.map((l) => (
                       <tr
                         key={l.id}
-                        className="bg-slate-950/80 hover:bg-slate-900/80 cursor-pointer"
+                        className="cursor-pointer border-b border-neutral-100 transition-colors hover:bg-neutral-50/90"
                         onClick={() => navigate(`/app/leads/${l.id}`)}
                       >
-                        <td className="px-2 py-1.5 text-slate-100">
+                        <td className="px-2 py-2 text-neutral-900">
                           {l.name || t('crm.staff.profile.leads.fallbackName')}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-400">
+                        <td className="px-2 py-2 text-neutral-600">
                           {l.email || l.phone || t('crm.staff.profile.common.empty')}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-400">
-                          {l.status}
-                        </td>
-                        <td className="px-2 py-1.5 text-slate-400">
-                          {l.channel}
-                        </td>
-                        <td className="px-2 py-1.5 text-slate-500">
+                        <td className="px-2 py-2 text-neutral-600">{l.status}</td>
+                        <td className="px-2 py-2 text-neutral-600">{l.channel}</td>
+                        <td className="px-2 py-2 text-neutral-500">
                           {new Date(l.createdAt).toLocaleString(locale)}
                         </td>
                       </tr>
@@ -764,7 +793,7 @@ export const StaffProfilePage: React.FC = () => {
                       <tr>
                         <td
                           colSpan={5}
-                          className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
+                          className="px-2 py-6 text-center text-[11px] italic text-neutral-500"
                         >
                           {t('crm.staff.profile.leads.table.empty')}
                         </td>
@@ -777,27 +806,27 @@ export const StaffProfilePage: React.FC = () => {
 
             {/* Вкладка Проекты */}
             {tab === 'projects' && (
-              <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-                <div className="text-xs text-slate-400 mb-2">
+              <div className="rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm">
+                <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                   {t('crm.staff.profile.projects.title')}
                 </div>
 
-                <table className="w-full text-xs border-separate border-spacing-y-1">
-                  <thead className="text-slate-500">
+                <table className="w-full border-separate border-spacing-y-0 text-xs">
+                  <thead className="text-neutral-500">
                     <tr>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.projects.table.headers.project')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.projects.table.headers.status')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.projects.table.headers.amount')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.projects.table.headers.lead')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.projects.table.headers.created')}
                       </th>
                     </tr>
@@ -806,22 +835,18 @@ export const StaffProfilePage: React.FC = () => {
                     {projects.map((p) => (
                       <tr
                         key={p.id}
-                        className="bg-slate-950/80 hover:bg-slate-900/80 cursor-pointer"
-                        onClick={() => navigate(`/app/projects/${p.id}`)}
+                        className="cursor-pointer border-b border-neutral-100 transition-colors hover:bg-neutral-50/90"
+                        onClick={() => navigate(`/projects/${p.id}`)}
                       >
-                        <td className="px-2 py-1.5 text-slate-100">
-                          {p.name}
-                        </td>
-                        <td className="px-2 py-1.5 text-slate-400">
-                          {p.status}
-                        </td>
-                        <td className="px-2 py-1.5 text-slate-400">
+                        <td className="px-2 py-2 text-neutral-900">{p.name}</td>
+                        <td className="px-2 py-2 text-neutral-600">{p.status}</td>
+                        <td className="px-2 py-2 text-neutral-600">
                           {p.amount.toLocaleString(locale)} {p.currency}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-400">
+                        <td className="px-2 py-2 text-neutral-600">
                           {p.leadName || t('crm.staff.profile.common.empty')}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-500">
+                        <td className="px-2 py-2 text-neutral-500">
                           {new Date(p.createdAt).toLocaleString(locale)}
                         </td>
                       </tr>
@@ -831,7 +856,7 @@ export const StaffProfilePage: React.FC = () => {
                       <tr>
                         <td
                           colSpan={5}
-                          className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
+                          className="px-2 py-6 text-center text-[11px] italic text-neutral-500"
                         >
                           {t('crm.staff.profile.projects.table.empty')}
                         </td>
@@ -844,27 +869,27 @@ export const StaffProfilePage: React.FC = () => {
 
             {/* Вкладка Задачи */}
             {tab === 'tasks' && (
-              <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-                <div className="text-xs text-slate-400 mb-2">
+              <div className="rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm">
+                <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                   {t('crm.staff.profile.tasks.title')}
                 </div>
 
-                <table className="w-full text-xs border-separate border-spacing-y-1">
-                  <thead className="text-slate-500">
+                <table className="w-full border-separate border-spacing-y-0 text-xs">
+                  <thead className="text-neutral-500">
                     <tr>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.tasks.table.headers.task')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.tasks.table.headers.project')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.tasks.table.headers.status')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.tasks.table.headers.priority')}
                       </th>
-                      <th className="text-left px-2 py-1">
+                      <th className="border-b border-neutral-200/90 px-2 py-2 text-left font-medium">
                         {t('crm.staff.profile.tasks.table.headers.deadline')}
                       </th>
                     </tr>
@@ -873,24 +898,16 @@ export const StaffProfilePage: React.FC = () => {
                     {tasks.map((task) => (
                       <tr
                         key={task.id + task.projectId}
-                        className="bg-slate-950/80 hover:bg-slate-900/80 cursor-pointer"
-                        onClick={() =>
-                          navigate(`/app/projects/${task.projectId}`)
-                        }
+                        className="cursor-pointer border-b border-neutral-100 transition-colors hover:bg-neutral-50/90"
+                        onClick={() => navigate(`/projects/${task.projectId}`)}
                       >
-                        <td className="px-2 py-1.5 text-slate-100">
+                        <td className="px-2 py-2 text-neutral-900">
                           {task.title || t('crm.staff.profile.tasks.fallbackTitle')}
                         </td>
-                        <td className="px-2 py-1.5 text-slate-400">
-                          {task.projectName}
-                        </td>
-                        <td className="px-2 py-1.5 text-slate-400">
-                          {task.status}
-                        </td>
-                        <td className="px-2 py-1.5 text-slate-400">
-                          {task.priority}
-                        </td>
-                        <td className="px-2 py-1.5 text-slate-500">
+                        <td className="px-2 py-2 text-neutral-600">{task.projectName}</td>
+                        <td className="px-2 py-2 text-neutral-600">{task.status}</td>
+                        <td className="px-2 py-2 text-neutral-600">{task.priority}</td>
+                        <td className="px-2 py-2 text-neutral-500">
                           {task.deadline || t('crm.staff.profile.common.empty')}
                         </td>
                       </tr>
@@ -900,7 +917,7 @@ export const StaffProfilePage: React.FC = () => {
                       <tr>
                         <td
                           colSpan={5}
-                          className="px-2 py-3 text-center text-[11px] text-slate-500 italic"
+                          className="px-2 py-6 text-center text-[11px] italic text-neutral-500"
                         >
                           {t('crm.staff.profile.tasks.table.empty')}
                         </td>

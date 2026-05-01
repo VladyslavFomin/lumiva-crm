@@ -123,12 +123,13 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Нельзя менять роль владельца');
     }
 
-    // Обновляем departmentId отдельно, если он передан
+    Object.assign(user, patch);
+    // Сбрасываем связь, иначе при save() загруженный departmentEntity может
+    // перезаписать department_id старым значением (500 при смене отдела).
     if ('departmentId' in patch) {
       user.departmentId = patch.departmentId ?? null;
+      user.departmentEntity = null;
     }
-
-    Object.assign(user, patch);
     const saved = await this.repo.save(user);
 
     // если поменяли роль — синхронизируем с таблицей users

@@ -30,6 +30,7 @@ import { CreateCustomObjectRecordDto } from './dto/create-custom-object-record.d
 import { UpdateCustomObjectRecordDto } from './dto/update-custom-object-record.dto';
 import { CreateCustomObjectViewDto } from './dto/create-custom-object-view.dto';
 import { UpdateCustomObjectViewDto } from './dto/update-custom-object-view.dto';
+import { PushRecordsToBoardDto } from './dto/push-records-to-board.dto';
 
 @Controller('custom-objects')
 @UseGuards(JwtAuthGuard)
@@ -37,8 +38,15 @@ export class CustomObjectsController {
   constructor(private readonly service: CustomObjectsService) {}
 
   @Get()
-  async list(@CurrentUser() user: CurrentUserPayload) {
-    return this.service.listObjects(user.tenantId);
+  async list(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('workspaceAreaId') workspaceAreaId?: string,
+  ) {
+    const wid =
+      workspaceAreaId && /^[0-9a-f-]{36}$/i.test(workspaceAreaId)
+        ? workspaceAreaId
+        : undefined;
+    return this.service.listObjects(user.tenantId, wid);
   }
 
   @Post()
@@ -88,6 +96,15 @@ export class CustomObjectsController {
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
   ) {
     return this.service.listFields(user.tenantId, objectId);
+  }
+
+  /** Ключи из jsonb values по записям объекта (для сопоставления колонок с импортом). */
+  @Get(':objectId/value-keys')
+  async listValueKeys(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+  ) {
+    return this.service.listDistinctValueKeys(user.tenantId, objectId);
   }
 
   @Post(':objectId/attachments/upload')
@@ -190,13 +207,19 @@ export class CustomObjectsController {
     @Query('sortBy') sortBy?: string,
     @Query('sortOrder') sortOrder?: 'ASC' | 'DESC',
     @Query('search') search?: string,
+    @Query('enrichColumnBindings') enrichColumnBindings?: string,
   ) {
+    const ec =
+      enrichColumnBindings === '1' ||
+      enrichColumnBindings === 'true' ||
+      enrichColumnBindings === 'yes';
     return this.service.listRecords(user.tenantId, objectId, {
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
       sortBy,
       sortOrder,
       search,
+      enrichColumnBindings: ec,
     });
   }
 
@@ -207,6 +230,44 @@ export class CustomObjectsController {
     @Body() dto: CreateCustomObjectRecordDto,
   ) {
     return this.service.createRecord(user.tenantId, objectId, dto);
+  }
+
+  @Get(':objectId/records/distinct-values')
+  async distinctFieldValues(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Query('fieldKey') fieldKey?: string,
+  ) {
+    return this.service.listDistinctFieldValues(user.tenantId, objectId, (fieldKey || '').trim());
+  }
+
+  @Post(':objectId/records/clear')
+  async clearAllRecords(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Body() body: { confirm?: string },
+  ) {
+    if (body?.confirm !== 'CLEAR_ALL_RECORDS') {
+      throw new BadRequestException('Send JSON body: { "confirm": "CLEAR_ALL_RECORDS" }');
+    }
+    return this.service.deleteAllRecordsForObject(user.tenantId, objectId);
+  }
+
+  /** Строки из таблицы данных → основная таблица (board) области. */
+  @Post(':objectId/records/push-to-board')
+  async pushRecordsToBoard(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('objectId', new ParseUUIDPipe()) objectId: string,
+    @Body() dto: PushRecordsToBoardDto,
+  ) {
+    return this.service.pushRecordsToBoard(user.tenantId, objectId, {
+      targetObjectId: dto.targetObjectId,
+      recordIds: dto.recordIds,
+      fieldMap: dto.fieldMap,
+      omitAutoTargetKeys: dto.omitAutoTargetKeys,
+      duplicateKeyTargetField: dto.duplicateKeyTargetField ?? null,
+      skipDuplicates: dto.skipDuplicates,
+    });
   }
 
   @Patch(':objectId/records/:recordId')

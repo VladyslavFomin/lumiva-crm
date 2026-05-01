@@ -16,11 +16,13 @@ import {
   type EmailTemplatePresetContent,
 } from '../../marketing/emailTemplatePresets';
 import { EmailTemplatePresetPreview } from '../../marketing/EmailTemplatePresetPreview';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const ACCENT = '#222222';
 
 export const EmailTemplateFormPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -127,7 +129,9 @@ export const EmailTemplateFormPage: React.FC = () => {
         previewWindow.document.write(preview.htmlBody || preview.textBody || '');
       }
     } catch (err: any) {
-      alert(`${t('crm.emailTemplates.form.errors.previewFailed')}: ${err.message}`);
+      showAlert(`${t('crm.emailTemplates.form.errors.previewFailed')}: ${err.message}`, {
+        variant: 'error',
+      });
     }
   };
 

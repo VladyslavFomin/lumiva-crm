@@ -122,6 +122,9 @@ export enum ActionType {
 
   /** Отправка результата предыдущего шага (JSON / XLSX / PDF) на email или в Telegram */
   SEND_DATA_EXPORT = 'send_data_export',
+
+  /** Копирование строки из пользовательской таблицы (триггер custom_object.*) в другую таблицу */
+  CREATE_CUSTOM_OBJECT_RECORD = 'create_custom_object_record',
 }
 
 @Entity('automations')

@@ -45,7 +45,7 @@ export class SmmService {
   ) {}
 
   private signState(payload: Record<string, unknown>) {
-    const secret = process.env.JWT_SECRET || 'changeme';
+    const secret = process.env.JWT_SECRET!;
     const raw = Buffer.from(JSON.stringify(payload)).toString('base64url');
     const sig = createHmac('sha256', secret).update(raw).digest('base64url');
     return `${raw}.${sig}`;
@@ -55,7 +55,7 @@ export class SmmService {
     if (!state) return null;
     const [raw, sig] = state.split('.');
     if (!raw || !sig) return null;
-    const secret = process.env.JWT_SECRET || 'changeme';
+    const secret = process.env.JWT_SECRET!;
     const expected = createHmac('sha256', secret).update(raw).digest('base64url');
     if (expected !== sig) return null;
     try {

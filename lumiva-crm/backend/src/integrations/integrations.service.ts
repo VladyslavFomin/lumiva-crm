@@ -18,7 +18,25 @@ import { Sale } from '../sales/sale.entity';
 
 import type { IntegrationKind } from './integration-kind.enum';
 import { isThirdPartyCatalogId } from './integration-catalog.constants';
-import type { TestConnectionResult, SyncResult } from './sales-integration.adapter';
+import type {
+  TestConnectionResult,
+  SyncResult,
+  IntegrationSyncContext,
+  WooWorkspaceImportMapping,
+} from './sales-integration.adapter';
+import { WooCommerceAdapter } from './woocommerce/woocommerce.adapter';
+import {
+  flattenMetaAdsInsightRow,
+  mergeMetaAdsColumns,
+} from './meta-ads/meta-ads-workspace-flat.util';
+import {
+  mergeGa4WorkspaceColumns,
+  ga4WorkspaceRowId,
+} from './ga4/ga4-workspace-flat.util';
+import { applyWorkspaceImportAggregation } from './workspace-import-aggregate.util';
+import axios from 'axios';
+import { CustomObjectsService } from '../custom-objects/custom-objects.service';
+import { WorkspaceAreasService } from '../workspace-areas/workspace-areas.service';
 import { SlackWebhookService } from './slack/slack-webhook.service';
 import { TeamsWebhookService } from './teams/teams-webhook.service';
 import { ZapierHookService } from './zapier/zapier-hook.service';
@@ -37,6 +55,7 @@ import { MailchimpApiService } from './mailchimp/mailchimp-api.service';
 import { GoogleSheetsSyncService } from './google-sheets/google-sheets-sync.service';
 import { TenantsService } from '../tenants/tenants.service';
 import { Lead } from '../leads/lead.entity';
+import { MarketingService } from '../marketing/marketing.service';
 
 export interface IntegrationConnectionDto {
   id: string;
@@ -126,7 +145,637 @@ export class IntegrationsService {
 
     @InjectRepository(Lead)
     private readonly leadRepo: Repository<Lead>,
+
+    private readonly customObjectsService: CustomObjectsService,
+    private readonly workspaceAreasService: WorkspaceAreasService,
+    private readonly wooCommerceAdapter: WooCommerceAdapter,
+
+    private readonly marketingService: MarketingService,
   ) {}
+
+  /** Привязка интеграции к рабочей области таблицы (без проверки типа интеграции). */
+  private async assertWorkspaceTableImportAccess(
+    tenantId: string,
+    integrationId: string,
+    customObjectId: string,
+  ): Promise<{ entity: IntegrationConnection }> {
+    const entity = await this.repo.findOne({
+      where: { id: integrationId, tenantId, isDeleted: false } as any,
+    });
+    if (!entity) throw new NotFoundException('Интеграция не найдена');
+    const oid = customObjectId.trim();
+    if (!/^[0-9a-f-]{36}$/i.test(oid)) {
+      throw new BadRequestException('Некорректный идентификатор таблицы');
+    }
+    const obj = await this.customObjectsService.getObject(tenantId, oid);
+    const wid = obj.workspaceAreaId?.trim();
+    if (!wid || !/^[0-9a-f-]{36}$/i.test(wid)) {
+      throw new BadRequestException('Таблица не привязана к рабочей области');
+    }
+    const area = await this.workspaceAreasService.getOne(tenantId, wid);
+    if (!this.workspaceAreasService.isIntegrationBoundToArea(area.meta, entity)) {
+      throw new ForbiddenException(
+        'Эта интеграция не подключена к рабочей области этой таблицы',
+      );
+    }
+    return { entity };
+  }
+
+  private async assertMarketingMetaWorkspaceTableAccess(
+    tenantId: string,
+    marketingIntegrationId: string,
+    customObjectId: string,
+  ): Promise<void> {
+    const oid = customObjectId.trim();
+    if (!/^[0-9a-f-]{36}$/i.test(oid)) {
+      throw new BadRequestException('Некорректный идентификатор таблицы');
+    }
+    const obj = await this.customObjectsService.getObject(tenantId, oid);
+    const wid = obj.workspaceAreaId?.trim();
+    if (!wid || !/^[0-9a-f-]{36}$/i.test(wid)) {
+      throw new BadRequestException('Таблица не привязана к рабочей области');
+    }
+    const area = await this.workspaceAreasService.getOne(tenantId, wid);
+    if (
+      !this.workspaceAreasService.isMarketingIntegrationBoundToArea(
+        area.meta,
+        marketingIntegrationId,
+        'meta_ads',
+      )
+    ) {
+      throw new ForbiddenException(
+        'Эта интеграция маркетинга не подключена к рабочей области этой таблицы',
+      );
+    }
+  }
+
+  private async assertMarketingGa4WorkspaceTableAccess(
+    tenantId: string,
+    marketingIntegrationId: string,
+    customObjectId: string,
+  ): Promise<void> {
+    const oid = customObjectId.trim();
+    if (!/^[0-9a-f-]{36}$/i.test(oid)) {
+      throw new BadRequestException('Некорректный идентификатор таблицы');
+    }
+    const obj = await this.customObjectsService.getObject(tenantId, oid);
+    const wid = obj.workspaceAreaId?.trim();
+    if (!wid || !/^[0-9a-f-]{36}$/i.test(wid)) {
+      throw new BadRequestException('Таблица не привязана к рабочей области');
+    }
+    const area = await this.workspaceAreasService.getOne(tenantId, wid);
+    if (
+      !this.workspaceAreasService.isMarketingIntegrationBoundToArea(
+        area.meta,
+        marketingIntegrationId,
+        'google_analytics',
+      )
+    ) {
+      throw new ForbiddenException(
+        'Эта интеграция маркетинга не подключена к рабочей области этой таблицы',
+      );
+    }
+  }
+
+  /**
+   * Синк Woo из хаба без customObjectId: если к областям с привязкой этого подключения
+   * относится ровно одна активная таблица — импортируем в неё (эвристика полей).
+   */
+  private async tryResolveSingleWooWorkspaceObjectId(
+    tenantId: string,
+    entity: IntegrationConnection,
+  ): Promise<string | null> {
+    if (entity.kind !== 'woocommerce') return null;
+    const areas = await this.workspaceAreasService.list(tenantId);
+    const tableIds = new Set<string>();
+    for (const area of areas) {
+      if (!this.workspaceAreasService.isIntegrationBoundToArea(area.meta, entity)) {
+        continue;
+      }
+      const objects = await this.customObjectsService.listObjects(tenantId, area.id);
+      for (const o of objects) {
+        if (o.isActive) tableIds.add(o.id);
+      }
+    }
+    if (tableIds.size !== 1) return null;
+    return [...tableIds][0] ?? null;
+  }
+
+  private async validateWorkspaceImportMapping(
+    tenantId: string,
+    customObjectId: string,
+    m: WooWorkspaceImportMapping,
+  ): Promise<void> {
+    if (!Array.isArray(m.enabledWooColumns) || m.enabledWooColumns.length === 0) {
+      throw new BadRequestException('Отметьте хотя бы одну колонку для импорта');
+    }
+    const fieldList = await this.customObjectsService.listFields(
+      tenantId,
+      customObjectId,
+    );
+    const fieldKeys = new Set(fieldList.filter((f) => f.isActive).map((f) => f.key));
+    for (const wc of m.enabledWooColumns) {
+      const fk = (m.wooColumnToFieldKey[wc] || '').trim();
+      if (!fk) {
+        throw new BadRequestException(
+          `Сопоставьте поле таблицы для колонки «${wc}»`,
+        );
+      }
+      if (!fieldKeys.has(fk)) {
+        throw new BadRequestException(`Поле «${fk}» не найдено в таблице`);
+      }
+    }
+    if (m.statusFieldKey?.trim() && !fieldKeys.has(m.statusFieldKey.trim())) {
+      throw new BadRequestException('Указанное поле статуса не найдено в таблице');
+    }
+    if (m.importMode === 'aggregate') {
+      const gk = m.aggregateGroupBySourceKeys?.map((x) => x.trim()).filter(Boolean) ?? [];
+      if (!gk.length) {
+        throw new BadRequestException(
+          'При суммировании укажите хотя бы одно поле группировки (колонки источника)',
+        );
+      }
+      const enabled = new Set(m.enabledWooColumns);
+      for (const k of gk) {
+        if (!enabled.has(k)) {
+          throw new BadRequestException(
+            `Поле группировки «${k}» должно быть включено в импорт (галочка колонки)`,
+          );
+        }
+      }
+    }
+  }
+
+  /** Превью заказов Woo как плоских колонок для настройки импорта в таблицу. */
+  async previewWooWorkspaceImport(
+    tenantId: string,
+    integrationId: string,
+    customObjectId: string,
+  ) {
+    const { entity } = await this.assertWorkspaceTableImportAccess(
+      tenantId,
+      integrationId,
+      customObjectId,
+    );
+    if (entity.kind !== 'woocommerce') {
+      throw new BadRequestException('Превью доступно только для WooCommerce');
+    }
+    return this.wooCommerceAdapter.previewWorkspaceImport(entity, 25);
+  }
+
+  private async resolveMetaAdsActPath(entity: IntegrationConnection): Promise<{
+    accessToken: string;
+    actPath: string;
+  }> {
+    if (entity.kind !== 'third_party_link' || !entity.configJson) {
+      throw new BadRequestException('Некорректное подключение Meta Ads');
+    }
+    let cfg: { catalogId?: string; apiToken?: string; webhookUrl?: string };
+    try {
+      cfg = JSON.parse(entity.configJson) as {
+        catalogId?: string;
+        apiToken?: string;
+        webhookUrl?: string;
+      };
+    } catch {
+      throw new BadRequestException('Некорректный config подключения');
+    }
+    if (cfg.catalogId !== 'meta_ads') {
+      throw new BadRequestException('Превью Meta Ads только для каталога meta_ads');
+    }
+    const accessToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+    if (!accessToken) {
+      throw new BadRequestException('Укажите Marketing API access token в подключении');
+    }
+    const url = typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '';
+    const digits = url.replace(/\D/g, '');
+    if (digits.length >= 8) {
+      return { accessToken, actPath: `act_${digits}` };
+    }
+    const me = (await this.metaAdsGraph.request({
+      accessToken,
+      method: 'GET',
+      path: 'me/adaccounts?fields=id&limit=5',
+    })) as { data?: Array<{ id?: string }> };
+    const id = me?.data?.[0]?.id;
+    if (!id) {
+      throw new BadRequestException(
+        'Не найден рекламный аккаунт: укажите ID счёта (цифры) в поле URL/Webhook при подключении Meta Ads',
+      );
+    }
+    return {
+      accessToken,
+      actPath: id.startsWith('act_') ? id : `act_${id}`,
+    };
+  }
+
+  /** Превью insights Meta (кампания × день) для импорта в таблицу. */
+  async previewMetaAdsWorkspaceImport(
+    tenantId: string,
+    integrationId: string,
+    customObjectId: string,
+  ) {
+    const { entity } = await this.assertWorkspaceTableImportAccess(
+      tenantId,
+      integrationId,
+      customObjectId,
+    );
+    const cat = this.parseThirdPartyLinkCatalogId(entity);
+    if (entity.kind !== 'third_party_link' || cat !== 'meta_ads') {
+      throw new BadRequestException('Превью доступно только для Meta Ads');
+    }
+    const { accessToken, actPath } = await this.resolveMetaAdsActPath(entity);
+    return this.buildMetaAdsWorkspaceImportPreview(accessToken, actPath);
+  }
+
+  /** Превью Meta по интеграции из раздела «Маркетинг» (тот же Graph API). */
+  async previewMetaAdsWorkspaceImportFromMarketing(
+    tenantId: string,
+    marketingIntegrationId: string,
+    customObjectId: string,
+  ) {
+    await this.assertMarketingMetaWorkspaceTableAccess(
+      tenantId,
+      marketingIntegrationId,
+      customObjectId,
+    );
+    const { accessToken, actPath } =
+      await this.marketingService.getMetaAdsGraphCredentialsForWorkspace(
+        tenantId,
+        marketingIntegrationId,
+      );
+    return this.buildMetaAdsWorkspaceImportPreview(accessToken, actPath);
+  }
+
+  private async buildMetaAdsWorkspaceImportPreview(
+    accessToken: string,
+    actPath: string,
+  ) {
+    const raw = await this.metaAdsGraph.fetchCampaignInsightsDaily(
+      accessToken,
+      actPath,
+      { limit: 80, maxPages: 1 },
+    );
+    const rows = raw.map((r) => flattenMetaAdsInsightRow(r));
+    for (const r of rows) {
+      r.id = `${r.campaign_id || 'c'}_${r.date_start || 'd'}`.replace(/\s+/g, '');
+    }
+    const columns = mergeMetaAdsColumns(rows);
+    const uniqueValuesByColumn: Record<string, string[]> = {};
+    for (const col of columns) {
+      const set = new Set<string>();
+      for (const r of rows) {
+        const v = (r[col] || '').trim();
+        if (v) set.add(v);
+        if (set.size >= 100) break;
+      }
+      uniqueValuesByColumn[col] = [...set].slice(0, 100);
+    }
+    return {
+      columns,
+      sampleRows: rows.slice(0, 40),
+      uniqueValuesByColumn,
+      sampleOrderCount: rows.length,
+    };
+  }
+
+  private async syncMetaAdsWorkspaceImportRun(
+    tenantId: string,
+    entity: IntegrationConnection,
+    customObjectId: string,
+    mapping: WooWorkspaceImportMapping,
+  ): Promise<SyncResult> {
+    const { accessToken, actPath } = await this.resolveMetaAdsActPath(entity);
+    return this.syncMetaAdsWorkspaceImportWithGraph(
+      tenantId,
+      customObjectId,
+      mapping,
+      accessToken,
+      actPath,
+    );
+  }
+
+  async syncMetaAdsWorkspaceImportFromMarketing(
+    tenantId: string,
+    marketingIntegrationId: string,
+    customObjectId: string,
+    mapping: WooWorkspaceImportMapping,
+  ): Promise<SyncResult> {
+    await this.assertMarketingMetaWorkspaceTableAccess(
+      tenantId,
+      marketingIntegrationId,
+      customObjectId,
+    );
+    await this.validateWorkspaceImportMapping(tenantId, customObjectId, mapping);
+    const { accessToken, actPath } =
+      await this.marketingService.getMetaAdsGraphCredentialsForWorkspace(
+        tenantId,
+        marketingIntegrationId,
+      );
+    return this.syncMetaAdsWorkspaceImportWithGraph(
+      tenantId,
+      customObjectId,
+      mapping,
+      accessToken,
+      actPath,
+    );
+  }
+
+  private async syncMetaAdsWorkspaceImportWithGraph(
+    tenantId: string,
+    customObjectId: string,
+    mapping: WooWorkspaceImportMapping,
+    accessToken: string,
+    actPath: string,
+  ): Promise<SyncResult> {
+    /** Меньше страниц, чем теоретический максимум — иначе запрос импорта не укладывается в таймаут прокси. */
+    const raw = await this.metaAdsGraph.fetchCampaignInsightsDaily(
+      accessToken,
+      actPath,
+      { limit: 500, maxPages: 6 },
+    );
+    const MAX_META_WORKSPACE_ROWS = 4000;
+    const rows = raw.slice(0, MAX_META_WORKSPACE_ROWS);
+    const flats: Record<string, string>[] = [];
+    for (const item of rows) {
+      const flat = flattenMetaAdsInsightRow(item as Record<string, unknown>);
+      flat.id = `${flat.campaign_id || 'c'}_${flat.date_start || 'd'}`.replace(/\s+/g, '');
+      flats.push(flat);
+    }
+    const toUpsert = applyWorkspaceImportAggregation(flats, mapping);
+    let workspaceCreated = 0;
+    let workspaceUpdated = 0;
+    let workspaceSkipped = 0;
+    for (const flat of toUpsert) {
+      const wr = await this.customObjectsService.upsertRecordFromWooMapped(
+        tenantId,
+        customObjectId,
+        flat,
+        {
+          enabledWooColumns: mapping.enabledWooColumns,
+          wooColumnToFieldKey: mapping.wooColumnToFieldKey,
+          statusFieldKey: mapping.statusFieldKey ?? null,
+        },
+      );
+      if (wr === 'created') workspaceCreated++;
+      else if (wr === 'updated') workspaceUpdated++;
+      else workspaceSkipped++;
+    }
+    const message = `Meta Ads → таблица: создано ${workspaceCreated}, обновлено ${workspaceUpdated}, пропущено ${workspaceSkipped}.`;
+    return {
+      ok: true,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      workspaceCreated,
+      workspaceUpdated,
+      workspaceSkipped,
+      message,
+    };
+  }
+
+  private ga4WorkspaceDimensionDateToIso(raw: string): string | null {
+    const v = String(raw).replace(/-/g, '');
+    if (/^\d{8}$/.test(v)) {
+      return `${v.slice(0, 4)}-${v.slice(4, 6)}-${v.slice(6, 8)}`;
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      return raw.slice(0, 10);
+    }
+    return null;
+  }
+
+  private mapGa4RunReportRowToWorkspaceFlat(r: {
+    dimensionValues?: Array<{ value?: string }>;
+    metricValues?: Array<{ value?: string }>;
+  }): Record<string, string> {
+    const rawD = r.dimensionValues?.[0]?.value;
+    const dateStr = this.ga4WorkspaceDimensionDateToIso(String(rawD ?? '')) ?? '';
+    const rawCountry = String(r.dimensionValues?.[1]?.value ?? '').trim();
+    const src = String(r.dimensionValues?.[2]?.value ?? '').trim() || '(not set)';
+    const med = String(r.dimensionValues?.[3]?.value ?? '').trim() || '(not set)';
+    const camp = String(r.dimensionValues?.[4]?.value ?? '').trim() || '(not set)';
+    return {
+      date: dateStr,
+      country_id: rawCountry,
+      session_source: src,
+      session_medium: med,
+      session_campaign_name: camp,
+      sessions: String(r.metricValues?.[0]?.value ?? ''),
+      screen_page_views: String(r.metricValues?.[1]?.value ?? ''),
+    };
+  }
+
+  /** За один HTTP-запрос импорта — верхняя граница строк (иначе 504 у прокси). */
+  private static readonly MAX_GA4_WORKSPACE_IMPORT_ROWS = 3000;
+
+  private async ga4WorkspaceFetchReportPage(
+    accessToken: string,
+    propertyId: string,
+    offset: number,
+    limit: number,
+  ): Promise<
+    Array<{
+      dimensionValues?: Array<{ value?: string }>;
+      metricValues?: Array<{ value?: string }>;
+    }>
+  > {
+    const apiUrl = `https://analyticsdata.googleapis.com/v1beta/properties/${propertyId}:runReport`;
+    try {
+      const res = await axios.post(
+        apiUrl,
+        {
+          dateRanges: [{ startDate: '30daysAgo', endDate: 'today' }],
+          dimensions: [
+            { name: 'date' },
+            { name: 'countryId' },
+            { name: 'sessionSource' },
+            { name: 'sessionMedium' },
+            { name: 'sessionCampaignName' },
+          ],
+          metrics: [{ name: 'sessions' }, { name: 'screenPageViews' }],
+          limit,
+          offset,
+          orderBys: [
+            { dimension: { dimensionName: 'date', orderType: 'ALPHANUMERIC' } },
+            { dimension: { dimensionName: 'countryId', orderType: 'ALPHANUMERIC' } },
+            { dimension: { dimensionName: 'sessionSource', orderType: 'ALPHANUMERIC' } },
+            { dimension: { dimensionName: 'sessionMedium', orderType: 'ALPHANUMERIC' } },
+            {
+              dimension: {
+                dimensionName: 'sessionCampaignName',
+                orderType: 'ALPHANUMERIC',
+              },
+            },
+          ],
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 120000,
+        },
+      );
+      const batch = res.data?.rows as
+        | Array<{
+            dimensionValues?: Array<{ value?: string }>;
+            metricValues?: Array<{ value?: string }>;
+          }>
+        | undefined;
+      return Array.isArray(batch) ? batch : [];
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err)) {
+        const st = err.response?.status;
+        const raw = err.response?.data;
+        const snippet =
+          typeof raw === 'string'
+            ? raw.slice(0, 400)
+            : raw && typeof raw === 'object'
+              ? JSON.stringify(raw).slice(0, 400)
+              : '';
+        throw new BadRequestException(
+          `GA4 Data API (${st ?? '?'}): ${snippet || err.message}`,
+        );
+      }
+      throw err;
+    }
+  }
+
+  /** Превью отчёта GA4 (маркетинг) для импорта в таблицу. */
+  async previewGa4WorkspaceImportFromMarketing(
+    tenantId: string,
+    marketingIntegrationId: string,
+    customObjectId: string,
+  ) {
+    await this.assertMarketingGa4WorkspaceTableAccess(
+      tenantId,
+      marketingIntegrationId,
+      customObjectId,
+    );
+    const { accessToken, propertyId } =
+      await this.marketingService.getGa4WorkspaceReportingAccess(
+        tenantId,
+        marketingIntegrationId,
+      );
+    const page = await this.ga4WorkspaceFetchReportPage(accessToken, propertyId, 0, 500);
+    const rowObjs: Record<string, string>[] = [];
+    for (const r of page) {
+      const flat = this.mapGa4RunReportRowToWorkspaceFlat(r);
+      if (!flat.date) continue;
+      flat.id = ga4WorkspaceRowId(flat);
+      rowObjs.push(flat);
+    }
+    const columns = mergeGa4WorkspaceColumns(rowObjs);
+    const uniqueValuesByColumn: Record<string, string[]> = {};
+    for (const col of columns) {
+      const set = new Set<string>();
+      for (const row of rowObjs) {
+        const v = (row[col] || '').trim();
+        if (v) set.add(v);
+        if (set.size >= 100) break;
+      }
+      uniqueValuesByColumn[col] = [...set].slice(0, 100);
+    }
+    return {
+      columns,
+      sampleRows: rowObjs.slice(0, 40),
+      uniqueValuesByColumn,
+      sampleOrderCount: rowObjs.length,
+    };
+  }
+
+  async syncGa4WorkspaceImportFromMarketing(
+    tenantId: string,
+    marketingIntegrationId: string,
+    customObjectId: string,
+    mapping: WooWorkspaceImportMapping,
+  ): Promise<SyncResult> {
+    await this.assertMarketingGa4WorkspaceTableAccess(
+      tenantId,
+      marketingIntegrationId,
+      customObjectId,
+    );
+    await this.validateWorkspaceImportMapping(tenantId, customObjectId, mapping);
+    const { accessToken, propertyId } =
+      await this.marketingService.getGa4WorkspaceReportingAccess(
+        tenantId,
+        marketingIntegrationId,
+      );
+    return this.syncGa4WorkspaceImportWithGraph(
+      tenantId,
+      customObjectId,
+      mapping,
+      accessToken,
+      propertyId,
+    );
+  }
+
+  private async syncGa4WorkspaceImportWithGraph(
+    tenantId: string,
+    customObjectId: string,
+    mapping: WooWorkspaceImportMapping,
+    accessToken: string,
+    propertyId: string,
+  ): Promise<SyncResult> {
+    let workspaceCreated = 0;
+    let workspaceUpdated = 0;
+    let workspaceSkipped = 0;
+    const pageLimit = 1500;
+    let offset = 0;
+    let totalImported = 0;
+    const maxRows = IntegrationsService.MAX_GA4_WORKSPACE_IMPORT_ROWS;
+    const collected: Record<string, string>[] = [];
+    outer: for (let p = 0; p < 12; p++) {
+      const batch = await this.ga4WorkspaceFetchReportPage(
+        accessToken,
+        propertyId,
+        offset,
+        pageLimit,
+      );
+      if (!batch.length) break;
+      for (const r of batch) {
+        if (totalImported >= maxRows) break outer;
+        const flat = this.mapGa4RunReportRowToWorkspaceFlat(r);
+        if (!flat.date) continue;
+        flat.id = ga4WorkspaceRowId(flat);
+        collected.push(flat);
+        totalImported++;
+      }
+      if (batch.length < pageLimit) break;
+      offset += pageLimit;
+    }
+    const toUpsert = applyWorkspaceImportAggregation(collected, mapping);
+    for (const flat of toUpsert) {
+      const wr = await this.customObjectsService.upsertRecordFromWooMapped(
+        tenantId,
+        customObjectId,
+        flat,
+        {
+          enabledWooColumns: mapping.enabledWooColumns,
+          wooColumnToFieldKey: mapping.wooColumnToFieldKey,
+          statusFieldKey: mapping.statusFieldKey ?? null,
+        },
+      );
+      if (wr === 'created') workspaceCreated++;
+      else if (wr === 'updated') workspaceUpdated++;
+      else workspaceSkipped++;
+    }
+    const capped = totalImported >= maxRows;
+    const message = `GA4 → таблица: создано ${workspaceCreated}, обновлено ${workspaceUpdated}, пропущено ${workspaceSkipped}${
+      capped ? ` (лимит за один запрос: ${maxRows} строк; при необходимости повторите импорт).` : '.'
+    }`;
+    return {
+      ok: true,
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      workspaceCreated,
+      workspaceUpdated,
+      workspaceSkipped,
+      message,
+    };
+  }
 
   private parseThirdPartyLinkCatalogId(entity: IntegrationConnection): string | null {
     if (entity.kind !== 'third_party_link' || !entity.configJson) return null;
@@ -465,11 +1114,102 @@ export class IntegrationsService {
   /* ============================================================
    * СИНХРОНИЗАЦИЯ (tenant-safe)
    * ============================================================ */
-  async syncForTenant(tenantId: string, id: string): Promise<SyncResult> {
+  async syncForTenant(
+    tenantId: string,
+    id: string,
+    opts?: {
+      customObjectId?: string;
+      wooWorkspaceImport?: WooWorkspaceImportMapping;
+      metaAdsWorkspaceImport?: WooWorkspaceImportMapping;
+    },
+  ): Promise<SyncResult> {
     const entity = await this.repo.findOne({
       where: { id, tenantId, isDeleted: false } as any,
     });
     if (!entity) throw new NotFoundException('Интеграция не найдена');
+
+    if (opts?.metaAdsWorkspaceImport && opts?.wooWorkspaceImport) {
+      throw new BadRequestException(
+        'Укажите только один тип маппинга импорта (Woo или Meta Ads)',
+      );
+    }
+
+    let customObjectIdForWorkspace: string | undefined;
+    let wooHubImplicitWorkspaceObject = false;
+    const oidRaw = opts?.customObjectId?.trim();
+    if (oidRaw) {
+      await this.assertWorkspaceTableImportAccess(tenantId, id, oidRaw);
+      customObjectIdForWorkspace = oidRaw;
+    } else if (!opts?.wooWorkspaceImport && !opts?.metaAdsWorkspaceImport) {
+      const implicitOid = await this.tryResolveSingleWooWorkspaceObjectId(
+        tenantId,
+        entity,
+      );
+      if (implicitOid) {
+        await this.assertWorkspaceTableImportAccess(tenantId, id, implicitOid);
+        customObjectIdForWorkspace = implicitOid;
+        wooHubImplicitWorkspaceObject = true;
+      }
+    }
+
+    if (opts?.metaAdsWorkspaceImport) {
+      if (!customObjectIdForWorkspace) {
+        throw new BadRequestException(
+          'Укажите customObjectId вместе с маппингом импорта',
+        );
+      }
+      const cat = this.parseThirdPartyLinkCatalogId(entity);
+      if (entity.kind !== 'third_party_link' || cat !== 'meta_ads') {
+        throw new BadRequestException(
+          'Импорт по маппингу Meta Ads доступен только для подключения Meta Ads',
+        );
+      }
+      await this.validateWorkspaceImportMapping(
+        tenantId,
+        customObjectIdForWorkspace,
+        opts.metaAdsWorkspaceImport,
+      );
+      const startedAt = new Date();
+      const result = await this.syncMetaAdsWorkspaceImportRun(
+        tenantId,
+        entity,
+        customObjectIdForWorkspace,
+        opts.metaAdsWorkspaceImport,
+      );
+      entity.lastSyncAt = startedAt;
+      entity.lastSyncStatus = result.ok ? 'ok' : 'error';
+      entity.lastError = result.ok ? null : result.message ?? null;
+      await this.repo.save(entity);
+      return result;
+    }
+
+    if (opts?.wooWorkspaceImport) {
+      if (!customObjectIdForWorkspace) {
+        throw new BadRequestException(
+          'Укажите customObjectId вместе с маппингом импорта',
+        );
+      }
+      if (entity.kind !== 'woocommerce') {
+        throw new BadRequestException(
+          'Маппинг Woo доступен только для подключения WooCommerce',
+        );
+      }
+      await this.validateWorkspaceImportMapping(
+        tenantId,
+        customObjectIdForWorkspace,
+        opts.wooWorkspaceImport,
+      );
+    }
+
+    const syncContext: IntegrationSyncContext = {
+      tenantId,
+      ...(customObjectIdForWorkspace
+        ? { customObjectId: customObjectIdForWorkspace }
+        : {}),
+      ...(opts?.wooWorkspaceImport && customObjectIdForWorkspace
+        ? { wooWorkspaceImport: opts.wooWorkspaceImport }
+        : {}),
+    };
 
     if (this.kindUsesSalesChannel(entity.kind as IntegrationKind)) {
       await this.ensureChannel(tenantId, entity);
@@ -495,13 +1235,13 @@ export class IntegrationsService {
           if (parsed?.catalogId === 'google_calendar') {
             result = await this.syncGoogleCalendarWithLeads(tenantId, entity);
           } else {
-            result = await adapter.syncSales(entity);
+            result = await adapter.syncSales(entity, syncContext);
           }
         } catch {
-          result = await adapter.syncSales(entity);
+          result = await adapter.syncSales(entity, syncContext);
         }
       } else {
-        result = await adapter.syncSales(entity);
+        result = await adapter.syncSales(entity, syncContext);
       }
 
       await this.refreshAggregates(tenantId, entity);
@@ -542,6 +1282,19 @@ export class IntegrationsService {
         } else if (this.googleSheetsSync.shouldEnqueuePull(entity)) {
           await this.googleSheetsSync.enqueuePullFromConnection(tenantId, entity.id);
         }
+      }
+
+      if (
+        result.ok &&
+        wooHubImplicitWorkspaceObject &&
+        entity.kind === 'woocommerce'
+      ) {
+        result = {
+          ...result,
+          message:
+            (result.message || '') +
+            ' Таблица выбрана автоматически (одна активная таблица в области с привязкой Woo). Поля по эвристике; свой маппинг колонок — в «Импорт данных».',
+        };
       }
 
       return result;

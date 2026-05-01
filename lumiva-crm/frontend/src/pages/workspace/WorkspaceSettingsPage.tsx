@@ -9,14 +9,22 @@ import {
   fetchCustomObjects,
   updateCustomObject,
   updateCustomObjectField,
+  type CustomObject,
   type CustomObjectField,
   type CustomObjectFieldType,
 } from '../../api/customObjects';
+import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import { WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY } from '../../workspace/workspaceRecordLink';
+import { WORKSPACE_ENTITY_REF_KEY } from '../../workspace/workspaceEntityRef';
 import {
   WORKSPACE_STATUS_COLOR_PRESETS,
   WORKSPACE_STATUS_DEFAULT_COLOR,
 } from '../../components/workspace/workspaceStatusColorPresets';
+import { pickStatusLikeField } from '../../components/workspace/workspaceStatusField';
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
+import { NAV_ICON_MAP, type NavIconKey } from '../../components/layout/NavSidebarIcons';
+
+const WORKSPACE_NAV_ICON_KEYS = Object.keys(NAV_ICON_MAP) as NavIconKey[];
 
 const FIELD_TYPES: CustomObjectFieldType[] = [
   'text',
@@ -76,7 +84,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
   } | null>(null);
   const [key, setKey] = useState('');
   const [label, setLabel] = useState('');
-  const [type, setType] = useState<CustomObjectFieldType>('text');
+  const [type, setType] = useState<string>('text');
   const [saving, setSaving] = useState(false);
   const [draftStatuses, setDraftStatuses] = useState<StatusOption[]>([]);
   const [newStatusLabel, setNewStatusLabel] = useState('');
@@ -88,6 +96,11 @@ export const WorkspaceSettingsPage: React.FC = () => {
   const [extrasOpen, setExtrasOpen] = useState(false);
   const [savingCardSettings, setSavingCardSettings] = useState(false);
   const [cardSettingsError, setCardSettingsError] = useState<string | null>(null);
+  const [navIconKey, setNavIconKey] = useState<NavIconKey | ''>('');
+  const [savingNavIcon, setSavingNavIcon] = useState(false);
+  const [areaWorkspaceObjects, setAreaWorkspaceObjects] = useState<CustomObject[]>([]);
+  const [linkedDataObjectIds, setLinkedDataObjectIds] = useState<string[]>([]);
+  const [savingDataSources, setSavingDataSources] = useState(false);
 
   const load = async () => {
     const [fieldItems, stats, objects] = await Promise.all([
@@ -100,6 +113,10 @@ export const WorkspaceSettingsPage: React.FC = () => {
     const object = objects.find((item) => item.id === objectId);
     const meta = (object?.meta as Record<string, any> | null) || null;
     setObjectMeta(meta);
+    const wIcon = meta?.workspaceNavIcon;
+    setNavIconKey(
+      typeof wIcon === 'string' && wIcon in NAV_ICON_MAP ? (wIcon as NavIconKey) : '',
+    );
     const titleFallback =
       fieldItems.find((field) => field.key === 'name')?.key ||
       fieldItems.find((field) => field.key === 'title')?.key ||
@@ -118,6 +135,18 @@ export const WorkspaceSettingsPage: React.FC = () => {
           .filter(Boolean)
       : [];
     setCardExtraFields(extra);
+    let areaList: CustomObject[] = [];
+    const wid = object?.workspaceAreaId;
+    if (wid) {
+      areaList = await fetchCustomObjects(wid);
+    }
+    setAreaWorkspaceObjects(areaList);
+    const rawLinked = meta?.[WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY];
+    setLinkedDataObjectIds(
+      Array.isArray(rawLinked)
+        ? rawLinked.map((x) => String(x)).filter((id) => /^[0-9a-f-]{36}$/i.test(id))
+        : [],
+    );
   };
 
   useEffect(() => {
@@ -125,9 +154,10 @@ export const WorkspaceSettingsPage: React.FC = () => {
     void load();
   }, [objectId]);
 
+  /** То же поле, что таблица/канбан (meta.kanban.statusFieldKey имеет приоритет). */
   const statusField = useMemo(
-    () => fields.find((f) => f.type === 'status' || f.key === 'status') || null,
-    [fields],
+    () => pickStatusLikeField(fields, objectMeta as Record<string, unknown> | null),
+    [fields, objectMeta],
   );
   const statusOrderFromMeta = useMemo(
     () =>
@@ -198,6 +228,19 @@ export const WorkspaceSettingsPage: React.FC = () => {
       return ai - bi;
     });
   }, [analytics?.byStatus, statusColorsFromMeta, statusField, statusOrderFromMeta]);
+  const isBoardTable = useMemo(
+    () => getWorkspaceTableKind(objectMeta as Record<string, unknown> | null) === 'board',
+    [objectMeta],
+  );
+
+  const dataTablesInArea = useMemo(
+    () =>
+      areaWorkspaceObjects.filter(
+        (o) => o.id !== objectId && getWorkspaceTableKind(o.meta) === 'data',
+      ),
+    [areaWorkspaceObjects, objectId],
+  );
+
   const selectorOptions = useMemo(
     () => [
       ...fields.map((field) => ({
@@ -210,17 +253,28 @@ export const WorkspaceSettingsPage: React.FC = () => {
   );
 
   useEffect(() => {
+    if (savingStatuses) return;
     setDraftStatuses(derivedStatusOptions);
-  }, [derivedStatusOptions]);
+  }, [derivedStatusOptions, savingStatuses]);
 
   const handleAddField = async () => {
     if (!key.trim() || !label.trim()) return;
     setSaving(true);
     try {
+      const isCrmLead = type === 'crm_lead';
+      const isCrmProject = type === 'crm_project';
+      const isCrmCompany = type === 'crm_company';
+      const resolvedFieldType: CustomObjectFieldType =
+        isCrmLead || isCrmProject || isCrmCompany ? 'text' : (type as CustomObjectFieldType);
+      const meta: Record<string, unknown> = {};
+      if (isCrmLead) meta[WORKSPACE_ENTITY_REF_KEY] = 'lead';
+      if (isCrmProject) meta[WORKSPACE_ENTITY_REF_KEY] = 'project';
+      if (isCrmCompany) meta[WORKSPACE_ENTITY_REF_KEY] = 'company';
       await createCustomObjectField(objectId, {
         key: key.trim(),
         label: label.trim(),
-        type,
+        type: resolvedFieldType,
+        meta: Object.keys(meta).length ? meta : undefined,
       });
       setKey('');
       setLabel('');
@@ -316,7 +370,6 @@ export const WorkspaceSettingsPage: React.FC = () => {
         },
       };
       await updateCustomObject(objectId, { meta: nextMeta });
-      setObjectMeta(nextMeta);
       await load();
     } catch (e: any) {
       setStatusError(e?.message || t('crm.workspace.settings.failedSaveStatuses'));
@@ -350,9 +403,43 @@ export const WorkspaceSettingsPage: React.FC = () => {
     }
   };
 
+  const saveLinkedDataSources = async () => {
+    if (!objectId) return;
+    setSavingDataSources(true);
+    try {
+      const nextMeta: Record<string, unknown> = { ...(objectMeta || {}) };
+      if (linkedDataObjectIds.length) {
+        nextMeta[WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY] = linkedDataObjectIds;
+      } else {
+        delete nextMeta[WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY];
+      }
+      await updateCustomObject(objectId, { meta: nextMeta as Record<string, any> });
+      setObjectMeta(nextMeta as Record<string, any>);
+    } finally {
+      setSavingDataSources(false);
+    }
+  };
+
+  const saveWorkspaceNavIcon = async () => {
+    if (!objectId) return;
+    setSavingNavIcon(true);
+    setCardSettingsError(null);
+    try {
+      const nextMeta: Record<string, unknown> = { ...(objectMeta || {}) };
+      if (navIconKey) nextMeta.workspaceNavIcon = navIconKey;
+      else delete nextMeta.workspaceNavIcon;
+      await updateCustomObject(objectId, { meta: nextMeta });
+      setObjectMeta(nextMeta as Record<string, any>);
+    } catch (e: any) {
+      setCardSettingsError(e?.message || t('crm.workspace.settings.failedSaveCard'));
+    } finally {
+      setSavingNavIcon(false);
+    }
+  };
+
   return (
     <MainLayout>
-      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="max-w-[120rem] mx-auto space-y-4">
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.settings.title')}</h1>
           <div className="flex gap-2">
@@ -373,6 +460,116 @@ export const WorkspaceSettingsPage: React.FC = () => {
           </div>
         </div>
         <WorkspaceViewTabs objectId={objectId} active="settings" />
+
+        {isBoardTable && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
+              {t('crm.workspace.settings.dataSourcesKicker')}
+            </div>
+            <h2 className="text-lg font-semibold text-slate-900 mt-1">
+              {t('crm.workspace.settings.dataSourcesTitle')}
+            </h2>
+            <p className="text-sm text-slate-500 mb-4">{t('crm.workspace.settings.dataSourcesHint')}</p>
+            {dataTablesInArea.length === 0 ? (
+              <p className="text-sm text-slate-500">{t('crm.workspace.settings.dataSourcesEmpty')}</p>
+            ) : (
+              <ul className="space-y-2 mb-4">
+                {dataTablesInArea.map((tbl) => (
+                  <li
+                    key={tbl.id}
+                    className="flex flex-wrap items-center gap-3 text-sm text-slate-800"
+                  >
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={linkedDataObjectIds.includes(tbl.id)}
+                        onChange={() => {
+                          setLinkedDataObjectIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(tbl.id)) next.delete(tbl.id);
+                            else next.add(tbl.id);
+                            return Array.from(next);
+                          });
+                        }}
+                        className="rounded border-slate-300"
+                      />
+                      <span>{tbl.name}</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/workspace/${tbl.id}/table`)}
+                      className="text-xs text-sky-700 underline"
+                    >
+                      {t('crm.workspace.settings.dataSourcesOpen')}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button
+              type="button"
+              onClick={() => void saveLinkedDataSources()}
+              disabled={savingDataSources}
+              className="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white hover:bg-slate-50 disabled:opacity-50"
+            >
+              {savingDataSources ? t('crm.workspace.settings.saving') : t('crm.workspace.settings.dataSourcesSave')}
+            </button>
+          </div>
+        )}
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
+            <div>
+              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
+                {t('crm.workspace.settings.workspaceNavIconKicker')}
+              </div>
+              <h2 className="text-lg font-semibold text-slate-900 mt-1">
+                {t('crm.workspace.settings.workspaceNavIconTitle')}
+              </h2>
+              <p className="text-sm text-slate-500">{t('crm.workspace.settings.workspaceNavIconHint')}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void saveWorkspaceNavIcon()}
+              disabled={savingNavIcon}
+              className="px-3 py-2 rounded-xl bg-lumiva-accent text-white text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 hover:bg-lumiva-accent-soft hover:shadow-md disabled:opacity-60"
+            >
+              {savingNavIcon ? t('crm.workspace.settings.saving') : t('crm.workspace.settings.saveWorkspaceNavIcon')}
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setNavIconKey('')}
+              className={`rounded-lg border px-2 py-1.5 text-xs ${
+                !navIconKey
+                  ? 'border-sky-500 bg-sky-50 text-sky-900'
+                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+            >
+              {t('crm.workspace.settings.workspaceNavIconDefault')}
+            </button>
+            {WORKSPACE_NAV_ICON_KEYS.map((k) => {
+              const Ic = NAV_ICON_MAP[k];
+              const active = navIconKey === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  title={k}
+                  onClick={() => setNavIconKey(k)}
+                  className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
+                    active
+                      ? 'border-sky-500 bg-sky-50 text-sky-800'
+                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Ic className="!h-4 !w-4" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
           <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
@@ -635,14 +832,21 @@ export const WorkspaceSettingsPage: React.FC = () => {
             />
             <select
               value={type}
-              onChange={(e) => setType(e.target.value as CustomObjectFieldType)}
+              onChange={(e) => setType(e.target.value)}
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
             >
-              {FIELD_TYPES.map((ft) => (
-                <option key={ft} value={ft}>
-                  {ft}
-                </option>
-              ))}
+              <optgroup label={t('crm.workspace.table.fieldTypeGroupBasic')}>
+                {FIELD_TYPES.map((ft) => (
+                  <option key={ft} value={ft}>
+                    {ft}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label={t('crm.workspace.table.fieldTypeGroupCrm')}>
+                <option value="crm_lead">{t('crm.workspace.table.fieldTypeCrmLead')}</option>
+                <option value="crm_project">{t('crm.workspace.table.fieldTypeCrmProject')}</option>
+                <option value="crm_company">{t('crm.workspace.table.fieldTypeCrmCompany')}</option>
+              </optgroup>
             </select>
             <button
               type="button"

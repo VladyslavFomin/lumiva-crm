@@ -180,6 +180,17 @@ export class AuthService {
     };
   }
 
+  /**
+   * Проверка пароля пользователя (настройки API, чувствительные действия в UI).
+   */
+  async verifyUserPassword(userId: string, plainPassword: string): Promise<boolean> {
+    const uid = String(userId || '').trim();
+    if (!uid) return false;
+    const user = await this.userRepo.findOne({ where: { id: uid } });
+    if (!user?.password) return false;
+    return bcrypt.compare(String(plainPassword ?? ''), user.password);
+  }
+
   async signup(dto: SignupDto) {
     const normalizedEmail = dto.email.trim().toLowerCase();
     const normalizedClientKey = dto.clientKey

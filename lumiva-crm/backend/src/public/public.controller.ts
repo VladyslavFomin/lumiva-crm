@@ -8,12 +8,14 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import type { Request } from 'express';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { ApiTokenGuard } from '../api-tokens/api-token.guard';
 import { TenantsService } from '../tenants/tenants.service';
 import { SitesService } from '../sites/sites.service';
 import { Site } from '../sites/site.entity';
 
+@SkipThrottle()
 @Controller('public')
 export class PublicController {
   constructor(

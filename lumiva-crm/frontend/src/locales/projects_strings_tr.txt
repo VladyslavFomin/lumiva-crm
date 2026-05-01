@@ -1,0 +1,352 @@
+#crm #retail
++{{count}} daha
+1 yıl
+10 000 EUR
+13.03.2026
+20.03.2026
+30 gün
+65%
+7 gün
+ADS
+CRM
+Özel
+Lead e-postası
+IT
+SEO
+SMM
+WEB
+{{amount}} {{currency}}
+{{count}} proje • {{amount}}
+“Devam ediyor” durumundaki aktif projeler. Tutarları ve sorumluları takip edin.
+Analitik
+Proje analitiği
+Proje arşivi
+Arşivle
+Projeleri arşivle
+Gruplama yok
+İsimsiz
+Kategori yok
+Şirket yok
+Lead yok
+Başlıksız
+Sorumlu yok
+Departman yok
+Yaklaşan son tarihler
+Hızlı düzenleme
+Bütçe
+Arşivde henüz proje yok.
+Çöp kutusunda henüz proje yok.
+Devam ediyor
+Para birimi
+Bir görevde bahsedildiniz
+Tüm departman
+Açık
+Geri yükle
+Toplam
+Tüm zamanlar
+Tüm görevler
+Tüm proje görevleri. Sahipler her şeyi görür, yöneticiler kendi görevlerini.
+Tüm şirketler
+Tüm sorumlular
+Tüm projeler
+Çöp kutusundaki tüm projeler kalıcı olarak silinecek.
+“Yeni” durumundaki tüm projeler. Aşağıda özet istatistik ve tablo.
+Tüm görev durumları
+Toplam proje
+Toplam: {{count}}
+Toplam: {{count}} • Tutar: {{amount}}
+Sal
+Durumları hızlıca değiştirebilir, arşivleyebilir veya seçili projeleri silebilirsiniz.
+Bir değer seçin
+Kartta gösterilecek alanları seçin:
+Bir proje seçin
+En az bir alan seçin
+Seçildi: {{count}}
+Kazanıldı
+Kapalı
+İfade
+Yüksek aciliyet
+Yüksek
+Yüksek öncelik
+Durumlara, kategorilere, yöneticilere ve tutarlara göre esnek pano.
+Tamamlandı
+Grafik
+Duruma göre grupla
+Gruplama: Şirket
+Gruplama: Sorumlu
+Gruplama: Durum
+PAY
+Evet
+Tarih
+Oluşturulma tarihi
+Son tarih
+İşlemler
+Ekle
+Blok ekle
+Görev ekle
+Sütun ekle
+Koşul ekle
+Engellendi
+Tamamlanan projeler
+Tamamlanan proje
+Henüz tamamlanan proje yok.
+Görevler yükleniyor…
+Kapatılan projeler yükleniyor…
+Geçmiş yükleniyor…
+Yeni projeler yükleniyor…
+Devam eden projeler yükleniyor…
+Projeler yükleniyor…
+Proje verileri yükleniyor…
+Alanlar yükleniyor...
+Projeler yükleniyor…
+Henüz görev yok
+Henüz görev yok.
+Görev
+Görevler
+Projeye göre görevler
+Proje görevleri
+Son tarihi geçmiş ve “Tamamlandı” durumuna alınmamış görevler.
+Kapalı
+Ayarları kapat
+Proje notları
+Donduruldu
+Değer
+Sol değer
+Sağ değer
+Tutar değişiklikleri
+Sorumluları değiştir
+Durumu değiştir
+Durum değişti
+Lead adı (elle düzenlenebilir)
+Atananlar
+Geçmiş
+Değişiklik geçmişi boş.
+Tutar geçmişi
+Yapılacaklar
+Takvim
+Takvim (kopya)
+Proje görev son tarihleri, sorumlular ve bütçeler takvimi
+Kanban
+Kanban (kopya)
+Özel alanlar
+Proje özel alanları
+Kategoriler
+Kategoriler
+Kategori
+Adet
+Meslektaş
+Sütunlar
+Henüz yorum yok
+Yorumlar
+Kompakt
+Şirket
+Oluşturucu
+Analitik oluşturucu
+İletişim
+Bağlam, anlaşmalar, riskler, unutulmaması gerekenler…
+Sekmeyi kopyala
+Proje çöp kutusu
+Sol kısım
+Lead
+Pazarlama
+Yönetici
+Yönetici: Anna
+Sekme menüsü
+Ay
+Etiketler
+Metrik
+Analitiği başlangıç görünümüne döndüreceğiz. Ayarları tekrar değiştirebilirsiniz.
+İncelemede
+Proje listesine dön
+Blok adı
+Görünüm adı
+Görev başlığı
+Proje adı
+Dosya adı / belge türü (ör. site şartnamesi)
+Yapılandır
+Kanban kartı ayarı
+Ayarlar
+Blok ayarları
+Widget ayarları
+Tablo ayarları
+Proje analitiği yüklenemedi
+Proje görevleri yüklenemedi
+Kapatılan projeler yüklenemedi
+Geçmiş yüklenemedi
+Özel alanlar yüklenemedi
+Yeni projeler yüklenemedi
+Devam eden projeler yüklenemedi
+Geciken görevler yüklenemedi
+Proje durumu değiştirilemedi
+Hafta
+Bilinmiyor
+Hayır
+Son tarihli görev yok
+Proje yok
+Geciken görev yok.
+Düşük aciliyet
+Düşük
+Düşük öncelik
+Yeni görev
+Yeni görev: başlık
+Yeni tablo
+Yeni projeler
+Yeni
+Yeni blok
+Yeni analitik bloğu
+Yeni takvim
+Yeni kanban
+Yeni yorum… yöneticiyi @ ile anabilirsiniz
+Yeni proje
+Proje güncellendi
+Normal aciliyet
+Normal
+Normal öncelik
+Toplu proje düzenleme penceresi
+Proje açıklaması
+Sorumlular
+Sorumlular ({{count}})
+Departmana göre sorumlular
+Sorumlu
+Sorumlu atanmadı
+Aç
+Ertelendi
+İptal
+Gönder
+Çöp kutusunu boşalt
+Proje çöp kutusu boşaltılsın mı?
+Proje yüklenemedi
+Projeler yüklenemedi
+Proje silinemedi
+Proje kaydedilemedi
+YÜZDE
+Proje durumunu değiştirmek için kartları sütunlar arasında sürükleyin.
+Sırayı değiştirmek için sürükleyin
+Dönem
+Pzt
+Alt görev…
+Görev ara
+Personel ara
+Henüz blok yok. Yukarıdaki düğmeyle ilkini ekleyin.
+“Yeni” durumunda henüz proje yok.
+Gösterilen: {{count}}
+Etiketleri göster
+Alan yok. Ayarlardan ekleyin.
+Halka
+Tamam
+Son güncelleme
+Sağ kısım
+Uygula
+Örnek proje kartı
+Öncelik
+İlerleme
+Görev ilerlemesi
+Proje
+“{{name}}” projesi kalıcı olarak silinecek.
+Proje #{{id}}
+Proje arşivlendi
+Proje geri yüklendi
+Proje arşivden çıkarıldı
+Proje oluşturuldu
+Proje kaydedildi
+Proje silindi
+Projeler
+Henüz devam eden proje yok.
+Henüz proje yok
+Projeler · Analitik
+Projeler · Devam ediyor
+Projeler · Kazanıldı/Kaybedildi
+Projeler · Görevler
+Projeler · Kanban
+Projeler · Yeni
+Projeler · Geciken görevler
+Projeler · Tablo
+Devam eden projeler
+Kategoriye göre projeler
+Yöneticiye göre projeler
+Duruma göre projeler
+Etikete göre projeler
+“Kazanıldı” veya “Kaybedildi” durumundaki projeler. Son tutarları ve sorumluları buradan izleyin.
+Arşivlenen projeler.
+Silinen projeler.
+Kaybedildi
+Geciken görevler
+Gecikme (gün)
+Yüzde
+Cum
+FARK
+Arşivden çıkar
+Boyut
+Geliştirme
+Reklam
+EĞERSUM (koşul)
+SAY
+Cmt
+Sıfırla
+Blokları sıfırla
+Pano sıfırlansın mı?
+Filtreleri temizle
+Özellikler
+Sola taşı
+Sağa taşı
+Sütunu gizle
+Sonraki adımda bu pencerede sütun, yoğunluk ve gruplama ayarlarını ekleyeceğiz.
+Seçimi kaldır
+Pano oluşturun: metrikler, grafikler, tablolar.
+Geçmişteki olaylar
+Oluşturuldu
+Proje oluşturuldu
+Oluşturulma: 24.09.2025, 03:00:00
+Personel bulunamadı
+Kaydediliyor…
+Kaydet
+Proje listesi: durum, tutar, sorumlu ve oluşturulma tarihi
+Gecikenler listesi
+Çar
+Orta
+Ortalama tutar
+Koşul dilimi
+Aciliyet:
+Dosya bağlantısı (Google Drive / Dropbox / WP medya)
+Durum
+Durumlar
+Maliyet ve ilerleme
+Tutar
+Kapatılan tutar
+Proje tutarı
+Tablo
+Tablo (kopya)
+Projeler tablosu
+Etiket
+Etiketler
+Blok türü
+Yalnızca önemli projeler (yüksek görev önceliği)
+Salt okunur
+Yüksekliği değiştirmek için sürükleyin
+Boyutu değiştirmek için sürükleyin
+Genişliği değiştirmek için sürükleyin
+Sil
+Sekmeyi sil
+Kalıcı olarak sil
+Projeyi sil
+Proje kalıcı olarak silinsin mi?
+Proje silinsin mi?
+Projeleri sil
+Geçerli görünümü sil?
+Siliniyor…
+Bahsetme: {{count}}
+Koşul
+Dosyalar (şartname, keşif, sözleşme vb.)
+Takvim filtresi
+Şirkete göre filtre:
+Biçim
+Formül
+Renk teması
+Kontrol listesi
+@ bahsetmeli taslak
+Taslak mesaj…
+Per
+Ne gösteriyoruz
+Geniş
+Aşama
+—

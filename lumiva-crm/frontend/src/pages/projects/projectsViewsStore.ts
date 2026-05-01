@@ -13,6 +13,11 @@ export type ProjectsCustomView = {
   name: string;
   order: number;
   settings?: ProjectsViewSettings;
+  /**
+   * Для пользовательского вида: только эти проекты. Без поля — старые виды показывают все проекты.
+   * Новые виды создаются с пустым списком; проекты добавляются при создании из этого вида (?view=).
+   */
+  projectIds?: string[];
 };
 
 export type ProjectsViewsState = {
@@ -68,6 +73,7 @@ export const loadProjectsViewsState = (): ProjectsViewsState => {
             name: item.name,
             order: typeof item.order === 'number' ? item.order : idx,
             settings: item.settings || defaultProjectsViewSettings(item.type),
+            projectIds: Array.isArray(item.projectIds) ? item.projectIds : undefined,
           }))
       : [];
     const fallbackOrder = [
@@ -106,6 +112,7 @@ export const createProjectsCustomView = (
     name: name.trim(),
     order: prev.customViews.length,
     settings: defaultProjectsViewSettings(type),
+    projectIds: [],
   };
   const customViews = [...prev.customViews, view];
   const tabOrder = [...prev.tabOrder, view.id];
@@ -163,5 +170,28 @@ export const moveProjectsTab = (
   return { ...prev, tabOrder: current };
 };
 
+/** Фильтр проектов для пользовательского вида (undefined projectIds = все проекты). */
+export function filterProjectsForCustomView<T extends { id: string }>(
+  projects: T[],
+  activeCustomView: ProjectsCustomView | null,
+): T[] {
+  if (!activeCustomView) return projects;
+  const ids = activeCustomView.projectIds;
+  if (ids === undefined) return projects;
+  const set = new Set(ids);
+  return projects.filter((p) => set.has(p.id));
+}
 
-
+/** Добавить проект в изолированный вид (виды без явного projectIds не трогаем). */
+export function appendProjectToCustomView(viewId: string, projectId: string): void {
+  const state = loadProjectsViewsState();
+  let changed = false;
+  const customViews = state.customViews.map((v) => {
+    if (v.id !== viewId) return v;
+    if (v.projectIds === undefined) return v;
+    if (v.projectIds.includes(projectId)) return v;
+    changed = true;
+    return { ...v, projectIds: [...v.projectIds, projectId] };
+  });
+  if (changed) saveProjectsViewsState({ ...state, customViews });
+}

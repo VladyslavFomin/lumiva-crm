@@ -19,6 +19,7 @@ export interface CustomObject {
   slug: string;
   description: string | null;
   isActive: boolean;
+  workspaceAreaId?: string | null;
   meta: Record<string, any> | null;
   createdAt: string;
   updatedAt: string;
@@ -50,7 +51,7 @@ export interface CustomObjectRecord {
 export interface CustomObjectView {
   id: string;
   objectId: string;
-  type: 'table' | 'kanban' | 'calendar';
+  type: 'table' | 'kanban' | 'calendar' | 'gantt';
   name: string;
   config: Record<string, any> | null;
   isDefault: boolean;
@@ -68,8 +69,12 @@ export interface CustomObjectImportPreview {
   uniqueValuesByColumn?: Record<string, string[]>;
 }
 
-export async function fetchCustomObjects() {
-  return api.get<CustomObject[]>('/custom-objects');
+export async function fetchCustomObjects(workspaceAreaId?: string) {
+  const q =
+    workspaceAreaId && /^[0-9a-f-]{36}$/i.test(workspaceAreaId)
+      ? `?workspaceAreaId=${encodeURIComponent(workspaceAreaId)}`
+      : '';
+  return api.get<CustomObject[]>(`/custom-objects${q}`);
 }
 
 export async function fetchCustomObject(objectId: string) {
@@ -80,6 +85,8 @@ export async function createCustomObject(payload: {
   name: string;
   slug?: string;
   description?: string;
+  workspaceAreaId?: string | null;
+  meta?: Record<string, unknown> | null;
 }) {
   return api.post<CustomObject>('/custom-objects', payload);
 }
@@ -92,6 +99,7 @@ export async function updateCustomObject(
     description: string;
     isActive: boolean;
     meta: Record<string, any>;
+    workspaceAreaId: string | null;
   }>,
 ) {
   return api.patch<CustomObject>(`/custom-objects/${objectId}`, payload);
@@ -109,6 +117,25 @@ export async function fetchCustomObjectFields(objectId: string) {
   return api.get<CustomObjectField[]>(`/custom-objects/${objectId}/fields`);
 }
 
+/** Уникальные ключи в jsonb values по всем записям объекта (импорт, интеграции). */
+export async function fetchCustomObjectValueKeys(objectId: string) {
+  return api.get<{ keys: string[] }>(`/custom-objects/${objectId}/value-keys`);
+}
+
+export async function fetchCustomObjectDistinctFieldValues(objectId: string, fieldKey: string) {
+  const q = new URLSearchParams();
+  q.set('fieldKey', fieldKey);
+  return api.get<{ values: string[] }>(
+    `/custom-objects/${objectId}/records/distinct-values?${q.toString()}`,
+  );
+}
+
+export async function clearAllCustomObjectRecords(objectId: string) {
+  return api.post<{ ok: boolean; deleted: number }>(`/custom-objects/${objectId}/records/clear`, {
+    confirm: 'CLEAR_ALL_RECORDS',
+  });
+}
+
 export async function createCustomObjectField(
   objectId: string,
   payload: {
@@ -117,6 +144,8 @@ export async function createCustomObjectField(
     type: CustomObjectFieldType;
     required?: boolean;
     options?: Array<{ value: string; label: string }>;
+    /** Например `columnBinding` — см. `workspace/workspaceColumnBinding.ts` */
+    meta?: Record<string, unknown>;
   },
 ) {
   return api.post<CustomObjectField>(`/custom-objects/${objectId}/fields`, payload);
@@ -150,7 +179,42 @@ export async function fetchCustomObjectViews(objectId: string) {
   return api.get<CustomObjectView[]>(`/custom-objects/${objectId}/views`);
 }
 
-export async function fetchCustomObjectRecords(objectId: string, search?: string) {
+export type FetchCustomObjectRecordsPageParams = {
+  limit?: number;
+  offset?: number;
+  search?: string;
+  sortBy?: string;
+  sortOrder?: 'ASC' | 'DESC';
+  /** Подставить значения для колонок с meta.columnBinding (основная таблица / board). */
+  enrichColumnBindings?: boolean;
+};
+
+/** Одна страница записей (для таблицы с пагинацией). Полный список см. fetchCustomObjectRecords. */
+export async function fetchCustomObjectRecordsPage(
+  objectId: string,
+  params: FetchCustomObjectRecordsPageParams = {},
+) {
+  const query = new URLSearchParams();
+  query.set('limit', String(params.limit ?? 100));
+  query.set('offset', String(params.offset ?? 0));
+  if (params.search?.trim()) query.set('search', params.search.trim());
+  if (params.sortBy?.trim()) {
+    query.set('sortBy', params.sortBy.trim());
+    query.set('sortOrder', params.sortOrder === 'ASC' ? 'ASC' : 'DESC');
+  }
+  if (params.enrichColumnBindings) {
+    query.set('enrichColumnBindings', '1');
+  }
+  return api.get<{ items: CustomObjectRecord[]; total: number }>(
+    `/custom-objects/${objectId}/records?${query.toString()}`,
+  );
+}
+
+export async function fetchCustomObjectRecords(
+  objectId: string,
+  search?: string,
+  opts?: { enrichColumnBindings?: boolean },
+) {
   const all: CustomObjectRecord[] = [];
   const pageSize = 200;
   let offset = 0;
@@ -161,6 +225,7 @@ export async function fetchCustomObjectRecords(objectId: string, search?: string
     query.set('limit', String(pageSize));
     query.set('offset', String(offset));
     if (search?.trim()) query.set('search', search.trim());
+    if (opts?.enrichColumnBindings) query.set('enrichColumnBindings', '1');
     const res = await api.get<{ items: CustomObjectRecord[]; total: number }>(
       `/custom-objects/${objectId}/records?${query.toString()}`,
     );
@@ -190,9 +255,32 @@ export async function fetchAllCustomObjectRecords(objectId: string) {
 
 export async function createCustomObjectRecord(
   objectId: string,
-  payload: { externalId?: string; values: Record<string, any> },
+  payload: { externalId?: string; values: Record<string, any>; meta?: Record<string, any> },
 ) {
   return api.post<CustomObjectRecord>(`/custom-objects/${objectId}/records`, payload);
+}
+
+export type PushRecordsToBoardResult = {
+  created: CustomObjectRecord[];
+  skipped: Array<{ recordId: string; reason: string }>;
+  errors: Array<{ recordId: string; message: string }>;
+};
+
+export async function pushRecordsToBoard(
+  sourceObjectId: string,
+  payload: {
+    targetObjectId: string;
+    recordIds: string[];
+    fieldMap?: Record<string, string>;
+    omitAutoTargetKeys?: string[];
+    duplicateKeyTargetField?: string | null;
+    skipDuplicates?: boolean;
+  },
+) {
+  return api.post<PushRecordsToBoardResult>(
+    `/custom-objects/${sourceObjectId}/records/push-to-board`,
+    payload,
+  );
 }
 
 export async function updateCustomObjectRecord(

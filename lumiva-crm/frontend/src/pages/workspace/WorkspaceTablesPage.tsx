@@ -12,6 +12,7 @@ import {
   updateCustomObject,
   type CustomObject,
 } from '../../api/customObjects';
+import { fetchWorkspaceAreas } from '../../api/workspaceAreas';
 import { parseEnabledViews } from '../../workspace/workspaceEnabledViews';
 
 export const WorkspaceTablesPage: React.FC = () => {
@@ -46,9 +47,21 @@ export const WorkspaceTablesPage: React.FC = () => {
 
   useEffect(() => {
     let alive = true;
-    void loadObjects().then(() => {
+    void (async () => {
+      try {
+        const areas = await fetchWorkspaceAreas();
+        if (!alive) return;
+        const first = areas[0];
+        if (first?.id) {
+          navigate(`/workspace/areas/${first.id}`, { replace: true });
+          return;
+        }
+      } catch {
+        /* fallback: legacy list */
+      }
       if (!alive) return;
-    });
+      await loadObjects();
+    })();
     return () => {
       alive = false;
     };

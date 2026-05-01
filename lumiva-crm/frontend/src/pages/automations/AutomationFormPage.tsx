@@ -1,7 +1,7 @@
 // src/pages/automations/AutomationFormPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
-import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams, useSearchParams, Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   fetchAutomation,
@@ -12,6 +12,7 @@ import {
   type TriggerEvent,
   type ActionType,
 } from '../../api/automations';
+import { fetchLeadById, type Lead } from '../../api/leads';
 import { fetchEmailAccounts, type EmailAccount, fetchEmailTemplates, type EmailTemplate } from '../../api/email';
 import { fetchIntegrations, type IntegrationConnectionDto } from '../../api/integrations';
 import {
@@ -36,6 +37,10 @@ export const AutomationFormPage: React.FC = () => {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const leadIdFromQuery = searchParams.get('leadId');
+  const leadWeeklyPresetAppliedRef = useRef(false);
+  const [leadFromQuery, setLeadFromQuery] = useState<Lead | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +90,7 @@ export const AutomationFormPage: React.FC = () => {
 
   useEffect(() => {
     if (id) return;
+    if (leadIdFromQuery) return;
     const params = new URLSearchParams(location.search);
     const entity = params.get('entity');
     const defaults: Record<string, TriggerEvent> = {
@@ -95,7 +101,45 @@ export const AutomationFormPage: React.FC = () => {
     if (entity && defaults[entity]) {
       setFormData((prev) => ({ ...prev, triggerEvent: defaults[entity] }));
     }
-  }, [id, location.search]);
+  }, [id, location.search, leadIdFromQuery]);
+
+  /** С карточки лида: «раз в неделю + письмо этому лиду»; meta.contextLeadId учитывается на сервере при cron. */
+  useEffect(() => {
+    if (id || !leadIdFromQuery || leadWeeklyPresetAppliedRef.current) return;
+    leadWeeklyPresetAppliedRef.current = true;
+    fetchLeadById(leadIdFromQuery)
+      .then((lead) => {
+        setLeadFromQuery(lead);
+        setFormData((prev) => ({
+          ...prev,
+          name:
+            prev.name?.trim() ||
+            t('crm.automations.form.leadContext.defaultName', {
+              name: lead.name?.trim() || lead.email?.trim() || leadIdFromQuery,
+            }),
+          description:
+            prev.description?.trim() ||
+            t('crm.automations.form.leadContext.defaultDescription'),
+          triggerEvent: 'scheduled',
+          meta: {
+            contextLeadId: lead.id,
+            schedule: {
+              scheduleFrequency: 'weekly',
+              scheduleTime: '09:00',
+              scheduleTimezone: 'Europe/Moscow',
+              scheduleDayOfWeek: 1,
+              scheduleDayOfMonth: 1,
+            },
+          },
+          actions: [{ type: 'send_email', config: { to: lead.email || '' } }],
+        }));
+        setExpandedActionIndex(0);
+      })
+      .catch(() => {
+        leadWeeklyPresetAppliedRef.current = false;
+        setError(t('crm.automations.form.leadContext.loadFailed'));
+      });
+  }, [id, leadIdFromQuery, t]);
 
   // Загружаем email аккаунты и шаблоны
   useEffect(() => {
@@ -333,6 +377,9 @@ export const AutomationFormPage: React.FC = () => {
         ...prev,
         triggerEvent: v,
         meta: {
+          ...(typeof prev.meta === 'object' && prev.meta && !Array.isArray(prev.meta)
+            ? (prev.meta as Record<string, unknown>)
+            : {}),
           schedule: {
             scheduleFrequency: 'weekly',
             scheduleTime: '09:00',
@@ -712,6 +759,11 @@ export const AutomationFormPage: React.FC = () => {
       }
       if (action.type === 'create_task')
         return action.config.title || action.config.companyId || t('crm.automations.form.builder.noConfig');
+      if (action.type === 'create_custom_object_record')
+        return (
+          action.config.targetObjectId ||
+          t('crm.automations.form.builder.noConfig')
+        );
       if (action.type === 'update_field')
         return action.config.field
           ? `${action.config.field} → ${action.config.value ?? ''}`
@@ -773,6 +825,30 @@ export const AutomationFormPage: React.FC = () => {
             {error}
           </div>
         )}
+
+        {leadFromQuery ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50/95 px-4 py-3 text-[12px] text-emerald-950 shadow-sm">
+            <div className="font-semibold">
+              {t('crm.automations.form.leadContext.bannerTitle', {
+                name: leadFromQuery.name?.trim() || leadFromQuery.email || leadFromQuery.id,
+              })}
+            </div>
+            <p className="mt-1.5 leading-relaxed text-emerald-900/95">
+              {t('crm.automations.form.leadContext.bannerBody')}
+            </p>
+            {!leadFromQuery.email?.trim() ? (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[11px] text-amber-950">
+                {t('crm.automations.form.leadContext.noEmailWarning')}
+              </p>
+            ) : null}
+            <Link
+              to={`/app/leads/${leadFromQuery.id}`}
+              className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-900 underline underline-offset-2 hover:text-emerald-950"
+            >
+              ← {t('crm.automations.form.leadContext.backToLead')}
+            </Link>
+          </div>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 xl:grid-cols-12 gap-4">
           <div className="xl:col-span-8 space-y-4">
@@ -870,6 +946,11 @@ export const AutomationFormPage: React.FC = () => {
                   <div className="text-[10px] font-semibold text-indigo-900">
                     {t('crm.automations.form.triggers.SCHEDULED')}
                   </div>
+                  {(formData.meta as Record<string, unknown> | undefined)?.contextLeadId ? (
+                    <p className="text-[11px] leading-snug text-indigo-900/90">
+                      {t('crm.automations.form.leadContext.scheduledLinkedLeadHint')}
+                    </p>
+                  ) : null}
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div>
                       <label className="mb-1 block text-[11px] text-slate-600">
@@ -1220,6 +1301,9 @@ export const AutomationFormPage: React.FC = () => {
                     <option value="add_tag">{getActionTypeLabel('add_tag')}</option>
                     <option value="change_status">{getActionTypeLabel('change_status')}</option>
                     <option value="create_task">{getActionTypeLabel('create_task')}</option>
+                    <option value="create_custom_object_record">
+                      {getActionTypeLabel('create_custom_object_record')}
+                    </option>
                   </select>
                 </div>
 
@@ -3551,6 +3635,49 @@ export const AutomationFormPage: React.FC = () => {
                         />
                       </div>
                     </div>
+                  </div>
+                )}
+
+                {action.type === 'create_custom_object_record' && (
+                  <div className="space-y-2">
+                    <p className="text-[10px] text-slate-500">
+                      {t('crm.automations.form.workspacePushAction.hint')}
+                    </p>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1.5">
+                        {t('crm.automations.form.workspacePushAction.targetObjectId')}
+                      </label>
+                      <input
+                        type="text"
+                        value={action.config.targetObjectId || ''}
+                        onChange={(e) => updateAction(index, 'targetObjectId', e.target.value.trim())}
+                        className="w-full px-3 py-2 text-xs font-mono bg-white border border-slate-300 rounded-xl text-slate-900"
+                        placeholder="UUID"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] text-slate-400 mb-1.5">
+                        {t('crm.automations.form.workspacePushAction.dupField')}
+                      </label>
+                      <input
+                        type="text"
+                        value={action.config.duplicateKeyTargetField || ''}
+                        onChange={(e) =>
+                          updateAction(index, 'duplicateKeyTargetField', e.target.value.trim() || undefined)
+                        }
+                        className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900"
+                        placeholder="field_key"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 text-[11px] text-slate-600">
+                      <input
+                        type="checkbox"
+                        checked={action.config.skipDuplicates !== false}
+                        onChange={(e) => updateAction(index, 'skipDuplicates', e.target.checked)}
+                        className="rounded border-slate-300"
+                      />
+                      {t('crm.automations.form.workspacePushAction.skipDup')}
+                    </label>
                   </div>
                 )}
                 </>

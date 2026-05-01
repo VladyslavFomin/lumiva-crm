@@ -8,6 +8,13 @@ import { fetchStaff, type StaffUser } from '../../api/staff';
 import { getLocale } from '../../i18n/utils';
 import { getStoredUser } from '../../auth/session';
 import type { Project, ProjectTask } from './projectTypes';
+import {
+  isTaskAssigneeSelected,
+  normalizeAssigneesToStaffIds,
+  resolveStaffForAssigneeEntry,
+  taskAssigneesMatchNormalizedLabels,
+  toggleTaskAssigneeIds,
+} from './taskAssignees';
 
 type FlattenedTask = ProjectTask & {
   projectId: string;
@@ -153,9 +160,7 @@ export const ProjectTasksPage: React.FC = () => {
     projectOwners(project).some((name) => currentLabels.includes(name));
 
   const isTaskAssignee = (task: ProjectTask) =>
-    (task.assignees || [])
-      .map((value) => normalize(value))
-      .some((value) => currentLabels.includes(value));
+    taskAssigneesMatchNormalizedLabels(task.assignees, staff, currentLabels);
   const isDoneStatus = (status?: string | null) => {
     if (!status) return false;
     const normalized = status.toString().trim().toLowerCase();
@@ -283,7 +288,7 @@ export const ProjectTasksPage: React.FC = () => {
 
   const resolveAssignees = (task: ProjectTask) => {
     const names = task.assignees || [];
-    return names.map((name) => staff.find((u) => u.fullName === name) || name);
+    return names.map((entry) => resolveStaffForAssigneeEntry(staff, entry) || entry);
   };
   const resolveSavedTasks = (
     savedTasks: ProjectTask[] | undefined,
@@ -445,13 +450,6 @@ export const ProjectTasksPage: React.FC = () => {
     }
   };
 
-  const toggleAssigneeSelection = (list: string[], name: string) => {
-    if (list.includes(name)) {
-      return list.filter((item) => item !== name);
-    }
-    return [...list, name];
-  };
-
   const createTask = async () => {
     const projectId = newTaskProjectId || projects[0]?.id;
     if (!projectId) return;
@@ -460,9 +458,7 @@ export const ProjectTasksPage: React.FC = () => {
     const project = projects.find((p) => p.id === projectId);
     if (!project) return;
     if (!isOwnerRole && !isProjectOwner(project)) return;
-    const assignees = staff
-      .filter((u) => newTaskAssignees.includes(u.id))
-      .map((u) => u.fullName);
+    const assignees = normalizeAssigneesToStaffIds(newTaskAssignees, staff);
     const newTask: ProjectTask = {
       id: generateId('t'),
       title,
@@ -830,7 +826,7 @@ export const ProjectTasksPage: React.FC = () => {
                                 <button
                                   type="button"
                                   draggable={false}
-                                  onClick={() => navigate(`/app/projects/${project.id}`)}
+                                  onClick={() => navigate(`/projects/${project.id}`)}
                                   className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] font-medium text-lumiva-accent hover:bg-slate-100"
                                 >
                                   {project.name}
@@ -909,14 +905,12 @@ export const ProjectTasksPage: React.FC = () => {
                                             >
                                               <input
                                                 type="checkbox"
-                                                checked={(task.assignees || []).includes(
-                                                  u.fullName,
-                                                )}
+                                                checked={isTaskAssigneeSelected(task.assignees, u)}
                                                 onChange={() =>
                                                   updateTask(project.id, task.id, {
-                                                    assignees: toggleAssigneeSelection(
-                                                      task.assignees || [],
-                                                      u.fullName,
+                                                    assignees: normalizeAssigneesToStaffIds(
+                                                      toggleTaskAssigneeIds(task.assignees, u),
+                                                      staff,
                                                     ),
                                                   })
                                                 }

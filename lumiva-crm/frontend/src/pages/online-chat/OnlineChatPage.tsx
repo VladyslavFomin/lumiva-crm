@@ -12,6 +12,7 @@ import {
   deleteChatSession,
   type ChatMessagesPayload,
 } from '../../api/onlineChat';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const ACCENT = '#222222';
 
@@ -20,6 +21,7 @@ const POLL_MS_BG = 5000;
 
 const OnlineChatPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -106,7 +108,9 @@ const OnlineChatPage: React.FC = () => {
       await loadSessions();
     } catch (e: any) {
       console.error(e);
-      alert(e?.message || t('crm.chat.errors.deleteFailed'));
+      showAlert(e?.message || t('crm.chat.errors.deleteFailed'), {
+        variant: 'error',
+      });
     }
   };
 

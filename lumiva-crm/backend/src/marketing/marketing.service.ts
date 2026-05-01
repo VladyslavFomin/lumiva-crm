@@ -2039,10 +2039,13 @@ export class MarketingService {
   }
 
   /**
-   * GA4 Data API runReport — сессии и просмотры по дням с разбивкой по источнику / medium / кампании сессии.
-   * dataSource: ga4_{propertyId}, чтобы несколько ресурсов GA4 не перетирали друг друга при синке.
+   * OAuth / service account → access token и property для GA4 Data API.
    */
-  async syncGa4Integration(row: MarketingIntegration): Promise<number> {
+  private async resolveGa4ReportingAccess(row: MarketingIntegration): Promise<{
+    access: string;
+    propertyId: string;
+    currency: string;
+  }> {
     const s = this.flattenNestedIntegrationSettings(
       this.parseSettingsObject(row.settings),
     );
@@ -2089,6 +2092,43 @@ export class MarketingService {
         'GA4: подключите через «Google» (OAuth) или укажите serviceAccountJson (ключ сервисного аккаунта) в настройках интеграции.',
       );
     }
+    return {
+      access,
+      propertyId,
+      currency: String(s.currency || 'EUR').slice(0, 8) || 'EUR',
+    };
+  }
+
+  /**
+   * Доступ к GA4 Data API для импорта в таблицу рабочей области.
+   */
+  async getGa4WorkspaceReportingAccess(
+    tenantId: string,
+    integrationId: string,
+  ): Promise<{ accessToken: string; propertyId: string; currency: string }> {
+    const row = await this.integrationRepo.findOne({
+      where: { id: integrationId, tenantId },
+    });
+    if (!row) {
+      throw new NotFoundException('Интеграция маркетинга не найдена');
+    }
+    if (!row.isActive) {
+      throw new BadRequestException('Включите интеграцию в разделе «Маркетинг»');
+    }
+    const prov = this.normalizeMarketingIntegrationProvider(row.provider);
+    if (!this.isGa4MarketingProvider(prov)) {
+      throw new BadRequestException('Нужна интеграция Google Analytics 4');
+    }
+    const { access, propertyId, currency } = await this.resolveGa4ReportingAccess(row);
+    return { accessToken: access, propertyId, currency };
+  }
+
+  /**
+   * GA4 Data API runReport — сессии и просмотры по дням с разбивкой по источнику / medium / кампании сессии.
+   * dataSource: ga4_{propertyId}, чтобы несколько ресурсов GA4 не перетирали друг друга при синке.
+   */
+  async syncGa4Integration(row: MarketingIntegration): Promise<number> {
+    const { access, propertyId, currency } = await this.resolveGa4ReportingAccess(row);
     const dataSourceTag = `ga4_${propertyId}`.slice(0, 80);
     const end = new Date();
     const start = new Date();
@@ -2226,7 +2266,7 @@ export class MarketingService {
             projects: 0,
             cost: '0',
             revenue: '0',
-            currency: String(s.currency || 'EUR').slice(0, 8) || 'EUR',
+            currency,
             /** GA4: screenPageViews — в CRM «Показы» (просмотры экранов/страниц), не рекламные impressions. */
             impressions: views,
           }),
@@ -2281,10 +2321,25 @@ export class MarketingService {
   }
 
   /**
-   * Meta / Facebook Marketing API — дневные insights по рекламному аккаунту.
-   * Нужны: access token с правами ads_read и ID счёта (только цифры или act_…).
+   * Токен и путь рекламного аккаунта для Graph API — импорт Meta в таблицу рабочей области.
    */
-  async syncMetaAdsIntegration(row: MarketingIntegration): Promise<number> {
+  async getMetaAdsGraphCredentialsForWorkspace(
+    tenantId: string,
+    integrationId: string,
+  ): Promise<{ accessToken: string; actPath: string }> {
+    const row = await this.integrationRepo.findOne({
+      where: { id: integrationId, tenantId },
+    });
+    if (!row) {
+      throw new NotFoundException('Интеграция маркетинга не найдена');
+    }
+    if (!row.isActive) {
+      throw new BadRequestException('Включите интеграцию в разделе «Маркетинг»');
+    }
+    const prov = this.normalizeMarketingIntegrationProvider(row.provider);
+    if (!this.isMetaAdsProvider(prov)) {
+      throw new BadRequestException('Нужна интеграция Meta Ads в маркетинге');
+    }
     const s = this.flattenNestedIntegrationSettings(
       this.parseSettingsObject(row.settings),
     );
@@ -2316,7 +2371,19 @@ export class MarketingService {
         'Meta Ads: ID рекламного аккаунта — только цифры (как в Ads Manager, без букв).',
       );
     }
-    const actPath = `act_${accountRaw}`;
+    return { accessToken: token, actPath: `act_${accountRaw}` };
+  }
+
+  /**
+   * Meta / Facebook Marketing API — дневные insights по рекламному аккаунту.
+   * Нужны: access token с правами ads_read и ID счёта (только цифры или act_…).
+   */
+  async syncMetaAdsIntegration(row: MarketingIntegration): Promise<number> {
+    const { accessToken: token, actPath } =
+      await this.getMetaAdsGraphCredentialsForWorkspace(row.tenantId, row.id);
+    const s = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
 
     const end = new Date();
     const start = new Date();
@@ -2487,7 +2554,7 @@ export class MarketingService {
   // --- SEO (настройки, OAuth state, метрики) ---
 
   private seoOauthSecret(): string {
-    return process.env.JWT_SECRET || 'changeme';
+    return process.env.JWT_SECRET!;
   }
 
   encodeGscOauthState(tenantId: string, redirect: string): string {

@@ -9,10 +9,12 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Tenant } from '../tenants/tenant.entity';
+import { WorkspaceArea } from '../workspace-areas/workspace-area.entity';
 
 @Entity('custom_objects')
 @Index(['tenantId', 'slug'], { unique: true })
 @Index(['tenantId', 'isActive'])
+@Index(['tenantId', 'workspaceAreaId'])
 export class CustomObject {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -23,6 +25,13 @@ export class CustomObject {
   @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
+
+  @Column({ type: 'uuid', nullable: true })
+  workspaceAreaId: string | null;
+
+  @ManyToOne(() => WorkspaceArea, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'workspaceAreaId' })
+  workspaceArea: WorkspaceArea | null;
 
   @Column({ type: 'varchar', length: 160 })
   name: string;

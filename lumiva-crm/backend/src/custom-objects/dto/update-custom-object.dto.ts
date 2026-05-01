@@ -3,6 +3,7 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
 } from 'class-validator';
 
@@ -28,5 +29,9 @@ export class UpdateCustomObjectDto {
   @IsOptional()
   @IsObject()
   meta?: Record<string, any>;
+
+  @IsOptional()
+  @IsUUID()
+  workspaceAreaId?: string | null;
 }
 

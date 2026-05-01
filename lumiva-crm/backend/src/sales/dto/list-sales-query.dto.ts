@@ -24,6 +24,11 @@ export class ListSalesQueryDto {
   @IsString()
   search?: string;
 
+  /** Фильтр: продажи, привязанные к этому лиду */
+  @IsOptional()
+  @IsString()
+  leadId?: string;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

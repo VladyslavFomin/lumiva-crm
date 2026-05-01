@@ -149,7 +149,14 @@ export class DepartmentsService {
     id: string,
     data: UpdateDepartmentDto,
   ): Promise<Department> {
-    const department = await this.getOneForTenant(tenantId, id);
+    // Без relations: иначе при save() TypeORM может синхронизировать устаревшие
+    // manager / parent / staff / children и портить FK (500 при смене руководителя и т.д.).
+    const department = await this.repo.findOne({
+      where: { id, tenantId },
+    });
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
 
     // Проверяем, что не пытаемся сделать отдел родителем самого себя
     if (data.parentId === id) {
@@ -206,7 +213,12 @@ export class DepartmentsService {
    * Удалить отдел
    */
   async deleteForTenant(tenantId: string, id: string): Promise<void> {
-    const department = await this.getOneForTenant(tenantId, id);
+    const department = await this.repo.findOne({
+      where: { id, tenantId },
+    });
+    if (!department) {
+      throw new NotFoundException('Department not found');
+    }
 
     // Проверяем, есть ли дочерние отделы
     const children = await this.repo.find({

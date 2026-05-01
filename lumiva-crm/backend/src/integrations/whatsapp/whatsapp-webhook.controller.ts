@@ -9,12 +9,14 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { WhatsappWebhookService } from './whatsapp-webhook.service';
 
 /**
  * Публичные эндпоинты Meta WhatsApp Cloud API (без JWT).
  * URL для Meta: GET/POST /v1/webhooks/whatsapp/:connectionId
  */
+@SkipThrottle()
 @Controller('webhooks/whatsapp')
 export class WhatsappWebhookController {
   private readonly log = new Logger(WhatsappWebhookController.name);

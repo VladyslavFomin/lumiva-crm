@@ -15,6 +15,7 @@ export function normKey(s: string): string {
 }
 
 function addStaffToMatchSet(set: Set<string>, staff: StaffUser) {
+  if (staff.id?.trim()) set.add(normKey(staff.id));
   if (staff.fullName?.trim()) set.add(normKey(staff.fullName));
   if (staff.email?.trim()) set.add(normKey(staff.email));
 }
@@ -73,6 +74,7 @@ export async function buildDashboardTaskVisibility(opts: {
   const matchSet = new Set<string>();
   if (userName?.trim()) matchSet.add(normKey(userName));
   if (userEmail?.trim()) matchSet.add(normKey(userEmail));
+  if (staffId?.trim()) matchSet.add(normKey(staffId));
   if (me) addStaffToMatchSet(matchSet, me);
 
   if (!me?.id) {

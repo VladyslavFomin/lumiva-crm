@@ -8,7 +8,7 @@ export type EmailOAuthStatePayload = {
 };
 
 function oauthSecret(): string {
-  return process.env.JWT_SECRET || 'changeme';
+  return process.env.JWT_SECRET!;
 }
 
 export function encodeEmailOAuthState(payload: EmailOAuthStatePayload): string {

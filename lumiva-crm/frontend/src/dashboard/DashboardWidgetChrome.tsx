@@ -27,6 +27,7 @@ function DropInsertGlow({ position }: { position: 'before' | 'after' }) {
 
 export const DashboardWidgetChrome: React.FC<{
   title: string;
+  sub?: string;
   size: WidgetSize;
   /** Колонок в сетке 12 (4–12), плавная ширина */
   colSpan?: number;
@@ -49,6 +50,7 @@ export const DashboardWidgetChrome: React.FC<{
   actions?: React.ReactNode;
 }> = ({
   title,
+  sub,
   size,
   colSpan: colSpanProp,
   heightPx,
@@ -117,35 +119,38 @@ export const DashboardWidgetChrome: React.FC<{
 
           <div className="relative z-10 p-4 md:p-5 flex flex-col min-h-0 h-full">
             <div className="flex items-start justify-between gap-2 mb-3 shrink-0">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <h2 className="text-sm font-semibold text-slate-800 tracking-tight truncate">{title}</h2>
-                {onEdit && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onEdit();
-                    }}
-                    draggable={false}
-                    title={t('crm.dashboard.widgets.editBlock')}
-                    className="shrink-0 opacity-0 cursor-pointer group-hover:opacity-100 transition-opacity rounded-lg p-1 text-slate-400 hover:text-lumiva-accent hover:bg-slate-100"
-                    aria-label={t('crm.dashboard.widgets.editBlock')}
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-slate-800 tracking-tight truncate">{title}</h2>
+                  {onEdit && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit();
+                      }}
+                      draggable={false}
+                      title={t('crm.dashboard.widgets.editBlock')}
+                      className="shrink-0 opacity-0 cursor-pointer group-hover:opacity-100 transition-opacity rounded-lg p-1 text-slate-400 hover:text-lumiva-accent hover:bg-slate-100"
+                      aria-label={t('crm.dashboard.widgets.editBlock')}
                     >
-                      <path d="M12 20h9" />
-                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                    </svg>
-                  </button>
-                )}
+                      <svg
+                        className="w-4 h-4"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+                {sub && <div className="text-[11.5px] text-slate-400 mt-0.5">{sub}</div>}
               </div>
               <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                 {actions}

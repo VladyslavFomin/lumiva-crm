@@ -1,5 +1,5 @@
 // src/pages/contacts/ContactsListPage.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -13,6 +13,13 @@ import {
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { fetchCompanies, type Company } from '../../api/companies';
 import { fetchLeads, isLeadInTrash, type Lead } from '../../api/leads';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
+import '../projects/ProjectsListPage.css';
+import {
+  OwnerAvatarsRow,
+  resolveContactManagerDisplay,
+} from '../../components/crm/OwnerAvatarsRow';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type ContactsCustomGroup = {
   id: string;
@@ -22,9 +29,23 @@ type ContactsCustomGroup = {
 
 const CONTACTS_GROUPS_KEY = 'contacts_custom_groups_v1';
 const CONTACTS_GROUP_ASSIGNMENTS_KEY = 'contacts_custom_group_assignments_v1';
+const CONTACTS_TABLE_COLUMNS_KEY = 'contacts_table_columns_v1';
+
+type ContactTableColId =
+  | 'contact'
+  | 'email'
+  | 'phone'
+  | 'company'
+  | 'manager'
+  | 'status'
+  | 'lead'
+  | 'group'
+  | 'tags'
+  | 'actions';
 
 export const ContactsListPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,6 +67,7 @@ export const ContactsListPage: React.FC = () => {
   const [dragOverGroupKey, setDragOverGroupKey] = useState<string | null>(null);
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
+  const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -104,7 +126,9 @@ export const ContactsListPage: React.FC = () => {
         return next;
       });
     } catch (err: any) {
-      alert(err.message || t('crm.contacts.list.errors.deleteFailed'));
+      showAlert(err.message || t('crm.contacts.list.errors.deleteFailed'), {
+        variant: 'error',
+      });
     }
   };
 
@@ -166,7 +190,9 @@ export const ContactsListPage: React.FC = () => {
       setContacts(data.items);
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.contacts.bulk.errors.updateFailed'));
+      showAlert(e.message || t('crm.contacts.bulk.errors.updateFailed'), {
+        variant: 'error',
+      });
     } finally {
       setBulkSaving(false);
     }
@@ -177,6 +203,190 @@ export const ContactsListPage: React.FC = () => {
     staff.forEach((member) => map.set(member.id, member.fullName || member.email));
     return map;
   }, [staff]);
+
+  const contactColumnDefs = useMemo((): { id: ContactTableColId; label: string }[] => {
+    return [
+      { id: 'contact', label: t('crm.contacts.list.table.contact') },
+      { id: 'email', label: 'E-mail' },
+      { id: 'phone', label: t('crm.contacts.form.fields.phone') },
+      { id: 'company', label: t('crm.contacts.form.fields.company') },
+      { id: 'manager', label: t('crm.contacts.list.table.manager') },
+      { id: 'status', label: t('crm.contacts.form.fields.status') },
+      { id: 'lead', label: t('crm.contacts.list.table.lead') },
+      { id: 'group', label: t('crm.contacts.list.table.group') },
+      { id: 'tags', label: t('crm.contacts.bulk.tags') },
+      { id: 'actions', label: t('crm.projects.tasks.table.headers.actions') },
+    ];
+  }, [t]);
+
+  const orderedContactColumns = useMemo(() => {
+    if (!contactColumnDefs.length) return [];
+    const map = new Map(contactColumnDefs.map((col) => [col.id, col]));
+    const order =
+      columnOrder.length > 0 ? columnOrder : contactColumnDefs.map((col) => col.id);
+    const result: typeof contactColumnDefs = [];
+    order.forEach((id) => {
+      const col = map.get(id as ContactTableColId);
+      if (col) result.push(col);
+    });
+    contactColumnDefs.forEach((col) => {
+      if (!result.find((r) => r.id === col.id)) result.push(col);
+    });
+    return result;
+  }, [contactColumnDefs, columnOrder]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CONTACTS_TABLE_COLUMNS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.order)) setColumnOrder(parsed.order);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CONTACTS_TABLE_COLUMNS_KEY, JSON.stringify({ order: columnOrder }));
+    } catch {
+      // ignore
+    }
+  }, [columnOrder]);
+
+  useEffect(() => {
+    if (!contactColumnDefs.length) return;
+    setColumnOrder((prev) => {
+      if (!prev.length) return contactColumnDefs.map((c) => c.id);
+      const ids = contactColumnDefs.map((c) => c.id);
+      const filtered = prev.filter((id) => ids.includes(id as ContactTableColId));
+      const missing = ids.filter((cid) => !filtered.includes(cid));
+      return [...filtered, ...missing];
+    });
+  }, [contactColumnDefs]);
+
+  const reorderColumns = useCallback((dragId: string, targetId: string) => {
+    setColumnOrder((prev) => {
+      const next = [...prev];
+      const from = next.indexOf(dragId);
+      const to = next.indexOf(targetId);
+      if (from === -1 || to === -1) return prev;
+      next.splice(from, 1);
+      next.splice(to, 0, dragId);
+      return next;
+    });
+  }, []);
+
+  const { getThProps, draggingColumnKey, columnDragOverKey } =
+    useWorkspaceStyleColumnDrag(reorderColumns, 'light');
+
+  const contactColClass = (colId: ContactTableColId): string =>
+    colId === 'contact'
+      ? 'lv-tcol-name'
+      : colId === 'actions'
+        ? 'lv-tcol-actions'
+        : 'lv-tcol-center';
+
+  const renderContactCellContent = (
+    contact: Contact,
+    colId: ContactTableColId,
+    fullName: string,
+  ): React.ReactNode => {
+    switch (colId) {
+      case 'contact':
+        return <span className="text-[12.5px] font-medium text-[var(--ink)]">{fullName}</span>;
+      case 'email':
+        return <span className="text-[12.5px] text-[var(--ink)]">{contact.email || '—'}</span>;
+      case 'phone':
+        return <span className="text-[12.5px] text-[var(--ink)]">{contact.phone || '—'}</span>;
+      case 'company':
+        return contact.companyId ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/app/companies/${contact.companyId}`);
+            }}
+            className="text-lumiva-accent hover:underline text-[12.5px]"
+          >
+            {companiesMap[contact.companyId]?.name ||
+              contact.company ||
+              t('crm.contacts.list.groups.noCompany')}
+          </button>
+        ) : (
+          <span className="text-[12.5px] text-[var(--ink)]">{contact.company || '—'}</span>
+        );
+      case 'manager': {
+        const items = resolveContactManagerDisplay(contact, staff);
+        return items.length ? (
+          <OwnerAvatarsRow items={items} readOnly />
+        ) : (
+          <span className="text-[var(--fg-3)]">—</span>
+        );
+      }
+      case 'status':
+        return <span className="text-[12.5px] text-[var(--ink)]">{contact.status || '—'}</span>;
+      case 'lead':
+        return leadByContactId[contact.id] ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/app/leads/${leadByContactId[contact.id].id}`);
+            }}
+            className="lv-cell-pill"
+          >
+            <span className="dot" style={{ background: '#60a5fa' }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {leadByContactId[contact.id].name || t('crm.contacts.list.table.openLead')}
+            </span>
+          </button>
+        ) : (
+          <span className="text-[var(--fg-3)]">—</span>
+        );
+      case 'group':
+        return groupMode === 'custom' ? (
+          <select
+            value={contactGroupMap[contact.id] || ''}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              e.stopPropagation();
+              assignContactGroup(contact.id, e.target.value);
+            }}
+            className="w-full rounded-md border border-[var(--line-2)] bg-white px-2 py-1 text-[11px] text-[var(--ink)] outline-none"
+          >
+            <option value="">{t('crm.contacts.list.groups.ungrouped')}</option>
+            {customGroupsOrdered.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <span className="text-[var(--fg-3)]">—</span>
+        );
+      case 'tags':
+        return (
+          <span className="text-[12.5px] text-[var(--fg-2)]">
+            {contact.tags?.length ? contact.tags.join(', ') : '—'}
+          </span>
+        );
+      case 'actions':
+        return (
+          <button
+            type="button"
+            onClick={(e) => handleDelete(contact.id, e)}
+            className="lv-tb-btn"
+            style={{ fontSize: 10, padding: '4px 8px', color: '#b91c1c', borderColor: '#fecaca' }}
+          >
+            {t('crm.contacts.list.delete')}
+          </button>
+        );
+      default:
+        return null;
+    }
+  };
 
   useEffect(() => {
     try {
@@ -344,195 +554,278 @@ export const ContactsListPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-4">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+      <div
+        className="lv-pt w-full pb-8 min-w-0"
+        style={{
+          marginLeft: -24,
+          marginRight: -24,
+          paddingLeft: 24,
+          paddingRight: 24,
+          width: 'calc(100% + 48px)',
+        }}
+      >
+        <div className="lv-pt-head">
           <div>
-            <h1 className="text-lg font-semibold text-slate-50">{t('crm.contacts.list.title')}</h1>
-            <div className="text-[11px] text-slate-500">
+            <h1>{t('crm.contacts.list.title')}</h1>
+            <div className="sub">
               {t('crm.contacts.list.subtitle')}
               {selectedIds.size > 0 && (
-                <span className="ml-2 text-lumiva-accent">
+                <span className="ml-2" style={{ color: 'var(--ink)' }}>
                   ({selectedIds.size} {t('crm.contacts.list.selected')})
                 </span>
               )}
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="lv-pt-head-actions">
             {selectedIds.size > 0 && (
-              <button
-                onClick={() => setBulkModalOpen(true)}
-                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-300 hover:text-slate-50 hover:border-slate-600 transition-colors"
-              >
+              <button type="button" onClick={() => setBulkModalOpen(true)} className="lv-tb-btn">
                 {t('crm.contacts.list.bulkOperations')} ({selectedIds.size})
               </button>
             )}
             <button
+              type="button"
               onClick={handleCreate}
-              className="px-3 py-1.5 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft transition-colors"
+              className="lv-tb-btn"
+              style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
             >
               + {t('crm.contacts.list.create')}
             </button>
           </div>
         </div>
 
-        {/* Поиск + группировка */}
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
-          <div className="grid gap-2 md:grid-cols-[1fr_220px]">
-            <input
-              type="text"
-              placeholder={t('crm.contacts.list.search')}
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-            />
-            <select
-              value={groupMode}
-              onChange={(e) => setGroupMode(e.target.value as 'none' | 'company' | 'status' | 'manager' | 'custom')}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-slate-500"
-            >
-              <option value="company">{t('crm.contacts.list.groupMode.company')}</option>
-              <option value="status">{t('crm.contacts.list.groupMode.status')}</option>
-              <option value="manager">{t('crm.contacts.list.groupMode.manager')}</option>
-              <option value="custom">{t('crm.contacts.list.groupMode.custom')}</option>
-              <option value="none">{t('crm.contacts.list.groupMode.none')}</option>
-            </select>
-          </div>
-          {groupMode === 'custom' && (
-            <div className="mt-2 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={createCustomGroup}
-                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-200 hover:bg-slate-900/80"
-              >
-                + {t('crm.contacts.list.groups.new')}
-              </button>
-              {customGroupsOrdered.map((group) => (
-                <div
-                  key={group.id}
-                  draggable
-                  onDragStart={(e) => {
-                    setDraggingGroupId(group.id);
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/plain', group.id);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragOverGroupId(group.id);
-                  }}
-                  onDragLeave={() => {
-                    setDragOverGroupId((prev) => (prev === group.id ? null : prev));
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    if (!draggingGroupId) return;
-                    reorderCustomGroups(draggingGroupId, group.id);
-                    setDraggingGroupId(null);
-                    setDragOverGroupId(null);
-                  }}
-                  onDragEnd={() => {
-                    setDraggingGroupId(null);
-                    setDragOverGroupId(null);
-                  }}
-                  className={`inline-flex items-center gap-1 rounded-xl border px-2 py-1 ${
-                    dragOverGroupId === group.id
-                      ? 'border-lumiva-accent bg-slate-900/80'
-                      : 'border-slate-700'
-                  }`}
-                >
-                  <span className="text-[11px] text-slate-300">{group.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => moveCustomGroup(group.id, 'up')}
-                    className="text-[10px] text-slate-400 hover:text-slate-200"
-                    aria-label="move up"
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveCustomGroup(group.id, 'down')}
-                    className="text-[10px] text-slate-400 hover:text-slate-200"
-                    aria-label="move down"
-                  >
-                    ↓
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => renameCustomGroup(group.id)}
-                    className="text-[10px] text-slate-400 hover:text-slate-200"
-                  >
-                    {t('crm.contacts.list.groups.renameShort')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteCustomGroup(group.id)}
-                    className="text-[10px] text-rose-400 hover:text-rose-300"
-                  >
-                    {t('crm.contacts.list.groups.deleteShort')}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Ошибка */}
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-[8px] px-3 py-2 mb-[14px]">
             {error}
           </div>
         )}
 
-        {/* Загрузка */}
         {loading ? (
-          <div className="text-center py-12 text-xs text-slate-400">{t('crm.contacts.list.loading')}</div>
+          <div className="text-[12px] text-slate-400 mb-[14px]">{t('crm.contacts.list.loading')}</div>
         ) : contacts.length === 0 ? (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-8 text-center">
-            <div className="text-xs text-slate-400">
+          <div
+            className="rounded-[10px] border p-8 text-center"
+            style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
+          >
+            <div className="text-[12px] text-[var(--fg-3)]">
               {search ? t('crm.contacts.list.notFound') : t('crm.contacts.list.empty')}
             </div>
             {!search && (
               <button
+                type="button"
                 onClick={handleCreate}
-                className="mt-4 px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft transition-colors"
+                className="mt-4 lv-tb-btn"
+                style={{ background: '#222', color: '#fff', borderColor: '#222', borderRadius: 8 }}
               >
                 {t('crm.contacts.list.createFirst')}
               </button>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
-            {/* Чекбокс "Выбрать все" */}
-            {contacts.length > 0 && (
-              <div className="flex items-center gap-2 px-2">
+          <>
+            <div className="lv-toolbar">
+              <div className="lv-tb-search" style={{ flex: '1 1 180px', maxWidth: 320 }}>
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  style={{ color: 'var(--fg-4)', flexShrink: 0 }}
+                  aria-hidden
+                >
+                  <circle cx="6.5" cy="6.5" r="5.5" />
+                  <path d="M11 11l3.5 3.5" />
+                </svg>
                 <input
-                  type="checkbox"
-                  checked={selectedIds.size === contacts.length && contacts.length > 0}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-lumiva-accent focus:ring-lumiva-accent"
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t('crm.contacts.list.search')}
                 />
-                <span className="text-xs text-slate-400">
-                  {t('crm.common.selectAll')} ({contacts.length})
-                </span>
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    style={{
+                      background: 'none',
+                      border: 0,
+                      cursor: 'pointer',
+                      color: 'var(--fg-3)',
+                      fontSize: 14,
+                      padding: 0,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
-            )}
 
-            <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-3 overflow-x-auto">
-              <table className="min-w-[900px] w-full text-xs border-separate border-spacing-y-1">
-                <thead className="text-slate-500">
+              <div className="lv-toolbar-divider" />
+
+              <label className="lv-tb-select">
+                <span className="lbl">{t('crm.leads.list.groupMode.label')}:</span>
+                <select
+                  value={groupMode}
+                  onChange={(e) =>
+                    setGroupMode(e.target.value as 'none' | 'company' | 'status' | 'manager' | 'custom')
+                  }
+                >
+                  <option value="company">{t('crm.contacts.list.groupMode.company')}</option>
+                  <option value="status">{t('crm.contacts.list.groupMode.status')}</option>
+                  <option value="manager">{t('crm.contacts.list.groupMode.manager')}</option>
+                  <option value="custom">{t('crm.contacts.list.groupMode.custom')}</option>
+                  <option value="none">{t('crm.contacts.list.groupMode.none')}</option>
+                </select>
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ color: 'var(--fg-3)', flexShrink: 0 }}
+                  aria-hidden
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </label>
+
+              {groupMode === 'custom' && (
+                <>
+                  <div className="lv-toolbar-divider" />
+                  <button type="button" className="lv-tb-btn" onClick={createCustomGroup}>
+                    + {t('crm.contacts.list.groups.new')}
+                  </button>
+                  {customGroupsOrdered.map((group) => (
+                    <div
+                      key={group.id}
+                      draggable
+                      onDragStart={(e) => {
+                        setDraggingGroupId(group.id);
+                        e.dataTransfer.effectAllowed = 'move';
+                        e.dataTransfer.setData('text/plain', group.id);
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setDragOverGroupId(group.id);
+                      }}
+                      onDragLeave={() => {
+                        setDragOverGroupId((prev) => (prev === group.id ? null : prev));
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        if (!draggingGroupId) return;
+                        reorderCustomGroups(draggingGroupId, group.id);
+                        setDraggingGroupId(null);
+                        setDragOverGroupId(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingGroupId(null);
+                        setDragOverGroupId(null);
+                      }}
+                      className="lv-tb-btn"
+                      style={{
+                        borderColor: dragOverGroupId === group.id ? 'var(--ink)' : undefined,
+                      }}
+                    >
+                      <span style={{ fontSize: 11 }}>{group.name}</span>
+                      <button
+                        type="button"
+                        className="lv-tb-btn"
+                        style={{ padding: '2px 6px', fontSize: 10 }}
+                        onClick={() => moveCustomGroup(group.id, 'up')}
+                      >
+                        ↑
+                      </button>
+                      <button
+                        type="button"
+                        className="lv-tb-btn"
+                        style={{ padding: '2px 6px', fontSize: 10 }}
+                        onClick={() => moveCustomGroup(group.id, 'down')}
+                      >
+                        ↓
+                      </button>
+                      <button
+                        type="button"
+                        className="lv-tb-btn"
+                        style={{ padding: '2px 6px', fontSize: 10 }}
+                        onClick={() => renameCustomGroup(group.id)}
+                      >
+                        {t('crm.contacts.list.groups.renameShort')}
+                      </button>
+                      <button
+                        type="button"
+                        className="lv-tb-btn"
+                        style={{ padding: '2px 6px', fontSize: 10, color: '#b91c1c' }}
+                        onClick={() => deleteCustomGroup(group.id)}
+                      >
+                        {t('crm.contacts.list.groups.deleteShort')}
+                      </button>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+
+            <div className="lv-proj-wrap">
+            <div className="lv-proj-scroll">
+              <table className="lv-proj-table lv-leads-table min-w-[900px]">
+                <thead>
                   <tr>
-                    <th className="px-2 py-1 w-10" />
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.contact')}</th>
-                    <th className="px-2 py-1 text-left">E-mail</th>
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.form.fields.phone')}</th>
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.form.fields.company')}</th>
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.manager')}</th>
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.form.fields.status')}</th>
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.lead')}</th>
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.list.table.group')}</th>
-                    <th className="px-2 py-1 text-left">{t('crm.contacts.bulk.tags')}</th>
-                    <th className="px-2 py-1 text-right">{t('crm.projects.tasks.table.headers.actions')}</th>
+                    <th className="lv-col-check">
+                      <button
+                        type="button"
+                        className={`lv-checkbox${
+                          contacts.length > 0 && selectedIds.size === contacts.length
+                            ? ' checked'
+                            : selectedIds.size > 0
+                              ? ' indet'
+                              : ''
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectAll();
+                        }}
+                        role="checkbox"
+                        aria-checked={contacts.length > 0 && selectedIds.size === contacts.length}
+                      >
+                        {selectedIds.size > 0 && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                            <path d="M5 12l4 4 10-10" />
+                          </svg>
+                        )}
+                      </button>
+                    </th>
+                    {orderedContactColumns.map((col) => {
+                      const isDragging = draggingColumnKey === col.id;
+                      const isDropTarget = columnDragOverKey === col.id && !isDragging;
+                      return (
+                        <th
+                          key={col.id}
+                          {...(() => {
+                            const props = getThProps(col.id, col.label, '');
+                            const { className: _c, ...rest } = props as any;
+                            return rest;
+                          })()}
+                          className={[
+                            isDragging ? 'lv-col-dragging' : '',
+                            isDropTarget ? 'lv-col-drop-target' : '',
+                            contactColClass(col.id),
+                          ]
+                            .filter(Boolean)
+                            .join(' ')}
+                        >
+                          <span className="lv-th-inner">
+                            <span className="lv-th-grip">⋮⋮</span>
+                            {col.label}
+                          </span>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody>
@@ -541,7 +834,12 @@ export const ContactsListPage: React.FC = () => {
                     return (
                       <React.Fragment key={group.key}>
                         <tr
-                          className={`bg-slate-900/80 ${groupMode === 'custom' && dragOverGroupKey === group.key ? 'ring-1 ring-lumiva-accent/70' : ''}`}
+                          className="lv-proj-group-row"
+                          style={
+                            groupMode === 'custom' && dragOverGroupKey === group.key
+                              ? { boxShadow: 'inset 0 0 0 2px rgba(59, 130, 246, 0.35)' }
+                              : undefined
+                          }
                           onDragOver={(e) => {
                             if (groupMode !== 'custom' || !draggingContactId) return;
                             e.preventDefault();
@@ -562,16 +860,22 @@ export const ContactsListPage: React.FC = () => {
                             setDragOverGroupKey(null);
                           }}
                         >
-                          <td colSpan={11} className="px-3 py-2 text-slate-200">
-                            <button
-                              type="button"
-                              onClick={() => toggleGroup(group.key)}
-                              className="flex items-center gap-2 text-[12px]"
-                            >
-                              <span className="text-[10px]">{collapsed ? '▶' : '▼'}</span>
-                              <span>{group.label}</span>
-                              <span className="text-slate-400">{group.items.length}</span>
-                            </button>
+                          <td colSpan={1 + orderedContactColumns.length}>
+                            <div className="lv-proj-group-inner">
+                              <button
+                                type="button"
+                                className={`lv-group-toggle${collapsed ? ' collapsed' : ''}`}
+                                onClick={() => toggleGroup(group.key)}
+                              >
+                                <svg viewBox="0 0 12 12" width="12" height="12" aria-hidden>
+                                  <path d="M2.5 4.5L6 8L9.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </button>
+                              <span style={{ fontWeight: 500, fontSize: 12.5, color: 'var(--ink)' }}>
+                                {group.label}
+                              </span>
+                              <span className="lv-group-meta">{group.items.length}</span>
+                            </div>
                           </td>
                         </tr>
                         {!collapsed &&
@@ -583,11 +887,7 @@ export const ContactsListPage: React.FC = () => {
                             return (
                               <tr
                                 key={contact.id}
-                                className={`cursor-pointer ${
-                                  selectedIds.has(contact.id)
-                                    ? 'bg-slate-800/90'
-                                    : 'bg-slate-950/80 hover:bg-slate-900/80'
-                                }`}
+                                className={`lv-proj-row${selectedIds.has(contact.id) ? ' selected' : ''}`}
                                 onClick={() => handleOpen(contact.id)}
                                 draggable={groupMode === 'custom'}
                                 onDragStart={(e) => {
@@ -601,95 +901,45 @@ export const ContactsListPage: React.FC = () => {
                                   setDragOverGroupKey(null);
                                 }}
                               >
-                                <td className="px-2 py-1.5">
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedIds.has(contact.id)}
-                                    onChange={(e) => {
-                                      e.stopPropagation();
-                                      handleToggleSelect(contact.id);
-                                    }}
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                </td>
-                                <td className="px-2 py-1.5 text-slate-100">{fullName}</td>
-                                <td className="px-2 py-1.5 text-slate-400">{contact.email || '-'}</td>
-                                <td className="px-2 py-1.5 text-slate-400">{contact.phone || '-'}</td>
-                                <td className="px-2 py-1.5 text-slate-400">
-                                  {contact.companyId ? (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/app/companies/${contact.companyId}`);
-                                      }}
-                                      className="text-sky-300 hover:text-sky-200 hover:underline"
-                                    >
-                                      {companiesMap[contact.companyId]?.name ||
-                                        contact.company ||
-                                        t('crm.contacts.list.groups.noCompany')}
-                                    </button>
-                                  ) : (
-                                    contact.company || '-'
-                                  )}
-                                </td>
-                                <td className="px-2 py-1.5 text-slate-400">
-                                  {contact.assignedTo ||
-                                    (contact.assignedUserId
-                                      ? managerLabelById.get(contact.assignedUserId) || '-'
-                                      : '-')}
-                                </td>
-                                <td className="px-2 py-1.5 text-slate-300">{contact.status || '-'}</td>
-                                <td className="px-2 py-1.5 text-slate-400">
-                                  {leadByContactId[contact.id] ? (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        navigate(`/app/leads/${leadByContactId[contact.id].id}`);
-                                      }}
-                                      className="text-sky-300 hover:text-sky-200 hover:underline"
-                                    >
-                                      {leadByContactId[contact.id].name ||
-                                        t('crm.contacts.list.table.openLead')}
-                                    </button>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </td>
-                                <td className="px-2 py-1.5 text-slate-400">
-                                  {groupMode === 'custom' ? (
-                                    <select
-                                      value={contactGroupMap[contact.id] || ''}
-                                      onClick={(e) => e.stopPropagation()}
-                                      onChange={(e) => {
-                                        e.stopPropagation();
-                                        assignContactGroup(contact.id, e.target.value);
-                                      }}
-                                      className="w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-200 outline-none"
-                                    >
-                                      <option value="">{t('crm.contacts.list.groups.ungrouped')}</option>
-                                      {customGroupsOrdered.map((group) => (
-                                        <option key={group.id} value={group.id}>
-                                          {group.name}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  ) : (
-                                    '-'
-                                  )}
-                                </td>
-                                <td className="px-2 py-1.5 text-slate-500">
-                                  {contact.tags?.length ? contact.tags.join(', ') : '-'}
-                                </td>
-                                <td className="px-2 py-1.5 text-right">
+                                <td className="lv-col-check" onClick={(e) => e.stopPropagation()}>
                                   <button
-                                    onClick={(e) => handleDelete(contact.id, e)}
-                                    className="text-red-400 hover:text-red-300 text-[10px] px-2 py-1 hover:bg-red-950/30 rounded-lg transition-colors"
+                                    type="button"
+                                    className={`lv-checkbox${selectedIds.has(contact.id) ? ' checked' : ''}`}
+                                    onClick={() => handleToggleSelect(contact.id)}
+                                    role="checkbox"
+                                    aria-checked={selectedIds.has(contact.id)}
                                   >
-                                    {t('crm.contacts.list.delete')}
+                                    {selectedIds.has(contact.id) && (
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                        <path d="M5 12l4 4 10-10" />
+                                      </svg>
+                                    )}
                                   </button>
                                 </td>
+                                {orderedContactColumns.map((col) => (
+                                  <td
+                                    key={col.id}
+                                    className={[
+                                      ['manager', 'lead', 'group', 'actions'].includes(col.id)
+                                        ? 'lv-td-popover'
+                                        : '',
+                                      contactColClass(col.id),
+                                    ]
+                                      .filter(Boolean)
+                                      .join(' ')}
+                                    onClick={(e) => {
+                                      if (
+                                        ['manager', 'lead', 'group', 'actions', 'company'].includes(
+                                          col.id,
+                                        )
+                                      ) {
+                                        e.stopPropagation();
+                                      }
+                                    }}
+                                  >
+                                    {renderContactCellContent(contact, col.id, fullName)}
+                                  </td>
+                                ))}
                               </tr>
                             );
                           })}
@@ -699,7 +949,16 @@ export const ContactsListPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            <div className="lv-proj-foot">
+              <div className="lv-proj-foot-stats">
+                <span>
+                  <span className="lbl">{t('crm.leads.list.footerTotal')}:</span>
+                  <strong>{contacts.length}</strong>
+                </span>
+              </div>
+            </div>
           </div>
+          </>
         )}
         {groupMode === 'custom' && draggingContactId && (
           <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-slate-700 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-200 shadow-xl">

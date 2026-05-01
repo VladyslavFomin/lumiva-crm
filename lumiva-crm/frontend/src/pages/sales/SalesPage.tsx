@@ -1,9 +1,10 @@
 // src/pages/sales/SalesPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { translateSaleStatus } from './saleStatusI18n';
 import { MainLayout } from '../../layout/MainLayout';
 import { getStoredUser } from '../../auth/session';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   fetchSales,
   fetchSalesStats,
@@ -24,6 +25,8 @@ import {
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { AutomationPanel } from '../../components/AutomationPanel';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
+import { SalesStatusPillSelect } from './SalesStatusPillSelect';
 
 /* ─────────────────────────────── */
 /* Локальные типы для фильтров     */
@@ -45,6 +48,43 @@ type SalesListResponse = {
   page: number;
   pageSize: number;
 };
+
+/** Числовой ID заказа на стороне WP/Woo (без UUID CRM). */
+function saleWpNumericId(sale: Sale): string | null {
+  const on = sale.externalOrderNo?.trim();
+  if (on && /^\d+$/.test(on)) return on;
+  const ext = sale.externalId?.trim();
+  if (ext && /^\d+$/.test(ext)) return ext;
+  return null;
+}
+
+const UUID_LIKE =
+  /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+
+function looksUuidLike(s: string): boolean {
+  return UUID_LIKE.test(s.trim());
+}
+
+/** Домен + подпись интеграции (не показываем UUID канала). */
+function saleChannelLines(
+  sale: Sale,
+  channelsList: SalesChannel[],
+): { site: string | null; integration: string | null } {
+  let site = sale.channelSiteLabel?.trim() || null;
+  let integration = sale.channelIntegrationLabel?.trim() || null;
+
+  const ch = channelsList.find((c) => c.id === sale.channelId);
+  if (!site && ch?.name?.trim()) {
+    const n = ch.name.trim();
+    if (!looksUuidLike(n)) site = n;
+  }
+  if (!integration && ch?.integrationName?.trim()) {
+    const n = ch.integrationName.trim();
+    if (!looksUuidLike(n)) integration = n;
+  }
+
+  return { site, integration };
+}
 
 export const SalesPage: React.FC = () => {
   const { t } = useTranslation();
@@ -90,7 +130,6 @@ export const SalesPage: React.FC = () => {
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     startX: number;
@@ -215,7 +254,6 @@ export const SalesPage: React.FC = () => {
       { id: 'customer', label: t('crm.sales.list.headers.customer') },
       { id: 'amount', label: t('crm.sales.list.headers.amount') },
       { id: 'status', label: t('crm.sales.list.headers.status') },
-      { id: 'purchaseDate', label: t('crm.sales.list.headers.purchaseDate') },
       { id: 'productLink', label: t('crm.sales.list.headers.productLink') },
     ],
     [t],
@@ -348,19 +386,19 @@ export const SalesPage: React.FC = () => {
     });
   };
 
-  const handleColumnDrop = (targetId: string) => {
-    if (!dragColumnId || dragColumnId === targetId) return;
+  const reorderColumns = useCallback((dragId: string, targetId: string) => {
     setColumnOrder((prev) => {
       const next = [...prev];
-      const from = next.indexOf(dragColumnId);
+      const from = next.indexOf(dragId);
       const to = next.indexOf(targetId);
       if (from === -1 || to === -1) return prev;
       next.splice(from, 1);
-      next.splice(to, 0, dragColumnId);
+      next.splice(to, 0, dragId);
       return next;
     });
-    setDragColumnId(null);
-  };
+  }, []);
+
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'dark');
 
   const renderCustomFieldCell = (sale: Sale, field: CustomField) => {
     const value = sale.customFields?.[field.key];
@@ -453,52 +491,47 @@ export const SalesPage: React.FC = () => {
       ? new Date(created).toLocaleString(locale)
       : t('crm.sales.common.empty');
 
-    const channelLabel =
-      (sale as any).channelName || sale.channelId || t('crm.sales.common.empty');
+    const { site: channelSite, integration: channelIntegration } =
+      saleChannelLines(sale, channels);
     const productName = sale.hotel || t('crm.sales.common.empty');
     const marketLabel = sale.market;
     const clientName =
       sale.guestName || sale.agentName || t('crm.sales.common.empty');
     const clientCompany =
       sale.guestName && sale.agentName ? sale.agentName : null;
-    const notes =
-      typeof sale.notes === 'string' ? sale.notes.trim() : '';
-    const productUrl =
-      notes && /^https?:\/\//i.test(notes) ? notes : undefined;
-
     switch (column.id) {
       case 'date':
         return <span className="text-slate-100">{fmtDateTime}</span>;
-      case 'id':
+      case 'id': {
+        const wpId = saleWpNumericId(sale);
         return (
-          <div className="flex flex-col">
-            <span className="font-mono text-[11px] text-slate-300">{sale.id}</span>
-            {sale.externalId && (
-              <span className="font-mono text-[10px] text-slate-500">
-                {sale.externalId}
-              </span>
-            )}
-          </div>
+          <span className="font-mono text-[11px] text-slate-300 tabular-nums">
+            {wpId ?? '—'}
+          </span>
         );
+      }
       case 'channel':
         return (
-          <div className="flex flex-col text-slate-300">
-            <span>{channelLabel}</span>
-            {sale.managerName && (
-              <input
-                value={sale.managerName}
-                onChange={(e) =>
-                  updateSaleInline(
-                    sale.id,
-                    { managerName: e.target.value },
-                    { managerName: e.target.value || null },
-                  )
-                }
-                onClick={(e) => e.stopPropagation()}
-                className="mt-1 w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[10px] text-slate-400"
-                placeholder={t('crm.sales.list.manager')}
-              />
+          <div className="flex flex-col text-slate-300 gap-0.5">
+            {channelSite || channelIntegration ? (
+              <>
+                {channelSite ? (
+                  <span className="text-slate-200">{channelSite}</span>
+                ) : null}
+                {channelIntegration ? (
+                  <span className="text-[10px] text-slate-500 leading-tight">
+                    {channelIntegration}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-slate-500">{t('crm.sales.common.empty')}</span>
             )}
+            {sale.managerName ? (
+              <span className="text-[10px] text-slate-500 mt-0.5">
+                {t('crm.sales.list.manager')}: {sale.managerName}
+              </span>
+            ) : null}
           </div>
         );
       case 'product':
@@ -532,48 +565,49 @@ export const SalesPage: React.FC = () => {
         );
       case 'status':
         return (
-          <select
+          <SalesStatusPillSelect
             value={sale.status}
-            onChange={(e) =>
+            labels={statusLabels}
+            onChange={(next) =>
               updateSaleInline(
                 sale.id,
-                { status: e.target.value as SaleStatus },
-                { status: e.target.value as SaleStatus },
+                { status: next },
+                { status: next },
               )
             }
-            onClick={(e) => e.stopPropagation()}
-            className="w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-200"
-          >
-            {(['new', 'pending', 'confirmed', 'cancelled', 'refunded', 'other'] as SaleStatus[]).map(
-              (s) => (
-                <option key={s} value={s}>
-                  {statusLabels[s]}
-                </option>
-              ),
+          />
+        );
+      case 'productLink': {
+        const wooAdminUrl = sale.wooAdminEditUrl;
+        const openLabel = t('crm.sales.list.openInWpAdmin');
+        const linkClasses =
+          'inline-flex items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-lg border border-slate-800 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-slate-900 hover:text-white hover:border-slate-900 max-w-none';
+        return (
+          <div className="flex flex-col gap-1 items-start min-w-0">
+            {wooAdminUrl ? (
+              <a
+                href={wooAdminUrl}
+                target="_blank"
+                rel="noreferrer"
+                className={linkClasses}
+                title={wooAdminUrl}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {openLabel}
+              </a>
+            ) : (
+              <Link
+                to={`/app/sales/${sale.id}`}
+                className={linkClasses}
+                title={`/app/sales/${sale.id}`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {openLabel}
+              </Link>
             )}
-          </select>
+          </div>
         );
-      case 'purchaseDate':
-        return <span className="text-slate-400">{fmtDateTime}</span>;
-      case 'productLink':
-        return productUrl ? (
-          <a
-            href={productUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-lumiva-accent hover:underline truncate inline-block max-w-[190px]"
-            title={productUrl}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {t('crm.sales.list.openProduct')}
-          </a>
-        ) : notes ? (
-          <span className="truncate inline-block max-w-[190px]" title={notes}>
-            {notes}
-          </span>
-        ) : (
-          t('crm.sales.common.empty')
-        );
+      }
       default:
         if (column.field) return renderCustomFieldCell(sale, column.field);
         return null;
@@ -827,33 +861,29 @@ export const SalesPage: React.FC = () => {
                                   ? 140
                                   : col.id === 'status'
                                     ? 160
-                                    : col.id === 'purchaseDate'
-                                      ? 170
-                                      : col.id === 'productLink'
-                                        ? 200
-                                        : 180;
+                                    : col.id === 'productLink'
+                                      ? 270
+                                      : 180;
                     const width = getColumnWidth(col.id, fallback);
                     return (
                       <th
                         key={col.id}
-                        draggable
-                        onDragStart={(e) => {
-                          setDragColumnId(col.id);
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('text/plain', col.id);
-                        }}
-                        onDragEnd={() => setDragColumnId(null)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => handleColumnDrop(col.id)}
-                        className="text-left font-normal px-2 py-1 relative group"
+                        {...columnDrag.getThProps(
+                          col.id,
+                          typeof col.label === 'string' ? col.label : String(col.label),
+                          'text-left font-normal px-2 py-1 relative group/colhdr select-none transition-colors duration-150',
+                        )}
                         style={{ width, minWidth: width }}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="cursor-move">⋮⋮</span>
+                        <div className="flex min-h-[28px] items-center gap-2">
+                          <span className="text-[10px] text-slate-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                            ⋮⋮
+                          </span>
                           <span>{col.label}</span>
                         </div>
                         <div
-                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                          data-col-resize
+                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover/colhdr:opacity-100"
                           onMouseDown={(e) => startResize(col.id, e)}
                         />
                       </th>
@@ -884,10 +914,8 @@ export const SalesPage: React.FC = () => {
                                     ? 140
                                     : col.id === 'status'
                                       ? 160
-                                      : col.id === 'purchaseDate'
-                                        ? 170
-                                        : col.id === 'productLink'
-                                          ? 200
+                                      : col.id === 'productLink'
+                                          ? 270
                                           : 180;
                       const width = getColumnWidth(col.id, fallback);
                       return (
@@ -1029,12 +1057,12 @@ const StatusPill: React.FC<{
 const StatusBarRow: React.FC<{
   stat: SalesStats['byStatus'][number];
 }> = ({ stat }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const locale = getLocale();
   const maxAmount = Math.max(stat.amount, 1);
   const width = Math.max(8, (stat.amount / maxAmount) * 100);
 
-  const statusLabel = t(`crm.sales.status.${stat.status}`);
+  const statusLabel = translateSaleStatus(t, i18n, stat.status);
 
   let color = 'from-slate-400 to-slate-300';
   if (stat.status === 'confirmed') color = 'from-emerald-400 to-lumiva-accent';
@@ -1091,140 +1119,5 @@ const CurrencyRowList: React.FC<{
         );
       })}
     </>
-  );
-};
-
-const SalesRow: React.FC<{ sale: Sale; onOpen: () => void }> = ({
-  sale,
-  onOpen,
-}) => {
-  const { t } = useTranslation();
-  const locale = getLocale();
-  const created = sale.saleDate || sale.createdAt;
-  const fmtDateTime = created
-    ? new Date(created).toLocaleString(locale)
-    : t('crm.sales.common.empty');
-
-  const statusLabel = t(`crm.sales.status.${sale.status}`);
-
-  let statusColor =
-    'border border-slate-500/35 bg-slate-500/20 text-slate-100';
-  if (sale.status === 'confirmed')
-    statusColor =
-      'border border-emerald-500/35 bg-emerald-200/40 text-emerald-950';
-  if (sale.status === 'pending')
-    statusColor =
-      'border border-amber-500/35 bg-amber-200/40 text-amber-950';
-  if (sale.status === 'cancelled' || sale.status === 'refunded')
-    statusColor =
-      'border border-rose-500/40 bg-rose-200/45 text-rose-950';
-
-  const channelLabel =
-    (sale as any).channelName || sale.channelId || t('crm.sales.common.empty');
-
-  // Товар: храним в поле hotel, рынок — в market
-  const productName = sale.hotel || t('crm.sales.common.empty');
-  const marketLabel = sale.market;
-
-  // Клиент: имя → guestName, компания/доп.инфо → agentName
-  const clientName =
-    sale.guestName || sale.agentName || t('crm.sales.common.empty');
-  const clientCompany =
-    sale.guestName && sale.agentName ? sale.agentName : null;
-
-  // Ссылка на товар: если в notes лежит URL — делаем кликабельной
-  const notes =
-    typeof sale.notes === 'string' ? sale.notes.trim() : '';
-  const productUrl =
-    notes && /^https?:\/\//i.test(notes) ? notes : undefined;
-
-  return (
-    <tr
-      className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors cursor-pointer"
-      onClick={onOpen}
-    >
-      <td className="px-2 py-1.5 text-slate-100 whitespace-nowrap">
-        {fmtDateTime}
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        <div className="flex flex-col">
-          <span className="font-mono text-[11px]">{sale.id}</span>
-          {sale.externalId && (
-            <span className="font-mono text-[10px] text-slate-500">
-              {sale.externalId}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        <div className="flex flex-col">
-            <span>{channelLabel}</span>
-          {sale.managerName && (
-            <span className="text-[10px] text-slate-500">
-              {t('crm.sales.list.manager')}: {sale.managerName}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        <div className="flex flex-col">
-          <span>{productName}</span>
-          {marketLabel && (
-            <span className="text-[10px] text-slate-500">
-              {t('crm.sales.list.market')}: {marketLabel}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        <div className="flex flex-col">
-          <span>{clientName}</span>
-          {clientCompany && (
-            <span className="text-[10px] text-slate-500">
-              {t('crm.sales.list.company')}: {clientCompany}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-1.5 text-right text-slate-100 whitespace-nowrap">
-        {sale.amount.toLocaleString(locale, {
-          maximumFractionDigits: 0,
-        })}{' '}
-        <span className="text-slate-400">{sale.currency}</span>
-      </td>
-      <td className="px-2 py-1.5 whitespace-nowrap">
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${statusColor}`}
-        >
-          {statusLabel}
-        </span>
-      </td>
-      <td className="px-2 py-1.5 text-slate-400 whitespace-nowrap">
-        {fmtDateTime}
-      </td>
-      <td className="px-2 py-1.5 text-slate-400 whitespace-nowrap max-w-[200px]">
-        {productUrl ? (
-          <a
-            href={productUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-lumiva-accent hover:underline truncate inline-block max-w-[190px]"
-            title={productUrl}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {t('crm.sales.list.openProduct')}
-          </a>
-        ) : notes ? (
-          <span
-            className="truncate inline-block max-w-[190px]"
-            title={notes}
-          >
-            {notes}
-          </span>
-        ) : (
-          t('crm.sales.common.empty')
-        )}
-      </td>
-    </tr>
   );
 };

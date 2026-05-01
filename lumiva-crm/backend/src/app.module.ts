@@ -3,6 +3,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
+import { RedisThrottlerStorage } from './common/redis-throttler.storage';
+import { BullModule } from '@nestjs/bullmq';
+import Redis from 'ioredis';
 
 // --- Модули ---
 import { SitesModule } from './sites/sites.module';
@@ -32,6 +38,7 @@ import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { SmmModule } from './smm/smm.module';
 import { CustomObjectsModule } from './custom-objects/custom-objects.module';
+import { WorkspaceAreasModule } from './workspace-areas/workspace-areas.module';
 import { PublicModule } from './public/public.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
@@ -39,9 +46,11 @@ import { PlatformSettingsModule } from './platform-settings/platform-settings.mo
 import { TelegramModule } from './telegram/telegram.module';
 import { BillingModule } from './billing/billing.module';
 import { AiModule } from './ai/ai.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 
 // --- CCP
 import { CcpModule } from './modules/ccp/ccp.module';
+import { EmbedFormsModule } from './embed-forms/embed-forms.module';
 
 // --- Chat ---
 import { OnlineChatModule } from './online-chat/online-chat.module';
@@ -83,6 +92,7 @@ import { CustomObjectField } from './custom-objects/custom-object-field.entity';
 import { CustomObjectRecord } from './custom-objects/custom-object-record.entity';
 import { CustomObjectView } from './custom-objects/custom-object-view.entity';
 import { CustomObjectImportSession } from './custom-objects/custom-object-import-session.entity';
+import { WorkspaceArea } from './workspace-areas/workspace-area.entity';
 
 // --- Entities маркетинга ---
 import { MarketingTraffic } from './marketing/marketing-traffic.entity';
@@ -108,6 +118,8 @@ import { DemoRequest } from './demo-requests/demo-request.entity';
 import { PlatformSettings } from './platform-settings/platform-settings.entity';
 import { UserSession } from './auth/user-session.entity';
 import { TenantStorageFile } from './tenants/tenant-storage-file.entity';
+import { EmbedForm } from './embed-forms/embed-form.entity';
+import { EmbedFormUpload } from './embed-forms/embed-form-upload.entity';
 import { AiUsageLog } from './ai/ai-usage-log.entity';
 import { AiMemoryChunk } from './ai/ai-memory-chunk.entity';
 import { AiChatSession } from './ai/ai-chat-session.entity';
@@ -115,11 +127,25 @@ import { AiChatMessage } from './ai/ai-chat-message.entity';
 
 @Module({
   imports: [
+    SentryModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
     }),
     ScheduleModule.forRoot(),
+
+    ...(process.env.REDIS_URL
+      ? [BullModule.forRoot({ connection: new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: null }) })]
+      : []),
+
+    ThrottlerModule.forRoot({
+      throttlers: [
+        { name: 'short', ttl: 1000, limit: 20 },
+        { name: 'medium', ttl: 10000, limit: 100 },
+        { name: 'long', ttl: 60000, limit: 400 },
+      ],
+      storage: new RedisThrottlerStorage(),
+    }),
 
     TypeOrmModule.forRoot({
       type: 'postgres',
@@ -167,6 +193,7 @@ import { AiChatMessage } from './ai/ai-chat-message.entity';
         CustomObjectRecord,
         CustomObjectView,
         CustomObjectImportSession,
+        WorkspaceArea,
         SmmProfile,
         SmmProfileStat,
         SmmIntegration,
@@ -197,13 +224,16 @@ import { AiChatMessage } from './ai/ai-chat-message.entity';
         AiMemoryChunk,
         AiChatSession,
         AiChatMessage,
+        EmbedForm,
+        EmbedFormUpload,
       ],
-      synchronize: true, // в проде лучше false + миграции
+      synchronize: false,
     }),
 
     HealthModule,
     TenantsModule,
     UsersModule,
+    DashboardModule,
     AuthModule,
     LeadsModule,
     ContactsModule,
@@ -225,6 +255,7 @@ import { AiChatMessage } from './ai/ai-chat-message.entity';
     AmocrmInboundWebhookModule,
     WordpressCf7InboundWebhookModule,
     CustomObjectsModule,
+    WorkspaceAreasModule,
     MarketingModule,
     ApiTokensModule,
     SmmModule,
@@ -238,6 +269,11 @@ import { AiChatMessage } from './ai/ai-chat-message.entity';
     OnlineChatModule,
     CcpModule,
     MailModule,
+    EmbedFormsModule,
+  ],
+  providers: [
+    { provide: APP_FILTER, useClass: SentryGlobalFilter },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

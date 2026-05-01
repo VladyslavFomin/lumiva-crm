@@ -63,6 +63,8 @@ export interface Lead {
   email: string;
   country: string;
   status: LeadStatus;
+  /** Источник с бэкенда (woocommerce, manual, …). Для канала смотри также channel. */
+  source?: string | null;
   channel: string;
   customFields?: Record<string, any> | null;
   utmSource?: string | null;
@@ -143,6 +145,7 @@ function mapLeadDtoToLead(dto: LeadDto): Lead {
     email: dto.email ?? '',
     country: dto.country ?? '',
     status,
+    source: dto.source ?? null,
     channel,
     customFields: dto.customFields ?? null,
     utmSource,

@@ -1,3 +1,4 @@
+import './instrument'; // Sentry — must be first
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -5,6 +6,8 @@ import express from 'express';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { existsSync, mkdirSync, statSync } from 'fs';
 import { basename, dirname, join } from 'path';
+import helmet from 'helmet';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { getUploadsRoot } from './common/uploads-root.util';
 
@@ -46,7 +49,16 @@ function serveLegacyUploadsIfPresent(uploadsRoot: string) {
   };
 }
 
+function validateEnv() {
+  const required = ['JWT_SECRET', 'DB_HOST', 'DB_USER', 'DB_PASS', 'DB_NAME'];
+  const missing = required.filter((k) => !process.env[k]);
+  if (missing.length) {
+    throw new Error(`Missing required env vars: ${missing.join(', ')}`);
+  }
+}
+
 async function bootstrap() {
+  validateEnv();
   const uploadsRoot = getUploadsRoot();
   if (!existsSync(uploadsRoot)) {
     mkdirSync(uploadsRoot, { recursive: true });
@@ -58,19 +70,52 @@ async function bootstrap() {
    */
   const expressApp = express();
   expressApp.set('trust proxy', 1);
+  /* Публичные формы: встраивание с сторонних сайтов (кросс-доменный fetch) */
+  expressApp.use(
+    '/v1/public/embed',
+    (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const o = (req.headers.origin as string) || '';
+      if (o) {
+        res.setHeader('Access-Control-Allow-Origin', o);
+        res.setHeader('Vary', 'Origin');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader(
+        'Access-Control-Allow-Headers',
+        'Content-Type, X-Embed-Preview-Token, Authorization, X-Requested-With',
+      );
+      if (req.method === 'OPTIONS') {
+        return res.status(204).end();
+      }
+      next();
+    },
+  );
   expressApp.use('/v1/uploads', serveLegacyUploadsIfPresent(uploadsRoot));
   expressApp.use('/v1/uploads', express.static(uploadsRoot));
 
   const adapter = new ExpressAdapter(expressApp);
   const app = await NestFactory.create(AppModule, adapter);
 
+  app.use(
+    helmet({
+      crossOriginEmbedderPolicy: false,
+      contentSecurityPolicy: false,
+    }),
+  );
+
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim())
+    : [
+        'https://lumiva.agency',
+        'https://crm.lumiva.agency',
+        'https://pl1.lumiva.agency',
+        'http://localhost:5173',
+      ];
+
   app.enableCors({
-    origin: [
-      'https://lumiva.agency',
-      'https://crm.lumiva.agency',
-      'https://pl1.lumiva.agency',
-      'http://localhost:5173',
-    ],
+    origin: allowedOrigins,
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
       'Content-Type',
@@ -80,15 +125,9 @@ async function bootstrap() {
       'X-WP-Nonce',
       'X-Lumiva-Secret',
     ],
-    exposedHeaders: [
-      // если когда-нибудь захочешь пагинацию/лимиты через хедеры
-      'X-Total-Count',
-      'X-Request-Id',
-      // POST /marketing/integrations/:id/sync — дублирует rowsSaved для клиентов без парсинга JSON
-      'X-Marketing-Sync-Rows',
-    ],
+    exposedHeaders: ['X-Total-Count', 'X-Request-Id', 'X-Marketing-Sync-Rows'],
     credentials: false,
-    maxAge: 86400, // 24h кеш preflight
+    maxAge: 86400,
   });
 
   // Все бэкенд-ручки будут начинаться с /v1
@@ -99,25 +138,56 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      forbidUnknownValues: false,
-      // полезно для class-transformer (если где-то появятся DTO с вложенностями)
+      forbidNonWhitelisted: false,
+      forbidUnknownValues: true,
       transformOptions: { enableImplicitConversion: true },
     }),
   );
 
   // Увеличиваем таймауты для длительных операций (SMTP тесты, отправка email)
   app.use((req, res, next) => {
-    // Увеличиваем таймаут для теста SMTP и отправки email
+    const p = req.path || '';
+    // Импорт в таблицу рабочей области: GA4 / Meta / превью — долгие (внешние API + тысячи upsert).
+    // Без этого nginx/балансировщик часто отдаёт 504, пока Node ещё обрабатывает запрос.
     if (
-      req.path.includes('/test-smtp') ||
-      req.path.includes('/email/send') ||
-      req.path.includes('/ai/')
+      p.includes('/integrations/marketing/') &&
+      (p.includes('workspace-sync') || p.includes('workspace-preview'))
     ) {
-      req.setTimeout(req.path.includes('/ai/') ? 180000 : 25000);
-      res.setTimeout(req.path.includes('/ai/') ? 180000 : 25000);
+      const ms = 900000; // 15 мин — согласуйте proxy_read_timeout на nginx с этим значением
+      req.setTimeout(ms);
+      res.setTimeout(ms);
+    } else if (
+      p.includes('/integrations/') &&
+      (p.includes('/sync') || p.includes('woo-workspace-preview') || p.includes('meta-ads-workspace-preview'))
+    ) {
+      const ms = 900000;
+      req.setTimeout(ms);
+      res.setTimeout(ms);
+    } else if (
+      p.includes('/test-smtp') ||
+      p.includes('/email/send') ||
+      p.includes('/ai/')
+    ) {
+      req.setTimeout(p.includes('/ai/') ? 180000 : 25000);
+      res.setTimeout(p.includes('/ai/') ? 180000 : 25000);
     }
     next();
   });
+
+  if (process.env.NODE_ENV !== 'production' || process.env.SWAGGER_ENABLED === 'true') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Lumiva CRM API')
+      .setDescription('REST API документация Lumiva CRM')
+      .setVersion('1.0')
+      .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'jwt')
+      .addApiKey({ type: 'apiKey', name: 'X-Api-Token', in: 'header' }, 'api-token')
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('v1/docs', app, document, {
+      swaggerOptions: { persistAuthorization: true },
+    });
+    console.log(`📚 Swagger docs: http://localhost:${process.env.PORT || 3000}/v1/docs`);
+  }
 
   const port = process.env.PORT ? Number(process.env.PORT) : 3000;
   await app.listen(port);

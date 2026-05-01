@@ -18,6 +18,7 @@ import {
   type AutomationUsageStats,
 } from '../../api/automations';
 import { getActionLabel, getTriggerLabel } from './automationLabels';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type TabId = 'automations' | 'history' | 'usage';
 
@@ -56,6 +57,7 @@ function executionActionSummary(row: AutomationExecution, t: TFunction) {
 
 export const AutomationsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -262,7 +264,9 @@ export const AutomationsPage: React.FC = () => {
       await deleteAutomation(id);
       setAutomations((prev) => prev.filter((a) => a.id !== id));
     } catch (err: any) {
-      alert(err.message || t('crm.automations.list.errors.deleteFailed'));
+      showAlert(err.message || t('crm.automations.list.errors.deleteFailed'), {
+        variant: 'error',
+      });
     }
   };
 

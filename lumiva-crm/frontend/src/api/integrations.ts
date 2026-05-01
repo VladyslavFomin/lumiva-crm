@@ -61,6 +61,10 @@ export interface SyncIntegrationResponse {
   updated: number;
   skipped: number;
   message?: string;
+  /** Импорт в таблицу рабочей области (Woo / Meta Ads и т.п.) */
+  workspaceCreated?: number;
+  workspaceUpdated?: number;
+  workspaceSkipped?: number;
 }
 
 /** GET /integrations/hub/catalog — зеркало backend integration-hub.types */
@@ -77,7 +81,8 @@ export type IntegrationHubCrmModule =
   | 'marketing'
   | 'projects'
   | 'workspace'
-  | 'calendar';
+  | 'calendar'
+  | 'email';
 
 export interface IntegrationHubCapabilityFlags {
   outboundAutomationActions: boolean;
@@ -166,11 +171,123 @@ export async function testIntegration(
   return api.post<TestIntegrationResponse>(`/integrations/${id}/test`);
 }
 
+/** Превью заказов Woo для импорта в таблицу рабочей области */
+export type WooWorkspacePreviewResult = {
+  columns: string[];
+  sampleRows: Record<string, string>[];
+  uniqueValuesByColumn: Record<string, string[]>;
+  sampleOrderCount: number;
+};
+
+export async function previewWooWorkspaceImport(
+  integrationId: string,
+  customObjectId: string,
+): Promise<WooWorkspacePreviewResult> {
+  return api.post<WooWorkspacePreviewResult>(
+    `/integrations/${integrationId}/woo-workspace-preview`,
+    { customObjectId },
+  );
+}
+
+/** Превью insights Meta Ads для импорта в таблицу рабочей области (тот же формат, что у Woo). */
+export async function previewMetaAdsWorkspaceImport(
+  integrationId: string,
+  customObjectId: string,
+): Promise<WooWorkspacePreviewResult> {
+  return api.post<WooWorkspacePreviewResult>(
+    `/integrations/${integrationId}/meta-ads-workspace-preview`,
+    { customObjectId },
+  );
+}
+
+/** Meta Ads: превью по интеграции из раздела «Маркетинг». */
+export async function previewMetaAdsWorkspaceImportFromMarketing(
+  marketingIntegrationId: string,
+  customObjectId: string,
+): Promise<WooWorkspacePreviewResult> {
+  return api.post<WooWorkspacePreviewResult>(
+    `/integrations/marketing/${marketingIntegrationId}/meta-ads-workspace-preview`,
+    { customObjectId },
+  );
+}
+
+export type WooWorkspaceImportPayload = {
+  enabledWooColumns: string[];
+  wooColumnToFieldKey: Record<string, string>;
+  statusFieldKey?: string | null;
+  /** full — каждая строка источника; aggregate — группировка и суммы числовых колонок */
+  importMode?: 'full' | 'aggregate';
+  aggregateGroupBySourceKeys?: string[];
+};
+
 // запустить ручную синхронизацию
 export async function syncIntegration(
   id: string,
+  opts?: {
+    customObjectId?: string;
+    wooWorkspaceImport?: WooWorkspaceImportPayload;
+    metaAdsWorkspaceImport?: WooWorkspaceImportPayload;
+  },
 ): Promise<SyncIntegrationResponse> {
+  const body: Record<string, unknown> = {};
+  if (opts?.customObjectId?.trim()) {
+    body.customObjectId = opts.customObjectId.trim();
+  }
+  if (opts?.wooWorkspaceImport) {
+    body.wooWorkspaceImport = opts.wooWorkspaceImport;
+  }
+  if (opts?.metaAdsWorkspaceImport) {
+    body.metaAdsWorkspaceImport = opts.metaAdsWorkspaceImport;
+  }
+  if (Object.keys(body).length > 0) {
+    return api.post<SyncIntegrationResponse>(`/integrations/${id}/sync`, body);
+  }
   return api.post<SyncIntegrationResponse>(`/integrations/${id}/sync`);
+}
+
+/** Meta Ads: импорт в таблицу по интеграции из раздела «Маркетинг». */
+export async function syncMetaAdsWorkspaceImportFromMarketing(
+  marketingIntegrationId: string,
+  opts: {
+    customObjectId: string;
+    metaAdsWorkspaceImport: WooWorkspaceImportPayload;
+  },
+): Promise<SyncIntegrationResponse> {
+  return api.post<SyncIntegrationResponse>(
+    `/integrations/marketing/${marketingIntegrationId}/meta-ads-workspace-sync`,
+    {
+      customObjectId: opts.customObjectId.trim(),
+      metaAdsWorkspaceImport: opts.metaAdsWorkspaceImport,
+    },
+  );
+}
+
+/** GA4: превью по интеграции из раздела «Маркетинг». */
+export async function previewGa4WorkspaceImportFromMarketing(
+  marketingIntegrationId: string,
+  customObjectId: string,
+): Promise<WooWorkspacePreviewResult> {
+  return api.post<WooWorkspacePreviewResult>(
+    `/integrations/marketing/${marketingIntegrationId}/ga4-workspace-preview`,
+    { customObjectId },
+  );
+}
+
+/** GA4: импорт в таблицу по интеграции из раздела «Маркетинг». */
+export async function syncGa4WorkspaceImportFromMarketing(
+  marketingIntegrationId: string,
+  opts: {
+    customObjectId: string;
+    ga4WorkspaceImport: WooWorkspaceImportPayload;
+  },
+): Promise<SyncIntegrationResponse> {
+  return api.post<SyncIntegrationResponse>(
+    `/integrations/marketing/${marketingIntegrationId}/ga4-workspace-sync`,
+    {
+      customObjectId: opts.customObjectId.trim(),
+      ga4WorkspaceImport: opts.ga4WorkspaceImport,
+    },
+  );
 }
 
 export type GoogleSheetsPreviewRow = { rowNumber: number; cells: string[] };

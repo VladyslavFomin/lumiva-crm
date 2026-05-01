@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  ForbiddenException,
   Inject,
   forwardRef,
 } from '@nestjs/common';
@@ -18,6 +19,7 @@ import { Project } from '../projects/project.entity';
 import { AutomationsService } from '../automations/automations.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { TriggerEvent } from '../automations/automation.entity';
+import { isOriginAllowedForSite } from '../embed-forms/embed-origin.util';
 
 // Типы для статистики (форма ответа под фронт)
 export interface LeadStatusStat {
@@ -310,7 +312,20 @@ export class LeadsService {
     }
 
     const oldStatus = lead.status;
+    const wasTrash = this.isLeadMetaDeleted(lead);
     const saved = await this.leadsRepo.save(lead);
+    const nowTrash = this.isLeadMetaDeleted(saved);
+
+    // Перевели лида в корзину — отвязать продажи (новые заказы не должны цепляться к «удалённым»)
+    if (!wasTrash && nowTrash) {
+      await this.salesRepo
+        .createQueryBuilder()
+        .update(Sale)
+        .set({ leadId: null })
+        .where('tenantId = :tid', { tid: tenantId })
+        .andWhere('leadId = :lid', { lid: saved.id })
+        .execute();
+    }
 
     // Триггерим автоматизацию для обновления
     try {
@@ -394,31 +409,38 @@ export class LeadsService {
 
   /**
    * Создание лида из публичного API `/v1/public/leads`.
-   * Ожидаем либо apiToken (предпочтительно), либо tenantId+siteId.
+   * Только с валидным apiToken сайта; вызов только с tenantId без секрета отключён.
    */
-  async createFromPublic(dto: any, referer?: string | null): Promise<Lead> {
+  async createFromPublic(
+    dto: any,
+    referer?: string | null,
+    origin?: string | null,
+  ): Promise<Lead> {
     let tenantId: string;
     let siteId: string | null = null;
 
-    // 1) Основной путь — сайт присылает apiToken
-    if (dto.apiToken) {
-      const site = await this.sitesRepo.findOne({
-        where: { apiToken: dto.apiToken },
-      });
-
-      if (!site) {
-        throw new BadRequestException('Invalid apiToken');
-      }
-
-      tenantId = site.tenantId;
-      siteId = site.id;
+    if (!dto?.apiToken) {
+      throw new BadRequestException('apiToken is required');
     }
-    // 2) Запасной вариант — прямой вызов с tenantId
-    else if (dto.tenantId) {
-      tenantId = dto.tenantId;
-      siteId = dto.siteId ?? null;
-    } else {
-      throw new BadRequestException('apiToken or tenantId is required');
+
+    const site = await this.sitesRepo.findOne({
+      where: { apiToken: dto.apiToken },
+    });
+
+    if (!site) {
+      throw new BadRequestException('Invalid apiToken');
+    }
+
+    tenantId = site.tenantId;
+    siteId = site.id;
+
+    const relaxed =
+      process.env.EMBED_RELAXED_ORIGIN === '1' || process.env.NODE_ENV === 'test';
+    if (!relaxed && !isOriginAllowedForSite(site.domain, origin || undefined, referer || undefined)) {
+      throw new ForbiddenException({
+        code: 'ORIGIN_NOT_ALLOWED',
+        message: 'Request origin does not match registered site domain',
+      });
     }
 
     const meta = {
@@ -459,6 +481,81 @@ export class LeadsService {
       assignedTo: null,
       assignedToList: null,
 
+      meta,
+    });
+
+    return this.leadsRepo.save(lead);
+  }
+
+  /**
+   * Лид с веб-формы (модуль embed-forms), после публичной валидации.
+   */
+  async createFromEmbedForm(args: {
+    tenantId: string;
+    siteId: string;
+    formId: string;
+    publicId: string;
+    formName: string;
+    templateKey: string;
+    referer: string | null;
+    fieldValues: Record<string, unknown>;
+  }): Promise<Lead> {
+    const fv = { ...args.fieldValues };
+    const files = fv['__files'] as
+      | Array<{ name: string; path: string; id: string }>
+      | undefined;
+    if ('__files' in fv) {
+      delete fv['__files'];
+    }
+
+    const name = (fv['name'] as string) || null;
+    const email = (fv['email'] as string) || null;
+    const phone = (fv['phone'] as string) || null;
+
+    const textMsg =
+      (fv['message'] as string) ||
+      (fv['topic'] as string) ||
+      (fv['brief'] as string) ||
+      '';
+
+    const {
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmContent,
+      utmTerm,
+    } = this.extractUtm({}, args.referer);
+
+    const meta: Record<string, unknown> = {
+      ...(Object.keys(fv).length ? { embedFormPayload: fv } : {}),
+      embedForm: {
+        formId: args.formId,
+        publicId: args.publicId,
+        formName: args.formName,
+        templateKey: args.templateKey,
+        attachments: files ?? [],
+      },
+      message: textMsg || undefined,
+    };
+
+    const lead = this.leadsRepo.create({
+      tenantId: args.tenantId,
+      siteId: args.siteId,
+      name,
+      phone,
+      email,
+      country: (fv['country'] as string) || null,
+      status: 'new',
+      source: 'embed_form',
+      utmSource,
+      utmMedium,
+      utmCampaign,
+      utmContent,
+      utmTerm,
+      assignedUserId: null,
+      assignedUserIds: null,
+      assignedTo: null,
+      assignedToList: null,
       meta,
     });
 
@@ -572,15 +669,18 @@ export class LeadsService {
     const term = q.trim();
     if (!term) return [];
 
-    return this.leadsRepo.find({
+    const batch = await this.leadsRepo.find({
       where: [
         { tenantId, name: ILike(`%${term}%`) },
         { tenantId, email: ILike(`%${term}%`) },
         { tenantId, phone: ILike(`%${term}%`) },
       ],
       order: { createdAt: 'DESC' },
-      take: limit,
+      take: Math.min(limit * 6, 120),
     });
+    return batch
+      .filter((l) => !this.isLeadOmittedFromDashboardStats(l))
+      .slice(0, limit);
   }
 
   // ====== СТАТИСТИКА ДЛЯ ДАШБОРДА ======
@@ -916,6 +1016,12 @@ export class LeadsService {
     const qb = this.salesRepo
       .createQueryBuilder('s')
       .innerJoin(Lead, 'l', 'l.id = s.lead_id')
+      .innerJoin(
+        's.channel',
+        'roiCh',
+        'roiCh.isDeleted = :roiChDeleted',
+        { roiChDeleted: false },
+      )
       .select('s.lead_id', 'leadId')
       .addSelect('SUM(s.amount)', 'totalRevenue')
       .addSelect('COUNT(*)', 'dealsCount')
@@ -1005,4 +1111,168 @@ private async getProjectsRoiForTenantInternal(
 
   return this.buildRoiStats(raw, leads);
 }
+
+  /**
+   * Email покупателя из WooCommerce / rawPayload (billing, shipping, customer…).
+   */
+  private extractSaleCustomerEmail(sale: Sale): string | null {
+    const raw = sale.rawPayload as Record<string, any> | null | undefined;
+    if (!raw || typeof raw !== 'object') return null;
+
+    const billing = raw.billing && typeof raw.billing === 'object' ? raw.billing : {};
+    const shipping =
+      raw.shipping && typeof raw.shipping === 'object' ? raw.shipping : {};
+
+    const candidates: Array<string | null | undefined> = [
+      typeof billing.email === 'string' ? billing.email : null,
+      typeof shipping.email === 'string' ? shipping.email : null,
+      typeof raw.customer?.email === 'string' ? raw.customer.email : null,
+      typeof raw.customer_email === 'string' ? raw.customer_email : null,
+      typeof raw.billing_email === 'string' ? raw.billing_email : null,
+    ];
+
+    if (Array.isArray(raw.meta_data)) {
+      for (const m of raw.meta_data as { key?: string; value?: unknown }[]) {
+        const k = String(m?.key || '').toLowerCase();
+        if (!k.includes('mail')) continue;
+        const v = m?.value;
+        if (typeof v === 'string' && v.includes('@')) candidates.push(v);
+      }
+    }
+
+    for (const e of candidates) {
+      if (!e || typeof e !== 'string') continue;
+      const t = e.trim().toLowerCase();
+      if (t.includes('@')) return t;
+    }
+
+    return null;
+  }
+
+  /** Finds non-deleted lead UUID by email (case-insensitive). Returns null if not found. */
+  async findLeadIdByEmail(tenantId: string, email: string): Promise<string | null> {
+    if (!tenantId || !email) return null;
+    const normalized = email.toLowerCase().trim();
+    if (!normalized) return null;
+    const lead = await this.leadsRepo
+      .createQueryBuilder('l')
+      .select(['l.id'])
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere('LOWER(TRIM(l.email)) = :email', { email: normalized })
+      .andWhere(
+        `NOT (
+          COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb
+        )`,
+      )
+      .orderBy('l.updatedAt', 'DESC')
+      .getOne();
+    return lead?.id ?? null;
+  }
+
+  /**
+   * Новая продажа с известным email → лид (новый или существующий по email в тенанте).
+   * Лиды в корзине (meta.deleted) не подбираются; привязка к такому лиду сбрасывается.
+   * Без email авто-привязки нет (остаётся ручная в CRM).
+   */
+  async ensureLeadLinkedForSale(sale: Sale): Promise<Sale> {
+    if (!sale.tenantId) return sale;
+
+    const tenantId = sale.tenantId as string;
+
+    // Уже есть привязка — проверить, что лид живой и не в корзине
+    if (sale.leadId) {
+      const linked = await this.leadsRepo.findOne({
+        where: { id: sale.leadId, tenantId },
+      });
+      if (!linked || this.isLeadMetaDeleted(linked)) {
+        sale.leadId = null;
+        await this.salesRepo.save(sale);
+      } else {
+        return sale;
+      }
+    }
+
+    const email = this.extractSaleCustomerEmail(sale);
+    if (!email) return sale;
+
+    /** Лид не в корзине: meta.deleted не true */
+    let lead = await this.leadsRepo
+      .createQueryBuilder('l')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere('LOWER(TRIM(l.email)) = :email', { email })
+      .andWhere(
+        `NOT (
+          COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+          OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb
+        )`,
+      )
+      .orderBy('l.updatedAt', 'DESC')
+      .getOne();
+
+    // Тот же email в корзине — не создаём второго лида, восстанавливаем карточку
+    if (!lead) {
+      const trashed = await this.leadsRepo
+        .createQueryBuilder('l')
+        .where('l.tenantId = :tenantId', { tenantId })
+        .andWhere('LOWER(TRIM(l.email)) = :email', { email })
+        .andWhere(
+          `(COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+            OR COALESCE(l.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb)`,
+        )
+        .orderBy('l.updatedAt', 'DESC')
+        .getOne();
+
+      if (trashed) {
+        const prevMeta =
+          trashed.meta && typeof trashed.meta === 'object'
+            ? { ...trashed.meta }
+            : {};
+        prevMeta.deleted = false;
+        prevMeta.restoredFromWooSaleId = sale.id;
+        trashed.meta = prevMeta;
+        if (!trashed.source) trashed.source = 'woocommerce';
+        lead = await this.leadsRepo.save(trashed);
+      }
+    }
+
+    if (!lead) {
+      const raw = sale.rawPayload as Record<string, any> | undefined;
+      const billingPhone =
+        raw?.billing &&
+        typeof raw.billing.phone === 'string' &&
+        raw.billing.phone.trim()
+          ? String(raw.billing.phone).trim()
+          : null;
+      const guest =
+        sale.guestName?.trim() ||
+        sale.agentName?.trim() ||
+        'Клиент из заказа';
+
+      lead = await this.leadsRepo.save(
+        this.leadsRepo.create({
+          tenantId,
+          siteId: null,
+          name: guest,
+          phone: billingPhone,
+          email,
+          country: sale.market?.trim() || null,
+          status: 'new',
+          source: 'woocommerce',
+          meta: {
+            fromSaleId: sale.id,
+            saleExternalId: sale.externalId,
+            saleExternalOrderNo: sale.externalOrderNo,
+          },
+          assignedUserId: null,
+          assignedUserIds: null,
+          assignedTo: null,
+          assignedToList: null,
+        }),
+      );
+    }
+
+    sale.leadId = lead.id;
+    return this.salesRepo.save(sale);
+  }
 }

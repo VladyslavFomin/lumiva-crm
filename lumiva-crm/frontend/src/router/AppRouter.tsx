@@ -23,6 +23,12 @@ import SalesSolutionsPage from '../pages/public/SalesSolutionsPage';
 import PrivacyPage from '../pages/public/PrivacyPage';
 import BlogPage from '../pages/public/BlogPage';
 import PricingPage from '../pages/public/PricingPage';
+import FeaturesPage from '../pages/public/FeaturesPage';
+import AboutPage from '../pages/public/AboutPage';
+import ContactPage from '../pages/public/ContactPage';
+import FaqPage from '../pages/public/FaqPage';
+import TermsPage from '../pages/public/TermsPage';
+import ChangelogPage from '../pages/public/ChangelogPage';
 import { AccessDeniedPage } from '../pages/AccessDeniedPage';
 import TenantInactivePage from '../pages/TenantInactivePage';
 import ForgotPasswordPage from "../pages/ForgotPasswordPage";
@@ -124,6 +130,11 @@ import { WorkspaceCalendarViewPage } from '../pages/workspace/WorkspaceCalendarV
 import { WorkspaceAnalyticsPage } from '../pages/workspace/WorkspaceAnalyticsPage';
 import { WorkspaceSettingsPage } from '../pages/workspace/WorkspaceSettingsPage';
 import { WorkspaceImportPage } from '../pages/workspace/WorkspaceImportPage';
+import { WorkspaceAreaHomePage } from '../pages/workspace/WorkspaceAreaHomePage';
+import { WorkspaceGanttViewPage } from '../pages/workspace/WorkspaceGanttViewPage';
+import { WebFormsListPage } from '../pages/web-forms/WebFormsListPage';
+import { WebFormEditorPage } from '../pages/web-forms/WebFormEditorPage';
+import { PublicEmbedFormPage } from '../pages/public-embed/PublicEmbedFormPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -165,14 +176,23 @@ export const AppRouter: React.FC = () => {
         <Route path="/solutions/sales" element={<SalesSolutionsPage />} />
         <Route path="/analytics" element={<Navigate to="/solutions/analytics" replace />} />
         <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/privacy" element={<PrivacyPage />} />
-        <Route path="/blog" element={<BlogPage />} />
+        <Route path="/privacy"   element={<PrivacyPage />} />
+        <Route path="/blog"      element={<BlogPage />} />
+        <Route path="/features"  element={<FeaturesPage />} />
+        <Route path="/about"     element={<AboutPage />} />
+        <Route path="/contact"   element={<ContactPage />} />
+        <Route path="/faq"       element={<FaqPage />} />
+        <Route path="/terms"     element={<TermsPage />} />
+        <Route path="/changelog" element={<ChangelogPage />} />
 
         {/* ПУБЛИЧНЫЕ РОУТЫ */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/set-password" element={<SetPasswordPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/tenant-inactive" element={<TenantInactivePage />} />
+
+        {/* Публичная встраиваемая форма (iframe на сторонних сайтах) */}
+        <Route path="/embed/:publicId" element={<PublicEmbedFormPage />} />
 
         {/* DASHBOARD */}
         <Route
@@ -798,6 +818,29 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        {/* -------- ФОРМЫ ДЛЯ САЙТА -------- */}
+        <Route
+          path="/web-forms"
+          element={
+            <ProtectedRoute>
+              <WebFormsListPage />
+            </ProtectedRoute>
+          }
+        />
+        {/*
+          Не делаем отдельный /web-forms/new: при статическом пути :formId в useParams() нет,
+          редактор думает, что id отсутствует, и показывает «Форма не найдена».
+          Один сегмент :formId покрывает и «new», и uuid.
+        */}
+        <Route
+          path="/web-forms/:formId"
+          element={
+            <ProtectedRoute>
+              <WebFormEditorPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* -------- EMAIL -------- */}
         <Route
           path="/email/inbox"
@@ -859,16 +902,7 @@ export const AppRouter: React.FC = () => {
         />
 
         {/* -------- ПРОЧЕЕ -------- */}
-        <Route
-          path="/tools"
-          element={
-            <ProtectedRoute>
-              <div className="text-slate-200 p-10">
-                Инструменты (в разработке)
-              </div>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/tools" element={<Navigate to="/web-forms" replace />} />
         <Route
           path="/chat"
           element={
@@ -896,6 +930,14 @@ export const AppRouter: React.FC = () => {
         />
 
         {/* -------- WORKSPACE (NO-CODE) -------- */}
+        <Route
+          path="/workspace/areas/:areaId"
+          element={
+            <ProtectedRoute>
+              <WorkspaceAreaHomePage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/workspace"
           element={
@@ -933,6 +975,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <WorkspaceCalendarViewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/:objectId/gantt"
+          element={
+            <ProtectedRoute>
+              <WorkspaceGanttViewPage />
             </ProtectedRoute>
           }
         />

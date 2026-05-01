@@ -1,5 +1,5 @@
 // src/integrations/woocommerce/woocommerce.adapter.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
@@ -7,11 +7,21 @@ import type {
   SalesIntegrationAdapter,
   TestConnectionResult,
   SyncResult,
+  IntegrationSyncContext,
 } from '../sales-integration.adapter';
+import { CustomObjectsService } from '../../custom-objects/custom-objects.service';
 import type { IntegrationKind } from '../integration-kind.enum';
 import { IntegrationConnection } from '../integration-connection.entity';
 
 import { Sale, type SaleStatus } from '../../sales/sale.entity';
+import { LeadsService } from '../../leads/leads.service';
+import {
+  flattenWooOrder,
+  mergeColumnKeys,
+  wooOrderTotalNumber,
+} from './woo-order-flat.util';
+import { applyWorkspaceImportAggregation } from '../workspace-import-aggregate.util';
+import type { WooWorkspaceImportMapping } from '../sales-integration.adapter';
 
 type WooConfig = {
   apiUrl?: string; // домен магазина без /wp-json...
@@ -63,6 +73,9 @@ export class WooCommerceAdapter implements SalesIntegrationAdapter {
   constructor(
     @InjectRepository(Sale)
     private readonly saleRepo: Repository<Sale>,
+    private readonly customObjectsService: CustomObjectsService,
+    @Inject(forwardRef(() => LeadsService))
+    private readonly leadsService: LeadsService,
   ) {}
 
   /* ────────────────────────────────
@@ -207,6 +220,65 @@ export class WooCommerceAdapter implements SalesIntegrationAdapter {
    * Маппинг статуса Woo → SaleStatus
    * ──────────────────────────────── */
 
+  /** Origin магазина из apiUrl/url интеграции (без /wp-json). */
+  private siteOriginFromConnection(
+    connection: IntegrationConnection,
+  ): string | null {
+    const cfg = this.parseConfig(connection);
+    const raw = String(cfg.apiUrl || cfg.url || '').trim();
+    if (!raw) return null;
+    let base = raw.split('/wp-json')[0] || raw;
+    base = base.replace(/\/+$/, '');
+    if (!/^https?:\/\//i.test(base)) {
+      base = `https://${base}`;
+    }
+    try {
+      return new URL(base).origin;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Ссылка на страницу товара: WC не всегда кладёт permalink в line_item.
+   * Пробуем permalink / product_permalink / вложенный product.permalink / ?p=id на сайте.
+   */
+  private resolveLineItemProductUrl(
+    firstLine: WooOrderLineItem | undefined,
+    connection: IntegrationConnection,
+  ): string | null {
+    if (!firstLine) return null;
+    const li = firstLine as Record<string, any>;
+
+    const tryHttp = (v: unknown): string | null => {
+      if (typeof v !== 'string') return null;
+      const u = v.trim();
+      return /^https?:\/\//i.test(u) ? u : null;
+    };
+
+    const direct =
+      tryHttp(li.permalink) ||
+      tryHttp(li.product_permalink);
+    if (direct) return direct;
+
+    const prod = li.product;
+    if (prod && typeof prod === 'object') {
+      const nested = tryHttp((prod as Record<string, unknown>).permalink);
+      if (nested) return nested;
+    }
+
+    const origin = this.siteOriginFromConnection(connection);
+    if (!origin) return null;
+
+    const vid = Number(li.variation_id);
+    const pid = Number(li.product_id);
+    const postId =
+      Number.isFinite(vid) && vid > 0 ? vid : Number.isFinite(pid) && pid > 0 ? pid : 0;
+    if (postId <= 0) return null;
+
+    return `${origin}/?p=${postId}`;
+  }
+
   private mapStatus(wooStatus: string | undefined | null): SaleStatus {
     const s = (wooStatus || '').toLowerCase();
 
@@ -258,16 +330,14 @@ export class WooCommerceAdapter implements SalesIntegrationAdapter {
       ? String(firstLine.name)
       : null;
 
-    const productUrl = firstLine?.permalink
-      ? String(firstLine.permalink)
-      : null;
+    const productUrl = this.resolveLineItemProductUrl(firstLine, connection);
 
     // Дата покупки
     const saleDateStr =
       order.date_created_gmt || order.date_created || undefined;
     const saleDate = saleDateStr ? new Date(saleDateStr) : new Date();
 
-    const amount = order.total ? parseFloat(order.total) || 0 : 0;
+    const amount = wooOrderTotalNumber(order as Record<string, any>);
     const status = this.mapStatus(order.status);
 
     const country = billing.country || shipping.country || null;
@@ -302,12 +372,92 @@ export class WooCommerceAdapter implements SalesIntegrationAdapter {
     return saleData;
   }
 
+  /**
+   * Выборка заказов для превью импорта в таблицу рабочей области (плоские колонки).
+   */
+  async previewWorkspaceImport(
+    connection: IntegrationConnection,
+    maxOrders: number,
+  ): Promise<{
+    columns: string[];
+    sampleRows: Record<string, string>[];
+    uniqueValuesByColumn: Record<string, string[]>;
+    sampleOrderCount: number;
+  }> {
+    const { apiUrl, consumerKey, consumerSecret } =
+      this.normalizeConfig(connection);
+
+    if (!apiUrl || !consumerKey || !consumerSecret) {
+      throw new Error(
+        'Конфиг WooCommerce не заполнен. Укажите apiUrl, consumerKey и consumerSecret.',
+      );
+    }
+
+    const perPage = Math.min(Math.max(1, maxOrders), 50);
+    const url =
+      apiUrl +
+      `/wp-json/wc/v3/orders?per_page=${perPage}&page=1` +
+      `&order=desc&orderby=date` +
+      `&consumer_key=${encodeURIComponent(consumerKey)}` +
+      `&consumer_secret=${encodeURIComponent(consumerSecret)}`;
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'User-Agent': 'LumivaCRM-WooSync/1.0',
+        Accept: 'application/json',
+      },
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      throw new Error(
+        `WooCommerce preview: HTTP ${res.status} ${text.slice(0, 200)}`,
+      );
+    }
+
+    const data = (await res.json().catch(() => null)) as Record<
+      string,
+      any
+    >[] | null;
+    if (!Array.isArray(data) || data.length === 0) {
+      return {
+        columns: [],
+        sampleRows: [],
+        uniqueValuesByColumn: {},
+        sampleOrderCount: 0,
+      };
+    }
+
+    const rows = data.map((o) => flattenWooOrder(o));
+    const columns = mergeColumnKeys(rows);
+
+    const uniqueValuesByColumn: Record<string, string[]> = {};
+    for (const col of columns) {
+      const set = new Set<string>();
+      for (const r of rows) {
+        const v = (r[col] ?? '').trim();
+        if (v) set.add(v);
+        if (set.size >= 100) break;
+      }
+      uniqueValuesByColumn[col] = [...set].slice(0, 100);
+    }
+
+    return {
+      columns,
+      sampleRows: rows.slice(0, 25),
+      uniqueValuesByColumn,
+      sampleOrderCount: rows.length,
+    };
+  }
+
   /* ────────────────────────────────
    * Основная синхронизация заказов
    * ──────────────────────────────── */
 
   async syncSales(
     connection: IntegrationConnection,
+    context?: IntegrationSyncContext,
   ): Promise<SyncResult> {
     const { apiUrl, consumerKey, consumerSecret } =
       this.normalizeConfig(connection);
@@ -324,12 +474,24 @@ export class WooCommerceAdapter implements SalesIntegrationAdapter {
     }
 
     const perPage = 50;
-    const maxPages = 5; // максимум 250 заказов за один прогон (для MVP)
+    const wsMap = context?.wooWorkspaceImport;
+    const aggregateImport =
+      Boolean(wsMap?.importMode === 'aggregate' && wsMap.aggregateGroupBySourceKeys?.length);
+    const maxPages = aggregateImport ? 15 : 5; // при агрегации — больше заказов за прогон
     let page = 1;
 
     let created = 0;
     let updated = 0;
     let skipped = 0;
+    let workspaceCreated = 0;
+    let workspaceUpdated = 0;
+    let workspaceSkipped = 0;
+    const writeWorkspace =
+      Boolean(context?.customObjectId?.trim()) && Boolean(context?.tenantId);
+    const workspaceObjectId = context?.customObjectId?.trim();
+    const workspaceTenantId = context?.tenantId;
+    const mappedImport = Boolean(context?.wooWorkspaceImport);
+    const workspaceFlats: Record<string, string>[] = [];
 
     this.logger.log(
       `Start Woo sync connection=${connection.id} apiUrl=${apiUrl}`,
@@ -426,11 +588,76 @@ export class WooCommerceAdapter implements SalesIntegrationAdapter {
           if (existing) {
             this.saleRepo.merge(existing, saleData);
             await this.saleRepo.save(existing);
+            try {
+              await this.leadsService.ensureLeadLinkedForSale(existing);
+            } catch (err) {
+              this.logger.warn(
+                `ensureLeadLinkedForSale failed: ${(err as Error).message}`,
+              );
+            }
             updated++;
           } else {
             const entity = this.saleRepo.create(saleData);
             await this.saleRepo.save(entity);
+            try {
+              await this.leadsService.ensureLeadLinkedForSale(entity);
+            } catch (err) {
+              this.logger.warn(
+                `ensureLeadLinkedForSale failed: ${(err as Error).message}`,
+              );
+            }
             created++;
+          }
+
+          if (writeWorkspace && workspaceObjectId && workspaceTenantId) {
+            // Resolve CRM lead by billing email to auto-populate the crm_lead ref field
+            let workspaceLeadId: string | null = null;
+            const billingEmail = (order as any)?.billing?.email;
+            if (billingEmail && typeof billingEmail === 'string' && billingEmail.trim()) {
+              try {
+                workspaceLeadId = await this.leadsService.findLeadIdByEmail(
+                  workspaceTenantId,
+                  billingEmail.trim(),
+                );
+              } catch {
+                // non-critical
+              }
+            }
+
+            if (mappedImport && context?.wooWorkspaceImport) {
+              const flat = flattenWooOrder(order as Record<string, any>);
+              if (aggregateImport) {
+                workspaceFlats.push(flat);
+              } else {
+                const wr = await this.customObjectsService.upsertRecordFromWooMapped(
+                  workspaceTenantId,
+                  workspaceObjectId,
+                  flat,
+                  {
+                    enabledWooColumns:
+                      context.wooWorkspaceImport.enabledWooColumns,
+                    wooColumnToFieldKey:
+                      context.wooWorkspaceImport.wooColumnToFieldKey,
+                    statusFieldKey:
+                      context.wooWorkspaceImport.statusFieldKey ?? null,
+                  },
+                  workspaceLeadId,
+                );
+                if (wr === 'created') workspaceCreated++;
+                else if (wr === 'updated') workspaceUpdated++;
+                else workspaceSkipped++;
+              }
+            } else {
+              const wr = await this.customObjectsService.upsertRecordFromWooOrder(
+                workspaceTenantId,
+                workspaceObjectId,
+                order as Record<string, any>,
+                workspaceLeadId,
+              );
+              if (wr === 'created') workspaceCreated++;
+              else if (wr === 'updated') workspaceUpdated++;
+              else workspaceSkipped++;
+            }
           }
         }
 
@@ -444,16 +671,54 @@ export class WooCommerceAdapter implements SalesIntegrationAdapter {
         page++;
       }
 
+      if (
+        writeWorkspace &&
+        workspaceObjectId &&
+        workspaceTenantId &&
+        mappedImport &&
+        context?.wooWorkspaceImport &&
+        aggregateImport &&
+        workspaceFlats.length
+      ) {
+        const mapping = context.wooWorkspaceImport as WooWorkspaceImportMapping;
+        const toUpsert = applyWorkspaceImportAggregation(workspaceFlats, mapping);
+        for (const flat of toUpsert) {
+          const wr = await this.customObjectsService.upsertRecordFromWooMapped(
+            workspaceTenantId,
+            workspaceObjectId,
+            flat,
+            {
+              enabledWooColumns: mapping.enabledWooColumns,
+              wooColumnToFieldKey: mapping.wooColumnToFieldKey,
+              statusFieldKey: mapping.statusFieldKey ?? null,
+            },
+          );
+          if (wr === 'created') workspaceCreated++;
+          else if (wr === 'updated') workspaceUpdated++;
+          else workspaceSkipped++;
+        }
+      }
+
       this.logger.log(
         `Woo sync done connection=${connection.id} created=${created}, updated=${updated}, skipped=${skipped}`,
       );
 
+      let message = `Синхронизация WooCommerce выполнена. Создано: ${created}, обновлено: ${updated}, пропущено: ${skipped}.`;
+      if (writeWorkspace) {
+        message += ` Рабочая область${mappedImport ? ' (по маппингу)' : ''}: записей создано ${workspaceCreated}, обновлено ${workspaceUpdated}, пропущено ${workspaceSkipped}.`;
+      } else {
+        message +=
+          ' Пользовательская таблица не обновлялась: в запросе не передан customObjectId (или в привязанных областях не одна таблица). Запустите синхронизацию из «Импорт данных» нужной таблицы или оставьте одну таблицу в области с этим Woo.';
+      }
       return {
         ok: true,
         created,
         updated,
         skipped,
-        message: `Синхронизация WooCommerce выполнена. Создано: ${created}, обновлено: ${updated}, пропущено: ${skipped}.`,
+        workspaceCreated: writeWorkspace ? workspaceCreated : undefined,
+        workspaceUpdated: writeWorkspace ? workspaceUpdated : undefined,
+        workspaceSkipped: writeWorkspace ? workspaceSkipped : undefined,
+        message,
       };
     } catch (e) {
       this.logger.error(

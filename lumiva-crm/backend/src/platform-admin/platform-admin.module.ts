@@ -16,7 +16,7 @@ import { Tenant } from '../tenants/tenant.entity';
   imports: [
     TypeOrmModule.forFeature([PlatformAdminUser, Tenant]),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'dev-secret',
+      secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '8h' },
     }),
   ],

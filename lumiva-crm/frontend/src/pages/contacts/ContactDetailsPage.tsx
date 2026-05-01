@@ -8,6 +8,13 @@ import { fetchLeads, isLeadInTrash, type Lead } from '../../api/leads';
 import { fetchProjects } from '../../api/projects';
 import type { Project } from '../projects/projectTypes';
 import { useTranslation } from 'react-i18next';
+import { fetchStaff, type StaffUser } from '../../api/staff';
+import '../projects/ProjectsListPage.css';
+import {
+  OwnerAvatarsRow,
+  resolveLeadAssigneesDisplay,
+  resolveProjectOwnersDisplay,
+} from '../../components/crm/OwnerAvatarsRow';
 
 type TabId = 'main' | 'company' | 'leads' | 'projects';
 
@@ -23,6 +30,7 @@ export const ContactDetailsPage: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [staff, setStaff] = useState<StaffUser[]>([]);
 
   const locale = i18n.language?.startsWith('en')
     ? 'en-US'
@@ -57,6 +65,20 @@ export const ContactDetailsPage: React.FC = () => {
         setLoading(false);
       });
   }, [id, t]);
+
+  useEffect(() => {
+    let alive = true;
+    fetchStaff()
+      .then((list) => {
+        if (alive) setStaff(list);
+      })
+      .catch(() => {
+        if (alive) setStaff([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!id || loading || !contact) return;
@@ -408,52 +430,63 @@ export const ContactDetailsPage: React.FC = () => {
                   {t('crm.contacts.details.leads.empty')}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-xs">
-                    <thead className="bg-slate-50 text-slate-600">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.details.page.tables.leads.lead')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">Email</th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.phone')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.status')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.details.page.tables.leads.owner')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {leads.map((lead) => (
-                        <tr
-                          key={lead.id}
-                          onClick={() => navigate(`/leads/${lead.id}`)}
-                          className="cursor-pointer hover:bg-sky-50/50"
-                        >
-                          <td className="px-3 py-2 font-medium text-slate-800">
-                            {lead.name ||
-                              lead.email ||
-                              lead.phone ||
-                              `${t('crm.contacts.details.page.tables.leads.lead')} ${lead.id.slice(0, 6)}`}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {lead.email || t('crm.projects.common.emptyValue')}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {lead.phone || t('crm.projects.common.emptyValue')}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">{lead.status}</td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {lead.assignedTo || t('crm.projects.common.emptyValue')}
-                          </td>
+                <div className="lv-proj-wrap">
+                  <div className="lv-proj-scroll">
+                    <table className="lv-proj-table lv-leads-table">
+                      <thead>
+                        <tr>
+                          <th className="lv-tcol-name">
+                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.leads.lead')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">Email</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.phone')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.leads.owner')}</span>
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {leads.map((lead) => {
+                          const leadOwners = resolveLeadAssigneesDisplay(lead, staff);
+                          return (
+                            <tr
+                              key={lead.id}
+                              onClick={() => navigate(`/leads/${lead.id}`)}
+                              className="lv-proj-row"
+                            >
+                              <td className="lv-tcol-name">
+                                {lead.name ||
+                                  lead.email ||
+                                  lead.phone ||
+                                  `${t('crm.contacts.details.page.tables.leads.lead')} ${lead.id.slice(0, 6)}`}
+                              </td>
+                              <td className="lv-tcol-center">
+                                {lead.email || t('crm.projects.common.emptyValue')}
+                              </td>
+                              <td className="lv-tcol-center">
+                                {lead.phone || t('crm.projects.common.emptyValue')}
+                              </td>
+                              <td className="lv-tcol-center">{lead.status}</td>
+                              <td className="lv-tcol-center lv-td-popover">
+                                {leadOwners.length ? (
+                                  <OwnerAvatarsRow items={leadOwners} readOnly />
+                                ) : (
+                                  <span className="text-[var(--fg-3)]">—</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>
@@ -466,53 +499,62 @@ export const ContactDetailsPage: React.FC = () => {
                   {t('crm.contacts.details.projects.empty')}
                 </div>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="min-w-full divide-y divide-slate-200 text-xs">
-                    <thead className="bg-slate-50 text-slate-600">
-                      <tr>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.details.page.tables.projects.project')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.form.fields.status')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.details.page.tables.projects.owner')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.details.page.tables.projects.budget')}
-                        </th>
-                        <th className="px-3 py-2 text-left font-medium">
-                          {t('crm.contacts.details.page.tables.projects.updated')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {projects.map((project) => (
-                        <tr
-                          key={project.id}
-                          onClick={() => navigate(`/projects/${project.id}`)}
-                          className="cursor-pointer hover:bg-sky-50/50"
-                        >
-                          <td className="px-3 py-2 font-medium text-slate-800">{project.name}</td>
-                          <td className="px-3 py-2 text-slate-600">{project.status}</td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {project.owner || t('crm.projects.common.emptyValue')}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {new Intl.NumberFormat(locale, {
-                              style: 'currency',
-                              currency: project.currency || 'EUR',
-                              minimumFractionDigits: 0,
-                            }).format(Number(project.amount || 0))}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {project.updatedAt || t('crm.projects.common.emptyValue')}
-                          </td>
+                <div className="lv-proj-wrap">
+                  <div className="lv-proj-scroll">
+                    <table className="lv-proj-table lv-leads-table">
+                      <thead>
+                        <tr>
+                          <th className="lv-tcol-name">
+                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.project')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.owner')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.budget')}</span>
+                          </th>
+                          <th className="lv-tcol-center">
+                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.updated')}</span>
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {projects.map((project) => {
+                          const projOwners = resolveProjectOwnersDisplay(project, staff);
+                          return (
+                            <tr
+                              key={project.id}
+                              onClick={() => navigate(`/projects/${project.id}`)}
+                              className="lv-proj-row"
+                            >
+                              <td className="lv-tcol-name">{project.name}</td>
+                              <td className="lv-tcol-center">{project.status}</td>
+                              <td className="lv-tcol-center lv-td-popover">
+                                {projOwners.length ? (
+                                  <OwnerAvatarsRow items={projOwners} readOnly />
+                                ) : (
+                                  <span className="text-[var(--fg-3)]">—</span>
+                                )}
+                              </td>
+                              <td className="lv-tcol-center">
+                                {new Intl.NumberFormat(locale, {
+                                  style: 'currency',
+                                  currency: project.currency || 'EUR',
+                                  minimumFractionDigits: 0,
+                                }).format(Number(project.amount || 0))}
+                              </td>
+                              <td className="lv-tcol-center">
+                                {project.updatedAt || t('crm.projects.common.emptyValue')}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </div>

@@ -1,13 +1,24 @@
 // backend/src/mail/mail.service.ts
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
+import { InjectQueue } from '@nestjs/bullmq';
+import { Queue } from 'bullmq';
 import * as nodemailer from 'nodemailer';
+import { MAIL_QUEUE, MAIL_JOB_SEND } from './mail.constants';
+
+export interface MailSendOptions {
+  to: string;
+  subject: string;
+  html: string;
+}
 
 @Injectable()
 export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly transporter: nodemailer.Transporter;
 
-  constructor() {
+  constructor(
+    @Optional() @InjectQueue(MAIL_QUEUE) private readonly queue: Queue | null,
+  ) {
     const host = process.env.MAIL_HOST;
     const port = Number(process.env.MAIL_PORT || 587);
     const secure =
@@ -27,15 +38,27 @@ export class MailService {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
       },
-        logger: true,   // <– добавь
-        debug: true,    // <– добавь
+      logger: true,
+      debug: true,
     });
   }
 
-  async sendMail(opts: { to: string; subject: string; html: string }) {
-    const from =
-      process.env.MAIL_FROM || '"Lumiva CRM" <no-reply@lumiva.agency>';
+  async sendMail(opts: MailSendOptions): Promise<void> {
+    if (this.queue) {
+      await this.queue.add(MAIL_JOB_SEND, opts, {
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
+        removeOnComplete: 100,
+        removeOnFail: 200,
+      });
+      this.logger.debug(`Mail queued to ${opts.to}: ${opts.subject}`);
+    } else {
+      await this.sendMailDirect(opts);
+    }
+  }
 
+  async sendMailDirect(opts: MailSendOptions): Promise<void> {
+    const from = process.env.MAIL_FROM || '"Lumiva CRM" <no-reply@lumiva.agency>';
     try {
       const info = await this.transporter.sendMail({
         from,
@@ -43,17 +66,14 @@ export class MailService {
         subject: opts.subject,
         html: opts.html,
       });
-
       this.logger.log(
         `Mail sent to ${opts.to}: ${opts.subject} (messageId=${info.messageId})`,
       );
     } catch (err) {
       this.logger.error(
         `Mail send failed to ${opts.to}: ${opts.subject}`,
-        (err as any).stack || String(err),
+        (err as Error).stack || String(err),
       );
-      // ВАЖНО: НЕ пробрасываем ошибку дальше,
-      // чтобы API не падал 500 из-за проблем SMTP.
     }
   }
 
@@ -126,7 +146,6 @@ export class MailService {
     await this.sendMail({ to, subject, html });
   }
 
-  /** Приглашение сотрудника: тот же визуальный стиль, CTA на установку пароля и ссылка на вход. */
   async sendTeamInviteEmail(params: {
     to: string;
     fullName: string;

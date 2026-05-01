@@ -26,6 +26,8 @@ import { UpdateIntegrationConnectionDto } from './dto/update-integration-connect
 import { IntegrationRegistryService } from './integration-registry.service';
 import type { IntegrationKind } from './integration-kind.enum';
 import type { TestConnectionResult, SyncResult } from './sales-integration.adapter';
+import { WooWorkspacePreviewDto } from './dto/woo-workspace-preview.dto';
+import { SyncIntegrationDto } from './dto/sync-integration.dto';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { IntegrationHubCatalogService } from './catalog/integration-hub-catalog.service';
 import type { IntegrationHubCatalogEntry } from './catalog/integration-hub.types';
@@ -104,6 +106,88 @@ export class IntegrationsController {
     @Body() dto: GoogleSheetsPreviewDto,
   ): Promise<GoogleSheetsPreviewResult> {
     return this.googleSheetsSync.previewSheet(dto);
+  }
+
+  /**
+   * Превью Meta Ads из интеграции «Маркетинг» (не из каталога Автоматизаций).
+   * POST /v1/integrations/marketing/:marketingId/meta-ads-workspace-preview
+   */
+  @Post('marketing/:marketingId/meta-ads-workspace-preview')
+  @UseGuards(JwtAuthGuard)
+  async metaAdsWorkspacePreviewFromMarketing(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('marketingId') marketingId: string,
+    @Body() body: WooWorkspacePreviewDto,
+  ) {
+    return this.svc.previewMetaAdsWorkspaceImportFromMarketing(
+      user.tenantId,
+      marketingId,
+      body.customObjectId,
+    );
+  }
+
+  /**
+   * Импорт Meta Ads в таблицу из интеграции «Маркетинг».
+   * POST /v1/integrations/marketing/:marketingId/meta-ads-workspace-sync
+   */
+  @Post('marketing/:marketingId/meta-ads-workspace-sync')
+  @UseGuards(JwtAuthGuard)
+  async metaAdsWorkspaceSyncFromMarketing(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('marketingId') marketingId: string,
+    @Body() body: SyncIntegrationDto,
+  ) {
+    const customObjectId = body?.customObjectId?.trim() || '';
+    if (!body?.metaAdsWorkspaceImport) {
+      throw new BadRequestException('Укажите metaAdsWorkspaceImport');
+    }
+    return this.svc.syncMetaAdsWorkspaceImportFromMarketing(
+      user.tenantId,
+      marketingId,
+      customObjectId,
+      body.metaAdsWorkspaceImport,
+    );
+  }
+
+  /**
+   * Превью GA4 из интеграции «Маркетинг».
+   * POST /v1/integrations/marketing/:marketingId/ga4-workspace-preview
+   */
+  @Post('marketing/:marketingId/ga4-workspace-preview')
+  @UseGuards(JwtAuthGuard)
+  async ga4WorkspacePreviewFromMarketing(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('marketingId') marketingId: string,
+    @Body() body: WooWorkspacePreviewDto,
+  ) {
+    return this.svc.previewGa4WorkspaceImportFromMarketing(
+      user.tenantId,
+      marketingId,
+      body.customObjectId,
+    );
+  }
+
+  /**
+   * Импорт GA4 в таблицу из интеграции «Маркетинг».
+   * POST /v1/integrations/marketing/:marketingId/ga4-workspace-sync
+   */
+  @Post('marketing/:marketingId/ga4-workspace-sync')
+  @UseGuards(JwtAuthGuard)
+  async ga4WorkspaceSyncFromMarketing(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('marketingId') marketingId: string,
+    @Body() body: SyncIntegrationDto,
+  ) {
+    const customObjectId = body?.customObjectId?.trim() || '';
+    if (!body?.ga4WorkspaceImport) {
+      throw new BadRequestException('Укажите ga4WorkspaceImport');
+    }
+    return this.svc.syncGa4WorkspaceImportFromMarketing(
+      user.tenantId,
+      marketingId,
+      customObjectId,
+      body.ga4WorkspaceImport,
+    );
   }
 
   /**
@@ -244,15 +328,60 @@ export class IntegrationsController {
   }
 
   /**
+   * Превью заказов Woo как плоских колонок для импорта в таблицу рабочей области.
+   * POST /v1/integrations/:id/woo-workspace-preview
+   */
+  @Post(':id/woo-workspace-preview')
+  @UseGuards(JwtAuthGuard)
+  async wooWorkspacePreview(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: WooWorkspacePreviewDto,
+  ) {
+    return this.svc.previewWooWorkspaceImport(
+      user.tenantId,
+      id,
+      body.customObjectId,
+    );
+  }
+
+  /**
+   * Превью данных Meta Ads (insights) для импорта в таблицу рабочей области.
+   * POST /v1/integrations/:id/meta-ads-workspace-preview
+   */
+  @Post(':id/meta-ads-workspace-preview')
+  @UseGuards(JwtAuthGuard)
+  async metaAdsWorkspacePreview(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body() body: WooWorkspacePreviewDto,
+  ) {
+    return this.svc.previewMetaAdsWorkspaceImport(
+      user.tenantId,
+      id,
+      body.customObjectId,
+    );
+  }
+
+  /**
    * Запуск синхронизации (в рамках своего tenant)
    * POST /v1/integrations/:id/sync
+   * Тело (опционально): { customObjectId, wooWorkspaceImport | metaAdsWorkspaceImport: { enabledWooColumns, wooColumnToFieldKey, statusFieldKey } }
    */
   @Post(':id/sync')
   @UseGuards(JwtAuthGuard)
   async sync(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
+    @Query('customObjectId') customObjectIdQuery?: string,
+    @Body() body?: SyncIntegrationDto,
   ): Promise<SyncResult> {
-    return this.svc.syncForTenant(user.tenantId, id);
+    const customObjectId =
+      body?.customObjectId?.trim() || customObjectIdQuery?.trim() || undefined;
+    return this.svc.syncForTenant(user.tenantId, id, {
+      customObjectId,
+      wooWorkspaceImport: body?.wooWorkspaceImport,
+      metaAdsWorkspaceImport: body?.metaAdsWorkspaceImport,
+    });
   }
 }

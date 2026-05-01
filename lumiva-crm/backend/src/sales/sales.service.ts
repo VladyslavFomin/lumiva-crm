@@ -7,13 +7,10 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
-  Between,
-  ILike,
-  LessThanOrEqual,
-  MoreThanOrEqual,
   Repository,
   In,
   IsNull,
+  SelectQueryBuilder,
 } from 'typeorm';
 
 import { Sale } from './sale.entity';
@@ -36,6 +33,7 @@ import { CustomFieldsService } from '../custom-fields/custom-fields.service';
 import { FieldType } from '../custom-fields/custom-field.entity';
 import { AnalyticsPreset } from './sales-analytics-preset.entity';
 import { SaveAnalyticsPresetDto } from './dto/save-analytics-preset.dto';
+import { LeadsService } from '../leads/leads.service';
 
 // строковый тип статуса из сущности
 type SaleStatusString = Sale['status'];
@@ -58,22 +56,13 @@ export class SalesService {
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
 
+    @Inject(forwardRef(() => LeadsService))
+    private readonly leadsService: LeadsService,
+
     private readonly customFieldsService: CustomFieldsService,
   ) {}
 
   /* ───────────────────── helpers ───────────────────── */
-
-  private buildDateRange(from?: string, to?: string) {
-    if (!from && !to) return undefined;
-
-    const start = from ? new Date(from + 'T00:00:00.000Z') : undefined;
-    const end = to ? new Date(to + 'T23:59:59.999Z') : undefined;
-
-    if (start && end) return Between(start, end);
-    if (start) return MoreThanOrEqual(start);
-    if (end) return LessThanOrEqual(end);
-    return undefined;
-  }
 
   private parseIsoDate(value?: string | null) {
     if (!value) return null;
@@ -220,6 +209,179 @@ export class SalesService {
   /* ───────────────────── list / stats ───────────────────── */
 
   /**
+   * Только продажи, привязанные к живому каналу из справочника «Каналы продаж»
+   * (не удалённый, не «висящий» без канала).
+   */
+  private applyListedSalesOnlyJoin(qb: SelectQueryBuilder<Sale>): void {
+    qb.innerJoin(
+      's.channel',
+      'listedSalesChannel',
+      'listedSalesChannel.isDeleted = :listedSalesChannelDeleted',
+      { listedSalesChannelDeleted: false },
+    );
+  }
+
+  /** Карточка / PATCH доступны только для таких же продаж, что и в списке. */
+  private async assertSaleListedForTenant(
+    tenantId: string,
+    sale: Sale,
+  ): Promise<void> {
+    if (!sale.channelId) {
+      throw new NotFoundException('Sale not found');
+    }
+    const ch = await this.channelRepo.findOne({
+      where: {
+        id: sale.channelId,
+        tenantId,
+        isDeleted: false,
+      } as any,
+    });
+    if (!ch) {
+      throw new NotFoundException('Sale not found');
+    }
+  }
+
+  private looksLikeUuid(s: string): boolean {
+    return /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(
+      s.trim(),
+    );
+  }
+
+  private extractHostnameFromUrl(raw?: string | null): string | null {
+    if (!raw || typeof raw !== 'string') return null;
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      const u = t.includes('://') ? new URL(t) : new URL(`https://${t}`);
+      const host = u.hostname.replace(/^www\./i, '');
+      return host || null;
+    } catch {
+      return null;
+    }
+  }
+
+  private siteHostFromIntegration(integ: IntegrationConnection): string | null {
+    const rawCfg = (integ as any).configJson;
+    if (!rawCfg) return null;
+    let cfg: any;
+    try {
+      cfg = typeof rawCfg === 'string' ? JSON.parse(rawCfg) : rawCfg;
+    } catch {
+      return null;
+    }
+    const baseUrl = cfg.baseUrl || cfg.url || cfg.siteUrl;
+    return this.extractHostnameFromUrl(baseUrl);
+  }
+
+  private integrationKindDisplayLabel(kind: string): string {
+    const k = kind.toLowerCase();
+    switch (k) {
+      case 'woocommerce':
+        return 'WooCommerce';
+      case 'manual-import':
+        return 'Manual import';
+      case 'third_party_link':
+        return 'Integration';
+      case 'other':
+        return 'Other';
+      default:
+        return kind || '';
+    }
+  }
+
+  /**
+   * Ссылка WooCommerce admin + человекочитаемые подписи канала (домен и тип интеграции).
+   */
+  private async enrichSalesListPayload(
+    tenantId: string,
+    sales: Sale[],
+  ): Promise<void> {
+    const channelIds = [
+      ...new Set(sales.map((s) => s.channelId).filter(Boolean)),
+    ] as string[];
+    if (!channelIds.length) return;
+
+    const [integrations, channels] = await Promise.all([
+      this.integrationsRepo.find({
+        where: {
+          tenantId,
+          channelId: In(channelIds),
+          isDeleted: false,
+        } as any,
+      }),
+      this.channelRepo.find({
+        where: {
+          tenantId,
+          id: In(channelIds),
+          isDeleted: false,
+        } as any,
+      }),
+    ]);
+
+    const byChannel = new Map(
+      integrations.map((i) => [(i as any).channelId as string, i]),
+    );
+    const channelById = new Map(channels.map((c) => [c.id, c]));
+
+    for (const sale of sales) {
+      if (!sale.channelId) continue;
+      const integ = byChannel.get(sale.channelId);
+      const ch = channelById.get(sale.channelId);
+
+      if (sale.externalOrderNo && integ) {
+        const rawCfg = (integ as any).configJson;
+        if (rawCfg) {
+          let cfg: any;
+          try {
+            cfg = typeof rawCfg === 'string' ? JSON.parse(rawCfg) : rawCfg;
+          } catch {
+            cfg = null;
+          }
+          if (cfg) {
+            const baseUrl: string | undefined =
+              cfg.baseUrl || cfg.url || cfg.siteUrl;
+            if (baseUrl && typeof baseUrl === 'string') {
+              const postId = String(sale.externalOrderNo).trim();
+              if (/^\d+$/.test(postId)) {
+                const origin = baseUrl.replace(/\/+$/, '');
+                (sale as any).wooAdminEditUrl = `${origin}/wp-admin/post.php?post=${encodeURIComponent(postId)}&action=edit`;
+              }
+            }
+          }
+        }
+      }
+
+      let siteLabel: string | null = null;
+      if (integ) {
+        siteLabel = this.siteHostFromIntegration(integ);
+        const desc = String((integ as any).description || '').trim();
+        if (!siteLabel && desc && !this.looksLikeUuid(desc)) {
+          siteLabel = desc;
+        }
+      }
+      if (!siteLabel && ch?.name?.trim()) {
+        const n = ch.name.trim();
+        if (!this.looksLikeUuid(n)) siteLabel = n;
+      }
+
+      let integrationLabel: string | null = null;
+      if (integ?.kind) {
+        integrationLabel = this.integrationKindDisplayLabel(String(integ.kind));
+      }
+      if (!integrationLabel && ch?.integrationName?.trim()) {
+        const n = ch.integrationName.trim();
+        if (!this.looksLikeUuid(n)) integrationLabel = n;
+      }
+      if (!integrationLabel && integ?.name?.trim()) {
+        integrationLabel = integ.name.trim();
+      }
+
+      (sale as any).channelSiteLabel = siteLabel || null;
+      (sale as any).channelIntegrationLabel = integrationLabel || null;
+    }
+  }
+
+  /**
    * Список продаж конкретного арендатора
    */
   async list(tenantId: string, query: ListSalesQueryDto) {
@@ -231,44 +393,49 @@ export class SalesService {
       status,
       channelId,
       search,
+      leadId,
     } = query;
 
-    // базовый фильтр: только свой тенант
-    const where: any = {
-      tenantId,
-    };
+    const qb = this.saleRepo.createQueryBuilder('s');
+    qb.where('s.tenantId = :tenantId', { tenantId });
+    this.applyListedSalesOnlyJoin(qb);
 
-    const dateRange = this.buildDateRange(from, to);
-    if (dateRange) {
-      where.saleDate = dateRange;
+    const leadIdTrimmed = leadId?.trim();
+    if (leadIdTrimmed) {
+      qb.andWhere('s.leadId = :filterLeadId', {
+        filterLeadId: leadIdTrimmed,
+      });
     }
 
+    if (from) {
+      qb.andWhere('s.saleDate >= :fromDate', {
+        fromDate: new Date(from + 'T00:00:00.000Z'),
+      });
+    }
+    if (to) {
+      qb.andWhere('s.saleDate <= :toDate', {
+        toDate: new Date(to + 'T23:59:59.999Z'),
+      });
+    }
     if (channelId) {
-      where.channelId = channelId;
+      qb.andWhere('s.channelId = :channelId', { channelId });
     }
-
     if (status) {
-      where.status = status;
+      qb.andWhere('s.status = :status', { status });
     }
-
-    const searchConditions: any[] = [];
-    if (search && search.trim()) {
-      const s = search.trim();
-      searchConditions.push(
-        { ...where, id: ILike(`%${s}%`) },
-        { ...where, externalId: ILike(`%${s}%`) },
-        { ...where, agentName: ILike(`%${s}%`) },
-        { ...where, hotel: ILike(`%${s}%`) },
-        { ...where, market: ILike(`%${s}%`) },
+    if (search?.trim()) {
+      const pattern = `%${search.trim()}%`;
+      qb.andWhere(
+        `(CAST(s.id AS TEXT) ILIKE :searchPattern OR s.externalId ILIKE :searchPattern OR s.externalOrderNo ILIKE :searchPattern OR s.guestName ILIKE :searchPattern OR s.agentName ILIKE :searchPattern OR s.hotel ILIKE :searchPattern OR s.market ILIKE :searchPattern)`,
+        { searchPattern: pattern },
       );
     }
 
-    const [items, total] = await this.saleRepo.findAndCount({
-      where: searchConditions.length ? searchConditions : where,
-      order: { saleDate: 'DESC', createdAt: 'DESC' },
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    });
+    qb.orderBy('s.saleDate', 'DESC').addOrderBy('s.createdAt', 'DESC');
+    qb.skip((page - 1) * pageSize).take(pageSize);
+
+    const [items, total] = await qb.getManyAndCount();
+    await this.enrichSalesListPayload(tenantId, items);
 
     return {
       items,
@@ -291,6 +458,7 @@ export class SalesService {
 
     // 👇 первый фильтр — свой тенант
     qb.where('s."tenantId" = :tenantId', { tenantId });
+    this.applyListedSalesOnlyJoin(qb);
 
     if (from) {
       qb.andWhere('s.saleDate >= :from', {
@@ -311,7 +479,7 @@ export class SalesService {
     if (search && search.trim()) {
       const s = `%${search.trim()}%`;
       qb.andWhere(
-        '(s.id ILIKE :s OR s.externalId ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
+        '(CAST(s.id AS TEXT) ILIKE :s OR s.externalId ILIKE :s OR s.externalOrderNo ILIKE :s OR s.guestName ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
         { s },
       );
     }
@@ -399,6 +567,7 @@ export class SalesService {
 
     const qb = this.saleRepo.createQueryBuilder('s');
     qb.where('s.\"tenantId\" = :tenantId', { tenantId });
+    this.applyListedSalesOnlyJoin(qb);
 
     if (channelIdList.length > 0) {
       qb.andWhere('s.\"channelId\" IN (:...channelIds)', {
@@ -411,7 +580,7 @@ export class SalesService {
     if (search && search.trim()) {
       const s = `%${search.trim()}%`;
       qb.andWhere(
-        '(s.id ILIKE :s OR s.externalId ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
+        '(CAST(s.id AS TEXT) ILIKE :s OR s.externalId ILIKE :s OR s.externalOrderNo ILIKE :s OR s.guestName ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
         { s },
       );
     }
@@ -748,6 +917,7 @@ export class SalesService {
 
     const qb = this.saleRepo.createQueryBuilder('s');
     qb.where('s."tenantId" = :tenantId', { tenantId });
+    this.applyListedSalesOnlyJoin(qb);
 
     if (channelIdList.length > 0) {
       qb.andWhere('s."channelId" IN (:...channelIds)', {
@@ -760,7 +930,7 @@ export class SalesService {
     if (search && search.trim()) {
       const s = `%${search.trim()}%`;
       qb.andWhere(
-        '(s.id ILIKE :s OR s.externalId ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
+        '(CAST(s.id AS TEXT) ILIKE :s OR s.externalId ILIKE :s OR s.externalOrderNo ILIKE :s OR s.guestName ILIKE :s OR s.agentName ILIKE :s OR s.hotel ILIKE :s OR s.market ILIKE :s)',
         { s },
       );
     }
@@ -945,14 +1115,28 @@ export class SalesService {
       throw new NotFoundException('Sale not found');
     }
 
+    await this.assertSaleListedForTenant(tenantId, sale);
+
+    await this.enrichSalesListPayload(tenantId, [sale]);
+    try {
+      await this.leadsService.ensureLeadLinkedForSale(sale);
+    } catch {
+      /* не блокируем карточку при ошибке лида */
+    }
+    const saleRow =
+      (await this.saleRepo.findOne({
+        where: { id, tenantId } as any,
+      })) ?? sale;
+    await this.enrichSalesListPayload(tenantId, [saleRow]);
+
     let channelShort: SaleDetailDto['channel'] = null;
     let integrationShort: SaleDetailDto['integration'] = null;
 
     // Канал тоже, скорее всего, мультитенантный
-    if (sale.channelId) {
+    if (saleRow.channelId) {
       const channel = await this.channelRepo.findOne({
         where: {
-          id: sale.channelId,
+          id: saleRow.channelId,
           tenantId,
           isDeleted: false,
         } as any,
@@ -969,7 +1153,7 @@ export class SalesService {
       // Интеграция по channelId
       const integration = await this.integrationsRepo.findOne({
         where: {
-          channelId: sale.channelId,
+          channelId: saleRow.channelId,
           tenantId,
           isDeleted: false,
         } as any,
@@ -986,7 +1170,7 @@ export class SalesService {
 
     // metaJson → meta
     let meta: Record<string, any> | null = null;
-    const rawMeta = (sale as any).metaJson;
+    const rawMeta = (saleRow as any).metaJson;
     if (rawMeta) {
       try {
         meta = typeof rawMeta === 'string' ? JSON.parse(rawMeta) : rawMeta;
@@ -995,11 +1179,11 @@ export class SalesService {
       }
     }
 
-    const plainSale = { ...(sale as any) };
+    const plainSale = { ...(saleRow as any) };
     delete plainSale.metaJson;
 
     return {
-      id: sale.id,
+      id: saleRow.id,
       channel: channelShort,
       integration: integrationShort,
       sale: plainSale,
@@ -1020,6 +1204,8 @@ export class SalesService {
     if (!sale) {
       throw new NotFoundException('Sale not found');
     }
+
+    await this.assertSaleListedForTenant(tenantId, sale);
 
     if (dto.status !== undefined) {
       // DTO использует enum, в сущности — строка; берём raw значение

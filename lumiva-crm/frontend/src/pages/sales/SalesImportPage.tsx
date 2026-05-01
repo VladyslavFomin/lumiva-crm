@@ -2,7 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import '../projects/ProjectsListPage.css';
 import {
   previewSalesImport,
   applySalesImport,
@@ -506,54 +507,89 @@ export const SalesImportPage: React.FC = () => {
     }
   };
 
+  const inputSelectCls =
+    'w-full rounded-lg border border-[var(--line-2)] bg-white px-3 py-2 text-[12.5px] text-[var(--ink)] outline-none transition-colors focus:border-[var(--ink)]';
+  const mappingSelectCls =
+    'w-full max-w-full rounded-md border border-[var(--line-2)] bg-white px-2 py-1.5 text-[11px] text-[var(--ink)] outline-none focus:border-[var(--ink)]';
+
   return (
     <MainLayout>
-      <div className="space-y-4 md:space-y-6 pb-8">
-        {/* Заголовок */}
-        <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div
+        className="lv-pt w-full pb-8 min-w-0"
+        style={{
+          marginLeft: -24,
+          marginRight: -24,
+          paddingLeft: 24,
+          paddingRight: 24,
+          width: 'calc(100% + 48px)',
+        }}
+      >
+        <div className="lv-pt-head">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
+            <div
+              style={{
+                fontSize: 11,
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase',
+                color: 'var(--fg-4)',
+                marginBottom: 6,
+              }}
+            >
               {t('crm.salesImport.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              {t('crm.salesImport.title')}
-            </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              {t('crm.salesImport.subtitle')}
-            </p>
-            <div className="flex flex-col items-stretch gap-2 md:items-end">
-              <button
-                type="button"
-                onClick={() =>
-                  (window.location.href = '/app/sales/integrations/new')
-                }
-                className="px-3 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft transition-colors"
-              >
-                {t('crm.salesImport.actions.newChannel')}
-              </button>
-            </div>
+            <h1>{t('crm.salesImport.title')}</h1>
+            <div className="sub">{t('crm.salesImport.subtitle')}</div>
           </div>
-
-          <div className="flex flex-col items-start gap-1 text-[11px] text-slate-300">
-            <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-              {t('crm.salesImport.fileLabel', {
-                name: fileName || t('crm.salesImport.fileNone'),
-              })}
-            </span>
-            {preview && (
-              <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                {t('crm.salesImport.previewMeta', {
-                  rows: preview.totalRows.toLocaleString(locale),
-                  columns: preview.columns.length,
-                })}
+          <div className="lv-pt-head-actions flex-col items-stretch sm:items-end gap-2">
+            <div className="flex flex-wrap gap-2 justify-end">
+              <span className="lv-filter-chip">
+                <span className="val">
+                  {t('crm.salesImport.fileLabel', {
+                    name: fileName || t('crm.salesImport.fileNone'),
+                  })}
+                </span>
               </span>
-            )}
+              {preview ? (
+                <span className="lv-filter-chip">
+                  <span className="val">
+                    {t('crm.salesImport.previewMeta', {
+                      rows: preview.totalRows.toLocaleString(locale),
+                      columns: preview.columns.length,
+                    })}
+                  </span>
+                </span>
+              ) : null}
+            </div>
+            <Link
+              to="/app/sales/integrations/new"
+              className="lv-tb-btn"
+              style={{
+                background: '#222',
+                color: '#fff',
+                borderColor: '#222',
+                borderRadius: 8,
+                justifyContent: 'center',
+              }}
+            >
+              {t('crm.salesImport.actions.newChannel')}
+            </Link>
           </div>
-        </section>
+        </div>
 
-        {/* Степпер */}
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {error ? (
+          <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-[8px] px-3 py-2 mb-[14px]">
+            {error}
+          </div>
+        ) : null}
+        {info && !error ? (
+          <div className="text-[12px] text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-[8px] px-3 py-2 mb-[14px]">
+            {info}
+          </div>
+        ) : null}
+
+        {/* Шаги */}
+        <section className="rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5 mb-[14px]">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-0">
             {[
               {
                 id: 1,
@@ -569,93 +605,88 @@ export const SalesImportPage: React.FC = () => {
               const isActive = activeStep === step.id;
               const isDone = activeStep > step.id;
               return (
-                <div key={step.id} className="flex items-center gap-3">
-                  <div
-                    className={`h-8 w-8 rounded-full flex items-center justify-center text-[11px] font-semibold
-                    ${
-                      isDone
-                        ? 'bg-lumiva-accent text-slate-950'
-                        : isActive
-                          ? 'bg-slate-50 text-slate-900'
-                          : 'bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {isDone ? '✓' : step.id}
-                  </div>
-                  <div className="flex-1">
+                <React.Fragment key={step.id}>
+                  <div className="flex min-w-0 flex-1 items-center gap-3">
                     <div
-                      className={`text-[12px] font-semibold ${
-                        isActive || isDone ? 'text-slate-100' : 'text-slate-400'
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${
+                        isDone || isActive
+                          ? 'bg-[#222] text-white'
+                          : 'border border-[var(--line-2)] bg-[var(--bg-muted)] text-[var(--fg-3)]'
                       }`}
                     >
-                      {step.title}
+                      {isDone ? '✓' : step.id}
                     </div>
-                    <div className="text-[10px] text-slate-500">
-                      {step.subtitle}
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`text-[13px] font-semibold ${
+                          isActive || isDone ? 'text-[var(--ink)]' : 'text-[var(--fg-3)]'
+                        }`}
+                      >
+                        {step.title}
+                      </div>
+                      <div className="text-[11px] leading-snug text-[var(--fg-3)]">{step.subtitle}</div>
                     </div>
                   </div>
-                  {idx < arr.length - 1 && (
-                    <div className="hidden md:block h-px flex-1 bg-slate-800/80" />
-                  )}
-                </div>
+                  {idx < arr.length - 1 ? (
+                    <div
+                      className="mx-2 hidden h-px min-h-[1px] flex-1 bg-[var(--line-2)] md:block"
+                      aria-hidden
+                    />
+                  ) : null}
+                </React.Fragment>
               );
             })}
           </div>
         </section>
 
-        {/* Блок выбора файла + канал */}
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 space-y-3">
-          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)] gap-4">
+        {/* Файл и канал */}
+        <section className="mb-[14px] space-y-4 rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,2fr)_minmax(0,1.6fr)]">
             <div className="space-y-2">
-              <label className="block text-[11px] text-slate-400 mb-1">
+              <label className="mb-1 block text-[11px] font-medium text-[var(--fg-3)]">
                 {t('crm.salesImport.fileInputLabel')}
               </label>
               <input
                 type="file"
                 accept=".csv,.xml,text/csv,application/xml,text/xml"
                 onChange={handleFileChange}
-                className="block w-full text-[11px] text-slate-100
-                           file:mr-3 file:py-1.5 file:px-3
-                           file:rounded-xl file:border-0
-                           file:bg-lumiva-accent file:text-slate-950
-                           file:text-[11px] file:font-semibold
-                           hover:file:bg-lumiva-accent-soft"
+                className="block w-full cursor-pointer text-[12px] text-[var(--ink)] file:mr-3 file:cursor-pointer file:rounded-lg file:border-0 file:bg-[#222] file:px-3 file:py-2 file:text-[11px] file:font-semibold file:text-white hover:file:opacity-90"
               />
-              <p className="text-[10px] text-slate-500">
-                {t('crm.salesImport.fileHint')}
-              </p>
+              <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t('crm.salesImport.fileHint')}</p>
             </div>
 
             <div className="space-y-2">
-              <label className="block text-[11px] text-slate-400 mb-1">
+              <label className="mb-1 block text-[11px] font-medium text-[var(--fg-3)]">
                 {t('crm.salesImport.channelLabel')}
               </label>
               <select
                 value={selectedChannelId}
                 onChange={(e) => setSelectedChannelId(e.target.value)}
-                className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
+                className={inputSelectCls}
               >
-                <option value="">
-                  {t('crm.salesImport.channelPlaceholder')}
-                </option>
+                <option value="">{t('crm.salesImport.channelPlaceholder')}</option>
                 {channels.map((ch) => (
                   <option key={ch.id} value={ch.id}>
                     {ch.name}
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] text-slate-500">
-                {t('crm.salesImport.channelHint')}
-              </p>
+              <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">{t('crm.salesImport.channelHint')}</p>
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex justify-end pt-1">
             <button
               type="button"
               onClick={handlePreview}
               disabled={loadingPreview || !file}
-              className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
+              className="lv-tb-btn disabled:opacity-50"
+              style={{
+                background: loadingPreview || !file ? undefined : '#222',
+                color: loadingPreview || !file ? undefined : '#fff',
+                borderColor: loadingPreview || !file ? undefined : '#222',
+                borderRadius: 8,
+              }}
             >
               {loadingPreview
                 ? t('crm.salesImport.actions.previewing')
@@ -666,218 +697,195 @@ export const SalesImportPage: React.FC = () => {
 
         {/* Маппинг полей */}
         {preview && (
-          <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 space-y-4">
-            <div className="flex items-center justify-between">
+          <section className="mb-[14px] space-y-4 rounded-[10px] border border-[var(--line-2)] bg-white p-4 md:p-5">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-sm font-semibold text-slate-100">
+                <h2 className="text-[15px] font-semibold leading-snug text-[var(--ink)]">
                   {t('crm.salesImport.mapping.title')}
                 </h2>
-                <p className="text-[11px] text-slate-500">
+                <p className="mt-1 max-w-2xl text-[12px] leading-relaxed text-[var(--fg-3)]">
                   {t('crm.salesImport.mapping.subtitle')}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="text-[11px] text-slate-300">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[12px] text-[var(--fg-3)]">
                   {t('crm.salesImport.mapping.count', {
                     mapped: mappedCount,
                     total: allFieldKeys.length,
                   })}
-                </div>
+                </span>
                 <button
                   type="button"
                   onClick={() => setCustomFieldsOpen(true)}
-                  className="px-2 py-1 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80"
+                  className="lv-tb-btn text-[12px]"
                 >
                   {t('crm.salesImport.mapping.manageFields')}
                 </button>
               </div>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1 table-fixed">
-                <thead className="text-slate-500">
-                  <tr>
-                    {orderedMappingColumns.map((col) => {
-                      const fallback = col.id === 'crmField' ? 200 : 260;
-                      const width = mappingColumnWidths[col.id] ?? fallback;
-                      return (
-                        <th
-                          key={col.id}
-                          draggable
-                          onDragStart={(e) => {
-                            setMappingDragColumnId(col.id);
-                            e.dataTransfer.effectAllowed = 'move';
-                            e.dataTransfer.setData('text/plain', col.id);
-                          }}
-                          onDragEnd={() => setMappingDragColumnId(null)}
-                          onDragOver={(e) => e.preventDefault()}
-                          onDrop={() => handleMappingColumnDrop(col.id)}
-                          className="text-left font-normal px-2 py-1 relative group"
-                          style={{ width, minWidth: width }}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="cursor-move">⋮⋮</span>
-                            <span>{col.label}</span>
-                          </div>
-                          <div
-                            className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
-                            onMouseDown={(e) => startMappingResize(col.id, e)}
-                          />
-                        </th>
-                      );
-                    })}
-                  </tr>
-                </thead>
-                <tbody>
-                  {allFieldKeys.map((field) => (
-                    <tr
-                      key={field}
-                      className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors"
-                    >
+            <div className="lv-proj-wrap">
+              <div className="lv-proj-scroll">
+                <table className="lv-proj-table">
+                  <thead>
+                    <tr>
                       {orderedMappingColumns.map((col) => {
                         const fallback = col.id === 'crmField' ? 200 : 260;
                         const width = mappingColumnWidths[col.id] ?? fallback;
                         return (
-                          <td
+                          <th
                             key={col.id}
-                            className="px-2 py-1.5"
+                            draggable
+                            onDragStart={(e) => {
+                              setMappingDragColumnId(col.id);
+                              e.dataTransfer.effectAllowed = 'move';
+                              e.dataTransfer.setData('text/plain', col.id);
+                            }}
+                            onDragEnd={() => setMappingDragColumnId(null)}
+                            onDragOver={(e) => e.preventDefault()}
+                            onDrop={() => handleMappingColumnDrop(col.id)}
                             style={{ width, minWidth: width }}
                           >
-                            {col.id === 'crmField' ? (
-                              <span className="text-slate-100 whitespace-nowrap">
-                                {fieldLabels[field] || field}
-                              </span>
-                            ) : (
-                              <select
-                                value={mapping[field] || ''}
-                                onChange={(e) =>
-                                  handleMappingChange(field, e.target.value)
-                                }
-                                className="w-full h-7 rounded-lg bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
-                              >
-                                <option value="">
-                                  {t('crm.salesImport.mapping.skip')}
-                                </option>
-                                {columns.map((col) => (
-                                  <option key={col} value={col}>
-                                    {col}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                          </td>
+                            <div className="lv-th-inner">
+                              <span className="lv-th-grip">⋮⋮</span>
+                              <span>{col.label}</span>
+                            </div>
+                            <div
+                              className="lv-th-resize"
+                              onMouseDown={(e) => startMappingResize(col.id, e)}
+                            />
+                          </th>
                         );
                       })}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Пример данных */}
-            <div className="mt-3">
-              <h3 className="text-[11px] font-semibold text-slate-200 mb-1">
-                {t('crm.salesImport.sample.title')}
-              </h3>
-              {preview.sample && preview.sample.length ? (
-                <div className="overflow-x-auto border border-slate-800/80 rounded-2xl">
-                  <table className="min-w-full text-[10px] border-collapse">
-                    <thead className="bg-slate-950/80 text-slate-400">
-                      <tr>
-                        {orderedSampleColumns.map((col) => {
-                          const width = sampleColumnWidths[col] ?? 160;
+                  </thead>
+                  <tbody>
+                    {allFieldKeys.map((field) => (
+                      <tr key={field} className="transition-colors hover:bg-[#fafafa]">
+                        {orderedMappingColumns.map((col) => {
+                          const fallback = col.id === 'crmField' ? 200 : 260;
+                          const width = mappingColumnWidths[col.id] ?? fallback;
                           return (
-                            <th
-                              key={col}
-                              draggable
-                              onDragStart={(e) => {
-                                setSampleDragColumnId(col);
-                                e.dataTransfer.effectAllowed = 'move';
-                                e.dataTransfer.setData('text/plain', col);
-                              }}
-                              onDragEnd={() => setSampleDragColumnId(null)}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={() => handleSampleColumnDrop(col)}
-                              className="px-2 py-1 border-b border-slate-800/80 text-left relative group"
-                              style={{ width, minWidth: width }}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className="cursor-move">⋮⋮</span>
-                                <span>{col}</span>
-                              </div>
-                              <div
-                                className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
-                                onMouseDown={(e) => startSampleResize(col, e)}
-                              />
-                            </th>
+                            <td key={col.id} style={{ width, minWidth: width }}>
+                              {col.id === 'crmField' ? (
+                                <span className="whitespace-nowrap font-medium text-[var(--ink)]">
+                                  {fieldLabels[field] || field}
+                                </span>
+                              ) : (
+                                <select
+                                  value={mapping[field] || ''}
+                                  onChange={(e) =>
+                                    handleMappingChange(field, e.target.value)
+                                  }
+                                  className={mappingSelectCls}
+                                >
+                                  <option value="">
+                                    {t('crm.salesImport.mapping.skip')}
+                                  </option>
+                                  {columns.map((colName) => (
+                                    <option key={colName} value={colName}>
+                                      {colName}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </td>
                           );
                         })}
                       </tr>
-                    </thead>
-                    <tbody>
-                      {preview.sample.map((row, idx) => (
-                        <tr
-                          key={idx}
-                          className={
-                            idx % 2 === 0
-                              ? 'bg-slate-950/60'
-                              : 'bg-slate-900/60'
-                          }
-                        >
-                          {orderedSampleColumns.map((col) => (
-                            <td
-                              key={col}
-                              className="px-2 py-1 border-b border-slate-900/60 text-slate-200 whitespace-nowrap"
-                              style={{
-                                width: sampleColumnWidths[col] ?? 160,
-                                minWidth: sampleColumnWidths[col] ?? 160,
-                              }}
-                            >
-                              {row[col] ?? ''}
-                            </td>
-                          ))}
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Пример данных */}
+            <div className="border-t border-[var(--line-3)] pt-4">
+              <h3 className="mb-3 text-[13px] font-semibold text-[var(--ink)]">
+                {t('crm.salesImport.sample.title')}
+              </h3>
+              {preview.sample && preview.sample.length ? (
+                <div className="lv-proj-wrap">
+                  <div className="lv-proj-scroll">
+                    <table className="lv-proj-table text-[11px]">
+                      <thead>
+                        <tr>
+                          {orderedSampleColumns.map((col) => {
+                            const width = sampleColumnWidths[col] ?? 160;
+                            return (
+                              <th
+                                key={col}
+                                draggable
+                                onDragStart={(e) => {
+                                  setSampleDragColumnId(col);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                  e.dataTransfer.setData('text/plain', col);
+                                }}
+                                onDragEnd={() => setSampleDragColumnId(null)}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={() => handleSampleColumnDrop(col)}
+                                style={{ width, minWidth: width }}
+                              >
+                                <div className="lv-th-inner">
+                                  <span className="lv-th-grip">⋮⋮</span>
+                                  <span>{col}</span>
+                                </div>
+                                <div
+                                  className="lv-th-resize"
+                                  onMouseDown={(e) => startSampleResize(col, e)}
+                                />
+                              </th>
+                            );
+                          })}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {preview.sample.map((row, idx) => (
+                          <tr key={idx} className="transition-colors hover:bg-[#fafafa]">
+                            {orderedSampleColumns.map((col) => (
+                              <td
+                                key={col}
+                                className="whitespace-nowrap text-[11px] text-[var(--ink)]"
+                                style={{
+                                  width: sampleColumnWidths[col] ?? 160,
+                                  minWidth: sampleColumnWidths[col] ?? 160,
+                                }}
+                              >
+                                {row[col] ?? ''}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
-                <div className="text-[11px] text-slate-500 italic">
+                <div className="text-[12px] italic text-[var(--fg-3)]">
                   {t('crm.salesImport.sample.empty')}
                 </div>
               )}
             </div>
 
-            {/* Кнопка импорта */}
-            <div className="pt-2 flex justify-end">
+            <div className="flex justify-end border-t border-[var(--line-3)] pt-4">
               <button
                 type="button"
                 onClick={handleApply}
                 disabled={applying}
-              className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
-            >
-              {applying
-                ? t('crm.salesImport.actions.applying')
-                : t('crm.salesImport.actions.apply')}
-            </button>
-          </div>
-        </section>
-        )}
-
-        {/* уведомления */}
-        {(error || info) && (
-          <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            {error && (
-              <div className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] text-[#222222] shadow-sm">
-                {error}
-              </div>
-            )}
-            {info && !error && (
-              <div className="px-3 py-1.5 rounded-full bg-white border border-slate-200 text-[11px] text-[#222222] shadow-sm">
-                {info}
-              </div>
-            )}
-          </div>
+                className="lv-tb-btn disabled:opacity-60"
+                style={{
+                  background: applying ? undefined : '#222',
+                  color: applying ? undefined : '#fff',
+                  borderColor: applying ? undefined : '#222',
+                  borderRadius: 8,
+                }}
+              >
+                {applying
+                  ? t('crm.salesImport.actions.applying')
+                  : t('crm.salesImport.actions.apply')}
+              </button>
+            </div>
+          </section>
         )}
       </div>
       {customFieldsOpen && (

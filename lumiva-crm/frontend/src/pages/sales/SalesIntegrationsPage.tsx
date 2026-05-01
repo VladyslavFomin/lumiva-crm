@@ -18,6 +18,7 @@ import {
 } from '../../api/salesChannels';
 import { getLocale } from '../../i18n/utils';
 import { integrationCatalogName } from '../automations/integrationsCatalog';
+import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
 
 /* ─────────────────────────────── */
 /* Вспомогательные маппинги       */
@@ -95,6 +96,20 @@ const emptyTpForm: ThirdPartyEditForm = {
   configJson: '{}',
 };
 
+type IntegrationModalPayload = {
+  variant: 'success' | 'error' | 'info';
+  title: string;
+  message?: string;
+  syncStats?: {
+    created: number;
+    updated: number;
+    skipped: number;
+    workspaceCreated?: number;
+    workspaceUpdated?: number;
+    workspaceSkipped?: number;
+  };
+};
+
 export const SalesIntegrationsPage: React.FC = () => {
   const { t } = useTranslation();
   const locale = getLocale();
@@ -110,12 +125,27 @@ export const SalesIntegrationsPage: React.FC = () => {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[]>([]);
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
-  const [dragColumnId, setDragColumnId] = useState<string | null>(null);
   const [resizing, setResizing] = useState<{
     id: string;
     startX: number;
     startWidth: number;
   } | null>(null);
+
+  const [integrationModal, setIntegrationModal] =
+    useState<IntegrationModalPayload | null>(null);
+
+  const closeIntegrationModal = useCallback(() => {
+    setIntegrationModal(null);
+  }, []);
+
+  useEffect(() => {
+    if (!integrationModal) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeIntegrationModal();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [integrationModal, closeIntegrationModal]);
 
   const kindLabels = useMemo(
     () => ({
@@ -324,19 +354,19 @@ export const SalesIntegrationsPage: React.FC = () => {
     });
   };
 
-  const handleColumnDrop = (targetId: string) => {
-    if (!dragColumnId || dragColumnId === targetId) return;
+  const reorderColumns = useCallback((dragId: string, targetId: string) => {
     setColumnOrder((prev) => {
       const next = [...prev];
-      const from = next.indexOf(dragColumnId);
+      const from = next.indexOf(dragId);
       const to = next.indexOf(targetId);
       if (from === -1 || to === -1) return prev;
       next.splice(from, 1);
-      next.splice(to, 0, dragColumnId);
+      next.splice(to, 0, dragId);
       return next;
     });
-    setDragColumnId(null);
-  };
+  }, []);
+
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'dark');
 
   const renderCell = (
     conn: IntegrationConnectionDto,
@@ -502,7 +532,11 @@ export const SalesIntegrationsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.salesIntegrations.errors.toggle'));
+      setIntegrationModal({
+        variant: 'error',
+        title: t('crm.salesIntegrations.modal.errorTitle'),
+        message: e.message || t('crm.salesIntegrations.errors.toggle'),
+      });
     } finally {
       setSavingId(null);
     }
@@ -524,7 +558,11 @@ export const SalesIntegrationsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.salesIntegrations.errors.delete'));
+      setIntegrationModal({
+        variant: 'error',
+        title: t('crm.salesIntegrations.modal.errorTitle'),
+        message: e.message || t('crm.salesIntegrations.errors.delete'),
+      });
     } finally {
       setDeletingId(null);
     }
@@ -534,19 +572,22 @@ export const SalesIntegrationsPage: React.FC = () => {
     setTestingId(conn.id);
     try {
       const res = await testIntegrationConnection(conn.id);
-      alert(
-        res.ok
-          ? t('crm.salesIntegrations.test.ok', {
-              message: res.message || 'OK',
-            })
-          : t('crm.salesIntegrations.test.fail', {
-              message:
-                res.message || t('crm.salesIntegrations.test.defaultError'),
-            }),
-      );
+      setIntegrationModal({
+        variant: res.ok ? 'success' : 'error',
+        title: res.ok
+          ? t('crm.salesIntegrations.modal.testOkTitle')
+          : t('crm.salesIntegrations.modal.testFailTitle'),
+        message: res.ok
+          ? res.message || 'OK'
+          : res.message || t('crm.salesIntegrations.test.defaultError'),
+      });
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.salesIntegrations.errors.test'));
+      setIntegrationModal({
+        variant: 'error',
+        title: t('crm.salesIntegrations.modal.errorTitle'),
+        message: e.message || t('crm.salesIntegrations.errors.test'),
+      });
     } finally {
       setTestingId(null);
     }
@@ -556,14 +597,19 @@ export const SalesIntegrationsPage: React.FC = () => {
     setSyncingId(conn.id);
     try {
       const res = await triggerIntegrationSync(conn.id);
-      const msg =
-        res.message ||
-        t('crm.salesIntegrations.sync.summary', {
+      setIntegrationModal({
+        variant: 'success',
+        title: t('crm.salesIntegrations.modal.syncTitle'),
+        syncStats: {
           created: res.created,
           updated: res.updated,
           skipped: res.skipped,
-        });
-      alert(t('crm.salesIntegrations.sync.done', { message: msg }));
+          workspaceCreated: res.workspaceCreated,
+          workspaceUpdated: res.workspaceUpdated,
+          workspaceSkipped: res.workspaceSkipped,
+        },
+        message: res.message?.trim() || undefined,
+      });
 
       // После синка можно обновить список (чтобы подтянуть новые totalSales*)
       const updated = await fetchIntegrations();
@@ -572,7 +618,11 @@ export const SalesIntegrationsPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.salesIntegrations.errors.sync'));
+      setIntegrationModal({
+        variant: 'error',
+        title: t('crm.salesIntegrations.modal.errorTitle'),
+        message: e.message || t('crm.salesIntegrations.errors.sync'),
+      });
     } finally {
       setSyncingId(null);
     }
@@ -657,11 +707,13 @@ export const SalesIntegrationsPage: React.FC = () => {
       });
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e);
-      alert(
-        t('crm.salesIntegrations.errors.loadIntegrationFailed', {
+      setIntegrationModal({
+        variant: 'error',
+        title: t('crm.salesIntegrations.modal.errorTitle'),
+        message: t('crm.salesIntegrations.errors.loadIntegrationFailed', {
           message: msg,
         }),
-      );
+      });
       closeEditPanel();
     } finally {
       setEditLoading(false);
@@ -686,7 +738,11 @@ export const SalesIntegrationsPage: React.FC = () => {
         closeEditPanel();
       } catch (e: any) {
         console.error(e);
-        alert(e.message || t('crm.salesIntegrations.errors.update'));
+        setIntegrationModal({
+          variant: 'error',
+          title: t('crm.salesIntegrations.modal.errorTitle'),
+          message: e.message || t('crm.salesIntegrations.errors.update'),
+        });
       } finally {
         setUpdating(false);
       }
@@ -709,7 +765,11 @@ export const SalesIntegrationsPage: React.FC = () => {
         closeEditPanel();
       } catch (e: any) {
         console.error(e);
-        alert(e.message || t('crm.salesIntegrations.errors.update'));
+        setIntegrationModal({
+          variant: 'error',
+          title: t('crm.salesIntegrations.modal.errorTitle'),
+          message: e.message || t('crm.salesIntegrations.errors.update'),
+        });
       } finally {
         setUpdating(false);
       }
@@ -721,7 +781,11 @@ export const SalesIntegrationsPage: React.FC = () => {
       try {
         parsed = JSON.parse(tpForm.configJson) as Record<string, unknown>;
       } catch {
-        alert(t('crm.salesIntegrations.errors.configJsonInvalid'));
+        setIntegrationModal({
+          variant: 'info',
+          title: t('crm.salesIntegrations.modal.validationTitle'),
+          message: t('crm.salesIntegrations.errors.configJsonInvalid'),
+        });
         return;
       }
       setUpdating(true);
@@ -738,7 +802,11 @@ export const SalesIntegrationsPage: React.FC = () => {
         closeEditPanel();
       } catch (e: any) {
         console.error(e);
-        alert(e.message || t('crm.salesIntegrations.errors.update'));
+        setIntegrationModal({
+          variant: 'error',
+          title: t('crm.salesIntegrations.modal.errorTitle'),
+          message: e.message || t('crm.salesIntegrations.errors.update'),
+        });
       } finally {
         setUpdating(false);
       }
@@ -746,7 +814,11 @@ export const SalesIntegrationsPage: React.FC = () => {
     }
 
     if (!editForm.url || !editForm.consumerKey) {
-      alert(t('crm.salesIntegrations.errors.updateMissing'));
+      setIntegrationModal({
+        variant: 'info',
+        title: t('crm.salesIntegrations.modal.validationTitle'),
+        message: t('crm.salesIntegrations.errors.updateMissing'),
+      });
       return;
     }
 
@@ -777,7 +849,11 @@ export const SalesIntegrationsPage: React.FC = () => {
       closeEditPanel();
     } catch (e: any) {
       console.error(e);
-      alert(e.message || t('crm.salesIntegrations.errors.update'));
+      setIntegrationModal({
+        variant: 'error',
+        title: t('crm.salesIntegrations.modal.errorTitle'),
+        message: e.message || t('crm.salesIntegrations.errors.update'),
+      });
     } finally {
       setUpdating(false);
     }
@@ -1199,24 +1275,22 @@ export const SalesIntegrationsPage: React.FC = () => {
                     return (
                       <th
                         key={col.id}
-                        draggable
-                        onDragStart={(e) => {
-                          setDragColumnId(col.id);
-                          e.dataTransfer.effectAllowed = 'move';
-                          e.dataTransfer.setData('text/plain', col.id);
-                        }}
-                        onDragEnd={() => setDragColumnId(null)}
-                        onDragOver={(e) => e.preventDefault()}
-                        onDrop={() => handleColumnDrop(col.id)}
-                        className="text-left font-normal px-2 py-1 relative group"
+                        {...columnDrag.getThProps(
+                          col.id,
+                          typeof col.label === 'string' ? col.label : String(col.label),
+                          'text-left font-normal px-2 py-1 relative group/colhdr select-none transition-colors duration-150',
+                        )}
                         style={{ width, minWidth: width }}
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="cursor-move">⋮⋮</span>
+                        <div className="flex min-h-[28px] items-center gap-2">
+                          <span className="text-[10px] text-slate-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                            ⋮⋮
+                          </span>
                           <span>{col.label}</span>
                         </div>
                         <div
-                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover:opacity-100"
+                          data-col-resize
+                          className="absolute right-0 top-0 h-full w-1 cursor-col-resize opacity-0 group-hover/colhdr:opacity-100"
                           onMouseDown={(e) => startResize(col.id, e)}
                         />
                       </th>
@@ -1286,6 +1360,134 @@ export const SalesIntegrationsPage: React.FC = () => {
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
             <div className="px-3 py-1.5 rounded-full bg-red-950/95 border border-red-700/80 text-[11px] text-red-100">
               {error}
+            </div>
+          </div>
+        )}
+
+        {integrationModal && (
+          <div
+            className="fixed inset-0 z-[240] flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2px]"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sales-integration-modal-title"
+            onMouseDown={(e) => {
+              if (e.target === e.currentTarget) closeIntegrationModal();
+            }}
+          >
+            <div
+              className={`w-full max-w-lg rounded-2xl border bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden ${
+                integrationModal.variant === 'error'
+                  ? 'border-rose-500/50 ring-1 ring-rose-500/20'
+                  : integrationModal.variant === 'success'
+                    ? 'border-emerald-500/40 ring-1 ring-emerald-500/15'
+                    : 'border-sky-500/35 ring-1 ring-sky-500/15'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-slate-800/90 px-5 py-4">
+                <h2
+                  id="sales-integration-modal-title"
+                  className="text-base font-semibold text-slate-50 leading-snug pr-2"
+                >
+                  {integrationModal.title}
+                </h2>
+                <button
+                  type="button"
+                  onClick={closeIntegrationModal}
+                  className="shrink-0 rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                  aria-label={t('crm.salesIntegrations.modal.close')}
+                >
+                  ×
+                </button>
+              </div>
+              <div className="max-h-[min(70vh,520px)] overflow-y-auto px-5 py-4 space-y-4">
+                {integrationModal.syncStats && (
+                  <div className="space-y-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      {t('crm.salesIntegrations.modal.salesStatsHint')}
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                          {t('crm.salesIntegrations.modal.statCreated')}
+                        </div>
+                        <div className="text-lg font-semibold tabular-nums text-slate-100">
+                          {integrationModal.syncStats.created}
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                          {t('crm.salesIntegrations.modal.statUpdated')}
+                        </div>
+                        <div className="text-lg font-semibold tabular-nums text-slate-100">
+                          {integrationModal.syncStats.updated}
+                        </div>
+                      </div>
+                      <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                          {t('crm.salesIntegrations.modal.statSkipped')}
+                        </div>
+                        <div className="text-lg font-semibold tabular-nums text-slate-100">
+                          {integrationModal.syncStats.skipped}
+                        </div>
+                      </div>
+                    </div>
+                    {(integrationModal.syncStats.workspaceCreated !== undefined ||
+                      integrationModal.syncStats.workspaceUpdated !== undefined ||
+                      integrationModal.syncStats.workspaceSkipped !== undefined) && (
+                      <>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 pt-1">
+                          {t('crm.salesIntegrations.modal.workspaceStatsHint')}
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
+                            <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                              {t('crm.salesIntegrations.modal.statWsCreated')}
+                            </div>
+                            <div className="text-lg font-semibold tabular-nums text-slate-100">
+                              {integrationModal.syncStats.workspaceCreated ?? '—'}
+                            </div>
+                          </div>
+                          <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
+                            <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                              {t('crm.salesIntegrations.modal.statWsUpdated')}
+                            </div>
+                            <div className="text-lg font-semibold tabular-nums text-slate-100">
+                              {integrationModal.syncStats.workspaceUpdated ?? '—'}
+                            </div>
+                          </div>
+                          <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
+                            <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                              {t('crm.salesIntegrations.modal.statWsSkipped')}
+                            </div>
+                            <div className="text-lg font-semibold tabular-nums text-slate-100">
+                              {integrationModal.syncStats.workspaceSkipped ?? '—'}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+                {integrationModal.message && (
+                  <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 mb-1.5">
+                      {t('crm.salesIntegrations.modal.detailLabel')}
+                    </div>
+                    <p className="text-[13px] text-slate-900 leading-relaxed whitespace-pre-wrap break-words">
+                      {integrationModal.message}
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-slate-800/90 px-5 py-3 flex justify-end bg-slate-950/40">
+                <button
+                  type="button"
+                  onClick={closeIntegrationModal}
+                  className="inline-flex items-center justify-center rounded-xl px-5 py-2 text-[12px] font-semibold bg-lumiva-accent text-slate-950 hover:bg-lumiva-accent-soft transition-colors"
+                >
+                  {t('crm.salesIntegrations.modal.close')}
+                </button>
+              </div>
             </div>
           </div>
         )}

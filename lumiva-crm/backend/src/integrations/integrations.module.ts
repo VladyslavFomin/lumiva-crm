@@ -33,12 +33,20 @@ import { Sale } from '../sales/sale.entity';
 import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
+import { WorkspaceAreasModule } from '../workspace-areas/workspace-areas.module';
+import { MarketingModule } from '../marketing/marketing.module';
+import { LeadsModule } from '../leads/leads.module';
 
 @Module({
   imports: [
     PlatformSettingsModule,
     forwardRef(() => TenantsModule),
     forwardRef(() => GoogleSheetsSyncModule),
+    CustomObjectsModule,
+    WorkspaceAreasModule,
+    MarketingModule,
+    forwardRef(() => LeadsModule),
     TypeOrmModule.forFeature([
       IntegrationConnection,
       Sale,

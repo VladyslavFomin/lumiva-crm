@@ -24,6 +24,8 @@ export interface Project {
   leadId: string | null;
   leadName: string | null;
   leadEmail: string | null;
+  /** Привязка к компании (с бэка; может задаваться с лидом). */
+  companyId?: string | null;
   /** Название компании лида (если есть на бэке / в списке). */
   companyName?: string | null;
   ownerUserId?: string | null;
@@ -97,6 +99,8 @@ export function createEmptyProject(): Project {
     leadId: null,
     leadName: null,
     leadEmail: null,
+    companyId: null,
+    companyName: null,
     customFields: {},
     createdAt: '',
     tasks: [],

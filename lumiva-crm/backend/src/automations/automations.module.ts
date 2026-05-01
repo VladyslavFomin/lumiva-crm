@@ -18,10 +18,12 @@ import { SalesModule } from '../sales/sales.module';
 import { CompaniesModule } from '../companies/companies.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { MarketingModule } from '../marketing/marketing.module';
+import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
 
 @Module({
   imports: [
     forwardRef(() => IntegrationsModule),
+    forwardRef(() => CustomObjectsModule),
     MarketingModule,
     TypeOrmModule.forFeature([
       Automation,

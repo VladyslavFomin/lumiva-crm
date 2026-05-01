@@ -19,7 +19,7 @@ export class PlatformAdminStrategy extends PassportStrategy(
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: process.env.JWT_SECRET || 'dev-secret',
+      secretOrKey: process.env.JWT_SECRET!,
     });
   }
 

@@ -65,7 +65,7 @@ export class CreateAutomationDto {
   @Min(0)
   cooldownSeconds?: number;
 
-  /** Для trigger scheduled: { schedule: { scheduleFrequency, scheduleTime, scheduleTimezone, scheduleDayOfWeek, scheduleDayOfMonth } } */
+  /** Для trigger scheduled: { schedule: {...}, contextLeadId?: string } — привязка к одному лиду для рассылки по расписанию */
   @IsOptional()
   @IsObject()
   meta?: Record<string, any>;

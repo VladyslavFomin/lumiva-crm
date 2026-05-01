@@ -44,7 +44,7 @@ export class GoogleCalendarOAuthService {
   ) {}
 
   private secret(): string {
-    return process.env.JWT_SECRET || 'changeme';
+    return process.env.JWT_SECRET!;
   }
 
   private callbackRedirectUri(): string {

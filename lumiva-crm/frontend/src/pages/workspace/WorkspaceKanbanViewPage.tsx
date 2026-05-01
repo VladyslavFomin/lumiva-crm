@@ -8,6 +8,7 @@ import {
   fetchCustomObjectFields,
   fetchCustomObjectRecords,
   updateCustomObjectRecord,
+  createCustomObjectRecord,
   type CustomObjectField,
   type CustomObject,
   type CustomObjectRecord,
@@ -18,6 +19,7 @@ import { WORKSPACE_STATUS_COLOR_PRESETS } from '../../components/workspace/works
 import { pickStatusLikeField } from '../../components/workspace/workspaceStatusField';
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
+import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
 
 const FALLBACK_STATUSES = [
   { value: 'working_on_it', label: 'Working on it' },
@@ -86,6 +88,10 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
   const [activityByRecord, setActivityByRecord] = useState<
     Record<string, Array<{ id: string; text: string; createdAt: string }>>
   >({});
+  const [addingToColumn, setAddingToColumn] = useState<string | null>(null);
+  const [newCardDraft, setNewCardDraft] = useState('');
+  const [creatingCard, setCreatingCard] = useState(false);
+
   /** Подавить клик сразу после drag-and-drop (иначе откроется дровер). */
   const dragEndTsRef = useRef(0);
   /** После переноса — карточка наверху колонки + подсветка. */
@@ -97,23 +103,31 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
 
   const refreshRecordsOnly = async () => {
     if (!objectId) return;
-    const result = await fetchCustomObjectRecords(objectId);
+    const enrich =
+      getWorkspaceTableKind(objectMeta as Record<string, unknown> | null) === 'board';
+    const result = await fetchCustomObjectRecords(objectId, undefined, {
+      enrichColumnBindings: enrich,
+    });
     setRecords(result.items);
   };
 
   const load = async () => {
     setLoading(true);
     try {
-      const [loadedFields, result, objects, staffList] = await Promise.all([
+      const [loadedFields, objects, staffList] = await Promise.all([
         fetchCustomObjectFields(objectId),
-        fetchCustomObjectRecords(objectId),
         fetchCustomObjects().catch(() => [] as CustomObject[]),
         fetchStaff().catch(() => [] as StaffUser[]),
       ]);
+      const object = objects.find((item) => item.id === objectId);
+      const enrich =
+        getWorkspaceTableKind(object?.meta as Record<string, unknown> | null) === 'board';
+      const result = await fetchCustomObjectRecords(objectId, undefined, {
+        enrichColumnBindings: enrich,
+      });
       setFields(loadedFields.filter((field) => field.isActive));
       setRecords(result.items);
       setStaff(staffList);
-      const object = objects.find((item) => item.id === objectId);
       setObjectMeta((object?.meta as Record<string, any> | null) || null);
     } finally {
       setLoading(false);
@@ -502,16 +516,36 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
     }
   };
 
+  const createCard = async (columnStatus: string) => {
+    const name = newCardDraft.trim();
+    if (!name || creatingCard) return;
+    setCreatingCard(true);
+    try {
+      const titleKey = cardTitleField && !cardTitleField.startsWith('$record.') ? cardTitleField : 'name';
+      const canonicalStatus = resolveCanonicalStatusPayload(columnStatus);
+      const created = await createCustomObjectRecord(objectId, {
+        values: { [titleKey]: name, [statusFieldKey]: canonicalStatus },
+      });
+      setRecords((prev) => [created, ...prev]);
+      setNewCardDraft('');
+      setAddingToColumn(null);
+    } catch {
+      // ignore, user can retry
+    } finally {
+      setCreatingCard(false);
+    }
+  };
+
   return (
     <MainLayout>
-      <div className="max-w-7xl mx-auto space-y-4">
+      <div className="max-w-[120rem] mx-auto space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.kanban.title')}</h1>
             <p className="text-sm text-slate-500">{t('crm.workspace.kanban.subtitle')}</p>
           </div>
-          <WorkspaceViewTabs objectId={objectId} active="kanban" />
         </div>
+        <WorkspaceViewTabs objectId={objectId} active="kanban" />
         {moveError && (
           <div
             className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 flex justify-between gap-2 items-start"
@@ -591,6 +625,7 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
                       role="button"
                       tabIndex={0}
                       draggable
+
                       onDragStart={(e) => {
                         setDraggingId(item.id);
                         try {
@@ -651,6 +686,47 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+
+                {addingToColumn === col.status ? (
+                  <div className="mt-2 space-y-1.5">
+                    <input
+                      autoFocus
+                      value={newCardDraft}
+                      onChange={(e) => setNewCardDraft(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void createCard(col.status);
+                        if (e.key === 'Escape') { setAddingToColumn(null); setNewCardDraft(''); }
+                      }}
+                      placeholder={t('crm.workspace.kanban.cardNamePlaceholder')}
+                      className="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-sm"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => void createCard(col.status)}
+                        disabled={!newCardDraft.trim() || creatingCard}
+                        className="rounded-lg bg-lumiva-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                      >
+                        {creatingCard ? t('crm.workspace.common.updating') : t('crm.workspace.kanban.addCard')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setAddingToColumn(null); setNewCardDraft(''); }}
+                        className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setAddingToColumn(col.status); setNewCardDraft(''); }}
+                    className="mt-2 w-full rounded-lg border border-dashed border-slate-200 py-1.5 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600 transition-colors"
+                  >
+                    + {t('crm.workspace.kanban.addCard')}
+                  </button>
+                )}
               </div>
             ))}
           </div>
