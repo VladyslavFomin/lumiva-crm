@@ -1366,7 +1366,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
         {integrationModal && (
           <div
-            className="fixed inset-0 z-[240] flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2px]"
+            className="fixed inset-0 z-[8500] flex items-center justify-center p-4 bg-black/65 backdrop-blur-[2px]"
             role="dialog"
             aria-modal="true"
             aria-labelledby="sales-integration-modal-title"

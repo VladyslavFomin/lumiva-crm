@@ -26,6 +26,22 @@ export class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('React error boundary caught:', error, info);
+    const message = `${error.name || ''} ${error.message || ''}`;
+    const isDomPlacementError =
+      message.includes('insertBefore') ||
+      message.includes('removeChild') ||
+      message.includes('replaceChild');
+    if (isDomPlacementError && typeof window !== 'undefined') {
+      const key = 'lumiva_dom_recover_once_v1';
+      const last = Number(sessionStorage.getItem(key) || '0');
+      if (!last || Date.now() - last > 60_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        const url = new URL(window.location.href);
+        url.searchParams.set('_recover', String(Date.now()));
+        window.location.replace(url.toString());
+        return;
+      }
+    }
     try {
       const Sentry = (window as any).__sentry__;
       if (Sentry) Sentry.captureException(error, { extra: { componentStack: info.componentStack } });

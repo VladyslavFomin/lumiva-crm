@@ -1,5 +1,6 @@
 // src/pages/companies/CompanyDetailsPage.tsx
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { AiEnrichPanel } from '../../components/ai/AiEnrichPanel';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchCompany, updateCompany, type Company } from '../../api/companies';
@@ -333,6 +334,10 @@ export const CompanyDetailsPage: React.FC = () => {
     );
   };
 
+  const handleApplyEnrich = useCallback((field: string, value: string) => {
+    setCompany(prev => prev ? { ...prev, [field]: value } : prev);
+  }, []);
+
   if (loading) {
     return (
       <MainLayout>
@@ -650,6 +655,13 @@ export const CompanyDetailsPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* AI Enrichment */}
+              <AiEnrichPanel
+                entityType="company"
+                entityId={company.id}
+                onApply={handleApplyEnrich}
+              />
             </div>
           )}
 

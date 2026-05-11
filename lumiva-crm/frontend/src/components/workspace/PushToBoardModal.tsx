@@ -159,7 +159,7 @@ export const PushToBoardModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4">
         <div>
           <h2 className="text-lg font-semibold text-slate-900">

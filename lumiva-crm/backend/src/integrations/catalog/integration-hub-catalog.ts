@@ -6,6 +6,20 @@ import type { IntegrationHubCatalogEntry } from './integration-hub.types';
  */
 export const INTEGRATION_HUB_CATALOG: IntegrationHubCatalogEntry[] = [
   {
+    id: 'sms',
+    lifecycle: 'live',
+    modules: ['automations', 'leads'],
+    capabilities: {
+      outboundAutomationActions: true,
+      inboundWebhook: false,
+      oauthPlatformSupported: false,
+      salesImport: false,
+      workspaceTableSync: false,
+      calendarSync: false,
+      leadCapture: false,
+    },
+  },
+  {
     id: 'woocommerce',
     lifecycle: 'live',
     modules: ['sales'],

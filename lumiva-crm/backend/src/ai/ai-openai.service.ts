@@ -119,6 +119,38 @@ export class AiOpenAiService {
     }
   }
 
+  /** Transcribe audio buffer via Whisper */
+  async transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
+    const { apiKey, base } = await this.resolveConfig();
+    const url = `${base}/audio/transcriptions`;
+    const boundary = `----lumivaaudio${Date.now()}`;
+    const crlf = '\r\n';
+    const parts: Buffer[] = [
+      Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="model"${crlf}${crlf}whisper-1${crlf}`, 'utf8'),
+      Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="language"${crlf}${crlf}ru${crlf}`, 'utf8'),
+      Buffer.from(`--${boundary}${crlf}Content-Disposition: form-data; name="file"; filename="${filename}"${crlf}Content-Type: application/octet-stream${crlf}${crlf}`, 'utf8'),
+      audioBuffer,
+      Buffer.from(`${crlf}--${boundary}--${crlf}`, 'utf8'),
+    ];
+    const body = Buffer.concat(parts);
+    try {
+      const res = await axios.post(url, body, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        timeout: 60_000,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
+      });
+      return String(res.data?.text || '').trim();
+    } catch (e) {
+      const ax = e as AxiosError;
+      const data = ax.response?.data as any;
+      throw new BadRequestException(data?.error?.message || 'Whisper transcription failed');
+    }
+  }
+
   async generateImage(input: {
     prompt: string;
     size?: '1024x1024' | '1792x1024' | '1024x1792';

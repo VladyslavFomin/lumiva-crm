@@ -1,5 +1,10 @@
 // src/pages/leads/LeadFormPage.tsx
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
+import { AiLeadScoreCard } from '../../components/ai/AiLeadScoreCard';
+import { AiEnrichPanel } from '../../components/ai/AiEnrichPanel';
+import { AiNextActionCard } from '../../components/ai/AiNextActionCard';
+import { AiOutreachEmailCard } from '../../components/ai/AiOutreachEmailCard';
 import { CalendarEntryModal } from '../../components/CalendarEntryModal';
 import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/email';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -150,6 +155,17 @@ export const LeadFormPage: React.FC = () => {
   const [companySize, setCompanySize] = useState('');
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
+
+  const handleApplyEnrich = useCallback((field: string, value: string) => {
+    setLead(prev => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleSendOutreach = useCallback((subject: string, body: string, to: string) => {
+    setEmailTo(to);
+    setEmailSubject(subject);
+    setEmailBody(body);
+    setEmailOpen(true);
+  }, []);
 
   // аккуратный helper для показа тостов
   const showSuccess = (msg: string) => {
@@ -302,7 +318,7 @@ export const LeadFormPage: React.FC = () => {
     const commonClass =
       'px-3 py-2.5 rounded-xl border border-neutral-200 bg-white text-sm outline-none focus:border-neutral-400 w-full text-neutral-900 placeholder:text-neutral-400';
     const label = (
-      <div style={{ fontFamily: "'JetBrains Mono',ui-monospace,monospace", fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#888", marginBottom: 6 }}>
+      <div style={{ fontFamily: 'inherit', fontSize: 10, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "#888", marginBottom: 6 }}>
         {field.label}
         {field.required && <span style={{ color: "#ef4444", marginLeft: 4 }}>*</span>}
       </div>
@@ -1100,8 +1116,8 @@ export const LeadFormPage: React.FC = () => {
   };
 
   // ── design tokens ───────────────────────────────────────────────
-  const FF  = "'Inter Tight','Helvetica Neue',Helvetica,Arial,sans-serif";
-  const FM  = "'JetBrains Mono',ui-monospace,monospace";
+  const FF  = 'inherit';
+  const FM  = 'inherit';
   const INK = "#222";
   const FG2 = "#555";
   const FG3 = "#888";
@@ -1157,12 +1173,12 @@ export const LeadFormPage: React.FC = () => {
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {!isNew && (
                 <>
-                  <button type="button" onClick={handleCreateCompany} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.leads.form.actions.addCompany')}</button>
-                  <button type="button" onClick={handleCreateAccount} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.leads.form.actions.addAccount')}</button>
-                  <button type="button" onClick={handleDeleteLead} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#ef4444", cursor: "pointer" }}>{t('crm.leads.form.actions.delete')}</button>
+                  <button type="button" onClick={handleCreateCompany} className="btn-secondary">{t('crm.leads.form.actions.addCompany')}</button>
+                  <button type="button" onClick={handleCreateAccount} className="btn-secondary">{t('crm.leads.form.actions.addAccount')}</button>
+                  <button type="button" onClick={handleDeleteLead} className="btn-danger">{t('crm.leads.form.actions.delete')}</button>
                 </>
               )}
-              <button type="button" onClick={() => setCustomFieldsOpen(true)} style={{ padding: "7px 14px", fontSize: 12, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.leads.form.actions.configureFields')}</button>
+              <button type="button" onClick={() => setCustomFieldsOpen(true)} className="btn-secondary">{t('crm.leads.form.actions.configureFields')}</button>
               <button type="button" onClick={handleSave} disabled={saving}
                 style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: saving ? 0.65 : 1 }}>
                 {saving ? t('crm.leads.form.actions.saving') : t('crm.leads.form.actions.save')}
@@ -1408,6 +1424,25 @@ export const LeadFormPage: React.FC = () => {
             {/* ════ RIGHT SIDEBAR ═════════════════════════════════ */}
             <div className="lg:sticky lg:top-6" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
 
+              {/* AI Sidebar — only for saved leads */}
+              {!isNew && (
+                <>
+                  <AiLeadScoreCard leadId={lead.id} />
+                  <AiNextActionCard leadId={lead.id} />
+                  <AiOutreachEmailCard
+                    leadId={lead.id}
+                    leadEmail={lead.email || null}
+                    leadName={lead.name || null}
+                    onSend={handleSendOutreach}
+                  />
+                  <AiEnrichPanel
+                    entityType="lead"
+                    entityId={lead.id}
+                    onApply={handleApplyEnrich}
+                  />
+                </>
+              )}
+
               {/* Actions */}
               <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
                 <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 12 }}>{t('crm.leads.form.sections.actionsTitle')}</div>
@@ -1531,20 +1566,26 @@ export const LeadFormPage: React.FC = () => {
                   </div>
                 )}
                 {!isNew && mergedTimeline.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    {mergedTimeline.map(row => {
+                  <div style={{ position: "relative", paddingLeft: 20, maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
+                    {/* vertical connector line */}
+                    <div style={{ position: "absolute", left: 6, top: 8, bottom: 8, width: 1, background: LINE }} />
+                    {mergedTimeline.map((row, idx) => {
+                      const isLast = idx === mergedTimeline.length - 1;
                       if (row.kind === 'lead') {
                         const a = row.activity;
+                        const isComment = a.type === 'comment';
+                        const dotColor = isComment ? '#7c3aed' : '#9ca3af';
                         return (
-                          <div key={`lead-${a.id}`} style={{ padding: "10px 0", borderBottom: `1px solid ${LINE3}` }}>
-                            <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 3 }}>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 999, padding: "2px 7px", color: FG2 }}>{getActivityLabel(a)}</span>
-                              <span style={{ fontFamily: FM, fontSize: 9.5, color: FG4 }}>{new Date(a.createdAt).toLocaleString(locale)}</span>
+                          <div key={`lead-${a.id}`} style={{ position: "relative", paddingBottom: isLast ? 0 : 10 }}>
+                            <div style={{ position: "absolute", left: -17, top: 3, width: 8, height: 8, borderRadius: "50%", background: dotColor, border: `2px solid #fff`, boxSizing: "border-box", flexShrink: 0 }} />
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
+                              <span style={{ fontSize: 10, background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 999, padding: "1px 7px", color: FG2 }}>{getActivityLabel(a)}</span>
+                              <span style={{ fontFamily: FM, fontSize: 9, color: FG4 }}>{new Date(a.createdAt).toLocaleString(locale)}</span>
+                              {(a.userName || a.userEmail) && <span style={{ fontSize: 10, color: FG3 }}>· {a.userName || a.userEmail}</span>}
                             </div>
-                            {(a.userName || a.userEmail) && <div style={{ fontSize: 11, color: FG2 }}>{a.userName || a.userEmail}</div>}
-                            {a.comment && <div style={{ fontSize: 12, color: INK, marginTop: 3 }}>{a.comment}</div>}
+                            {a.comment && <div style={{ fontSize: 12, color: INK, background: "#f9f9fb", border: `1px solid ${LINE}`, borderRadius: 6, padding: "5px 8px", lineHeight: 1.4 }}>{a.comment}</div>}
                             {(a.fromValue || a.toValue) && (
-                              <div style={{ fontSize: 11, color: FG3, marginTop: 3 }}>
+                              <div style={{ fontSize: 11, color: FG3 }}>
                                 {a.fromValue && <span style={{ textDecoration: "line-through", marginRight: 4 }}>{a.fromValue}</span>}
                                 {a.toValue && <span style={{ color: "#16a34a" }}>→ {a.toValue}</span>}
                               </div>
@@ -1557,17 +1598,18 @@ export const LeadFormPage: React.FC = () => {
                       const actor = activity.actorName || activity.actorEmail || t('crm.projects.detail.fallbacks.user');
                       const pname = projectNameById.get(activity.projectId) ?? String(activity.projectId).slice(0, 8);
                       return (
-                        <div key={`proj-${activity.id}`} style={{ padding: "10px 0", borderBottom: `1px solid ${LINE3}` }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 3 }}>
+                        <div key={`proj-${activity.id}`} style={{ position: "relative", paddingBottom: isLast ? 0 : 10 }}>
+                          <div style={{ position: "absolute", left: -17, top: 3, width: 8, height: 8, borderRadius: "50%", background: "#3b82f6", border: `2px solid #fff`, boxSizing: "border-box" }} />
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 2 }}>
                             <button type="button" onClick={() => navigate(`/projects/${activity.projectId}`)}
-                              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 999, padding: "2px 7px", color: FG2, cursor: "pointer" }}>
+                              style={{ fontSize: 10, background: "#eff6ff", border: `1px solid #bfdbfe`, borderRadius: 999, padding: "1px 7px", color: "#1d4ed8", cursor: "pointer" }}>
                               {t('crm.leads.form.timeline.projectScope', { name: pname })}
                             </button>
-                            <span style={{ fontFamily: FM, fontSize: 9.5, color: FG4 }}>{new Date(activity.createdAt).toLocaleString(locale)}</span>
+                            <span style={{ fontFamily: FM, fontSize: 9, color: FG4 }}>{new Date(activity.createdAt).toLocaleString(locale)}</span>
+                            <span style={{ fontSize: 10, color: FG3 }}>· {actor}</span>
                           </div>
                           <div style={{ fontSize: 12, fontWeight: 500, color: INK }}>{label}</div>
-                          <div style={{ fontSize: 11, color: FG3 }}>{actor}</div>
-                          {activity.action === 'status_change' && activity.payload && <div style={{ fontSize: 11, color: FG3, marginTop: 2 }}>{activity.payload.from} → {activity.payload.to}</div>}
+                          {activity.action === 'status_change' && activity.payload && <div style={{ fontSize: 11, color: FG3 }}>{activity.payload.from} → {activity.payload.to}</div>}
                         </div>
                       );
                     })}
@@ -1595,8 +1637,8 @@ export const LeadFormPage: React.FC = () => {
       </div>
 
       {/* ══ EMAIL COMPOSE MODAL ══════════════════════════════════ */}
-      {emailOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+      {emailOpen && createPortal(
+        <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
           <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 560, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 30px 80px rgba(0,0,0,0.20)", fontFamily: FF }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "18px 24px", borderBottom: `1px solid ${LINE}` }}>
               <h3 style={{ fontFamily: FF, fontSize: 17, fontWeight: 500, color: INK }}>{t('crm.leads.form.email.title')}</h3>
@@ -1642,12 +1684,13 @@ export const LeadFormPage: React.FC = () => {
               {emailError && <div style={{ fontSize: 12, color: "#ef4444", padding: "8px 12px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>{emailError}</div>}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* ══ ACCOUNT MODAL ════════════════════════════════════════ */}
-      {accountModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+      {accountModalOpen && createPortal(
+        <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
           <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 540, boxShadow: "0 30px 80px rgba(0,0,0,0.20)", fontFamily: FF }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "18px 24px", borderBottom: `1px solid ${LINE}` }}>
               <div>
@@ -1680,12 +1723,13 @@ export const LeadFormPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* ══ COMPANY MODAL ════════════════════════════════════════ */}
-      {companyModalOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+      {companyModalOpen && createPortal(
+        <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
           <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 600, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 30px 80px rgba(0,0,0,0.20)", fontFamily: FF }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "18px 24px", borderBottom: `1px solid ${LINE}` }}>
               <h3 style={{ fontSize: 16, fontWeight: 500, color: INK }}>{t('crm.companies.form.titleCreate')}</h3>
@@ -1714,7 +1758,8 @@ export const LeadFormPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {customFieldsOpen && (

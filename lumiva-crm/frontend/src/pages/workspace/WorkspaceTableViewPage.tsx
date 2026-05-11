@@ -2753,7 +2753,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setActiveRecord(record)}
-              className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"
+              className="btn-icon shrink-0"
               title={t('crm.workspace.table.boardOpenDrawer')}
             >
               <svg
@@ -3520,7 +3520,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => setShowAddField(true)}
-                            className="h-6 w-6 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900"
+                            className="btn-icon h-6 w-6 rounded-full border border-border-default"
                           >
                             +
                           </button>
@@ -4497,7 +4497,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => setShowAddField(true)}
-                                  className="h-6 w-6 rounded-full border border-slate-300 text-slate-500 hover:text-slate-900"
+                                  className="btn-icon h-6 w-6 rounded-full border border-border-default"
                                 >
                                   +
                                 </button>
@@ -5149,7 +5149,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => newGroupInputRef.current?.focus()}
-                      className="mt-6 rounded-lg px-5 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+                      className="btn-primary"
                       style={{ background: 'var(--ink)' }}
                     >
                       {t('crm.workspace.table.boardEmptyStartBtn')}
@@ -5664,7 +5664,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setShowEditField(false)}
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="btn-secondary"
                 >
                   {t('crm.workspace.table.cancel')}
                 </button>
@@ -5792,7 +5792,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                     setShowAddField(false);
                     setNewFieldMapsToImportKey('');
                   }}
-                  className="px-3 py-2 rounded-lg border border-slate-300 text-sm"
+                  className="btn-secondary"
                 >
                   {t('crm.workspace.table.cancel')}
                 </button>

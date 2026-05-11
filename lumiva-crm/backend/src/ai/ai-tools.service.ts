@@ -45,6 +45,12 @@ import type { UpdateAutomationDto } from '../automations/dto/update-automation.d
 import type { CreateCompanyTaskDto } from '../companies/dto/create-company-task.dto';
 import type { UpdateCompanyTaskDto } from '../companies/dto/update-company-task.dto';
 import type { UpdateLeadDto } from '../leads/dto/update-lead.dto';
+import { AiAgent } from '../ai-employees/ai-agent.entity';
+import { AiAgentAction } from '../ai-employees/ai-agent-action.entity';
+import { AiAgentLog } from '../ai-employees/ai-agent-log.entity';
+import { AiAgentPermission } from '../ai-employees/ai-agent-permission.entity';
+import { getAiEmployeeRole } from '../ai-employees/ai-employee-role-catalog';
+import { WorkspaceAreasService } from '../workspace-areas/workspace-areas.service';
 
 const WORKSPACE_EXTRA_VIEWS = ['kanban', 'calendar', 'analytics'] as const;
 
@@ -65,12 +71,15 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_list_leads',
       description:
-        'Список последних лидов (модуль лидов CRM): имя, статус, источник, email, телефон. Не проекты и не рабочая область.',
+        'Список лидов (модуль лидов CRM): имя, статус, источник, email, телефон. Поддерживает постраничный просмотр (page) и фильтры. Не проекты и не рабочая область.',
       parameters: {
         type: 'object',
         properties: {
-          limit: { type: 'integer', description: 'Макс. записей (1–50)', default: 15 },
-          status: { type: 'string', description: 'Фильтр по статусу (new, won, …)' },
+          limit: { type: 'integer', description: 'Макс. записей на страницу (1–50)', default: 15 },
+          page: { type: 'integer', description: 'Номер страницы, начиная с 1 (для листания большого списка)', default: 1 },
+          status: { type: 'string', description: 'Фильтр по статусу (new, in_progress, won, lost, …)' },
+          source: { type: 'string', description: 'Фильтр по источнику (form, chat, api, …)' },
+          search: { type: 'string', description: 'Поиск по имени/email/телефону (ILIKE)' },
         },
       },
     },
@@ -110,7 +119,8 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'crm_sales_summary',
-      description: 'Краткая сводка продаж за период: количество, сумма.',
+      description:
+        'Краткая сводка продаж за период: количество, сумма. Параметры from/to желательно в YYYY-MM-DD; если указан только месяц — возьми границы месяца в году из системной даты в системном промпте.',
       parameters: {
         type: 'object',
         properties: {
@@ -125,14 +135,62 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_marketing_overview',
       description:
-        'Агрегированная аналитика маркетинга (трафик/каналы): сессии, лиды, расход, выручка. Чтобы записать каналы в таблицу рабочей области, после просмотра используй crm_workspace_import_marketing_channels.',
+        'Агрегированная аналитика маркетинга (трафик/каналы): сессии, лиды, расход, выручка. ' +
+        'Передавай from/to (YYYY-MM-DD) для нужного интервала. ' +
+        'Опционально dataSource — ключ конкретного источника (например google_ads_5094620264) для разбивки по одному каналу/аккаунту; список источников с именами возвращается в dataSources+dataSourceLabels. ' +
+        'displayCurrency (ISO 4217): revenue/cost пересчитываются в эту валюту. ' +
+        'Чтобы узнать доступные источники и имена аккаунтов — используй crm_marketing_integrations. ' +
+        'Чтобы записать каналы в таблицу рабочей области — crm_workspace_import_marketing_channels.',
       parameters: {
         type: 'object',
         properties: {
           from: { type: 'string', description: 'YYYY-MM-DD' },
           to: { type: 'string', description: 'YYYY-MM-DD' },
+          dataSource: {
+            type: 'string',
+            description:
+              'Опционально: ключ источника данных (google_ads_<cid>, ga4_<id>, yandex_metrika, meta_ads и т.д.). Если не задан — агрегат по всем источникам.',
+          },
+          displayCurrency: {
+            type: 'string',
+            description:
+              'Опционально: код валюты отчёта (EUR, USD, CHF, PLN, … из набора ECB/Frankfurter). Revenue и cost пересчитываются для ответа.',
+          },
         },
       },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_marketing_daily_series',
+      description:
+        'Дневной ряд метрик маркетинга для построения тренда: за каждый день возвращает sessions, clicks, impressions, cost, leads. ' +
+        'Используй, когда пользователь спрашивает о динамике / тренде по времени или хочет сравнить периоды. ' +
+        'Опционально dataSource — фильтр по конкретному каналу (google_ads_<cid>, ga4_<id> и т.д.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD' },
+          dataSource: {
+            type: 'string',
+            description: 'Опционально: ключ источника (google_ads_<cid>, meta_ads и т.д.).',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_marketing_integrations',
+      description:
+        'Детальный список маркетинговых интеграций: провайдер, имя, активность, primaryId, режим аккаунта. ' +
+        'Для Google Ads в режиме MCC включает список sub-аккаунтов (managedAccounts) с именами и ключами dataSource. ' +
+        'Также возвращает dataSources — все ключи, под которыми есть данные в трафике, с человекочитаемыми именами (dataSourceLabels). ' +
+        'Используй, чтобы понять, какие рекламные аккаунты подключены и под каким ключом искать их данные.',
+      parameters: { type: 'object', properties: {} },
     },
   },
   {
@@ -245,7 +303,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_workspace_create_table',
       description:
-        'Создать новую таблицу в рабочей области (/workspace). Если нужно вносить данные — ОБЯЗАТЕЛЬНО передай fields (колонки), иначе таблица будет пустой и crm_workspace_add_record некуда писать. Для выгрузки рекламы/каналов из CRM удобнее crm_workspace_import_marketing_channels.',
+        'Создать новую таблицу в рабочей области (/workspace): она будет привязана к первой доступной области тенанта (как при создании из UI). Если нужно вносить данные — ОБЯЗАТЕЛЬНО передай fields (колонки), иначе таблица будет пустой и crm_workspace_add_record некуда писать. Для выгрузки рекламы/каналов из CRM удобнее crm_workspace_import_marketing_channels.',
       parameters: {
         type: 'object',
         properties: {
@@ -373,7 +431,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_workspace_import_marketing_channels',
       description:
-        'Выгрузить в рабочую область строки по рекламе/маркетингу из CRM (агрегаты по каналам: source, medium, campaign, сессии, клики, лиды, выручка, расход и т.д.). Один вызов: создаёт таблицу с колонками и заполняет данными из marketing_traffic. Используй, когда пользователь просит перенести рекламу/каналы/метрику в рабочую область.',
+        'Выгрузить в рабочую область строки по рекламе/маркетингу из CRM (агрегаты по каналам: source, medium, campaign, сессии, клики, лиды, выручка, расход и т.д.). Один вызов: создаёт таблицу с колонками и заполняет данными из marketing_traffic; таблица привязывается к области тенанта. Используй, когда пользователь просит перенести рекламу/каналы/метрику в рабочую область.',
       parameters: {
         type: 'object',
         properties: {
@@ -470,6 +528,109 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_list_staff_members',
+      description:
+        'Список сотрудников (команды) тенанта: id, ФИО, email, роль, отдел, активность. Используй для получения assignedUserId при назначении задач/лидов или для отправки писем коллегам.',
+      parameters: {
+        type: 'object',
+        properties: {
+          activeOnly: {
+            type: 'boolean',
+            description: 'Только активные сотрудники (по умолчанию true)',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_list_ai_employees',
+      description:
+        'Список активных AI-сотрудников клиента: id, имя, роль, отдел, статус, режим автономности. Это не замена основному CRM-ассистенту в чате: здесь именованные специалисты с ролями, расписанием и согласованиями. Используй перед постановкой задачи или вопросом конкретному AI-сотруднику.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_assign_ai_employee_task',
+      description:
+        'Поставить задачу именованному AI-сотруднику (специалисту). Универсальный чат CRM всё так же доступен пользователю отдельно. Можно передать agentId или role/name для подбора сотрудника. Создаёт задачу в AI Employees, чтобы сотрудник увидел её в своём списке действий.',
+      parameters: {
+        type: 'object',
+        properties: {
+          agentId: { type: 'string', description: 'UUID AI-сотрудника из crm_list_ai_employees' },
+          role: { type: 'string', description: 'Роль, например marketing_analyst, lead_manager, sales_manager' },
+          name: { type: 'string', description: 'Имя AI-сотрудника, если пользователь назвал его по имени' },
+          title: { type: 'string', description: 'Короткое название задачи' },
+          task: { type: 'string', description: 'Что нужно сделать AI-сотруднику' },
+          priority: { type: 'string', enum: ['low', 'normal', 'high', 'urgent'] },
+          dueAt: { type: 'string', description: 'ISO date/time или текстовый срок, если пользователь указал' },
+        },
+        required: ['title', 'task'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_ask_ai_employee',
+      description:
+        'Задать вопрос конкретному AI-сотруднику (специалисту по роли) и получить ответ на основе CRM-данных — делегирование от универсального чата. Можно передать agentId или role/name.',
+      parameters: {
+        type: 'object',
+        properties: {
+          agentId: { type: 'string', description: 'UUID AI-сотрудника из crm_list_ai_employees' },
+          role: { type: 'string', description: 'Роль, например marketing_analyst, lead_manager, sales_manager' },
+          name: { type: 'string', description: 'Имя AI-сотрудника' },
+          question: { type: 'string', description: 'Вопрос пользователя к AI-сотруднику' },
+        },
+        required: ['question'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_send_bulk_email',
+      description:
+        'Массовая рассылка письма сегменту лидов или контактов. Только после ЯВНОГО согласия пользователя («рассылай», «да, отправь всем», «запускай»). Персонализирует {{name}} и {{email}} для каждого получателя. Сначала можно сделать crm_list_leads/crm_list_contacts для проверки аудитории, затем показать пользователю сводку (кол-во получателей, тему) и только после подтверждения — вызвать этот инструмент.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedSend: {
+            type: 'boolean',
+            description: 'Обязательно true только если пользователь прямо сейчас подтвердил рассылку',
+          },
+          accountId: { type: 'string', description: 'UUID почтового аккаунта из crm_list_email_accounts' },
+          subject: { type: 'string', description: 'Тема письма (поддерживает {{name}}, {{email}})' },
+          bodyText: { type: 'string', description: 'Текст письма (поддерживает {{name}}, {{email}})' },
+          bodyHtml: { type: 'string', description: 'HTML-тело письма (опционально)' },
+          headline: { type: 'string', description: 'Заголовок в шапке фирменного письма' },
+          templateId: { type: 'string', description: 'ID шаблона письма (вместо bodyText/bodyHtml)' },
+          targetType: {
+            type: 'string',
+            enum: ['leads', 'contacts'],
+            description: 'Кому рассылать: лиды или контакты',
+          },
+          filterStatus: { type: 'string', description: 'Фильтр по статусу (only for targetType leads: new/in_progress/won/lost; contacts: active/inactive)' },
+          filterSource: { type: 'string', description: 'Фильтр по источнику лида (только для leads)' },
+          filterDateFrom: { type: 'string', description: 'YYYY-MM-DD — созданы начиная с даты' },
+          filterDateTo: { type: 'string', description: 'YYYY-MM-DD — созданы до даты' },
+          filterSearch: { type: 'string', description: 'Поиск по имени/email (ILIKE) для сужения аудитории' },
+          maxRecipients: {
+            type: 'integer',
+            description: 'Лимит получателей (1–500, по умолчанию 200)',
+          },
+        },
+        required: ['userConfirmedSend', 'accountId', 'subject', 'targetType'],
+      },
+    },
+  },
   ...CRM_EXTENDED_AI_TOOL_DEFINITIONS,
 ];
 
@@ -484,6 +645,9 @@ type ToolCtx = {
    * — если задано LUMIVA_AI_LEADS_TENANT_WIDE=true|1 — все лиды тенанта для любой роли (осторожно на shared-аккаунтах).
    */
   userRole?: string;
+  /** Telegram-контекст: заполняется когда запрос пришёл через Telegram-бот */
+  telegramUsername?: string;
+  telegramChatId?: string;
 };
 
 @Injectable()
@@ -521,7 +685,62 @@ export class AiToolsService {
     private readonly integrationsService: IntegrationsService,
     @InjectRepository(StaffUser)
     private readonly staffRepo: Repository<StaffUser>,
+    @InjectRepository(AiAgent)
+    private readonly aiAgentsRepo: Repository<AiAgent>,
+    @InjectRepository(AiAgentAction)
+    private readonly aiAgentActionsRepo: Repository<AiAgentAction>,
+    @InjectRepository(AiAgentLog)
+    private readonly aiAgentLogsRepo: Repository<AiAgentLog>,
+    @InjectRepository(AiAgentPermission)
+    private readonly aiAgentPermissionsRepo: Repository<AiAgentPermission>,
+    private readonly workspaceAreas: WorkspaceAreasService,
   ) {}
+
+  private crmFrontendBase(): string {
+    return (process.env.FRONTEND_URL || '').replace(/\/$/, '');
+  }
+
+  /** Ссылки для ответов модели: всегда пути + опционально полные URL если задан FRONTEND_URL */
+  private workspaceToolLinkPayload(
+    workspaceAreaId: string | null | undefined,
+    objectId: string,
+    analyticsUrlPath: string | null,
+  ) {
+    const tableUrlPath = `/workspace/${objectId}/table`;
+    const base = this.crmFrontendBase();
+    const out: Record<string, unknown> = {
+      tableUrlPath,
+      analyticsUrlPath,
+    };
+    if (workspaceAreaId) out.workspaceAreaId = workspaceAreaId;
+    if (base) {
+      out.tableUrl = `${base}${tableUrlPath}`;
+      if (analyticsUrlPath) out.analyticsUrl = `${base}${analyticsUrlPath}`;
+      if (workspaceAreaId) {
+        out.workspaceAreaUrl = `${base}/workspace/areas/${workspaceAreaId}`;
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Таблицы без области не попадают в сайдбар при открытой конкретной области (/workspace/areas/:id).
+   */
+  private async workspaceAreaForNewTable(
+    tenantId: string,
+    dto: CreateCustomObjectDto,
+  ): Promise<{ dto: CreateCustomObjectDto; workspaceAreaId: string | null }> {
+    if (dto.workspaceAreaId) {
+      return { dto, workspaceAreaId: dto.workspaceAreaId };
+    }
+    const areas = await this.workspaceAreas.list(tenantId);
+    const wid = areas[0]?.id ?? null;
+    if (!wid) return { dto, workspaceAreaId: null };
+    return {
+      dto: { ...dto, workspaceAreaId: wid },
+      workspaceAreaId: wid,
+    };
+  }
 
   /** Совпадает с LeadsController.isLeadMine — поиск/встречи только по лидам, видимым пользователю в CRM. */
   private isLeadMineForAi(lead: Lead, staff: StaffUser): boolean {
@@ -558,6 +777,23 @@ export class AiToolsService {
     });
   }
 
+  private activeLeadCondition(alias: string) {
+    return `NOT (
+      COALESCE(${alias}.meta::jsonb, '{}'::jsonb) @> '{"deleted":true}'::jsonb
+      OR COALESCE(${alias}.meta::jsonb, '{}'::jsonb) @> '{"deleted":"true"}'::jsonb
+      OR COALESCE(${alias}.meta::jsonb, '{}'::jsonb) @> '{"archived":true}'::jsonb
+      OR COALESCE(${alias}.meta::jsonb, '{}'::jsonb) @> '{"archived":"true"}'::jsonb
+    )`;
+  }
+
+  private isLeadHiddenForAi(lead: Pick<Lead, 'meta'>): boolean {
+    const meta = lead.meta as { deleted?: unknown; archived?: unknown } | null | undefined;
+    return meta?.deleted === true ||
+      meta?.deleted === 'true' ||
+      meta?.archived === true ||
+      meta?.archived === 'true';
+  }
+
   /** Все лиды тенанта в CRM-инструментах ИИ (не путать с правами UI / GET /leads). */
   private aiSeesAllTenantLeads(ctx: ToolCtx): boolean {
     const wide = (process.env.LUMIVA_AI_LEADS_TENANT_WIDE || '').trim().toLowerCase();
@@ -567,16 +803,18 @@ export class AiToolsService {
   }
 
   private async filterLeadsByAccess(ctx: ToolCtx, leads: Lead[]): Promise<Lead[]> {
-    if (this.aiSeesAllTenantLeads(ctx)) return leads;
+    const visibleLeads = leads.filter((lead) => !this.isLeadHiddenForAi(lead));
+    if (this.aiSeesAllTenantLeads(ctx)) return visibleLeads;
     const staff = await this.getStaffForToolCtx(ctx);
     if (!staff) return [];
-    return leads.filter((l) => this.isLeadMineForAi(l, staff));
+    return visibleLeads.filter((l) => this.isLeadMineForAi(l, staff));
   }
 
   private async checkLeadAccessible(
     ctx: ToolCtx,
     lead: Lead,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
+    if (this.isLeadHiddenForAi(lead)) return { ok: false, error: 'lead_deleted_or_archived' };
     if (this.aiSeesAllTenantLeads(ctx)) return { ok: true };
     const staff = await this.getStaffForToolCtx(ctx);
     if (!staff) return { ok: false, error: 'no_staff_profile' };
@@ -608,13 +846,17 @@ export class AiToolsService {
           return JSON.stringify(await this.toolSalesSummary(ctx.tenantId, args));
         case 'crm_marketing_overview':
           return JSON.stringify(await this.toolMarketing(ctx.tenantId, args));
+        case 'crm_marketing_daily_series':
+          return JSON.stringify(await this.toolMarketingDailySeries(ctx.tenantId, args));
+        case 'crm_marketing_integrations':
+          return JSON.stringify(await this.toolMarketingIntegrations(ctx.tenantId));
         case 'crm_list_integrations':
           return JSON.stringify(await this.toolIntegrations(ctx.tenantId));
         case 'crm_list_projects':
           return JSON.stringify(await this.toolProjects(ctx.tenantId, args));
         case 'crm_create_lead':
           return JSON.stringify(
-            await this.toolCreateLead(ctx.tenantId, args),
+            await this.toolCreateLead(ctx.tenantId, args, ctx),
           );
         case 'crm_create_note':
           return JSON.stringify(
@@ -726,6 +968,16 @@ export class AiToolsService {
           return JSON.stringify(
             await this.toolSaveMemory(ctx.tenantId, ctx.userId, args),
           );
+        case 'crm_list_staff_members':
+          return JSON.stringify(await this.toolListStaffMembers(ctx.tenantId, args));
+        case 'crm_list_ai_employees':
+          return JSON.stringify(await this.toolListAiEmployees(ctx.tenantId));
+        case 'crm_assign_ai_employee_task':
+          return JSON.stringify(await this.toolAssignAiEmployeeTask(ctx, args));
+        case 'crm_ask_ai_employee':
+          return JSON.stringify(await this.toolAskAiEmployee(ctx, args));
+        case 'crm_send_bulk_email':
+          return JSON.stringify(await this.toolSendBulkEmail(ctx, args));
         case 'crm_list_company_tasks':
           return JSON.stringify(
             await this.toolListCompanyTasks(ctx.tenantId, args),
@@ -798,17 +1050,30 @@ export class AiToolsService {
 
   private async toolListLeads(ctx: ToolCtx, args: Record<string, unknown>) {
     const limit = Math.min(50, Math.max(1, Number(args.limit) || 15));
+    const page = Math.max(1, Number(args.page) || 1);
     const status = args.status ? String(args.status) : undefined;
-    const fetchCap = Math.min(250, Math.max(limit * 10, limit));
+    const source = args.source ? String(args.source) : undefined;
+    const search = args.search ? String(args.search).trim() : undefined;
+    const fetchCap = Math.min(500, Math.max(limit * 5, 50));
+    const skip = (page - 1) * limit;
     const qb = this.leadsRepo
       .createQueryBuilder('l')
       .where('l.tenantId = :tenantId', { tenantId: ctx.tenantId })
+      .andWhere(this.activeLeadCondition('l'))
       .orderBy('l.createdAt', 'DESC')
-      .take(fetchCap);
+      .take(fetchCap + skip);
     if (status) qb.andWhere('l.status = :status', { status });
+    if (source) qb.andWhere('l.source = :source', { source });
+    if (search) {
+      const like = `%${search}%`;
+      qb.andWhere(
+        "(COALESCE(l.name,'') ILIKE :like OR COALESCE(l.email,'') ILIKE :like OR COALESCE(l.phone,'') ILIKE :like)",
+        { like },
+      );
+    }
     const rows = await qb.getMany();
     const filtered = await this.filterLeadsByAccess(ctx, rows);
-    const sliced = filtered.slice(0, limit);
+    const sliced = filtered.slice(skip, skip + limit);
     return {
       leads: sliced.map((l) => ({
         id: l.id,
@@ -819,6 +1084,10 @@ export class AiToolsService {
         phone: l.phone,
         createdAt: l.createdAt,
       })),
+      page,
+      limit,
+      returned: sliced.length,
+      hasMore: filtered.length > skip + limit,
     };
   }
 
@@ -833,6 +1102,7 @@ export class AiToolsService {
     const rows = await this.leadsRepo
       .createQueryBuilder('l')
       .where('l.tenantId = :tenantId', { tenantId: ctx.tenantId })
+      .andWhere(this.activeLeadCondition('l'))
       .andWhere(
         '(COALESCE(l.name, \'\') ILIKE :like OR COALESCE(l.email, \'\') ILIKE :like OR COALESCE(l.phone, \'\') ILIKE :like)',
         { like },
@@ -902,29 +1172,228 @@ export class AiToolsService {
   ) {
     const from = args.from ? String(args.from) : undefined;
     const to = args.to ? String(args.to) : undefined;
+    const dataSourceFilter = args.dataSource ? String(args.dataSource).trim() : undefined;
+    const displayOptRaw = args.displayCurrency
+      ? String(args.displayCurrency).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3)
+      : '';
+    const displayOpt = /^[A-Z]{3}$/.test(displayOptRaw) ? displayOptRaw : null;
+
     const stats = await this.marketing.getTrafficChannelsStats(
       tenantId,
       from,
       to,
+      dataSourceFilter,
+      500,
     );
-    return {
-      from: stats.from,
-      to: stats.to,
-      currency: stats.currency,
-      totalSessions: stats.totalSessions,
-      totalLeads: stats.totalLeads,
-      totalRevenue: stats.totalRevenue,
-      totalCost: stats.totalCost,
-      providerBreakdown: stats.providerBreakdown?.slice(0, 12) || [],
-      topChannels: (stats.items || []).slice(0, 15).map((i) => ({
+
+    let fx: {
+      multiplyToDisplay: Record<string, number>;
+      display: string;
+      asOf: string;
+      source: string;
+    } | null = null;
+    if (displayOpt) {
+      try {
+        const loaded = await this.marketing.getMarketingFxRates(displayOpt);
+        fx = {
+          multiplyToDisplay: loaded.multiplyToDisplay,
+          display: loaded.display,
+          asOf: loaded.asOf,
+          source: loaded.source,
+        };
+      } catch {
+        fx = null;
+      }
+    }
+
+    const conv = (amount: number, cur: string | null | undefined): number => {
+      if (!fx || !amount) return amount;
+      const code = (cur || 'EUR').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3) || 'EUR';
+      const m = fx.multiplyToDisplay[code];
+      if (m == null || !Number.isFinite(m)) return amount;
+      return amount * m;
+    };
+
+    const topChannels = (stats.items || []).slice(0, 50).map((i) => {
+      const cur = i.currency;
+      return {
+        dataSource: i.dataSource,
         campaign: i.campaign,
         source: i.source,
         medium: i.medium,
         sessions: i.sessions,
+        clicks: i.clicks,
+        impressions: i.impressions,
         leads: i.leads,
-        revenue: i.revenue,
-        cost: i.cost,
-      })),
+        revenue: fx ? conv(i.revenue, cur) : i.revenue,
+        cost: fx ? conv(i.cost, cur) : i.cost,
+        ...(fx ? { originalCurrency: cur } : { currency: cur }),
+      };
+    });
+
+    const providerBreakdown = (stats.providerBreakdown || []).slice(0, 20).map((p) => ({
+      dataSource: p.dataSource,
+      label: stats.dataSourceLabels?.[p.dataSource] || p.dataSource,
+      rowCount: p.rowCount,
+      sessions: p.sessions,
+      clicks: p.clicks,
+      impressions: p.impressions,
+      leads: p.leads,
+      revenue: fx ? conv(p.revenue, p.currency) : p.revenue,
+      cost: fx ? conv(p.cost, p.currency) : p.cost,
+      currency: fx ? fx.display : p.currency,
+    }));
+
+    // Список доступных источников с человекочитаемыми именами
+    const dataSources = (stats.dataSources || []).map((ds) => ({
+      key: ds,
+      label: stats.dataSourceLabels?.[ds] || ds,
+    }));
+
+    const out: Record<string, unknown> = {
+      from: stats.from,
+      to: stats.to,
+      currency: stats.currency,
+      totalSessions: stats.totalSessions,
+      totalClicks: stats.totalClicks,
+      totalImpressions: stats.totalImpressions,
+      totalLeads: stats.totalLeads,
+      totalRevenue: stats.totalRevenue,
+      totalCost: stats.totalCost,
+      providerBreakdown,
+      topChannels,
+      dataSources,
+      ...(dataSourceFilter ? { filteredByDataSource: dataSourceFilter } : {}),
+    };
+
+    if (fx) {
+      out.displayCurrency = fx.display;
+      out.fxAsOf = fx.asOf;
+      out.fxSource = fx.source;
+      out.financialTotalsNote =
+        'totalRevenue и totalCost — грубые суммы из БД; при смеси валют смотри providerBreakdown, где суммы в displayCurrency.';
+    }
+
+    return out;
+  }
+
+  private async toolMarketingDailySeries(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ) {
+    const from = args.from ? String(args.from) : undefined;
+    const to = args.to ? String(args.to) : undefined;
+    const dataSource = args.dataSource ? String(args.dataSource).trim() : undefined;
+
+    const { series } = await this.marketing.getTrafficDailySeries(
+      tenantId,
+      from,
+      to,
+      dataSource,
+    );
+
+    // Сжатый формат для экономии токенов: массив массивов [date, sessions, clicks, impressions, cost, leads]
+    const rows = series.map((d) => ({
+      date: d.date,
+      sessions: d.sessions,
+      clicks: d.clicks,
+      impressions: d.impressions,
+      cost: d.cost,
+      leads: d.leads,
+    }));
+
+    const totalCost = rows.reduce((s, r) => s + (r.cost || 0), 0);
+    const totalSessions = rows.reduce((s, r) => s + (r.sessions || 0), 0);
+    const totalLeads = rows.reduce((s, r) => s + (r.leads || 0), 0);
+
+    return {
+      from: from ?? null,
+      to: to ?? null,
+      ...(dataSource ? { dataSource } : {}),
+      totalDays: rows.length,
+      totals: { sessions: totalSessions, cost: totalCost, leads: totalLeads },
+      series: rows,
+    };
+  }
+
+  private async toolMarketingIntegrations(tenantId: string) {
+    const [integrations, stats] = await Promise.all([
+      this.marketing.listMarketingIntegrations(tenantId),
+      this.marketing
+        .getTrafficChannelsStats(tenantId, undefined, undefined, undefined, 1)
+        .catch(() => null),
+    ]);
+
+    const dataSourceLabels = stats?.dataSourceLabels ?? {};
+    const existingDataSources = new Set(stats?.dataSources ?? []);
+
+    const result = integrations.map((m) => {
+      const s =
+        m.settings && typeof m.settings === 'object' ? (m.settings as Record<string, unknown>) : {};
+      const mode = String(s.googleAdsAccountMode || s.google_ads_account_mode || 'customer')
+        .trim()
+        .toLowerCase();
+
+      const entry: Record<string, unknown> = {
+        id: m.id,
+        provider: m.provider,
+        name: m.name,
+        active: m.isActive,
+        primaryId: m.primaryId,
+        updatedAt: m.updatedAt,
+      };
+
+      if (m.provider === 'google_ads') {
+        entry.accountMode = mode;
+        if (mode === 'mcc_managed') {
+          // Collect sub-accounts from the stored labels map
+          const lblMap =
+            (s.googleAdsManagedAccountLabels as Record<string, string> | undefined) ??
+            (s.google_ads_managed_account_labels as Record<string, string> | undefined);
+          if (lblMap && typeof lblMap === 'object') {
+            entry.managedAccounts = Object.entries(lblMap).map(([cid, name]) => {
+              const key = `google_ads_${cid.replace(/\D/g, '')}`.slice(0, 80);
+              return {
+                customerId: cid,
+                name: name || `Google Ads · ${cid}`,
+                dataSourceKey: key,
+                hasTrafficData: existingDataSources.has(key),
+              };
+            });
+          }
+          entry.mccManagerId = m.primaryId;
+        } else {
+          const cid = String(m.primaryId || '').replace(/\D/g, '');
+          const key = `google_ads_${cid}`.slice(0, 80);
+          entry.dataSourceKey = key;
+          entry.hasTrafficData = existingDataSources.has(key);
+        }
+      } else if (m.provider === 'ga4' || String(m.provider).startsWith('google_analytics')) {
+        const pid = String(m.primaryId || '').replace(/\D/g, '');
+        const key = `ga4_${pid}`.slice(0, 80);
+        entry.dataSourceKey = key;
+        entry.label = dataSourceLabels[key] || m.name;
+        entry.hasTrafficData = existingDataSources.has(key);
+      } else {
+        // meta_ads, yandex_metrika, etc.
+        const key = m.provider;
+        entry.dataSourceKey = key;
+        entry.hasTrafficData = existingDataSources.has(key);
+      }
+
+      return entry;
+    });
+
+    // Also expose all known data source keys so AI can use them in crm_marketing_overview
+    const allDataSources = [...existingDataSources].map((ds) => ({
+      key: ds,
+      label: dataSourceLabels[ds] || ds,
+    }));
+
+    return {
+      integrations: result,
+      allDataSources,
+      hint: 'Используй dataSourceKey как параметр dataSource в crm_marketing_overview для получения данных по конкретному аккаунту.',
     };
   }
 
@@ -999,14 +1468,20 @@ export class AiToolsService {
   private async toolCreateLead(
     tenantId: string,
     args: Record<string, unknown>,
+    ctx?: ToolCtx,
   ) {
+    const tgMeta = ctx?.telegramChatId
+      ? { telegram: { chatId: ctx.telegramChatId, username: ctx.telegramUsername ?? null } }
+      : undefined;
+
     const lead = await this.leadsService.createForTenant(tenantId, {
       name: String(args.name || 'Без имени'),
       email: args.email ? String(args.email) : undefined,
       phone: args.phone ? String(args.phone) : undefined,
-      source: args.source ? String(args.source) : 'ai_assistant',
+      source: args.source ? String(args.source) : (ctx?.telegramChatId ? 'telegram' : 'ai_assistant'),
       status: args.status ? String(args.status) : 'new',
       country: args.country ? String(args.country) : undefined,
+      meta: tgMeta,
     });
     return {
       ok: true,
@@ -1186,23 +1661,27 @@ export class AiToolsService {
         });
       }
     }
-    const dto: CreateCustomObjectDto = {
+    const dtoBase: CreateCustomObjectDto = {
       name,
       description,
       meta,
       ...(fields?.length ? { fields } : {}),
     };
+    const { dto, workspaceAreaId } = await this.workspaceAreaForNewTable(
+      tenantId,
+      dtoBase,
+    );
     const created = await this.customObjects.createObject(tenantId, dto);
     const hasAnalytics = (meta.enabledViews as string[]).includes('analytics');
+    const analyticsUrlPath = hasAnalytics
+      ? `/workspace/${created.id}/analytics`
+      : null;
     return {
       ok: true,
       objectId: created.id,
       name: created.name,
       slug: created.slug,
-      tableUrlPath: `/workspace/${created.id}/table`,
-      analyticsUrlPath: hasAnalytics
-        ? `/workspace/${created.id}/analytics`
-        : null,
+      ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, analyticsUrlPath),
     };
   }
 
@@ -1412,7 +1891,7 @@ export class AiToolsService {
       { key: 'currency', label: 'Валюта', type: 'text', order: 10 },
     ];
 
-    const dto: CreateCustomObjectDto = {
+    const dtoBase: CreateCustomObjectDto = {
       name: tableName,
       description:
         description ||
@@ -1426,6 +1905,11 @@ export class AiToolsService {
         order: c.order,
       })),
     };
+
+    const { dto, workspaceAreaId } = await this.workspaceAreaForNewTable(
+      tenantId,
+      dtoBase,
+    );
 
     const created = await this.customObjects.createObject(tenantId, dto);
     let recordsImported = 0;
@@ -1455,6 +1939,8 @@ export class AiToolsService {
       }
     }
 
+    const analyticsUrlPath = `/workspace/${created.id}/analytics`;
+
     return {
       ok: true,
       objectId: created.id,
@@ -1473,8 +1959,7 @@ export class AiToolsService {
         clicks: stats.totalClicks,
         impressions: stats.totalImpressions,
       },
-      tableUrlPath: `/workspace/${created.id}/table`,
-      analyticsUrlPath: `/workspace/${created.id}/analytics`,
+      ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, analyticsUrlPath),
     };
   }
 
@@ -2819,5 +3304,410 @@ export class AiToolsService {
       { status: memberStatus },
     );
     return { ok: true, email, listId, subscriptionStatus: memberStatus };
+  }
+
+  private async toolListStaffMembers(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ) {
+    const activeOnly = args.activeOnly !== false;
+    const where: Record<string, unknown> = { tenantId };
+    if (activeOnly) where.isActive = true;
+    const staff = await this.staffRepo.find({
+      where: where as any,
+      order: { fullName: 'ASC' },
+      take: 200,
+    });
+    return {
+      ok: true,
+      staff: staff.map((s) => ({
+        id: s.id,
+        fullName: s.fullName,
+        email: s.email,
+        role: s.role,
+        department: s.department,
+        isActive: s.isActive,
+      })),
+      total: staff.length,
+    };
+  }
+
+  private async findAiEmployeeForTool(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ): Promise<AiAgent | null> {
+    const agentId = String(args.agentId || '').trim();
+    if (agentId) {
+      return this.aiAgentsRepo.findOne({
+        where: { tenantId, id: agentId, status: 'active' as any },
+      });
+    }
+    const role = String(args.role || '').trim().toLowerCase();
+    const name = String(args.name || '').trim().toLowerCase();
+    const agents = await this.aiAgentsRepo.find({
+      where: { tenantId, status: 'active' as any },
+      order: { createdAt: 'ASC' },
+      take: 200,
+    });
+    if (role) {
+      const byRole = agents.find((a) => String(a.role).toLowerCase() === role);
+      if (byRole) return byRole;
+    }
+    if (name) {
+      const byName = agents.find((a) => a.name.toLowerCase().includes(name));
+      if (byName) return byName;
+    }
+    return agents[0] ?? null;
+  }
+
+  private async toolListAiEmployees(tenantId: string) {
+    const agents = await this.aiAgentsRepo.find({
+      where: { tenantId, status: 'active' as any },
+      order: { createdAt: 'ASC' },
+      take: 200,
+    });
+    return {
+      ok: true,
+      employees: agents.map((agent) => {
+        const role = getAiEmployeeRole(agent.role);
+        return {
+          id: agent.id,
+          name: agent.name,
+          role: agent.role,
+          roleTitle: role?.title ?? agent.role,
+          department: agent.department,
+          jobTitle: agent.jobTitle,
+          autonomyMode: agent.autonomyMode,
+          scheduleMode: agent.scheduleMode,
+          dailyReportTime: agent.dailyReportTime,
+          createdAt: agent.createdAt,
+        };
+      }),
+      total: agents.length,
+    };
+  }
+
+  private async toolAssignAiEmployeeTask(
+    ctx: ToolCtx,
+    args: Record<string, unknown>,
+  ) {
+    const agent = await this.findAiEmployeeForTool(ctx.tenantId, args);
+    if (!agent) return { ok: false, error: 'ai_employee_not_found' };
+    const title = String(args.title || '').trim().slice(0, 255);
+    const task = String(args.task || '').trim();
+    if (!title || !task) {
+      return { ok: false, error: 'title_and_task_required' };
+    }
+    const priority = String(args.priority || 'normal').trim().toLowerCase();
+    const dueAt = args.dueAt ? String(args.dueAt).trim() : null;
+    const action = this.aiAgentActionsRepo.create({
+      tenantId: ctx.tenantId,
+      agentId: agent.id,
+      actionType: 'assigned_task',
+      targetType: 'ai_employee',
+      targetId: agent.id,
+      title,
+      reason: task.slice(0, 4000),
+      payload: {
+        task,
+        priority,
+        dueAt,
+        assignedBy: {
+          userId: ctx.userId,
+          userEmail: ctx.userEmail ?? null,
+        },
+      },
+      status: 'pending',
+      requiresApproval: false,
+      executedAt: null,
+    });
+    await this.aiAgentActionsRepo.save(action);
+    await this.aiAgentLogsRepo.save(
+      this.aiAgentLogsRepo.create({
+        tenantId: ctx.tenantId,
+        agentId: agent.id,
+        actionId: action.id,
+        userId: ctx.userId,
+        eventType: 'task_assigned_from_main_ai',
+        targetType: 'ai_employee',
+        targetId: agent.id,
+        inputSummary: title,
+        outputSummary: task.slice(0, 500),
+        status: 'success',
+      }),
+    );
+    return {
+      ok: true,
+      assignedTo: {
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+      },
+      task: action,
+    };
+  }
+
+  private async aiEmployeePermissions(tenantId: string, agent: AiAgent) {
+    const rows = await this.aiAgentPermissionsRepo.find({
+      where: { tenantId, agentId: agent.id },
+      order: { permissionKey: 'ASC' },
+    });
+    const current = rows.reduce<Record<string, boolean>>((acc, row) => {
+      acc[row.permissionKey] = row.value;
+      return acc;
+    }, {});
+    const role = getAiEmployeeRole(agent.role);
+    for (const key of role?.defaultPermissions || []) {
+      if (!Object.prototype.hasOwnProperty.call(current, key)) current[key] = true;
+    }
+    return current;
+  }
+
+  private async aiEmployeeQuestionSnapshot(tenantId: string, permissions: Record<string, boolean>) {
+    const canRead = (key: string) => permissions[key] === true;
+    const canReadLeads = canRead('read_leads');
+    const canReadSales = canRead('read_sales') || canRead('read_deals');
+    const canReadProjects = canRead('read_projects') || canRead('read_tasks');
+    const canReadMarketing = [
+      'read_marketing',
+      'read_campaigns',
+      'read_marketing_traffic',
+      'read_marketing_costs',
+      'read_marketing_roi',
+      'read_marketing_integrations',
+      'read_attribution',
+      'read_analytics',
+    ].some(canRead);
+    const leadsQb = this.leadsRepo
+      .createQueryBuilder('l')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere(this.activeLeadCondition('l'));
+    const [leadCount, recentLeads, salesSummary, projects, marketing] =
+      await Promise.all([
+        canReadLeads ? leadsQb.clone().getCount() : Promise.resolve(0),
+        canReadLeads
+          ? leadsQb.clone().orderBy('l.createdAt', 'DESC').take(20).getMany()
+          : Promise.resolve([]),
+        canReadSales
+          ? this.toolSalesSummary(tenantId, {})
+          : Promise.resolve(null),
+        canReadProjects
+          ? this.projectsRepo.find({
+              where: { tenantId, isDeleted: false, isArchived: false } as any,
+              order: { updatedAt: 'DESC' },
+              take: 20,
+            })
+          : Promise.resolve([]),
+        canReadMarketing
+          ? this.toolMarketing(tenantId, {})
+          : Promise.resolve(null),
+      ]);
+    return {
+      generatedAt: new Date().toISOString(),
+      permissions,
+      leads: {
+        totalActive: leadCount,
+        recent: recentLeads.map((l) => ({
+          id: l.id,
+          name: l.name,
+          status: l.status,
+          source: l.source,
+          email: l.email,
+          phone: l.phone,
+          createdAt: l.createdAt,
+        })),
+      },
+      sales: salesSummary,
+      projects: projects.map((p) => ({
+        id: p.id,
+        name: p.name,
+        status: p.status,
+        amount: p.amount,
+        currency: p.currency,
+        updatedAt: p.updatedAt,
+      })),
+      marketing,
+    };
+  }
+
+  private async toolAskAiEmployee(ctx: ToolCtx, args: Record<string, unknown>) {
+    const agent = await this.findAiEmployeeForTool(ctx.tenantId, args);
+    if (!agent) return { ok: false, error: 'ai_employee_not_found' };
+    const question = String(args.question || '').trim();
+    if (!question) return { ok: false, error: 'question_required' };
+    const role = getAiEmployeeRole(agent.role);
+    const permissions = await this.aiEmployeePermissions(ctx.tenantId, agent);
+    const snapshot = await this.aiEmployeeQuestionSnapshot(ctx.tenantId, permissions);
+    const { message, usage } = await this.openai.chatCompletion({
+      messages: [
+        {
+          role: 'system',
+          content: `Ты отвечаешь как AI-сотрудник Lumiva CRM, а не как общий ассистент.
+Имя: ${agent.name}
+Роль: ${role?.title ?? agent.role}
+Отдел: ${agent.department || role?.department || 'CRM'}
+Должность: ${agent.jobTitle || role?.jobTitle || agent.role}
+Тон: ${agent.tone}
+Инструкция роли: ${role?.systemPrompt || 'Отвечай строго по данным CRM.'}
+Отвечай на языке пользователя. Не выдумывай цифры. Если данных нет в snapshot, так и скажи.`,
+        },
+        {
+          role: 'user',
+          content: `Вопрос пользователя к AI-сотруднику:
+${question}
+
+CRM snapshot для ответа:
+${JSON.stringify(snapshot).slice(0, 18000)}`,
+        },
+      ],
+      toolChoice: 'none',
+    });
+    const answer = message.content || '';
+    await this.aiAgentLogsRepo.save(
+      this.aiAgentLogsRepo.create({
+        tenantId: ctx.tenantId,
+        agentId: agent.id,
+        userId: ctx.userId,
+        eventType: 'question_answered_from_main_ai',
+        inputSummary: question.slice(0, 500),
+        outputSummary: answer.slice(0, 500),
+        status: 'success',
+        tokensUsed: (usage.prompt_tokens || 0) + (usage.completion_tokens || 0),
+      }),
+    );
+    return {
+      ok: true,
+      employee: {
+        id: agent.id,
+        name: agent.name,
+        role: agent.role,
+        roleTitle: role?.title ?? agent.role,
+      },
+      answer,
+      snapshotGeneratedAt: snapshot.generatedAt,
+    };
+  }
+
+  private async toolSendBulkEmail(
+    ctx: ToolCtx,
+    args: Record<string, unknown>,
+  ) {
+    if (args.userConfirmedSend !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedSend_must_be_true',
+        hint: 'Вызывай только после явного подтверждения рассылки пользователем.',
+      };
+    }
+
+    const accountId = String(args.accountId || '').trim();
+    const subject = String(args.subject || '').trim();
+    const targetType = String(args.targetType || 'leads');
+    const bodyText = args.bodyText ? String(args.bodyText) : '';
+    const bodyHtml = args.bodyHtml ? String(args.bodyHtml) : '';
+    const templateId = args.templateId ? String(args.templateId).trim() : '';
+    const headline = args.headline ? String(args.headline).trim() : undefined;
+    const maxRecipients = Math.min(500, Math.max(1, Number(args.maxRecipients) || 200));
+
+    if (!accountId || !subject) {
+      return { ok: false, error: 'accountId_subject_required' };
+    }
+    if (!bodyText.trim() && !bodyHtml.trim() && !templateId) {
+      return { ok: false, error: 'bodyText_or_bodyHtml_or_templateId_required' };
+    }
+
+    type Recipient = { id: string; name: string; email: string; entityType: 'lead' | 'contact' };
+    const recipients: Recipient[] = [];
+
+    if (targetType === 'leads') {
+      const qb = this.leadsRepo
+        .createQueryBuilder('l')
+        .where('l.tenantId = :tenantId', { tenantId: ctx.tenantId })
+        .andWhere(this.activeLeadCondition('l'))
+        .andWhere("COALESCE(l.email,'') != ''")
+        .orderBy('l.createdAt', 'DESC')
+        .take(maxRecipients * 4);
+      if (args.filterStatus) qb.andWhere('l.status = :status', { status: String(args.filterStatus) });
+      if (args.filterSource) qb.andWhere('l.source = :source', { source: String(args.filterSource) });
+      if (args.filterDateFrom) qb.andWhere('l.createdAt >= :from', { from: new Date(String(args.filterDateFrom)) });
+      if (args.filterDateTo) qb.andWhere('l.createdAt <= :to', { to: new Date(String(args.filterDateTo) + 'T23:59:59') });
+      if (args.filterSearch) {
+        const like = `%${args.filterSearch}%`;
+        qb.andWhere("(COALESCE(l.name,'') ILIKE :like OR COALESCE(l.email,'') ILIKE :like)", { like });
+      }
+      const leads = await qb.getMany();
+      const filtered = await this.filterLeadsByAccess(ctx, leads);
+      for (const l of filtered.slice(0, maxRecipients)) {
+        if (l.email) recipients.push({ id: l.id, name: l.name || '', email: l.email, entityType: 'lead' });
+      }
+    } else {
+      const { items } = await this.contacts.findAll(ctx.tenantId, {
+        search: args.filterSearch ? String(args.filterSearch) : undefined,
+        status: args.filterStatus ? String(args.filterStatus) : undefined,
+        limit: maxRecipients * 2,
+      });
+      for (const c of items.slice(0, maxRecipients)) {
+        if (c.email) {
+          const fullName = [c.firstName, c.lastName].filter(Boolean).join(' ').trim();
+          recipients.push({ id: c.id, name: fullName, email: c.email, entityType: 'contact' });
+        }
+      }
+    }
+
+    if (!recipients.length) {
+      return { ok: false, error: 'no_recipients_with_email', hint: 'В выбранном сегменте нет записей с email.' };
+    }
+
+    let sent = 0;
+    let failed = 0;
+    const errors: string[] = [];
+
+    for (const r of recipients) {
+      try {
+        const vars = { name: r.name, email: r.email };
+        const entityOpts =
+          r.entityType === 'lead'
+            ? { leadId: r.id, variables: vars }
+            : { contactId: r.id, variables: vars };
+
+        if (templateId) {
+          await this.emailService.sendStyledTransactionalMail(ctx.tenantId, {
+            accountId,
+            to: [r.email],
+            subject,
+            headline,
+            ...entityOpts,
+          });
+        } else {
+          const personalizedText = bodyText
+            ? bodyText.replace(/\{\{name\}\}/g, r.name).replace(/\{\{email\}\}/g, r.email)
+            : '';
+          const personalizedHtml = bodyHtml
+            ? bodyHtml.replace(/\{\{name\}\}/g, r.name).replace(/\{\{email\}\}/g, r.email)
+            : '';
+          await this.emailService.sendStyledTransactionalMail(ctx.tenantId, {
+            accountId,
+            to: [r.email],
+            subject: subject.replace(/\{\{name\}\}/g, r.name).replace(/\{\{email\}\}/g, r.email),
+            bodyText: personalizedText || undefined,
+            bodyHtml: personalizedHtml || undefined,
+            headline,
+            ...entityOpts,
+          });
+        }
+        sent++;
+      } catch (e: any) {
+        failed++;
+        if (errors.length < 5) errors.push(`${r.email}: ${e?.message || 'error'}`);
+      }
+    }
+
+    return {
+      ok: sent > 0,
+      sent,
+      failed,
+      total: recipients.length,
+      ...(errors.length ? { sampleErrors: errors } : {}),
+    };
   }
 }

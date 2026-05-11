@@ -69,6 +69,62 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     return rows.map((r) => this.toPublicStaff(r));
   }
 
+  async resolveNotificationUserIdsForTenant(
+    tenantId: string,
+    staffIds?: string[],
+  ): Promise<string[]> {
+    const selectedIds = Array.isArray(staffIds)
+      ? [...new Set(staffIds.map((id) => String(id || '').trim()).filter(Boolean))]
+      : [];
+    const hasSelectedIds = selectedIds.length > 0;
+
+    const staffQb = this.repo
+      .createQueryBuilder('staff')
+      .where('staff.tenantId = :tenantId', { tenantId })
+      .andWhere('staff.isActive != false');
+
+    if (hasSelectedIds) {
+      staffQb.andWhere('staff.id IN (:...selectedIds)', { selectedIds });
+    }
+
+    const staffRows = await staffQb.getMany();
+    const externalIds = staffRows
+      .map((staff) => staff.externalId?.trim())
+      .filter((id): id is string => Boolean(id));
+    const emails = staffRows
+      .map((staff) => staff.email?.trim().toLowerCase())
+      .filter((email): email is string => Boolean(email));
+    const directUserIds = hasSelectedIds ? selectedIds : [];
+
+    const conditions: string[] = [];
+    const params: Record<string, unknown> = { tenantId, disabled: 'disabled' };
+    const userIds = [...new Set([...externalIds, ...directUserIds])];
+
+    if (userIds.length > 0) {
+      conditions.push('appUser.id IN (:...userIds)');
+      params.userIds = userIds;
+    }
+    if (emails.length > 0) {
+      conditions.push('LOWER(appUser.email) IN (:...emails)');
+      params.emails = [...new Set(emails)];
+    }
+
+    const userQb = this.userRepo
+      .createQueryBuilder('appUser')
+      .select(['appUser.id'])
+      .where('appUser.tenantId = :tenantId', { tenantId })
+      .andWhere('appUser.status != :disabled', { disabled: 'disabled' });
+
+    if (conditions.length > 0) {
+      userQb.andWhere(`(${conditions.join(' OR ')})`, params);
+    } else if (hasSelectedIds) {
+      return [];
+    }
+
+    const users = await userQb.getMany();
+    return [...new Set(users.map((user) => user.id))];
+  }
+
   onModuleInit() {
     // периодическая очистка токенов (раз в 12 часов)
     this.pruneTimer = setInterval(() => {

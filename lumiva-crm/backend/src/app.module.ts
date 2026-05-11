@@ -46,7 +46,11 @@ import { PlatformSettingsModule } from './platform-settings/platform-settings.mo
 import { TelegramModule } from './telegram/telegram.module';
 import { BillingModule } from './billing/billing.module';
 import { AiModule } from './ai/ai.module';
+import { AiEmployeesModule } from './ai-employees/ai-employees.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { SmsModule } from './sms/sms.module';
+import { DeduplicationModule } from './deduplication/deduplication.module';
 
 // --- CCP
 import { CcpModule } from './modules/ccp/ccp.module';
@@ -124,6 +128,12 @@ import { AiUsageLog } from './ai/ai-usage-log.entity';
 import { AiMemoryChunk } from './ai/ai-memory-chunk.entity';
 import { AiChatSession } from './ai/ai-chat-session.entity';
 import { AiChatMessage } from './ai/ai-chat-message.entity';
+import { AiAgent } from './ai-employees/ai-agent.entity';
+import { AiAgentPermission } from './ai-employees/ai-agent-permission.entity';
+import { AiAgentApprovalRule } from './ai-employees/ai-agent-approval-rule.entity';
+import { AiAgentAction } from './ai-employees/ai-agent-action.entity';
+import { AiAgentLog } from './ai-employees/ai-agent-log.entity';
+import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
 
 @Module({
   imports: [
@@ -224,6 +234,12 @@ import { AiChatMessage } from './ai/ai-chat-message.entity';
         AiMemoryChunk,
         AiChatSession,
         AiChatMessage,
+        AiAgent,
+        AiAgentPermission,
+        AiAgentApprovalRule,
+        AiAgentAction,
+        AiAgentLog,
+        AiAgentReport,
         EmbedForm,
         EmbedFormUpload,
       ],
@@ -266,10 +282,14 @@ import { AiChatMessage } from './ai/ai-chat-message.entity';
     TelegramModule,
     BillingModule,
     AiModule,
+    AiEmployeesModule,
     OnlineChatModule,
     CcpModule,
     MailModule,
     EmbedFormsModule,
+    NotificationsModule,
+    SmsModule,
+    DeduplicationModule,
   ],
   providers: [
     { provide: APP_FILTER, useClass: SentryGlobalFilter },

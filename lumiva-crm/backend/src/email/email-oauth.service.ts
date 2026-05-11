@@ -259,6 +259,7 @@ export class EmailOAuthService {
         : [],
     };
     if (existing) {
+      existing.userId = params.userId || existing.userId;
       existing.oauthProvider = params.provider;
       existing.oauthAccessToken = params.accessToken;
       if (params.refreshToken) {
@@ -282,6 +283,7 @@ export class EmailOAuthService {
     }
     const acc = this.accountRepo.create({
       tenantId: params.tenantId,
+      userId: params.userId || null,
       email: params.email,
       name: params.email,
       oauthProvider: params.provider,

@@ -93,6 +93,38 @@ export class TelegramCrmController {
     return { success: true };
   }
 
+  // ==== BOT RECIPIENTS ====
+
+  @Get('bots/:id/recipients')
+  @RequirePermission('telegram', 'read')
+  async getBotRecipients(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.telegramCrmService.getBotRecipients(user.tenantId, id);
+  }
+
+  @Post('bots/:id/recipients')
+  @RequirePermission('telegram', 'write')
+  async addBotRecipient(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { staffUserId: string; staffUserName: string; telegramChatId: string; telegramUsername?: string },
+  ) {
+    return this.telegramCrmService.addBotRecipient(user.tenantId, id, body);
+  }
+
+  @Delete('bots/:id/recipients/:recipientId')
+  @RequirePermission('telegram', 'write')
+  async removeBotRecipient(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('recipientId') recipientId: string,
+  ) {
+    await this.telegramCrmService.removeBotRecipient(user.tenantId, id, recipientId);
+    return { success: true };
+  }
+
   // ==== MESSAGES ====
   @Get('messages')
   @RequirePermission('telegram', 'read')

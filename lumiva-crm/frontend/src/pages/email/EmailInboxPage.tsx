@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { postAiEmailReplySuggest } from '../../api/ai';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { CrmShellModal } from '../../components/ui/CrmShellModal';
@@ -21,12 +22,15 @@ import {
   patchEmailMessage,
   deleteEmailMessage,
   syncEmailMailboxNow,
+  importEmailCalendarInvite,
+  backfillEmailCalendarInvites,
   fetchEmailFolders,
   createEmailFolder,
   patchEmailFolder,
   deleteEmailFolder,
   reorderEmailFolders,
   type EmailAccount,
+  type EmailCalendarInviteMeta,
   type EmailMessage,
   type EmailFolder,
 } from '../../api/email';
@@ -35,32 +39,22 @@ const TEAL = '#45a094';
 const LS_FOLDER_W = 'lumiva-email-folder-w';
 const LS_LIST_W = 'lumiva-email-list-w';
 const LS_FOLD_COLLAPSE = 'lumiva-email-folders-collapsed';
+const MAILBOX_REFRESH_MS = 30_000;
+const MAILBOX_SYNC_MS = 120_000;
+const CALENDAR_BACKFILL_MS = 300_000;
 
 const leadBadgeClass =
   'inline-flex items-center rounded-2xl px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:opacity-95';
 const leadBadgeStyle = { backgroundColor: TEAL, boxShadow: '0 6px 20px rgba(69,160,148,0.35)' };
 
 /** Пилюли: белый фон + чёрная обводка / акцент; hover — слегка slate-50 (не «серый снизу»). */
-const BTN_PRIMARY =
-  'rounded-full border border-lumiva-accent bg-lumiva-accent px-3 py-1.5 text-xs font-semibold text-white shadow-none transition hover:bg-lumiva-accent-soft disabled:cursor-not-allowed disabled:opacity-40';
-const BTN_SECONDARY =
-  'rounded-full border border-slate-600/90 bg-transparent px-2.5 py-1.5 text-xs font-medium text-slate-200 transition hover:border-slate-500 hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-40';
-const BTN_SECONDARY_SM =
-  'rounded-full border border-slate-600/90 bg-transparent px-2 py-0.5 text-[11px] font-medium text-slate-200 transition hover:border-slate-500 hover:bg-white/[0.06] hover:text-white';
-const FOLDER_ACTION =
-  'rounded-md px-1.5 py-0.5 text-[9px] font-medium text-slate-500 transition hover:bg-slate-100 hover:text-lumiva-accent';
-const FOLDER_ACTION_DANGER =
-  'rounded-md px-1.5 py-0.5 text-[9px] font-medium text-rose-600 transition hover:bg-rose-50 hover:text-rose-700';
-
-/** Панель над светлым фоном страницы (как сайдбар CRM). */
-const BTN_SECONDARY_LIGHT =
-  'rounded-full border border-slate-800/20 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-none transition hover:border-slate-800/40 hover:bg-slate-50';
-/**
- * «В корзину» / «Удалить» — светлая капсула: почти белый розоватый фон, бордовый текст,
- * без тени (чтобы не было «серого снизу»). Не вариант с белым текстом на сплошной розе.
- */
-const BTN_GENTLE_ROSE =
-  'rounded-full border border-rose-300 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-950 shadow-none transition hover:border-rose-400 hover:bg-rose-100';
+const BTN_PRIMARY = 'btn-primary';
+const BTN_SECONDARY = 'btn-secondary';
+const BTN_SECONDARY_SM = 'btn-secondary-sm';
+const FOLDER_ACTION = 'btn-icon px-1.5 py-0.5 text-[9px] rounded-md';
+const FOLDER_ACTION_DANGER = 'btn-icon-danger px-1.5 py-0.5 text-[9px] rounded-md';
+const BTN_SECONDARY_LIGHT = 'btn-secondary';
+const BTN_GENTLE_ROSE = 'btn-danger';
 
 function readStoredInt(key: string, fallback: number, min: number, max: number): number {
   try {
@@ -85,6 +79,31 @@ function escapeHtml(s: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+function buildEmailMessageSrcDoc(html: string): string {
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <base target="_blank" />
+  <style>
+    html, body { margin: 0; background: #fff; color: #0f172a; }
+    body {
+      padding: 12px;
+      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      overflow-wrap: anywhere;
+    }
+    a { color: ${TEAL}; text-decoration: underline; }
+    img, video, canvas, svg { max-width: 100%; height: auto; }
+    table { max-width: 100%; border-collapse: collapse; }
+    pre { white-space: pre-wrap; }
+    blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid #cbd5e1; color: #334155; }
+  </style>
+</head>
+<body>${html}</body>
+</html>`;
 }
 
 function replyInitialHtml(m: EmailMessage): string {
@@ -132,6 +151,93 @@ function MessageRowIcon({ m }: { m: EmailMessage }) {
   return <IconMail className={cn} />;
 }
 
+function formatInviteDate(raw: string | null | undefined): string {
+  const value = String(raw || '').trim();
+  if (!value) return '—';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString();
+}
+
+function inviteStatusLabel(status: string | null | undefined): string {
+  if (status === 'requested') return 'Запрошена';
+  if (status === 'confirmed') return 'Подтверждена';
+  if (status === 'tentative') return 'Предварительно';
+  if (status === 'cancelled') return 'Отменена';
+  return status || '—';
+}
+
+function formatAutoRefreshTime(): string {
+  return new Date().toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function CalendarInviteCard({
+  invite,
+  importError,
+}: {
+  invite: EmailCalendarInviteMeta;
+  importError?: string | null;
+}) {
+  const attendees = Array.isArray(invite.attendees) ? invite.attendees.filter(Boolean) : [];
+  return (
+    <div className="mx-3 mb-2 mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+            Встреча из письма
+          </div>
+          <div className="mt-1 text-sm font-semibold text-slate-900">
+            {invite.title || 'Встреча'}
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {invite.workspaceCalendarPath ? (
+            <Link
+              to={invite.workspaceCalendarPath}
+              className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
+            >
+              Открыть календарь
+            </Link>
+          ) : null}
+          {invite.workspaceTablePath ? (
+            <Link
+              to={invite.workspaceTablePath}
+              className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
+            >
+              Открыть таблицу
+            </Link>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-2 grid gap-1 text-[11px] text-slate-700 sm:grid-cols-2">
+        <div><span className="text-slate-500">Начало:</span> {formatInviteDate(invite.startAt)}</div>
+        <div><span className="text-slate-500">Окончание:</span> {formatInviteDate(invite.endAt)}</div>
+        <div><span className="text-slate-500">Место:</span> {invite.location || '—'}</div>
+        <div><span className="text-slate-500">Участников:</span> {(invite.attendeesCount ?? attendees.length) || '—'}</div>
+        <div><span className="text-slate-500">Статус:</span> {inviteStatusLabel(invite.status)}</div>
+        <div>
+          <span className="text-slate-500">Организатор:</span>{' '}
+          {invite.organizerName || invite.organizerEmail || '—'}
+        </div>
+      </div>
+      {attendees.length ? (
+        <div className="mt-2 break-words text-[11px] text-slate-600">
+          <span className="text-slate-500">Участники:</span> {attendees.join(', ')}
+        </div>
+      ) : null}
+      {importError ? (
+        <div className="mt-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
+          Встреча распознана, но не перенесена в таблицу: {importError}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function EmailCheckbox({
   checked,
   indeterminate,
@@ -161,8 +267,8 @@ function EmailCheckbox({
       <span
         className={`flex h-[18px] w-[18px] items-center justify-center rounded-md border transition ${
           on
-            ? 'border-teal-500/70 bg-teal-600/80 shadow-[0_0_0_1px_rgba(69,160,148,0.2)]'
-            : 'border-slate-500/55 bg-white/[0.04] hover:border-[#45a094]/45'
+            ? 'border-lumiva-accent bg-lumiva-accent shadow-[0_0_0_1px_rgba(34,34,34,0.12)]'
+            : 'border-slate-300 bg-white hover:border-slate-500'
         }`}
       >
         {indeterminate ? (
@@ -186,6 +292,9 @@ function EmailCheckbox({
 
 export const EmailInboxPage: React.FC = () => {
   const { t } = useTranslation();
+  const [searchParams] = useSearchParams();
+  const accountDeepLink = searchParams.get('accountId') || '';
+  const messageDeepLink = searchParams.get('messageId') || '';
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [folders, setFolders] = useState<EmailFolder[]>([]);
   const [folderLoading, setFolderLoading] = useState(false);
@@ -199,6 +308,18 @@ export const EmailInboxPage: React.FC = () => {
   const [detail, setDetail] = useState<EmailMessage | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [autoSyncBusy, setAutoSyncBusy] = useState(false);
+  const [autoSyncError, setAutoSyncError] = useState<string | null>(null);
+  const [autoRefreshAt, setAutoRefreshAt] = useState<string | null>(null);
+  const [calendarImportingId, setCalendarImportingId] = useState<string | null>(null);
+  const [calendarBackfillRunning, setCalendarBackfillRunning] = useState(false);
+  const [calendarImportNotice, setCalendarImportNotice] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
+  const [flagFilter, setFlagFilter] = useState<'all' | 'starred' | 'calendar' | 'leadless'>('all');
+  const [fromFilter, setFromFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [folderW, setFolderW] = useState(() => readStoredInt(LS_FOLDER_W, 200, 140, 340));
   const [listW, setListW] = useState(() => readStoredInt(LS_LIST_W, 340, 220, 580));
@@ -220,6 +341,10 @@ export const EmailInboxPage: React.FC = () => {
   const [composeSubject, setComposeSubject] = useState('');
   const [composeHtml, setComposeHtml] = useState('<p></p>');
   const [composeLeadId, setComposeLeadId] = useState<string | null>(null);
+
+  const [aiReplySuggestions, setAiReplySuggestions] = useState<string[]>([]);
+  const [aiReplySuggestLoading, setAiReplySuggestLoading] = useState(false);
+  const [aiReplySuggestOpen, setAiReplySuggestOpen] = useState(false);
 
   const [folderModal, setFolderModal] = useState<
     null | { kind: 'create'; parentId: string | null } | { kind: 'rename'; folder: EmailFolder }
@@ -265,7 +390,7 @@ export const EmailInboxPage: React.FC = () => {
   useEffect(() => {
     setSelectedIds(new Set());
     rangeAnchorRef.current = null;
-  }, [selectedFolderId, accountId]);
+  }, [selectedFolderId, accountId, search, readFilter, flagFilter, fromFilter, dateFrom, dateTo]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -292,31 +417,53 @@ export const EmailInboxPage: React.FC = () => {
     }
   }, [accountId]);
 
-  const loadMessages = useCallback(async () => {
-    setLoading(true);
+  const loadMessages = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
     setError(null);
     try {
       const query: {
         accountId?: string;
         folderId?: string;
+        search?: string;
+        read?: boolean;
+        starred?: boolean;
+        hasCalendarInvite?: boolean;
+        hasLead?: boolean;
+        from?: string;
+        dateFrom?: string;
+        dateTo?: string;
         limit: number;
         offset: number;
       } = { limit: 100, offset: 0 };
       if (accountId) query.accountId = accountId;
       if (accountId && selectedFolderId) query.folderId = selectedFolderId;
+      if (search.trim()) query.search = search.trim();
+      if (readFilter === 'read') query.read = true;
+      if (readFilter === 'unread') query.read = false;
+      if (flagFilter === 'starred') query.starred = true;
+      if (flagFilter === 'calendar') query.hasCalendarInvite = true;
+      if (flagFilter === 'leadless') query.hasLead = false;
+      if (fromFilter.trim()) query.from = fromFilter.trim();
+      if (dateFrom) query.dateFrom = `${dateFrom}T00:00:00.000Z`;
+      if (dateTo) query.dateTo = `${dateTo}T23:59:59.999Z`;
       const res = await fetchEmailMessages(query);
       setMessages(res.items);
       setTotal(res.total);
     } catch (e: any) {
       setError(e?.message || 'load failed');
     } finally {
-      setLoading(false);
+      if (!options?.silent) setLoading(false);
     }
-  }, [accountId, selectedFolderId]);
+  }, [accountId, selectedFolderId, search, readFilter, flagFilter, fromFilter, dateFrom, dateTo]);
 
   useEffect(() => {
     void loadAccounts();
   }, [loadAccounts]);
+
+  useEffect(() => {
+    if (accountDeepLink) setAccountId(accountDeepLink);
+    if (messageDeepLink) setSelectedId(messageDeepLink);
+  }, [accountDeepLink, messageDeepLink]);
 
   useEffect(() => {
     void loadFolders();
@@ -342,6 +489,9 @@ export const EmailInboxPage: React.FC = () => {
       setDetail(null);
       return;
     }
+    setDetail(null);
+    setAiReplySuggestions([]);
+    setAiReplySuggestOpen(false);
     let alive = true;
     fetchEmailMessage(selectedId)
       .then((m) => {
@@ -354,6 +504,23 @@ export const EmailInboxPage: React.FC = () => {
       alive = false;
     };
   }, [selectedId]);
+
+  const fetchAiReplySuggestions = useCallback(async (msg: EmailMessage) => {
+    setAiReplySuggestLoading(true);
+    try {
+      const res = await postAiEmailReplySuggest({
+        subject: msg.subject ?? undefined,
+        body: msg.textBody ?? undefined,
+        senderName: msg.fromName ?? undefined,
+      });
+      if (res.ok && res.suggestions) {
+        setAiReplySuggestions(res.suggestions);
+        setAiReplySuggestOpen(true);
+      }
+    } finally {
+      setAiReplySuggestLoading(false);
+    }
+  }, []);
 
   const selectedAccount = useMemo(
     () => accounts.find((a) => a.id === accountId),
@@ -400,20 +567,158 @@ export const EmailInboxPage: React.FC = () => {
     [t],
   );
 
+  const refreshVisibleMessages = useCallback(async () => {
+    await loadMessages({ silent: true });
+    if (selectedId) {
+      const fresh = await fetchEmailMessage(selectedId).catch(() => null);
+      if (fresh) setDetail(fresh);
+    }
+    setAutoRefreshAt(formatAutoRefreshTime());
+  }, [loadMessages, selectedId]);
+
+  const runMailboxSync = useCallback(
+    async (id: string, options?: { silent?: boolean }) => {
+      const account = accounts.find((item) => item.id === id);
+      if (!account?.hasOAuthTokens && !account?.imapHost) return;
+      const silent = Boolean(options?.silent);
+      if (silent) {
+        if (autoSyncBusy) return;
+        setAutoSyncBusy(true);
+        setAutoSyncError(null);
+      } else {
+        setSyncingId(id);
+        setSyncError(null);
+      }
+      try {
+        await syncEmailMailboxNow(id, account.hasOAuthTokens ? 'oauth' : 'imap');
+        await refreshVisibleMessages();
+        await loadFolders();
+        await loadAccounts();
+      } catch (e: any) {
+        const message = e?.message || 'sync failed';
+        if (silent) setAutoSyncError(message);
+        else setSyncError(message);
+      } finally {
+        if (silent) setAutoSyncBusy(false);
+        else setSyncingId(null);
+      }
+    },
+    [
+      accounts,
+      autoSyncBusy,
+      loadAccounts,
+      loadFolders,
+      refreshVisibleMessages,
+    ],
+  );
+
   const handleSync = async (id: string) => {
-    setSyncingId(id);
-    setSyncError(null);
+    await runMailboxSync(id);
+  };
+
+  const handleImportCalendarInvite = async (messageId: string) => {
+    setCalendarImportingId(messageId);
+    setCalendarImportNotice(null);
     try {
-      await syncEmailMailboxNow(id);
-      await loadMessages();
-      await loadFolders();
-      await loadAccounts();
+      const updated = await importEmailCalendarInvite(messageId);
+      setMessages((prev) => prev.map((x) => (x.id === updated.id ? { ...x, meta: updated.meta } : x)));
+      if (detail?.id === updated.id) setDetail(updated);
+      setCalendarImportNotice(
+        updated.meta?.calendarInvite
+          ? 'Встреча перенесена в таблицу и календарь.'
+          : 'Письмо проверено, но встречу не удалось распознать.',
+      );
     } catch (e: any) {
-      setSyncError(e?.message || 'sync failed');
+      setCalendarImportNotice(e?.message || 'Не удалось перенести встречу.');
     } finally {
-      setSyncingId(null);
+      setCalendarImportingId(null);
     }
   };
+
+  const handleBackfillCalendarInvites = async () => {
+    setCalendarBackfillRunning(true);
+    setCalendarImportNotice(null);
+    try {
+      const result = await backfillEmailCalendarInvites({
+        accountId: accountId || undefined,
+        limit: 100,
+      });
+      setCalendarImportNotice(
+        `Импорт встреч: обработано ${result.processed}, перенесено ${result.imported}, пропущено ${result.skipped}, ошибок ${result.failed}.`,
+      );
+      await loadMessages();
+      if (selectedId) {
+        const fresh = await fetchEmailMessage(selectedId).catch(() => null);
+        if (fresh) setDetail(fresh);
+      }
+    } catch (e: any) {
+      setCalendarImportNotice(e?.message || 'Не удалось перенести встречи.');
+    } finally {
+      setCalendarBackfillRunning(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!accountId) return;
+    let alive = true;
+    const refresh = () => {
+      if (document.hidden) return;
+      void refreshVisibleMessages().catch(() => {
+        if (alive) setAutoSyncError('Не удалось автообновить список писем.');
+      });
+    };
+    const timer = window.setInterval(refresh, MAILBOX_REFRESH_MS);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [accountId, refreshVisibleMessages]);
+
+  useEffect(() => {
+    if (!accountId || (!selectedAccount?.hasOAuthTokens && !selectedAccount?.imapHost)) {
+      return;
+    }
+    const sync = () => {
+      if (document.hidden) return;
+      void runMailboxSync(accountId, { silent: true });
+    };
+    const timer = window.setInterval(sync, MAILBOX_SYNC_MS);
+    return () => window.clearInterval(timer);
+  }, [
+    accountId,
+    runMailboxSync,
+    selectedAccount?.hasOAuthTokens,
+    selectedAccount?.imapHost,
+  ]);
+
+  useEffect(() => {
+    if (!accountId || !selectedAccount?.hasOAuthTokens) return;
+    let running = false;
+    const backfill = async () => {
+      if (running || document.hidden) return;
+      running = true;
+      try {
+        const result = await backfillEmailCalendarInvites({
+          accountId,
+          limit: 100,
+        });
+        if (result.imported > 0) {
+          setCalendarImportNotice(
+            `Встречи обновлены автоматически: перенесено ${result.imported}.`,
+          );
+          await refreshVisibleMessages();
+        }
+      } catch {
+        /* quiet background backfill */
+      } finally {
+        running = false;
+      }
+    };
+    const timer = window.setInterval(() => {
+      void backfill();
+    }, CALENDAR_BACKFILL_MS);
+    return () => window.clearInterval(timer);
+  }, [accountId, refreshVisibleMessages, selectedAccount?.hasOAuthTokens]);
 
   const handleMarkRead = async () => {
     if (!detail || detail.isRead) return;
@@ -647,12 +952,13 @@ export const EmailInboxPage: React.FC = () => {
     setComposeOpen(true);
   };
 
-  const openReply = () => {
+  const openReply = (prefillText?: string) => {
     if (!detail || detail.direction !== 'incoming') return;
     setComposeMode('reply');
     setComposeTo(detail.from);
     setComposeSubject(replySubject(detail.subject));
-    setComposeHtml(replyInitialHtml(detail));
+    const base = replyInitialHtml(detail);
+    setComposeHtml(prefillText ? `<p>${prefillText.replace(/\n/g, '</p><p>')}</p>${base}` : base);
     setComposeLeadId(detail.leadId);
     setComposeResetKey((k) => k + 1);
     setComposeOpen(true);
@@ -876,42 +1182,44 @@ export const EmailInboxPage: React.FC = () => {
     </aside>
   );
 
+  const mobileDetailOpen = !isLg && Boolean(selectedId);
+
   return (
     <MainLayout>
-      <div className="mx-auto flex w-full max-w-[1680px] min-h-[72vh] flex-col gap-3 px-0 sm:px-1">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
+      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 px-0 sm:px-1">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
             <h1 className="text-lg font-semibold text-lumiva-accent">{t('crm.email.inbox.title')}</h1>
             <p className="text-[11px] text-slate-500">{t('crm.email.inbox.subtitle')}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
             <button
               type="button"
               onClick={openNewCompose}
               disabled={accounts.length === 0}
-              className={`inline-flex items-center gap-1.5 ${BTN_PRIMARY}`}
+              className={`inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap ${BTN_PRIMARY}`}
               title={t('crm.email.inbox.compose')}
             >
               <span className="text-sm leading-none">+</span>
               {t('crm.email.inbox.compose')}
             </button>
-            <Link to="/email" className={`inline-flex items-center px-3 py-1.5 ${BTN_SECONDARY_LIGHT}`}>
+            <Link to="/email" className={`inline-flex min-w-0 items-center justify-center whitespace-nowrap px-3 py-1.5 ${BTN_SECONDARY_LIGHT}`}>
               {t('crm.email.accounts.title')}
             </Link>
-            <button type="button" onClick={() => void loadMessages()} className={BTN_PRIMARY}>
+            <button type="button" onClick={() => void loadMessages()} className={`min-w-0 whitespace-nowrap ${BTN_PRIMARY}`}>
               {t('crm.email.inbox.refresh')}
             </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
           <select
             value={accountId}
             onChange={(e) => {
               setAccountId(e.target.value);
               setSelectedId(null);
             }}
-            className="rounded-xl border border-slate-200 bg-white px-2 py-1.5 text-slate-800 shadow-sm"
+            className="col-span-2 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-sm sm:col-span-3 lg:w-[300px] lg:max-w-[300px]"
           >
             <option value="">{t('crm.email.inbox.allMailboxes')}</option>
             {accounts.map((a) => (
@@ -921,20 +1229,111 @@ export const EmailInboxPage: React.FC = () => {
               </option>
             ))}
           </select>
-          {accountId && selectedAccount?.hasOAuthTokens ? (
+          {accountId && (selectedAccount?.hasOAuthTokens || selectedAccount?.imapHost) ? (
             <button
               type="button"
               disabled={syncingId === accountId}
               onClick={() => void handleSync(accountId)}
-              className="rounded-xl border border-sky-200 bg-white px-3 py-1.5 text-sky-800 shadow-sm transition hover:bg-sky-50 disabled:opacity-50"
+              className="min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sky-800 shadow-sm transition hover:bg-sky-50 disabled:opacity-50"
             >
-              {syncingId === accountId ? t('crm.email.inbox.syncInProgress') : t('crm.email.accounts.syncNow')}
+              {syncingId === accountId
+                ? t('crm.email.inbox.syncInProgress')
+                : selectedAccount?.hasOAuthTokens
+                  ? t('crm.email.accounts.syncNow')
+                  : 'Синхронизировать IMAP'}
             </button>
+          ) : null}
+          {(accountId ? selectedAccount?.hasOAuthTokens : accounts.some((account) => account.hasOAuthTokens)) ? (
+            <button
+              type="button"
+              disabled={calendarBackfillRunning}
+              onClick={() => void handleBackfillCalendarInvites()}
+              className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              {calendarBackfillRunning ? 'Переносим встречи…' : 'Перенести встречи'}
+            </button>
+          ) : null}
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Поиск по письмам"
+            className="col-span-2 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm outline-none focus:border-slate-400 sm:col-span-1 lg:w-48"
+          />
+          <select
+            value={readFilter}
+            onChange={(e) => setReadFilter(e.target.value as typeof readFilter)}
+            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
+          >
+            <option value="all">Все статусы</option>
+            <option value="unread">Непрочитанные</option>
+            <option value="read">Прочитанные</option>
+          </select>
+          <select
+            value={flagFilter}
+            onChange={(e) => setFlagFilter(e.target.value as typeof flagFilter)}
+            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
+          >
+            <option value="all">Все письма</option>
+            <option value="starred">Со звездой</option>
+            <option value="calendar">С приглашением</option>
+            <option value="leadless">Без лида</option>
+          </select>
+          <input
+            value={fromFilter}
+            onChange={(e) => setFromFilter(e.target.value)}
+            placeholder="Отправитель"
+            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm outline-none focus:border-slate-400 lg:w-40"
+          />
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
+          />
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
+          />
+          {(search || readFilter !== 'all' || flagFilter !== 'all' || fromFilter || dateFrom || dateTo) ? (
+            <button
+              type="button"
+              className={`min-w-0 ${BTN_SECONDARY_LIGHT}`}
+              onClick={() => {
+                setSearch('');
+                setReadFilter('all');
+                setFlagFilter('all');
+                setFromFilter('');
+                setDateFrom('');
+                setDateTo('');
+              }}
+            >
+              Сбросить
+            </button>
+          ) : null}
+          <span className="col-span-2 text-[10px] text-slate-500 sm:col-span-1 lg:col-span-1">
+            {autoSyncBusy
+              ? 'Автосинхронизация…'
+              : autoRefreshAt
+                ? `Автообновлено ${autoRefreshAt}`
+                : 'Автообновление каждые 30 сек'}
+          </span>
+          {autoSyncError ? (
+            <span className="col-span-2 min-w-0 truncate text-[10px] text-rose-700 sm:col-span-1 lg:max-w-[260px]" title={autoSyncError}>
+              {autoSyncError}
+            </span>
           ) : null}
         </div>
 
         {error ? (
-          <div className="rounded-xl border border-red-800/50 bg-red-950/30 px-3 py-2 text-xs text-red-300">{error}</div>
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{error}</div>
+        ) : null}
+        {syncError ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{syncError}</div>
+        ) : null}
+        {calendarImportNotice ? (
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">{calendarImportNotice}</div>
         ) : null}
 
         {selectedIds.size > 0 ? (
@@ -970,9 +1369,9 @@ export const EmailInboxPage: React.FC = () => {
           </div>
         ) : null}
 
-        <div className="flex min-h-[min(78vh,880px)] min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/50">
+        <div className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white lg:h-[calc(100vh-180px)] lg:min-h-0">
           <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            {foldersCollapsed && accountId ? (
+            {isLg && foldersCollapsed && accountId ? (
               <div
                 className="flex w-full flex-row border-b border-slate-200 bg-white lg:w-11 lg:flex-col lg:border-b-0 lg:border-r lg:rounded-l-2xl"
                 style={{ flexShrink: 0 }}
@@ -989,36 +1388,23 @@ export const EmailInboxPage: React.FC = () => {
               </div>
             ) : null}
 
-            {!foldersCollapsed && accountId ? (
+            {isLg && !foldersCollapsed && accountId ? (
               <>
                 {folderAside(false)}
-                {isLg ? (
-                  <button
-                    type="button"
-                    aria-label="resize folders"
-                    className="w-1.5 shrink-0 cursor-col-resize bg-slate-200/90 hover:bg-lumiva-accent/35"
-                    onMouseDown={startResizeFolder}
-                  />
-                ) : null}
+                <button
+                  type="button"
+                  aria-label="resize folders"
+                  className="w-1.5 shrink-0 cursor-col-resize bg-slate-200/90 hover:bg-lumiva-accent/35"
+                  onMouseDown={startResizeFolder}
+                />
               </>
             ) : null}
 
             <div
-              className="flex min-h-0 flex-col border-slate-800/80 lg:border-r"
+              className={`${mobileDetailOpen ? 'hidden' : 'flex'} min-h-0 flex-col border-slate-200 lg:flex lg:border-r`}
               style={isLg ? { width: listW, flexShrink: 0 } : { width: '100%', flexShrink: 0 }}
             >
-              <div className="flex shrink-0 items-center gap-2 border-b border-slate-800 px-2 py-2 lg:hidden">
-                {accountId ? (
-                  <button
-                    type="button"
-                    onClick={() => setFoldersCollapsed((c) => !c)}
-                    className="rounded border border-slate-600 px-2 py-1 text-[10px] text-slate-300"
-                  >
-                    {foldersCollapsed ? t('crm.email.inbox.showFolders') : t('crm.email.inbox.hideFolders')}
-                  </button>
-                ) : null}
-              </div>
-              <div className="flex shrink-0 items-center gap-2 border-b border-slate-800 px-2 py-2">
+              <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-2 py-2">
                 <EmailCheckbox
                   checked={allSelected && messages.length > 0}
                   indeterminate={someSelected}
@@ -1038,6 +1424,7 @@ export const EmailInboxPage: React.FC = () => {
                 ) : null}
                 {messages.map((m, index) => {
                   const rowActive = selectedIds.has(m.id) || selectedId === m.id;
+                  const unread = !m.isRead;
                   return (
                   <div
                     key={m.id}
@@ -1056,11 +1443,10 @@ export const EmailInboxPage: React.FC = () => {
                       }
                     }}
                     className={
-                      'flex w-full cursor-pointer items-start gap-2 border-b border-slate-800/80 px-2 py-2 text-left transition-colors ' +
+                      'flex w-full cursor-pointer items-start gap-2 border-b border-slate-100 px-3 py-3 text-left transition-colors lg:px-2 lg:py-2 ' +
                       (rowActive
-                        ? 'bg-[#45a094]/[0.055] hover:bg-[#45a094]/[0.08]'
-                        : 'hover:bg-[#45a094]/[0.03]') +
-                      (!m.isRead ? ' border-l-2 border-l-[#45a094]' : '')
+                        ? 'bg-slate-100 hover:bg-slate-100'
+                        : 'hover:bg-slate-50')
                     }
                   >
                     <EmailCheckbox
@@ -1071,7 +1457,7 @@ export const EmailInboxPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={(e) => void toggleStar(m, e)}
-                      className={`mt-0.5 shrink-0 text-base leading-none ${m.isStarred ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'}`}
+                      className={`mt-0.5 shrink-0 text-base leading-none ${m.isStarred ? 'text-slate-900' : 'text-slate-400 hover:text-slate-700'}`}
                       title={t('crm.email.inbox.star')}
                     >
                       {m.isStarred ? '★' : '☆'}
@@ -1080,11 +1466,35 @@ export const EmailInboxPage: React.FC = () => {
                       <MessageRowIcon m={m} />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-xs font-semibold text-slate-100">{m.subject || '—'}</div>
-                      <div className="mt-0.5 truncate text-[10px] text-slate-400">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${
+                            unread ? 'bg-slate-950' : 'bg-transparent'
+                          }`}
+                          aria-hidden
+                        />
+                        <div
+                          className={`min-w-0 flex-1 truncate text-sm lg:text-xs ${
+                            unread ? 'font-bold text-slate-950' : 'font-medium text-slate-800'
+                          }`}
+                        >
+                          {m.subject || '—'}
+                        </div>
+                      </div>
+                      <div
+                        className={`mt-1 truncate pl-4 text-xs lg:text-[10px] ${
+                          unread ? 'font-semibold text-slate-900' : 'font-normal text-slate-500'
+                        }`}
+                      >
                         {m.direction === 'incoming' ? m.from : m.to?.join(', ')}
                       </div>
-                      <div className="mt-1 text-[10px] text-slate-500">{new Date(m.date).toLocaleString()}</div>
+                      <div
+                        className={`mt-1 pl-4 text-xs lg:text-[10px] ${
+                          unread ? 'font-semibold text-slate-900' : 'font-normal text-slate-500'
+                        }`}
+                      >
+                        {new Date(m.date).toLocaleString()}
+                      </div>
                     </div>
                   </div>
                   );
@@ -1096,31 +1506,40 @@ export const EmailInboxPage: React.FC = () => {
               <button
                 type="button"
                 aria-label="resize list"
-                className="w-1.5 shrink-0 cursor-col-resize border-slate-700 bg-slate-800/50 hover:bg-teal-600/40"
+                className="w-1.5 shrink-0 cursor-col-resize bg-slate-200/90 hover:bg-slate-400/40"
                 onMouseDown={startResizeList}
               />
             ) : null}
 
-            <div className="flex min-h-[200px] min-h-0 min-w-0 flex-1 flex-col">
+            <div className={`${!isLg && !selectedId ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col`}>
               {!detail ? (
                 <div className="flex flex-1 items-center justify-center p-6 text-sm text-slate-500">
-                  {t('crm.email.inbox.selectMessage')}
+                  {selectedId ? t('crm.email.inbox.load') : t('crm.email.inbox.selectMessage')}
                 </div>
               ) : (
                 <div className="flex min-h-0 flex-1 flex-col">
-                  <div className="shrink-0 border-b border-slate-800 px-3 py-3 sm:px-4">
+                  <div className="shrink-0 border-b border-slate-200 px-3 py-3 sm:px-4">
+                    {!isLg ? (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedId(null)}
+                        className="mb-3 inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50"
+                      >
+                        ← Назад
+                      </button>
+                    ) : null}
                     <div className="flex items-start gap-2">
                       <button
                         type="button"
                         onClick={(e) => void toggleStar(detail, e)}
-                        className={`shrink-0 text-xl ${detail.isStarred ? 'text-amber-400' : 'text-slate-600 hover:text-slate-400'}`}
+                        className={`shrink-0 text-xl ${detail.isStarred ? 'text-slate-900' : 'text-slate-400 hover:text-slate-700'}`}
                         title={t('crm.email.inbox.star')}
                       >
                         {detail.isStarred ? '★' : '☆'}
                       </button>
-                      <h2 className="min-w-0 flex-1 text-sm font-semibold text-slate-50">{detail.subject || '—'}</h2>
+                      <h2 className="min-w-0 flex-1 text-sm font-semibold text-slate-900">{detail.subject || '—'}</h2>
                     </div>
-                    <div className="mt-2 space-y-1 text-[11px] text-slate-400">
+                    <div className="mt-2 space-y-1 text-[11px] text-slate-600">
                       <div>
                         <span className="text-slate-500">From:</span> {detail.fromName ? `${detail.fromName} ` : ''}
                         &lt;{detail.from}&gt;
@@ -1132,7 +1551,7 @@ export const EmailInboxPage: React.FC = () => {
                         {detail.direction === 'incoming' ? (
                           <button
                             type="button"
-                            onClick={openReply}
+                            onClick={() => openReply()}
                             disabled={accounts.length === 0}
                             className={`${BTN_SECONDARY} px-3 py-1 text-[11px]`}
                           >
@@ -1164,9 +1583,23 @@ export const EmailInboxPage: React.FC = () => {
                           </Link>
                         ) : null}
                         {detail.meta?.hasCalendarAttachment ? (
-                          <span className="rounded-lg bg-amber-900/40 px-2 py-0.5 text-amber-200">
+                          <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
                             {t('crm.email.inbox.calendarInvite')}
                           </span>
+                        ) : null}
+                        {detail.meta?.hasCalendarAttachment && (!detail.meta.calendarInvite || detail.meta.calendarInviteImportError) ? (
+                          <button
+                            type="button"
+                            onClick={() => void handleImportCalendarInvite(detail.id)}
+                            disabled={calendarImportingId === detail.id}
+                            className="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-800 transition hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {calendarImportingId === detail.id
+                              ? 'Переносим…'
+                              : detail.meta.calendarInviteImportError
+                                ? 'Повторить перенос'
+                                : 'Перенести в календарь'}
+                          </button>
                         ) : null}
                         {!detail.isRead ? (
                           <button type="button" onClick={() => void handleMarkRead()} className={BTN_SECONDARY_SM}>
@@ -1180,11 +1613,59 @@ export const EmailInboxPage: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3 text-sm text-slate-200 sm:px-5 sm:py-4">
+                  {detail.meta?.calendarInvite ? (
+                    <CalendarInviteCard
+                      invite={detail.meta.calendarInvite}
+                      importError={detail.meta.calendarInviteImportError}
+                    />
+                  ) : null}
+                  {/* AI Reply Suggestions — incoming only */}
+                  {detail.direction === 'incoming' && (
+                    <div className="mx-3 mb-2 mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">AI варианты ответа</span>
+                        <button
+                          type="button"
+                          disabled={aiReplySuggestLoading}
+                          onClick={() => {
+                            if (aiReplySuggestions.length > 0) {
+                              setAiReplySuggestOpen(v => !v);
+                            } else {
+                              void fetchAiReplySuggestions(detail);
+                            }
+                          }}
+                          className="text-[10px] font-semibold tracking-wide text-slate-700 transition hover:text-slate-950 disabled:opacity-50"
+                        >
+                          {aiReplySuggestLoading ? 'Генерация…' : aiReplySuggestions.length > 0 ? (aiReplySuggestOpen ? 'Скрыть' : 'Показать') : 'Предложить ответ'}
+                        </button>
+                      </div>
+                      {aiReplySuggestOpen && aiReplySuggestions.length > 0 && (
+                        <div className="mt-2 flex flex-col gap-2">
+                          {aiReplySuggestions.map((s, i) => (
+                            <div key={i} className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
+                              <p className="flex-1 text-[12px] leading-relaxed text-slate-700">{s}</p>
+                              <button
+                                type="button"
+                                onClick={() => openReply(s)}
+                                className="shrink-0 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 transition hover:bg-slate-50"
+                              >
+                                Ответить
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="min-h-0 flex-1 overflow-y-auto bg-white px-3 py-3 text-sm text-slate-900 sm:px-5 sm:py-4">
                     {detail.htmlBody ? (
-                      <div
-                        className="email-html-body prose prose-invert max-w-none text-sm [&_*]:max-w-full [&_img]:h-auto [&_img]:max-w-full [&_table]:max-w-full"
-                        dangerouslySetInnerHTML={{ __html: detail.htmlBody }}
+                      <iframe
+                        title={detail.subject || 'Email message'}
+                        className="h-full min-h-[420px] w-full rounded-xl border border-slate-200 bg-white"
+                        sandbox="allow-popups allow-popups-to-escape-sandbox"
+                        referrerPolicy="no-referrer"
+                        srcDoc={buildEmailMessageSrcDoc(detail.htmlBody)}
                       />
                     ) : (
                       <pre className="w-full max-w-none whitespace-pre-wrap break-words font-sans text-sm">

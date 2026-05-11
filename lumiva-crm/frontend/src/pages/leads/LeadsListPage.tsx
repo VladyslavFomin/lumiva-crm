@@ -1,6 +1,9 @@
 // src/pages/leads/LeadsListPage.tsx
 
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
+import { AiSmartSearchBar } from '../../components/ai/AiSmartSearchBar';
+import { AiDuplicatesModal } from '../../components/ai/AiDuplicatesModal';
+import type { AiSmartSearchFilters } from '../../api/ai';
 import { MainLayout } from '../../layout/MainLayout';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -70,6 +73,9 @@ export const LeadsListPage: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [columnsSearch, setColumnsSearch] = useState('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+  const [aiFilters, setAiFilters] = useState<AiSmartSearchFilters | null>(null);
+  const [aiFilterDesc, setAiFilterDesc] = useState('');
+  const [duplicatesOpen, setDuplicatesOpen] = useState(false);
   const [statusOpenId, setStatusOpenId] = useState<string | null>(null);
   const [statusPopoverPos, setStatusPopoverPos] = useState<{ top: number; left: number } | null>(null);
   const statusPopoverRef = useRef<HTMLDivElement | null>(null);
@@ -721,8 +727,24 @@ export const LeadsListPage: React.FC = () => {
     if (selectedCompanyId) {
       result = result.filter((l) => l.companyId === selectedCompanyId);
     }
+    if (aiFilters) {
+      if (aiFilters.status) result = result.filter(l => l.status === aiFilters.status);
+      if (aiFilters.source) result = result.filter(l => l.source?.toLowerCase().includes(aiFilters.source!.toLowerCase()));
+      if (aiFilters.channel) result = result.filter(l => (l as any).channel?.toLowerCase().includes(aiFilters.channel!.toLowerCase()));
+      if (aiFilters.country) result = result.filter(l => (l as any).country?.toLowerCase().includes(aiFilters.country!.toLowerCase()));
+      if (aiFilters.search) {
+        const q = aiFilters.search.toLowerCase();
+        result = result.filter(l => l.name?.toLowerCase().includes(q) || l.email?.toLowerCase().includes(q) || (l as any).phone?.toLowerCase().includes(q));
+      }
+      if (aiFilters.hasEmail === true) result = result.filter(l => Boolean(l.email?.trim()));
+      if (aiFilters.hasEmail === false) result = result.filter(l => !l.email?.trim());
+      if (aiFilters.hasPhone === true) result = result.filter(l => Boolean((l as any).phone?.trim()));
+      if (aiFilters.hasPhone === false) result = result.filter(l => !(l as any).phone?.trim());
+      if (aiFilters.createdAfter) result = result.filter(l => new Date(l.createdAt) >= new Date(aiFilters.createdAfter!));
+      if (aiFilters.createdBefore) result = result.filter(l => new Date(l.createdAt) <= new Date(aiFilters.createdBefore!));
+    }
     return result;
-  }, [baseFilteredLeads, searchQuery, selectedCompanyId, companiesMap]);
+  }, [baseFilteredLeads, searchQuery, selectedCompanyId, companiesMap, aiFilters]);
 
   const groupedLeads = useMemo(() => {
     if (groupMode === 'none') return [];
@@ -1812,6 +1834,31 @@ export const LeadsListPage: React.FC = () => {
 
               <div className="lv-toolbar-divider" />
 
+              {/* AI Smart Search */}
+              <AiSmartSearchBar
+                active={aiFilters !== null}
+                onFilters={(filters, desc) => { setAiFilters(filters); setAiFilterDesc(desc); }}
+                onClear={() => { setAiFilters(null); setAiFilterDesc(''); }}
+              />
+
+              {/* AI Duplicates */}
+              <button
+                type="button"
+                onClick={() => setDuplicatesOpen(true)}
+                title="Найти дубли лидов"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 11px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 500, border: '1px solid #e0e0e0', background: '#fff', color: '#555', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = '#7c3aed'; e.currentTarget.style.color = '#7c3aed'; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = '#e0e0e0'; e.currentTarget.style.color = '#555'; }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                  <path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/>
+                </svg>
+                Дубли
+              </button>
+
+              <div className="lv-toolbar-divider" />
+
               <label className="lv-tb-select">
                 <span className="lbl">{t('crm.leads.list.groupMode.label')}:</span>
                 <select
@@ -1984,24 +2031,28 @@ export const LeadsListPage: React.FC = () => {
               </div>
             </div>
 
-            {(searchQuery || selectedCompanyId) && (
+            {(searchQuery || selectedCompanyId || aiFilters) && (
               <div className="lv-filter-strip">
                 {searchQuery && (
                   <span className="lv-filter-chip">
                     <span className="key">{t('crm.leads.list.search')}:</span>
                     <span className="val">«{searchQuery}»</span>
-                    <button type="button" className="x" onClick={() => setSearchQuery('')}>
-                      ×
-                    </button>
+                    <button type="button" className="x" onClick={() => setSearchQuery('')}>×</button>
                   </span>
                 )}
                 {selectedCompanyId && (
                   <span className="lv-filter-chip">
                     <span className="key">{t('crm.leads.list.filters.companyLabel')}</span>
                     <span className="val">{companiesMap[selectedCompanyId]?.name ?? selectedCompanyId}</span>
-                    <button type="button" className="x" onClick={() => setSelectedCompanyId(null)}>
-                      ×
-                    </button>
+                    <button type="button" className="x" onClick={() => setSelectedCompanyId(null)}>×</button>
+                  </span>
+                )}
+                {aiFilters && (
+                  <span className="lv-filter-chip" style={{ background: '#f5f3ff', borderColor: '#7c3aed40', color: '#7c3aed' }}>
+                    <span style={{ fontSize: 10 }}>✦</span>
+                    <span className="val" style={{ color: '#7c3aed' }}>{aiFilterDesc}</span>
+                    <span style={{ fontSize: 9, color: '#888', }}>({filteredLeads.length})</span>
+                    <button type="button" className="x" onClick={() => { setAiFilters(null); setAiFilterDesc(''); }}>×</button>
                   </span>
                 )}
               </div>
@@ -2286,6 +2337,10 @@ export const LeadsListPage: React.FC = () => {
         onClose={() => setAutomationOpen(false)}
         entityType="lead"
       />
+
+      {duplicatesOpen && (
+        <AiDuplicatesModal onClose={() => setDuplicatesOpen(false)} />
+      )}
     </MainLayout>
   );
 };

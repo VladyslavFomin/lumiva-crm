@@ -7,9 +7,12 @@ import { notifyAnalyticsWidgetsChanged } from '../../dashboard/analyticsStorage'
 import { fetchProjects } from '../../api/projects';
 import type { Project } from './projectTypes';
 import {
+  Area,
+  AreaChart,
   PieChart,
   Pie,
   Cell,
+  Line,
   Tooltip,
   ResponsiveContainer,
   BarChart,
@@ -20,15 +23,15 @@ import {
   Sector,
 } from 'recharts';
 
-const ANALYTICS_LAYOUT_VERSION = '2026-01-30-projects-premium';
+const ANALYTICS_LAYOUT_VERSION = '2026-05-03-projects-sales-visual-parity';
 
 const CHART_COLORS = [
-  '#38bdf8',
-  '#e11d48',
-  '#f97316',
-  '#22c55e',
-  '#2563eb',
-  '#6366f1',
+  '#222222',
+  '#1769d1',
+  '#3b6cb6',
+  '#214b8a',
+  '#1f8a5e',
+  '#c08319',
 ];
 const PALETTES: Record<string, string[]> = {
   lumiva: CHART_COLORS,
@@ -37,7 +40,7 @@ const PALETTES: Record<string, string[]> = {
   forest: ['#22c55e', '#16a34a', '#4ade80', '#10b981', '#34d399', '#86efac'],
 };
 const THEME_PRESETS = [
-  { key: 'lumiva', label: 'Lumiva', primary: '#0ea5e9', palette: PALETTES.lumiva },
+  { key: 'lumiva', label: 'Lumiva', primary: '#222222', palette: ['#222222', '#1769d1', '#3b6cb6', '#214b8a', '#1f8a5e', '#c08319'] },
   { key: 'ocean', label: 'Ocean', primary: '#2563eb', palette: PALETTES.ocean },
   { key: 'sunset', label: 'Sunset', primary: '#f97316', palette: PALETTES.sunset },
   { key: 'forest', label: 'Forest', primary: '#16a34a', palette: PALETTES.forest },
@@ -45,8 +48,16 @@ const THEME_PRESETS = [
 ] as const;
 
 type PeriodId = '7d' | '30d' | '1y' | 'all' | 'custom';
+type ViewId = 'overview' | 'statuses' | 'owners' | 'categories';
 
-type WidgetType = 'metric' | 'donut' | 'bar' | 'table' | 'formula' | 'pivot';
+const VIEWS: Array<{ id: ViewId; label: string }> = [
+  { id: 'overview', label: 'Обзор' },
+  { id: 'statuses', label: 'Статусы' },
+  { id: 'owners', label: 'Ответственные' },
+  { id: 'categories', label: 'Категории' },
+];
+
+type WidgetType = 'metric' | 'donut' | 'bar' | 'line' | 'funnel' | 'leaderboard' | 'table' | 'heatmap' | 'note' | 'formula' | 'pivot';
 type WidgetSize = 'sm' | 'md' | 'lg';
 type ThemeKey = typeof THEME_PRESETS[number]['key'];
 
@@ -64,6 +75,7 @@ type PivotMeasureConfig = {
 };
 
 type FormulaFilterRow = { scope: FormulaScope; keys: string[] };
+type GlobalFilterRow = FormulaFilterRow & { id: string };
 
 type MetricKey = string;
 type ChartKey = string;
@@ -199,6 +211,7 @@ type WidgetConfig = {
   type: WidgetType;
   title: string;
   size: WidgetSize;
+  span?: number;
   height?: number;
   themeKey?: ThemeKey;
   showLabels?: boolean;
@@ -228,6 +241,7 @@ type ResizeState = {
   startX: number;
   startY: number;
   startSize: WidgetSize;
+  startSpan: number;
   startHeight: number;
   minHeight: number;
   axis: 'x' | 'y' | 'both';
@@ -273,6 +287,93 @@ const parseNumericLoose = (raw: any) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const V2_PALETTE = ['#222222', '#1769d1', '#3b6cb6', '#214b8a', '#1f8a5e', '#c08319', '#cc2f47', '#5a45a8'];
+
+function compactNumber(value: number) {
+  return new Intl.NumberFormat('ru-RU').format(Math.round(value));
+}
+
+function percent(part: number, total: number) {
+  return total > 0 ? Math.round((part / total) * 100) : 0;
+}
+
+function MiniSparkline({ data, color = '#222222' }: { data: number[]; color?: string }) {
+  const chartData = (data.length ? data : [0, 0, 0]).map((value, index) => ({ index, value }));
+  const gradientId = `projects-spark-${color.replace(/[^a-z0-9]/gi, '')}`;
+  return (
+    <ResponsiveContainer width="100%" height={44}>
+      <AreaChart data={chartData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+            <stop offset="100%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <Area type="monotone" dataKey="value" stroke={color} strokeWidth={1.5} fill={`url(#${gradientId})`} dot={false} isAnimationActive={false} />
+      </AreaChart>
+    </ResponsiveContainer>
+  );
+}
+
+function cx(...classes: Array<string | false | null | undefined>) {
+  return classes.filter(Boolean).join(' ');
+}
+
+const ALLOWED_SPANS = [3, 4, 6, 8, 12];
+const MIN_WIDGET_H = 100;
+const MAX_WIDGET_H = 1400;
+
+function spanFromSize(size: WidgetSize) {
+  if (size === 'lg') return 12;
+  if (size === 'md') return 6;
+  return 3;
+}
+
+function sizeFromSpan(span: number): WidgetSize {
+  if (span >= 9) return 'lg';
+  if (span >= 5) return 'md';
+  return 'sm';
+}
+
+function closestSpan(value: number) {
+  return ALLOWED_SPANS.reduce((best, span) =>
+    Math.abs(span - value) < Math.abs(best - value) ? span : best,
+  ALLOWED_SPANS[0]);
+}
+
+function isChartWidgetType(type: WidgetType) {
+  return type === 'donut' || type === 'bar' || type === 'line' || type === 'funnel' || type === 'leaderboard';
+}
+
+function Icon({ name, size = 16 }: { name: string; size?: number }) {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.8,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true,
+  };
+  const paths: Record<string, React.ReactNode> = {
+    plus: <><path d="M12 5v14" /><path d="M5 12h14" /></>,
+    x: <><path d="M6 6l12 12" /><path d="M6 18 18 6" /></>,
+    settings: <><circle cx="12" cy="12" r="3" /><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.6-2-3.4-2.4.8a7 7 0 0 0-2.1-1.2L14 3h-4l-.4 2.4a7 7 0 0 0-2.1 1.2l-2.4-.8-2 3.4 2 1.6A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.6 2 3.4 2.4-.8a7 7 0 0 0 2.1 1.2L10 21h4l.4-2.4a7 7 0 0 0 2.1-1.2l2.4.8 2-3.4-2-1.6c.1-.4.1-.8.1-1.2z" /></>,
+    drag: <><circle cx="9" cy="6" r="1" fill="currentColor" /><circle cx="9" cy="12" r="1" fill="currentColor" /><circle cx="9" cy="18" r="1" fill="currentColor" /><circle cx="15" cy="6" r="1" fill="currentColor" /><circle cx="15" cy="12" r="1" fill="currentColor" /><circle cx="15" cy="18" r="1" fill="currentColor" /></>,
+    resize: <><path d="M16 8 8 16" /><path d="M16 14v2h-2" /><path d="M14 10h-2v2" /><path d="M14 8h2v2" /></>,
+    copy: <><rect x="8" y="8" width="12" height="12" rx="1.5" /><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" /></>,
+    trash: <><path d="M4 7h16" /><path d="M9 7V4h6v3" /><path d="M6 7l1 13h10l1-13" /></>,
+    search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.5-4.5" /></>,
+    share: <><circle cx="6" cy="12" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="18" cy="18" r="2.5" /><path d="M8.2 11l7.6-4" /><path d="M8.2 13l7.6 4" /></>,
+    download: <><path d="M12 3v12" /><path d="M7 10l5 5 5-5" /><path d="M4 21h16" /></>,
+    calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M3 10h18" /><path d="M8 3v4" /><path d="M16 3v4" /></>,
+    table: <><rect x="3" y="4" width="18" height="16" rx="1.5" /><path d="M3 10h18" /><path d="M3 16h18" /><path d="M9 4v16" /></>,
+  };
+  return <svg {...common}>{paths[name] || paths.table}</svg>;
+}
+
 interface ProjectsAnalyticsPageProps {
   externalItems?: Project[];
   storageNamespace?: string;
@@ -301,6 +402,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [period, setPeriod] = useState<PeriodId>('all');
+  const [search, setSearch] = useState('');
+  const [activeView, setActiveView] = useState<ViewId>('overview');
+  const [globalFilters, setGlobalFilters] = useState<GlobalFilterRow[]>([]);
+  const [editMode, setEditMode] = useState(false);
+  const [shareToast, setShareToast] = useState(false);
   const periodLabels = useMemo<Record<PeriodId, string>>(
     () => ({
       '7d': t('crm.projects.analytics.period.days7'),
@@ -341,6 +447,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     { id: 'pv-sum', mode: 'sum', valueField: 'amount' },
   ]);
   const [draftSize, setDraftSize] = useState<WidgetSize>('md');
+  const [draftSpan, setDraftSpan] = useState(6);
   const [draftTitle, setDraftTitle] = useState('');
   const [draftTheme, setDraftTheme] = useState<ThemeKey>('lumiva');
   const [draftShowLabels, setDraftShowLabels] = useState(true);
@@ -349,6 +456,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     {},
   );
   const [resizing, setResizing] = useState<ResizeState | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
   const prevAddOpenRef = useRef(false);
 
   useEffect(() => {
@@ -400,19 +508,48 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     [t],
   );
 
-  const filteredItems = useMemo(() => {
-    if (period === 'all' || period === 'custom') return items;
+  const searchedItems = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return items;
+    return items.filter((item) => {
+      const customText = Object.entries(item.customFields || {})
+        .map(([key, value]) => `${key} ${Array.isArray(value) ? value.join(' ') : String(value ?? '')}`)
+        .join(' ');
+      const fieldText = analyticsFields
+        .map((field) => `${field.label} ${String(item.customFields?.[field.key] ?? '')}`)
+        .join(' ');
+      return [
+        item.name,
+        item.description,
+        item.status,
+        item.category,
+        item.owner,
+        item.leadName,
+        item.leadEmail,
+        item.currency,
+        (item.tags || []).join(' '),
+        customText,
+        fieldText,
+      ]
+        .join(' ')
+        .toLowerCase()
+        .includes(query);
+    });
+  }, [items, search, analyticsFields]);
+
+  const periodItems = useMemo(() => {
+    if (period === 'all' || period === 'custom') return searchedItems;
     const now = new Date();
     const cutoff = new Date(now);
     if (period === '7d') cutoff.setDate(now.getDate() - 6);
     if (period === '30d') cutoff.setDate(now.getDate() - 29);
     if (period === '1y') cutoff.setFullYear(now.getFullYear() - 1);
-    return items.filter((p) => {
+    return searchedItems.filter((p) => {
       const created = parseDate(p.createdAt);
       if (!created) return true;
       return created >= cutoff && created <= now;
     });
-  }, [items, period]);
+  }, [searchedItems, period]);
 
   const isWorkspaceMode = analyticsFields.length > 0;
   const analyticsFieldMap = useMemo(
@@ -420,6 +557,71 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     [analyticsFields],
   );
   const getCustomFieldValue = (item: Project, key: string) => item.customFields?.[key];
+
+  const dashboardFilterFields = useMemo(
+    () =>
+      isWorkspaceMode
+        ? analyticsFields
+            .filter((field) => !['date', 'datetime'].includes(String(field.type || '').toLowerCase()))
+            .map((field) => ({ id: `field:${field.key}`, label: field.label || field.key }))
+        : [
+            { id: 'status', label: t('crm.projects.analytics.statusChart.title') },
+            { id: 'category', label: t('crm.projects.analytics.categoryChart.title') },
+            { id: 'owner', label: t('crm.projects.analytics.ownerChart.title') },
+            { id: 'tag', label: t('crm.projects.analytics.tagChart.title') },
+          ],
+    [analyticsFields, isWorkspaceMode, t],
+  );
+
+  const getDashboardFieldValue = (item: Project, scope: string): unknown => {
+    if (scope.startsWith('field:')) return getCustomFieldValue(item, scope.replace('field:', ''));
+    if (scope === 'status') return item.status;
+    if (scope === 'category') return item.category || t('crm.projects.analytics.noCategory');
+    if (scope === 'owner') return item.owner || t('crm.projects.analytics.unknownOwner');
+    if (scope === 'tag') return item.tags || [];
+    return '';
+  };
+
+  const dashboardValueOptionsByScope = useMemo(() => {
+    const out: Record<string, Array<{ id: string; label: string }>> = {};
+    dashboardFilterFields.forEach((field) => {
+      const values = new Map<string, number>();
+      periodItems.forEach((item) => {
+        const raw = getDashboardFieldValue(item, field.id);
+        const list = Array.isArray(raw)
+          ? raw.map(String)
+          : String(raw ?? '')
+              .split(/[,;/]+/)
+              .map((value) => value.trim());
+        list.filter(Boolean).forEach((value) => values.set(value, (values.get(value) || 0) + 1));
+      });
+      out[field.id] = Array.from(values.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 120)
+        .map(([id, count]) => ({ id, label: `${id} · ${count}` }));
+    });
+    return out;
+  }, [dashboardFilterFields, periodItems]);
+
+  const itemMatchesGlobalFilter = (item: Project, filter: GlobalFilterRow) => {
+    if (!filter.keys.length) return true;
+    const raw = getDashboardFieldValue(item, filter.scope);
+    const values = Array.isArray(raw)
+      ? raw.map(String)
+      : String(raw ?? '')
+          .split(/[,;/]+/)
+          .map((value) => value.trim())
+          .filter(Boolean);
+    return filter.keys.some((key) => values.includes(key));
+  };
+
+  const filteredItems = useMemo(
+    () =>
+      globalFilters.length
+        ? periodItems.filter((item) => globalFilters.every((filter) => itemMatchesGlobalFilter(item, filter)))
+        : periodItems,
+    [globalFilters, periodItems],
+  );
 
   const totalProjects = filteredItems.length;
   const totalAmount = useMemo(
@@ -694,7 +896,12 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       { id: 'metric', label: t('crm.projects.analytics.widgets.type.metric') },
       { id: 'donut', label: t('crm.projects.analytics.widgets.type.donut') },
       { id: 'bar', label: t('crm.projects.analytics.widgets.type.bar') },
+      { id: 'line', label: 'Линия' },
+      { id: 'funnel', label: 'Воронка' },
+      { id: 'leaderboard', label: 'Рейтинг' },
       { id: 'table', label: t('crm.projects.analytics.widgets.type.table') },
+      { id: 'heatmap', label: 'Heatmap' },
+      { id: 'note', label: 'Заметка' },
       { id: 'pivot', label: t('crm.projects.analytics.widgets.type.pivot') },
       { id: 'formula', label: t('crm.projects.analytics.widgets.type.formula') },
     ],
@@ -830,15 +1037,21 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
   const getDefaultHeight = (size: WidgetSize, type: WidgetType) => {
     if (type === 'pivot') {
-      return size === 'lg' ? 480 : size === 'md' ? 400 : 320;
+      return size === 'lg' ? 420 : size === 'md' ? 360 : 320;
+    }
+    if (type === 'line' || type === 'funnel' || type === 'leaderboard') {
+      return size === 'lg' ? 400 : size === 'md' ? 320 : 280;
+    }
+    if (type === 'heatmap' || type === 'note') {
+      return size === 'lg' ? 320 : size === 'md' ? 240 : 220;
     }
     if (type === 'table') {
-      return size === 'lg' ? 420 : size === 'md' ? 360 : 300;
-    }
-    if (type === 'donut' || type === 'bar') {
       return size === 'lg' ? 380 : size === 'md' ? 320 : 260;
     }
-    return size === 'lg' ? 280 : size === 'md' ? 240 : 200;
+    if (type === 'donut' || type === 'bar') {
+      return size === 'lg' ? 380 : size === 'md' ? 320 : 280;
+    }
+    return size === 'lg' ? 240 : size === 'md' ? 200 : 160;
   };
 
   const defaultWidgets = useMemo<WidgetConfig[]>(
@@ -853,6 +1066,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             title: t('crm.projects.analytics.kpis.total'),
             metricKey: 'total',
             size: 'sm',
+            span: 3,
             height: getDefaultHeight('sm', 'metric'),
           },
           {
@@ -861,6 +1075,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             title: firstDimension ? `${firstDimension.label} (filled)` : t('crm.projects.analytics.kpis.total'),
             metricKey: firstDimension ? `filled:${firstDimension.id.replace('field:', '')}` : 'total',
             size: 'sm',
+            span: 3,
             height: getDefaultHeight('sm', 'metric'),
           },
           {
@@ -868,16 +1083,38 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             type: 'metric',
             title: firstNumeric ? `${firstNumeric.label} (sum)` : t('crm.projects.analytics.kpis.total'),
             metricKey: firstNumeric ? `sum:${firstNumeric.key}` : 'total',
+            size: 'sm',
+            span: 3,
+            height: getDefaultHeight('sm', 'metric'),
+          },
+          {
+            id: 'metric-avg',
+            type: 'metric',
+            title: firstNumeric ? `${firstNumeric.label} (avg)` : t('crm.projects.analytics.kpis.total'),
+            metricKey: firstNumeric ? `avg:${firstNumeric.key}` : 'total',
+            size: 'sm',
+            span: 3,
+            height: getDefaultHeight('sm', 'metric'),
+          },
+          {
+            id: 'chart-workspace-line',
+            type: 'line',
+            title: 'Динамика записей',
+            chartKey: firstDimension?.id || 'projects',
+            chartValueMode: firstNumeric ? 'sum' : 'count',
+            chartValueField: firstNumeric ? `field:${firstNumeric.key}` : undefined,
             size: 'md',
-            height: getDefaultHeight('md', 'metric'),
+            span: 8,
+            height: getDefaultHeight('md', 'line'),
           },
           {
             id: 'chart-dimension-donut',
             type: 'donut',
             title: firstDimension?.label || t('crm.projects.analytics.statusChart.title'),
             chartKey: firstDimension?.id || 'projects',
-            size: 'lg',
-            height: getDefaultHeight('lg', 'donut'),
+            size: 'md',
+            span: 4,
+            height: getDefaultHeight('md', 'donut'),
             showLabels: true,
           },
           {
@@ -885,16 +1122,26 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             type: 'bar',
             title: firstDimension?.label || t('crm.projects.analytics.categoryChart.title'),
             chartKey: firstDimension?.id || 'projects',
-            size: 'lg',
-            height: getDefaultHeight('lg', 'bar'),
+            size: 'md',
+            span: 6,
+            height: getDefaultHeight('md', 'bar'),
           },
           {
             id: 'table-records',
             type: 'table',
             title: t('crm.projects.analytics.table.title'),
             tableKey: 'projects',
-            size: 'lg',
-            height: getDefaultHeight('lg', 'table'),
+            size: 'md',
+            span: 6,
+            height: getDefaultHeight('md', 'table'),
+          },
+          {
+            id: 'note-workspace',
+            type: 'note',
+            title: 'Главное по workspace',
+            size: 'md',
+            span: 6,
+            height: getDefaultHeight('md', 'note'),
           },
         ];
       }
@@ -905,6 +1152,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           title: t('crm.projects.analytics.kpis.total'),
           metricKey: 'total',
           size: 'sm',
+          span: 3,
           height: getDefaultHeight('sm', 'metric'),
         },
         {
@@ -912,8 +1160,18 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           type: 'metric',
           title: t('crm.projects.analytics.kpis.amount'),
           metricKey: 'amount',
-          size: 'md',
-          height: getDefaultHeight('md', 'metric'),
+          size: 'sm',
+          span: 3,
+          height: getDefaultHeight('sm', 'metric'),
+        },
+        {
+          id: 'metric-avg-amount',
+          type: 'metric',
+          title: t('crm.projects.analytics.kpis.avgAmount'),
+          metricKey: 'avgAmount',
+          size: 'sm',
+          span: 3,
+          height: getDefaultHeight('sm', 'metric'),
         },
         {
           id: 'metric-owners',
@@ -921,15 +1179,28 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           title: t('crm.projects.analytics.kpis.owners'),
           metricKey: 'owners',
           size: 'sm',
+          span: 3,
           height: getDefaultHeight('sm', 'metric'),
+        },
+        {
+          id: 'chart-projects-line',
+          type: 'line',
+          title: 'Динамика проектов',
+          chartKey: 'status',
+          chartValueMode: 'sum',
+          chartValueField: 'amount',
+          size: 'md',
+          span: 8,
+          height: getDefaultHeight('md', 'line'),
         },
         {
           id: 'chart-status',
           type: 'donut',
           title: t('crm.projects.analytics.statusChart.title'),
           chartKey: 'status',
-          size: 'lg',
-          height: getDefaultHeight('lg', 'donut'),
+          size: 'md',
+          span: 4,
+          height: getDefaultHeight('md', 'donut'),
           showLabels: true,
         },
         {
@@ -937,16 +1208,72 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           type: 'bar',
           title: t('crm.projects.analytics.categoryChart.title'),
           chartKey: 'category',
-          size: 'lg',
-          height: getDefaultHeight('lg', 'bar'),
+          size: 'md',
+          span: 6,
+          height: getDefaultHeight('md', 'bar'),
+        },
+        {
+          id: 'funnel-statuses',
+          type: 'funnel',
+          title: 'Воронка статусов',
+          chartKey: 'status',
+          size: 'md',
+          span: 6,
+          height: getDefaultHeight('md', 'funnel'),
+        },
+        {
+          id: 'leaderboard-owners',
+          type: 'leaderboard',
+          title: 'Рейтинг ответственных',
+          chartKey: 'owner',
+          chartValueMode: 'sum',
+          chartValueField: 'amount',
+          size: 'md',
+          span: 6,
+          height: getDefaultHeight('md', 'leaderboard'),
+        },
+        {
+          id: 'table-owners',
+          type: 'table',
+          title: t('crm.projects.analytics.ownersTable.title'),
+          tableKey: 'owners',
+          size: 'md',
+          span: 6,
+          height: getDefaultHeight('md', 'table'),
+        },
+        {
+          id: 'table-categories',
+          type: 'table',
+          title: t('crm.projects.analytics.categoriesTable.title'),
+          tableKey: 'categories',
+          size: 'md',
+          span: 6,
+          height: getDefaultHeight('md', 'table'),
         },
         {
           id: 'table-projects',
           type: 'table',
           title: t('crm.projects.analytics.table.title'),
           tableKey: 'projects',
-          size: 'lg',
-          height: getDefaultHeight('lg', 'table'),
+          size: 'md',
+          span: 6,
+          height: getDefaultHeight('md', 'table'),
+        },
+        {
+          id: 'heatmap-projects',
+          type: 'heatmap',
+          title: 'Активность по дням',
+          size: 'md',
+          span: 8,
+          height: getDefaultHeight('md', 'heatmap'),
+        },
+        {
+          id: 'note-projects',
+          type: 'note',
+          title: 'Главное за период',
+          size: 'md',
+          span: 4,
+          height: getDefaultHeight('md', 'note'),
         },
       ];
     },
@@ -990,11 +1317,22 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     notifyAnalyticsWidgetsChanged(storageNamespace);
   }, [widgets, storageNamespace]);
 
+  useEffect(() => {
+    const sync = () => setIsMobile(window.innerWidth < 768);
+    sync();
+    window.addEventListener('resize', sync);
+    return () => window.removeEventListener('resize', sync);
+  }, []);
+
   /** Новый блок: при открытии модалки «Добавить» — без условий (весь период). */
   useEffect(() => {
     const opened = addOpen && !prevAddOpenRef.current;
     prevAddOpenRef.current = addOpen;
     if (opened && !editOpen && editingWidgetId === null) {
+      setDraftType('metric');
+      setDraftTitle('');
+      setDraftSpan(3);
+      setDraftSize('sm');
       setDraftFormulaFilters([]);
       const co = chartOptions;
       setDraftPivotRowKey(String(co[0]?.id || 'category'));
@@ -1008,7 +1346,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   }, [addOpen, chartOptions, editOpen, editingWidgetId]);
 
   const handleWidgetDrop = (targetId: string) => {
-    if (!dragWidgetId || dragWidgetId === targetId) return;
+    if (!editMode || !dragWidgetId || dragWidgetId === targetId) return;
     setWidgets((prev) => {
       const next = [...prev];
       const from = next.findIndex((w) => w.id === dragWidgetId);
@@ -1031,8 +1369,9 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       id,
       type: draftType,
       title: draftTitle || t('crm.projects.analytics.widgets.defaultTitle'),
-      size: draftSize,
-      height: getDefaultHeight(draftSize, draftType),
+      size: sizeFromSpan(draftSpan),
+      span: draftSpan,
+      height: getDefaultHeight(sizeFromSpan(draftSpan), draftType),
       themeKey: draftTheme,
       showLabels: draftType === 'donut' ? draftShowLabels : undefined,
       formulaFn: draftType === 'formula' ? draftFormulaFn : undefined,
@@ -1044,16 +1383,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       formulaFilters: draftFormulaFilters,
       metricKey: draftType === 'metric' ? draftMetric : undefined,
       chartKey:
-        draftType === 'donut' || draftType === 'bar' ? draftChart : undefined,
+        isChartWidgetType(draftType) ? draftChart : undefined,
       chartValueMode:
-        draftType === 'donut' ||
-        draftType === 'bar' ||
+        isChartWidgetType(draftType) ||
         (draftType === 'table' && draftTable !== 'projects')
           ? draftChartValueMode
           : undefined,
       chartValueField:
-        draftType === 'donut' ||
-        draftType === 'bar' ||
+        isChartWidgetType(draftType) ||
         (draftType === 'table' && draftTable !== 'projects')
           ? draftChartValueField || undefined
           : undefined,
@@ -1079,9 +1416,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   };
 
   const openEditWidget = (widget: WidgetConfig) => {
+    setEditMode(true);
     setDraftType(widget.type);
     setDraftTitle(widget.title);
     setDraftSize(widget.size);
+    setDraftSpan(widget.span ?? spanFromSize(widget.size));
     setDraftTheme(widget.themeKey ?? THEME_PRESETS[0].key);
     setDraftShowLabels(widget.showLabels ?? true);
     setDraftFormulaFn((widget.formulaFn ?? 'sumif') as FormulaFn);
@@ -1147,8 +1486,9 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                 ...item,
                 type: draftType,
                 title: draftTitle || item.title || t('crm.projects.analytics.widgets.defaultTitle'),
-                size: draftSize,
-                height: item.height ?? getDefaultHeight(draftSize, draftType),
+                size: sizeFromSpan(draftSpan),
+                span: draftSpan,
+                height: item.height ?? getDefaultHeight(sizeFromSpan(draftSpan), draftType),
                 themeKey: draftTheme,
                 showLabels: draftType === 'donut' ? draftShowLabels : undefined,
                 formulaFn: draftType === 'formula' ? draftFormulaFn : undefined,
@@ -1165,18 +1505,16 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                 formulaFilters: draftFormulaFilters,
                 metricKey: draftType === 'metric' ? draftMetric : undefined,
                 chartKey:
-                  draftType === 'donut' || draftType === 'bar'
+                  isChartWidgetType(draftType)
                     ? draftChart
                     : undefined,
                 chartValueMode:
-                  draftType === 'donut' ||
-                  draftType === 'bar' ||
+                  isChartWidgetType(draftType) ||
                   (draftType === 'table' && draftTable !== 'projects')
                     ? draftChartValueMode
                     : undefined,
                 chartValueField:
-                  draftType === 'donut' ||
-                  draftType === 'bar' ||
+                  isChartWidgetType(draftType) ||
                   (draftType === 'table' && draftTable !== 'projects')
                     ? draftChartValueField || undefined
                     : undefined,
@@ -1224,6 +1562,127 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     setResetOpen(false);
   };
 
+  const periodRangeLabel = useMemo(() => {
+    if (period === 'all' || period === 'custom') return periodLabels[period];
+    const now = new Date();
+    const start = new Date(now);
+    if (period === '7d') start.setDate(now.getDate() - 6);
+    if (period === '30d') start.setDate(now.getDate() - 29);
+    if (period === '1y') start.setFullYear(now.getFullYear() - 1);
+    const format = (date: Date) =>
+      date.toLocaleDateString(locale, {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      });
+    return `${format(start)} – ${format(now)}`;
+  }, [locale, period, periodLabels]);
+
+  const handleShare = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('period', period);
+    if (search.trim()) url.searchParams.set('q', search.trim());
+    navigator.clipboard.writeText(url.toString()).catch(() => {
+      window.prompt('Скопируйте ссылку:', url.toString());
+    });
+    setShareToast(true);
+    window.setTimeout(() => setShareToast(false), 2500);
+  };
+
+  const exportCsv = () => {
+    const escapeCsv = (value: unknown) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const headers = isWorkspaceMode
+      ? ['Название', ...analyticsFields.map((field) => field.label || field.key)]
+      : [
+          t('crm.projects.analytics.table.headers.project'),
+          t('crm.projects.analytics.table.headers.status'),
+          t('crm.projects.analytics.table.headers.category'),
+          t('crm.projects.analytics.table.headers.owner'),
+          t('crm.projects.analytics.table.headers.amount'),
+        ];
+    const rows = filteredItems.map((item) =>
+      isWorkspaceMode
+        ? [item.name, ...analyticsFields.map((field) => item.customFields?.[field.key] ?? '')]
+        : [
+            item.name,
+            statusLabels[item.status] ?? item.status,
+            item.category || t('crm.projects.analytics.noCategory'),
+            item.owner || t('crm.projects.analytics.unknownOwner'),
+            item.amount || 0,
+          ],
+    );
+    const csv = [headers, ...rows].map((row) => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${isWorkspaceMode ? 'workspace' : 'projects'}-analytics-${period}-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const defaultGlobalFilterScope = () => {
+    if (isWorkspaceMode) return dashboardFilterFields[0]?.id || 'field:name';
+    if (activeView === 'statuses') return 'status';
+    if (activeView === 'owners') return 'owner';
+    if (activeView === 'categories') return 'category';
+    return 'status';
+  };
+
+  const addGlobalFilter = (scope = defaultGlobalFilterScope()) => {
+    if (!scope || globalFilters.some((filter) => filter.scope === scope)) return;
+    setGlobalFilters((prev) => [...prev, { id: `gf-${Date.now()}`, scope, keys: [] }]);
+  };
+
+  const removeGlobalFilter = (id: string) =>
+    setGlobalFilters((prev) => prev.filter((filter) => filter.id !== id));
+
+  const widgetSpan = (widget: WidgetConfig) => closestSpan(widget.span ?? spanFromSize(widget.size));
+
+  const duplicateWidget = (id: string) => {
+    setWidgets((prev) => {
+      const index = prev.findIndex((widget) => widget.id === id);
+      if (index < 0) return prev;
+      const copy = {
+        ...prev[index],
+        id: `${prev[index].id}-copy-${Date.now()}`,
+        title: `${prev[index].title} copy`,
+      };
+      const next = [...prev];
+      next.splice(index + 1, 0, copy);
+      return next;
+    });
+  };
+
+  const visibleWidgets = useMemo(() => {
+    if (activeView === 'overview') return widgets;
+    const next = widgets.filter((widget) => {
+      if (activeView === 'statuses') {
+        return widget.chartKey === 'status' || widget.pivotRowKey === 'status' || widget.pivotColKey === 'status' || widget.metricKey === 'statuses';
+      }
+      if (activeView === 'owners') {
+        return widget.chartKey === 'owner' || widget.tableKey === 'owners' || widget.metricKey === 'owners';
+      }
+      if (activeView === 'categories') {
+        return widget.chartKey === 'category' || widget.tableKey === 'categories' || widget.metricKey === 'categories';
+      }
+      return true;
+    });
+    return next.length ? next : widgets;
+  }, [activeView, widgets]);
+
+  const pageKicker = header?.kicker || 'Аналитика проектов';
+  const pageTitle = header?.title || 'Проекты — обзор';
+  const pageSubtitle =
+    header?.subtitle ||
+    'KPI, графики, сводные таблицы и собственные блоки по статусам, категориям, ответственным и полям проектов.';
+  const pageRoot = isWorkspaceMode ? 'Workspace' : 'Проекты';
+  const filteredCountLabel = loading
+    ? 'Загрузка'
+    : `${filteredItems.length} ${isWorkspaceMode ? 'записей' : 'проектов'} · обновлено только что`;
+
   useEffect(() => {
     if (!resizing) return;
     const prevCursor = document.body.style.cursor;
@@ -1239,21 +1698,21 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       const deltaX = e.clientX - resizing.startX;
       const deltaY = e.clientY - resizing.startY;
       let nextSize = resizing.startSize;
+      let nextSpan = resizing.startSpan;
       if (resizing.axis === 'x' || resizing.axis === 'both') {
-        if (deltaX > 140) nextSize = 'lg';
-        if (deltaX < -140) nextSize = 'sm';
-        if (deltaX >= -140 && deltaX <= 140) nextSize = 'md';
+        nextSpan = closestSpan(resizing.startSpan + Math.round(deltaX / 120));
+        nextSize = sizeFromSpan(nextSpan);
       }
       let nextHeight = resizing.startHeight;
       if (resizing.axis === 'y' || resizing.axis === 'both') {
         nextHeight = Math.min(
-          640,
+          MAX_WIDGET_H,
           Math.max(resizing.minHeight, resizing.startHeight + deltaY),
         );
       }
       setWidgets((prev) =>
         prev.map((item) =>
-          item.id === resizing.id ? { ...item, size: nextSize, height: nextHeight } : item,
+          item.id === resizing.id ? { ...item, size: nextSize, span: nextSpan, height: nextHeight } : item,
         ),
       );
     };
@@ -1338,6 +1797,9 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     const needsChartValue =
       draftType === 'donut' ||
       draftType === 'bar' ||
+      draftType === 'line' ||
+      draftType === 'funnel' ||
+      draftType === 'leaderboard' ||
       (draftType === 'table' && draftTable !== 'projects');
     if (!needsChartValue) return;
     if (draftChartValueMode !== 'sum') return;
@@ -1426,32 +1888,27 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
   };
 
-  const sizeClass = (size: WidgetSize) => {
-    if (size === 'lg') return 'md:col-span-2 xl:col-span-3';
-    if (size === 'md') return 'md:col-span-2 xl:col-span-2';
-    return 'md:col-span-1 xl:col-span-1';
-  };
-
   const resolveTheme = (key?: ThemeKey) =>
     THEME_PRESETS.find((preset) => preset.key === key) || THEME_PRESETS[0];
 
   const beginResize = (
     id: string,
-    size: WidgetSize,
     axis: 'x' | 'y' | 'both',
-    event: React.MouseEvent<HTMLDivElement>,
+    event: React.MouseEvent<HTMLElement>,
   ) => {
     event.preventDefault();
     event.stopPropagation();
     const current = widgets.find((w) => w.id === id);
+    const size = current?.size || 'md';
     const startHeight = current?.height ?? getDefaultHeight(size, current?.type || 'metric');
+    const startSpan = current ? widgetSpan(current) : spanFromSize(size);
     const type = current?.type ?? 'metric';
     const minHeight =
       type === 'pivot'
         ? 280
         : type === 'table'
           ? 240
-          : type === 'donut' || type === 'bar'
+          : type === 'donut' || type === 'bar' || type === 'line' || type === 'funnel' || type === 'leaderboard'
             ? 220
             : 160;
     setResizing({
@@ -1459,6 +1916,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       startX: event.clientX,
       startY: event.clientY,
       startSize: size,
+      startSpan,
       startHeight,
       minHeight,
       axis,
@@ -1545,7 +2003,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         row.count += mode === 'sum' ? getNumericValue(item) : 1;
         grouped.set(code, row);
       });
-      return Array.from(grouped.values());
+      return Array.from(grouped.values()).sort((a, b) => b.count - a.count);
     }
 
     if (!chartKey.startsWith('field:')) return [];
@@ -1566,7 +2024,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         grouped.set(value, row);
       });
     });
-    return Array.from(grouped.values());
+    return Array.from(grouped.values()).sort((a, b) => b.count - a.count);
   };
 
   const extractPivotBuckets = (
@@ -1689,6 +2147,64 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     return cellItems.reduce((acc, item) => acc + pivotNumericValue(item, valueField), 0);
   };
 
+  const formatDateShort = (date: Date) =>
+    date.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+
+  const buildTrend = (
+    sourceItems: Project[],
+    mode: ChartValueMode = 'count',
+    valueField?: string,
+  ) => {
+    const dated = sourceItems
+      .map((item) => ({ item, date: parseDate(item.createdAt) }))
+      .filter((entry): entry is { item: Project; date: Date } => Boolean(entry.date));
+    if (!dated.length) return [{ name: '—', value: 0, previous: 0 }];
+
+    const minTime = Math.min(...dated.map((entry) => entry.date.getTime()));
+    const maxTime = Math.max(...dated.map((entry) => entry.date.getTime()));
+    const from = new Date(minTime);
+    const to = new Date(maxTime || Date.now());
+    const days = Math.max(1, Math.ceil((to.getTime() - from.getTime()) / 86_400_000) + 1);
+    const pointCount = Math.max(2, Math.min(days, 12));
+    const bucketSize = Math.max(1, Math.ceil(days / pointCount));
+    const aggregate = (rows: Project[]) =>
+      mode === 'sum' ? rows.reduce((sum, item) => sum + pivotNumericValue(item, valueField), 0) : rows.length;
+
+    return Array.from({ length: pointCount }, (_, index) => {
+      const start = new Date(from);
+      start.setDate(from.getDate() + index * bucketSize);
+      const end = new Date(start);
+      end.setDate(start.getDate() + bucketSize);
+      const rows = dated
+        .filter((entry) => entry.date >= start && entry.date < end)
+        .map((entry) => entry.item);
+      return {
+        name: formatDateShort(start),
+        value: aggregate(rows),
+        previous: 0,
+      };
+    });
+  };
+
+  const buildHeatmap = (sourceItems: Project[]) => {
+    const days = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+    const hours = ['00', '03', '06', '09', '12', '15', '18', '21'];
+    return days.map((day, dayIndex) => ({
+      day,
+      hours: hours.map((hour) => {
+        const startHour = Number(hour);
+        const value = sourceItems.filter((item) => {
+          const date = parseDate(item.createdAt);
+          if (!date) return false;
+          const jsDay = date.getDay();
+          const normalizedDay = jsDay === 0 ? 6 : jsDay - 1;
+          return normalizedDay === dayIndex && date.getHours() >= startHour && date.getHours() < startHour + 3;
+        }).length;
+        return { hour, value };
+      }),
+    }));
+  };
+
   const renderActiveDonut = (props: any) => {
     const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill, cornerRadius } = props;
     return (
@@ -1708,6 +2224,30 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   const renderWidget = (w: WidgetConfig) => {
     const widgetHeight = w.height ?? getDefaultHeight(w.size, w.type);
     const widgetItems = applyWidgetFilters(filteredItems, w.formulaFilters);
+    const widgetColor = '#222222';
+    const metricSpark = (() => {
+      if (w.type !== 'metric' && w.type !== 'formula') return [0, 0, 0];
+      const dated = widgetItems
+        .map((item) => ({ item, time: parseDate(item.createdAt)?.getTime() ?? NaN }))
+        .filter((entry) => Number.isFinite(entry.time));
+      if (!dated.length) return [widgetItems.length || 0, widgetItems.length || 0, widgetItems.length || 0];
+      const min = Math.min(...dated.map((entry) => entry.time));
+      const max = Math.max(...dated.map((entry) => entry.time));
+      const buckets = 8;
+      const step = Math.max(1, (max - min || 1) / buckets);
+      const values = Array.from({ length: buckets }, () => 0);
+      dated.forEach(({ item, time }) => {
+        const index = Math.min(buckets - 1, Math.max(0, Math.floor((time - min) / step)));
+        if (w.metricKey === 'amount') values[index] += item.amount || 0;
+        else if (w.metricKey === 'avgAmount') values[index] += item.amount || 0;
+        else if (w.metricKey?.startsWith('sum:')) {
+          values[index] += parseNumericLoose(getCustomFieldValue(item, w.metricKey.slice(4))) ?? 0;
+        } else {
+          values[index] += 1;
+        }
+      });
+      return values;
+    })();
 
     if (w.type === 'pivot') {
       const rowKey = w.pivotRowKey || String(chartOptions[0]?.id || 'status');
@@ -1719,8 +2259,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       const theme = resolveTheme(w.themeKey);
       if (rowKey === colKey) {
         return (
-          <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
+          <div className="flex h-full items-center">
             <div className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
               {t('crm.projects.analytics.pivot.sameAxisHint')}
             </div>
@@ -1731,9 +2270,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       const colAxis = collectPivotAxisUnique(widgetItems, colKey).slice(0, PIVOT_MAX_COLS);
       if (!rowAxis.length || !colAxis.length) {
         return (
-          <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-            <div className="text-[12px] text-slate-500">{t('crm.projects.analytics.pivot.noData')}</div>
+          <div className="flex h-full items-center text-[12px] text-neutral-500">
+            {t('crm.projects.analytics.pivot.noData')}
           </div>
         );
       }
@@ -1764,14 +2302,11 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           : t('crm.projects.analytics.pivot.measure.sum'));
       return (
         <div className="space-y-3">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-            <div className="text-[10px] text-slate-400">
+          <div className="flex justify-end text-[10px] text-neutral-400">
               {rowDimLabel} × {colDimLabel}
               {(rowAxis.length >= PIVOT_MAX_ROWS || colAxis.length >= PIVOT_MAX_COLS) && (
                 <span className="text-amber-600"> · {t('crm.projects.analytics.pivot.truncated')}</span>
               )}
-            </div>
           </div>
           <div
             className="overflow-x-auto overflow-y-auto rounded-xl border border-slate-100"
@@ -1844,24 +2379,27 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     }
 
     if (w.type === 'metric') {
-      const theme = resolveTheme(w.themeKey);
+      const value = resolveMetricValue(w.metricKey, widgetItems, filteredItems);
       return (
-        <div className="flex flex-col gap-2">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            {w.title}
+        <div className="flex h-full items-end gap-3">
+          <div className="flex min-w-0 flex-1 flex-col justify-end gap-1">
+            <div className="flex flex-wrap items-baseline gap-2 leading-none">
+              <span className="text-[2.5rem] font-semibold tracking-[-0.04em] text-[#222]">
+                {value}
+              </span>
+            </div>
+            <div className="text-[11px] font-medium text-neutral-400">
+              {period === 'custom' ? t('crm.projects.analytics.period.custom') : periodLabels[period]}
+            </div>
           </div>
-          <div className="text-2xl font-semibold" style={{ color: theme.primary }}>
-            {resolveMetricValue(w.metricKey, widgetItems, filteredItems)}
-          </div>
-          <div className="text-[11px] text-slate-500">
-            {period === 'custom' ? t('crm.projects.analytics.period.custom') : periodLabels[period]}
+          <div className="w-20 shrink-0">
+            <MiniSparkline data={metricSpark} color={widgetColor} />
           </div>
         </div>
       );
     }
 
     if (w.type === 'formula') {
-      const theme = resolveTheme(w.themeKey);
       const fn = w.formulaFn ?? 'sumif';
       const mode = w.formulaMode ?? 'count';
       const leftType = w.formulaLeftType ?? 'total';
@@ -1988,21 +2526,55 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
             : `${secondaryValue}%`;
 
       return (
-        <div className="flex flex-col gap-2">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            {w.title}
-          </div>
-          <div className="text-2xl font-semibold" style={{ color: theme.primary }}>
-            {primaryLabel}
-          </div>
-          {secondaryLabel && (
-            <div className="text-[11px] text-slate-500">
-              {secondaryLabel} ·{' '}
+        <div className="flex h-full items-end gap-3">
+          <div className="flex min-w-0 flex-1 flex-col justify-end gap-1">
+            <div className="text-[2.5rem] font-semibold tracking-[-0.04em] text-[#222]">
+              {primaryLabel}
+            </div>
+            <div className="line-clamp-2 text-[11px] font-medium text-neutral-400">
+              {secondaryLabel ? `${secondaryLabel} · ` : ''}
               {period === 'custom'
                 ? t('crm.projects.analytics.period.custom')
                 : periodLabels[period]}
             </div>
-          )}
+          </div>
+          <div className="w-20 shrink-0">
+            <MiniSparkline data={metricSpark} color={widgetColor} />
+          </div>
+        </div>
+      );
+    }
+
+    if (w.type === 'line') {
+      const trend = buildTrend(widgetItems, w.chartValueMode || 'count', w.chartValueField);
+      const chartHeight = Math.max(widgetHeight - 90, 160);
+      const areaId = `projects-area-${w.id}`;
+      return (
+        <div className="flex h-full flex-col gap-2">
+          <div className="flex items-center gap-4 px-1">
+            <span className="flex items-center gap-1.5 text-[11px] text-neutral-500">
+              <span className="inline-block h-0.5 w-5 rounded-full" style={{ backgroundColor: widgetColor }} />
+              Текущий период
+            </span>
+          </div>
+          <div style={{ height: Math.max(120, chartHeight - 28) }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+                <defs>
+                  <linearGradient id={areaId} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={widgetColor} stopOpacity={0.15} />
+                    <stop offset="95%" stopColor={widgetColor} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#9a9a9a', fontSize: 11 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#b5b5b5', fontSize: 11 }} domain={[0, (max: number) => Math.max(1, Number(max) || 0)]} allowDecimals={false} width={36} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', boxShadow: '0 4px 16px rgba(0,0,0,0.08)', fontSize: 12 }} formatter={(value: number) => [compactNumber(Number(value)), 'Текущий']} />
+                <Area type="monotone" dataKey="value" stroke={widgetColor} strokeWidth={2.5} fill={`url(#${areaId})`} dot={{ r: 4, strokeWidth: 2, fill: '#fff', stroke: widgetColor }} connectNulls isAnimationActive={false} />
+                <Line type="monotone" dataKey="previous" stroke="#3b6cb6" strokeWidth={1.5} strokeDasharray="6 5" dot={false} connectNulls isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       );
     }
@@ -2014,31 +2586,32 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         w.chartValueMode || 'count',
         w.chartValueField,
       );
-      const theme = resolveTheme(w.themeKey);
-      const palette = theme.palette || CHART_COLORS;
+      const palette = V2_PALETTE;
       const donutTotal = donutData.reduce((sum, row) => sum + row.count, 0);
-      const chartHeight = Math.max(widgetHeight - 80, 220);
+      const chartHeight = Math.max(widgetHeight - 96, 180);
       const activeIndex = activeDonut[w.id] ?? null;
       const activeProps =
         activeIndex === null ? {} : ({ activeIndex, activeShape: renderActiveDonut } as any);
       const showLabels = w.showLabels !== false;
       return (
-        <div className="space-y-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            {w.title}
-          </div>
-          <div className="flex flex-col gap-4 md:flex-row md:items-start">
-            <div style={{ height: chartHeight }} className="md:flex-1">
+        <div
+          className={cx(
+            'grid h-full min-h-[220px] items-center gap-4',
+            showLabels ? 'grid-cols-1 md:grid-cols-[minmax(140px,0.9fr)_1.1fr]' : 'grid-cols-1',
+          )}
+        >
+          <div className="relative" style={{ height: chartHeight }}>
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={donutData}
                     dataKey="count"
                     nameKey="label"
-                    innerRadius={56}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    cornerRadius={6}
+                    innerRadius={54}
+                    outerRadius={76}
+                    paddingAngle={2}
+                    stroke="#fff"
+                    strokeWidth={2}
                     {...activeProps}
                     onMouseLeave={() =>
                       setActiveDonut((prev) => ({ ...prev, [w.id]: null }))
@@ -2059,9 +2632,13 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   <Tooltip />
                 </PieChart>
               </ResponsiveContainer>
+              <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-semibold">{compactNumber(donutTotal)}</span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">всего</span>
+              </div>
             </div>
             {showLabels && (
-              <div className="md:w-52 space-y-2">
+              <div className="space-y-2">
                 {donutData.map((entry, idx) => {
                   const percent = donutTotal > 0 ? Math.round((entry.count / donutTotal) * 100) : 0;
                   const isActive = activeIndex === idx;
@@ -2075,28 +2652,20 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       onMouseLeave={() =>
                         setActiveDonut((prev) => ({ ...prev, [w.id]: null }))
                       }
-                      className={`flex w-full items-center justify-between rounded-xl px-2 py-1 text-[11px] transition ${
+                      className={`grid w-full grid-cols-[10px_1fr_auto] items-center gap-2 rounded-lg px-2 py-1 text-xs transition ${
                         isActive
-                          ? 'bg-slate-100 text-slate-900'
-                          : 'text-slate-600 hover:bg-slate-50'
+                          ? 'bg-neutral-100 text-[#222]'
+                          : 'text-neutral-600 hover:bg-neutral-50'
                       }`}
                     >
-                      <span className="flex items-center gap-2">
-                        <span
-                          className="h-2.5 w-2.5 rounded-full"
-                          style={{ backgroundColor: palette[idx % palette.length] }}
-                        />
-                        <span className="truncate">{entry.label}</span>
-                      </span>
-                      <span className="text-slate-500">
-                        {entry.count} · {percent}%
-                      </span>
+                      <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: palette[idx % palette.length] }} />
+                      <span className="truncate">{entry.label}</span>
+                      <span className="font-mono text-[#222]">{compactNumber(entry.count)} <span className="text-neutral-400">· {percent}%</span></span>
                     </button>
                   );
                 })}
               </div>
             )}
-          </div>
         </div>
       );
     }
@@ -2111,29 +2680,72 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         label: item.label,
         count: item.count,
       }));
-      const theme = resolveTheme(w.themeKey);
-      const palette = theme.palette || CHART_COLORS;
-      const chartHeight = Math.max(widgetHeight - 80, 220);
+      const palette = V2_PALETTE;
+      const chartHeight = Math.max(widgetHeight - 72, 180);
       return (
-        <div className="space-y-3">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-            {w.title}
-          </div>
-          <div style={{ height: chartHeight }}>
+        <div style={{ height: chartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={barData} margin={{ top: 8, right: 8, left: -8, bottom: 24 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#64748b' }} interval={0} angle={-20} textAnchor="end" />
-                <YAxis tick={{ fontSize: 10, fill: '#64748b' }} width={36} />
-                <Tooltip />
-                <Bar dataKey="count" radius={[8, 8, 4, 4]} barSize={28}>
+              <BarChart data={barData} margin={{ top: 8, right: 12, left: -8, bottom: 20 }}>
+                <CartesianGrid vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#888', fontSize: 11 }} interval={0} angle={-20} textAnchor="end" />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#b5b5b5', fontSize: 11 }} width={36} />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e7eb', fontSize: 12 }} />
+                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
                   {barData.map((_, idx) => (
                     <Cell key={idx} fill={palette[idx % palette.length]} />
                   ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
+        </div>
+      );
+    }
+
+    if (w.type === 'funnel') {
+      const data = buildSeriesForWidget(
+        w.chartKey || (chartOptions[0]?.id ?? 'status'),
+        widgetItems,
+        w.chartValueMode || 'count',
+        w.chartValueField,
+      );
+      const ordered = [...data].sort((a, b) => b.count - a.count);
+      const max = Math.max(1, ordered[0]?.count || widgetItems.length);
+      return (
+        <div className="flex h-full flex-col justify-center">
+          {ordered.map((item, index) => (
+            <div key={item.code} className="grid grid-cols-[130px_1fr_64px] items-center gap-3 border-b border-neutral-100 py-2 text-xs last:border-b-0">
+              <span className="truncate font-medium text-[#222]">{item.label}</span>
+              <span className="h-7 overflow-hidden rounded-md bg-neutral-100">
+                <span className="flex h-full items-center rounded-md px-3 font-mono text-[11px] font-medium text-white" style={{ width: `${Math.max(8, percent(item.count, max))}%`, backgroundColor: V2_PALETTE[index % V2_PALETTE.length] }}>{compactNumber(item.count)}</span>
+              </span>
+              <span className="text-right font-mono text-neutral-500">{index === 0 ? '100%' : `${percent(item.count, max)}%`}</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (w.type === 'leaderboard') {
+      const dimensionKey = w.chartKey || 'owner';
+      const grouped = buildSeriesForWidget(dimensionKey, widgetItems, w.chartValueMode || 'count', w.chartValueField).slice(0, 8);
+      const max = Math.max(1, ...grouped.map((row) => row.count));
+      return (
+        <div className="flex h-full flex-col justify-center">
+          {grouped.map((row, index) => (
+            <div key={row.code} className="grid grid-cols-[26px_1fr_100px_72px] items-center gap-3 border-b border-neutral-100 py-2 text-xs last:border-b-0">
+              <span className="font-mono text-neutral-400">#{index + 1}</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold text-white" style={{ backgroundColor: widgetColor }}>
+                  {row.label.split(' ').map((part) => part[0]).join('').slice(0, 2)}
+                </span>
+                <span className="truncate font-medium text-[#222]">{row.label}</span>
+              </span>
+              <span className="h-1.5 overflow-hidden rounded-full bg-neutral-100">
+                <span className="block h-full rounded-full" style={{ width: `${percent(row.count, max)}%`, backgroundColor: widgetColor }} />
+              </span>
+              <span className="text-right font-mono text-[#222]">{compactNumber(row.count)}</span>
+            </div>
+          ))}
         </div>
       );
     }
@@ -2163,7 +2775,6 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         const fk = id.replace('field:', '');
         return analyticsFieldMap.get(fk)?.label || fk;
       });
-      const headerKicker = dimLabels.join(' · ');
       const rows = buildMultiDimensionWorkspaceTableRows(
         dimKeys,
         widgetItems,
@@ -2175,37 +2786,31 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           ? t('crm.projects.analytics.tableMetric.sum')
           : t('crm.projects.analytics.ownersTable.headers.projects');
       return (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 line-clamp-2">
-              {headerKicker}
-            </div>
-            <div className="text-[11px] text-slate-500 shrink-0">{rows.length}</div>
-          </div>
+        <div className="h-full">
           <div
             className="overflow-x-auto overflow-y-auto"
-            style={{ maxHeight: Math.max(widgetHeight - 80, 160) }}
+            style={{ maxHeight: Math.max(widgetHeight - 56, 160) }}
           >
             <table className="min-w-full border-collapse text-[11px]">
-              <thead className="sticky top-0 bg-white/95 backdrop-blur">
-                <tr className="border-b border-slate-200 text-slate-500">
+              <thead className="sticky top-0 bg-white/95 text-[10px] uppercase tracking-[0.16em] text-neutral-400 backdrop-blur">
+                <tr className="border-b border-neutral-200">
                   {dimLabels.map((label, i) => (
-                    <th key={i} className="py-1.5 pr-3 text-left font-normal">
+                    <th key={i} className="py-2 pr-3 text-left font-medium">
                       {label}
                     </th>
                   ))}
-                  <th className="py-1.5 px-3 text-right font-normal">{valueHeader}</th>
+                  <th className="py-2 px-3 text-right font-medium">{valueHeader}</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((entry) => (
-                  <tr key={entry.key} className="border-b border-slate-100 last:border-none">
+                  <tr key={entry.key} className="border-b border-neutral-100 last:border-b-0">
                     {entry.cells.map((cell, i) => (
-                      <td key={i} className="py-1.5 pr-3 text-slate-700">
+                      <td key={i} className="py-2.5 pr-3 font-medium text-[#222]">
                         {cell}
                       </td>
                     ))}
-                    <td className="py-1.5 px-3 text-right text-slate-700">
+                    <td className="py-2.5 px-3 text-right font-mono text-[#222]">
                       {formatTableAggCell(entry.count)}
                     </td>
                   </tr>
@@ -2224,31 +2829,25 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           ? t('crm.projects.analytics.tableMetric.sum')
           : t('crm.projects.analytics.ownersTable.headers.projects');
       return (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.projects.analytics.ownersTable.total', { count: ownerSeries.length })}
-            </div>
-          </div>
+        <div className="h-full">
           <div
             className="overflow-x-auto overflow-y-auto"
-            style={{ maxHeight: Math.max(widgetHeight - 80, 160) }}
+            style={{ maxHeight: Math.max(widgetHeight - 56, 160) }}
           >
             <table className="min-w-full border-collapse text-[11px]">
-              <thead className="sticky top-0 bg-white/95 backdrop-blur">
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-1.5 pr-3 text-left font-normal">
+              <thead className="sticky top-0 bg-white/95 text-[10px] uppercase tracking-[0.16em] text-neutral-400 backdrop-blur">
+                <tr className="border-b border-neutral-200">
+                  <th className="py-2 pr-3 text-left font-medium">
                     {t('crm.projects.analytics.ownersTable.headers.owner')}
                   </th>
-                  <th className="py-1.5 px-3 text-right font-normal">{ownersValueHeader}</th>
+                  <th className="py-2 px-3 text-right font-medium">{ownersValueHeader}</th>
                 </tr>
               </thead>
               <tbody>
                 {ownerSeries.map((o) => (
-                  <tr key={o.label} className="border-b border-slate-100 last:border-none">
-                    <td className="py-1.5 pr-3 text-slate-700">{o.label}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-700">
+                  <tr key={o.label} className="border-b border-neutral-100 last:border-b-0">
+                    <td className="py-2.5 pr-3 font-medium text-[#222]">{o.label}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-[#222]">
                       {formatTableAggCell(o.count)}
                     </td>
                   </tr>
@@ -2272,31 +2871,25 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           ? t('crm.projects.analytics.tableMetric.sum')
           : t('crm.projects.analytics.categoriesTable.headers.projects');
       return (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.projects.analytics.categoriesTable.total', { count: categorySeries.length })}
-            </div>
-          </div>
+        <div className="h-full">
           <div
             className="overflow-x-auto overflow-y-auto"
-            style={{ maxHeight: Math.max(widgetHeight - 80, 160) }}
+            style={{ maxHeight: Math.max(widgetHeight - 56, 160) }}
           >
             <table className="min-w-full border-collapse text-[11px]">
-              <thead className="sticky top-0 bg-white/95 backdrop-blur">
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-1.5 pr-3 text-left font-normal">
+              <thead className="sticky top-0 bg-white/95 text-[10px] uppercase tracking-[0.16em] text-neutral-400 backdrop-blur">
+                <tr className="border-b border-neutral-200">
+                  <th className="py-2 pr-3 text-left font-medium">
                     {t('crm.projects.analytics.categoriesTable.headers.category')}
                   </th>
-                  <th className="py-1.5 px-3 text-right font-normal">{categoriesValueHeader}</th>
+                  <th className="py-2 px-3 text-right font-medium">{categoriesValueHeader}</th>
                 </tr>
               </thead>
               <tbody>
                 {categorySeries.map((c) => (
-                  <tr key={c.label} className="border-b border-slate-100 last:border-none">
-                    <td className="py-1.5 pr-3 text-slate-700">{c.label}</td>
-                    <td className="py-1.5 px-3 text-right text-slate-700">
+                  <tr key={c.label} className="border-b border-neutral-100 last:border-b-0">
+                    <td className="py-2.5 pr-3 font-medium text-[#222]">{c.label}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-[#222]">
                       {formatTableAggCell(c.count)}
                     </td>
                   </tr>
@@ -2308,28 +2901,22 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       );
     }
 
-    if (isWorkspaceMode) {
+    if (w.type === 'table' && isWorkspaceMode) {
       const previewFields = analyticsFields.slice(0, 4);
       return (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.projects.analytics.table.total', { count: widgetItems.length })}
-            </div>
-          </div>
+        <div className="h-full">
           <div
             className="overflow-x-auto overflow-y-auto"
-            style={{ maxHeight: Math.max(widgetHeight - 80, 160) }}
+            style={{ maxHeight: Math.max(widgetHeight - 56, 160) }}
           >
             <table className="min-w-full border-collapse text-[11px]">
-              <thead className="sticky top-0 bg-white/95 backdrop-blur">
-                <tr className="border-b border-slate-200 text-slate-500">
-                  <th className="py-1.5 pr-3 text-left font-normal">
+              <thead className="sticky top-0 bg-white/95 text-[10px] uppercase tracking-[0.16em] text-neutral-400 backdrop-blur">
+                <tr className="border-b border-neutral-200">
+                  <th className="py-2 pr-3 text-left font-medium">
                     {t('crm.projects.analytics.table.headers.project')}
                   </th>
                   {previewFields.map((field) => (
-                    <th key={field.key} className="py-1.5 px-3 text-left font-normal">
+                    <th key={field.key} className="py-2 px-3 text-left font-medium">
                       {field.label}
                     </th>
                   ))}
@@ -2337,10 +2924,10 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               </thead>
               <tbody>
                 {widgetItems.map((p) => (
-                  <tr key={p.id} className="border-b border-slate-100 last:border-none">
-                    <td className="py-1.5 pr-3 text-slate-700">{p.name}</td>
+                  <tr key={p.id} className="border-b border-neutral-100 last:border-b-0">
+                    <td className="py-2.5 pr-3 font-medium text-[#222]">{p.name}</td>
                     {previewFields.map((field) => (
-                      <td key={field.key} className="py-1.5 px-3 text-slate-600">
+                      <td key={field.key} className="py-2.5 px-3 text-neutral-600">
                         {String(getCustomFieldValue(p, field.key) ?? '—')}
                       </td>
                     ))}
@@ -2353,52 +2940,81 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
       );
     }
 
-    return (
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-          <div className="text-[11px] text-slate-500">
-            {t('crm.projects.analytics.table.total', { count: widgetItems.length })}
+    if (w.type === 'heatmap') {
+      const heatmap = buildHeatmap(widgetItems);
+      const max = Math.max(1, ...heatmap.flatMap((row) => row.hours.map((hour) => hour.value)));
+      return (
+        <div className="flex h-full flex-col justify-center gap-2">
+          <div className="grid grid-cols-[32px_repeat(8,1fr)] gap-1">
+            <span />
+            {heatmap[0]?.hours.map((hour) => <span key={hour.hour} className="text-center font-mono text-[10px] text-neutral-400">{hour.hour}</span>)}
+            {heatmap.map((row) => (
+              <React.Fragment key={row.day}>
+                <span className="pr-1 text-right font-mono text-[10px] text-neutral-400">{row.day}</span>
+                {row.hours.map((hour) => {
+                  const lightness = 96 - Math.min(1, hour.value / max) * 68;
+                  return <span key={`${row.day}-${hour.hour}`} className="aspect-square rounded hover:scale-110 hover:ring-1 hover:ring-[#222]" title={`${row.day} ${hour.hour}:00 — ${hour.value}`} style={{ background: `hsl(0 0% ${lightness}%)` }} />;
+                })}
+              </React.Fragment>
+            ))}
           </div>
         </div>
+      );
+    }
+
+    if (w.type === 'note') {
+      const topStatus = buildSeriesForWidget(isWorkspaceMode ? chartOptions[0]?.id || '' : 'status', widgetItems, 'count')[0];
+      const topOwner = !isWorkspaceMode ? buildSeriesForWidget('owner', widgetItems, 'count')[0] : null;
+      return (
+        <div className="text-sm leading-6 text-neutral-600">
+          В выборке <strong className="text-[#222]">{compactNumber(widgetItems.length)}</strong> {isWorkspaceMode ? 'записей' : 'проектов'}.
+          {topStatus && <> Главный сегмент — <strong className="text-[#222]">{topStatus.label}</strong>.</>}
+          {topOwner && <> Ответственный с максимальной нагрузкой — <strong className="text-[#222]">{topOwner.label}</strong>.</>}
+          {!isWorkspaceMode && <> Общая сумма — <strong className="text-[#222]">{formatAmount(totalAmount)}</strong>.</>}
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-full">
         <div
           className="overflow-x-auto overflow-y-auto"
-          style={{ maxHeight: Math.max(widgetHeight - 80, 160) }}
+          style={{ maxHeight: Math.max(widgetHeight - 56, 160) }}
         >
           <table className="min-w-full border-collapse text-[11px]">
-            <thead className="sticky top-0 bg-white/95 backdrop-blur">
-              <tr className="border-b border-slate-200 text-slate-500">
-                <th className="py-1.5 pr-3 text-left font-normal">
+            <thead className="sticky top-0 bg-white/95 text-[10px] uppercase tracking-[0.16em] text-neutral-400 backdrop-blur">
+              <tr className="border-b border-neutral-200">
+                <th className="py-2 pr-3 text-left font-medium">
                   {t('crm.projects.analytics.table.headers.project')}
                 </th>
-                <th className="py-1.5 px-3 text-left font-normal">
+                <th className="py-2 px-3 text-left font-medium">
                   {t('crm.projects.analytics.table.headers.status')}
                 </th>
-                <th className="py-1.5 px-3 text-left font-normal">
+                <th className="py-2 px-3 text-left font-medium">
                   {t('crm.projects.analytics.table.headers.category')}
                 </th>
-                <th className="py-1.5 px-3 text-left font-normal">
+                <th className="py-2 px-3 text-left font-medium">
                   {t('crm.projects.analytics.table.headers.owner')}
                 </th>
-                <th className="py-1.5 px-3 text-right font-normal">
+                <th className="py-2 px-3 text-right font-medium">
                   {t('crm.projects.analytics.table.headers.amount')}
                 </th>
               </tr>
             </thead>
             <tbody>
               {widgetItems.map((p) => (
-                <tr key={p.id} className="border-b border-slate-100 last:border-none">
-                  <td className="py-1.5 pr-3 text-slate-700">{p.name}</td>
-                  <td className="py-1.5 px-3 text-slate-600">
+                <tr key={p.id} className="border-b border-neutral-100 last:border-b-0">
+                  <td className="py-2.5 pr-3 font-medium text-[#222]">{p.name}</td>
+                  <td className="py-2.5 px-3 text-neutral-600">
                     {statusLabels[p.status] ?? p.status}
                   </td>
-                  <td className="py-1.5 px-3 text-slate-600">
+                  <td className="py-2.5 px-3 text-neutral-600">
                     {p.category || t('crm.projects.analytics.noCategory')}
                   </td>
-                  <td className="py-1.5 px-3 text-slate-600">
+                  <td className="py-2.5 px-3 text-neutral-600">
                     {p.owner || t('crm.projects.analytics.unknownOwner')}
                   </td>
-                  <td className="py-1.5 px-3 text-right text-slate-700">
+                  <td className="py-2.5 px-3 text-right font-mono text-[#222]">
                     {formatAmount(p.amount || 0)}
                   </td>
                 </tr>
@@ -2412,73 +3028,138 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
   return (
     <MainLayout>
-      <div className="space-y-4 md:space-y-6 pb-8">
-        <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] md:px-6 md:py-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
-                {header?.kicker || t('crm.projects.analytics.kicker')}
-              </div>
-              <h1 className="text-lg md:text-xl font-semibold text-slate-900">
-                {header?.title || t('crm.projects.analytics.title')}
-              </h1>
-              <p className="text-xs text-slate-600 max-w-2xl">
-                {header?.subtitle || t('crm.projects.analytics.subtitle')}
-              </p>
+      <div className="min-h-screen pb-10 text-[#222]">
+        {shareToast && (
+          <div className="pointer-events-none fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl bg-[#222] px-5 py-3 text-sm text-white shadow-lg">
+            Ссылка скопирована в буфер обмена
+          </div>
+        )}
+
+        <div className="sticky top-0 z-30 -mx-3 border-b border-neutral-200 bg-white/95 px-3 py-3 backdrop-blur md:-mx-6 md:px-6">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0 text-sm text-neutral-500">
+              <span className="hidden sm:inline">
+                {pageRoot} <span className="mx-2 text-neutral-300">/</span>{' '}
+              </span>
+              <span className="font-semibold text-[#222]">Аналитика</span>
             </div>
-            <div className="flex flex-col items-stretch gap-2 text-xs md:items-end">
-              <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-100/70 px-3 py-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-slate-700">{t('crm.projects.analytics.hero.note')}</span>
+            <div className="flex min-w-0 flex-1 items-center justify-end gap-2 sm:flex-none">
+              <div className="flex h-9 min-w-0 flex-1 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 shadow-sm sm:w-52 sm:flex-none">
+                <Icon name="search" size={14} />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Найти…"
+                  className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                />
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {toolbarSlot}
-                <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
-                  <span className="text-[11px] text-slate-600 pl-1">
-                    {t('crm.projects.analytics.period.label')}
-                  </span>
-                  <div className="flex">
-                    {(['7d', '30d', '1y', 'all', 'custom'] as PeriodId[]).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        onClick={() => {
-                          if (p === 'custom') {
-                            setPeriod('custom');
-                            return;
-                          }
-                          setPeriod(p);
-                        }}
-                        className={
-                          'px-3 py-1.5 rounded-xl text-[11px] transition ' +
-                          (period === p
-                            ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
-                            : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
-                        }
-                      >
-                        {periodLabels[p]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setAddOpen(true)}
-                  className="px-3 py-1.5 rounded-2xl bg-black text-[11px] font-semibold text-white shadow-[0_10px_24px_rgba(15,23,42,0.2)] hover:bg-slate-900"
-                >
-                  + {t('crm.projects.analytics.addBlock')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setResetOpen(true)}
-                  className="px-3 py-1.5 rounded-2xl border border-slate-200 text-[11px] text-slate-600 hover:text-slate-900 hover:bg-slate-100"
-                >
-                  {t('crm.projects.analytics.reset.button')}
-                </button>
-              </div>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={handleShare}
+                title="Поделиться"
+              >
+                <Icon name="share" size={15} />
+              </button>
             </div>
           </div>
-        </section>
+        </div>
+
+        <div className="space-y-5 py-6">
+          <section className="border-b border-neutral-200 pb-6">
+            <div className="mb-4">
+              <div className="mb-2  text-xs uppercase tracking-[0.38em] text-neutral-500">
+                ● {pageKicker} · {periodLabels[period]}
+              </div>
+              <h1 className="text-3xl font-semibold tracking-[-0.055em] text-[#222] sm:text-4xl md:text-5xl">
+                {pageTitle}
+              </h1>
+              <p className="mt-2 hidden max-w-[760px] text-base leading-7 text-neutral-500 sm:mt-3 sm:block sm:text-lg">
+                {pageSubtitle}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-xl border border-neutral-200 bg-white p-1">
+                {(['30d', '7d', '1y', 'all', 'custom'] as PeriodId[]).map((item) => (
+                  <button
+                    key={item}
+                    type="button"
+                    className={cx(
+                      'rounded-lg px-3 py-1.5 text-xs transition sm:px-4 sm:py-2 sm:text-sm',
+                      period === item ? 'bg-[#222] text-white shadow-sm' : 'text-neutral-500 hover:text-[#222]',
+                    )}
+                    onClick={() => setPeriod(item)}
+                  >
+                    {periodLabels[item]}
+                  </button>
+                ))}
+              </div>
+              <div className="hidden items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm sm:inline-flex">
+                <Icon name="calendar" size={15} />
+                <span className="text-xs uppercase tracking-[0.16em] text-neutral-400">Период</span>
+                <span className="font-medium">{periodRangeLabel}</span>
+              </div>
+              <button
+                type="button"
+                className="hidden sm:inline-flex items-center gap-2 btn-secondary"
+                onClick={handleShare}
+              >
+                <Icon name="share" size={15} />
+                <span className="hidden md:inline">Поделиться</span>
+              </button>
+              <button
+                type="button"
+                className="hidden sm:inline-flex items-center gap-2 btn-secondary"
+                onClick={() => exportCsv(filteredItems, period)}
+              >
+                <Icon name="download" size={15} />
+                <span className="hidden md:inline">Экспорт CSV</span>
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setEditMode((value) => !value)}
+              >
+                {editMode ? 'Готово' : 'Редактировать'}
+              </button>
+            </div>
+          </section>
+
+          {toolbarSlot && (
+            <nav className="border-b border-neutral-200 pb-3">
+              <div className="-mx-3 overflow-x-auto px-3 md:mx-0 md:px-0">{toolbarSlot}</div>
+            </nav>
+          )}
+
+          <nav className="border-b border-neutral-200">
+            <div className="-mx-3 flex items-center justify-between overflow-x-auto px-3 md:mx-0 md:px-0">
+              <div className="flex shrink-0 gap-1 sm:gap-4">
+                {VIEWS.map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    className={cx(
+                      'whitespace-nowrap border-b-2 px-2 py-3 text-sm transition sm:px-3 sm:py-4 sm:text-base',
+                      activeView === view.id
+                        ? 'border-[#222] font-medium text-[#222]'
+                        : 'border-transparent text-neutral-500 hover:text-[#222]',
+                    )}
+                    onClick={() => setActiveView(view.id)}
+                  >
+                    {activeView === view.id && <span className="mr-1 sm:mr-2">•</span>}
+                    {view.label}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="hidden md:block btn-secondary border-dashed border-border-strong text-text-secondary"
+                onClick={() => setEditMode(true)}
+              >
+                + Сохранить вид
+              </button>
+            </div>
+          </nav>
 
         {error && (
           <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
@@ -2486,39 +3167,144 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           </div>
         )}
 
-        <section className="rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-[0_20px_60px_rgba(15,23,42,0.08)] md:px-6 md:py-5">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="text-sm font-semibold text-slate-900">
-                {t('crm.projects.analytics.constructor.title')}
-              </h2>
-              <p className="mt-0.5 text-[11px] text-slate-600">
-                {t('crm.projects.analytics.constructor.subtitle')}
-              </p>
+          <section className="rounded-xl border border-neutral-200 bg-white px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] uppercase tracking-[0.18em] text-neutral-400">Фильтры</span>
+              {globalFilters.map((filter) => (
+                <div key={filter.id} className="flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm">
+                  <select
+                    className="bg-transparent text-neutral-500 outline-none"
+                    value={filter.scope}
+                    onChange={(event) =>
+                      setGlobalFilters((prev) =>
+                        prev.map((item) =>
+                          item.id === filter.id ? { ...item, scope: event.target.value, keys: [] } : item,
+                        ),
+                      )
+                    }
+                  >
+                    {dashboardFilterFields.map((field) => (
+                      <option key={field.id} value={field.id}>
+                        {field.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="max-w-[220px] bg-transparent font-medium outline-none"
+                    value={filter.keys[0] || ''}
+                    onChange={(event) =>
+                      setGlobalFilters((prev) =>
+                        prev.map((item) =>
+                          item.id === filter.id
+                            ? { ...item, keys: event.target.value ? [event.target.value] : [] }
+                            : item,
+                        ),
+                      )
+                    }
+                  >
+                    <option value="">Все</option>
+                    {(dashboardValueOptionsByScope[filter.scope] || []).map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="text-neutral-400 hover:text-rose-600"
+                    onClick={() => removeGlobalFilter(filter.id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                className="btn-secondary border-dashed border-border-strong text-text-secondary"
+                onClick={() => addGlobalFilter()}
+              >
+                + Фильтр
+              </button>
+              {search.trim() && (
+                <span className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-600">
+                  Поиск: <span className="font-medium text-[#222]">{search.trim()}</span>
+                  <button type="button" className="text-neutral-400 hover:text-rose-600" onClick={() => setSearch('')}>
+                    ×
+                  </button>
+                </span>
+              )}
+              <div className="ml-auto hidden  text-xs uppercase tracking-[0.18em] text-neutral-400 sm:block">
+                {filteredCountLabel}
+              </div>
             </div>
+          </section>
+
+          {editMode && (
+            <section className="flex flex-col gap-3 rounded-xl bg-[#222] px-4 py-3 text-white lg:flex-row lg:items-center">
+              <span className="text-[11px] uppercase tracking-[0.16em] text-white/60">Режим редактирования</span>
+              <span className="text-sm font-semibold">{visibleWidgets.length} блоков</span>
+              <span className="font-mono text-[11px] tracking-[0.08em] text-white/45">
+                перетаскивайте карточки · меняйте размер за края · настройки в карточке
+              </span>
+              <div className="flex-1" />
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs hover:bg-white/20"
+                onClick={() => setAddOpen(true)}
+              >
+                <Icon name="plus" size={13} />
+                {t('crm.projects.analytics.addBlock')}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs hover:bg-white/20"
+                onClick={() => setResetOpen(true)}
+              >
+                {t('crm.projects.analytics.reset.button')}
+              </button>
+              <button
+                type="button"
+                className="rounded-lg bg-white px-3 py-2 text-xs font-medium text-[#222] hover:bg-white/90"
+                onClick={() => setEditMode(false)}
+              >
+                Сохранить дашборд
+              </button>
+            </section>
+          )}
+
+          {visibleWidgets.length === 0 ? (
             <button
               type="button"
-              onClick={() => setAddOpen(true)}
-              className="px-4 py-2 rounded-2xl bg-lumiva-accent text-white text-[11px] font-semibold border border-lumiva-accent shadow-[0_10px_24px_rgba(34,34,34,0.12)] hover:opacity-90"
+              onClick={() => {
+                setEditMode(true);
+                setAddOpen(true);
+              }}
+              className="flex min-h-[180px] w-full flex-col items-center justify-center gap-2 rounded-[18px] border border-dashed border-neutral-300 bg-white/50 text-sm text-neutral-500 transition hover:border-[#222] hover:bg-white hover:text-[#222]"
             >
-              + {t('crm.projects.analytics.addBlock')}
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current">
+                <Icon name="plus" size={16} />
+              </span>
+              <span className="font-medium text-[#222]">{t('crm.projects.analytics.addBlock')}</span>
+              <span className="text-xs text-neutral-500">{t('crm.projects.analytics.empty')}</span>
             </button>
-          </div>
-
-          {widgets.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-6 text-center text-[11px] text-slate-500">
-              {t('crm.projects.analytics.empty')}
-            </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {widgets.map((w) => {
+            <div
+              className={cx(
+                'grid min-h-[600px] grid-cols-12 gap-3 rounded-xl sm:gap-4',
+                editMode &&
+                  'bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[length:8.333%_72px]',
+              )}
+            >
+              {visibleWidgets.map((w) => {
                 const isResizing = resizing?.id === w.id;
                 const widgetHeight = w.height ?? getDefaultHeight(w.size, w.type);
+                const currentSpan = widgetSpan(w);
                 return (
                   <div
                     key={w.id}
-                    draggable
+                    draggable={editMode}
                     onDragStart={(e) => {
+                      if (!editMode) return;
                       setDragWidgetId(w.id);
                       e.dataTransfer.effectAllowed = 'move';
                       e.dataTransfer.setData('text/plain', w.id);
@@ -2528,7 +3314,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       node.style.position = 'absolute';
                       node.style.top = '-9999px';
                       node.style.left = '-9999px';
-                      node.style.borderRadius = '28px';
+                      node.style.borderRadius = '18px';
                       node.style.overflow = 'hidden';
                       node.style.boxShadow = '0 20px 60px rgba(15, 23, 42, 0.15)';
                       document.body.appendChild(node);
@@ -2538,19 +3324,42 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                       }, 0);
                     }}
                     onDragEnd={() => setDragWidgetId(null)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => handleWidgetDrop(w.id)}
-                    style={{ height: widgetHeight, minHeight: widgetHeight }}
-                    className={`relative overflow-hidden rounded-[28px] border border-slate-200 bg-white px-4 py-4 shadow-[0_18px_45px_rgba(15,23,42,0.08)] md:px-5 md:py-5 ${sizeClass(w.size)} ${
-                      isResizing ? 'ring-2 ring-slate-900/20' : ''
-                    }`}
+                    onDragOver={(e) => editMode && e.preventDefault()}
+                    onDrop={() => editMode && handleWidgetDrop(w.id)}
+                    style={{
+                      height: widgetHeight,
+                      minHeight: Math.max(MIN_WIDGET_H, widgetHeight),
+                      gridColumn: isMobile ? 'span 12' : `span ${currentSpan}`,
+                    }}
+                    className={cx(
+                      'group relative flex flex-col overflow-hidden rounded-[18px] border bg-white p-4 shadow-[0_16px_45px_rgba(15,23,42,0.05)] transition',
+                      isResizing ? 'border-[#222] ring-1 ring-[#222]' : 'border-neutral-200 hover:border-neutral-300',
+                      editMode && 'pt-7',
+                    )}
                   >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                        <span className="cursor-move">⋮⋮</span>
-                        <span>{w.title}</span>
+                    {editMode && (
+                      <button
+                        type="button"
+                        className="absolute left-0 right-0 top-0 flex h-6 cursor-grab items-center justify-center rounded-t-[18px] bg-gradient-to-b from-neutral-100 to-transparent text-neutral-400 active:cursor-grabbing"
+                        onMouseDown={(event) => event.stopPropagation()}
+                        aria-label="Перетащить блок"
+                      >
+                        <Icon name="drag" size={13} />
+                      </button>
+                    )}
+                    <div className="mb-3 flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[15px] font-semibold leading-tight tracking-[-0.01em] text-[#222]">
+                          {w.title}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] flex-wrap justify-end">
+                      <div
+                        className={cx(
+                          'flex shrink-0 items-center gap-1 text-neutral-400 transition-opacity',
+                          editMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                        )}
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <button
                           type="button"
                           onClick={() => {
@@ -2562,102 +3371,103 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                             setAddedToHomeToast(true);
                             window.setTimeout(() => setAddedToHomeToast(false), 2800);
                           }}
-                          className="text-lumiva-accent font-semibold hover:underline"
+                          className="btn-ghost px-2 py-1 text-[10px] font-semibold text-[#222]"
+                          title={t('crm.dashboard.addToHomeFromAnalytics')}
                         >
-                          {t('crm.dashboard.addToHomeFromAnalytics')}
+                          На главную
                         </button>
                         <button
                           type="button"
                           onClick={() => openEditWidget(w)}
-                          className="text-slate-500 hover:text-slate-900"
+                          className="btn-icon"
+                          title={t('crm.projects.analytics.actions.edit')}
                         >
-                          {t('crm.projects.analytics.actions.edit')}
+                          <Icon name="settings" size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => duplicateWidget(w.id)}
+                          className="btn-icon"
+                          title="Дублировать"
+                        >
+                          <Icon name="copy" size={13} />
                         </button>
                         <button
                           type="button"
                           onClick={() => removeWidget(w.id)}
-                          className="text-[11px] text-slate-400 hover:text-rose-500"
+                          className="btn-icon-danger"
+                          title={t('crm.projects.analytics.actions.remove')}
                         >
-                          {t('crm.projects.analytics.actions.remove')}
+                          <Icon name="trash" size={13} />
                         </button>
                       </div>
                     </div>
-                    {renderWidget(w)}
+                    <div className="min-h-0 flex-1 overflow-hidden">{renderWidget(w)}</div>
 
                     {isResizing && (
-                      <div className="pointer-events-none absolute inset-0 rounded-[28px] border border-slate-900/20" />
+                      <div className="pointer-events-none absolute inset-0 rounded-[18px] border border-slate-900/20" />
                     )}
 
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'y', e)}
-                      className="absolute -top-1 left-4 right-4 h-2 cursor-ns-resize"
-                      title={t('crm.projects.analytics.resize.height')}
-                    />
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'y', e)}
-                      className="absolute -bottom-1 left-4 right-4 h-2 cursor-ns-resize"
-                      title={t('crm.projects.analytics.resize.height')}
-                    />
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'x', e)}
-                      className="absolute -left-1 top-4 bottom-4 w-2 cursor-ew-resize"
-                      title={t('crm.projects.analytics.resize.width')}
-                    />
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'x', e)}
-                      className="absolute -right-1 top-4 bottom-4 w-2 cursor-ew-resize"
-                      title={t('crm.projects.analytics.resize.width')}
-                    />
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'both', e)}
-                      className="absolute -top-1 -left-1 h-3 w-3 cursor-nwse-resize"
-                      title={t('crm.projects.analytics.resize.both')}
-                    />
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'both', e)}
-                      className="absolute -top-1 -right-1 h-3 w-3 cursor-nesw-resize"
-                      title={t('crm.projects.analytics.resize.both')}
-                    />
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'both', e)}
-                      className="absolute -bottom-1 -left-1 h-3 w-3 cursor-nesw-resize"
-                      title={t('crm.projects.analytics.resize.both')}
-                    />
-                    <div
-                      onMouseDown={(e) => beginResize(w.id, w.size, 'both', e)}
-                      className="absolute -bottom-1 -right-1 h-3 w-3 cursor-nwse-resize"
-                      title={t('crm.projects.analytics.resize.both')}
-                    />
+                    {editMode && (
+                      <>
+                        <div
+                          onMouseDown={(e) => beginResize(w.id, 'x', e)}
+                          className="absolute -right-1.5 top-6 bottom-6 flex w-3 cursor-ew-resize items-center justify-center"
+                          title={t('crm.projects.analytics.resize.width')}
+                        >
+                          <div className="h-10 w-1.5 rounded-full bg-neutral-300 opacity-0 transition group-hover:opacity-100" />
+                        </div>
+                        <div
+                          onMouseDown={(e) => beginResize(w.id, 'y', e)}
+                          className="absolute -bottom-1.5 left-6 right-6 flex h-3 cursor-ns-resize items-center justify-center"
+                          title={t('crm.projects.analytics.resize.height')}
+                        >
+                          <div className="h-1.5 w-10 rounded-full bg-neutral-300 opacity-0 transition group-hover:opacity-100" />
+                        </div>
+                        <button
+                          type="button"
+                          className="absolute bottom-0 right-0 flex h-7 w-7 cursor-nwse-resize items-end justify-end p-1 text-neutral-300 hover:text-[#222]"
+                          onMouseDown={(e) => beginResize(w.id, 'both', e)}
+                          title={t('crm.projects.analytics.resize.both')}
+                        >
+                          <Icon name="resize" size={14} />
+                        </button>
+                      </>
+                    )}
                   </div>
                 );
               })}
+              {editMode && (
+                <button
+                  type="button"
+                  className="col-span-12 flex min-h-[150px] flex-col items-center justify-center gap-2 rounded-[18px] border border-dashed border-neutral-300 bg-white/50 text-sm text-neutral-500 transition hover:border-[#222] hover:bg-white hover:text-[#222] md:col-span-6"
+                  onClick={() => setAddOpen(true)}
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full border border-current">
+                    <Icon name="plus" size={16} />
+                  </span>
+                  <span className="font-medium text-[#222]">{t('crm.projects.analytics.addBlock')}</span>
+                  <span className="text-xs text-neutral-500">KPI, графики, таблицы, формулы</span>
+                </button>
+              )}
             </div>
           )}
-          <div className="mt-4 flex items-center justify-center">
-            <button
-              type="button"
-              onClick={() => setAddOpen(true)}
-              className="rounded-2xl bg-black px-4 py-2 text-[11px] font-semibold text-white shadow-[0_12px_30px_rgba(15,23,42,0.2)] hover:bg-slate-900"
-            >
-              + {t('crm.projects.analytics.addBlock')}
-            </button>
-          </div>
-        </section>
+        </div>
 
         {(addOpen || editOpen) && (
-          <div className="fixed inset-0 z-50 overflow-y-auto overscroll-y-contain bg-black/60 backdrop-blur-sm">
-            <div className="flex min-h-full justify-center px-4 py-6 sm:py-10">
+          <div className="fixed inset-0 z-[8500] overflow-y-auto overscroll-y-contain bg-black/40 p-6 backdrop-blur-sm">
+            <div className="flex min-h-full justify-center">
               <div
                 role="dialog"
                 aria-modal="true"
-                className="my-auto flex w-full max-w-lg max-h-[min(92vh,calc(100dvh-3rem))] flex-col overflow-hidden rounded-[28px] bg-white shadow-[0_25px_80px_rgba(15,23,42,0.35)]"
+                className="my-auto flex max-h-[calc(100vh-64px)] w-[min(940px,calc(100vw-32px))] flex-col overflow-hidden rounded-2xl bg-white shadow-[0_30px_80px_rgba(0,0,0,0.18)]"
               >
-                <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+                <div className="flex shrink-0 items-start justify-between gap-4 border-b border-neutral-200 px-6 py-5">
                   <div>
-                    <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-neutral-400">
                       {t('crm.projects.analytics.constructor.kicker')}
                     </div>
-                    <h3 className="text-sm font-semibold text-slate-900">
+                    <h3 className="text-xl font-semibold tracking-[-0.02em] text-[#222]">
                       {isEditing
                         ? t('crm.projects.analytics.modal.editTitle')
                         : t('crm.projects.analytics.modal.addTitle')}
@@ -2666,13 +3476,13 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   <button
                     type="button"
                     onClick={closeModal}
-                    className="text-slate-400 hover:text-slate-600"
+                    className="btn-icon p-2 rounded-xl"
                   >
                     ✕
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 py-4">
+                <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-6 py-5">
                   <div className="space-y-3 text-xs">
                 <div>
                   <label className="block text-[11px] text-slate-500 mb-1">
@@ -2710,7 +3520,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   </div>
                 )}
 
-                {(draftType === 'donut' || draftType === 'bar') && (
+                {isChartWidgetType(draftType) && (
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] text-slate-500 mb-1">
@@ -2834,9 +3644,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   </div>
                 )}
 
-                {(draftType === 'donut' ||
-                  draftType === 'bar' ||
-                  (draftType === 'table' && draftTable !== 'projects')) && (
+                {(isChartWidgetType(draftType) || (draftType === 'table' && draftTable !== 'projects')) && (
                   <div className="space-y-3">
                     <div>
                       <label className="block text-[11px] text-slate-500 mb-1">
@@ -3424,23 +4232,29 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                   </div>
                   <div>
                     <label className="block text-[11px] text-slate-500 mb-1">
-                      {t('crm.projects.analytics.modal.size')}
+                      Колонки
                     </label>
                     <select
-                      value={draftSize}
-                      onChange={(e) => setDraftSize(e.target.value as WidgetSize)}
+                      value={draftSpan}
+                      onChange={(e) => {
+                        const span = Number(e.target.value);
+                        setDraftSpan(span);
+                        setDraftSize(sizeFromSpan(span));
+                      }}
                       className="w-full h-9 rounded-xl bg-slate-100 border border-slate-200 px-2 outline-none"
                     >
-                      <option value="sm">{t('crm.projects.analytics.sizes.sm')}</option>
-                      <option value="md">{t('crm.projects.analytics.sizes.md')}</option>
-                      <option value="lg">{t('crm.projects.analytics.sizes.lg')}</option>
+                      {ALLOWED_SPANS.map((span) => (
+                        <option key={span} value={span}>
+                          {span}/12
+                        </option>
+                      ))}
                     </select>
                   </div>
                 </div>
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-col gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex shrink-0 flex-col gap-3 border-t border-neutral-200 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     {isEditing && editingWidgetId && (
                       <button
@@ -3458,7 +4272,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                           }
                           closeModal();
                         }}
-                        className="px-3 py-2 rounded-xl border border-slate-900/15 bg-slate-50 text-xs font-semibold text-slate-800 hover:bg-slate-100"
+                        className="btn-secondary"
                       >
                         {t('crm.dashboard.addToHomeFromAnalytics')}
                       </button>
@@ -3468,14 +4282,14 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                     <button
                       type="button"
                       onClick={closeModal}
-                      className="px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+                      className="btn-secondary"
                     >
                       {t('crm.projects.analytics.actions.cancel')}
                     </button>
                     <button
                       type="button"
                       onClick={saveWidget}
-                      className="px-4 py-2 rounded-xl bg-lumiva-accent text-white text-xs font-semibold border border-lumiva-accent shadow-[0_10px_24px_rgba(34,34,34,0.12)] hover:opacity-90"
+                      className="btn-primary"
                     >
                       {isEditing
                         ? t('crm.projects.analytics.actions.save')
@@ -3489,26 +4303,26 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         )}
 
         {resetOpen && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center px-4">
-            <div className="w-full max-w-sm rounded-[24px] bg-white p-5 shadow-[0_25px_80px_rgba(15,23,42,0.35)]">
-              <h3 className="text-sm font-semibold text-slate-900">
+          <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-[0_30px_80px_rgba(0,0,0,0.18)]">
+              <h3 className="text-lg font-semibold tracking-[-0.02em] text-[#222]">
                 {t('crm.projects.analytics.reset.title')}
               </h3>
-              <p className="mt-2 text-xs text-slate-600">
+              <p className="mt-2 text-sm leading-6 text-neutral-500">
                 {t('crm.projects.analytics.reset.message')}
               </p>
-              <div className="mt-4 flex items-center justify-end gap-2">
+              <div className="mt-5 flex items-center justify-end gap-2">
                 <button
                   type="button"
                   onClick={() => setResetOpen(false)}
-                  className="px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-slate-100"
+                  className="btn-secondary"
                 >
                   {t('crm.projects.analytics.reset.cancel')}
                 </button>
                 <button
                   type="button"
                   onClick={resetLayout}
-                  className="px-4 py-2 rounded-xl bg-lumiva-accent text-white text-xs font-semibold border border-lumiva-accent hover:opacity-90"
+                  className="btn-primary"
                 >
                   {t('crm.projects.analytics.reset.confirm')}
                 </button>
@@ -3518,7 +4332,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         )}
       </div>
       {addedToHomeToast && (
-        <div className="fixed bottom-6 left-1/2 z-[100] max-w-[min(90vw,24rem)] -translate-x-1/2 rounded-2xl border border-slate-200/90 bg-white/95 px-4 py-2.5 text-center text-[11px] text-slate-800 shadow-lg ring-1 ring-slate-900/[0.06]">
+        <div className="pointer-events-none fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl bg-[#222] px-5 py-3 text-sm text-white shadow-lg">
           {t('crm.dashboard.widgets.addedToHome')}
         </div>
       )}

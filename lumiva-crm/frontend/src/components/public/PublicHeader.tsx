@@ -1,8 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { setAppLanguage } from '../../i18n';
+import {
+  clearSession,
+  getAccessToken,
+  getStoredTenantName,
+  getStoredUser,
+  SESSION_USER_UPDATED_EVENT,
+} from '../../auth/session';
+import {
+  fetchCompanySettings,
+  normalizeLogoUrl,
+  TENANT_BRANDING_EVENT,
+} from '../../api/settings';
+import { ApiError, resolvePublicAssetUrl } from '../../api/client';
 
 type PageKey =
   | 'development' | 'scenarios' | 'api' | 'integrations'
@@ -29,13 +42,66 @@ const ArrowRight: React.FC = () => (
   </svg>
 );
 
+type TenantSessionChip = {
+  companyName: string;
+  userLabel: string;
+  logoSrc: string | null;
+};
+
+function formatSessionUserLabel(user: unknown): string {
+  if (!user || typeof user !== 'object') return '';
+  const u = user as Record<string, unknown>;
+  const name = typeof u.name === 'string' ? u.name.trim() : '';
+  if (name) return name;
+  const email = typeof u.email === 'string' ? u.email.trim() : '';
+  if (email) return email.split('@')[0] || email;
+  return '';
+}
+
 export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
   const { t, i18n } = useTranslation();
   const location = useLocation();
   const currentLang = (i18n.language || 'ru').slice(0, 2) as 'ru' | 'en' | 'tr';
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [solutionsOpen, setSolutionsOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [tenantSession, setTenantSession] = useState<TenantSessionChip | null>(null);
+
+  const refreshTenantSession = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) {
+      setTenantSession(null);
+      return;
+    }
+    const user = getStoredUser();
+    const userLabel = formatSessionUserLabel(user);
+    const fallbackCompany = getStoredTenantName() || '';
+
+    try {
+      const s = await fetchCompanySettings({ skipUnauthorizedRedirect: true });
+      const logoRel = normalizeLogoUrl(s.logoUrl);
+      const logoSrc = logoRel ? resolvePublicAssetUrl(logoRel) : null;
+      setTenantSession({
+        companyName: (s.name && String(s.name).trim()) || fallbackCompany || 'CRM',
+        userLabel:
+          userLabel ||
+          (typeof user === 'object' && user !== null && 'email' in user
+            ? String((user as { email?: string }).email ?? '')
+            : ''),
+        logoSrc,
+      });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        clearSession();
+        setTenantSession(null);
+        return;
+      }
+      setTenantSession({
+        companyName: fallbackCompany || 'CRM',
+        userLabel,
+        logoSrc: null,
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 12);
@@ -46,6 +112,21 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
   useEffect(() => {
     setMobileOpen(false);
   }, [location.pathname]);
+
+  useEffect(() => {
+    void refreshTenantSession();
+  }, [refreshTenantSession, location.pathname]);
+
+  useEffect(() => {
+    const onBranding = () => void refreshTenantSession();
+    const onUser = () => void refreshTenantSession();
+    window.addEventListener(TENANT_BRANDING_EVENT, onBranding);
+    window.addEventListener(SESSION_USER_UPDATED_EVENT, onUser);
+    return () => {
+      window.removeEventListener(TENANT_BRANDING_EVENT, onBranding);
+      window.removeEventListener(SESSION_USER_UPDATED_EVENT, onUser);
+    };
+  }, [refreshTenantSession]);
 
   const isActive = (key: PageKey) => activeKey === key;
   const isSolutionActive = ['solutions', 'analytics', 'marketing', 'sales'].includes(activeKey ?? '');
@@ -145,13 +226,40 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
               <option value="en">EN</option>
               <option value="tr">TR</option>
             </select>
-            <Link
-              to="/login"
-              className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-4 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 transition-colors"
-            >
-              {t('landing.nav.login', { defaultValue: 'Войти' })}
-              <ArrowRight />
-            </Link>
+            {tenantSession ? (
+              <Link
+                to="/app"
+                title={t('publicPages.nav.openCrmHint')}
+                className="hidden md:flex max-w-[min(280px,34vw)] items-center gap-2 rounded-full border border-slate-200/90 bg-white pl-1.5 pr-3 py-1 shadow-[0_2px_12px_rgba(15,23,42,0.06)] transition-colors hover:border-slate-300 hover:bg-slate-50/90"
+              >
+                <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+                  {tenantSession.logoSrc ? (
+                    <img
+                      src={tenantSession.logoSrc}
+                      alt=""
+                      className="h-full w-full object-contain p-0.5"
+                    />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center bg-black text-[10px] font-bold uppercase tracking-tight text-white">
+                      {(tenantSession.companyName || '?').slice(0, 2)}
+                    </div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 text-left leading-tight">
+                  <div className="truncate text-[11px] font-semibold text-slate-900">{tenantSession.companyName}</div>
+                  <div className="truncate text-[10px] font-medium text-slate-500">{tenantSession.userLabel}</div>
+                </div>
+                <ArrowRight />
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="hidden md:inline-flex items-center gap-1.5 rounded-full border border-black bg-black px-4 py-1.5 text-xs font-semibold text-white hover:bg-neutral-800 transition-colors"
+              >
+                {t('landing.nav.login', { defaultValue: 'Войти' })}
+                <ArrowRight />
+              </Link>
+            )}
             <button
               type="button"
               className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-900 md:hidden"
@@ -170,7 +278,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            className="fixed inset-0 z-[80] md:hidden"
+            className="fixed inset-0 z-[8500] md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -249,12 +357,36 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
                   <option value="en">English</option>
                   <option value="tr">Türkçe</option>
                 </select>
-                <Link
-                  to="/login"
-                  className="w-full text-center rounded-xl bg-black text-white px-4 py-2.5 text-xs font-semibold hover:bg-neutral-800 transition-colors"
-                >
-                  {t('landing.nav.login', { defaultValue: 'Войти' })}
-                </Link>
+                {tenantSession ? (
+                  <Link
+                    to="/app"
+                    className="w-full flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-left hover:bg-slate-50 transition-colors"
+                  >
+                    <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50">
+                      {tenantSession.logoSrc ? (
+                        <img src={tenantSession.logoSrc} alt="" className="h-full w-full object-contain p-0.5" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center bg-black text-xs font-bold text-white">
+                          {(tenantSession.companyName || '?').slice(0, 2)}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-semibold text-slate-900">{tenantSession.companyName}</div>
+                      <div className="truncate text-[11px] text-slate-500">{tenantSession.userLabel}</div>
+                      <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                        {t('publicPages.nav.openCrmCta')}
+                      </div>
+                    </div>
+                  </Link>
+                ) : (
+                  <Link
+                    to="/login"
+                    className="w-full text-center rounded-xl bg-black text-white px-4 py-2.5 text-xs font-semibold hover:bg-neutral-800 transition-colors"
+                  >
+                    {t('landing.nav.login', { defaultValue: 'Войти' })}
+                  </Link>
+                )}
               </div>
             </motion.aside>
           </motion.div>

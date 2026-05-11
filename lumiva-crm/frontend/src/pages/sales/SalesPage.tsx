@@ -27,6 +27,9 @@ import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { AutomationPanel } from '../../components/AutomationPanel';
 import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
 import { SalesStatusPillSelect } from './SalesStatusPillSelect';
+import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
+import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
+import { normalizeMarketingDisplayCurrency } from '../marketing/marketingDisplayCurrencyStorage';
 
 /* ─────────────────────────────── */
 /* Локальные типы для фильтров     */
@@ -136,6 +139,22 @@ export const SalesPage: React.FC = () => {
     startWidth: number;
   } | null>(null);
   const [automationOpen, setAutomationOpen] = useState(false);
+  const currenciesPresent = useMemo(
+    () => Array.from(new Set((list?.items || []).map((sale) => sale.currency || 'EUR'))),
+    [list],
+  );
+  const { state: currencyPrefs, setState: setCurrencyPrefs } =
+    useMarketingDisplayCurrencyPrefs(currenciesPresent);
+  const reportCurrency = normalizeMarketingDisplayCurrency(currencyPrefs.displayCurrency);
+
+  useEffect(() => {
+    if (currencyPrefs.currencyMode === 'converted') return;
+    setCurrencyPrefs({
+      ...currencyPrefs,
+      currencyMode: 'converted',
+      rates: { ...currencyPrefs.rates, [reportCurrency]: 1 },
+    });
+  }, [currencyPrefs, reportCurrency, setCurrencyPrefs]);
 
   // первая загрузка каналов
   useEffect(() => {
@@ -164,10 +183,15 @@ export const SalesPage: React.FC = () => {
       };
 
       try {
-        const [resList, resStats] = await Promise.all([
-          fetchSales(params),
-          fetchSalesStats(params),
-        ]);
+	        const [resList, resStats] = await Promise.all([
+	          fetchSales(params),
+	          fetchSalesStats({
+	            ...params,
+	            currencyMode: 'converted',
+	            displayCurrency: reportCurrency,
+	            rates: { ...currencyPrefs.rates, [reportCurrency]: 1 },
+	          }),
+	        ]);
         if (!alive) return;
         setList(resList);
         setStats(resStats);
@@ -188,7 +212,7 @@ export const SalesPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [JSON.stringify(filters)]);
+	  }, [JSON.stringify(filters), reportCurrency, JSON.stringify(currencyPrefs.rates)]);
 
   const pageCount = useMemo(() => {
     if (!list) return 1;
@@ -636,8 +660,13 @@ export const SalesPage: React.FC = () => {
               </p>
             )}
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {stats && (
+	            <div className="flex flex-wrap items-center gap-2">
+	              <AnalyticsCurrencyControl
+	                state={currencyPrefs}
+	                onStateChange={setCurrencyPrefs}
+	                variant="dark"
+	              />
+	              {stats && (
               <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
                 <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
                   {t('crm.sales.summary.totalSales')}:{' '}
@@ -648,19 +677,19 @@ export const SalesPage: React.FC = () => {
                 <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
                   {t('crm.sales.summary.revenue')}:{' '}
                   <span className="font-semibold">
-                    {stats.totalAmount.toLocaleString(locale, {
-                      maximumFractionDigits: 0,
-                    })}{' '}
-                    €
+	                    {stats.totalAmount.toLocaleString(locale, {
+	                      maximumFractionDigits: 0,
+	                    })}{' '}
+	                    {reportCurrency}
                   </span>
                 </span>
                 <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
                   {t('crm.sales.summary.avgCheck')}:{' '}
                   <span className="font-semibold">
-                    {stats.avgCheck.toLocaleString(locale, {
-                      maximumFractionDigits: 0,
-                    })}{' '}
-                    €
+	                    {stats.avgCheck.toLocaleString(locale, {
+	                      maximumFractionDigits: 0,
+	                    })}{' '}
+	                    {reportCurrency}
                   </span>
                 </span>
               </div>
@@ -788,9 +817,9 @@ export const SalesPage: React.FC = () => {
                 </span>
               </div>
               <div className="space-y-2 text-xs">
-                {stats.byStatus.map((s) => (
-                  <StatusBarRow key={s.status} stat={s} />
-                ))}
+	                {stats.byStatus.map((s) => (
+	                  <StatusBarRow key={s.status} stat={s} currency={reportCurrency} />
+	                ))}
               </div>
             </div>
 
@@ -1056,7 +1085,8 @@ const StatusPill: React.FC<{
 
 const StatusBarRow: React.FC<{
   stat: SalesStats['byStatus'][number];
-}> = ({ stat }) => {
+  currency: string;
+}> = ({ stat, currency }) => {
   const { t, i18n } = useTranslation();
   const locale = getLocale();
   const maxAmount = Math.max(stat.amount, 1);
@@ -1078,7 +1108,7 @@ const StatusBarRow: React.FC<{
           {t('crm.sales.units.items', {
             count: stat.count,
           })}{' '}
-          · {stat.amount.toLocaleString(locale)} €
+	          · {stat.amount.toLocaleString(locale)} {currency}
         </span>
       </div>
       <div className="h-1.5 bg-slate-800/80 rounded-full overflow-hidden">

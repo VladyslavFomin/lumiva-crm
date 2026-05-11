@@ -47,6 +47,7 @@ export class ApiError extends Error {
 }
 
 const TENANT_INACTIVE_KEY = 'lumiva_tenant_inactive';
+type ApiRequestInit = RequestInit & { skipUnauthorizedRedirect?: boolean };
 
 function handleUnauthorized() {
   clearSession();
@@ -95,15 +96,16 @@ export function clearTenantInactiveReason() {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: ApiRequestInit = {}): Promise<T> {
+  const { skipUnauthorizedRedirect, ...fetchOptions } = options;
   const token = getAccessToken();
 
   const isFormData =
-    typeof FormData !== 'undefined' && options.body instanceof FormData;
+    typeof FormData !== 'undefined' && fetchOptions.body instanceof FormData;
 
   const headers: HeadersInit = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    ...(options.headers || {}),
+    ...(fetchOptions.headers || {}),
   };
 
   if (token) {
@@ -111,12 +113,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
+    ...fetchOptions,
     headers,
     cache: 'no-store',
   });
 
   if (res.status === 401) {
+    if (skipUnauthorizedRedirect) {
+      throw new ApiError('Сессия недоступна или почтовый провайдер вернул 401', 401);
+    }
     handleUnauthorized();
     return new Promise<T>(() => {});
   }
@@ -415,13 +420,21 @@ function appendQueryToPath(path: string, params?: object): string {
 export type ApiGetParams = object;
 
 export const api = {
-  get: <T>(path: string, options?: { params?: ApiGetParams }) =>
-    request<T>(appendQueryToPath(path, options?.params)),
+  get: <T>(
+    path: string,
+    options?: { params?: ApiGetParams } & Pick<ApiRequestInit, 'skipUnauthorizedRedirect'>,
+  ) => {
+    const { params, skipUnauthorizedRedirect, ...rest } = options || {};
+    return request<T>(appendQueryToPath(path, params), {
+      ...rest,
+      ...(skipUnauthorizedRedirect ? { skipUnauthorizedRedirect: true } : {}),
+    });
+  },
 
   post: <T>(
     path: string,
     body?: any,
-    init?: RequestInit & { timeout?: number },
+    init?: ApiRequestInit & { timeout?: number },
   ) => {
     if (!init?.timeout) {
       return request<T>(path, {

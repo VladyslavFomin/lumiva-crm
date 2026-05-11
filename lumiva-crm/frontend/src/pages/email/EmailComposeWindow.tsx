@@ -167,9 +167,9 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
 
   const ui = (
     <>
-      <div className="fixed inset-0 z-[80] bg-slate-900/25" aria-hidden />
+      <div className="fixed inset-0 z-[8500] bg-slate-900/25" aria-hidden />
       <div
-        className="fixed z-[81] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
+        className="fixed z-[8600] flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-2xl"
         style={{
           left: pos.x,
           top: pos.y,

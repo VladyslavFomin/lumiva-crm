@@ -1,6 +1,7 @@
 // src/pages/projects/ProjectFormPage.tsx
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
@@ -132,8 +133,8 @@ function isProjectTaskRowDragBlockedTarget(target: EventTarget | null): boolean 
 }
 
 /** Токены и классы в духе страницы лида (LeadFormPage) */
-const FF = "'Inter Tight','Helvetica Neue',Helvetica,Arial,sans-serif";
-const FM = "'JetBrains Mono',ui-monospace,monospace";
+const FF = 'inherit';
+const FM = 'inherit';
 const INK = '#222';
 const FG2 = '#555';
 const FG3 = '#888';
@@ -3007,9 +3008,9 @@ export const ProjectFormPage: React.FC = () => {
           />
         )}
 
-        {emailOpen && (
+        {emailOpen && createPortal(
           <div
-            className="fixed inset-0 z-[1000] flex items-center justify-center p-4"
+            className="fixed inset-0 z-[8500] flex items-center justify-center p-4"
             style={{ background: 'rgba(0,0,0,0.5)' }}
           >
             <div
@@ -3154,7 +3155,8 @@ export const ProjectFormPage: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
 
         {calendarModal && (

@@ -20,6 +20,18 @@ import {
 import { getActionLabel, getTriggerLabel } from './automationLabels';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 
+// ─── Design tokens ─────────────────────────────────────────────────────────
+const INK = '#222';
+const FG2 = '#555';
+const FG3 = '#888';
+const FG4 = '#b5b5b5';
+const LINE2 = '#e7e7e7';
+const LINE3 = '#f0f0f0';
+const BG_MUTED = '#fafafa';
+const BG_SOFT = '#f5f5f5';
+const FF_DISPLAY = 'inherit';
+const FF_MONO = 'inherit';
+
 type TabId = 'automations' | 'history' | 'usage';
 
 function presetBounds(preset: NonNullable<RunAutomationNowBody['rangePreset']>) {
@@ -84,8 +96,22 @@ export const AutomationsPage: React.FC = () => {
   const [runDateFrom, setRunDateFrom] = useState('');
   const [runDateTo, setRunDateTo] = useState('');
 
+  // row context menu state
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+
+  const pageTemplates = useMemo(() => {
+    const ids = ['t1', 't2', 't3', 't4', 't5', 't6'] as const;
+    return ids.map((id) => ({
+      id,
+      tag: t(`crm.automations.panel.pageTemplates.${id}.tag`),
+      name: t(`crm.automations.panel.pageTemplates.${id}.name`),
+      flow: t(`crm.automations.panel.pageTemplates.${id}.flow`, { returnObjects: true }) as string[],
+      featured: id === 't1',
+    }));
+  }, [t]);
 
   useEffect(() => {
     if (searchParams.get('woo') === '1') {
@@ -312,630 +338,735 @@ export const AutomationsPage: React.FC = () => {
     });
   }, [executions, execSearch, t]);
 
-  const toolbarPlaceholder =
-    activeTab === 'history'
-      ? t('crm.automations.panel.history.searchPlaceholder')
-      : t('crm.automations.panel.searchPlaceholder');
+  const activeCount = automations.filter((a) => a.isActive).length;
 
-  const searchValue =
-    activeTab === 'history' ? execSearch : activeTab === 'automations' ? search : '';
-  const setSearchValue =
-    activeTab === 'history'
-      ? setExecSearch
-      : activeTab === 'automations'
-        ? setSearch
-        : () => {};
+  const tabLabels: Record<TabId, string> = {
+    automations: t('crm.automations.panel.tabs.automations'),
+    history: t('crm.automations.panel.tabs.history'),
+    usage: t('crm.automations.panel.tabs.usage'),
+  };
+
+  const inputStyle: React.CSSProperties = {
+    fontFamily: FF_DISPLAY,
+    fontSize: 12,
+    border: `1px solid ${LINE2}`,
+    borderRadius: 10,
+    padding: '6px 10px',
+    color: INK,
+    background: '#fff',
+    outline: 'none',
+  };
+
+  const selectStyle: React.CSSProperties = {
+    ...inputStyle,
+    cursor: 'pointer',
+  };
 
   return (
     <MainLayout>
-      <div className="space-y-4">
-        <section className="rounded-3xl border border-slate-200 bg-white p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div style={{ fontFamily: FF_DISPLAY, color: INK }}>
+
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
             <div>
-              <div className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
-                {t('crm.automations.panel.kicker')}
+              <div style={{
+                fontFamily: FF_MONO,
+                fontSize: 10,
+                letterSpacing: '0.22em',
+                textTransform: 'uppercase',
+                color: FG4,
+                marginBottom: 6,
+              }}>
+                {t('crm.automations.panel.page.kicker', { count: activeCount })}
               </div>
-              <h1 className="text-lg font-semibold text-slate-900">
-                {t('crm.automations.list.title')}
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: INK, margin: 0, lineHeight: 1.2 }}>
+                {t('crm.automations.panel.page.title')}
               </h1>
-              <div className="text-[12px] text-slate-500">
-                {t('crm.automations.list.subtitle')}
-              </div>
+              <p style={{ fontSize: 13, color: FG3, margin: '6px 0 0', lineHeight: 1.5, maxWidth: 480 }}>
+                {t('crm.automations.panel.page.subtitle')}
+              </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                type="button"
+                style={{
+                  fontFamily: FF_DISPLAY,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  padding: '7px 16px',
+                  borderRadius: 8,
+                  border: `1px solid ${LINE2}`,
+                  background: '#fff',
+                  color: FG2,
+                  cursor: 'pointer',
+                }}
+              >
+                {t('crm.automations.panel.page.import')}
+              </button>
               <button
                 type="button"
                 onClick={handleCreate}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[#222222] text-white font-semibold hover:bg-black transition-colors"
+                style={{
+                  fontFamily: FF_DISPLAY,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  padding: '7px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: INK,
+                  color: '#fff',
+                  cursor: 'pointer',
+                }}
               >
-                {t('crm.automations.list.create')}
+                {t('crm.automations.panel.page.newAutomation')}
               </button>
             </div>
           </div>
-          <div className="mt-4 border-b border-slate-200">
-            <div className="flex flex-wrap gap-4 text-[12px] text-slate-500">
-              {(['automations', 'history', 'usage'] as const).map((tab) => (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => setActiveTab(tab)}
-                  className={`pb-3 ${
-                    activeTab === tab
-                      ? 'border-b-2 border-[#222222] text-slate-900 font-semibold'
-                      : 'hover:text-slate-700'
-                  }`}
-                >
-                  {t(`crm.automations.panel.tabs.${tab}`)}
-                </button>
-              ))}
-            </div>
+        </div>
+
+        {/* ── Templates section ──────────────────────────────────────────── */}
+        <div style={{ marginBottom: 28 }}>
+          <div style={{
+            fontFamily: FF_MONO,
+            fontSize: 10,
+            letterSpacing: '0.2em',
+            textTransform: 'uppercase',
+            color: FG4,
+            marginBottom: 12,
+          }}>
+            {t('crm.automations.panel.page.templatesKicker')}
           </div>
-        </section>
-
-        <section className="rounded-3xl border border-sky-200/80 bg-gradient-to-br from-sky-50/90 via-white to-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-slate-900">
-                {t('crm.automations.panel.integrationsCallout.title')}
-              </div>
-              <p className="mt-1 text-[11px] text-slate-600 leading-relaxed max-w-2xl">
-                {t('crm.automations.panel.integrationsCallout.body')}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 shrink-0">
-              <Link
-                to="/integrations-hub"
-                className="inline-flex items-center justify-center rounded-full bg-[#222222] px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-black transition-colors"
+          <div
+            className="auto-templates"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
+              gap: 12,
+            }}
+          >
+            {pageTemplates.map((tpl) => (
+              <button
+                key={tpl.id}
+                type="button"
+                onClick={() => navigate(`/app/automations/new?template=${tpl.id}`)}
+                style={{
+                  fontFamily: FF_DISPLAY,
+                  textAlign: 'left',
+                  padding: '14px 16px',
+                  borderRadius: 12,
+                  border: `1px solid ${tpl.featured ? '#d1e3ff' : LINE2}`,
+                  background: tpl.featured ? '#f0f7ff' : BG_MUTED,
+                  cursor: 'pointer',
+                  transition: 'box-shadow 0.15s',
+                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 2px 12px rgba(0,0,0,0.08)'; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.boxShadow = 'none'; }}
               >
-                {t('crm.automations.panel.integrationsCallout.ctaHub')}
-              </Link>
-              <Link
-                to="/integrations-hub?tab=connections"
-                className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
-              >
-                {t('crm.automations.panel.integrationsCallout.ctaConnections')}
-              </Link>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-slate-200 bg-white p-4 space-y-4">
-          {(activeTab === 'automations' || activeTab === 'history') && (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5">
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="text-slate-400"
-                >
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="M20 20l-3.5-3.5" />
-                </svg>
-                <input
-                  value={searchValue}
-                  onChange={(e) => setSearchValue(e.target.value)}
-                  placeholder={toolbarPlaceholder}
-                  className="text-xs outline-none bg-transparent text-slate-700 w-56 min-w-[140px]"
-                />
-              </div>
-              {activeTab === 'automations' && (
-                <select
-                  value={statusFilter}
-                  onChange={(e) =>
-                    setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')
-                  }
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600"
-                >
-                  <option value="all">{t('crm.automations.panel.filters.all')}</option>
-                  <option value="active">{t('crm.automations.panel.filters.active')}</option>
-                  <option value="inactive">{t('crm.automations.panel.filters.inactive')}</option>
-                </select>
-              )}
-              {activeTab === 'history' && (
-                <select
-                  value={execStatus}
-                  onChange={(e) => setExecStatus(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600"
-                >
-                  <option value="">{t('crm.automations.panel.history.allStatuses')}</option>
-                  <option value="success">{t('crm.automations.panel.history.statusSuccess')}</option>
-                  <option value="error">{t('crm.automations.panel.history.statusError')}</option>
-                  <option value="pending">{t('crm.automations.panel.history.statusPending')}</option>
-                  <option value="skipped">{t('crm.automations.panel.history.statusSkipped')}</option>
-                </select>
-              )}
-              {activeTab === 'automations' && (
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
-                >
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M3 4h18" />
-                    <path d="M7 12h10" />
-                    <path d="M10 20h4" />
-                  </svg>
-                  {t('crm.automations.panel.filter')}
-                </button>
-              )}
-            </div>
-          )}
-
-          {error && activeTab === 'automations' && (
-            <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
-              {error}
-            </div>
-          )}
-
-          {activeTab === 'automations' && loading && (
-            <div className="text-xs text-slate-500">{t('crm.automations.list.loading')}</div>
-          )}
-
-          {activeTab === 'automations' && !loading && !error && filtered.length === 0 && (
-            <div className="rounded-2xl border border-slate-200 bg-white px-4 py-8 text-center text-sm text-slate-500">
-              {t('crm.automations.list.empty')}
-            </div>
-          )}
-
-          {activeTab === 'automations' && !loading && !error && filtered.length > 0 && (
-            <div className="space-y-3">
-              {filtered.map((automation) => (
-                <div
-                  key={automation.id}
-                  className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <h3 className="text-sm font-semibold text-slate-900 truncate">
-                          {automation.name}
-                        </h3>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] border ${
-                            automation.isActive
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-slate-100 text-slate-500 border-slate-200'
-                          }`}
-                        >
-                          {automation.isActive
-                            ? t('crm.automations.list.active')
-                            : t('crm.automations.list.inactive')}
-                        </span>
-                      </div>
-                      <div className="text-[12px] text-slate-600">
-                        {getTriggerLabel(automation.triggerEvent, t)}
-                      </div>
-                      {automation.description && (
-                        <div className="text-[11px] text-slate-400 mt-1 line-clamp-2">
-                          {automation.description}
-                        </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                  <span style={{
+                    fontFamily: FF_MONO,
+                    fontSize: 10,
+                    letterSpacing: '0.1em',
+                    padding: '2px 7px',
+                    borderRadius: 4,
+                    background: tpl.featured ? '#dbeafe' : LINE3,
+                    color: tpl.featured ? '#1d4ed8' : FG3,
+                    fontWeight: 600,
+                  }}>
+                    {tpl.tag}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: INK, lineHeight: 1.4, marginBottom: 8 }}>
+                  {tpl.name}
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {tpl.flow.map((step, i) => (
+                    <React.Fragment key={i}>
+                      <span style={{
+                        fontFamily: FF_MONO,
+                        fontSize: 10,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: '#fff',
+                        border: `1px solid ${LINE2}`,
+                        color: FG2,
+                      }}>
+                        {step}
+                      </span>
+                      {i < tpl.flow.length - 1 && (
+                        <span style={{ color: FG4, fontSize: 10, alignSelf: 'center' }}>→</span>
                       )}
-                      <div className="mt-2 flex flex-wrap gap-3 text-[10px] text-slate-500">
-                        <span>
-                          {t('crm.automations.panel.listMeta.runs')}:{' '}
-                          <strong className="text-slate-800">{automation.executionCount}</strong>
-                        </span>
-                        {automation.errorCount > 0 && (
-                          <span className="text-rose-600">
-                            {t('crm.automations.panel.listMeta.errors')}:{' '}
-                            <strong>{automation.errorCount}</strong>
+                    </React.Fragment>
+                  ))}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Main content card ──────────────────────────────────────────── */}
+        <div style={{ background: '#fff', border: `1px solid ${LINE2}`, borderRadius: 16, overflow: 'hidden' }}>
+
+          {/* Tabs + toolbar */}
+          <div style={{ padding: '0 20px', borderBottom: `1px solid ${LINE3}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              {/* Tabs */}
+              <div style={{ display: 'flex', gap: 0 }}>
+                {(['automations', 'history', 'usage'] as TabId[]).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveTab(tab)}
+                    style={{
+                      fontFamily: FF_MONO,
+                      fontSize: 10,
+                      letterSpacing: '0.15em',
+                      textTransform: 'uppercase',
+                      padding: '14px 16px 12px',
+                      background: 'none',
+                      border: 'none',
+                      borderBottom: activeTab === tab ? `2px solid ${INK}` : '2px solid transparent',
+                      color: activeTab === tab ? INK : FG3,
+                      fontWeight: activeTab === tab ? 700 : 400,
+                      cursor: 'pointer',
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    {tabLabels[tab]}
+                  </button>
+                ))}
+              </div>
+
+              {/* Toolbar */}
+              {(activeTab === 'automations' || activeTab === 'history') && (
+                <div style={{ display: 'flex', gap: 8, padding: '8px 0', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${LINE2}`, borderRadius: 8, padding: '5px 10px', background: '#fff' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={FG4} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" />
+                    </svg>
+                    <input
+                      value={activeTab === 'history' ? execSearch : search}
+                      onChange={(e) => activeTab === 'history' ? setExecSearch(e.target.value) : setSearch(e.target.value)}
+                      placeholder={activeTab === 'history' ? t('crm.automations.panel.history.searchPlaceholder') : t('crm.automations.panel.searchPlaceholder')}
+                      style={{ fontFamily: FF_DISPLAY, fontSize: 12, outline: 'none', border: 'none', color: INK, width: 180, background: 'transparent' }}
+                    />
+                  </div>
+                  {activeTab === 'automations' && (
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                      style={selectStyle}
+                    >
+                      <option value="all">{t('crm.automations.panel.filters.all')}</option>
+                      <option value="active">{t('crm.automations.panel.filters.active')}</option>
+                      <option value="inactive">{t('crm.automations.panel.filters.inactive')}</option>
+                    </select>
+                  )}
+                  {activeTab === 'history' && (
+                    <select
+                      value={execStatus}
+                      onChange={(e) => setExecStatus(e.target.value)}
+                      style={selectStyle}
+                    >
+                      <option value="">{t('crm.automations.panel.history.allStatuses')}</option>
+                      <option value="success">{t('crm.automations.panel.history.statusSuccess')}</option>
+                      <option value="error">{t('crm.automations.panel.history.statusError')}</option>
+                      <option value="pending">{t('crm.automations.panel.history.statusPending')}</option>
+                      <option value="skipped">{t('crm.automations.panel.history.statusSkipped')}</option>
+                    </select>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* ── Automations tab ──────────────────────────────────────────── */}
+          {activeTab === 'automations' && (
+            <div>
+              {error && (
+                <div style={{ margin: 16, padding: '10px 14px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, color: '#dc2626' }}>
+                  {error}
+                </div>
+              )}
+              {loading && (
+                <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 12, color: FG4 }}>
+                  {t('crm.automations.list.loading')}
+                </div>
+              )}
+              {!loading && !error && filtered.length === 0 && (
+                <div style={{ padding: '48px 20px', textAlign: 'center', fontSize: 13, color: FG3 }}>
+                  {t('crm.automations.list.empty')}
+                </div>
+              )}
+              {!loading && !error && filtered.length > 0 && (
+                <div className="auto-list-table" style={{ overflowX: 'auto' }}>
+                  {/* Header row */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '36px 1fr 200px 130px 100px 36px',
+                    gap: 0,
+                    padding: '8px 20px',
+                    borderBottom: `1px solid ${LINE3}`,
+                    background: BG_MUTED,
+                    minWidth: 680,
+                  }}>
+                    {[
+                      '',
+                      t('crm.automations.panel.table.colName'),
+                      t('crm.automations.panel.table.colLastRun'),
+                      t('crm.automations.panel.table.colRuns'),
+                      t('crm.automations.panel.table.colStatus'),
+                      '',
+                    ].map((h, i) => (
+                      <div key={i} style={{ fontFamily: FF_MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG4, padding: '0 8px', alignSelf: 'center' }}>
+                        {h}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Data rows */}
+                  {filtered.map((automation) => (
+                    <div
+                      key={automation.id}
+                      className="auto-list-row"
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '36px 1fr 200px 130px 100px 36px',
+                        gap: 0,
+                        padding: '0 20px',
+                        borderBottom: `1px solid ${LINE3}`,
+                        minWidth: 680,
+                        alignItems: 'center',
+                        cursor: 'pointer',
+                        transition: 'background 0.1s',
+                      }}
+                      onClick={() => handleOpen(automation.id)}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = BG_MUTED; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#fff'; }}
+                    >
+                      {/* Icon */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px 0' }}>
+                        <div style={{ width: 32, height: 32, borderRadius: 8, background: automation.isActive ? '#f0fdf4' : BG_SOFT, border: `1px solid ${automation.isActive ? '#bbf7d0' : LINE2}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={automation.isActive ? '#16a34a' : FG4} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Name + flow */}
+                      <div style={{ padding: '12px 8px' }}>
+                        <div style={{ fontWeight: 500, fontSize: 13, color: INK, lineHeight: 1.3 }}>
+                          {automation.name}
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
+                          <span style={{ fontFamily: FF_MONO, fontSize: 10, padding: '2px 6px', borderRadius: 4, background: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd' }}>
+                            {getTriggerLabel(automation.triggerEvent, t)}
                           </span>
+                          {automation.actions.slice(0, 2).map((a, i) => (
+                            <React.Fragment key={i}>
+                              <span style={{ color: FG4, fontSize: 10 }}>→</span>
+                              <span style={{ fontFamily: FF_MONO, fontSize: 10, padding: '2px 6px', borderRadius: 4, background: LINE3, color: FG2, border: `1px solid ${LINE2}` }}>
+                                {getActionLabel(a.type, t)}
+                              </span>
+                            </React.Fragment>
+                          ))}
+                          {automation.actions.length > 2 && (
+                            <span style={{ fontFamily: FF_MONO, fontSize: 10, color: FG4 }}>
+                              +{automation.actions.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Last run */}
+                      <div style={{ padding: '12px 8px', fontSize: 11, color: FG3 }}>
+                        {(automation as any).lastExecutedAt
+                          ? new Date((automation as any).lastExecutedAt).toLocaleString()
+                          : '—'}
+                      </div>
+
+                      {/* Run count + errors */}
+                      <div style={{ padding: '12px 8px' }}>
+                        <div style={{ fontFamily: FF_MONO, fontSize: 12, color: INK, fontWeight: 500 }}>
+                          {automation.executionCount}
+                        </div>
+                        {automation.errorCount > 0 && (
+                          <div style={{ fontFamily: FF_MONO, fontSize: 10, color: '#dc2626', marginTop: 2 }}>
+                            {t('crm.automations.panel.table.errorsShort', {
+                              count: automation.errorCount,
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Status badge */}
+                      <div style={{ padding: '12px 8px' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 20, background: automation.isActive ? '#f0fdf4' : BG_SOFT, border: `1px solid ${automation.isActive ? '#bbf7d0' : LINE2}` }}>
+                          <span style={{ width: 6, height: 6, borderRadius: '50%', background: automation.isActive ? '#16a34a' : FG4, display: 'inline-block', flexShrink: 0 }} />
+                          <span style={{ fontFamily: FF_MONO, fontSize: 10, color: automation.isActive ? '#15803d' : FG3, fontWeight: 600 }}>
+                            {automation.isActive
+                              ? t('crm.automations.panel.table.statusActive')
+                              : t('crm.automations.panel.table.statusPaused')}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* More / context menu */}
+                      <div
+                        style={{ padding: '12px 0', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setOpenMenuId(openMenuId === automation.id ? null : automation.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: FG3, borderRadius: 6, lineHeight: 1 }}
+                        >
+                          ···
+                        </button>
+                        {openMenuId === automation.id && (
+                          <div
+                            style={{
+                              position: 'absolute',
+                              right: 0,
+                              top: '100%',
+                              zIndex: 50,
+                              background: '#fff',
+                              border: `1px solid ${LINE2}`,
+                              borderRadius: 10,
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                              minWidth: 160,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            {[
+                              { label: t('crm.automations.panel.edit'), onClick: () => { handleOpen(automation.id); setOpenMenuId(null); } },
+                              { label: t('crm.automations.panel.actions.duplicate'), onClick: () => { void handleDuplicate(automation); setOpenMenuId(null); } },
+                              {
+                                label: automation.isActive
+                                  ? t('crm.automations.panel.table.menuPause')
+                                  : t('crm.automations.panel.table.menuActivate'),
+                                onClick: () => {
+                                  void handleToggle(automation);
+                                  setOpenMenuId(null);
+                                },
+                              },
+                              { label: t('crm.automations.panel.actions.sendNow'), onClick: () => { openRunModal(automation); setOpenMenuId(null); } },
+                              { label: t('crm.automations.list.delete'), onClick: (e: React.MouseEvent) => { void handleDelete(automation.id, e); setOpenMenuId(null); }, danger: true },
+                            ].map((item) => (
+                              <button
+                                key={item.label}
+                                type="button"
+                                onClick={item.onClick as any}
+                                style={{
+                                  fontFamily: FF_DISPLAY,
+                                  display: 'block',
+                                  width: '100%',
+                                  textAlign: 'left',
+                                  padding: '8px 14px',
+                                  fontSize: 12,
+                                  background: 'none',
+                                  border: 'none',
+                                  color: (item as any).danger ? '#dc2626' : INK,
+                                  cursor: 'pointer',
+                                  borderTop: `1px solid ${LINE3}`,
+                                }}
+                                onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = BG_MUTED; }}
+                                onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; }}
+                              >
+                                {item.label}
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleDuplicate(automation)}
-                        className="text-xs text-slate-600 hover:text-[#222222]"
-                      >
-                        {t('crm.automations.panel.actions.duplicate')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openRunModal(automation)}
-                        disabled={runSubmittingId === automation.id}
-                        className={`text-xs font-medium ${
-                          runSubmittingId === automation.id
-                            ? 'text-slate-400 cursor-wait'
-                            : 'text-sky-700 hover:text-sky-900 hover:underline'
-                        }`}
-                      >
-                        {runSubmittingId === automation.id
-                          ? t('crm.automations.panel.actions.sendNowRunning')
-                          : t('crm.automations.panel.actions.sendNow')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleArchive(automation)}
-                        className={`text-xs ${
-                          automation.isActive
-                            ? 'text-slate-600 hover:text-[#222222]'
-                            : 'text-slate-300 cursor-default'
-                        }`}
-                        disabled={!automation.isActive}
-                      >
-                        {t('crm.automations.panel.actions.archive')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleOpen(automation.id)}
-                        className="text-xs font-medium text-[#222222] hover:underline"
-                      >
-                        {t('crm.automations.panel.edit')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleToggle(automation)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                          automation.isActive ? 'bg-emerald-500' : 'bg-slate-300'
-                        }`}
-                        aria-pressed={automation.isActive}
-                      >
-                        <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                            automation.isActive ? 'translate-x-5' : 'translate-x-1'
-                          }`}
-                        />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDelete(automation.id, e)}
-                        className="text-[11px] text-rose-600 hover:text-rose-700"
-                      >
-                        {t('crm.automations.list.delete')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeTab === 'history' && (
-            <div className="space-y-3">
-              <div>
-                <h2 className="text-sm font-semibold text-slate-900">
-                  {t('crm.automations.panel.history.title')}
-                </h2>
-                <p className="text-xs text-slate-600 mt-1 max-w-3xl leading-relaxed">
-                  {t('crm.automations.panel.history.subtitle')}
-                </p>
-              </div>
-              {execLoading ? (
-                <div className="text-xs text-slate-500">{t('crm.automations.list.loading')}</div>
-              ) : filteredExecutions.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-10 text-center text-sm text-slate-500">
-                  {t('crm.automations.panel.history.empty')}
-                </div>
-              ) : (
-                <div className="overflow-x-auto rounded-2xl border border-slate-200">
-                  <table className="w-full min-w-[720px] text-left text-xs">
-                    <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
-                      <tr>
-                        <th className="px-3 py-2 font-medium">
-                          {t('crm.automations.panel.history.colTime')}
-                        </th>
-                        <th className="px-3 py-2 font-medium">
-                          {t('crm.automations.panel.history.colAutomation')}
-                        </th>
-                        <th className="px-3 py-2 font-medium">
-                          {t('crm.automations.panel.history.colTrigger')}
-                        </th>
-                        <th className="px-3 py-2 font-medium">
-                          {t('crm.automations.panel.history.colStatus')}
-                        </th>
-                        <th className="px-3 py-2 font-medium">
-                          {t('crm.automations.panel.history.colEntity')}
-                        </th>
-                        <th className="px-3 py-2 font-medium">
-                          {t('crm.automations.panel.history.colActions')}
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredExecutions.map((row) => (
-                        <tr key={row.id} className="border-b border-slate-100 hover:bg-slate-50/80">
-                          <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
-                            {new Date(row.createdAt).toLocaleString()}
-                          </td>
-                          <td className="px-3 py-2">
-                            <button
-                              type="button"
-                              onClick={() => handleOpen(row.automationId)}
-                              className="text-left font-medium text-[#222222] hover:underline truncate max-w-[200px] block"
-                            >
-                              {row.automation?.name || row.automationId.slice(0, 8)}
-                            </button>
-                          </td>
-                          <td className="px-3 py-2 text-slate-600 max-w-[180px] truncate">
-                            {getTriggerLabel(row.triggerEvent, t)}
-                          </td>
-                          <td className="px-3 py-2">
-                            {row.status === 'success' && (
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 text-[10px] font-semibold">
-                                {t('crm.automations.panel.history.statusSuccess')}
-                              </span>
-                            )}
-                            {row.status === 'error' && (
-                              <span className="inline-flex items-center rounded-full bg-rose-50 text-rose-800 border border-rose-200 px-2 py-0.5 text-[10px] font-semibold">
-                                {t('crm.automations.panel.history.statusError')}
-                              </span>
-                            )}
-                            {row.status === 'pending' && (
-                              <span className="inline-flex rounded-full bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 text-[10px] font-semibold">
-                                {t('crm.automations.panel.history.statusPending')}
-                              </span>
-                            )}
-                            {row.status === 'skipped' && (
-                              <span className="inline-flex rounded-full bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 text-[10px] font-semibold">
-                                {t('crm.automations.panel.history.statusSkipped')}
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            {row.entityType ? (
-                              <span className="truncate max-w-[140px] block">
-                                {row.entityType}
-                                {row.entityId ? ` · ${row.entityId.slice(0, 8)}…` : ''}
-                              </span>
-                            ) : (
-                              '—'
-                            )}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">
-                            <div>{executionActionSummary(row, t)}</div>
-                            {row.status === 'error' && row.errorMessage && (
-                              <div
-                                className="mt-1 text-[10px] text-rose-700 max-w-[280px] leading-snug"
-                                title={row.errorMessage}
-                              >
-                                {t('crm.automations.panel.history.errorHint')}: {row.errorMessage}
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  ))}
                 </div>
               )}
             </div>
           )}
 
+          {/* ── History tab ──────────────────────────────────────────────── */}
+          {activeTab === 'history' && (
+            <div>
+              {execLoading ? (
+                <div style={{ padding: '32px 20px', textAlign: 'center', fontSize: 12, color: FG4 }}>
+                  {t('crm.automations.list.loading')}
+                </div>
+              ) : filteredExecutions.length === 0 ? (
+                <div style={{ padding: '48px 20px', textAlign: 'center', fontSize: 13, color: FG3 }}>
+                  {t('crm.automations.panel.history.empty')}
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  {/* Header */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '160px 1fr 160px 90px 140px 1fr',
+                    padding: '8px 20px',
+                    borderBottom: `1px solid ${LINE3}`,
+                    background: BG_MUTED,
+                    minWidth: 720,
+                  }}>
+                    {[
+                      t('crm.automations.panel.history.colTime'),
+                      t('crm.automations.panel.history.colAutomation'),
+                      t('crm.automations.panel.history.colTrigger'),
+                      t('crm.automations.panel.history.colStatus'),
+                      t('crm.automations.panel.history.colEntity'),
+                      t('crm.automations.panel.history.colActions'),
+                    ].map((h, i) => (
+                      <div key={i} style={{ fontFamily: FF_MONO, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG4, padding: '0 8px' }}>
+                        {h}
+                      </div>
+                    ))}
+                  </div>
+
+                  {filteredExecutions.map((row) => (
+                    <div
+                      key={row.id}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '160px 1fr 160px 90px 140px 1fr',
+                        padding: '0 20px',
+                        borderBottom: `1px solid ${LINE3}`,
+                        minWidth: 720,
+                        alignItems: 'center',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = BG_MUTED; }}
+                      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#fff'; }}
+                    >
+                      <div style={{ padding: '10px 8px', fontSize: 11, color: FG3, fontFamily: FF_MONO }}>
+                        {new Date(row.createdAt).toLocaleString()}
+                      </div>
+                      <div style={{ padding: '10px 8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpen(row.automationId)}
+                          style={{ fontFamily: FF_DISPLAY, fontSize: 12, fontWeight: 500, color: INK, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                        >
+                          {row.automation?.name || row.automationId.slice(0, 8)}
+                        </button>
+                      </div>
+                      <div style={{ padding: '10px 8px', fontSize: 11, color: FG3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {getTriggerLabel(row.triggerEvent, t)}
+                      </div>
+                      <div style={{ padding: '10px 8px' }}>
+                        {row.status === 'success' && (
+                          <span style={{ fontFamily: FF_MONO, fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0' }}>OK</span>
+                        )}
+                        {row.status === 'error' && (
+                          <span style={{ fontFamily: FF_MONO, fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#fef2f2', color: '#dc2626', border: '1px solid #fecaca' }}>ERR</span>
+                        )}
+                        {row.status === 'pending' && (
+                          <span style={{ fontFamily: FF_MONO, fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#fffbeb', color: '#d97706', border: '1px solid #fed7aa' }}>…</span>
+                        )}
+                        {row.status === 'skipped' && (
+                          <span style={{ fontFamily: FF_MONO, fontSize: 10, padding: '2px 7px', borderRadius: 10, background: BG_SOFT, color: FG3, border: `1px solid ${LINE2}` }}>SKIP</span>
+                        )}
+                      </div>
+                      <div style={{ padding: '10px 8px', fontSize: 11, color: FG3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {row.entityType ? `${row.entityType}${row.entityId ? ` · ${row.entityId.slice(0, 8)}…` : ''}` : '—'}
+                      </div>
+                      <div style={{ padding: '10px 8px', fontSize: 11, color: FG3 }}>
+                        <div>{executionActionSummary(row, t)}</div>
+                        {row.status === 'error' && row.errorMessage && (
+                          <div style={{ marginTop: 2, fontSize: 10, color: '#dc2626', lineHeight: 1.3 }} title={row.errorMessage}>
+                            {row.errorMessage.slice(0, 80)}{row.errorMessage.length > 80 ? '…' : ''}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Usage tab ────────────────────────────────────────────────── */}
           {activeTab === 'usage' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+            <div style={{ padding: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 20, flexWrap: 'wrap' }}>
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-900">
+                  <h2 style={{ fontFamily: FF_DISPLAY, fontSize: 14, fontWeight: 600, color: INK, margin: 0 }}>
                     {t('crm.automations.panel.usage.title')}
                   </h2>
-                  <p className="text-xs text-slate-600 mt-1 max-w-3xl leading-relaxed">
+                  <p style={{ fontSize: 12, color: FG3, margin: '4px 0 0', lineHeight: 1.5 }}>
                     {t('crm.automations.panel.usage.subtitle')}
                   </p>
                 </div>
-                <label className="flex items-center gap-2 text-xs text-slate-600">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: FG2 }}>
                   <span>{t('crm.automations.panel.usage.period')}</span>
                   <select
                     value={usageDays}
                     onChange={(e) => setUsageDays(Number(e.target.value))}
-                    className="rounded-xl border border-slate-200 bg-white px-2 py-1.5"
+                    style={selectStyle}
                   >
-                    <option value={7}>7</option>
-                    <option value={30}>30</option>
-                    <option value={90}>90</option>
+                    <option value={7}>{t('crm.automations.panel.usage.dayOption', { count: 7 })}</option>
+                    <option value={30}>{t('crm.automations.panel.usage.dayOption', { count: 30 })}</option>
+                    <option value={90}>{t('crm.automations.panel.usage.dayOption', { count: 90 })}</option>
                   </select>
                 </label>
               </div>
+
               {usageLoading ? (
-                <div className="text-xs text-slate-500">{t('crm.automations.list.loading')}</div>
+                <div style={{ textAlign: 'center', padding: '32px 0', fontSize: 12, color: FG4 }}>
+                  {t('crm.automations.list.loading')}
+                </div>
               ) : !usage || usage.executions.total === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50/50 px-4 py-10 text-center text-sm text-slate-500">
+                <div style={{ textAlign: 'center', padding: '48px 0', fontSize: 13, color: FG3 }}>
                   {t('crm.automations.panel.usage.empty')}
                 </div>
               ) : (
                 <>
-                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="text-[10px] uppercase text-slate-500 font-semibold tracking-wide">
-                        {t('crm.automations.panel.usage.runsTotal')}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
+                    {[
+                      { label: t('crm.automations.panel.usage.runsTotal'), value: usage.executions.total, accent: '' },
+                      { label: t('crm.automations.panel.usage.runsSuccess'), value: usage.executions.success, accent: '#f0fdf4' },
+                      { label: t('crm.automations.panel.usage.runsError'), value: usage.executions.error, accent: '#fef2f2' },
+                      { label: t('crm.automations.panel.usage.automations'), value: `${usage.automations.total} / ${usage.automations.active}`, accent: '' },
+                    ].map((card, i) => (
+                      <div key={i} style={{ padding: '16px', borderRadius: 12, background: card.accent || BG_SOFT, border: `1px solid ${LINE2}` }}>
+                        <div style={{ fontFamily: FF_MONO, fontSize: 10, letterSpacing: '0.15em', textTransform: 'uppercase', color: FG3, marginBottom: 8 }}>
+                          {card.label}
+                        </div>
+                        <div style={{ fontFamily: FF_DISPLAY, fontSize: 24, fontWeight: 700, color: INK }}>
+                          {card.value}
+                        </div>
                       </div>
-                      <div className="mt-1 text-2xl font-semibold text-slate-900">
-                        {usage.executions.total}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
-                      <div className="text-[10px] uppercase text-emerald-800 font-semibold tracking-wide">
-                        {t('crm.automations.panel.usage.runsSuccess')}
-                      </div>
-                      <div className="mt-1 text-2xl font-semibold text-emerald-900">
-                        {usage.executions.success}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-rose-200 bg-rose-50/40 p-4">
-                      <div className="text-[10px] uppercase text-rose-800 font-semibold tracking-wide">
-                        {t('crm.automations.panel.usage.runsError')}
-                      </div>
-                      <div className="mt-1 text-2xl font-semibold text-rose-900">
-                        {usage.executions.error}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <div className="text-[10px] uppercase text-slate-500 font-semibold tracking-wide">
-                        {t('crm.automations.panel.usage.automations')}
-                      </div>
-                      <div className="mt-1 text-2xl font-semibold text-slate-900">
-                        {usage.automations.total}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-1">
-                        {t('crm.automations.panel.usage.activeAutomations')}:{' '}
-                        <strong>{usage.automations.active}</strong>
-                      </div>
-                    </div>
+                    ))}
                   </div>
 
-                  <div className="grid gap-4 lg:grid-cols-2">
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <h3 className="text-xs font-semibold text-slate-800 mb-3">
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div style={{ border: `1px solid ${LINE2}`, borderRadius: 12, padding: 16, background: '#fff' }}>
+                      <h3 style={{ fontFamily: FF_DISPLAY, fontSize: 12, fontWeight: 600, color: INK, margin: '0 0 12px' }}>
                         {t('crm.automations.panel.usage.topTitle')}
                       </h3>
-                      <ul className="space-y-2 text-xs">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                         {usage.topAutomations.map((row) => (
-                          <li
-                            key={row.automationId}
-                            className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 last:border-0"
-                          >
+                          <div key={row.automationId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: `1px solid ${LINE3}` }}>
                             <button
                               type="button"
                               onClick={() => handleOpen(row.automationId)}
-                              className="text-left font-medium text-[#222222] hover:underline truncate"
+                              style={{ fontFamily: FF_DISPLAY, fontSize: 12, fontWeight: 500, color: INK, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}
                             >
                               {row.name}
                             </button>
-                            <span className="shrink-0 text-slate-600 tabular-nums">{row.runs}</span>
-                          </li>
+                            <span style={{ fontFamily: FF_MONO, fontSize: 11, color: FG3 }}>{row.runs}</span>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-                      <h3 className="text-xs font-semibold text-slate-800 mb-3">
+                    <div style={{ border: `1px solid ${LINE2}`, borderRadius: 12, padding: 16, background: '#fff' }}>
+                      <h3 style={{ fontFamily: FF_DISPLAY, fontSize: 12, fontWeight: 600, color: INK, margin: '0 0 12px' }}>
                         {t('crm.automations.panel.usage.triggersTitle')}
                       </h3>
-                      <ul className="space-y-2 text-xs">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
                         {usage.byTrigger.map((row) => (
-                          <li
-                            key={row.triggerEvent}
-                            className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 last:border-0"
-                          >
-                            <span className="text-slate-700 truncate">
+                          <div key={row.triggerEvent} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 0', borderBottom: `1px solid ${LINE3}` }}>
+                            <span style={{ fontSize: 12, color: FG2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '70%' }}>
                               {getTriggerLabel(row.triggerEvent, t)}
                             </span>
-                            <span className="shrink-0 text-slate-600 tabular-nums">{row.count}</span>
-                          </li>
+                            <span style={{ fontFamily: FF_MONO, fontSize: 11, color: FG3 }}>{row.count}</span>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   </div>
                 </>
               )}
             </div>
           )}
-        </section>
+        </div>
       </div>
 
+      {/* ── Run modal ────────────────────────────────────────────────────── */}
       {runModal && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          style={{
+            position: 'fixed', inset: 0, zIndex: 80, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+            background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)',
+          }}
           role="dialog"
           aria-modal="true"
           aria-labelledby="run-automation-modal-title"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) closeRunModal();
-          }}
+          onMouseDown={(e) => { if (e.target === e.currentTarget) closeRunModal(); }}
         >
-          <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white shadow-2xl overflow-hidden">
-            <div className="px-6 pt-6 pb-4 border-b border-slate-100 bg-gradient-to-br from-sky-50/80 to-white">
-              <h2 id="run-automation-modal-title" className="text-base font-semibold text-slate-900">
+          <div style={{ width: '100%', maxWidth: 440, borderRadius: 16, border: `1px solid ${LINE2}`, background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.18)', overflow: 'hidden', fontFamily: FF_DISPLAY }}>
+            <div style={{ padding: '20px 24px 16px', borderBottom: `1px solid ${LINE3}`, background: '#f8fbff' }}>
+              <h2 id="run-automation-modal-title" style={{ fontSize: 14, fontWeight: 600, color: INK, margin: 0 }}>
                 {t('crm.automations.panel.runModal.title')}
               </h2>
-              <p className="text-xs text-slate-600 mt-1 line-clamp-2">{runModal.name}</p>
+              <p style={{ fontSize: 11, color: FG3, margin: '4px 0 0' }}>{runModal.name}</p>
             </div>
-            <div className="px-6 py-5 space-y-4 max-h-[min(70vh,520px)] overflow-y-auto">
+            <div style={{ padding: '20px 24px', maxHeight: 'min(70vh, 520px)', overflowY: 'auto' }}>
               {runModalStep === 'ok' && (
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50/90 px-4 py-3 text-sm text-emerald-950">
+                <div style={{ padding: '10px 14px', borderRadius: 10, background: '#f0fdf4', border: '1px solid #bbf7d0', fontSize: 12, color: '#15803d', marginBottom: 12 }}>
                   {t('crm.automations.panel.runModal.success')}
                 </div>
               )}
               {runModalStep === 'form' && runModalErr && (
-                <div className="rounded-2xl border border-rose-200 bg-rose-50/90 px-4 py-3 text-sm text-rose-950">
+                <div style={{ padding: '10px 14px', borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, color: '#dc2626', marginBottom: 12 }}>
                   {runModalErr}
                 </div>
               )}
               {runModalStep === 'form' && (
-                <>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <p style={{ fontSize: 11, color: FG3, margin: 0, lineHeight: 1.5 }}>
                     {t('crm.automations.panel.runModal.hint')}
                   </p>
-                  <div className="space-y-2">
-                    <label className="block text-[11px] font-medium text-slate-600">
+                  <div>
+                    <label style={{ display: 'block', fontSize: 11, fontWeight: 500, color: FG2, marginBottom: 6 }}>
                       {t('crm.automations.panel.runModal.presetLabel')}
                     </label>
                     <select
                       value={runPreset}
-                      onChange={(e) =>
-                        setRunPreset(e.target.value as NonNullable<RunAutomationNowBody['rangePreset']>)
-                      }
-                      className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900"
+                      onChange={(e) => setRunPreset(e.target.value as NonNullable<RunAutomationNowBody['rangePreset']>)}
+                      style={{ ...selectStyle, width: '100%' }}
                     >
                       <option value="last_7_days">{t('crm.automations.panel.runModal.presets.last7')}</option>
-                      <option value="last_30_days">
-                        {t('crm.automations.panel.runModal.presets.last30')}
-                      </option>
+                      <option value="last_30_days">{t('crm.automations.panel.runModal.presets.last30')}</option>
                       <option value="this_month">{t('crm.automations.panel.runModal.presets.thisMonth')}</option>
                       <option value="yesterday">{t('crm.automations.panel.runModal.presets.yesterday')}</option>
                       <option value="custom">{t('crm.automations.panel.runModal.presets.custom')}</option>
                     </select>
                   </div>
                   {runPreset === 'custom' && (
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">{t('crm.automations.panel.runModal.dateFrom')}</label>
-                        <input
-                          type="date"
-                          value={runDateFrom}
-                          onChange={(e) => setRunDateFrom(e.target.value)}
-                          className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-                        />
+                        <label style={{ display: 'block', fontSize: 11, color: FG3, marginBottom: 5 }}>{t('crm.automations.panel.runModal.dateFrom')}</label>
+                        <input type="date" value={runDateFrom} onChange={(e) => setRunDateFrom(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-500 mb-1">{t('crm.automations.panel.runModal.dateTo')}</label>
-                        <input
-                          type="date"
-                          value={runDateTo}
-                          onChange={(e) => setRunDateTo(e.target.value)}
-                          className="w-full px-3 py-2 text-xs border border-slate-300 rounded-xl"
-                        />
+                        <label style={{ display: 'block', fontSize: 11, color: FG3, marginBottom: 5 }}>{t('crm.automations.panel.runModal.dateTo')}</label>
+                        <input type="date" value={runDateTo} onChange={(e) => setRunDateTo(e.target.value)} style={{ ...inputStyle, width: '100%', boxSizing: 'border-box' }} />
                       </div>
                     </div>
                   )}
                   {runPreset !== 'custom' && (
-                    <p className="text-[10px] text-slate-500">
+                    <p style={{ fontFamily: FF_MONO, fontSize: 10, color: FG4, margin: 0 }}>
                       {t('crm.automations.panel.runModal.rangePreview', { from: runDateFrom, to: runDateTo })}
                     </p>
                   )}
-                </>
+                </div>
               )}
             </div>
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex flex-wrap justify-end gap-2">
+            <div style={{ padding: '14px 24px', borderTop: `1px solid ${LINE3}`, background: BG_MUTED, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
               <button
                 type="button"
                 onClick={closeRunModal}
-                className="px-4 py-2 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-white"
+                style={{ fontFamily: FF_DISPLAY, fontSize: 12, padding: '7px 16px', borderRadius: 8, border: `1px solid ${LINE2}`, background: '#fff', color: FG2, cursor: 'pointer' }}
               >
-                {runModalStep === 'ok'
-                  ? t('crm.automations.panel.runModal.close')
-                  : t('crm.automations.panel.runModal.cancel')}
+                {runModalStep === 'ok' ? t('crm.automations.panel.runModal.close') : t('crm.automations.panel.runModal.cancel')}
               </button>
               {runModalStep === 'form' && (
                 <button
                   type="button"
                   disabled={Boolean(runSubmittingId)}
                   onClick={() => void submitRunModal()}
-                  className="px-4 py-2 text-xs rounded-xl bg-[#222222] text-white font-semibold hover:bg-black disabled:opacity-50"
+                  style={{ fontFamily: FF_DISPLAY, fontSize: 12, fontWeight: 600, padding: '7px 16px', borderRadius: 8, border: 'none', background: INK, color: '#fff', cursor: 'pointer', opacity: runSubmittingId ? 0.5 : 1 }}
                 >
                   {runSubmittingId ? t('crm.automations.panel.actions.sendNowRunning') : t('crm.automations.panel.runModal.submit')}
                 </button>

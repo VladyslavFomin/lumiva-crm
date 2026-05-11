@@ -114,6 +114,12 @@ export interface ListSalesParams {
   leadId?: string;
 }
 
+export interface SalesStatsParams extends ListSalesParams {
+  currencyMode?: 'native' | 'converted';
+  displayCurrency?: string;
+  rates?: Record<string, number>;
+}
+
 export interface SalesByStatusDto {
   status: SaleStatus;
   count: number;
@@ -193,6 +199,11 @@ function buildQuery(params: Record<string, any>): string {
 
 /* ───────────────────── API ───────────────────── */
 
+export async function fetchSaleById(id: string): Promise<Sale> {
+  const detail = await api.get<{ sale: Record<string, any> }>(`/sales/${id}`);
+  return detail.sale as unknown as Sale;
+}
+
 /** Список продаж с фильтрами и пагинацией */
 export async function fetchSales(
   params: ListSalesParams = {},
@@ -204,9 +215,13 @@ export async function fetchSales(
 
 /** Статистика по продажам */
 export async function fetchSalesStats(
-  params: ListSalesParams = {},
+  params: SalesStatsParams = {},
 ): Promise<SalesStats> {
-  const qs = buildQuery(params);
+  const payload: Record<string, any> = {
+    ...params,
+    rates: params.rates ? JSON.stringify(params.rates) : undefined,
+  };
+  const qs = buildQuery(payload);
   const url = `/sales/stats${qs}`;
   return api.get<SalesStats>(url);
 }

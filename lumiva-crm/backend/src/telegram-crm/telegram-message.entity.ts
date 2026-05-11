@@ -39,8 +39,8 @@ export class TelegramMessage {
   contact: TelegramContact;
 
   // ==== TELEGRAM ДАННЫЕ ====
-  @Column({ type: 'bigint', unique: true })
-  messageId: string; // Telegram message ID
+  @Column({ type: 'bigint' })
+  messageId: string; // Telegram message ID (unique per chatId, not globally)
 
   @Column({ type: 'bigint', nullable: true })
   chatId: string | null; // Telegram chat ID

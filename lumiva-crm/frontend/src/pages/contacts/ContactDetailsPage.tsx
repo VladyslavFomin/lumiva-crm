@@ -15,6 +15,7 @@ import {
   resolveLeadAssigneesDisplay,
   resolveProjectOwnersDisplay,
 } from '../../components/crm/OwnerAvatarsRow';
+import { SmsSendModal } from '../../components/sms/SmsSendModal';
 
 type TabId = 'main' | 'company' | 'leads' | 'projects';
 
@@ -23,6 +24,7 @@ export const ContactDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState<TabId>('main');
+  const [smsOpen, setSmsOpen] = useState(false);
   const [contact, setContact] = useState<Contact | null>(null);
   const [company, setCompany] = useState<Company | null>(null);
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -262,15 +264,30 @@ export const ContactDetailsPage: React.FC = () => {
                     <div className="text-[10px] text-slate-500 mb-1">
                       {t('crm.contacts.form.fields.phone')}
                     </div>
-                    <div className="text-xs text-slate-700">
+                    <div className="text-xs text-slate-700 flex items-center gap-2">
                       <a
                         href={`tel:${contact.phone}`}
                         className="text-blue-600 hover:text-blue-500"
                       >
                         {contact.phone}
                       </a>
+                      <button
+                        onClick={() => setSmsOpen(true)}
+                        title="Отправить SMS"
+                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+                      >
+                        SMS
+                      </button>
                     </div>
                   </div>
+                )}
+                {smsOpen && contact.phone && (
+                  <SmsSendModal
+                    phone={contact.phone}
+                    entityType="contact"
+                    entityId={contact.id}
+                    onClose={() => setSmsOpen(false)}
+                  />
                 )}
                 {contact.position && (
                   <div>

@@ -46,4 +46,9 @@ export class GoogleAdsOAuthStartDto {
   @IsString()
   @MaxLength(80)
   medium?: string;
+
+  /** Один рекламный аккаунт или синк всех активных клиентов под MCC (primaryId — Customer ID менеджерского счёта). */
+  @IsOptional()
+  @IsIn(['customer', 'mcc_managed'])
+  googleAdsAccountMode?: 'customer' | 'mcc_managed';
 }

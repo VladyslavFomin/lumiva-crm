@@ -21,15 +21,9 @@ export class TelegramCrmPublicController {
       this.log.warn('Telegram webhook: bot token not found');
       return { ok: true };
     }
-    try {
-      await this.telegramCrmService.handleIncomingMessage(
-        bot.tenantId,
-        botToken,
-        update,
-      );
-    } catch (e) {
-      this.log.error((e as Error).stack || (e as Error).message);
-    }
+    // Fire-and-forget: return ok immediately so Telegram doesn't time out waiting for AI
+    this.telegramCrmService.handleIncomingMessage(bot.tenantId, botToken, update)
+      .catch((e) => this.log.error((e as Error).stack || (e as Error).message));
     return { ok: true };
   }
 }

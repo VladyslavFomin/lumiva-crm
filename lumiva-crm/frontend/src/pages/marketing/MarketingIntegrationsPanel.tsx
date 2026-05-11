@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import {
   createMarketingIntegration,
   deleteMarketingIntegration,
+  fetchGoogleAdsManagedCustomers,
   fetchMarketingIntegrationSetupHints,
   fetchMarketingIntegrations,
   startGa4MarketingOAuth,
@@ -46,6 +47,58 @@ function normalizeIntegrationCurrency(raw: unknown): IntegrationCurrencyCode {
 function currencyFromRow(row: MarketingIntegrationRow): IntegrationCurrencyCode {
   const s = row.settings && typeof row.settings === 'object' ? row.settings : {};
   return normalizeIntegrationCurrency((s as Record<string, unknown>).currency);
+}
+
+const ADS_SYNC_LOOKBACK_MIN = 30;
+const ADS_SYNC_LOOKBACK_MAX = 731;
+const ADS_SYNC_LOOKBACK_DEFAULT = 730;
+
+function rowSupportsAdsSyncLookback(provider: string): boolean {
+  const p = String(provider || '').trim().toLowerCase();
+  return p === 'google_ads' || p === 'meta_ads';
+}
+
+function configuredAdsSyncLookbackDays(row: MarketingIntegrationRow): number | null {
+  const s =
+    row.settings && typeof row.settings === 'object' && !Array.isArray(row.settings)
+      ? (row.settings as Record<string, unknown>)
+      : {};
+  const raw =
+    s.syncLookbackDays ?? s.googleAdsSyncLookbackDays ?? s.adsSyncLookbackDays;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(
+    Math.max(Math.floor(n), ADS_SYNC_LOOKBACK_MIN),
+    ADS_SYNC_LOOKBACK_MAX,
+  );
+}
+
+type GoogleAdsAccountMode = 'customer' | 'mcc_managed';
+
+function googleAdsAccountModeFromSettings(row: MarketingIntegrationRow): GoogleAdsAccountMode {
+  const s =
+    row.settings && typeof row.settings === 'object' && !Array.isArray(row.settings)
+      ? (row.settings as Record<string, unknown>)
+      : {};
+  const m = String(s.googleAdsAccountMode || s.google_ads_account_mode || 'customer')
+    .trim()
+    .toLowerCase();
+  return m === 'mcc_managed' ? 'mcc_managed' : 'customer';
+}
+
+function formatGoogleAdsManagedIdList(raw: unknown): string {
+  if (!Array.isArray(raw) || !raw.length) return '';
+  const ids = raw
+    .map((x) => String(x ?? '').replace(/\D/g, '').trim())
+    .filter((id) => /^\d{6,15}$/.test(id));
+  return [...new Set(ids)].join(', ');
+}
+
+/** Пустая строка или только пробелы → синк всех (после исключений). */
+function parseManagedIdListField(text: string): string[] | undefined {
+  const parts = text.split(/[\s,;]+/).map((x) => x.replace(/\D/g, '').trim()).filter(Boolean);
+  const unique = [...new Set(parts)].filter((id) => /^\d{6,15}$/.test(id));
+  return unique.length ? unique : undefined;
 }
 
 function rowIsGa4Provider(provider: string): boolean {
@@ -103,6 +156,22 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [currencySavingId, setCurrencySavingId] = useState<string | null>(null);
+  const [lookbackDraft, setLookbackDraft] = useState<Record<string, string>>({});
+  const [lookbackSavingId, setLookbackSavingId] = useState<string | null>(null);
+  const [googleAdsAccountModeCreate, setGoogleAdsAccountModeCreate] =
+    useState<GoogleAdsAccountMode>('customer');
+  const [adsModeSavingId, setAdsModeSavingId] = useState<string | null>(null);
+  const [managedPreviewIntegrationId, setManagedPreviewIntegrationId] = useState<string | null>(
+    null,
+  );
+  const [managedPreviewBusy, setManagedPreviewBusy] = useState(false);
+  const [managedPreviewErr, setManagedPreviewErr] = useState<string | null>(null);
+  const [managedPreviewItems, setManagedPreviewItems] = useState<
+    Array<{ customerId: string; descriptiveName: string | null }>
+  >([]);
+  const [mccFilterSavingId, setMccFilterSavingId] = useState<string | null>(null);
+  const [mccIncludeDraft, setMccIncludeDraft] = useState<Record<string, string>>({});
+  const [mccExcludeDraft, setMccExcludeDraft] = useState<Record<string, string>>({});
   const [lastSyncRows, setLastSyncRows] = useState<number | null>(null);
 
   const [provider, setProvider] = useState<ProviderKey>('google_ads');
@@ -209,7 +278,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
     const pid = primaryId.trim();
     const cur = integrationCurrency;
     if (provider === 'google_ads') {
-      const settings: Record<string, string> = { currency: cur };
+      const settings: Record<string, unknown> = { currency: cur };
       const put = (k: string, v: string) => {
         const tv = v.trim();
         if (tv) settings[k] = tv;
@@ -221,6 +290,9 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
       put('loginCustomerId', adsLoginCustomer);
       put('source', adsSource);
       put('medium', adsMedium);
+      if (googleAdsAccountModeCreate === 'mcc_managed') {
+        settings.googleAdsAccountMode = 'mcc_managed';
+      }
       return {
         provider: 'google_ads',
         kind: 'ads',
@@ -368,6 +440,8 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
         loginCustomerId: adsLoginCustomer.trim() || undefined,
         source: adsSource.trim() || undefined,
         medium: adsMedium.trim() || undefined,
+        googleAdsAccountMode:
+          googleAdsAccountModeCreate === 'mcc_managed' ? 'mcc_managed' : undefined,
       });
       window.location.assign(url);
     } catch (e: unknown) {
@@ -426,6 +500,170 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
       setError(e instanceof Error ? e.message : t('crm.marketingIntegrations.errors.update'));
     } finally {
       setCurrencySavingId(null);
+    }
+  };
+
+  const onRowAdsLookbackCommit = async (row: MarketingIntegrationRow) => {
+    const draftVal = lookbackDraft[row.id];
+    if (draftVal === undefined) return;
+    const trimmed = draftVal.trim();
+    const configured = configuredAdsSyncLookbackDays(row);
+    const effectiveStr = configured !== null ? String(configured) : '';
+    if (trimmed === effectiveStr) {
+      setLookbackDraft((prev) => {
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      return;
+    }
+    if (trimmed !== '') {
+      const nRound = Math.round(Number(trimmed));
+      if (!Number.isFinite(nRound)) {
+        setError(t('crm.marketingIntegrations.errors.invalidLookback'));
+        setLookbackDraft((prev) => {
+          const next = { ...prev };
+          delete next[row.id];
+          return next;
+        });
+        return;
+      }
+    }
+    setLookbackSavingId(row.id);
+    setError(null);
+    try {
+      const base: Record<string, unknown> = {
+        ...(row.settings &&
+        typeof row.settings === 'object' &&
+        !Array.isArray(row.settings)
+          ? (row.settings as Record<string, unknown>)
+          : {}),
+      };
+      delete base.syncLookbackDays;
+      delete base.googleAdsSyncLookbackDays;
+      delete base.adsSyncLookbackDays;
+      if (trimmed !== '') {
+        const nClamped = Math.min(
+          Math.max(Math.round(Number(trimmed)), ADS_SYNC_LOOKBACK_MIN),
+          ADS_SYNC_LOOKBACK_MAX,
+        );
+        base.syncLookbackDays = nClamped;
+      }
+      await updateMarketingIntegration(row.id, { settings: base });
+      setLookbackDraft((prev) => {
+        const next = { ...prev };
+        delete next[row.id];
+        return next;
+      });
+      await refreshList();
+      onMarketingDataChanged?.();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : t('crm.marketingIntegrations.errors.update'));
+    } finally {
+      setLookbackSavingId(null);
+    }
+  };
+
+  const onRowGoogleAdsAccountMode = async (
+    row: MarketingIntegrationRow,
+    mode: GoogleAdsAccountMode,
+  ) => {
+    if (googleAdsAccountModeFromSettings(row) === mode) return;
+    setAdsModeSavingId(row.id);
+    setError(null);
+    try {
+      const base: Record<string, unknown> = {
+        ...(row.settings &&
+        typeof row.settings === 'object' &&
+        !Array.isArray(row.settings)
+          ? (row.settings as Record<string, unknown>)
+          : {}),
+      };
+      if (mode === 'mcc_managed') base.googleAdsAccountMode = 'mcc_managed';
+      else delete base.googleAdsAccountMode;
+      await updateMarketingIntegration(row.id, { settings: base });
+      setManagedPreviewIntegrationId(null);
+      setManagedPreviewErr(null);
+      setManagedPreviewItems([]);
+      await refreshList();
+      onMarketingDataChanged?.();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : t('crm.marketingIntegrations.errors.update'));
+    } finally {
+      setAdsModeSavingId(null);
+    }
+  };
+
+  const onToggleManagedCustomersPreview = async (rowId: string) => {
+    if (managedPreviewIntegrationId === rowId) {
+      setManagedPreviewIntegrationId(null);
+      setManagedPreviewErr(null);
+      setManagedPreviewItems([]);
+      return;
+    }
+    const rowSnap = list.find((r) => r.id === rowId);
+    if (
+      rowSnap?.settings &&
+      typeof rowSnap.settings === 'object' &&
+      !Array.isArray(rowSnap.settings)
+    ) {
+      const s = rowSnap.settings as Record<string, unknown>;
+      setMccIncludeDraft((p) => ({
+        ...p,
+        [rowId]: formatGoogleAdsManagedIdList(s.googleAdsManagedCustomerIds),
+      }));
+      setMccExcludeDraft((p) => ({
+        ...p,
+        [rowId]: formatGoogleAdsManagedIdList(s.googleAdsExcludedManagedCustomerIds),
+      }));
+    }
+    setManagedPreviewBusy(true);
+    setManagedPreviewErr(null);
+    setManagedPreviewIntegrationId(rowId);
+    try {
+      const r = await fetchGoogleAdsManagedCustomers(rowId);
+      setManagedPreviewItems(r.customers);
+    } catch (e: unknown) {
+      setManagedPreviewErr(
+        e instanceof Error
+          ? e.message
+          : t('crm.marketingIntegrations.form.ads.managedCustomersLoadError'),
+      );
+      setManagedPreviewItems([]);
+    } finally {
+      setManagedPreviewBusy(false);
+    }
+  };
+
+  const onSaveMccSyncFilters = async (row: MarketingIntegrationRow) => {
+    const rowId = row.id;
+    setMccFilterSavingId(rowId);
+    setError(null);
+    try {
+      const rowSettings =
+        row.settings && typeof row.settings === 'object' && !Array.isArray(row.settings)
+          ? (row.settings as Record<string, unknown>)
+          : {};
+      const includeParsed = parseManagedIdListField(
+        mccIncludeDraft[rowId] ??
+          formatGoogleAdsManagedIdList(rowSettings.googleAdsManagedCustomerIds),
+      );
+      const excludeParsed = parseManagedIdListField(
+        mccExcludeDraft[rowId] ??
+          formatGoogleAdsManagedIdList(rowSettings.googleAdsExcludedManagedCustomerIds),
+      );
+      const base: Record<string, unknown> = { ...rowSettings };
+      if (includeParsed?.length) base.googleAdsManagedCustomerIds = includeParsed;
+      else delete base.googleAdsManagedCustomerIds;
+      if (excludeParsed?.length) base.googleAdsExcludedManagedCustomerIds = excludeParsed;
+      else delete base.googleAdsExcludedManagedCustomerIds;
+      await updateMarketingIntegration(rowId, { settings: base });
+      await refreshList();
+      onMarketingDataChanged?.();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : t('crm.marketingIntegrations.errors.update'));
+    } finally {
+      setMccFilterSavingId(null);
     }
   };
 
@@ -547,6 +785,30 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                 autoComplete="off"
               />
             </div>
+            {provider === 'google_ads' && (
+              <div>
+                <label className={labelCls}>{t('crm.marketingIntegrations.form.ads.accountModeLabel')}</label>
+                <select
+                  className={inputCls}
+                  value={googleAdsAccountModeCreate}
+                  onChange={(e) =>
+                    setGoogleAdsAccountModeCreate(e.target.value as GoogleAdsAccountMode)
+                  }
+                >
+                  <option value="customer">
+                    {t('crm.marketingIntegrations.form.ads.accountModeCustomer')}
+                  </option>
+                  <option value="mcc_managed">
+                    {t('crm.marketingIntegrations.form.ads.accountModeMccManaged')}
+                  </option>
+                </select>
+                {googleAdsAccountModeCreate === 'mcc_managed' && (
+                  <p className="mt-1.5 text-[10px] text-[#222222]/50 leading-relaxed">
+                    {t('crm.marketingIntegrations.form.ads.accountModeMccLead')}
+                  </p>
+                )}
+              </div>
+            )}
             <div>
               <label className={labelCls}>{t('crm.marketingIntegrations.form.primaryId')}</label>
               <input
@@ -554,8 +816,10 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                 value={primaryId}
                 onChange={(e) => setPrimaryId(e.target.value)}
                 placeholder={
-                  provider === 'google_ads' && adsPlatformOAuth
-                    ? t('crm.marketingIntegrations.form.primaryIdHintGoogleAds')
+                  provider === 'google_ads'
+                    ? googleAdsAccountModeCreate === 'mcc_managed'
+                      ? t('crm.marketingIntegrations.form.ads.primaryIdPlaceholderMcc')
+                      : t('crm.marketingIntegrations.form.primaryIdHintGoogleAds')
                     : provider === 'google_analytics' && ga4OAuthWizard
                       ? t('crm.marketingIntegrations.form.primaryIdHintGa4')
                       : t('crm.marketingIntegrations.form.primaryIdHint')
@@ -889,7 +1153,12 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                     <select
                       className="mt-0 w-full rounded-xl border border-[#222222]/16 bg-white px-2.5 py-2 text-[12px] font-medium text-[#222222] outline-none h-10 shadow-[inset_0_1px_2px_rgba(34,34,34,0.04)] focus:border-[#222222] focus:ring-2 focus:ring-[#222222]/10"
                       value={currencyFromRow(row)}
-                      disabled={currencySavingId === row.id || deletingId !== null}
+                      disabled={
+                        currencySavingId === row.id ||
+                        lookbackSavingId === row.id ||
+                        adsModeSavingId === row.id ||
+                        deletingId !== null
+                      }
                       onChange={(e) => {
                         const v = e.target.value as IntegrationCurrencyCode;
                         void onRowCurrencyChange(row, v);
@@ -902,9 +1171,102 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                       ))}
                     </select>
                   </label>
+                  {row.provider === 'google_ads' && (
+                    <label className="flex min-w-[120px] max-w-[174px] flex-col gap-1">
+                      <span className="text-[9px] font-semibold uppercase tracking-wide text-[#222222]/45 px-0.5">
+                        {t('crm.marketingIntegrations.form.ads.accountModeLabel')}
+                      </span>
+                      <select
+                        className="mt-0 w-full rounded-xl border border-[#222222]/16 bg-white px-2 py-2 text-[11px] font-medium text-[#222222] outline-none h-10 shadow-[inset_0_1px_2px_rgba(34,34,34,0.04)] focus:border-[#222222] focus:ring-2 focus:ring-[#222222]/10"
+                        value={googleAdsAccountModeFromSettings(row)}
+                        disabled={
+                          adsModeSavingId === row.id ||
+                          currencySavingId === row.id ||
+                          lookbackSavingId === row.id ||
+                          syncingId !== null ||
+                          deletingId !== null
+                        }
+                        onChange={(e) =>
+                          void onRowGoogleAdsAccountMode(
+                            row,
+                            e.target.value as GoogleAdsAccountMode,
+                          )
+                        }
+                      >
+                        <option value="customer">
+                          {t('crm.marketingIntegrations.form.ads.accountModeCustomer')}
+                        </option>
+                        <option value="mcc_managed">
+                          {t('crm.marketingIntegrations.form.ads.accountModeMccManaged')}
+                        </option>
+                      </select>
+                    </label>
+                  )}
+                  {row.provider === 'google_ads' &&
+                    googleAdsAccountModeFromSettings(row) === 'mcc_managed' && (
+                      <button
+                        type="button"
+                        className={`${btnSecondary} h-10 shrink-0 self-end px-3 max-w-[9.5rem] text-center leading-snug`}
+                        disabled={
+                          !row.isActive || oauthRowId !== null || adsModeSavingId === row.id
+                        }
+                        onClick={() => void onToggleManagedCustomersPreview(row.id)}
+                      >
+                        {managedPreviewBusy && managedPreviewIntegrationId === row.id
+                          ? '…'
+                          : managedPreviewIntegrationId === row.id
+                            ? t('crm.marketingIntegrations.form.ads.managedCustomersHide')
+                            : t('crm.marketingIntegrations.form.ads.managedCustomersButton')}
+                      </button>
+                    )}
+                  {rowSupportsAdsSyncLookback(row.provider) && (
+                    <label
+                      className="flex min-w-[72px] max-w-[104px] flex-col gap-1"
+                      title={t('crm.marketingIntegrations.table.syncLookbackHint', {
+                        defaultDays: ADS_SYNC_LOOKBACK_DEFAULT,
+                      })}
+                    >
+                      <span className="text-[9px] font-semibold uppercase tracking-wide text-[#222222]/45 px-0.5">
+                        {t('crm.marketingIntegrations.table.syncLookbackShort')}
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={ADS_SYNC_LOOKBACK_MIN}
+                        max={ADS_SYNC_LOOKBACK_MAX}
+                        placeholder={String(ADS_SYNC_LOOKBACK_DEFAULT)}
+                        className="mt-0 w-full rounded-xl border border-[#222222]/16 bg-white px-2.5 py-2 text-[12px] font-medium text-[#222222] outline-none h-10 shadow-[inset_0_1px_2px_rgba(34,34,34,0.04)] focus:border-[#222222] focus:ring-2 focus:ring-[#222222]/10"
+                        value={
+                          lookbackDraft[row.id] ??
+                          (configuredAdsSyncLookbackDays(row) !== null
+                            ? String(configuredAdsSyncLookbackDays(row))
+                            : '')
+                        }
+                        disabled={
+                          lookbackSavingId === row.id ||
+                          currencySavingId === row.id ||
+                          adsModeSavingId === row.id ||
+                          deletingId !== null
+                        }
+                        onChange={(e) =>
+                          setLookbackDraft((prev) => ({
+                            ...prev,
+                            [row.id]: e.target.value,
+                          }))
+                        }
+                        onBlur={() => void onRowAdsLookbackCommit(row)}
+                      />
+                    </label>
+                  )}
                   <button
                     type="button"
-                    disabled={!row.isActive || syncingId !== null || currencySavingId === row.id}
+                    disabled={
+                      !row.isActive ||
+                      syncingId !== null ||
+                      currencySavingId === row.id ||
+                      lookbackSavingId === row.id ||
+                      adsModeSavingId === row.id
+                    }
                     onClick={() => onSync(row.id)}
                     className="inline-flex h-10 shrink-0 items-center justify-center self-end rounded-xl bg-[#222222] px-4 text-[11px] font-semibold text-white transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
                   >
@@ -915,7 +1277,9 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                   {row.provider === 'google_ads' && adsOAuthWizard && (
                     <button
                       type="button"
-                      disabled={oauthRowId !== null || deletingId !== null}
+                      disabled={
+                        oauthRowId !== null || deletingId !== null || adsModeSavingId === row.id
+                      }
                       onClick={() => void startGoogleAdsOAuthReconnect(row.id)}
                       className={`${btnSecondary} h-10 shrink-0 self-end px-3`}
                     >
@@ -945,6 +1309,126 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                     {deletingId === row.id ? '…' : t('crm.marketingIntegrations.actions.delete')}
                   </button>
                 </div>
+                {row.provider === 'google_ads' && managedPreviewIntegrationId === row.id && (
+                  <div className="w-full shrink-0 border-t border-[#222222]/10 bg-white/65 px-4 py-3 text-[11px] text-[#222222]/85">
+                    <div className="font-semibold text-[#222222]/65 mb-1.5">
+                      {t('crm.marketingIntegrations.form.ads.managedCustomersCaption')}
+                    </div>
+                    {managedPreviewBusy ? (
+                      <div className="text-[#222222]/50">…</div>
+                    ) : managedPreviewErr ? (
+                      <div className="text-red-700">{managedPreviewErr}</div>
+                    ) : managedPreviewItems.length === 0 ? (
+                      <div className="text-[#222222]/55">
+                        {t('crm.marketingIntegrations.form.ads.managedCustomersEmpty')}
+                      </div>
+                    ) : (
+                      <ul className="max-h-52 overflow-auto space-y-1 font-mono text-[10px]">
+                        {managedPreviewItems.map((c) => (
+                          <li key={c.customerId}>
+                            <span className="font-semibold">{c.customerId}</span>
+                            {c.descriptiveName ? ` — ${c.descriptiveName}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {googleAdsAccountModeFromSettings(row) === 'mcc_managed' &&
+                      !managedPreviewBusy && (
+                        <div className="mt-3 space-y-3 border-t border-[#222222]/10 pt-3">
+                          <label className="block">
+                            <span className="text-[10px] font-semibold text-[#222222]/55 uppercase tracking-wide">
+                              {t(
+                                'crm.marketingIntegrations.form.ads.managedSyncIncludeLabel',
+                              )}
+                            </span>
+                            <textarea
+                              className={`${inputCls} mt-1 min-h-[52px] resize-y font-mono text-[10px]`}
+                              rows={2}
+                              value={
+                                mccIncludeDraft[row.id] ??
+                                formatGoogleAdsManagedIdList(
+                                  (row.settings as Record<string, unknown> | undefined)
+                                    ?.googleAdsManagedCustomerIds,
+                                )
+                              }
+                              onChange={(e) =>
+                                setMccIncludeDraft((p) => ({
+                                  ...p,
+                                  [row.id]: e.target.value,
+                                }))
+                              }
+                              disabled={
+                                mccFilterSavingId === row.id ||
+                                syncingId !== null ||
+                                deletingId !== null ||
+                                adsModeSavingId === row.id ||
+                                oauthRowId !== null
+                              }
+                            />
+                            <p className="mt-1 text-[10px] leading-relaxed text-[#222222]/45">
+                              {t(
+                                'crm.marketingIntegrations.form.ads.managedSyncIncludeHint',
+                              )}
+                            </p>
+                          </label>
+                          <label className="block">
+                            <span className="text-[10px] font-semibold text-[#222222]/55 uppercase tracking-wide">
+                              {t(
+                                'crm.marketingIntegrations.form.ads.managedSyncExcludeLabel',
+                              )}
+                            </span>
+                            <textarea
+                              className={`${inputCls} mt-1 min-h-[52px] resize-y font-mono text-[10px]`}
+                              rows={2}
+                              value={
+                                mccExcludeDraft[row.id] ??
+                                formatGoogleAdsManagedIdList(
+                                  (row.settings as Record<string, unknown> | undefined)
+                                    ?.googleAdsExcludedManagedCustomerIds,
+                                )
+                              }
+                              onChange={(e) =>
+                                setMccExcludeDraft((p) => ({
+                                  ...p,
+                                  [row.id]: e.target.value,
+                                }))
+                              }
+                              disabled={
+                                mccFilterSavingId === row.id ||
+                                syncingId !== null ||
+                                deletingId !== null ||
+                                adsModeSavingId === row.id ||
+                                oauthRowId !== null
+                              }
+                            />
+                            <p className="mt-1 text-[10px] leading-relaxed text-[#222222]/45">
+                              {t(
+                                'crm.marketingIntegrations.form.ads.managedSyncExcludeHint',
+                              )}
+                            </p>
+                          </label>
+                          <button
+                            type="button"
+                            className={`${btnSecondary} px-3 py-2`}
+                            disabled={
+                              mccFilterSavingId === row.id ||
+                              syncingId !== null ||
+                              deletingId !== null ||
+                              adsModeSavingId === row.id ||
+                              oauthRowId !== null
+                            }
+                            onClick={() => void onSaveMccSyncFilters(row)}
+                          >
+                            {mccFilterSavingId === row.id
+                              ? '…'
+                              : t(
+                                  'crm.marketingIntegrations.form.ads.managedSyncFiltersSave',
+                                )}
+                          </button>
+                        </div>
+                      )}
+                  </div>
+                )}
               </div>
             ))}
           </div>

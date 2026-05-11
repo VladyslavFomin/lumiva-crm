@@ -227,6 +227,15 @@ export class MarketingController {
     return this.marketing.listSegments(this.requireTenant(user));
   }
 
+  @Get('segments/:id')
+  @UseGuards(JwtAuthGuard)
+  getSegment(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+  ) {
+    return this.marketing.getSegment(this.requireTenant(user), id);
+  }
+
   @Post('segments')
   @UseGuards(JwtAuthGuard)
   createSegment(
@@ -387,7 +396,7 @@ export class MarketingController {
     return this.marketing.deleteMarketingIntegration(this.requireTenant(user), id);
   }
 
-  /** Курсы EUR/GBP/TRY/RUB для пересчёта расходов в отчётах маркетинга (Frankfurter / ECB). */
+  /** Курсы Frankfurter (ECB): полный набор валют для пересчёта в выбранную валюту отчёта. */
   @Get('fx-rates')
   @UseGuards(JwtAuthGuard)
   marketingFxRates(
@@ -420,6 +429,21 @@ export class MarketingController {
       message,
       syncSummary: message,
     };
+  }
+
+  /**
+   * Дети MCC: какие клиентские рекламные аккаунты увидит синк в режиме mcc_managed.
+   */
+  @Get('integrations/:id/google-ads/managed-customers')
+  @UseGuards(JwtAuthGuard)
+  googleAdsManagedCustomers(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.marketing.listGoogleAdsManagedCustomersForIntegration(
+      this.requireTenant(user),
+      id,
+    );
   }
 
   // --- Google Ads (ручной запуск из UI) ---

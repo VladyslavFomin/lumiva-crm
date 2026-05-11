@@ -88,6 +88,8 @@ export enum ActionType {
   SEND_ZAPIER = 'send_zapier',
   /** WhatsApp Cloud API (third_party_link · whatsapp) */
   SEND_WHATSAPP = 'send_whatsapp',
+  /** SMS через Twilio / SMSC.ru / SMS.ru (настройки в sms_configs) */
+  SEND_SMS = 'send_sms',
   /** Google Calendar — событие по OAuth-токену (third_party_link · google_calendar) */
   SEND_GOOGLE_CALENDAR = 'send_google_calendar',
   /** Microsoft 365 / Outlook — событие в календаре (third_party_link · outlook) */

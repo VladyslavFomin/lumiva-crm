@@ -67,17 +67,61 @@ export const StaffPermissionsPage: React.FC = () => {
     }),
     [t],
   );
-  const permissions = useMemo(
-    (): { key: PermissionKey; label: string }[] => [
-      { key: 'leads', label: t('crm.staff.permissions.leads') },
-      { key: 'projects', label: t('crm.staff.permissions.projects') },
-      { key: 'staff', label: t('crm.staff.permissions.staff') },
-      { key: 'finance', label: t('crm.staff.permissions.finance') },
-      { key: 'analytics', label: t('crm.staff.permissions.analytics') },
-      { key: 'settings', label: t('crm.staff.permissions.settings') },
-      { key: 'chat', label: t('crm.staff.permissions.chat') },
+  type PermissionGroup = {
+    groupLabel: string;
+    items: { key: PermissionKey; label: string; hint?: string }[];
+  };
+
+  const permissionGroups = useMemo(
+    (): PermissionGroup[] => [
+      {
+        groupLabel: t('crm.staff.permissions.group.crm'),
+        items: [
+          { key: 'leads', label: t('crm.staff.permissions.leads') },
+          { key: 'contacts', label: t('crm.staff.permissions.contacts') },
+          { key: 'companies', label: t('crm.staff.permissions.companies') },
+          { key: 'projects', label: t('crm.staff.permissions.projects') },
+          { key: 'analytics', label: t('crm.staff.permissions.analytics') },
+          { key: 'finance', label: t('crm.staff.permissions.finance') },
+        ],
+      },
+      {
+        groupLabel: t('crm.staff.permissions.group.communication'),
+        items: [
+          { key: 'chat', label: t('crm.staff.permissions.chat') },
+          { key: 'email', label: t('crm.staff.permissions.email') },
+          { key: 'marketing', label: t('crm.staff.permissions.marketing') },
+        ],
+      },
+      {
+        groupLabel: t('crm.staff.permissions.group.tools'),
+        items: [
+          { key: 'tools_automation', label: t('crm.staff.permissions.tools_automation') },
+          { key: 'custom_objects', label: t('crm.staff.permissions.custom_objects') },
+        ],
+      },
+      {
+        groupLabel: t('crm.staff.permissions.group.admin'),
+        items: [
+          {
+            key: 'staff',
+            label: t('crm.staff.permissions.staff'),
+            hint: t('crm.staff.permissions.hint.staff'),
+          },
+          {
+            key: 'settings',
+            label: t('crm.staff.permissions.settings'),
+            hint: t('crm.staff.permissions.hint.settings'),
+          },
+        ],
+      },
     ],
     [t],
+  );
+
+  const permissions = useMemo(
+    () => permissionGroups.flatMap((g) => g.items),
+    [permissionGroups],
   );
 
   // --- загрузка из API ---
@@ -263,28 +307,35 @@ export const StaffPermissionsPage: React.FC = () => {
             <table className="min-w-full text-xs border-separate border-spacing-y-1">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left px-3 py-2">{t('crm.staff.permissions.table.module')}</th>
+                  <th className="text-left px-3 py-2 min-w-[180px]">{t('crm.staff.permissions.table.module')}</th>
                   {ROLES_UI.map((role) => (
-                    <th key={role} className="px-3 py-2 text-center">
+                    <th key={role} className="px-3 py-2 text-center whitespace-nowrap">
                       {roleLabels[role]}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                    {permissions.map((perm) => (
-                      <tr
-                        key={perm.key}
-                        className="bg-white hover:bg-slate-50"
-                      >
-                    <td className="px-3 py-2 text-lumiva-accent font-medium">
-                      {perm.label}
-                    </td>
-                    {ROLES_UI.map((role) => (
+                {permissionGroups.map((group) => (
+                  <React.Fragment key={group.groupLabel}>
+                    <tr>
                       <td
-                        key={role}
-                        className="px-3 py-2 text-center align-middle"
+                        colSpan={ROLES_UI.length + 1}
+                        className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400"
                       >
+                        {group.groupLabel}
+                      </td>
+                    </tr>
+                    {group.items.map((perm) => (
+                      <tr key={perm.key} className="bg-white hover:bg-slate-50">
+                        <td className="px-3 py-2">
+                          <span className="font-medium text-lumiva-accent">{perm.label}</span>
+                          {perm.hint && (
+                            <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{perm.hint}</div>
+                          )}
+                        </td>
+                        {ROLES_UI.map((role) => (
+                          <td key={role} className="px-3 py-2 text-center align-middle">
                             <button
                               type="button"
                               onClick={() => toggleCell(role, perm.key)}
@@ -302,9 +353,11 @@ export const StaffPermissionsPage: React.FC = () => {
                                 }
                               />
                             </button>
-                      </td>
+                          </td>
+                        ))}
+                      </tr>
                     ))}
-                  </tr>
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
@@ -357,38 +410,53 @@ export const StaffPermissionsPage: React.FC = () => {
               <table className="min-w-full text-xs border-separate border-spacing-y-1">
                 <thead className="text-slate-500">
                   <tr>
-                    <th className="text-left px-3 py-2">{t('crm.staff.permissions.table.module')}</th>
+                    <th className="text-left px-3 py-2 min-w-[200px]">{t('crm.staff.permissions.table.module')}</th>
                     <th className="text-left px-3 py-2">{t('crm.staff.permissions.user.access')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {permissions.map((perm) => {
-                    const on = currentUserPerms.has(perm.key);
-                    return (
-                      <tr key={perm.key} className="bg-white hover:bg-slate-50">
-                        <td className="px-3 py-2 text-lumiva-accent font-medium">
-                          {perm.label}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleUserPerm(perm.key)}
-                            className={
-                              'relative inline-flex h-5 w-9 items-center rounded-full transition ' +
-                              (on ? 'bg-emerald-500' : 'bg-slate-300 hover:bg-slate-400')
-                            }
-                          >
-                            <span
-                              className={
-                                'inline-block h-4 w-4 transform rounded-full bg-white shadow transition ' +
-                                (on ? 'translate-x-4' : 'translate-x-1')
-                              }
-                            />
-                          </button>
+                  {permissionGroups.map((group) => (
+                    <React.Fragment key={group.groupLabel}>
+                      <tr>
+                        <td
+                          colSpan={2}
+                          className="px-3 pt-4 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400"
+                        >
+                          {group.groupLabel}
                         </td>
                       </tr>
-                    );
-                  })}
+                      {group.items.map((perm) => {
+                        const on = currentUserPerms.has(perm.key);
+                        return (
+                          <tr key={perm.key} className="bg-white hover:bg-slate-50">
+                            <td className="px-3 py-2">
+                              <span className="font-medium text-lumiva-accent">{perm.label}</span>
+                              {perm.hint && (
+                                <div className="text-[10px] text-slate-400 mt-0.5 leading-tight">{perm.hint}</div>
+                              )}
+                            </td>
+                            <td className="px-3 py-2">
+                              <button
+                                type="button"
+                                onClick={() => toggleUserPerm(perm.key)}
+                                className={
+                                  'relative inline-flex h-5 w-9 items-center rounded-full transition ' +
+                                  (on ? 'bg-emerald-500' : 'bg-slate-300 hover:bg-slate-400')
+                                }
+                              >
+                                <span
+                                  className={
+                                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition ' +
+                                    (on ? 'translate-x-4' : 'translate-x-1')
+                                  }
+                                />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </React.Fragment>
+                  ))}
                 </tbody>
               </table>
             </div>

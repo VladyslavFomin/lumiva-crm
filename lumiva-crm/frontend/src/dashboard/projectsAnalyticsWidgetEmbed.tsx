@@ -21,13 +21,6 @@ import type { Project } from '../pages/projects/projectTypes';
 import type { ProjectsAnalyticsWidgetConfig } from './analyticsStorage';
 
 const CHART_COLORS = ['#38bdf8', '#e11d48', '#f97316', '#22c55e', '#2563eb', '#6366f1'];
-const THEME_PRIMARY: Record<string, string> = {
-  lumiva: '#0ea5e9',
-  ocean: '#2563eb',
-  sunset: '#f97316',
-  forest: '#16a34a',
-  red: '#dc2626',
-};
 
 const parseNumericLoose = (raw: any): number | null => {
   if (raw === undefined || raw === null || raw === '') return null;
@@ -531,7 +524,6 @@ function evaluateFormulaWidgetEmbed(
   widgetItems: Project[],
   locale: string,
   t: TFunction,
-  themePrimary: string,
 ): React.ReactElement {
   const fn = w.formulaFn ?? 'sumif';
   const mode = w.formulaMode ?? 'count';
@@ -602,12 +594,12 @@ function evaluateFormulaWidgetEmbed(
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-      <div className="text-2xl font-semibold" style={{ color: themePrimary }}>
+      <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+      <div className="font-['Inter_Tight'] text-[2rem] font-semibold tracking-[-0.04em] text-[#222] leading-none">
         {primaryLabel}
       </div>
       {secondaryLabel != null && (
-        <div className="text-[11px] text-slate-500">
+        <div className="text-[11px] text-neutral-500">
           {secondaryLabel} · {t('crm.projects.analytics.period.all')}
         </div>
       )}
@@ -639,7 +631,6 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
   compact?: boolean;
 }> = ({ widget: w, items, locale, t, compact }) => {
   const [activeDonut, setActiveDonut] = useState<number | null>(null);
-  const themePrimary = THEME_PRIMARY[w.themeKey || 'lumiva'] || THEME_PRIMARY.lumiva;
   const palette = CHART_COLORS;
 
   const widgetItems = useMemo(() => {
@@ -658,11 +649,11 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
   if (w.type === 'metric') {
     return (
       <div className="flex flex-col gap-2">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
-        <div className="text-2xl font-semibold" style={{ color: themePrimary }}>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
+        <div className="font-['Inter_Tight'] text-[2rem] font-semibold tracking-[-0.04em] text-[#222] leading-none">
           {resolveMetricValue(w.metricKey, widgetItems, locale, t, items)}
         </div>
-        <div className="text-[11px] text-slate-500">{t('crm.projects.analytics.period.all')}</div>
+        <div className="text-[11px] text-neutral-500">{t('crm.projects.analytics.period.all')}</div>
       </div>
     );
   }
@@ -681,7 +672,7 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
       activeDonut === null ? {} : ({ activeIndex: activeDonut, activeShape: renderActiveDonut } as any);
     return (
       <div className="space-y-2">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
         <div className="flex flex-col gap-3 md:flex-row md:items-start">
           <div style={{ height: chartH }} className="md:flex-1 w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -693,6 +684,8 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
                   innerRadius={innerR}
                   outerRadius={outerR}
                   paddingAngle={3}
+                  stroke="#ffffff"
+                  strokeWidth={2}
                   {...activeProps}
                   onMouseLeave={() => setActiveDonut(null)}
                   onMouseEnter={(_, idx) => setActiveDonut(idx)}
@@ -705,7 +698,7 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
                     />
                   ))}
                 </Pie>
-                <Tooltip />
+                <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e5e5', fontSize: 12 }} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -714,11 +707,12 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
               {donutData.map((entry, idx) => {
                 const percent = donutTotal > 0 ? Math.round((entry.count / donutTotal) * 100) : 0;
                 return (
-                  <div key={entry.code} className="flex justify-between gap-2 text-slate-600">
-                    <span className="truncate" style={{ color: palette[idx % palette.length] }}>
+                  <div key={entry.code} className="flex justify-between gap-2 text-neutral-600">
+                    <span className="truncate flex items-center gap-1.5">
+                      <span className="h-2 w-2 shrink-0 rounded-sm" style={{ backgroundColor: palette[idx % palette.length] }} />
                       {entry.label}
                     </span>
-                    <span>
+                    <span className="font-mono tabular-nums text-[#222]">
                       {entry.count} · {percent}%
                     </span>
                   </div>
@@ -742,14 +736,14 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
     ).map((item) => ({ label: item.label, count: item.count }));
     return (
       <div className="space-y-2">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{w.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">{w.title}</div>
         <div style={{ height: chartH + 40 }}>
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={barData} margin={{ top: 8, right: 8, left: -8, bottom: compact ? 8 : 24 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#64748b' }} interval={0} />
-              <YAxis tick={{ fontSize: 9, fill: '#64748b' }} width={28} />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+              <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#888888' }} interval={0} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: '#b5b5b5' }} width={28} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 10, border: '1px solid #e5e5e5', fontSize: 12 }} />
               <Bar dataKey="count" radius={[6, 6, 0, 0]} barSize={compact ? 18 : 28}>
                 {barData.map((_, idx) => (
                   <Cell key={idx} fill={palette[idx % palette.length]} />
@@ -789,10 +783,10 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
         : t('crm.projects.analytics.ownersTable.headers.projects');
     return (
       <div className="overflow-x-auto">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">{w.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-2">{w.title}</div>
         <table className="w-full text-[10px]">
-          <thead className="text-slate-500">
-            <tr>
+          <thead className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-400">
+            <tr className="border-b border-neutral-200">
               {dimLabels.map((label, i) => (
                 <th key={i} className="text-left font-normal py-1 pr-2">
                   {label}
@@ -803,9 +797,9 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.key} className="border-b border-slate-100">
+              <tr key={row.key} className="border-b border-neutral-100">
                 {row.cells.map((cell, i) => (
-                  <td key={i} className="py-1 text-slate-800 pr-2">
+                  <td key={i} className="py-1 text-[#222] pr-2">
                     {cell}
                   </td>
                 ))}
@@ -835,10 +829,10 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
         : t('crm.projects.analytics.ownersTable.headers.projects');
     return (
       <div className="overflow-x-auto">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">{w.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-2">{w.title}</div>
         <table className="w-full text-[10px]">
-          <thead className="text-slate-500">
-            <tr>
+          <thead className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-400">
+            <tr className="border-b border-neutral-200">
               <th className="text-left font-normal py-1">
                 {t('crm.projects.analytics.ownersTable.headers.owner')}
               </th>
@@ -847,8 +841,8 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
           </thead>
           <tbody>
             {ownerSeries.map((o) => (
-              <tr key={o.label} className="border-b border-slate-100">
-                <td className="py-1 text-slate-800">{o.label}</td>
+              <tr key={o.label} className="border-b border-neutral-100">
+                <td className="py-1 text-[#222]">{o.label}</td>
                 <td className="py-1 text-right">
                   {formatEmbedTableAggCell(o.count, tableAggMode, tableAggField, locale, t, tableCurrency)}
                 </td>
@@ -875,10 +869,10 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
         : t('crm.projects.analytics.categoriesTable.headers.projects');
     return (
       <div className="overflow-x-auto">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">{w.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-2">{w.title}</div>
         <table className="w-full text-[10px]">
-          <thead className="text-slate-500">
-            <tr>
+          <thead className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-400">
+            <tr className="border-b border-neutral-200">
               <th className="text-left font-normal py-1">
                 {t('crm.projects.analytics.categoriesTable.headers.category')}
               </th>
@@ -887,8 +881,8 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
           </thead>
           <tbody>
             {catSeries.map((c) => (
-              <tr key={c.label} className="border-b border-slate-100">
-                <td className="py-1 text-slate-800">{c.label}</td>
+              <tr key={c.label} className="border-b border-neutral-100">
+                <td className="py-1 text-[#222]">{c.label}</td>
                 <td className="py-1 text-right">
                   {formatEmbedTableAggCell(c.count, tableAggMode, tableAggField, locale, t, tableCurrency)}
                 </td>
@@ -909,10 +903,10 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
     };
     return (
       <div className="overflow-x-auto">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-2">{w.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-2">{w.title}</div>
         <table className="w-full text-[10px] border-separate border-spacing-y-1">
-          <thead className="text-slate-500">
-            <tr>
+          <thead className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-400">
+            <tr className="border-b border-neutral-200">
               <th className="text-left font-normal px-1 py-1">
                 {t('crm.projects.analytics.table.headers.project')}
               </th>
@@ -926,17 +920,17 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
           </thead>
           <tbody>
             {rows.map((p) => (
-              <tr key={p.id} className="bg-slate-50/80">
-                <td className="px-1 py-1 text-slate-900 truncate max-w-[100px]">{p.name}</td>
-                <td className="px-1 py-1 text-slate-600 whitespace-nowrap">
+              <tr key={p.id} className="bg-neutral-50/90">
+                <td className="px-1 py-1 text-[#222] truncate max-w-[100px]">{p.name}</td>
+                <td className="px-1 py-1 text-neutral-600 whitespace-nowrap">
                   {translateProjectStatus(String(p.status), t)}
                 </td>
-                <td className="px-1 py-1 text-right text-slate-800">{formatAmount(p.amount || 0)}</td>
+                <td className="px-1 py-1 text-right text-[#222] font-mono tabular-nums">{formatAmount(p.amount || 0)}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div className="text-[10px] text-slate-500 mt-1 text-right">
+        <div className="text-[10px] text-neutral-500 mt-1 text-right">
           {t('crm.projects.analytics.table.total', { count: widgetItems.length })}
         </div>
       </div>
@@ -963,7 +957,7 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
     const colAxis = collectPivotAxisUniqueEmbed(widgetItems, colKey, t).slice(0, EMBED_PIVOT_MAX_COLS);
     if (!rowAxis.length || !colAxis.length) {
       return (
-        <div className="text-[10px] text-slate-500">
+        <div className="text-[10px] text-neutral-500">
           {w.title}: {t('crm.projects.analytics.pivot.noData')}
         </div>
       );
@@ -984,25 +978,25 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
         : t('crm.projects.analytics.pivot.measure.sum'));
     return (
       <div className="overflow-x-auto">
-        <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500 mb-1">{w.title}</div>
+        <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{w.title}</div>
         <table className="w-full text-[9px] border-collapse">
           <thead>
-            <tr className="text-slate-500">
+            <tr className="font-mono text-[10px] uppercase tracking-[0.14em] text-neutral-400 border-b border-neutral-200">
               <th className="text-left font-normal py-0.5 pr-1 sticky left-0 bg-white" rowSpan={2} />
               {colAxis.map((col) => (
                 <th
                   key={col.code}
-                  className="text-center font-normal px-0.5 border-l border-slate-100"
+                  className="text-center font-normal px-0.5 border-l border-neutral-100"
                   colSpan={measures.length}
                 >
                   <span className="line-clamp-2">{col.label}</span>
                 </th>
               ))}
             </tr>
-            <tr className="text-slate-400">
+            <tr className="font-mono text-[9px] uppercase tracking-[0.12em] text-neutral-400">
               {colAxis.flatMap((col) =>
                 measures.map((m) => (
-                  <th key={`${col.code}-${m.id}`} className="text-right font-normal px-0.5 border-l border-slate-50">
+                  <th key={`${col.code}-${m.id}`} className="text-right font-normal px-0.5 border-l border-neutral-100">
                     {mLabel(m)}
                   </th>
                 )),
@@ -1011,8 +1005,8 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
           </thead>
           <tbody>
             {rowAxis.map((row) => (
-              <tr key={row.code} className="border-b border-slate-100">
-                <td className="py-0.5 pr-1 text-slate-800 sticky left-0 bg-white font-medium truncate max-w-[72px]">
+              <tr key={row.code} className="border-b border-neutral-100">
+                <td className="py-0.5 pr-1 text-[#222] sticky left-0 bg-white font-medium truncate max-w-[72px]">
                   {row.label}
                 </td>
                 {colAxis.flatMap((col) =>
@@ -1031,7 +1025,7 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
                     return (
                       <td
                         key={`${row.code}-${col.code}-${m.id}`}
-                        className="py-0.5 px-0.5 text-right tabular-nums border-l border-slate-50"
+                        className="py-0.5 px-0.5 text-right tabular-nums border-l border-neutral-100"
                       >
                         {fmtCell(val, m)}
                       </td>
@@ -1047,11 +1041,11 @@ export const ProjectsAnalyticsWidgetEmbed: React.FC<{
   }
 
   if (w.type === 'formula') {
-    return evaluateFormulaWidgetEmbed(w, widgetItems, locale, t, themePrimary);
+    return evaluateFormulaWidgetEmbed(w, widgetItems, locale, t);
   }
 
   return (
-    <div className="text-[11px] text-slate-500">
+    <div className="text-[11px] text-neutral-500">
       {w.title} — {t('crm.dashboard.presets.embedFallback')}
     </div>
   );

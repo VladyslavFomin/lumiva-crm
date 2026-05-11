@@ -13,6 +13,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { EmailService } from './email.service';
+import { EmailSyncService } from './email-sync.service';
+import { EmailImapSyncService } from './email-imap-sync.service';
 import { CreateEmailAccountDto } from './dto/create-email-account.dto';
 import { UpdateEmailAccountDto } from './dto/update-email-account.dto';
 import { SendEmailDto } from './dto/send-email.dto';
@@ -38,14 +40,24 @@ import { RbacGuard } from '../rbac/rbac.guard';
 export class EmailController {
   constructor(
     private readonly emailService: EmailService,
+    private readonly emailSync: EmailSyncService,
+    private readonly emailImapSync: EmailImapSyncService,
     private readonly emailFolders: EmailFoldersService,
   ) {}
+
+  private parseBooleanQuery(value: string | undefined): boolean | undefined {
+    if (value === undefined) return undefined;
+    if (value === 'true' || value === '1') return true;
+    if (value === 'false' || value === '0') return false;
+    return undefined;
+  }
 
   // ==== ACCOUNTS ====
   @Get('accounts')
   @RequirePermission('email', 'read')
   async findAllAccounts(@CurrentUser() user: CurrentUserPayload) {
-    return this.emailService.findAllAccounts(user.tenantId);
+    const actorUserId = (user.userId ?? user.id ?? user.sub) as string | undefined;
+    return this.emailService.findAllAccounts(user.tenantId, actorUserId, user.role);
   }
 
   @Get('accounts/:id')
@@ -54,7 +66,8 @@ export class EmailController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    return this.emailService.findAccount(user.tenantId, id);
+    const actorUserId = (user.userId ?? user.id ?? user.sub) as string | undefined;
+    return this.emailService.findAccount(user.tenantId, id, actorUserId, user.role);
   }
 
   @Post('accounts')
@@ -63,7 +76,8 @@ export class EmailController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateEmailAccountDto,
   ) {
-    return this.emailService.createAccount(user.tenantId, dto);
+    const actorUserId = (user.userId ?? user.id ?? user.sub) as string | undefined;
+    return this.emailService.createAccount(user.tenantId, dto, actorUserId);
   }
 
   @Patch('accounts/:id')
@@ -73,7 +87,8 @@ export class EmailController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateEmailAccountDto,
   ) {
-    return this.emailService.updateAccount(user.tenantId, id, dto);
+    const actorUserId = (user.userId ?? user.id ?? user.sub) as string | undefined;
+    return this.emailService.updateAccount(user.tenantId, id, dto, actorUserId, user.role);
   }
 
   @Patch('accounts/:id/signature')
@@ -83,7 +98,8 @@ export class EmailController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: PatchEmailSignatureDto,
   ) {
-    return this.emailService.patchAccountSignature(user.tenantId, id, dto);
+    const actorUserId = (user.userId ?? user.id ?? user.sub) as string | undefined;
+    return this.emailService.patchAccountSignature(user.tenantId, id, dto, actorUserId, user.role);
   }
 
   @Delete('accounts/:id')
@@ -92,8 +108,18 @@ export class EmailController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    await this.emailService.deleteAccount(user.tenantId, id);
+    const actorUserId = (user.userId ?? user.id ?? user.sub) as string | undefined;
+    await this.emailService.deleteAccount(user.tenantId, id, actorUserId, user.role);
     return { success: true };
+  }
+
+  @Post('accounts/:id/sync-imap')
+  @RequirePermission('email', 'write')
+  async syncImapAccount(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.emailImapSync.syncAccount(id, user.tenantId);
   }
 
   @Post('accounts/:id/test-smtp')
@@ -102,8 +128,9 @@ export class EmailController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
+    const actorUserId = (user.userId ?? user.id ?? user.sub) as string | undefined;
     try {
-      const success = await this.emailService.testSmtpConnection(user.tenantId, id);
+      const success = await this.emailService.testSmtpConnection(user.tenantId, id, actorUserId, user.role);
       return { success };
     } catch (error: any) {
       // Возвращаем ошибку с деталями, но не бросаем исключение, чтобы не было 500
@@ -198,6 +225,14 @@ export class EmailController {
     @Query('leadId') leadId?: string,
     @Query('saleId') saleId?: string,
     @Query('search') search?: string,
+    @Query('read') read?: string,
+    @Query('starred') starred?: string,
+    @Query('hasCalendarInvite') hasCalendarInvite?: string,
+    @Query('hasLead') hasLead?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('dateFrom') dateFrom?: string,
+    @Query('dateTo') dateTo?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -210,6 +245,14 @@ export class EmailController {
       leadId,
       saleId,
       search,
+      read: this.parseBooleanQuery(read),
+      starred: this.parseBooleanQuery(starred),
+      hasCalendarInvite: this.parseBooleanQuery(hasCalendarInvite),
+      hasLead: this.parseBooleanQuery(hasLead),
+      from,
+      to,
+      dateFrom,
+      dateTo,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
@@ -222,6 +265,30 @@ export class EmailController {
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     return this.emailService.findOneMessage(user.tenantId, id);
+  }
+
+  @Post('messages/:id/calendar-invite/import')
+  @RequirePermission('email', 'write')
+  async importCalendarInviteForMessage(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.emailSync.importCalendarInviteForMessage(user.tenantId, id);
+  }
+
+  @Post('calendar-invites/backfill')
+  @RequirePermission('email', 'write')
+  async backfillCalendarInvites(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { accountId?: string; limit?: number },
+  ) {
+    return this.emailSync.backfillCalendarInvites(user.tenantId, {
+      accountId:
+        body?.accountId && /^[0-9a-f-]{36}$/i.test(body.accountId)
+          ? body.accountId
+          : undefined,
+      limit: body?.limit,
+    });
   }
 
   @Patch('messages/:id')
@@ -338,4 +405,3 @@ export class EmailController {
     return this.emailService.applyTemplate(user.tenantId, id, data);
   }
 }
-

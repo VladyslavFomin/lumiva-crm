@@ -21,6 +21,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { EmailModule } from '../email/email.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { AiEmployeesModule } from '../ai-employees/ai-employees.module';
 
 // 👇 сущность продаж — для ROI по лидам
 import { Sale } from '../sales/sale.entity';
@@ -46,6 +47,7 @@ import { Project } from '../projects/project.entity';
     forwardRef(() => AutomationsModule),
     forwardRef(() => EmailModule),
     forwardRef(() => IntegrationsModule),
+    forwardRef(() => AiEmployeesModule),
   ],
   controllers: [LeadsController, PublicLeadsController],
   providers: [LeadsService, LeadActivityService, LeadsMeetingsReminderService],

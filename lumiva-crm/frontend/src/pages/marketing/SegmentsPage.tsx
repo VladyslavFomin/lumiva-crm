@@ -102,7 +102,7 @@ export const SegmentsPage: React.FC = () => {
       .map((k) => presetByKey.get(k))
       .filter(Boolean)
       .map((p) => ({
-        dataSource: p!.dataSource as 'google_ads' | 'meta_ads',
+        dataSource: p!.dataSource as string,
         source: p!.source,
         medium: p!.medium,
         campaign: p!.campaign,
@@ -454,7 +454,7 @@ export const SegmentsPage: React.FC = () => {
                             key={`${tp.dataSource}-${tp.campaign}-${i}`}
                             className="inline-block max-w-full truncate rounded-md border border-neutral-200 bg-white px-2 py-0.5 text-[10px] text-neutral-700"
                           >
-                            {tp.dataSource === 'google_ads' ? 'Google' : 'Meta'} · {tp.campaign}
+                            {tp.dataSource === 'meta_ads' ? 'Meta' : 'Google'} · {tp.campaign}
                           </span>
                         ))}
                       </div>

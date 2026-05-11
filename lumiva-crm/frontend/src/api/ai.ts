@@ -145,3 +145,143 @@ export async function addAiMemory(body: {
 export async function deleteAiMemory(id: string): Promise<{ ok: boolean }> {
   return api.delete(`/ai/memory/${encodeURIComponent(id)}`);
 }
+
+export interface AiLeadScoreResult {
+  ok: boolean;
+  score?: number;
+  priority?: 'high' | 'medium' | 'low';
+  label?: string;
+  reasons?: string[];
+  leadId?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
+export async function postAiLeadScore(leadId: string): Promise<AiLeadScoreResult> {
+  return api.post<AiLeadScoreResult>(`/ai/lead-score/${encodeURIComponent(leadId)}`, {});
+}
+
+export interface AiEnrichSuggestion {
+  field: string;
+  label: string;
+  currentValue: string | null;
+  suggestedValue: string;
+  confidence: 'high' | 'medium';
+  reasoning: string;
+}
+
+export interface AiEnrichResult {
+  ok: boolean;
+  insight?: string;
+  suggestions?: AiEnrichSuggestion[];
+  entityType?: string;
+  entityId?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
+export async function postAiEnrich(
+  entityType: 'lead' | 'company',
+  entityId: string,
+): Promise<AiEnrichResult> {
+  return api.post<AiEnrichResult>(
+    `/ai/enrich/${entityType}/${encodeURIComponent(entityId)}`,
+    {},
+  );
+}
+
+export interface AiEmailReplyResult {
+  ok: boolean;
+  suggestions?: string[];
+  error?: string;
+}
+
+export async function postAiEmailReplySuggest(body: {
+  subject?: string;
+  body?: string;
+  senderName?: string;
+}): Promise<AiEmailReplyResult> {
+  return api.post<AiEmailReplyResult>('/ai/email-reply-suggest', body);
+}
+
+// ── NEXT BEST ACTION ─────────────────────────────────────────────────────────
+export interface AiNextActionResult {
+  ok: boolean;
+  action?: string;
+  channel?: 'phone' | 'email' | 'meeting' | 'message';
+  urgency?: 'hot' | 'warm' | 'cold';
+  reason?: string;
+  steps?: string[];
+  leadId?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
+export async function postAiNextAction(leadId: string): Promise<AiNextActionResult> {
+  return api.post<AiNextActionResult>(`/ai/next-action/${encodeURIComponent(leadId)}`, {});
+}
+
+// ── OUTREACH EMAIL ────────────────────────────────────────────────────────────
+export interface AiOutreachEmailResult {
+  ok: boolean;
+  subject?: string;
+  body?: string;
+  tone?: string;
+  leadId?: string;
+  leadEmail?: string | null;
+  leadName?: string | null;
+  error?: string;
+}
+
+export async function postAiOutreachEmail(leadId: string): Promise<AiOutreachEmailResult> {
+  return api.post<AiOutreachEmailResult>(`/ai/outreach-email/${encodeURIComponent(leadId)}`, {});
+}
+
+// ── FIND DUPLICATES ───────────────────────────────────────────────────────────
+export interface AiDuplicateLead {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+}
+
+export interface AiDuplicateGroup {
+  leads: AiDuplicateLead[];
+  reason: string;
+  confidence: 'high' | 'medium';
+}
+
+export interface AiFindDuplicatesResult {
+  ok: boolean;
+  groups?: AiDuplicateGroup[];
+  scanned?: number;
+  error?: string;
+}
+
+export async function postAiFindDuplicates(): Promise<AiFindDuplicatesResult> {
+  return api.post<AiFindDuplicatesResult>('/ai/find-duplicates', {});
+}
+
+// ── SMART SEARCH ──────────────────────────────────────────────────────────────
+export interface AiSmartSearchFilters {
+  status?: string;
+  source?: string;
+  channel?: string;
+  country?: string;
+  search?: string;
+  hasEmail?: boolean;
+  hasPhone?: boolean;
+  createdAfter?: string;
+  createdBefore?: string;
+}
+
+export interface AiSmartSearchResult {
+  ok: boolean;
+  filters?: AiSmartSearchFilters;
+  description?: string;
+  error?: string;
+}
+
+export async function postAiSmartSearch(query: string): Promise<AiSmartSearchResult> {
+  return api.post<AiSmartSearchResult>('/ai/smart-search', { query });
+}

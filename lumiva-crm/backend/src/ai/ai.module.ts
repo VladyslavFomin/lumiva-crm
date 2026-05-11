@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Tenant } from '../tenants/tenant.entity';
 import { Lead } from '../leads/lead.entity';
@@ -19,10 +19,15 @@ import { CompaniesModule } from '../companies/companies.module';
 import { ContactsModule } from '../contacts/contacts.module';
 import { EmailModule } from '../email/email.module';
 import { AutomationsModule } from '../automations/automations.module';
+import { WorkspaceAreasModule } from '../workspace-areas/workspace-areas.module';
 import { AiUsageLog } from './ai-usage-log.entity';
 import { AiMemoryChunk } from './ai-memory-chunk.entity';
 import { AiChatSession } from './ai-chat-session.entity';
 import { AiChatMessage } from './ai-chat-message.entity';
+import { AiAgent } from '../ai-employees/ai-agent.entity';
+import { AiAgentAction } from '../ai-employees/ai-agent-action.entity';
+import { AiAgentLog } from '../ai-employees/ai-agent-log.entity';
+import { AiAgentPermission } from '../ai-employees/ai-agent-permission.entity';
 import { AiQuotaService } from './ai-quota.service';
 import { AiOpenAiService } from './ai-openai.service';
 import { AiToolsService } from './ai-tools.service';
@@ -43,9 +48,13 @@ import { AiController } from './ai.controller';
       Sale,
       Project,
       IntegrationConnection,
+      AiAgent,
+      AiAgentAction,
+      AiAgentLog,
+      AiAgentPermission,
     ]),
     PlatformSettingsModule,
-    LeadsModule,
+    forwardRef(() => LeadsModule),
     NotesModule,
     ProjectsModule,
     MarketingModule,
@@ -56,6 +65,7 @@ import { AiController } from './ai.controller';
     ContactsModule,
     EmailModule,
     AutomationsModule,
+    WorkspaceAreasModule,
   ],
   controllers: [AiController],
   providers: [
@@ -64,6 +74,6 @@ import { AiController } from './ai.controller';
     AiToolsService,
     AiAssistantService,
   ],
-  exports: [AiQuotaService],
+  exports: [AiQuotaService, AiOpenAiService, AiAssistantService],
 })
 export class AiModule {}

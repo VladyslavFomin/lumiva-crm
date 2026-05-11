@@ -53,7 +53,7 @@ export const BlurModal: React.FC<BlurModalProps> = ({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[85] flex items-center justify-center bg-slate-900/[0.07] ${pad} backdrop-blur-xl`}
+      className={`fixed inset-0 z-[8500] flex items-center justify-center bg-slate-900/[0.07] ${pad} backdrop-blur-xl`}
       role="dialog"
       aria-modal
       aria-labelledby={labelledBy}

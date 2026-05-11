@@ -646,7 +646,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
 
   const modal = (
     <div
-      className="fixed inset-0 z-[240] flex items-center justify-center p-2 sm:p-6 bg-[#0f172a]/45 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[8500] flex items-center justify-center p-2 sm:p-6 bg-[#0f172a]/45 backdrop-blur-[2px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="mch-analytics-title"

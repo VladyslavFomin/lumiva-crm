@@ -51,8 +51,8 @@ export class Company {
   website: string | null;
 
   // ==== АДРЕС ====
-  @Column({ type: 'varchar', length: 2, nullable: true })
-  country: string | null; // ISO-код страны
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  country: string | null; // Страна: название или ISO-код
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   city: string | null;
@@ -136,6 +136,5 @@ export class Company {
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
 }
-
 
 

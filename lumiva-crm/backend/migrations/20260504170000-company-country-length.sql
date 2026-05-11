@@ -1,0 +1,2 @@
+ALTER TABLE companies
+  ALTER COLUMN country TYPE VARCHAR(100);

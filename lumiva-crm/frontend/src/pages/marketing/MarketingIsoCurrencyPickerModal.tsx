@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { MARKETING_ALLOWED_CURRENCIES } from './marketingDisplayCurrencyStorage';
+import { MARKETING_ISO_CURRENCY_SUGGESTIONS } from './marketingDisplayCurrencyStorage';
 
 const btnGhost =
   'rounded-lg border border-[#222222]/15 bg-white px-3 py-2 text-[12px] font-medium text-[#222222] hover:bg-slate-50';
@@ -40,7 +40,7 @@ export const MarketingIsoCurrencyPickerModal: React.FC<Props> = ({
 
   const list = useMemo(() => {
     const u = new Set<string>([
-      ...MARKETING_ALLOWED_CURRENCIES,
+      ...MARKETING_ISO_CURRENCY_SUGGESTIONS,
       ...extraCodes.map((c) => c.toUpperCase()),
     ]);
     const qq = q.trim().toUpperCase();
@@ -53,7 +53,7 @@ export const MarketingIsoCurrencyPickerModal: React.FC<Props> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4"
+      className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/45 p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="iso-cur-title"

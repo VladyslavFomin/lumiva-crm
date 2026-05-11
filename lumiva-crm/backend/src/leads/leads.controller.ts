@@ -206,6 +206,9 @@ export class LeadsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
     @Query('source') source?: 'sales' | 'projects',
+    @Query('currencyMode') currencyMode?: 'native' | 'converted',
+    @Query('displayCurrency') displayCurrency?: string,
+    @Query('rates') rates?: string,
   ) {
     const { tenantId, role } = user;
 
@@ -220,7 +223,14 @@ console.log('ROI controller: query.source =', source);
     source === 'projects' ? 'projects' : 'sales';
 
   console.log('ROI controller: normalized =', normalized);
-    return this.leadsService.getRoiForTenant(tenantId, {from, to, source: source === 'projects' ? 'projects' : 'sales', });
+    return this.leadsService.getRoiForTenant(tenantId, {
+      from,
+      to,
+      source: source === 'projects' ? 'projects' : 'sales',
+      currencyMode: currencyMode === 'converted' ? 'converted' : 'native',
+      displayCurrency,
+      rates,
+    });
   }
 
   // ====================== GET /leads/:id/history ======================

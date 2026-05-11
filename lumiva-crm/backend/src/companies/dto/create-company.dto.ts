@@ -40,7 +40,7 @@ export class CreateCompanyDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(2)
+  @MaxLength(100)
   country?: string;
 
   @IsOptional()
@@ -118,4 +118,3 @@ export class CreateCompanyDto {
   @IsOptional()
   customFields?: Record<string, any>;
 }
-

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AiChatSession } from './ai-chat-session.entity';
@@ -12,6 +12,9 @@ import { AiOpenAiService, type ChatMessage } from './ai-openai.service';
 import { AiToolsService, AI_TOOL_DEFINITIONS } from './ai-tools.service';
 import { AiQuotaService } from './ai-quota.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { Lead } from '../leads/lead.entity';
+import { Company } from '../companies/company.entity';
+import { StaffUser } from '../staff/staff-user.entity';
 
 const MAX_TOOL_ROUNDS = 8;
 const MAX_HISTORY = 24;
@@ -27,6 +30,12 @@ export class AiAssistantService {
     private readonly messages: Repository<AiChatMessage>,
     @InjectRepository(AiMemoryChunk)
     private readonly memoryRepo: Repository<AiMemoryChunk>,
+    @InjectRepository(Lead)
+    private readonly leadRepo: Repository<Lead>,
+    @InjectRepository(Company)
+    private readonly companyRepo: Repository<Company>,
+    @InjectRepository(StaffUser)
+    private readonly staffRepo: Repository<StaffUser>,
     private readonly openai: AiOpenAiService,
     private readonly tools: AiToolsService,
     private readonly quota: AiQuotaService,
@@ -34,7 +43,17 @@ export class AiAssistantService {
   ) {}
 
   private buildSystemPrompt(memoryBlock: string): string {
-    return `Ты — AI-ассистент Lumiva CRM. Помогаешь с текстами, идеями, аналитикой, маркетингом, данными CRM и модулями ниже.
+    const now = new Date();
+    const utcDate = now.toISOString().slice(0, 10);
+    const frontendBase = (process.env.FRONTEND_URL || '').replace(/\/$/, '');
+    const envBlock =
+      `\nТекущие дата/время (ориентир для модели; UTC): ${now.toISOString()} (дата ${utcDate}). ` +
+      `Если пользователь называет только месяц («апрель», «за март») без года — по умолчанию используй календарный год этой даты, не предполагай прошлые годы без явного указания пользователя.` +
+      (frontendBase
+        ? `\nПубличный URL веб-интерфейса этой CRM: ${frontendBase}. В ссылках для пользователя используй этот домен и относительные пути из инструментов (например ${frontendBase}/workspace/…). Никогда не подставляй example.com или выдуманные домены.`
+        : `\nBASE URL фронта не передан сервером (FRONTEND_URL): давай только относительные пути из инструментов (/workspace/…), без выдумывания полного домена.`);
+
+    return `Ты — AI-ассистент Lumiva CRM. Помогаешь с текстами, идеями, аналитикой, маркетингом, данными CRM и модулями ниже.${envBlock}
 
 Термины (не путай):
 - Лиды — только модуль лидов CRM. Инструменты: crm_list_leads (последние записи), crm_search_leads (поиск по имени/email/телефону — обязателен для «найди лида Александра»), crm_get_lead (по UUID), crm_create_lead, crm_update_lead.
@@ -50,7 +69,7 @@ export class AiAssistantService {
 - После успешного crm_generate_image в ответе пользователю укажи ссылку на картинку из результата инструмента (markdown ![img](url) или явный URL).
 
 Расширенные действия CRM (используй по запросу):
-- Лиды: crm_get_lead, crm_update_lead (поиск по имени — через crm_search_leads, не выдумывай UUID).
+- Лиды: crm_get_lead, crm_update_lead (поиск по имени — через crm_search_leads, не выдумывай UUID). crm_list_leads поддерживает page (1, 2, 3…), source, search для полного перебора базы.
 - Проекты: crm_get_project, crm_update_project (в т.ч. tasks, comments), crm_change_project_status, crm_soft_delete_project.
 - Продажи: crm_list_sales, crm_get_sale, crm_update_sale.
 - Компании: crm_create_company, crm_get_company, crm_update_company, crm_delete_company.
@@ -61,16 +80,20 @@ export class AiAssistantService {
 - Задачи компании: crm_list_company_tasks, crm_create_company_task, crm_update_company_task, crm_delete_company_task.
 - Встречи лида (meta.meetings; карточка лида и календарь на главной): crm_list_lead_meetings, crm_add_lead_meeting, crm_update_lead_meeting, crm_remove_lead_meeting. Чтобы встреча появилась у пользователя в календаре, всегда привязывай к лиду: сначала crm_search_leads или crm_list_leads, возьми leadId из результата, затем crm_add_lead_meeting с startsAt в ISO 8601. Не выдумывай UUID лида.
 - Почта: crm_list_email_accounts, crm_list_email_templates, crm_preview_email_template, crm_draft_client_email (черновик без отправки). Итоговое письмо оформляется единой фирменной HTML-обёрткой (как транзакционные письма): пользователю показывай утверждённый текст/тему; визуальная вёрстка добавится автоматически. Отправка: (1) пользователь открывает «Письмо» в панели и жмёт «Отправить», или (2) после явных фраз («отправляй», «всё ок, отправь», «да, отправь письмо») вызови crm_send_approved_client_email с userConfirmedSend: true, accountId из crm_list_email_accounts, to (массив строк email), subject и утверждённым bodyText/bodyHtml. Если пользователь написал email в чате (например user@mail.ru) — передай его в to как есть; не требуй контакт/лид в CRM для отправки. Если нужен email лида по имени — сначала crm_search_leads с query из имени, возьми email из результата; при нескольких совпадениях уточни у пользователя. Без подтверждения отправки не вызывай crm_send_approved_client_email. Не говори, что письмо отправлено, пока инструмент не вернул ok. В шаблонах маркетинга: {{поле.вложенное}} и простые {name}, {email}.
+- Массовая рассылка (bulk): crm_send_bulk_email — отправляет персонализированное письмо ({{name}}, {{email}}) всем лидам или контактам сегмента. Алгоритм: (1) сначала crm_list_leads или crm_list_contacts чтобы показать пользователю аудиторию (кол-во, примеры), (2) показать итоговый черновик письма, (3) дождаться явного «запускай» / «отправляй всем» от пользователя, (4) вызвать crm_send_bulk_email с userConfirmedSend: true. Всегда указывай targetType (leads или contacts), accountId из crm_list_email_accounts. Фильтры: filterStatus, filterSource, filterDateFrom/To, filterSearch, maxRecipients (макс. 500). Без явного согласия пользователя не запускай рассылку.
+- Команда: crm_list_staff_members — список сотрудников тенанта (id, ФИО, email, роль, отдел). Используй для получения assignedUserId при назначении лидов/задач или для рассылки внутри команды.
 - Автоматизации: crm_list_automations, crm_create_automation, crm_update_automation, crm_delete_automation. Периодические сценарии: triggerEvent scheduled и meta.schedule с полями scheduleFrequency (weekly|daily|monthly|quarterly), scheduleTime (HH:mm), scheduleTimezone (IANA), scheduleDayOfWeek (1–7 пн=1 для weekly), scheduleDayOfMonth. В действии send_email для scheduled укажи accountId и to (массив email) и/или templateId. Mailchimp: send_mailchimp — один подписчик в аудиторию; send_mailchimp_campaign — одна email-кампания на всю аудиторию (subject, htmlBody, replyTo с верифицированного домена).
+- AI-сотрудники: crm_list_ai_employees показывает доступных AI Employees (в т.ч. scheduleMode и autonomyMode); crm_assign_ai_employee_task ставит задачу конкретному AI-сотруднику; crm_ask_ai_employee задаёт вопрос AI-сотруднику и возвращает ответ от его роли по CRM-данным. Именование для пользователя: этот чат — универсальный CRM-помощник по всей системе; AI Employees — именованные специалисты с ролями (можно ссылаться по имени из списка). Если у сотрудника scheduleMode не manual, бэкенд может сам запускать фоновые циклы и ежедневный отчёт по dailyReportTime; новые лиды могут автоматически ставить задачи lead_manager/sales_manager (если не read_only и не отключено в settings.proactive.reactToNewLeads). Если пользователь просит «дай задачу AI-маркетологу/лид-менеджеру» или «спроси у AI-сотрудника», используй эти инструменты.
 
 Правила:
 - Доступ только к данным текущего арендатора (tenant из авторизации пользователя). Чужие tenantId недоступны; лиды, продажи, рабочая область (/workspace), интеграции и прочее — только внутри этой песочницы. Не проси и не подставляй иной tenant.
+- Лиды в корзине или архиве (meta.deleted/meta.archived) не считаются активными и не должны попадать в ответы, рассылки, поиск и подсчёты.
 - Отвечай на языке пользователя (по умолчанию русский).
 - Для фактов и изменений в CRM вызывай соответствующие инструменты; не выдумывай цифры и не утверждай, что что-то создано, если инструмент не вызывался или вернул ошибку.
 - Перед удалением компании/контакта/проекта/заметки/строки workspace убедись, что пользователь явно это просит; destructive-инструменты необратимы или ведут в корзину (проект).
 - Выбирай инструмент по смыслу запроса: «лид» → лиды, «проект» в смысле сделки → проекты, «рабочая область / таблица в workspace» → crm_workspace_*.
 - Перед созданием сущностей кратко уточни намерение, если запрос двусмысленный; если пользователь явно попросил — создавай через нужный инструмент.
-- После успешного вызова инструмента кратко резюмируй результат (id, имя); для рабочей области можно подсказать путь /workspace/{objectId}/table или /analytics.
+- После успешного вызова инструмента кратко резюмируй результат (id, имя); для рабочей области можно подсказать путь /workspace/{objectId}/table или /analytics — или полный URL из полей tableUrl / analyticsUrl ответа инструмента, если они есть.
 - Таблицы и статьи в ответе оформляй в Markdown.
 ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryBlock}\n` : ''}`;
   }
@@ -161,6 +184,8 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
     userId: string;
     userEmail?: string;
     userRole?: string;
+    telegramUsername?: string;
+    telegramChatId?: string;
     sessionId?: string | null;
     message: string;
     salesImportContext?: {
@@ -361,6 +386,8 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
           userId: input.userId,
           userEmail: input.userEmail,
           userRole: input.userRole,
+          telegramUsername: input.telegramUsername,
+          telegramChatId: input.telegramChatId,
         });
         if (name === 'crm_generate_image') {
           try {
@@ -440,5 +467,394 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
       imageUrl: lastGeneratedImage?.url ?? null,
       imageRevisedPrompt: lastGeneratedImage?.revised_prompt ?? null,
     };
+  }
+
+  private async quickCompletion(prompt: string): Promise<string> {
+    const { message } = await this.openai.chatCompletion({
+      messages: [{ role: 'user', content: prompt }],
+    });
+    return message.content || '';
+  }
+
+  private isLeadHiddenForAi(lead: Pick<Lead, 'meta'>): boolean {
+    const meta = lead.meta as { deleted?: unknown; archived?: unknown } | null | undefined;
+    return meta?.deleted === true ||
+      meta?.deleted === 'true' ||
+      meta?.archived === true ||
+      meta?.archived === 'true';
+  }
+
+  async scoreLead(tenantId: string, userId: string, leadId: string) {
+    const lead = await this.leadRepo.findOne({ where: { id: leadId, tenantId } });
+    if (!lead || this.isLeadHiddenForAi(lead)) throw new NotFoundException('Lead not found');
+
+    const prompt = `Ты эксперт по продажам. Оцени качество и приоритет лида на основе данных ниже.
+Данные лида:
+- Имя: ${lead.name || '—'}
+- Email: ${lead.email || '—'}
+- Телефон: ${lead.phone || '—'}
+- Статус: ${lead.status || '—'}
+- Источник: ${lead.source || '—'}
+- UTM: source=${lead.utmSource || '—'}, medium=${lead.utmMedium || '—'}, campaign=${lead.utmCampaign || '—'}
+- Страна: ${(lead as any).country || '—'}
+- Создан: ${lead.createdAt}
+- Обновлён: ${lead.updatedAt}
+- Доп. поля: ${JSON.stringify(lead.customFields || {}).slice(0, 400)}
+
+Ответь строго в JSON (без markdown, без пояснений вне JSON):
+{
+  "score": <число 0-100>,
+  "priority": "<high|medium|low>",
+  "label": "<одно предложение — общий вывод>",
+  "reasons": ["<причина 1>", "<причина 2>", "<причина 3>"]
+}`;
+
+    try {
+      const raw = await this.quickCompletion(prompt);
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(json);
+      return {
+        ok: true,
+        score: Math.min(100, Math.max(0, Number(parsed.score) || 0)),
+        priority: ['high', 'medium', 'low'].includes(parsed.priority) ? parsed.priority : 'medium',
+        label: String(parsed.label || ''),
+        reasons: Array.isArray(parsed.reasons) ? parsed.reasons.map(String).slice(0, 5) : [],
+        leadId,
+        updatedAt: new Date().toISOString(),
+      };
+    } catch {
+      return { ok: false, error: 'parse_failed', leadId };
+    }
+  }
+
+  async enrichEntity(
+    tenantId: string,
+    userId: string,
+    entityType: 'lead' | 'company',
+    entityId: string,
+  ) {
+    let data: Record<string, any> = {};
+    if (entityType === 'lead') {
+      const lead = await this.leadRepo.findOne({ where: { id: entityId, tenantId } });
+      if (!lead || this.isLeadHiddenForAi(lead)) throw new NotFoundException('Lead not found');
+      data = {
+        name: lead.name, email: lead.email, phone: lead.phone,
+        source: lead.source, status: lead.status,
+        utmSource: lead.utmSource, utmMedium: lead.utmMedium, utmCampaign: lead.utmCampaign,
+        country: (lead as any).country,
+        customFields: lead.customFields,
+      };
+    } else {
+      const company = await this.companyRepo.findOne({ where: { id: entityId, tenantId } });
+      if (!company) throw new NotFoundException('Company not found');
+      data = {
+        name: company.name, email: (company as any).email,
+        phone: (company as any).phone, website: (company as any).website,
+        country: (company as any).country, city: (company as any).city,
+        industry: (company as any).industry, description: (company as any).description,
+      };
+    }
+
+    const excludedFields = entityType === 'lead'
+      ? ['score', 'priority', 'aiScore', 'aiPriority', 'aiLabel', 'leadScore', 'rating', 'id', 'tenantId', 'createdAt', 'updatedAt']
+      : ['score', 'rating', 'id', 'tenantId', 'createdAt', 'updatedAt'];
+
+    const prompt = `Ты CRM-аналитик. На основе данных ${entityType === 'lead' ? 'лида' : 'компании'} предложи улучшения/дополнения полей.
+Текущие данные: ${JSON.stringify(data)}
+
+ВАЖНО: НЕ предлагай поля: ${excludedFields.join(', ')} — они вычисляются автоматически отдельным модулем.
+Предлагай только реальные атрибуты сущности: для лида — industry, country, language, companySize и подобные; для компании — industry, website, description и подобные.
+
+Верни строго JSON (без markdown):
+{
+  "insight": "<общий вывод 1-2 предложения>",
+  "suggestions": [
+    {
+      "field": "<имя поля>",
+      "label": "<читаемое название поля>",
+      "currentValue": "<текущее значение или null>",
+      "suggestedValue": "<предложенное значение>",
+      "confidence": "<high|medium>",
+      "reasoning": "<почему>"
+    }
+  ]
+}
+Предлагай только поля, которые реально можно заполнить на основе доступных данных (email домен → индустрия, страна; UTM → канал и т.д.). Максимум 5 предложений.`;
+
+    try {
+      const raw = await this.quickCompletion(prompt);
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(json);
+      return {
+        ok: true,
+        insight: String(parsed.insight || ''),
+        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions.slice(0, 5) : [],
+        entityType,
+        entityId,
+        updatedAt: new Date().toISOString(),
+      };
+    } catch {
+      return { ok: false, error: 'parse_failed', entityType, entityId };
+    }
+  }
+
+  async suggestEmailReply(
+    tenantId: string,
+    userId: string,
+    input: { subject?: string; body?: string; senderName?: string },
+  ) {
+    const subject = (input.subject || '').trim();
+    const body = (input.body || '').trim().slice(0, 3000);
+    const sender = (input.senderName || '').trim();
+    if (!body && !subject) throw new BadRequestException('subject or body required');
+
+    const prompt = `Ты помощник менеджера по продажам. Письмо от клиента:
+Отправитель: ${sender || 'клиент'}
+Тема: ${subject || '—'}
+Текст: ${body || '—'}
+
+Напиши ровно 3 варианта ответного письма (только текст, без HTML):
+1) Официальный и краткий
+2) Дружелюбный и развёрнутый
+3) Деловой с чётким следующим шагом
+
+Верни строго JSON (без markdown):
+{"suggestions": ["<вариант 1>", "<вариант 2>", "<вариант 3>"]}`;
+
+    try {
+      const raw = await this.quickCompletion(prompt);
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(json);
+      const suggestions = Array.isArray(parsed.suggestions)
+        ? parsed.suggestions.map(String).slice(0, 3)
+        : [];
+      return { ok: true, suggestions };
+    } catch {
+      return { ok: false, error: 'parse_failed', suggestions: [] };
+    }
+  }
+
+  // ── AI NEXT BEST ACTION ──────────────────────────────────────────────────
+  async nextAction(tenantId: string, userId: string, leadId: string) {
+    const lead = await this.leadRepo.findOne({ where: { id: leadId, tenantId } });
+    if (!lead || this.isLeadHiddenForAi(lead)) throw new NotFoundException('Lead not found');
+
+    const prompt = `Ты эксперт по продажам B2B/B2C. Проанализируй данные лида и предложи одно конкретное следующее действие менеджера.
+Данные:
+- Имя: ${lead.name || '—'}
+- Email: ${lead.email || '—'}
+- Телефон: ${lead.phone || '—'}
+- Статус: ${lead.status || '—'}
+- Канал: ${(lead as any).channel || '—'}
+- Источник: ${lead.source || '—'}
+- UTM: ${[lead.utmSource, lead.utmMedium, lead.utmCampaign].filter(Boolean).join(' / ') || '—'}
+- Страна: ${(lead as any).country || '—'}
+- Создан: ${lead.createdAt}
+
+Верни строго JSON (без markdown):
+{
+  "action": "<короткое название действия, макс 6 слов>",
+  "channel": "<phone|email|meeting|message>",
+  "urgency": "<hot|warm|cold>",
+  "reason": "<1-2 предложения — почему именно это действие>",
+  "steps": ["<шаг 1>", "<шаг 2>", "<шаг 3>"]
+}`;
+
+    try {
+      const raw = await this.quickCompletion(prompt);
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(json);
+      return {
+        ok: true,
+        action: String(parsed.action || ''),
+        channel: String(parsed.channel || 'email'),
+        urgency: String(parsed.urgency || 'warm'),
+        reason: String(parsed.reason || ''),
+        steps: Array.isArray(parsed.steps) ? parsed.steps.map(String).slice(0, 5) : [],
+        leadId,
+        updatedAt: new Date().toISOString(),
+      };
+    } catch {
+      return { ok: false, error: 'parse_failed', leadId };
+    }
+  }
+
+  private countryToLanguage(country: string | null | undefined): string {
+    if (!country) return 'Russian';
+    const c = country.trim().toUpperCase();
+    const map: Record<string, string> = {
+      RU: 'Russian', RUS: 'Russian', RUSSIA: 'Russian', РОССИЯ: 'Russian',
+      UA: 'Ukrainian', UKR: 'Ukrainian', UKRAINE: 'Ukrainian', УКРАИНА: 'Ukrainian',
+      BY: 'Russian', BLR: 'Russian', BELARUS: 'Russian',
+      KZ: 'Russian', KAZ: 'Russian', KAZAKHSTAN: 'Russian',
+      US: 'English', USA: 'English', GB: 'English', UK: 'English', AU: 'English', CA: 'English',
+      DE: 'German', DEU: 'German', GERMANY: 'German',
+      FR: 'French', FRA: 'French', FRANCE: 'French',
+      ES: 'Spanish', ESP: 'Spanish', SPAIN: 'Spanish',
+      IT: 'Italian', ITA: 'Italian', ITALY: 'Italian',
+      PL: 'Polish', POL: 'Polish', POLAND: 'Polish',
+      CN: 'Chinese', CHN: 'Chinese', CHINA: 'Chinese',
+      TR: 'Turkish', TUR: 'Turkish', TURKEY: 'Turkish',
+    };
+    return map[c] ?? 'English';
+  }
+
+  // ── AI OUTREACH EMAIL ────────────────────────────────────────────────────
+  async generateOutreachEmail(tenantId: string, userId: string, leadId: string) {
+    const lead = await this.leadRepo.findOne({ where: { id: leadId, tenantId } });
+    if (!lead || this.isLeadHiddenForAi(lead)) throw new NotFoundException('Lead not found');
+
+    const [companyEntity, senderUser] = await Promise.all([
+      lead.companyId ? this.companyRepo.findOne({ where: { id: lead.companyId, tenantId } }) : Promise.resolve(null),
+      this.staffRepo.findOne({ where: { id: userId, tenantId } }),
+    ]);
+
+    const companyName = (lead as any).companyName || companyEntity?.name || null;
+    const senderName = senderUser?.fullName || 'Менеджер';
+    const language = this.countryToLanguage((lead as any).country);
+
+    const prompt = `Ты опытный менеджер по продажам. Напиши персонализированное первое письмо потенциальному клиенту.
+Данные клиента:
+- Имя: ${lead.name || 'клиент'}
+- Email: ${lead.email || '—'}
+- Компания: ${companyName || '—'}
+- Страна: ${(lead as any).country || '—'}
+- Источник лида: ${lead.source || (lead as any).channel || '—'}
+- UTM кампания: ${lead.utmCampaign || '—'}
+
+Данные отправителя:
+- Имя менеджера: ${senderName}
+
+ОБЯЗАТЕЛЬНО: Напиши письмо на языке "${language}". Подпись — "${senderName}".
+
+Требования к письму:
+- Персонализация по имени и компании
+- Чёткое ценностное предложение (CRM/автоматизация бизнеса)
+- Конкретный следующий шаг (звонок, демо)
+- Естественный деловой тон, без шаблонных фраз
+- Длина: 80-120 слов
+- Подпись в конце: ${senderName}
+
+Верни строго JSON (без markdown):
+{
+  "subject": "<тема письма>",
+  "body": "<текст письма с переносами строк через \\n>",
+  "tone": "<formal|friendly|direct>"
+}`;
+
+    try {
+      const raw = await this.quickCompletion(prompt);
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(json);
+      return {
+        ok: true,
+        subject: String(parsed.subject || ''),
+        body: String(parsed.body || ''),
+        tone: String(parsed.tone || 'friendly'),
+        leadId,
+        leadEmail: lead.email || null,
+        leadName: lead.name || null,
+      };
+    } catch {
+      return { ok: false, error: 'parse_failed', leadId };
+    }
+  }
+
+  // ── AI DUPLICATE DETECTION ───────────────────────────────────────────────
+  async findDuplicates(tenantId: string, userId: string) {
+    const rawLeads = await this.leadRepo.find({
+      where: { tenantId },
+      select: ['id', 'name', 'email', 'phone', 'createdAt', 'meta'] as any,
+      take: 220,
+      order: { createdAt: 'DESC' } as any,
+    });
+    const leads = rawLeads
+      .filter((lead) => !this.isLeadHiddenForAi(lead))
+      .slice(0, 150);
+
+    if (leads.length < 2) return { ok: true, groups: [] };
+
+    const simplified = leads.map(l => ({
+      id: l.id,
+      name: l.name || '',
+      email: l.email || '',
+      phone: (l as any).phone || '',
+    }));
+
+    const prompt = `Ты аналитик данных CRM. Найди потенциальные дубликаты среди лидов.
+Правила: дубликат — это один и тот же человек/контакт с похожими именем, email или телефоном (учитывай опечатки, разные форматы).
+Данные (JSON): ${JSON.stringify(simplified)}
+
+Верни строго JSON (без markdown), только группы с 2+ дублей:
+{
+  "groups": [
+    {
+      "ids": ["<id1>", "<id2>"],
+      "reason": "<почему они дубликаты>",
+      "confidence": "<high|medium>"
+    }
+  ]
+}
+Если дублей нет — верни {"groups": []}. Максимум 20 групп.`;
+
+    try {
+      const raw = await this.quickCompletion(prompt);
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(json);
+      const leadsById = new Map(leads.map(l => [l.id, l]));
+      const groups = Array.isArray(parsed.groups)
+        ? parsed.groups
+            .filter((g: any) => Array.isArray(g.ids) && g.ids.length >= 2)
+            .slice(0, 20)
+            .map((g: any) => ({
+              leads: g.ids.map((id: string) => leadsById.get(id)).filter(Boolean),
+              reason: String(g.reason || ''),
+              confidence: String(g.confidence || 'medium'),
+            }))
+            .filter((g: any) => g.leads.length >= 2)
+        : [];
+      return { ok: true, groups, scanned: leads.length };
+    } catch {
+      return { ok: false, error: 'parse_failed', groups: [] };
+    }
+  }
+
+  // ── AI SMART SEARCH ──────────────────────────────────────────────────────
+  async smartSearch(tenantId: string, userId: string, query: string) {
+    if (!query.trim()) return { ok: true, filters: {}, description: '' };
+
+    const prompt = `Ты помощник CRM. Разбери запрос пользователя в структурированные фильтры для поиска лидов.
+Запрос: "${query}"
+
+Доступные фильтры:
+- status: one of "Новый клиент" | "В работе" | "Ожидает ответа" | "Закрыт (успех)" | "Закрыт (проигран)"
+- source: строка-источник (например "google", "facebook", "website")
+- channel: строка (например "manual", "api", "form")
+- country: код страны 2 буквы или название
+- search: свободный текст для поиска по имени/email/телефону
+- hasEmail: true/false
+- hasPhone: true/false
+- createdAfter: ISO дата "YYYY-MM-DD"
+- createdBefore: ISO дата "YYYY-MM-DD"
+Сегодня: ${new Date().toISOString().slice(0, 10)}
+
+Верни строго JSON (без markdown):
+{
+  "filters": { /* только релевантные поля */ },
+  "description": "<что ищем, 1 строка на русском>"
+}`;
+
+    try {
+      const raw = await this.quickCompletion(prompt);
+      const json = raw.replace(/```[a-z]*\n?/g, '').replace(/```/g, '').trim();
+      const parsed = JSON.parse(json);
+      return {
+        ok: true,
+        filters: parsed.filters || {},
+        description: String(parsed.description || query),
+      };
+    } catch {
+      return { ok: false, error: 'parse_failed', filters: {}, description: query };
+    }
   }
 }

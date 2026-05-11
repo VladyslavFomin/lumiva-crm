@@ -30,6 +30,18 @@ export class ListSalesQueryDto {
   leadId?: string;
 
   @IsOptional()
+  @IsEnum(['native', 'converted'])
+  currencyMode?: 'native' | 'converted';
+
+  @IsOptional()
+  @IsString()
+  displayCurrency?: string;
+
+  @IsOptional()
+  @IsString()
+  rates?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)

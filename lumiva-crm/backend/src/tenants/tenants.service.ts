@@ -25,6 +25,7 @@ import { IntegrationConnection } from '../integrations/integration-connection.en
 import {
   applyTenantModuleToggle,
   buildPlanEntitlements,
+  COMPONENT_KEYS,
   isComponentAllowedByPlan,
   isModuleAllowedByPlan,
   isTenantModuleEnabled,
@@ -803,38 +804,15 @@ export class TenantsService {
       throw new NotFoundException('Tenant not found');
     }
 
-    const availableComponents = [
-      'contacts',
-      'companies',
-      'notes',
-      'leads',
-      'projects',
-      'projects_analytics',
-      'projects_kanban',
-      'projects_calendar',
-      'sales',
-      'sales_pipeline',
-      'sales_analytics',
-      'marketing',
-      'marketing_campaigns',
-      'marketing_analytics',
-      'tools',
-      'tools_integrations',
-      'tools_automation',
-      'tools_settings',
-      'custom_objects',
-      'email',
-      'telegram',
-      'chat',
-      'client_accounts',
-    ];
-
     const enabledComponents = tenant.enabledComponents || {};
+    const planAllowed = (key: string) => isComponentAllowedByPlan(key, tenant.plan);
 
-    return availableComponents.map((key) => ({
+    return COMPONENT_KEYS.map((key) => ({
       key,
-      enabled: enabledComponents[key] === true,
-      allowedByPlan: isComponentAllowedByPlan(key, tenant.plan),
+      enabled: typeof enabledComponents[key] === 'boolean'
+        ? enabledComponents[key] as boolean
+        : planAllowed(key),
+      allowedByPlan: planAllowed(key),
       plan: normalizeTenantPlan(tenant.plan),
     }));
   }
@@ -858,9 +836,7 @@ export class TenantsService {
       );
     }
 
-    const enabledComponents = tenant.enabledComponents || {};
-    enabledComponents[componentKey] = enabled;
-    tenant.enabledComponents = enabledComponents;
+    tenant.enabledComponents = { ...(tenant.enabledComponents || {}), [componentKey]: enabled };
 
     await this.repo.save(tenant);
 

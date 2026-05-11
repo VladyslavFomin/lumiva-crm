@@ -122,6 +122,9 @@ import { EmailAccountFormPage } from '../pages/email/EmailAccountFormPage';
 import { EmailInboxPage } from '../pages/email/EmailInboxPage';
 import { TelegramBotsPage } from '../pages/telegram-crm/TelegramBotsPage';
 import { TelegramBotFormPage } from '../pages/telegram-crm/TelegramBotFormPage';
+import { SmsPage } from '../pages/sms/SmsPage';
+import { SmsSettingsPage } from '../pages/sms/SmsSettingsPage';
+import { DuplicatesPage } from '../pages/deduplication/DuplicatesPage';
 import { WorkspaceTablesPage } from '../pages/workspace/WorkspaceTablesPage';
 import { WorkspaceNewTablePage } from '../pages/workspace/WorkspaceNewTablePage';
 import { WorkspaceTableViewPage } from '../pages/workspace/WorkspaceTableViewPage';
@@ -135,6 +138,10 @@ import { WorkspaceGanttViewPage } from '../pages/workspace/WorkspaceGanttViewPag
 import { WebFormsListPage } from '../pages/web-forms/WebFormsListPage';
 import { WebFormEditorPage } from '../pages/web-forms/WebFormEditorPage';
 import { PublicEmbedFormPage } from '../pages/public-embed/PublicEmbedFormPage';
+import {
+  AiEmployeeProfilePage,
+  AiEmployeesPage,
+} from '../pages/ai-employees/AiEmployeesPage';
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -421,11 +428,7 @@ export const AppRouter: React.FC = () => {
         {/* -------- Глобальная аналитика -------- */}
         <Route
           path="/analytics/leads"
-          element={
-            <ProtectedRoute>
-              <LeadsAnalyticsPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/leads/analytics" replace />}
         />
         <Route
           path="/analytics/roi"
@@ -809,6 +812,64 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        {/* -------- AI EMPLOYEES -------- */}
+        <Route
+          path="/ai-employees"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="dashboard" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/choose"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="choose" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/new"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="create" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/approvals"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="approvals" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/logs"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="logs" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/reports"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="reports" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/:id"
+          element={
+            <ProtectedRoute>
+              <AiEmployeeProfilePage />
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/integrations-hub"
           element={
@@ -897,6 +958,31 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <TelegramBotFormPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/sms"
+          element={
+            <ProtectedRoute>
+              <SmsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sms/settings"
+          element={
+            <ProtectedRoute>
+              <SmsSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/contacts/duplicates"
+          element={
+            <ProtectedRoute>
+              <DuplicatesPage />
             </ProtectedRoute>
           }
         />

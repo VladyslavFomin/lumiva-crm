@@ -16,8 +16,7 @@ import type { Project, ProjectTask } from './projects/projectTypes';
 import { readProjectTasksCache } from './projects/projectTasksCache';
 import {
   buildDashboardTaskVisibility,
-  taskMatchesDashboardVisibility,
-} from '../dashboard/dashboardTaskVisibility';
+  taskMatchesDashboardVisibility } from '../dashboard/dashboardTaskVisibility';
 import {
   ALL_DASHBOARD_WIDGET_IDS,
   DASHBOARD_LAYOUT_CHANGED_EVENT,
@@ -30,8 +29,7 @@ import {
   requestAddDashboardPreset,
   sizeToColSpan,
   colSpanToSize,
-  type DashboardLayoutChangedDetail,
-} from '../dashboard/dashboardLayout';
+  type DashboardLayoutChangedDetail } from '../dashboard/dashboardLayout';
 import { getPresetDefinition } from '../dashboard/presetCatalog';
 import { DashboardWidgetChrome } from '../dashboard/DashboardWidgetChrome';
 import { DashboardCalendarMini } from '../dashboard/DashboardCalendarMini';
@@ -44,8 +42,7 @@ import { DashboardQuickActions } from '../dashboard/DashboardQuickActions';
 import { DashboardLayoutTemplateModal } from '../dashboard/DashboardLayoutTemplateModal';
 import {
   flattenLeadMeetingsFromLeads,
-  type LeadMeetingCalendarEvent,
-} from '../dashboard/flattenLeadMeetings';
+  type LeadMeetingCalendarEvent } from '../dashboard/flattenLeadMeetings';
 
 interface LeadShort {
   id: string;
@@ -179,8 +176,7 @@ function mergeDashboardHome(
     return {
       profileCompletion: api.profileCompletion,
       leadActivityStream: api.leadActivityStream,
-      learnSlugs: api.learnSlugs?.length ? api.learnSlugs : [...DEFAULT_LEARN_SLUGS],
-    };
+      learnSlugs: api.learnSlugs?.length ? api.learnSlugs : [...DEFAULT_LEARN_SLUGS] };
   }
   const nameOk = !!user?.name?.trim();
   const phoneOk = !!user?.phone?.trim();
@@ -197,8 +193,7 @@ function mergeDashboardHome(
   return {
     profileCompletion: { percent: Math.round((doneN / steps.length) * 100), steps },
     leadActivityStream: [],
-    learnSlugs: [...DEFAULT_LEARN_SLUGS],
-  };
+    learnSlugs: [...DEFAULT_LEARN_SLUGS] };
 }
 
 function resolveLocale(lang: string) {
@@ -230,8 +225,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
   const allLeads = (leadsRaw || []).filter((l) => !isLeadOmittedFromAnalytics(l));
   const salesSnapshot = {
     count: salesStatsRes?.totalCount ?? 0,
-    amount: salesStatsRes?.totalAmount ?? 0,
-  };
+    amount: salesStatsRes?.totalAmount ?? 0 };
 
   let projects: Project[] = [];
   if (Array.isArray((projectsRes as any)?.items)) {
@@ -277,8 +271,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
   try { staffList = await fetchStaff(); } catch { staffList = []; }
 
   const taskVisibility = await buildDashboardTaskVisibility({
-    role, staffId, userEmail: staffEmail, userName: staffName, staffList,
-  });
+    role, staffId, userEmail: staffEmail, userName: staffName, staffList });
 
   const todayLeads = myLeads.filter((l) => {
     const d = new Date(l.createdAt);
@@ -321,8 +314,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
       name: l.name || t('crm.dashboard.fallbacks.noName'),
       channel: l.channel || t('crm.dashboard.fallbacks.empty'),
       status: l.status || t('crm.dashboard.fallbacks.empty'),
-      createdAt: new Date(l.createdAt).toLocaleString(locale),
-    }));
+      createdAt: new Date(l.createdAt).toLocaleString(locale) }));
 
   const leadsTimelineMap = new Map<string, number>();
   for (const l of myLeads) {
@@ -339,8 +331,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
     const key = day.toISOString().slice(0, 10);
     leadsTimeline.push({
       label: day.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' }),
-      value: leadsTimelineMap.get(key) || 0,
-    });
+      value: leadsTimelineMap.get(key) || 0 });
   }
 
   const projectsSummary: DashboardData['projectsSummary'] = { total: 0, open: 0, won: 0, lost: 0, openValueEUR: 0, wonValueEUR: 0, lostValueEUR: 0 };
@@ -384,8 +375,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
         taskTitle,
         title: t('crm.dashboard.tasks.titleWithProject', { title: taskTitle, project: task.projectName }),
         due: task.deadline ? new Date(task.deadline).toLocaleString(locale) : t('crm.dashboard.fallbacks.noDue'),
-        type: 'todo' as const,
-      };
+        type: 'todo' as const };
     });
 
   let staffPerformance: DashboardData['staffPerformance'] = [];
@@ -410,8 +400,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
           name: s.fullName,
           leadsCount,
           revenueEUR,
-          avatarUrl: s.avatarUrl?.trim() || null,
-        };
+          avatarUrl: s.avatarUrl?.trim() || null };
       });
     } catch { staffPerformance = []; }
 
@@ -431,8 +420,7 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
     .map(([channel, revenueEUR]) => ({ channel, revenueEUR }));
 
   const leadPickerOptions = (myLeads || []).slice(0, 200).map((l) => ({
-    id: l.id, name: l.name || t('crm.dashboard.fallbacks.noName'),
-  }));
+    id: l.id, name: l.name || t('crm.dashboard.fallbacks.noName') }));
   const leadCalendarMeetings = flattenLeadMeetingsFromLeads(allLeads);
 
   const activityRecentLeads = [...myLeads]
@@ -487,25 +475,24 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
     myProjects, summary: { todayLeads, totalLeads, conversion: Number(conversion.toFixed(1)), activeChats: 0, revenueEUR, avgResponseMin: 0 },
     leadsByChannel, pipeline, recentLeads, myTasks, leadsTimeline, projectsSummary, tasksSummary,
     staffPerformance, salesByChannel, leadPickerOptions, leadCalendarMeetings, salesSnapshot,
-    activityRecentLeads, activityUrgentTasks, topProjectItems, ...homeMerged,
-  };
+    activityRecentLeads, activityUrgentTasks, topProjectItems, ...homeMerged };
 }
 
 /* ─────────────────────────────────────────────
  *  QUICK ACCESS CARDS (Recently visited)
  * ─────────────────────────────────────────── */
 const QUICK_ACCESS = [
-  { id: 'projects', kind: 'CRM · Проекты', label: 'Проекты — Таблица', href: '/projects/list', preview: 'table' as const },
-  { id: 'leads', kind: 'CRM · Лиды', label: 'Воронка продаж', href: '/leads', preview: 'kanban' as const },
-  { id: 'analytics', kind: 'Аналитика', label: 'Аналитика лидов', href: '/leads/analytics', preview: 'chart' as const },
-  { id: 'calendar', kind: 'Календарь', label: 'Встречи и задачи', href: '/dashboard', preview: 'cal' as const },
+  { id: 'projects' as const, labelKey: 'projectsTable' as const, href: '/projects/list', preview: 'table' as const },
+  { id: 'leads' as const, labelKey: 'leadsFunnel' as const, href: '/leads', preview: 'kanban' as const },
+  { id: 'analytics' as const, labelKey: 'leadsAnalytics' as const, href: '/leads/analytics', preview: 'chart' as const },
+  { id: 'calendar' as const, labelKey: 'meetingsTasks' as const, href: '/dashboard', preview: 'cal' as const },
 ];
 
 const PrevTable = () => (
   <div className="flex flex-col gap-[3px] p-2 h-full">
-    <div className="h-[5px] w-[60%] rounded-sm bg-slate-800 mb-1" />
+    <div className="h-[5px] w-[60%] rounded-sm bg-[#222] mb-1" />
     {[0, 1, 2, 3, 4, 5].map((i) => (
-      <div key={i} className="h-[7px] rounded-sm bg-slate-100 relative overflow-hidden">
+      <div key={i} className="h-[7px] rounded-sm bg-neutral-100 relative overflow-hidden">
         <span className="absolute top-0 h-full rounded-sm" style={{ left: '4%', width: '18%', background: '#1769d1', opacity: 0.5 }} />
         <span className="absolute top-0 h-full rounded-sm" style={{ left: '26%', width: '14%', background: '#1f8a5e', opacity: 0.5 }} />
         <span className="absolute top-0 h-full rounded-sm" style={{ left: '44%', width: '22%', background: '#cc2f47', opacity: 0.45 }} />
@@ -517,9 +504,9 @@ const PrevTable = () => (
 const PrevKanban = () => (
   <div className="grid grid-cols-3 gap-1 p-2 h-full">
     {[0, 1, 2].map((i) => (
-      <div key={i} className="bg-slate-100 rounded p-1 flex flex-col gap-1">
+      <div key={i} className="bg-neutral-100 rounded p-1 flex flex-col gap-1">
         {Array.from({ length: i === 1 ? 4 : 3 }).map((_, j) => (
-          <div key={j} className="h-[6px] bg-slate-800 rounded-sm" style={{ opacity: 0.85 - j * 0.15 }} />
+          <div key={j} className="h-[6px] bg-[#222] rounded-sm" style={{ opacity: 0.85 - j * 0.15 }} />
         ))}
       </div>
     ))}
@@ -552,7 +539,7 @@ function saveStarred(s: Set<string>) {
   try { localStorage.setItem(STARRED_KEY, JSON.stringify([...s])); } catch { /* ignore */ }
 }
 
-const QuickAccessCard: React.FC<{ item: typeof QUICK_ACCESS[number] }> = ({ item }) => {
+const QuickAccessCard: React.FC<{ item: typeof QUICK_ACCESS[number]; t: TranslateFn }> = ({ item, t }) => {
   const [starred, setStarred] = React.useState(() => loadStarred().has(item.id));
   const toggleStar = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation();
@@ -565,8 +552,11 @@ const QuickAccessCard: React.FC<{ item: typeof QUICK_ACCESS[number] }> = ({ item
     });
   };
   return (
-    <Link to={item.href} className="group relative block rounded-[10px] border border-slate-200 bg-white p-3.5 hover:border-slate-900 hover:-translate-y-px hover:shadow-sm transition-all duration-150">
-      <div className="relative h-[72px] rounded-md bg-slate-50 border border-slate-100 overflow-hidden mb-3">
+    <Link
+      to={item.href}
+      className="group relative block rounded-[18px] border border-neutral-200 bg-white p-3.5 shadow-[0_16px_45px_rgba(15,23,42,0.05)] transition-all duration-150 hover:border-[#222] hover:-translate-y-px"
+    >
+      <div className="relative h-[72px] rounded-md bg-neutral-50 border border-neutral-100 overflow-hidden mb-3">
         {item.preview === 'table' && <PrevTable />}
         {item.preview === 'kanban' && <PrevKanban />}
         {item.preview === 'chart' && <PrevChart />}
@@ -574,33 +564,39 @@ const QuickAccessCard: React.FC<{ item: typeof QUICK_ACCESS[number] }> = ({ item
         <button
           type="button"
           onClick={toggleStar}
-          className={`absolute top-1.5 right-1.5 w-[18px] h-[18px] flex items-center justify-center rounded cursor-pointer transition-colors bg-white/60 backdrop-blur-sm ${starred ? 'text-amber-500' : 'text-slate-400 opacity-0 group-hover:opacity-100'}`}
-          title="В избранное"
+          className={`absolute top-1.5 right-1.5 w-[18px] h-[18px] flex items-center justify-center rounded cursor-pointer transition-colors bg-white/60 backdrop-blur-sm ${starred ? 'text-amber-500' : 'text-neutral-400 opacity-0 group-hover:opacity-100'}`}
+          title={t('crm.dashboard.quickAccess.starTitle')}
         >
           <svg width="11" height="11" viewBox="0 0 24 24" fill={starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z" />
           </svg>
         </button>
       </div>
-      <div className="font-mono text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-0.5">{item.kind}</div>
-      <div className="text-[12px] font-semibold text-slate-800 leading-snug">{item.label}</div>
+      <div className="font-mono text-[9px] text-neutral-400 uppercase tracking-[0.1em] mb-0.5">
+        {t(`crm.dashboard.quickAccess.kinds.${item.id}`)}
+      </div>
+      <div className="text-[12px] font-semibold text-[#222] leading-snug">
+        {t(`crm.dashboard.quickAccess.labels.${item.labelKey}`)}
+      </div>
     </Link>
   );
 };
 
-const QuickAccessSection: React.FC = () => (
+const QuickAccessSection: React.FC<{ t: TranslateFn }> = ({ t }) => (
   <div className="mb-6">
     <div className="flex items-center justify-between mb-3">
       <div className="flex items-center gap-2">
-        <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
         </svg>
-        <span className="text-[13px] font-semibold text-slate-800 tracking-tight">Быстрый доступ</span>
-        <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{QUICK_ACCESS.length}</span>
+        <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.quickAccess.sectionTitle')}</span>
+        <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{QUICK_ACCESS.length}</span>
       </div>
     </div>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {QUICK_ACCESS.map((item) => <QuickAccessCard key={item.id} item={item} />)}
+      {QUICK_ACCESS.map((item) => (
+        <QuickAccessCard key={item.id} item={item} t={t} />
+      ))}
     </div>
   </div>
 );
@@ -613,7 +609,7 @@ const MiniSparkline: React.FC<{ data: number[]; up?: boolean }> = ({ data, up = 
   const max = Math.max(...data); const min = Math.min(...data);
   const range = max - min || 1;
   const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`).join(' ');
-  const color = up ? '#1f8a5e' : '#cc2f47';
+  const color = up ? '#222222' : '#cc2f47';
   return (
     <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="mt-3">
       <polyline points={pts} fill="none" stroke={color} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
@@ -638,21 +634,21 @@ const KpiStrip: React.FC<{
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <path d="M4 20V10" /><path d="M10 20V4" /><path d="M16 20v-7" /><path d="M22 20H2" />
           </svg>
-          <span className="text-[13px] font-semibold text-slate-800 tracking-tight">{t('crm.dashboard.kpi.sectionTitle') || 'Ключевые метрики'}</span>
+          <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.kpi.sectionTitle')}</span>
         </div>
         <button
           type="button"
           onClick={onRemove}
-          className="text-[11px] text-slate-400 hover:text-slate-800 transition-colors px-1.5 py-0.5 rounded hover:bg-slate-100"
-          title="Скрыть"
+          className="text-[11px] text-neutral-400 hover:text-[#222] transition-colors px-1.5 py-0.5 rounded hover:bg-neutral-100"
+          title={t('crm.dashboard.widgets.hide')}
         >
           ✕
         </button>
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 border border-slate-200 rounded-xl bg-white overflow-hidden">
+      <div className="grid grid-cols-2 lg:grid-cols-4 overflow-hidden rounded-[18px] border border-neutral-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.05)]">
         <KpiCell
           label={t('crm.dashboard.kpi.todayLeads')}
           value={summary?.todayLeads ?? 0}
@@ -681,7 +677,13 @@ const KpiStrip: React.FC<{
         <KpiCell
           label={t('crm.dashboard.kpi.tasksTotal')}
           value={tasksSummary?.total ?? 0}
-          sub={tasksSummary ? `${tasksSummary.overdue} просрочено · ${tasksSummary.today} сегодня` : undefined}
+          sub={
+            tasksSummary
+              ? t('crm.dashboard.kpi.tasksSubtitle', {
+                  overdue: tasksSummary.overdue,
+                  today: tasksSummary.today })
+              : undefined
+          }
           delta={null}
           sparkData={sparkTasks}
           up={false}
@@ -704,17 +706,17 @@ const KpiCell: React.FC<{
   locale: string;
   last?: boolean;
 }> = ({ label, value, suffix, sub, delta, sparkData, up, locale, last }) => (
-  <div className={`px-5 py-4 relative cursor-pointer hover:bg-slate-50 transition-colors ${!last ? 'border-r border-slate-200' : ''}`}>
-    <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-slate-400 font-medium">{label}</div>
-    <div className="mt-3 text-[28px] font-semibold text-slate-900 leading-none tracking-tight flex items-baseline gap-1" style={{ fontFamily: "'Inter Tight', sans-serif" }}>
+  <div className={`px-5 py-4 relative cursor-pointer hover:bg-neutral-50/80 transition-colors ${!last ? 'border-r border-neutral-200' : ''}`}>
+    <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 font-medium">{label}</div>
+    <div className="mt-3 text-[1.85rem] sm:text-[2.1rem] font-semibold text-[#222] leading-none tracking-[-0.04em] flex items-baseline gap-1">
       {value.toLocaleString(locale)}
-      {suffix && <span className="text-[14px] text-slate-400 font-medium">{suffix}</span>}
+      {suffix && <span className="text-[14px] text-neutral-400 font-medium">{suffix}</span>}
     </div>
     {delta && (
-      <div className={`font-mono text-[10.5px] mt-2 ${up ? 'text-emerald-700' : 'text-rose-600'}`}>{delta}</div>
+      <div className={`font-mono text-[10.5px] mt-2 ${up ? 'text-emerald-600' : 'text-rose-500'}`}>{delta}</div>
     )}
     {sub && !delta && (
-      <div className="font-mono text-[10px] text-slate-400 mt-1.5">{sub}</div>
+      <div className="font-mono text-[10px] text-neutral-500 mt-1.5">{sub}</div>
     )}
     {sparkData.length > 1 && <MiniSparkline data={sparkData} up={up} />}
   </div>
@@ -729,27 +731,26 @@ const SidebarProfileCard: React.FC<{
   onDismiss: () => void;
   t: TranslateFn;
 }> = ({ percent, steps, onDismiss, t }) => (
-  <div className="rounded-xl border border-slate-200 bg-white p-[18px]">
+  <div className="rounded-xl border border-neutral-200 bg-white p-[18px]">
     <div className="flex items-start justify-between mb-3.5">
       <div>
         <Link
           to="/profile/overview"
-          className="text-[13px] font-semibold text-slate-900 leading-snug hover:text-slate-600 transition-colors block"
+          className="text-[13px] font-semibold text-[#222] leading-snug hover:text-neutral-600 transition-colors block"
         >
           {t('crm.dashboard.profileCompletion.title')}
         </Link>
-        <div className="text-[11.5px] text-slate-500 mt-0.5">
+        <div className="text-[11.5px] text-neutral-500 mt-0.5">
           {t('crm.dashboard.profileCompletion.progressLine', {
             done: steps.filter((s) => s.done).length,
             total: steps.length,
-            percent,
-          })}
+            percent })}
         </div>
       </div>
       <button
         type="button"
         onClick={onDismiss}
-        className="w-5 h-5 flex items-center justify-center text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition-colors"
+        className="w-5 h-5 flex items-center justify-center text-neutral-400 hover:text-[#222] hover:bg-neutral-100 rounded transition-colors"
         aria-label={t('crm.common.close')}
       >
         <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -758,13 +759,13 @@ const SidebarProfileCard: React.FC<{
       </button>
     </div>
     <div className="flex items-center gap-2.5 mb-3">
-      <div className="flex-1 h-1.5 rounded-full bg-slate-200 overflow-hidden">
+      <div className="flex-1 h-1.5 rounded-full bg-neutral-200 overflow-hidden">
         <div
-          className="h-full rounded-full bg-gradient-to-r from-slate-500 via-slate-700 to-[#222222] transition-all duration-500"
+          className="h-full rounded-full bg-gradient-to-r from-neutral-600 via-neutral-800 to-[#222222] transition-all duration-500"
           style={{ width: `${Math.min(100, percent)}%` }}
         />
       </div>
-      <span className="font-mono text-[11px] text-slate-900 font-medium min-w-[32px] text-right">{percent}%</span>
+      <span className="font-mono text-[11px] text-[#222] font-medium min-w-[32px] text-right">{percent}%</span>
     </div>
     <div className="flex flex-col gap-px">
       <DashboardProfileCompletion percent={percent} steps={steps} inSidebar />
@@ -774,8 +775,7 @@ const SidebarProfileCard: React.FC<{
 
 const SidebarDarkCard: React.FC<{ t: TranslateFn; onChooseTemplate: () => void }> = ({
   t,
-  onChooseTemplate,
-}) => (
+  onChooseTemplate }) => (
   <div className="rounded-xl bg-[#222222] text-white p-[18px]">
     <div className="text-[13px] font-semibold leading-snug mb-1.5 text-white">
       {t('crm.dashboard.sidebar.personalizeTitle')}
@@ -786,7 +786,7 @@ const SidebarDarkCard: React.FC<{ t: TranslateFn; onChooseTemplate: () => void }
     <button
       type="button"
       onClick={onChooseTemplate}
-      className="mt-3.5 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[12px] font-semibold text-[#222222] bg-white rounded-[7px] px-3 py-1.5 hover:bg-slate-100 transition-colors"
+      className="mt-3.5 w-full sm:w-auto inline-flex items-center justify-center gap-1.5 text-[12px] font-semibold text-[#222222] bg-white rounded-[7px] px-3 py-1.5 hover:bg-neutral-100 transition-colors"
     >
       {t('crm.dashboard.sidebar.personalizeBtn')}
       <svg className="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -797,11 +797,11 @@ const SidebarDarkCard: React.FC<{ t: TranslateFn; onChooseTemplate: () => void }
 );
 
 const SidebarTemplatesCard: React.FC<{ t: TranslateFn }> = ({ t }) => (
-  <div className="rounded-xl border border-slate-200 bg-white p-[18px]">
-    <div className="text-[13px] font-semibold text-slate-900 leading-snug mb-1.5">
+  <div className="rounded-xl border border-neutral-200 bg-white p-[18px]">
+    <div className="text-[13px] font-semibold text-[#222] leading-snug mb-1.5">
       {t('crm.dashboard.sidebar.templatesTitle')}
     </div>
-    <div className="text-[11.5px] text-slate-500 leading-relaxed">
+    <div className="text-[11.5px] text-neutral-500 leading-relaxed">
       {t('crm.dashboard.sidebar.templatesDesc')}
     </div>
     <Link
@@ -859,14 +859,25 @@ export const DashboardPage: React.FC = () => {
   const [widgetEditTitle, setWidgetEditTitle] = useState('');
   const [layoutTemplateModalOpen, setLayoutTemplateModalOpen] = useState(false);
 
-  // Sidebar onboarding dismissal
+  // Sidebar onboarding dismissal — key scoped to user+tenant so new accounts always see the widget
+  const _uid = (user as any)?.id || (user as any)?.userId || (user as any)?.sub || '';
+  const _tid = (user as any)?.tenantId || '';
+  const dismissKey = `lumiva_onboard_dismissed_${_tid || 'x'}_${_uid || 'x'}`;
   const [profileDismissed, setProfileDismissed] = useState(
-    () => localStorage.getItem('lumiva_onboard_dismissed') === '1',
+    () => localStorage.getItem(dismissKey) === '1',
   );
   const dismissProfile = () => {
-    localStorage.setItem('lumiva_onboard_dismissed', '1');
+    localStorage.setItem(dismissKey, '1');
     setProfileDismissed(true);
   };
+
+  // Auto-dismiss once all steps are complete
+  useEffect(() => {
+    if (data?.profileCompletion.percent === 100 && !profileDismissed) {
+      dismissProfile();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.profileCompletion.percent]);
 
   const persistLayout = useCallback(
     (updater: (p: DashboardLayoutState) => DashboardLayoutState) => {
@@ -1005,8 +1016,7 @@ export const DashboardPage: React.FC = () => {
           persistLayout((layoutState) => ({
             ...layoutState,
             heights: { ...layoutState.heights, [id]: prev.liveHeight },
-            sizes: { ...layoutState.sizes, [id]: colSpanToSize(prev.liveColSpan) },
-          }));
+            sizes: { ...layoutState.sizes, [id]: colSpanToSize(prev.liveColSpan) } }));
         }
         return null;
       });
@@ -1022,10 +1032,14 @@ export const DashboardPage: React.FC = () => {
     const now = new Date();
     const monthName = now.toLocaleDateString(locale, { month: 'long' });
     switch (id) {
-      case 'channels-funnel': return `${monthName} · ${t('crm.dashboard.channels.allChannels') || 'все каналы'}`;
-      case 'staff': return `${t('crm.dashboard.staff.subLabel') || 'закрытая выручка'} · ${monthName}`;
-      case 'activity-feed': return t('crm.dashboard.activity.sub') || 'что происходит в кабинете';
-      case 'projects': return t('crm.dashboard.projects.sub') || 'по приоритету и прогрессу';
+      case 'channels-funnel':
+        return `${monthName} · ${t('crm.dashboard.channels.allChannels')}`;
+      case 'staff':
+        return `${t('crm.dashboard.staff.subLabel')} · ${monthName}`;
+      case 'activity-feed':
+        return t('crm.dashboard.activity.sub');
+      case 'projects':
+        return t('crm.dashboard.projects.sub');
       case 'calendar': return now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
       default: return undefined;
     }
@@ -1080,14 +1094,14 @@ export const DashboardPage: React.FC = () => {
         return (
           <div>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-[11px] text-slate-500">{t('crm.dashboard.leadsTimeline.subtitle')}</p>
-              <div className="text-right text-[11px] text-slate-500">
+              <p className="text-[11px] text-neutral-500">{t('crm.dashboard.leadsTimeline.subtitle')}</p>
+              <div className="text-right text-[11px] text-neutral-500">
                 {t('crm.dashboard.leadsTimeline.total')}{' '}
-                <span className="text-slate-900 font-medium">{data.leadsTimeline.reduce((s, d) => s + d.value, 0)}</span>
+                <span className="text-[#222] font-semibold">{data.leadsTimeline.reduce((s, d) => s + d.value, 0)}</span>
               </div>
             </div>
             {data.leadsTimeline.length > 0 ? <SparklineBars data={data.leadsTimeline} /> : (
-              <div className="text-[11px] text-slate-500 italic">{t('crm.dashboard.leadsTimeline.empty')}</div>
+              <div className="text-[11px] text-neutral-500 italic">{t('crm.dashboard.leadsTimeline.empty')}</div>
             )}
           </div>
         );
@@ -1101,18 +1115,18 @@ export const DashboardPage: React.FC = () => {
                 return (
                   <div
                     key={p.id}
-                    style={{ display: 'grid', gridTemplateColumns: '1fr 80px 44px', gap: '10px', alignItems: 'center', padding: '9px 4px', borderBottom: i < topP.length - 1 ? '1px solid #f0f0f0' : 'none' }}
+                    style={{ display: 'grid', gridTemplateColumns: '1fr 80px 44px', gap: '10px', alignItems: 'center', padding: '9px 4px', borderBottom: i < topP.length - 1 ? '1px solid #f5f5f5' : 'none' }}
                   >
                     <div className="min-w-0">
-                      <div className="text-[12.5px] font-medium text-slate-900 truncate">{p.name}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10px] text-slate-400 mt-0.5">
-                        {p.taskTotal} {t('crm.dashboard.projects.tasksLabel') || 'задач'}{p.amount > 0 ? ` · ${p.amount.toLocaleString(locale)} €` : ''}
+                      <div className="text-[12.5px] font-medium text-[#222] truncate">{p.name}</div>
+                      <div  className="text-[10px] text-neutral-400 mt-0.5">
+                        {p.taskTotal} {t('crm.dashboard.projects.tasksLabel')}{p.amount > 0 ? ` · ${p.amount.toLocaleString(locale)} €` : ''}
                       </div>
                     </div>
-                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-slate-900 rounded-full" style={{ width: `${pct}%` }} />
+                    <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#222222] rounded-full" style={{ width: `${pct}%` }} />
                     </div>
-                    <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[11px] text-slate-900 text-right font-medium">{pct}%</div>
+                    <div  className="text-[11px] text-[#222] text-right font-medium">{pct}%</div>
                   </div>
                 );
               })}
@@ -1131,7 +1145,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
               </>
             ) : (
-              <div className="text-[11px] text-slate-500 italic mt-2">{t('crm.dashboard.projects.empty')}</div>
+              <div className="text-[11px] text-neutral-500 italic mt-2">{t('crm.dashboard.projects.empty')}</div>
             )}
           </div>
         );
@@ -1147,23 +1161,23 @@ export const DashboardPage: React.FC = () => {
               return (
                 <div
                   key={('stage' in stage ? stage.stage : (stage as any).channel) + i}
-                  style={{ display: 'grid', gridTemplateColumns: '130px 1fr 80px', gap: '10px', alignItems: 'center', padding: '7px 0', borderBottom: i < stages.length - 1 ? '1px dashed #ebebeb' : 'none' }}
+                  style={{ display: 'grid', gridTemplateColumns: '130px 1fr 80px', gap: '10px', alignItems: 'center', padding: '7px 0', borderBottom: i < stages.length - 1 ? '1px dashed #e5e5e5' : 'none' }}
                 >
-                  <div className="text-[12.5px] text-slate-900 flex items-center gap-2 truncate">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0" style={{ opacity: Math.max(0.25, 1 - i * 0.15) }} />
+                  <div className="text-[12.5px] text-[#222] flex items-center gap-2 truncate">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#222] shrink-0" style={{ opacity: Math.max(0.25, 1 - i * 0.15) }} />
                     <span className="truncate">{'stage' in stage ? stage.stage : (stage as any).channel}</span>
                   </div>
-                  <div className="h-[7px] bg-slate-100 border border-slate-200 rounded overflow-hidden">
-                    <div className="h-full bg-slate-900 rounded transition-all duration-500" style={{ width: `${pct}%`, opacity: Math.max(0.25, 1 - i * 0.12) }} />
+                  <div className="h-[7px] bg-neutral-100 border border-neutral-200 rounded overflow-hidden">
+                    <div className="h-full bg-[#222222] rounded transition-all duration-500" style={{ width: `${pct}%`, opacity: Math.max(0.25, 1 - i * 0.12) }} />
                   </div>
-                  <div className="font-mono text-[11px] text-slate-500 text-right">
-                    <strong className="text-slate-900 font-medium">{stage.count}</strong>
+                  <div className="font-mono text-[11px] text-neutral-500 text-right">
+                    <strong className="text-[#222] font-medium">{stage.count}</strong>
                     {valLabel ? <span> · {valLabel}</span> : null}
                   </div>
                 </div>
               );
             })}
-            {!stages.length && <div className="text-[11px] text-slate-500 italic">{t('crm.dashboard.pipeline.empty')}</div>}
+            {!stages.length && <div className="text-[11px] text-neutral-500 italic">{t('crm.dashboard.pipeline.empty')}</div>}
           </div>
         );
       }
@@ -1174,21 +1188,21 @@ export const DashboardPage: React.FC = () => {
               <thead>
                 <tr>
                   {[t('crm.dashboard.recentLeads.headers.name'), t('crm.dashboard.recentLeads.headers.channel'), t('crm.dashboard.recentLeads.headers.status'), t('crm.dashboard.recentLeads.headers.created')].map((h) => (
-                    <th key={h} style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-left text-[9px] uppercase tracking-[0.1em] text-slate-400 font-normal px-2 py-1.5 border-b border-slate-100">{h}</th>
+                    <th key={h}  className="text-left text-[9px] uppercase tracking-[0.16em] text-neutral-400 font-normal px-2 py-1.5 border-b border-neutral-200">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {data.recentLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => navigate(`/leads/${lead.id}`)}>
-                    <td className="px-2 py-1.5 text-[12px] font-medium text-slate-900 whitespace-nowrap group-hover:text-slate-700">{lead.name}</td>
-                    <td className="px-2 py-1.5 text-[11px] text-slate-500 whitespace-nowrap">{lead.channel}</td>
-                    <td className="px-2 py-1.5 text-[11px] text-slate-500 whitespace-nowrap">{lead.status}</td>
-                    <td style={{ fontFamily: "'JetBrains Mono', monospace" }} className="px-2 py-1.5 text-[10px] text-slate-400 whitespace-nowrap">{lead.createdAt}</td>
+                  <tr key={lead.id} className="hover:bg-neutral-50/80 transition-colors cursor-pointer group" onClick={() => navigate(`/leads/${lead.id}`)}>
+                    <td className="px-2 py-1.5 text-[12px] font-medium text-[#222] whitespace-nowrap group-hover:text-[#222]">{lead.name}</td>
+                    <td className="px-2 py-1.5 text-[11px] text-neutral-600 whitespace-nowrap">{lead.channel}</td>
+                    <td className="px-2 py-1.5 text-[11px] text-neutral-600 whitespace-nowrap">{lead.status}</td>
+                    <td  className="px-2 py-1.5 text-[10px] text-neutral-400 whitespace-nowrap">{lead.createdAt}</td>
                   </tr>
                 ))}
                 {!data.recentLeads.length && (
-                  <tr><td colSpan={4} className="px-2 py-3 text-center text-[11px] text-slate-400 italic">{t('crm.dashboard.recentLeads.empty')}</td></tr>
+                  <tr><td colSpan={4} className="px-2 py-3 text-center text-[11px] text-neutral-400 italic">{t('crm.dashboard.recentLeads.empty')}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1198,7 +1212,7 @@ export const DashboardPage: React.FC = () => {
         return (
           <div className="space-y-2">
             {data.myTasks.map((task) => <TaskRow key={task.id} {...task} />)}
-            {!data.myTasks.length && <div className="text-[11px] text-slate-500 italic">{t('crm.dashboard.tasks.empty')}</div>}
+            {!data.myTasks.length && <div className="text-[11px] text-neutral-500 italic">{t('crm.dashboard.tasks.empty')}</div>}
           </div>
         );
       case 'staff': {
@@ -1218,10 +1232,10 @@ export const DashboardPage: React.FC = () => {
               return (
                 <div
                   key={s.id}
-                  className="hover:bg-slate-50 transition-colors rounded"
-                  style={{ display: 'grid', gridTemplateColumns: '24px 1fr 80px 56px', gap: '10px', alignItems: 'center', padding: '9px 4px', borderBottom: i < sorted.length - 1 ? '1px solid #f0f0f0' : 'none' }}
+                  className="hover:bg-neutral-50/80 transition-colors rounded-lg"
+                  style={{ display: 'grid', gridTemplateColumns: '24px 1fr 80px 56px', gap: '10px', alignItems: 'center', padding: '9px 4px', borderBottom: i < sorted.length - 1 ? '1px solid #f5f5f5' : 'none' }}
                 >
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className={`text-[11px] ${i === 0 ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+                  <div  className={`text-[11px] ${i === 0 ? 'text-[#222] font-medium' : 'text-neutral-400'}`}>
                     {String(i + 1).padStart(2, '0')}
                   </div>
                   <div className="flex items-center gap-2 min-w-0">
@@ -1229,31 +1243,31 @@ export const DashboardPage: React.FC = () => {
                       <img
                         src={avatarSrc}
                         alt=""
-                        className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-slate-200/90"
+                        className="w-7 h-7 rounded-full object-cover shrink-0 ring-1 ring-neutral-200"
                         loading="lazy"
                       />
                     ) : (
                       <span
                         className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-[10px] font-semibold bg-[#222222] text-white"
-                        style={{ fontFamily: "'Inter Tight', sans-serif" }}
+                        
                       >
                         {initials}
                       </span>
                     )}
                     <div className="min-w-0">
-                      <div className="text-[12.5px] font-medium text-slate-900 truncate">{s.name}</div>
-                      <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10px] text-slate-400 uppercase tracking-[0.04em] mt-0.5">{s.leadsCount} {t('crm.dashboard.staff.leadsLabel') || 'лидов'}</div>
+                      <div className="text-[12.5px] font-medium text-[#222] truncate">{s.name}</div>
+                      <div  className="text-[10px] text-neutral-400 uppercase tracking-[0.04em] mt-0.5">{s.leadsCount} {t('crm.dashboard.staff.leadsLabel')}</div>
                     </div>
                   </div>
-                  <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-slate-900 rounded-full" style={{ width: `${pct}%` }} />
+                  <div className="h-1.5 bg-neutral-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#222222] rounded-full" style={{ width: `${pct}%` }} />
                   </div>
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[11px] text-slate-900 text-right font-medium">{s.revenueEUR.toLocaleString(locale)} €</div>
+                  <div  className="text-[11px] text-[#222] text-right font-medium">{s.revenueEUR.toLocaleString(locale)} €</div>
                 </div>
               );
             })}
             {!data.staffPerformance.length && (
-              <div className="text-[11px] text-slate-500 italic py-2">{t('crm.dashboard.staff.empty')}</div>
+              <div className="text-[11px] text-neutral-500 italic py-2">{t('crm.dashboard.staff.empty')}</div>
             )}
           </div>
         );
@@ -1262,48 +1276,48 @@ export const DashboardPage: React.FC = () => {
         return (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-1">{t('crm.dashboard.projectsAnalytics.kpiProjects')}</div>
-                <div style={{ fontFamily: "'Inter Tight', sans-serif" }} className="text-xl font-medium text-slate-900">{projectsSummary?.total ?? 0}</div>
+              <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.projectsAnalytics.kpiProjects')}</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{projectsSummary?.total ?? 0}</div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-1">{t('crm.dashboard.projectsAnalytics.kpiRevenue')}</div>
-                <div style={{ fontFamily: "'Inter Tight', sans-serif" }} className="text-xl font-medium text-slate-900">{(summary?.revenueEUR ?? 0).toLocaleString(locale)} €</div>
+              <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.projectsAnalytics.kpiRevenue')}</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{(summary?.revenueEUR ?? 0).toLocaleString(locale)} €</div>
               </div>
             </div>
-            <Link to="/projects/analytics" className="inline-flex items-center justify-center w-full rounded-xl bg-slate-900 text-white text-[11px] font-medium py-2 hover:bg-slate-800 transition-colors">{t('crm.dashboard.projectsAnalytics.openFull')}</Link>
+            <Link to="/projects/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.projectsAnalytics.openFull')}</Link>
           </div>
         );
       case 'leads-analytics':
         return (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-1">{t('crm.dashboard.leadsAnalyticsWidget.kpiLeads')}</div>
-                <div style={{ fontFamily: "'Inter Tight', sans-serif" }} className="text-xl font-medium text-slate-900">{summary?.totalLeads ?? 0}</div>
+              <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.leadsAnalyticsWidget.kpiLeads')}</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{summary?.totalLeads ?? 0}</div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-1">{t('crm.dashboard.leadsAnalyticsWidget.kpiConversion')}</div>
-                <div style={{ fontFamily: "'Inter Tight', sans-serif" }} className="text-xl font-medium text-slate-900">{summary?.conversion ?? 0}%</div>
+              <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.leadsAnalyticsWidget.kpiConversion')}</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{summary?.conversion ?? 0}%</div>
               </div>
             </div>
-            <Link to="/leads/analytics" className="inline-flex items-center justify-center w-full rounded-xl bg-slate-900 text-white text-[11px] font-medium py-2 hover:bg-slate-800 transition-colors">{t('crm.dashboard.leadsAnalyticsWidget.openFull')}</Link>
+            <Link to="/leads/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.leadsAnalyticsWidget.openFull')}</Link>
           </div>
         );
       case 'sales-analytics':
         return (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-1">{t('crm.dashboard.salesAnalyticsWidget.kpiCount')}</div>
-                <div style={{ fontFamily: "'Inter Tight', sans-serif" }} className="text-xl font-medium text-slate-900">{data.salesSnapshot.count}</div>
+              <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.salesAnalyticsWidget.kpiCount')}</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{data.salesSnapshot.count}</div>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[9px] text-slate-400 uppercase tracking-[0.1em] mb-1">{t('crm.dashboard.salesAnalyticsWidget.kpiAmount')}</div>
-                <div style={{ fontFamily: "'Inter Tight', sans-serif" }} className="text-xl font-medium text-slate-900">{data.salesSnapshot.amount.toLocaleString(locale)}</div>
+              <div className="rounded-2xl border border-neutral-200 bg-white px-3 py-3 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+                <div className="font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400 mb-1">{t('crm.dashboard.salesAnalyticsWidget.kpiAmount')}</div>
+                <div className="text-2xl font-semibold tracking-[-0.03em] text-[#222]">{data.salesSnapshot.amount.toLocaleString(locale)}</div>
               </div>
             </div>
-            <Link to="/sales/analytics" className="inline-flex items-center justify-center w-full rounded-xl bg-slate-900 text-white text-[11px] font-medium py-2 hover:bg-slate-800 transition-colors">{t('crm.dashboard.salesAnalyticsWidget.openFull')}</Link>
+            <Link to="/sales/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.salesAnalyticsWidget.openFull')}</Link>
           </div>
         );
       default:
@@ -1313,45 +1327,46 @@ export const DashboardPage: React.FC = () => {
 
   const getGreeting = () => {
     const h = new Date().getHours();
-    if (h < 12) return t('crm.dashboard.greeting.morning') || 'Доброе утро';
-    if (h < 18) return t('crm.dashboard.greeting.afternoon') || 'Добрый день';
-    return t('crm.dashboard.greeting.evening') || 'Добрый вечер';
+    if (h < 12) return t('crm.dashboard.greeting.morning');
+    if (h < 18) return t('crm.dashboard.greeting.afternoon');
+    return t('crm.dashboard.greeting.evening');
   };
 
   return (
     <MainLayout>
-      <div className="relative isolate overflow-visible rounded-2xl border border-slate-200 bg-white px-3 py-5 sm:px-4 md:px-7 md:py-7">
+      <div className="relative isolate overflow-visible rounded-[18px] border border-neutral-200 bg-white px-3 py-5 shadow-[0_16px_45px_rgba(15,23,42,0.05)] sm:px-4 md:px-7 md:py-7">
         <div className="relative z-10 pb-2 md:pb-4">
 
           {/* ── HERO ── */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-slate-100 pb-5 mb-6 flex-wrap">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between border-b border-neutral-100 pb-5 mb-6 flex-wrap">
             <div>
-              <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 mb-1">
+              <div  className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-400 mb-1">
                 {new Date().toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
               </div>
-              <h1 style={{ fontFamily: "'Inter Tight', sans-serif" }} className="text-[26px] md:text-[30px] font-semibold text-slate-900 tracking-tight leading-tight">
-                <span className="text-slate-400 font-medium">{getGreeting()}, </span>
+              <h1  className="text-[26px] md:text-[30px] font-semibold text-[#222] tracking-tight leading-tight">
+                <span className="text-neutral-400 font-medium">{getGreeting()}, </span>
                 {user?.name?.trim() || user?.email || t('crm.dashboard.fallbacks.user')}
               </h1>
               <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1">
                 {tasksSummary && tasksSummary.today > 0 && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10.5px] uppercase tracking-[0.1em] text-slate-500">
-                    <strong className="text-slate-900 font-medium">{tasksSummary.today}</strong> задач сегодня
+                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-neutral-600">
+                    {t('crm.dashboard.hero.stats.tasksToday', { count: tasksSummary.today })}
                   </span>
                 )}
                 {tasksSummary && tasksSummary.overdue > 0 && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10.5px] uppercase tracking-[0.1em] text-rose-600">
-                    <strong className="font-medium">{tasksSummary.overdue}</strong> просрочено
+                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-rose-600">
+                    {t('crm.dashboard.hero.stats.overdue', { count: tasksSummary.overdue })}
                   </span>
                 )}
                 {summary && summary.todayLeads > 0 && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10.5px] uppercase tracking-[0.1em] text-slate-500">
-                    <strong className="text-slate-900 font-medium">{summary.todayLeads}</strong> новых лидов
+                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-neutral-600">
+                    {t('crm.dashboard.hero.stats.newLeads', { count: summary.todayLeads })}
                   </span>
                 )}
                 {summary && summary.revenueEUR > 0 && (
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10.5px] uppercase tracking-[0.1em] text-slate-500">
-                    <strong className="text-slate-900 font-medium">{summary.revenueEUR.toLocaleString(locale)} €</strong> выручка
+                  <span  className="text-[10.5px] uppercase tracking-[0.1em] text-neutral-600">
+                    {t('crm.dashboard.hero.stats.revenue', {
+                      amount: summary.revenueEUR.toLocaleString(locale) })}
                   </span>
                 )}
               </div>
@@ -1360,7 +1375,7 @@ export const DashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setPresetsModalOpen(true)}
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[11px] text-slate-600 hover:border-slate-300 hover:bg-slate-50 transition-colors"
+                className="rounded-2xl border border-neutral-200 bg-white px-3 py-1.5 text-[11px] text-neutral-600 hover:border-[#222] hover:text-[#222] transition-colors"
               >
                 + {t('crm.dashboard.widgets.addBlock')}
               </button>
@@ -1373,7 +1388,7 @@ export const DashboardPage: React.FC = () => {
             {/* Main column */}
             <div className="min-w-0">
               {/* Quick access */}
-              <QuickAccessSection />
+              <QuickAccessSection t={t} />
 
               {/* KPI Strip */}
               {kpiVisible && data && (
@@ -1389,17 +1404,17 @@ export const DashboardPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <svg className="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                    <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="3" width="7" height="9" rx="1.5" /><rect x="14" y="3" width="7" height="5" rx="1.5" />
                       <rect x="14" y="12" width="7" height="9" rx="1.5" /><rect x="3" y="16" width="7" height="5" rx="1.5" />
                     </svg>
-                    <span className="text-[13px] font-semibold text-slate-800 tracking-tight">{t('crm.dashboard.sections.myBlocks') || 'Мои блоки'}</span>
-                    <span className="font-mono text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{mainGridIds.length}</span>
+                    <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.sections.myBlocks')}</span>
+                    <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{mainGridIds.length}</span>
                   </div>
                   <button
                     type="button"
                     onClick={() => setPresetsModalOpen(true)}
-                    className="text-[11px] text-slate-500 hover:text-slate-900 font-medium transition-colors flex items-center gap-1"
+                    className="text-[11px] text-neutral-500 hover:text-[#222] font-medium transition-colors flex items-center gap-1"
                   >
                     + {t('crm.dashboard.widgets.addBlock')}
                   </button>
@@ -1449,7 +1464,7 @@ export const DashboardPage: React.FC = () => {
                               type="button"
                               draggable={false}
                               onClick={() => setLeadsModalOpen(true)}
-                              className="rounded-lg border border-slate-200 bg-white/80 px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-50"
+                              className="rounded-lg border border-neutral-200 bg-white/80 px-2 py-1 text-[10px] text-neutral-600 hover:bg-neutral-50"
                             >
                               {t('crm.dashboard.detailModal.open')}
                             </button>
@@ -1464,14 +1479,14 @@ export const DashboardPage: React.FC = () => {
                   {/* Empty add slot */}
                   {mainGridIds.length === 0 && (
                     <div
-                      className="col-span-12 border border-dashed border-slate-200 rounded-3xl p-10 text-center text-slate-400 text-[12px] cursor-pointer hover:border-slate-400 hover:text-slate-600 transition-colors"
+                      className="col-span-12 border border-dashed border-neutral-300 rounded-[18px] p-10 text-center text-neutral-500 text-[12px] cursor-pointer transition-colors hover:border-[#222] hover:text-[#222]"
                       onClick={() => setPresetsModalOpen(true)}
                     >
-                      <div className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                      <div className="w-8 h-8 rounded-xl bg-neutral-100 flex items-center justify-center mx-auto mb-3">
                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 5v14M5 12h14" /></svg>
                       </div>
                       {t('crm.dashboard.widgets.addBlock')}
-                      <div className="text-[11px] text-slate-400 mt-1">{t('crm.dashboard.widgets.addBlockHint') || 'метрики, отчёты, виджеты с других страниц'}</div>
+                      <div className="text-[11px] text-neutral-400 mt-1">{t('crm.dashboard.widgets.addBlockHint')}</div>
                     </div>
                   )}
                 </section>
@@ -1481,8 +1496,8 @@ export const DashboardPage: React.FC = () => {
             {/* ── SIDEBAR ── */}
             <aside className="flex flex-col gap-4 xl:sticky xl:top-[72px]">
 
-              {/* Profile completion */}
-              {!profileDismissed && data && (
+              {/* Profile completion — hide when dismissed, at 100%, or when steps not loaded */}
+              {!profileDismissed && data && data.profileCompletion.steps.length > 0 && data.profileCompletion.percent < 100 && (
                 <SidebarProfileCard
                   percent={data.profileCompletion.percent}
                   steps={data.profileCompletion.steps}
@@ -1499,9 +1514,9 @@ export const DashboardPage: React.FC = () => {
 
               {/* Learn & Inspire */}
               {data && (
-                <div className="rounded-xl border border-slate-200 bg-white p-[18px]">
-                  <div className="text-[13px] font-semibold text-slate-900 leading-snug mb-2">
-                    {t('crm.dashboard.learn.sidebarTitle') || 'Учитесь и вдохновляйтесь'}
+                <div className="rounded-xl border border-neutral-200 bg-white p-[18px]">
+                  <div className="text-[13px] font-semibold text-[#222] leading-snug mb-2">
+                    {t('crm.dashboard.learn.sidebarTitle')}
                   </div>
                   <DashboardLearnInspire slugs={data.learnSlugs} inSidebar />
                 </div>
@@ -1512,17 +1527,17 @@ export const DashboardPage: React.FC = () => {
           {/* ── MODALS ── */}
           {leadsModalOpen && data && createPortal(
             <div className="fixed inset-0 z-[10080] flex items-center justify-center p-4 bg-black/35 backdrop-blur-sm" role="presentation" onMouseDown={() => setLeadsModalOpen(false)}>
-              <div role="dialog" className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-3xl border border-slate-200/90 bg-white/98 backdrop-blur-md p-5 ring-1 ring-slate-900/[0.08]" onMouseDown={(e) => e.stopPropagation()}>
+              <div role="dialog" className="w-full max-w-3xl max-h-[85vh] overflow-y-auto rounded-[18px] border border-neutral-200/90 bg-white/98 backdrop-blur-md p-5 ring-1 ring-neutral-900/[0.08]" onMouseDown={(e) => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-4 gap-2">
-                  <h3 className="text-sm font-semibold text-slate-900">{t('crm.dashboard.recentLeads.title')}</h3>
+                  <h3 className="text-sm font-semibold text-[#222]">{t('crm.dashboard.recentLeads.title')}</h3>
                   <div className="flex items-center gap-2">
-                    <Link to="/leads/list" className="text-[11px] text-slate-900 font-medium hover:underline">{t('crm.dashboard.recentLeads.openAll')}</Link>
-                    <button type="button" onClick={() => setLeadsModalOpen(false)} className="text-[11px] text-slate-500 hover:text-slate-800">{t('crm.common.close')}</button>
+                    <Link to="/leads/list" className="text-[11px] text-[#222] font-medium hover:underline">{t('crm.dashboard.recentLeads.openAll')}</Link>
+                    <button type="button" onClick={() => setLeadsModalOpen(false)} className="text-[11px] text-neutral-500 hover:text-[#222]">{t('crm.common.close')}</button>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1">
-                    <thead className="text-slate-500">
+                    <thead className="text-neutral-500">
                       <tr>
                         <th className="text-left font-normal px-2 py-1">{t('crm.dashboard.recentLeads.headers.name')}</th>
                         <th className="text-left font-normal px-2 py-1">{t('crm.dashboard.recentLeads.headers.channel')}</th>
@@ -1532,11 +1547,11 @@ export const DashboardPage: React.FC = () => {
                     </thead>
                     <tbody>
                       {data.recentLeads.map((lead) => (
-                        <tr key={lead.id} className="bg-slate-100/70 hover:bg-slate-200 transition-colors cursor-pointer" onClick={() => { setLeadsModalOpen(false); navigate(`/leads/${lead.id}`); }}>
-                          <td className="px-2 py-1.5 text-slate-900 font-medium whitespace-nowrap">{lead.name}</td>
-                          <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">{lead.channel}</td>
-                          <td className="px-2 py-1.5 text-slate-600 whitespace-nowrap">{lead.status}</td>
-                          <td className="px-2 py-1.5 text-slate-500 whitespace-nowrap">{lead.createdAt}</td>
+                        <tr key={lead.id} className="bg-neutral-100/70 hover:bg-neutral-200 transition-colors cursor-pointer" onClick={() => { setLeadsModalOpen(false); navigate(`/leads/${lead.id}`); }}>
+                          <td className="px-2 py-1.5 text-[#222] font-medium whitespace-nowrap">{lead.name}</td>
+                          <td className="px-2 py-1.5 text-neutral-600 whitespace-nowrap">{lead.channel}</td>
+                          <td className="px-2 py-1.5 text-neutral-600 whitespace-nowrap">{lead.status}</td>
+                          <td className="px-2 py-1.5 text-neutral-500 whitespace-nowrap">{lead.createdAt}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1569,7 +1584,7 @@ export const DashboardPage: React.FC = () => {
             />
           )}
 
-          {widgetEditOpen && widgetEditId && (
+          {widgetEditOpen && widgetEditId && createPortal(
             <div
               className="fixed inset-0 z-[10085] flex items-center justify-center p-4 bg-black/45 backdrop-blur-md"
               onClick={() => { setWidgetEditOpen(false); setWidgetEditId(null); }}
@@ -1577,26 +1592,26 @@ export const DashboardPage: React.FC = () => {
               role="presentation"
             >
               <div role="dialog" aria-modal="true" aria-labelledby="widget-edit-title"
-                className="w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 text-slate-900 shadow-2xl shadow-slate-900/20 ring-1 ring-slate-900/[0.06]"
+                className="w-full max-w-md rounded-[18px] border border-neutral-200/90 bg-white p-6 text-[#222] shadow-2xl shadow-neutral-900/20 ring-1 ring-neutral-900/[0.06]"
                 onClick={(e) => e.stopPropagation()}
               >
-                <h3 id="widget-edit-title" className="text-base font-semibold tracking-tight text-slate-900">{t('crm.dashboard.widgets.editModalTitle')}</h3>
-                <label htmlFor="widget-edit-title-input" className="mt-4 block text-[12px] font-medium text-slate-600">{t('crm.dashboard.widgets.editTitleLabel')}</label>
+                <h3 id="widget-edit-title" className="text-base font-semibold tracking-tight text-[#222]">{t('crm.dashboard.widgets.editModalTitle')}</h3>
+                <label htmlFor="widget-edit-title-input" className="mt-4 block text-[12px] font-medium text-neutral-600">{t('crm.dashboard.widgets.editTitleLabel')}</label>
                 <input
                   id="widget-edit-title-input"
                   value={widgetEditTitle}
                   onChange={(e) => setWidgetEditTitle(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 outline-none transition-shadow focus:border-slate-400 focus:bg-white focus:ring-2 focus:ring-slate-900/10"
+                  className="mt-1.5 w-full rounded-xl border border-neutral-300 bg-neutral-50 px-3 py-2.5 text-sm text-[#222] outline-none transition-shadow focus:border-neutral-400 focus:bg-white focus:ring-2 focus:ring-neutral-900/10"
                   autoFocus
                 />
-                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5">
+                <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-5">
                   <button type="button" onClick={() => { removeWidgetBlock(widgetEditId); setWidgetEditOpen(false); setWidgetEditId(null); }}
                     className="rounded-xl border border-rose-300/80 bg-rose-50 px-3.5 py-2 text-[12px] font-medium text-rose-800 hover:bg-rose-100">
                     {t('crm.dashboard.widgets.deleteBlock')}
                   </button>
                   <div className="flex items-center gap-2">
                     <button type="button" onClick={() => { setWidgetEditOpen(false); setWidgetEditId(null); }}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-[12px] font-medium text-slate-800 shadow-sm hover:bg-slate-50">
+                      className="rounded-xl border border-neutral-300 bg-white px-4 py-2 text-[12px] font-medium text-[#222] shadow-sm hover:bg-neutral-50">
                       {t('crm.common.cancel')}
                     </button>
                     <button
@@ -1609,20 +1624,21 @@ export const DashboardPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body,
           )}
 
         </div>
       </div>
 
       {toast && (
-        <div className="fixed top-20 right-4 z-[10090] rounded-2xl border border-slate-200/90 bg-white/95 backdrop-blur-sm px-4 py-2 text-[11px] text-slate-800 ring-1 ring-slate-900/[0.06]">
+        <div className="fixed top-20 right-4 z-[10090] rounded-[18px] border border-neutral-200/90 bg-white/95 backdrop-blur-sm px-4 py-2 text-[11px] text-[#222] ring-1 ring-neutral-900/[0.06]">
           {toast}
         </div>
       )}
       {loading && (
         <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-          <div className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-sm border border-slate-200/90 text-[11px] text-slate-700 ring-1 ring-slate-900/[0.05] flex items-center gap-2">
+          <div className="px-3 py-1.5 rounded-full bg-white/95 backdrop-blur-sm border border-neutral-200/90 text-[11px] text-neutral-700 ring-1 ring-neutral-900/[0.05] flex items-center gap-2">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
             {t('crm.dashboard.loading')}
           </div>
@@ -1650,12 +1666,12 @@ const SparklineBars: React.FC<{ data: { label: string; value: number }[] }> = ({
           const isLast = idx === data.length - 1 && d.value > 0;
           return (
             <div key={idx} className="flex-1 flex items-end justify-center">
-              <div className={`w-full rounded-t-sm transition-all ${isLast ? 'bg-slate-900' : 'bg-slate-200 hover:bg-slate-300'}`} style={{ height: `${height}%` }} />
+              <div className={`w-full rounded-t-[4px] transition-all ${isLast ? 'bg-[#222222]' : 'bg-neutral-200 hover:bg-neutral-300'}`} style={{ height: `${height}%` }} />
             </div>
           );
         })}
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="flex justify-between text-[9px] text-slate-400 tracking-[0.06em]">
+      <div  className="flex justify-between text-[9px] text-neutral-400 tracking-[0.06em]">
         <span>{data[0]?.label}</span>
         <span>{data[Math.floor(data.length / 2)]?.label}</span>
         <span>{data[data.length - 1]?.label}</span>
@@ -1669,12 +1685,12 @@ const ProjectDistributionBar: React.FC<{ summary: DashboardData['projectsSummary
   const total = open + won + lost;
   return (
     <div className="mt-3">
-      <div className="h-3 rounded-full bg-slate-100 overflow-hidden flex">
-        {total === 0 ? <div className="h-full w-full bg-slate-200" /> : (
+      <div className="h-3 rounded-full bg-neutral-100 overflow-hidden flex ring-1 ring-neutral-100">
+        {total === 0 ? <div className="h-full w-full bg-neutral-200" /> : (
           <>
-            {open > 0 && <div className="h-full bg-sky-500/70" style={{ flex: open }} />}
-            {won > 0 && <div className="h-full bg-emerald-500/70" style={{ flex: won }} />}
-            {lost > 0 && <div className="h-full bg-rose-500/70" style={{ flex: lost }} />}
+            {open > 0 && <div className="h-full bg-[#1769d1]/75" style={{ flex: open }} />}
+            {won > 0 && <div className="h-full bg-[#1f8a5e]/80" style={{ flex: won }} />}
+            {lost > 0 && <div className="h-full bg-[#cc2f47]/75" style={{ flex: lost }} />}
           </>
         )}
       </div>
@@ -1686,25 +1702,25 @@ const ProjectSummaryChip: React.FC<{ label: string; color: string; count: number
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
   return (
-    <div className="rounded-xl bg-white border border-slate-200 px-3 py-2 flex flex-col gap-0.5">
-      <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+    <div className="rounded-2xl bg-white border border-neutral-200 px-3 py-2.5 flex flex-col gap-0.5 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
+      <div className="flex items-center gap-1.5 text-[11px] text-neutral-600 font-medium">
         <span className={`h-1.5 w-1.5 rounded-full ${color}`} /><span>{label}</span>
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10px] text-slate-500">
-        {t('crm.dashboard.projects.countLabel')} <span className="text-slate-900 font-medium">{count}</span>
+      <div  className="text-[10px] text-neutral-500">
+        {t('crm.dashboard.projects.countLabel')} <span className="text-[#222] font-medium">{count}</span>
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10px] text-slate-500">
-        {t('crm.dashboard.projects.amountLabel')} <span className="text-slate-900 font-medium">{value.toLocaleString(locale)} €</span>
+      <div  className="text-[10px] text-neutral-500">
+        {t('crm.dashboard.projects.amountLabel')} <span className="text-[#222] font-medium">{value.toLocaleString(locale)} €</span>
       </div>
     </div>
   );
 };
 
 const TaskStatPill: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
-  <div className="inline-flex items-center gap-1.5 rounded-full bg-white border border-slate-200 px-2.5 py-1">
+  <div className="inline-flex items-center gap-1.5 rounded-full bg-white border border-neutral-200 px-2.5 py-1">
     <span className={`h-1.5 w-1.5 rounded-full ${color}`} />
-    <span className="text-[11px] text-slate-600">{label}</span>
-    <span style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[11px] text-slate-900 font-medium">{value}</span>
+    <span className="text-[11px] text-neutral-600">{label}</span>
+    <span  className="text-[11px] text-[#222] font-medium">{value}</span>
   </div>
 );
 
@@ -1714,14 +1730,14 @@ const ChannelRow: React.FC<{ channel: string; count: number; trend: 'up' | 'down
   const { i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
   const trendLabel = trend === 'up' ? '↑' : trend === 'down' ? '↓' : '→';
-  const trendColor = trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-rose-500' : 'text-slate-400';
+  const trendColor = trend === 'up' ? 'text-emerald-600' : trend === 'down' ? 'text-rose-500' : 'text-neutral-400';
   return (
     <div className="flex items-center gap-3">
-      <div className="w-20 text-[12px] text-slate-600 truncate font-medium">{channel}</div>
-      <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full bg-slate-800 transition-all duration-500" style={{ width: `${width}%` }} />
+      <div className="w-20 text-[12px] text-neutral-600 truncate font-medium">{channel}</div>
+      <div className="flex-1 h-1 bg-neutral-100 rounded-full overflow-hidden">
+        <div className="h-full bg-[#222] transition-all duration-500" style={{ width: `${width}%` }} />
       </div>
-      <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="w-14 text-right text-[11px] text-slate-700">{count.toLocaleString(locale)}</div>
+      <div  className="w-14 text-right text-[11px] text-neutral-700">{count.toLocaleString(locale)}</div>
       <div className={`w-4 text-right text-[11px] ${trendColor}`}>{trendLabel}</div>
     </div>
   );
@@ -1735,13 +1751,13 @@ const PipelineRow: React.FC<{ stage: string; count: number; valueEUR: number }> 
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] font-medium text-slate-800 truncate">{stage}</span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10px] text-slate-500 whitespace-nowrap">
+        <span className="text-[12px] font-medium text-[#222] truncate">{stage}</span>
+        <span  className="text-[10px] text-neutral-500 whitespace-nowrap">
           {t('crm.dashboard.pipeline.itemLabel', { count, value: valueEUR.toLocaleString(locale) })}
         </span>
       </div>
-      <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
-        <div className="h-full bg-slate-800 transition-all duration-500" style={{ width: `${width}%` }} />
+      <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
+        <div className="h-full bg-[#222] transition-all duration-500" style={{ width: `${width}%` }} />
       </div>
     </div>
   );
@@ -1749,16 +1765,16 @@ const PipelineRow: React.FC<{ stage: string; count: number; valueEUR: number }> 
 
 const TaskRow: React.FC<{ id: string; taskId: string; projectId: string; projectName: string; taskTitle: string; title: string; due: string; type: 'call' | 'meeting' | 'todo' }> = ({ projectId, taskTitle, projectName, due, type }) => {
   const { t } = useTranslation();
-  const color = type === 'call' ? 'bg-emerald-500/80' : type === 'meeting' ? 'bg-violet-400/70' : 'bg-indigo-400';
+  const color = type === 'call' ? 'bg-[#1f8a5e]/85' : type === 'meeting' ? 'bg-[#5a45a8]/80' : 'bg-[#1769d1]/85';
   const translatedLabel = type === 'call' ? t('crm.dashboard.taskTypes.call') : type === 'meeting' ? t('crm.dashboard.taskTypes.meeting') : t('crm.dashboard.taskTypes.todo');
   const projectHref = `/projects/${encodeURIComponent(projectId)}?tab=tasks`;
   return (
-    <div className="flex items-start gap-2.5 bg-white border border-slate-200 rounded-xl px-3 py-2.5 transition-colors hover:border-slate-300">
+    <div className="flex items-start gap-2.5 bg-white border border-neutral-200 rounded-2xl px-3 py-2.5 transition-colors hover:border-neutral-300 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
       <div className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${color}`} />
       <div className="flex-1 min-w-0">
-        <Link to={projectHref} className="block text-[12px] font-medium text-slate-900 hover:text-slate-600 text-left">{taskTitle}</Link>
-        <Link to={projectHref} className="block text-[11px] text-slate-500 mt-0.5 truncate hover:text-slate-700 text-left">{projectName}</Link>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10px] text-slate-400 mt-0.5 tracking-[0.04em]">{translatedLabel} · {due}</div>
+        <Link to={projectHref} className="block text-[12px] font-medium text-[#222] hover:text-neutral-700 text-left">{taskTitle}</Link>
+        <Link to={projectHref} className="block text-[11px] text-neutral-500 mt-0.5 truncate hover:text-neutral-700 text-left">{projectName}</Link>
+        <div  className="text-[10px] text-neutral-400 mt-0.5 tracking-[0.04em]">{translatedLabel} · {due}</div>
       </div>
     </div>
   );

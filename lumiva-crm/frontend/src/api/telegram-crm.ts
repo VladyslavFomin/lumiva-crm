@@ -107,3 +107,41 @@ export async function sendTelegramMessage(dto: SendTelegramMessageDto): Promise<
   return res;
 }
 
+// ── Bot staff recipients ──────────────────────────────────────────────────────
+
+export interface TelegramStaffRecipient {
+  id: string;
+  botId: string;
+  staffUserId: string;
+  staffUserName: string;
+  telegramChatId: string;
+  telegramUsername?: string | null;
+  createdAt: string;
+}
+
+export interface CreateTelegramStaffRecipientDto {
+  staffUserId: string;
+  staffUserName: string;
+  telegramChatId: string;
+  telegramUsername?: string;
+}
+
+export async function fetchTelegramBotRecipients(botId: string): Promise<TelegramStaffRecipient[]> {
+  try {
+    return await api.get<TelegramStaffRecipient[]>(`/telegram-crm/bots/${botId}/recipients`);
+  } catch {
+    return [];
+  }
+}
+
+export async function createTelegramBotRecipient(
+  botId: string,
+  dto: CreateTelegramStaffRecipientDto,
+): Promise<TelegramStaffRecipient> {
+  return api.post<TelegramStaffRecipient>(`/telegram-crm/bots/${botId}/recipients`, dto);
+}
+
+export async function deleteTelegramBotRecipient(botId: string, recipientId: string): Promise<void> {
+  await api.delete(`/telegram-crm/bots/${botId}/recipients/${recipientId}`);
+}
+

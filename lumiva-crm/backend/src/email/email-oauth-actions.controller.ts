@@ -91,6 +91,8 @@ export class EmailOAuthActionsController {
       user.tenantId,
       accountId,
       body,
+      this.uid(user),
+      (user as any).role,
     );
   }
 }

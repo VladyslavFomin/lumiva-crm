@@ -355,17 +355,17 @@ export type MarketingFxRatesResponse = {
   source: string;
   /** amount_in_display = amount_in_src * multiplyToDisplay[src] */
   multiplyToDisplay: Record<string, number>;
+  /** Все валюты, доступные как валюта отчёта в текущем ответе Frankfurter/ECB. */
+  availableDisplayCurrencies: string[];
 };
 
-const MARKETING_FX_DISPLAY = new Set(['EUR', 'GBP', 'TRY', 'USD', 'RUB']);
-
-/** GET /marketing/fx-rates — курсы для пересчёта валют в маркетинге. */
+/** GET /marketing/fx-rates — курсы для пересчёта валют в маркетинге (Frankfurter, полный набор ECB). */
 export async function fetchMarketingFxRates(
   displayRaw: string,
   opts?: { force?: boolean },
 ): Promise<MarketingFxRatesResponse> {
-  const d = (displayRaw || 'EUR').toUpperCase().slice(0, 8);
-  const display = MARKETING_FX_DISPLAY.has(d) ? d : 'EUR';
+  const d = (displayRaw || 'EUR').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3);
+  const display = /^[A-Z]{3}$/.test(d) ? d : 'EUR';
   const p = new URLSearchParams({ display });
   if (opts?.force) p.set('force', '1');
   return api.get<MarketingFxRatesResponse>(`/marketing/fx-rates?${p}`);
@@ -479,6 +479,10 @@ export async function fetchSegments(): Promise<MarketingSegment[]> {
   return api.get<MarketingSegment[]>('/marketing/segments');
 }
 
+export async function fetchSegmentById(id: string): Promise<MarketingSegment> {
+  return api.get<MarketingSegment>(`/marketing/segments/${id}`);
+}
+
 export async function createSegment(payload: {
   entityType: string;
   name: string;
@@ -586,6 +590,7 @@ export type GoogleAdsMarketingOAuthStartBody =
       loginCustomerId?: string;
       source?: string;
       medium?: string;
+      googleAdsAccountMode?: 'customer' | 'mcc_managed';
     }
   | {
       intent: 'reconnect';
@@ -676,6 +681,21 @@ export async function syncMarketingIntegration(
   const parsed = readRowsSavedFromObject(o);
   const n = parsed !== undefined && Number.isFinite(parsed) ? parsed : 0;
   return { ok: o.ok !== false, rowsSaved: n };
+}
+
+export type GoogleAdsManagedCustomersResponse = {
+  mode: string;
+  managerId: string;
+  loginCustomerId: string;
+  customers: Array<{ customerId: string; descriptiveName: string | null }>;
+};
+
+export async function fetchGoogleAdsManagedCustomers(
+  integrationId: string,
+): Promise<GoogleAdsManagedCustomersResponse> {
+  return api.get<GoogleAdsManagedCustomersResponse>(
+    `/marketing/integrations/${integrationId}/google-ads/managed-customers`,
+  );
 }
 
 export type CreateMarketingIntegrationBody = {

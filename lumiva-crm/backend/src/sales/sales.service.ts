@@ -452,7 +452,25 @@ export class SalesService {
     tenantId: string,
     query: ListSalesQueryDto,
   ): Promise<SalesStatsDto> {
-    const { from, to, status, channelId, search } = query;
+    const {
+      from,
+      to,
+      status,
+      channelId,
+      search,
+      currencyMode = 'native',
+      displayCurrency = 'EUR',
+      rates,
+    } = query;
+
+    let rateMap: Record<string, number> = {};
+    if (rates) {
+      try {
+        rateMap = JSON.parse(rates);
+      } catch {
+        rateMap = {};
+      }
+    }
 
     const qb = this.saleRepo.createQueryBuilder('s');
 
@@ -484,48 +502,51 @@ export class SalesService {
       );
     }
 
-    // total + avg
-    const baseAgg = await qb
+    const sales = await qb
       .clone()
-      .select('COUNT(*)', 'totalCount')
-      .addSelect('COALESCE(SUM(s.amount), 0)', 'totalAmount')
-      .getRawOne<{ totalCount: string; totalAmount: string }>();
+      .select(['s.id', 's.status', 's.amount', 's.currency'])
+      .getMany();
 
-    const totalCount = Number(baseAgg?.totalCount || 0);
-    const totalAmount = Number(baseAgg?.totalAmount || 0);
+    const normalizeCurrency = (currency?: string | null) =>
+      String(currency || 'EUR').toUpperCase().slice(0, 8) || 'EUR';
+    const reportCurrency = normalizeCurrency(displayCurrency);
+    const convertAmount = (amountRaw: unknown, currencyRaw: unknown) => {
+      const amount = Number(amountRaw) || 0;
+      const currency = normalizeCurrency(String(currencyRaw || 'EUR'));
+      if (currencyMode !== 'converted') return amount;
+      if (currency === reportCurrency) return amount;
+      const rate = rateMap[currency];
+      return rate && Number.isFinite(rate) && rate > 0 ? amount * rate : 0;
+    };
+
+    const totalCount = sales.length;
+    const totalAmount = sales.reduce(
+      (sum, sale) => sum + convertAmount(sale.amount, sale.currency),
+      0,
+    );
     const avgCheck = totalCount > 0 ? totalAmount / totalCount : 0;
 
-    // по статусам
-    const byStatusRaw = await qb
-      .clone()
-      .select('s.status', 'status')
-      .addSelect('COUNT(*)', 'count')
-      .addSelect('COALESCE(SUM(s.amount), 0)', 'amount')
-      .groupBy('s.status')
-      .getRawMany<{
-        status: SaleStatusString;
-        count: string;
-        amount: string;
-      }>();
+    const byStatusMap = new Map<SaleStatusString, SalesByStatusDto>();
+    const byCurrencyMap = new Map<string, SalesByCurrencyDto>();
+    for (const sale of sales) {
+      const statusKey = (sale.status || 'other') as SaleStatusString;
+      const statusRow =
+        byStatusMap.get(statusKey) ||
+        ({ status: statusKey as any, count: 0, amount: 0 } satisfies SalesByStatusDto);
+      statusRow.count += 1;
+      statusRow.amount += convertAmount(sale.amount, sale.currency);
+      byStatusMap.set(statusKey, statusRow);
 
-    const byStatus: SalesByStatusDto[] = byStatusRaw.map((r) => ({
-      status: r.status as any,
-      count: Number(r.count || 0),
-      amount: Number(r.amount || 0),
-    }));
+      const currencyKey = normalizeCurrency(sale.currency);
+      const currencyRow =
+        byCurrencyMap.get(currencyKey) ||
+        ({ currency: currencyKey, amount: 0 } satisfies SalesByCurrencyDto);
+      currencyRow.amount += Number(sale.amount) || 0;
+      byCurrencyMap.set(currencyKey, currencyRow);
+    }
 
-    // по валютам
-    const byCurrencyRaw = await qb
-      .clone()
-      .select('s.currency', 'currency')
-      .addSelect('COALESCE(SUM(s.amount), 0)', 'amount')
-      .groupBy('s.currency')
-      .getRawMany<{ currency: string; amount: string }>();
-
-    const byCurrency: SalesByCurrencyDto[] = byCurrencyRaw.map((r) => ({
-      currency: r.currency,
-      amount: Number(r.amount || 0),
-    }));
+    const byStatus = Array.from(byStatusMap.values());
+    const byCurrency = Array.from(byCurrencyMap.values());
 
     return {
       totalAmount,

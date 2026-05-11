@@ -12,7 +12,9 @@ export type PermissionKey =
   | 'contacts'
   | 'companies'
   | 'tools_automation'
-  | 'custom_objects';
+  | 'custom_objects'
+  | 'email'
+  | 'marketing';
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
 

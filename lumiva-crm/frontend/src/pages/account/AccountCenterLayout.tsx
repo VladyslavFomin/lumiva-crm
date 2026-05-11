@@ -25,6 +25,8 @@ export const AccountCenterLayout: React.FC = () => {
   const role = String(user?.role || '').toLowerCase();
   const isOwnerLike =
     role === 'owner' || role === 'admin' || role === 'superadmin';
+  const isManagerLike =
+    isOwnerLike || role === 'manager';
 
   const main = [
     { to: `${BASE}/overview`, end: true, label: t('crm.account.nav.overview') },
@@ -33,11 +35,17 @@ export const AccountCenterLayout: React.FC = () => {
     { to: `${BASE}/preferences`, end: false, label: t('crm.account.nav.preferences') },
   ];
 
+  // Настройки компании видны только owner/admin/manager
+  // Права доступа — только owner/admin
   const workspace = [
-    { to: '/app/settings', norm: '/settings', label: t('crm.account.nav.company') },
-    { to: '/app/settings/api', norm: '/settings/api', label: t('crm.account.nav.api') },
-    { to: '/app/billing', norm: '/billing', label: t('crm.account.nav.billing') },
-    { to: '/app/staff', norm: '/staff', label: t('crm.account.nav.staff') },
+    ...(isManagerLike
+      ? [
+          { to: '/app/settings', norm: '/settings', label: t('crm.account.nav.company') },
+          { to: '/app/settings/api', norm: '/settings/api', label: t('crm.account.nav.api') },
+          { to: '/app/billing', norm: '/billing', label: t('crm.account.nav.billing') },
+          { to: '/app/staff', norm: '/staff', label: t('crm.account.nav.staff') },
+        ]
+      : []),
     ...(isOwnerLike
       ? [
           {

@@ -66,9 +66,35 @@ export interface EmailMessage {
   date: string;
   isRead: boolean;
   isStarred?: boolean;
-  meta?: { hasCalendarAttachment?: boolean; [key: string]: unknown } | null;
+  meta?: {
+    hasCalendarAttachment?: boolean;
+    calendarInvite?: EmailCalendarInviteMeta;
+    calendarInviteImportError?: string;
+    [key: string]: unknown;
+  } | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface EmailCalendarInviteMeta {
+  title?: string | null;
+  startAt?: string | null;
+  endAt?: string | null;
+  location?: string | null;
+  timezone?: string | null;
+  organizerEmail?: string | null;
+  organizerName?: string | null;
+  attendees?: string[];
+  attendeesCount?: number | null;
+  status?: 'requested' | 'confirmed' | 'tentative' | 'cancelled' | string | null;
+  method?: string | null;
+  uid?: string | null;
+  sequence?: number | null;
+  sourceFilename?: string | null;
+  workspaceObjectId?: string;
+  workspaceRecordId?: string;
+  workspaceCalendarPath?: string;
+  workspaceTablePath?: string;
 }
 
 export interface CreateEmailAccountDto {
@@ -117,6 +143,14 @@ export interface ListEmailMessagesQuery {
   leadId?: string;
   saleId?: string;
   search?: string;
+  read?: boolean;
+  starred?: boolean;
+  hasCalendarInvite?: boolean;
+  hasLead?: boolean;
+  from?: string;
+  to?: string;
+  dateFrom?: string;
+  dateTo?: string;
   limit?: number;
   offset?: number;
 }
@@ -245,8 +279,33 @@ export async function startEmailOAuthMicrosoft(redirectPath?: string): Promise<{
   });
 }
 
-export async function syncEmailMailboxNow(accountId: string): Promise<{ imported: number }> {
-  return api.post<{ imported: number }>(`/email/oauth/sync/${accountId}`, {});
+export async function syncEmailMailboxNow(
+  accountId: string,
+  mode: 'oauth' | 'imap' = 'oauth',
+): Promise<{ imported: number; scanned?: number }> {
+  const path =
+    mode === 'imap'
+      ? `/email/accounts/${accountId}/sync-imap`
+      : `/email/oauth/sync/${accountId}`;
+  return api.post<{ imported: number; scanned?: number }>(path, {}, {
+    skipUnauthorizedRedirect: true,
+  });
+}
+
+export async function importEmailCalendarInvite(messageId: string): Promise<EmailMessage> {
+  return api.post<EmailMessage>(`/email/messages/${messageId}/calendar-invite/import`, {});
+}
+
+export async function backfillEmailCalendarInvites(body?: {
+  accountId?: string;
+  limit?: number;
+}): Promise<{
+  processed: number;
+  imported: number;
+  failed: number;
+  skipped: number;
+}> {
+  return api.post('/email/calendar-invites/backfill', body || {});
 }
 
 export async function patchEmailAccountIngestion(
@@ -361,4 +420,3 @@ export async function previewEmailTemplate(id: string, data: Record<string, any>
   const res = await api.post<{ subject: string; htmlBody: string; textBody: string }>(`/email/templates/${id}/preview`, data);
   return res;
 }
-

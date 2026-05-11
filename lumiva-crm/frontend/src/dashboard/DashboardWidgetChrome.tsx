@@ -15,7 +15,7 @@ function DropInsertGlow({ position }: { position: 'before' | 'after' }) {
         {/* Мягкое свечение */}
         <div className="absolute inset-x-2 -inset-y-1 rounded-full bg-gradient-to-r from-sky-400/0 via-sky-400/30 to-sky-400/0 blur-xl opacity-80" />
         {/* Внешняя линия */}
-        <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-gradient-to-r from-transparent via-slate-900/12 to-transparent" />
+        <div className="absolute inset-x-0 top-1/2 h-[3px] -translate-y-1/2 rounded-full bg-gradient-to-r from-transparent via-neutral-900/12 to-transparent" />
         {/* Акцентная полоса */}
         <div className="relative h-[2px] w-full rounded-full bg-gradient-to-r from-transparent via-lumiva-accent/80 to-transparent ring-1 ring-sky-400/25" />
         {/* Блик */}
@@ -87,7 +87,7 @@ export const DashboardWidgetChrome: React.FC<{
     <div
       className={`group relative min-w-0 overflow-visible transition-[ring,border-color] duration-300 ${
         dragOver
-          ? 'z-10 rounded-[28px] ring-2 ring-sky-400/40 ring-offset-2 ring-offset-transparent'
+          ? 'z-10 rounded-[18px] ring-2 ring-sky-400/40 ring-offset-2 ring-offset-transparent'
           : ''
       } ${dragging ? 'opacity-60' : ''}`}
       style={{
@@ -99,7 +99,7 @@ export const DashboardWidgetChrome: React.FC<{
       {dropBefore && <DropInsertGlow position="before" />}
       {/* Внешняя оболочка без overflow:hidden — иначе обрезаются хэндлы resize у края */}
       <div
-        className={`relative flex flex-col rounded-3xl border border-slate-200/70 bg-white/80 backdrop-blur-sm ring-1 ring-slate-900/[0.04] transition-[border-color,background-color,box-shadow] duration-300 hover:border-slate-300/90 hover:bg-white/95 hover:ring-slate-900/[0.06] ${
+        className={`relative flex flex-col rounded-[18px] border border-neutral-200 bg-white shadow-[0_16px_45px_rgba(15,23,42,0.05)] transition-[border-color,background-color,box-shadow] duration-300 hover:border-neutral-300 ${
           resizeActive ? '' : 'transition-[height,min-height] duration-150 ease-out'
         }`}
         style={{ height: heightPx, minHeight: heightPx }}
@@ -114,14 +114,16 @@ export const DashboardWidgetChrome: React.FC<{
         }}
         onDragEnd={onDragEnd}
       >
-        <div className="relative z-10 flex flex-col min-h-0 h-full overflow-hidden rounded-3xl">
-          <div className="pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100 bg-gradient-to-br from-white/0 via-sky-50/25 to-slate-50/40" />
+        <div className="relative z-10 flex flex-col min-h-0 h-full overflow-hidden rounded-[18px]">
+          <div className="pointer-events-none absolute inset-0 rounded-[18px] opacity-0 transition-opacity duration-500 group-hover:opacity-100 bg-gradient-to-br from-white/0 via-neutral-50/30 to-neutral-100/25" />
 
           <div className="relative z-10 p-4 md:p-5 flex flex-col min-h-0 h-full">
             <div className="flex items-start justify-between gap-2 mb-3 shrink-0">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-slate-800 tracking-tight truncate">{title}</h2>
+                  <h2 className="font-['Inter_Tight'] text-[15px] font-semibold leading-tight tracking-[-0.01em] text-[#222] truncate">
+                    {title}
+                  </h2>
                   {onEdit && (
                     <button
                       type="button"
@@ -131,7 +133,7 @@ export const DashboardWidgetChrome: React.FC<{
                       }}
                       draggable={false}
                       title={t('crm.dashboard.widgets.editBlock')}
-                      className="shrink-0 opacity-0 cursor-pointer group-hover:opacity-100 transition-opacity rounded-lg p-1 text-slate-400 hover:text-lumiva-accent hover:bg-slate-100"
+                      className="shrink-0 opacity-0 cursor-pointer group-hover:opacity-100 transition-opacity rounded-md p-1 text-neutral-400 hover:text-[#222] hover:bg-neutral-100"
                       aria-label={t('crm.dashboard.widgets.editBlock')}
                     >
                       <svg
@@ -150,7 +152,11 @@ export const DashboardWidgetChrome: React.FC<{
                     </button>
                   )}
                 </div>
-                {sub && <div className="text-[11.5px] text-slate-400 mt-0.5">{sub}</div>}
+                {sub && (
+                  <div className="mt-1 truncate font-mono text-[10px] uppercase tracking-[0.16em] text-neutral-400">
+                    {sub}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                 {actions}
@@ -165,7 +171,7 @@ export const DashboardWidgetChrome: React.FC<{
         {onBeginResize && (
           <>
             {resizeActive && (
-              <div className="pointer-events-none absolute inset-0 rounded-3xl border border-lumiva-accent/30 z-30" />
+              <div className="pointer-events-none absolute inset-0 rounded-[18px] border border-lumiva-accent/30 z-30" />
             )}
             <div
               onMouseDown={(e) => {

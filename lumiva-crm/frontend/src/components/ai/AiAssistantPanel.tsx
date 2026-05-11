@@ -315,6 +315,9 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
   const sessionIdRef = useRef<string | null>(null);
   const [messages, setMessages] = useState<AiChatMessageDto[]>([]);
   const [input, setInput] = useState('');
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const speechSupported = typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window);
   /** Черновик названия до первого сообщения; дублируется в ref для актуального значения в async. */
   const [newChatTitleDraft, setNewChatTitleDraft] = useState('');
   const newChatTitleDraftRef = useRef('');
@@ -543,6 +546,29 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
     }
   };
 
+  const toggleVoice = () => {
+    if (!speechSupported) return;
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+      return;
+    }
+    const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
+    const rec = new SR();
+    rec.lang = 'ru-RU';
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e: any) => {
+      const transcript: string = e.results[0][0].transcript;
+      setInput(prev => (prev ? prev + ' ' + transcript : transcript));
+    };
+    rec.onerror = () => setIsListening(false);
+    rec.onend = () => setIsListening(false);
+    recognitionRef.current = rec;
+    rec.start();
+    setIsListening(true);
+  };
+
   const onAttachFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
@@ -693,7 +719,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
   const displayName = greetingDisplayName(userName, t('crm.aiAssistant.fallbackName'));
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex flex-row text-slate-900 [color-scheme:light]">
+    <div className="fixed inset-0 z-[8500] flex flex-row text-slate-900 [color-scheme:light]">
       <AiEmailComposerModal
         open={emailComposerOpen}
         onClose={() => setEmailComposerOpen(false)}
@@ -1275,6 +1301,19 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                             }
                           }}
                         />
+                        {speechSupported && (
+                          <button
+                            type="button"
+                            onClick={toggleVoice}
+                            title={isListening ? 'Остановить запись' : 'Голосовой ввод'}
+                            className={`mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition ${isListening ? 'animate-pulse border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 bg-white text-slate-500 hover:border-violet-400 hover:text-violet-600'}`}
+                          >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="9" y="2" width="6" height="12" rx="3"/>
+                              <path d="M5 10a7 7 0 0014 0M12 19v3M9 22h6"/>
+                            </svg>
+                          </button>
+                        )}
                         <button
                           type="button"
                           disabled={

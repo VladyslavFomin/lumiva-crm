@@ -11,6 +11,39 @@ import type {
 } from './permission.types';
 import type { StaffRole } from '../staff/staff-user.entity';
 
+/**
+ * Дефолтная матрица прав — применяется для тенантов,
+ * у которых ещё нет настроенных прав в базе данных.
+ */
+const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
+  owner: [
+    'leads', 'projects', 'staff', 'finance', 'analytics',
+    'settings', 'chat', 'contacts', 'companies',
+    'tools_automation', 'custom_objects', 'email', 'marketing',
+  ],
+  manager: [
+    'leads', 'projects', 'analytics', 'chat', 'marketing',
+    'contacts', 'companies', 'email',
+  ],
+  viewer: [
+    'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies',
+  ],
+  finance: [
+    'leads', 'projects', 'finance', 'analytics', 'chat', 'contacts', 'companies',
+  ],
+  sales: [
+    'leads', 'projects', 'analytics', 'marketing', 'chat',
+    'contacts', 'companies', 'email',
+  ],
+  developer: [
+    'projects', 'analytics', 'chat', 'settings',
+    'tools_automation', 'custom_objects',
+  ],
+  support: [
+    'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies', 'email',
+  ],
+};
+
 @Injectable()
 export class RbacService {
   constructor(
@@ -22,10 +55,19 @@ export class RbacService {
   ) {}
 
   /**
-   * Матрица прав по всем ролям для конкретного tenant
+   * Матрица прав по всем ролям для конкретного tenant.
+   * Если записей нет — возвращает дефолтную матрицу.
    */
   async getRoleMatrixForTenant(tenantId: string): Promise<RoleMatrix> {
-    const empty: RoleMatrix = {
+    const rows = await this.repo.find({
+      where: { tenantId, allowed: true },
+    });
+
+    if (rows.length === 0) {
+      return { ...DEFAULT_ROLE_PERMISSIONS } as RoleMatrix;
+    }
+
+    const result: RoleMatrix = {
       owner: [],
       manager: [],
       viewer: [],
@@ -35,22 +77,14 @@ export class RbacService {
       support: [],
     };
 
-    const rows = await this.repo.find({
-      where: { tenantId, allowed: true },
-    });
-
     for (const row of rows) {
       const role = row.role as StaffRole;
       const perm = row.permission as PermissionKey;
-      if (!empty[role]) {
-        empty[role] = [];
-      }
-      if (!empty[role].includes(perm)) {
-        empty[role].push(perm);
-      }
+      if (!result[role]) result[role] = [];
+      if (!result[role].includes(perm)) result[role].push(perm);
     }
 
-    return empty;
+    return result;
   }
 
   /**
@@ -86,29 +120,30 @@ export class RbacService {
   }
 
   /**
-   * Проверка права: используется в RbacGuard
+   * Проверка права: используется в RbacGuard.
+   * Если для тенанта нет ни одной записи в базе — применяем дефолтную матрицу.
    */
   async can(
     tenantId: string,
     role: StaffRole,
     permission: PermissionKey,
   ): Promise<boolean> {
-    // Owner всегда имеет доступ
-    if (role === 'owner') {
-      return true;
-    }
-    
+    if (role === 'owner') return true;
+
     const row = await this.repo.findOne({
       where: { tenantId, role, permission },
     });
-    
-    // Если права не найдены в базе, возвращаем false
-    // (RbacGuard сам решит, разрешать ли доступ для новых модулей)
-    if (!row) {
-      return false;
+
+    if (row) return !!row.allowed;
+
+    // Проверяем: есть ли вообще какие-то записи для этого тенанта
+    const anyRow = await this.repo.findOne({ where: { tenantId } });
+    if (!anyRow) {
+      // Тенант ещё не настраивал права — используем дефолтную матрицу
+      return (DEFAULT_ROLE_PERMISSIONS[role] ?? []).includes(permission);
     }
-    
-    return !!row.allowed;
+
+    return false;
   }
 
   /* ========= USER-LEVEL OVERRIDES ========= */

@@ -1178,7 +1178,7 @@ export const WorkspaceImportPage: React.FC = () => {
                 </button>
                 {areaChannelsModalOpen &&
                   createPortal(
-                    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
+                    <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4 sm:p-6">
                       <button
                         type="button"
                         className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"

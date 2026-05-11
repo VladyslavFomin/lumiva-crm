@@ -45,6 +45,7 @@ export function useMarketingDisplayCurrencyPrefs(_currenciesPresent: string[]) {
             rates: { ...fx.multiplyToDisplay },
             fxAsOf: fx.asOf,
             fxSource: fx.source,
+            availableDisplayCurrencies: fx.availableDisplayCurrencies,
           };
           saveMarketingDisplayCurrency(next);
           return next;
@@ -105,6 +106,7 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
           rates: { ...fx.multiplyToDisplay },
           fxAsOf: fx.asOf,
           fxSource: fx.source,
+          availableDisplayCurrencies: fx.availableDisplayCurrencies,
         }));
       } catch (e: unknown) {
         setFxError(e instanceof Error ? e.message : t('crm.marketingCurrency.fxError', { defaultValue: 'Не удалось загрузить курсы' }));
@@ -114,6 +116,22 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
     },
     [t],
   );
+
+  const currencySelectCodes = useMemo(() => {
+    const base =
+      draft.availableDisplayCurrencies && draft.availableDisplayCurrencies.length > 0
+        ? [...draft.availableDisplayCurrencies]
+        : [...MARKETING_ALLOWED_CURRENCIES];
+    const set = new Set(base);
+    set.add(normalizeMarketingDisplayCurrency(draft.displayCurrency));
+    return [...set].sort();
+  }, [draft.availableDisplayCurrencies, draft.displayCurrency]);
+
+  const ratePreviewCodes = useMemo(() => {
+    return Object.keys(draft.rates)
+      .filter((c) => c !== normalizeMarketingDisplayCurrency(draft.displayCurrency))
+      .sort();
+  }, [draft.rates, draft.displayCurrency]);
 
   const summary = useMemo(() => {
     if (state.currencyMode === 'native') {
@@ -148,7 +166,7 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
 
       {open && (
         <div
-          className="fixed inset-0 z-[75] flex items-center justify-center bg-black/45 p-4"
+          className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/45 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="mkt-cur-modal-title"
@@ -169,7 +187,7 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
               <p className="text-[11px] text-[#222222]/50 mt-1 leading-relaxed">
                 {t('crm.marketingCurrency.modal.introFx', {
                   defaultValue:
-                    'Курсы EUR, USD, GBP, TRY, RUB подтягиваются с сервера (Frankfurter / ECB). Валюта строк трафика задаётся в «Интеграциях маркетинга».',
+                    'Валюта отчёта — любой код из списка ECB (Frankfurter): открой список или обновите курсы. Валюта строк задаётся в интеграциях маркетинга.',
                 })}
               </p>
             </div>
@@ -217,7 +235,7 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
                     if (draft.currencyMode === 'converted') void pullFx(v);
                   }}
                 >
-                  {MARKETING_ALLOWED_CURRENCIES.map((c) => (
+                  {currencySelectCodes.map((c) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
@@ -251,23 +269,21 @@ export const MarketingDisplayCurrencyToolbar: React.FC<MarketingDisplayCurrencyT
                   {fxError && (
                     <p className="text-[11px] text-red-600">{fxError}</p>
                   )}
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    {MARKETING_ALLOWED_CURRENCIES.filter((c) => c !== draft.displayCurrency).map(
-                      (code) => (
-                        <div
-                          key={code}
-                          className="flex justify-between rounded-lg border border-[#222222]/8 bg-white px-2.5 py-1.5"
-                        >
-                          <span className="font-semibold text-[#222222]">1 {code}</span>
-                          <span className="tabular-nums text-[#222222]/80">
-                            = {(draft.rates[code] ?? 0).toLocaleString(undefined, {
-                              maximumFractionDigits: 6,
-                            })}{' '}
-                            {draft.displayCurrency}
-                          </span>
-                        </div>
-                      ),
-                    )}
+                  <div className="grid grid-cols-2 gap-2 text-[11px] max-h-52 overflow-y-auto">
+                    {ratePreviewCodes.map((code) => (
+                      <div
+                        key={code}
+                        className="flex justify-between rounded-lg border border-[#222222]/8 bg-white px-2.5 py-1.5"
+                      >
+                        <span className="font-semibold text-[#222222]">1 {code}</span>
+                        <span className="tabular-nums text-[#222222]/80">
+                          = {(draft.rates[code] ?? 0).toLocaleString(undefined, {
+                            maximumFractionDigits: 6,
+                          })}{' '}
+                          {draft.displayCurrency}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

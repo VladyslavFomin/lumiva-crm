@@ -1,9 +1,9 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsIn,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   ValidateNested,
 } from 'class-validator';
@@ -12,8 +12,10 @@ import {
 export class TrafficPresetFilterDto {
   @IsString()
   @MaxLength(80)
-  @IsIn(['google_ads', 'meta_ads'])
-  dataSource: 'google_ads' | 'meta_ads';
+  @Matches(/^(meta_ads|google_ads(_\d{6,15})?)$/, {
+    message: 'trafficPreset.dataSource invalid',
+  })
+  dataSource: string;
 
   @IsOptional()
   @IsString()

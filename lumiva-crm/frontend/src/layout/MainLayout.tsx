@@ -42,6 +42,12 @@ import { resolvePublicAssetUrl } from '../api/client';
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/withTimeout';
 import { AiAssistantPanel } from '../components/ai/AiAssistantPanel';
 import { AiAssistantTriggerIcon } from '../components/ai/AiAssistantTriggerIcon';
+import {
+  fetchNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  type InAppNotification,
+} from '../api/notifications';
 
 const DEFAULT_SIDEBAR_LOGO = '/lumiva-default-logo.svg';
 import { useTranslation } from 'react-i18next';
@@ -57,6 +63,7 @@ import {
 
 interface MainLayoutProps {
   children: React.ReactNode;
+  fullBleed?: boolean;
 }
 
 type NavChild = { label: string; path: string; matchPaths?: string[] };
@@ -136,7 +143,7 @@ function itemMatchScore(pathname: string, item: NavItem): number {
   return best;
 }
 
-export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = false }) => {
   const { t, i18n } = useTranslation();
   const [, bumpSessionUser] = useReducer((n: number) => n + 1, 0);
   const user = getStoredUser();
@@ -171,8 +178,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [openAssigneeMenuId, setOpenAssigneeMenuId] = useState<string | null>(null);
   const [notificationsTab, setNotificationsTab] = useState<
-    'assigned' | 'mentioned' | 'all'
+    'assigned' | 'mentioned' | 'all' | 'system'
   >('all');
+  const [inAppNotifications, setInAppNotifications] = useState<InAppNotification[]>([]);
+  const [inAppUnread, setInAppUnread] = useState(0);
+  const [inAppLoading, setInAppLoading] = useState(false);
   const [filterProjectId, setFilterProjectId] = useState<string>('');
   const [filterStatus, setFilterStatus] = useState<ProjectTask['status'] | ''>('');
   const notificationsRef = useRef<HTMLDivElement | null>(null);
@@ -502,10 +512,82 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     currentLabels,
   ]);
 
+  const systemNotificationLink = (notification: InAppNotification): string | null => {
+    const meta = notification.meta && typeof notification.meta === 'object' ? notification.meta : {};
+    const raw = String(meta.link || '').trim();
+    if (!raw.startsWith('/')) return null;
+    return raw.replace(/^\/app(?=\/|$)/, '') || '/dashboard';
+  };
+
+  const systemNotificationTypeLabel = (notification: InAppNotification): string => {
+    const meta = notification.meta && typeof notification.meta === 'object' ? notification.meta : {};
+    if (meta.type === 'email.message_received') return 'Почта';
+    if (meta.type === 'email.calendar_invite_received') return 'Встреча';
+    return 'Система';
+  };
+
+  const markSystemNotificationReadLocal = (id: string) => {
+    setInAppNotifications((prev) => prev.map((x) => (x.id === id ? { ...x, isRead: true } : x)));
+    setInAppUnread((prev) => Math.max(0, prev - 1));
+  };
+
+  const openSystemNotification = (notification: InAppNotification) => {
+    if (!notification.isRead) {
+      markNotificationRead(notification.id).catch(() => {});
+      markSystemNotificationReadLocal(notification.id);
+    }
+    const link = systemNotificationLink(notification);
+    if (link) {
+      setNotificationsOpen(false);
+      navigate(link);
+    }
+  };
+
   useEffect(() => {
     if (!notificationsOpen && !notificationsPreviewOpen) return;
     loadTaskNotifications();
   }, [notificationsOpen, notificationsPreviewOpen]);
+
+  useEffect(() => {
+    let alive = true;
+    const refreshUnread = () => {
+      fetchNotifications({ unread: true, limit: 1 })
+        .then(({ unread }) => {
+          if (alive) setInAppUnread(unread);
+        })
+        .catch(() => {});
+    };
+    refreshUnread();
+    const timer = window.setInterval(refreshUnread, 30_000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    let alive = true;
+    const loadInAppNotifications = (showLoading: boolean) => {
+      if (showLoading) setInAppLoading(true);
+      fetchNotifications({ limit: 50 })
+        .then(({ items, unread }) => {
+          if (!alive) return;
+          setInAppNotifications(items);
+          setInAppUnread(unread);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (alive && showLoading) setInAppLoading(false);
+        });
+    };
+    loadInAppNotifications(true);
+    const timer = window.setInterval(() => loadInAppNotifications(false), 30_000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, [notificationsOpen]);
 
   useEffect(() => {
     if (!notificationsOpen) return;
@@ -667,14 +749,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       return;
     }
     
-    // Проверяем кеш в localStorage
-    const cacheKey = `tenant_components_${userId}`;
+    // Проверяем кеш в localStorage (TTL — 30 секунд, чтобы включение компонента в админке
+    // отображалось сразу при следующем переходе, без долгого ожидания)
+    const cacheKey = `tenant_components_v3_${userId}`;
     const cached = localStorage.getItem(cacheKey);
     if (cached) {
       try {
         const { components, timestamp } = JSON.parse(cached);
-        // Кеш действителен 5 минут
-        if (Date.now() - timestamp < 5 * 60 * 1000) {
+        if (Date.now() - timestamp < 30 * 1000) {
           setTenantComponents(components);
           componentsLoadedRef.current = { userId, loaded: true };
           setComponentsLoaded(true);
@@ -824,6 +906,18 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       },
 
       {
+        label: t('crm.nav.sms'),
+        path: '/app/sms',
+        icon: 'chat',
+        section: 'clients',
+        matchPaths: ['/app/sms', '/sms'],
+        children: [
+          { label: t('crm.nav.smsMessages'), path: '/app/sms' },
+          { label: t('crm.nav.smsSettings'), path: '/app/sms/settings' },
+        ],
+      },
+
+      {
         label: t('crm.nav.marketing'),
         path: '/app/marketing',
         icon: 'marketing',
@@ -838,6 +932,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           { label: t('crm.nav.marketingSmm'), path: '/app/marketing/smm' },
           { label: t('crm.nav.marketingIntegrations'), path: '/app/integrations-hub?tab=marketing' },
           { label: t('crm.nav.marketingEmailTemplates'), path: '/app/marketing/email-templates' },
+        ],
+      },
+
+      {
+        label: t('crm.nav.aiEmployees'),
+        path: '/app/ai-employees',
+        icon: 'tools',
+        section: 'tools',
+        matchPaths: [
+          '/app/ai-employees',
+          '/ai-employees',
+        ],
+        children: [
+          { label: t('crm.nav.aiEmployeesDashboard'), path: '/app/ai-employees' },
+          { label: t('crm.nav.aiEmployeesChoose'), path: '/app/ai-employees/choose' },
+          { label: t('crm.nav.aiEmployeesApprovals'), path: '/app/ai-employees/approvals' },
+          { label: t('crm.nav.aiEmployeesLogs'), path: '/app/ai-employees/logs' },
+          { label: t('crm.nav.aiEmployeesReports'), path: '/app/ai-employees/reports' },
         ],
       },
 
@@ -895,6 +1007,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           '/profile',
           '/app/staff/permissions',
           '/staff/permissions',
+          '/app/contacts/duplicates',
+          '/contacts/duplicates',
         ],
         children: [
           { label: t('crm.nav.settingsCompany'), path: '/app/settings' },
@@ -907,6 +1021,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           { label: t('crm.nav.staffList'), path: '/app/staff' },
           { label: t('crm.nav.staffPermissions'), path: '/app/staff/permissions' },
           { label: t('crm.nav.departments'), path: '/app/departments' },
+          { label: t('crm.nav.deduplication'), path: '/app/contacts/duplicates' },
         ],
       },
     ],
@@ -922,6 +1037,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (p.startsWith('/sales')) return 'sales';
     if (p.startsWith('/marketing/campaigns')) return 'marketing_campaigns';
     if (p.startsWith('/marketing')) return 'marketing';
+    if (p.startsWith('/contacts/duplicates')) return 'deduplication';
     if (p.startsWith('/contacts')) return 'contacts';
     if (p.startsWith('/companies')) return 'companies';
     if (p.startsWith('/automations')) return 'tools_automation';
@@ -934,6 +1050,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     if (p.startsWith('/chat')) return 'chat';
     if (p.startsWith('/client-accounts')) return 'client_accounts';
     if (p.startsWith('/workspace')) return 'custom_objects';
+    if (p.startsWith('/sms')) return 'sms';
     return null;
   };
 
@@ -956,34 +1073,34 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     const p = normalizeLayoutPath(path);
     if (p.startsWith('/leads')) return 'leads';
     if (p.startsWith('/projects')) return 'projects';
+    if (p.startsWith('/staff/permissions')) return 'settings';
     if (p.startsWith('/staff')) return 'staff';
     if (p.startsWith('/departments')) return 'staff';
     if (p.startsWith('/settings')) return 'settings';
-    if (p.startsWith('/profile')) return 'settings';
+    // /profile — личный аккаунт пользователя, не требует прав (доступен всем)
+    if (p.startsWith('/profile')) return null;
     if (p.startsWith('/contacts')) return 'contacts';
     if (p.startsWith('/companies')) return 'companies';
     if (p.startsWith('/automations')) return 'tools_automation';
     if (p.startsWith('/web-forms')) return 'tools_automation';
     if (p.startsWith('/integrations-hub')) return 'tools_automation';
-    if (p.startsWith('/email')) return 'tools_automation';
-    if (p.startsWith('/telegram')) return 'tools_automation';
+    if (p.startsWith('/email')) return 'email';
+    if (p.startsWith('/telegram')) return 'chat';
     if (p.startsWith('/chat')) return 'chat';
+    if (p.startsWith('/online-chat')) return 'chat';
     if (p.startsWith('/analytics')) return 'analytics';
-    if (p.startsWith('/sales')) return 'finance';
+    if (p.startsWith('/sales')) return 'analytics';
+    if (p.startsWith('/marketing')) return 'marketing';
     if (p.startsWith('/workspace')) return 'custom_objects';
+    if (p.startsWith('/sms')) return 'chat';
+    if (p.startsWith('/contacts/duplicates')) return 'settings';
     return null;
   };
 
   const canAccess = (perm: PermissionKey | null) => {
     if (!perm) return true;
     if (user?.role === 'owner') return true;
-    
-    // Для новых модулей разрешаем доступ по умолчанию (пока не настроены права)
-    const newModules = ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects'];
-    if (newModules.includes(perm)) {
-      return true;
-    }
-    
+
     const userId = user?.id || user?.userId || user?.sub;
     const rawRole = user?.role;
     const matrixRole: StaffRole | null =
@@ -1001,8 +1118,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       ).includes(rawRole as StaffRole)
         ? (rawRole as StaffRole)
         : null;
-    const rolePerms =
-      roleMatrix && matrixRole ? roleMatrix[matrixRole] ?? [] : [];
+
+    // Если матрица прав ещё не загружена — разрешаем доступ (избегаем мигания)
+    if (!roleMatrix) return true;
+
+    const rolePerms = matrixRole ? roleMatrix[matrixRole] ?? [] : [];
     const userPerms = userId && userMatrix ? userMatrix[userId] ?? [] : [];
     return rolePerms.includes(perm) || userPerms.includes(perm);
   };
@@ -1177,6 +1297,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       '/sales',
       '/marketing',
       '/automations',
+      '/ai-employees',
       '/email',
       '/telegram',
       '/settings',
@@ -1210,7 +1331,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   }, [location.pathname, permsLoaded, componentsLoaded, tenantComponents]);
 
   return (
-    <div key={location.pathname} className="h-full flex bg-lumiva-bg text-lumiva-accent">
+    <div className="h-full flex bg-lumiva-bg text-lumiva-accent">
       {/* SIDEBAR — только на md+ (узкий режим: только иконки + кнопка на грани) */}
       <div
         className="relative hidden md:flex shrink-0"
@@ -1499,7 +1620,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* MAIN */}
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-14 border-b border-slate-200 bg-white/95 backdrop-blur flex items-center justify-between px-3 md:px-6 shadow-[0_10px_30px_rgba(17,24,39,0.05)]">
+        <header className="crm-main-header relative z-30 h-14 border-b border-slate-200 bg-white/95 backdrop-blur flex items-center justify-between px-3 md:px-6 shadow-[0_10px_30px_rgba(17,24,39,0.05)]">
           <div className="flex items-center gap-2">
             {/* Бургер — только на мобиле */}
             <button
@@ -1585,7 +1706,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               </button>
 
               <div
-                className="relative"
+                className="relative z-[1000]"
                 ref={notificationsRef}
                 onMouseEnter={() => setNotificationsPreviewOpen(true)}
                 onMouseLeave={() => setNotificationsPreviewOpen(false)}
@@ -1611,15 +1732,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M10 21h4" />
                   </svg>
-                  {taskNotifications.some((n) => !n.isDone) && (
-                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-emerald-500 text-white text-[10px] flex items-center justify-center font-semibold shadow">
-                      {taskNotifications.filter((n) => !n.isDone).length}
+                  {(taskNotifications.some((n) => !n.isDone) || inAppUnread > 0) && (
+                    <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] flex items-center justify-center font-semibold shadow">
+                      {taskNotifications.filter((n) => !n.isDone).length + inAppUnread}
                     </span>
                   )}
                 </button>
 
-                {notificationsPreviewOpen && filteredNotifications.length > 0 && (
-                  <div className="absolute right-0 mt-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-xl p-3 text-xs text-slate-700">
+                {notificationsPreviewOpen && (filteredNotifications.length > 0 || inAppUnread > 0) && (
+                  <div className="absolute right-0 z-[1000] mt-2 w-64 rounded-2xl border border-slate-200 bg-white shadow-xl p-3 text-xs text-slate-700">
                     <div className="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-2">
                       {t('crm.header.notifications')}
                     </div>
@@ -1629,6 +1750,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                           {item.task.title}
                         </div>
                       ))}
+                      {inAppUnread > 0 && (
+                        <div className="truncate font-medium text-slate-900">
+                          Системные: {inAppUnread} новых
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1667,7 +1793,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </header>
 
         {notificationsOpen && (
-          <div className="fixed inset-0 z-40">
+          <div className="fixed inset-0 z-[3000]">
             <div
               className="absolute inset-0 bg-black/20"
               onClick={() => setNotificationsOpen(false)}
@@ -1728,6 +1854,22 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   >
                     {t('crm.notifications.tabs.all')}
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotificationsTab('system')}
+                    className={`px-3 py-1.5 text-[11px] rounded-full border flex items-center gap-1.5 ${
+                      notificationsTab === 'system'
+                        ? 'border-slate-900 text-slate-900 bg-slate-100'
+                        : 'border-slate-200 text-slate-500'
+                    }`}
+                  >
+                    Системные
+                    {inAppUnread > 0 && (
+                      <span className="inline-flex items-center justify-center h-4 min-w-[16px] rounded-full bg-rose-500 text-white text-[9px] font-bold px-1">
+                        {inAppUnread > 99 ? '99+' : inAppUnread}
+                      </span>
+                    )}
+                  </button>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <select
@@ -1771,6 +1913,73 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     {t('crm.notifications.sort.overdue')}
                   </span>
                 </div>
+                {notificationsTab === 'system' ? (
+                  <div className="space-y-2">
+                    {inAppLoading && <div className="text-xs text-slate-500">Загрузка…</div>}
+                    {!inAppLoading && inAppNotifications.length === 0 && (
+                      <div className="text-xs text-slate-500">Нет системных уведомлений</div>
+                    )}
+                    {!inAppLoading && inAppUnread > 0 && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => markAllNotificationsRead().then(() => {
+                            setInAppNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+                            setInAppUnread(0);
+                          })}
+                          className="text-[11px] text-slate-400 hover:text-slate-700"
+                        >
+                          Отметить все прочитанными
+                        </button>
+                      </div>
+                    )}
+                    {inAppNotifications.map((n) => {
+                      const link = systemNotificationLink(n);
+                      const label = systemNotificationTypeLabel(n);
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => openSystemNotification(n)}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault();
+                              openSystemNotification(n);
+                            }
+                          }}
+                          className={`rounded-2xl border p-3 transition-colors ${
+                            n.isRead ? 'border-slate-200 bg-white' : 'border-slate-300 bg-slate-50'
+                          } ${link || !n.isRead ? 'cursor-pointer hover:border-slate-400' : 'cursor-default'}`}
+                        >
+                          <div className="flex items-start gap-2">
+                            {!n.isRead && <span className="mt-1.5 h-2 w-2 rounded-full bg-rose-500 flex-shrink-0" />}
+                            <div className="flex-1 min-w-0">
+                              <div className="mb-1 flex items-center gap-2">
+                                <span className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                                  {label}
+                                </span>
+                                <span className="text-[10px] text-slate-400">
+                                  {new Date(n.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              {n.title && (
+                                <div className="text-xs font-semibold text-slate-900 mb-0.5">{n.title}</div>
+                              )}
+                              <div className="text-xs text-slate-700 whitespace-pre-wrap">{n.body}</div>
+                              {link ? (
+                                <div className="mt-2 text-[11px] font-semibold text-slate-900">
+                                  Открыть
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <>
                 {notificationsLoading && (
                   <div className="text-xs text-slate-500">
                     {t('crm.notifications.loading')}
@@ -1894,23 +2103,27 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     </div>
                   </div>
                 ))}
+                  </>
+                )}
               </div>
-              <div className="border-t border-slate-200 px-4 py-3">
-                <button
-                  type="button"
-                  onClick={() => navigate('/projects/tasks')}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  {t('crm.notifications.openTasks')}
-                </button>
-              </div>
+              {notificationsTab !== 'system' && (
+                <div className="border-t border-slate-200 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/projects/tasks')}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    {t('crm.notifications.openTasks')}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* МОБИЛЬНОЕ МЕНЮ */}
         {mobileOpen && (
-          <div className="md:hidden fixed inset-0 z-40">
+          <div className="md:hidden fixed inset-0 z-[2500]">
             {/* затемнение */}
             <div
               className="absolute inset-0 bg-black/30 backdrop-blur-sm"
@@ -2107,8 +2320,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         )}
 
         <main
-          key={location.pathname}
-          className="flex-1 min-w-0 overflow-y-auto bg-gradient-to-b from-white via-lumiva-bg to-lumiva-bg px-3 md:px-6 py-4 md:py-6"
+          className={`flex-1 min-w-0 overflow-y-auto bg-gradient-to-b from-white via-lumiva-bg to-lumiva-bg ${
+            fullBleed ? 'px-0 py-0' : 'px-3 md:px-6 py-4 md:py-6'
+          }`}
         >
           {(!componentsLoaded || !permsLoaded) ? (
             // Показываем загрузку вместо контента
@@ -2124,7 +2338,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 {children}
               </div>
               {billingLocked && location.pathname !== '/app/billing' && (
-                <div className="fixed inset-0 z-50 flex items-start justify-center bg-slate-950/45 px-3 py-6 backdrop-blur-sm md:items-center md:px-6">
+                <div className="fixed inset-0 z-[8500] flex items-start justify-center bg-slate-950/45 px-3 py-6 backdrop-blur-sm md:items-center md:px-6">
                   <button
                     type="button"
                     onClick={handleLogout}

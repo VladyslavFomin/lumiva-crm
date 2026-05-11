@@ -75,11 +75,13 @@ export function marketingChannelCardTheme(ds: string): MarketingChannelCardTheme
   const k = (ds || 'unknown').trim();
   if (k === 'yandex_metrica') return THEMES.yandex_metrika;
   if (/^ga4_\d+$/.test(k)) return THEMES.ga4;
+  if (k === 'google_ads' || k.startsWith('google_ads_')) return THEMES.google_ads;
   return THEMES[k] ?? DEFAULT_THEME;
 }
 
 function channelSortGroup(ds: string): string {
   if (/^ga4_\d+$/.test(ds)) return 'ga4';
+  if (ds === 'google_ads' || ds.startsWith('google_ads_')) return 'google_ads';
   return ds;
 }
 

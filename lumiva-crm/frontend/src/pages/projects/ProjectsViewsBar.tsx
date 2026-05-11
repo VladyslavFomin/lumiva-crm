@@ -398,7 +398,7 @@ export const ProjectsViewsBar: React.FC<Props> = ({
       )}
 
       {settingsTarget && (
-        <div className="fixed inset-0 z-[1600] bg-black/35">
+        <div className="fixed inset-0 z-[8500] bg-black/35">
           <button
             type="button"
             aria-label={t('crm.projects.viewsBar.settings.close')}

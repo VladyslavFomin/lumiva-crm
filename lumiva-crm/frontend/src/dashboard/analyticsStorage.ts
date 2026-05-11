@@ -4,7 +4,7 @@ import type { DashboardPresetSource } from './presetCatalog';
 export const ANALYTICS_STORAGE_NAMESPACE: Record<DashboardPresetSource, string> = {
   projects: 'projects_analytics',
   sales: 'sales_analytics',
-  leads: 'leads_analytics',
+  leads: 'leads_analytics_v2',
 };
 
 export type PivotMeasureConfig = {

@@ -15,7 +15,7 @@
   --bg:     #fff;
   --bg-muted: #fafafa;
   --bg-soft:  #f5f5f5;
-  --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ff-mono: 'Poppins', system-ui, -apple-system, sans-serif;
 }
 
 /* ---- Page head ---- */

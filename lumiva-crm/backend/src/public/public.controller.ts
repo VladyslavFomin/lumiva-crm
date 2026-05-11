@@ -1,5 +1,6 @@
 // src/public/public.controller.ts
 import {
+  Body,
   Controller,
   ForbiddenException,
   Get,
@@ -14,6 +15,7 @@ import { ApiTokenGuard } from '../api-tokens/api-token.guard';
 import { TenantsService } from '../tenants/tenants.service';
 import { SitesService } from '../sites/sites.service';
 import { Site } from '../sites/site.entity';
+import { LeadsService } from '../leads/leads.service';
 
 @SkipThrottle()
 @Controller('public')
@@ -21,6 +23,7 @@ export class PublicController {
   constructor(
     private readonly tenantsService: TenantsService,
     private readonly sitesService: SitesService,
+    private readonly leadsService: LeadsService,
   ) {}
 
   // n8n / WordPress connector: тест соединения
@@ -98,5 +101,31 @@ export class PublicController {
 
     const meta = await this.tenantsService.getTenantMeta(tenantId);
     return { meta };
+  }
+
+  /**
+   * Server-to-server inbound lead from external systems (agency site, WordPress, etc.)
+   * Auth: X-Api-Token header (CRM API token bound to a tenant).
+   * Body: { name, email, phone, source, meta: { company, message, budget, ... } }
+   */
+  @Post('inbound-lead')
+  @UseGuards(ApiTokenGuard)
+  async inboundLead(@Req() req: Request, @Body() body: Record<string, any>) {
+    const tenantId = (req as any).tenantId as string;
+    const lead = await this.leadsService.createForTenant(tenantId, {
+      name: body.name ?? null,
+      email: body.email ?? null,
+      phone: body.phone ?? null,
+      source: body.source ?? 'lumiva.agency',
+      status: 'new',
+      meta: {
+        ...(body.meta || {}),
+        ...(body.company ? { company: body.company } : {}),
+        ...(body.message ? { message: body.message } : {}),
+        ...(body.budget ? { budget: body.budget } : {}),
+        channel: body.channel ?? body.source ?? 'inbound',
+      },
+    });
+    return { ok: true, id: lead.id };
   }
 }

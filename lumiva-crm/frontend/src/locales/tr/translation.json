@@ -701,7 +701,232 @@
       "settings": "Ayarlar",
       "settingsCompany": "Şirket ayarları",
       "settingsApi": "API ve entegrasyonlar",
-      "settingsAccount": "Hesap"
+      "settingsAccount": "Hesap",
+      "aiEmployees": "Yapay zekâ çalışanları",
+      "aiEmployeesDashboard": "Pano",
+      "aiEmployeesChoose": "Çalışan seç",
+      "aiEmployeesApprovals": "Onaylar",
+      "aiEmployeesLogs": "Günlükler",
+      "aiEmployeesReports": "Raporlar"
+    },
+    "aiEmployees": {
+      "badge": {
+        "workforce": "YZ iş gücü"
+      },
+      "naming": {
+        "dashboardHint": "CRM sohbetindeki asistan günlük istekleri ürün genelinde yanıtlar. Buradaki yapay zekâ çalışanları kendi rolleri, zamanlaması ve onayları olan uzman ekip üyeleridir. Sohbet asistanından ada veya role göre görev veya soru iletmek mümkündür."
+      },
+      "errors": {
+        "generic": "Bir sorun oluştu. Lütfen tekrar deneyin."
+      },
+      "status": {
+        "active": "Aktif",
+        "paused": "Duraklatıldı",
+        "disabled": "Devre dışı",
+        "setup_required": "Kurulum gerekli",
+        "pending": "Beklemede",
+        "approved": "Onaylandı",
+        "rejected": "Reddedildi",
+        "executed": "Yürütüldü",
+        "failed": "Başarısız",
+        "draft": "Taslak",
+        "generated": "Oluşturuldu",
+        "sent": "Gönderildi"
+      },
+      "plan": {
+        "prefix": "Plan:",
+        "unlimited": "Sınırsız",
+        "usage": "{{used}} / {{limit}} yapay zekâ çalışanı kullanılıyor",
+        "usageUnlimited": "Sınırsız yapay zekâ çalışanı"
+      },
+      "upgradeModal": {
+        "title": "Yapay zekâ çalışanlarını yükselt",
+        "subtitleSingular": "Mevcut planınız {{count}} yapay zekâ çalışanına izin veriyor.",
+        "subtitlePlural": "Mevcut planınız {{count}} yapay zekâ çalışanına izin veriyor.",
+        "body": "Daha fazla sanal ekip üyesi eklemek ve departmanları otomatikleştirmek için planınızı yükseltin.",
+        "upgradePlan": "Planı yükselt",
+        "comparePlans": "Planları karşılaştır",
+        "cancel": "İptal",
+        "close": "Kapat"
+      },
+      "dashboard": {
+        "title": "Yapay zekâ çalışanları",
+        "subtitle": "Sanal YZ ekibinizi yönetin ve CRM iş akışlarını otomatikleştirin.",
+        "addEmployee": "YZ çalışanı ekle",
+        "loading": "Yapay zekâ çalışanları yükleniyor…",
+        "kpiActive": "Aktif YZ çalışanı",
+        "kpiTasksToday": "Bugün tamamlanan görevler",
+        "kpiPendingApprovals": "Bekleyen onaylar",
+        "kpiReports": "Oluşturulan raporlar",
+        "kpiLeads": "Analiz edilen leadler",
+        "kpiMessages": "Taslak mesajlar",
+        "kpiIssues": "Tespit edilen sorunlar",
+        "pendingTitle": "Bekleyen onaylar",
+        "openQueue": "Kuyruğu aç",
+        "noApprovalsWaiting": "Bekleyen onay yok.",
+        "recentActivity": "Son YZ aktivitesi",
+        "viewLogs": "Günlükleri gör"
+      },
+      "choose": {
+        "title": "YZ çalışanı seç",
+        "subtitle": "Uzman rolü seçin. Standard’da temel operasyonel roller vardır; Pro’da pazarlama analisti, SMM, CRM analisti ve konaklama asistanı eklenir. Kilitli roller yükseltme yolunu göstermek için görünür kalır.",
+        "loading": "Roller yükleniyor…",
+        "dashboardLink": "Pano",
+        "planLimitReached": "Plan limiti doldu",
+        "upgradeToUnlock": "Kilidi kaldırmak için yükselt",
+        "addRole": "{{role}} ekle"
+      },
+      "create": {
+        "title": "YZ çalışanı oluştur",
+        "subtitle": "Kimlik, erişim izinleri, onay kuralları ve çalışma zamanlaması.",
+        "steps": {
+          "role": "Rol",
+          "identity": "Kimlik",
+          "access": "Erişim",
+          "actions": "Eylemler",
+          "schedule": "Zamanlama",
+          "review": "Özet"
+        },
+        "fields": {
+          "name": "Ad",
+          "department": "Departman",
+          "jobTitle": "Unvan",
+          "language": "Dil",
+          "tone": "İletişim tonu",
+          "schedule": "Zamanlama",
+          "dailyReportTime": "Günlük rapor saati"
+        },
+        "scheduleModes": {
+          "manual": "Yalnızca elle çalıştır",
+          "always": "Her zaman aktif",
+          "business_hours": "Yalnızca mesai saatleri",
+          "custom": "Özel zamanlama"
+        },
+        "review": {
+          "accesses": "Erişim sayısı",
+          "approvalRules": "Onay kuralı",
+          "reportTime": "Rapor saati"
+        },
+        "back": "Geri",
+        "continue": "Devam",
+        "activate": "YZ çalışanını etkinleştir",
+        "permissionGroups": {
+          "read": "Okuma erişimi",
+          "actions": "Eylemler"
+        },
+        "approvalRulesTitle": "Onay kuralları",
+        "approvalRequireBefore": "Şundan önce onay iste: {{action}}"
+      },
+      "languageOptions": {
+        "english": "English",
+        "russian": "Russian",
+        "turkish": "Turkish",
+        "mixed": "English / Turkish / Russian"
+      },
+      "autonomy": {
+        "read_only": {
+          "title": "Salt okunur",
+          "hint": "Yalnızca analiz ve rapor."
+        },
+        "suggest": {
+          "title": "Öneri modu",
+          "hint": "Eylemleri insanlar için hazırlar."
+        },
+        "assisted": {
+          "title": "Destekli mod",
+          "hint": "Güvenli eylemleri yürütür."
+        },
+        "auto": {
+          "title": "Otomatik mod",
+          "hint": "İzin verilen eylemleri otomatik yapar."
+        }
+      },
+      "empty": {
+        "title": "Sanal CRM ekibinizi kurun.",
+        "body": "İlk yapay zekâ çalışanınızı ekleyin; lead analizi, raporlar, görevler ve ekip desteği için.",
+        "cta": "İlk yapay zekâ çalışanını ekle"
+      },
+      "agentCard": {
+        "today": "Bugün",
+        "approvals": "Onaylar",
+        "reports": "Raporlar",
+        "lastActivity": "Son aktivite: {{time}}",
+        "openProfile": "Profili aç",
+        "settings": "Ayarlar"
+      },
+      "activity": {
+        "none": "Henüz aktivite yok.",
+        "noneShort": "Henüz aktivite yok"
+      },
+      "approvalsPage": {
+        "title": "YZ eylemleri / onaylar",
+        "subtitle": "Müşterileri veya CRM verisini etkilemeden önce YZ eylemlerini gözden geçirin.",
+        "loading": "Onaylar yükleniyor…",
+        "empty": "Bekleyen onay yok."
+      },
+      "logsPage": {
+        "title": "YZ günlükleri",
+        "subtitle": "Her YZ çalışanı eylemini, kararını ve yedeklemeyi denetleyin.",
+        "loading": "Günlükler yükleniyor…",
+        "colTime": "Zaman",
+        "colEmployee": "YZ çalışanı",
+        "colAction": "Eylem",
+        "colObject": "Nesne",
+        "colStatus": "Durum",
+        "colResult": "Sonuç"
+      },
+      "reportsPage": {
+        "title": "YZ raporları",
+        "subtitle": "Sanal ekibinizin günlük ve haftalık raporları.",
+        "loading": "Raporlar yükleniyor…",
+        "empty": "Henüz YZ raporu yok.",
+        "markSent": "Gönderildi olarak işaretle"
+      },
+      "approvalCard": {
+        "approve": "Onayla",
+        "reject": "Reddet",
+        "execute": "Yürüt",
+        "markDone": "Tamamlandı Olarak İşaretle"
+      },
+      "approvalAction": {
+        "send_email": "e-posta gönderme",
+        "send_whatsapp": "WhatsApp gönderme",
+        "update_lead_status": "lead durumu değiştirme",
+        "assign_lead": "lead atama",
+        "edit_client_data": "müşteri verisi düzenleme",
+        "create_campaign": "kampanya oluşturma",
+        "bulk_send_campaign": "toplu kampanya",
+        "connect_integration": "entegrasyon bağlama",
+        "delete_data": "veri silme"
+      },
+      "profile": {
+        "loading": "YZ çalışanı yükleniyor…",
+        "fallbackDepartment": "YZ ekibi",
+        "resume": "YZ’yi sürdür",
+        "pause": "Duraklat",
+        "runNow": "Şimdi çalıştır",
+        "generateReport": "Rapor oluştur",
+        "remove": "Kaldır",
+        "kpiActionsToday": "Bugünkü eylemler",
+        "kpiLeadsAnalyzed": "Analiz edilen leadler",
+        "kpiTasksCreated": "Oluşturulan görevler",
+        "kpiMessagesDrafted": "Taslak mesajlar",
+        "kpiReportsGen": "Oluşturulan raporlar",
+        "kpiPendingApprovals": "Bekleyen onaylar",
+        "currentWork": "Mevcut iş",
+        "readyManual": "{{name}} elle çalıştırmaya hazır.",
+        "pendingSection": "Bekleyen onaylar",
+        "noPendingForEmployee": "Bu çalışan için bekleyen onay yok.",
+        "recentActions": "Son eylemler",
+        "permissionsSummary": "İzin özeti",
+        "savePermissions": "İzinleri kaydet",
+        "approvalRulesSection": "Onay kuralları",
+        "saveApprovalRules": "Onay kurallarını kaydet",
+        "dailyReportPreview": "Günlük rapor önizlemesi",
+        "noReportYet": "Henüz rapor oluşturulmadı.",
+        "recentLogs": "Son günlük kayıtları"
+      },
+      "fallbackEmployee": "YZ çalışanı"
     },
     "settings": {
       "api": {
@@ -1353,6 +1578,8 @@
         "yandex_metrika": "Yandex.Metrica",
         "ga4": "Google Analytics 4",
         "google_ads": "Google Ads",
+        "googleAdsLegacyBundle": "Google Ads · eski ortak anahtar (etikette Customer ID yok; google_ads_<id> öncesi senkronlardan kalma olabilir)",
+        "googleAdsAccount": "Google Ads (hesap {{id}})",
         "unknown": "Entegrasyon kanalı yok",
         "import": "İçe aktar",
         "manual": "Manuel"
@@ -1379,8 +1606,11 @@
         "7d": "7 gün",
         "30d": "30 gün",
         "90d": "90 gün",
+        "custom": "Tarih aralığı",
         "all": "Tüm zamanlar"
       },
+      "periodDateFromAria": "Dönem başlangıç tarihi",
+      "periodDateToAria": "Dönem bitiş tarihi",
       "loading": "Kanal verileri yükleniyor…",
       "errors": {
         "load": "Kanal verileri yüklenemedi"
@@ -1441,8 +1671,11 @@
         "7d": "7 gün",
         "30d": "30 gün",
         "90d": "90 gün",
+        "custom": "Tarih aralığı",
         "all": "Tüm zamanlar"
       },
+      "periodDateFromAria": "Dönem başlangıç tarihi",
+      "periodDateToAria": "Dönem bitiş tarihi",
       "loading": "Kampanyalar yükleniyor…",
       "errors": {
         "load": "Kampanyalar yüklenemedi"
@@ -1554,7 +1787,22 @@
           "loginCustomerId": "Giriş müşteri kimliği (isteğe bağlı)",
           "source": "Kaynak (isteğe bağlı)",
           "medium": "Orta (isteğe bağlı)",
-          "currency": "Para birimi (isteğe bağlı)"
+          "currency": "Para birimi (isteğe bağlı)",
+          "accountModeLabel": "Google Ads modu",
+          "accountModeCustomer": "Tek reklam hesabı",
+          "accountModeMccManaged": "MCC altındaki tüm müşteri hesapları",
+          "accountModeMccLead": "MCC için «Birincil kimlik» alanına yöneticı (MCC) müşteri kimliğini yazın. Giriş müşteri kimliği genelde aynıdır.",
+          "primaryIdPlaceholderMcc": "MCC müşteri kimliği — 10 hane",
+          "managedCustomersButton": "Müşteri hesapları listesi (API)",
+          "managedCustomersHide": "Listeyi gizle",
+          "managedCustomersEmpty": "Uygun müşteri reklam hesabı bulunamadı.",
+          "managedCustomersCaption": "Senkronize edilecek hesaplar (sunucu limiti geçerlidir)",
+          "managedCustomersLoadError": "Google Ads API’dan liste alınamadı",
+          "managedSyncIncludeLabel": "Yalnızca bu Müşteri ID’leri senkronize et",
+          "managedSyncIncludeHint": "Boş bırakırsanız — yukarıdaki tüm hesaplar (hariç tutulanlar dışında). ID’leri virgül, boşluk veya satır sonuyla ayırın.",
+          "managedSyncExcludeLabel": "Bu Müşteri ID’lerini senkronize etme",
+          "managedSyncExcludeHint": "Önce MCC alt hesapları seçildikten sonra uygulanır.",
+          "managedSyncFiltersSave": "Senkron filtrelerini kaydet"
         },
         "meta": {
           "platformAppBanner": "Meta uygulaması platformda yapılandırılmıştır; hesabınız için reklam izinli bir access token yine de gereklidir.",
@@ -1580,6 +1828,8 @@
       "table": {
         "title": "Mevcut entegrasyonlar",
         "currencyShort": "Para birimi",
+        "syncLookbackShort": "Senk (gün)",
+        "syncLookbackHint": "Senk sırasında çekilecek UTC takvim günleri (bugüne kadar dahil). 30–731; boş bırakırsanız varsayılan {{defaultDays}}.",
         "subtitle": "Açık entegrasyonlar pazarlama raporlarında kullanılır.",
         "total": "Toplam: {{count}}",
         "empty": "Henüz entegrasyon yok. En az GA4 veya Metrica ekleyin.",
@@ -1628,6 +1878,7 @@
         "update": "Entegrasyon güncellenemedi",
         "delete": "Entegrasyon silinemedi",
         "sync": "Senkronize edilemedi",
+        "invalidLookback": "30 ile 731 arasında tam sayı girin veya varsayılan için alanı boş bırakın.",
         "patchCurrency": "Para birimi kaydedilemedi"
       },
       "confirmDelete": "«{{name}}» entegrasyonunu sil?",
@@ -1777,29 +2028,29 @@
     },
     "automations": {
       "list": {
-        "title": "Automations",
-        "subtitle": "Rule-based automations (IF/THEN)",
-        "create": "Create automation",
+        "title": "Otomasyonlar",
+        "subtitle": "IF/THEN kuralları — tetikleyiciler ve eylemler",
+        "create": "Otomasyon oluştur",
         "loading": "Yükleniyor…",
-        "empty": "No automations yet",
-        "emptyHint": "Create your first automation to streamline business processes",
-        "delete": "Delete",
-        "deleteConfirm": "Delete this automation?",
-        "edit": "Edit",
-        "active": "Active",
-        "inactive": "Inactive",
+        "empty": "Henüz otomasyon yok",
+        "emptyHint": "İş süreçlerini kolaylaştırmak için ilk otomasyonu oluşturun",
+        "delete": "Sil",
+        "deleteConfirm": "Bu otomasyon silinsin mi?",
+        "edit": "Düzenle",
+        "active": "Açık",
+        "inactive": "Kapalı",
         "errors": {
-          "loadFailed": "Could not load automations",
-          "deleteFailed": "Could not delete"
+          "loadFailed": "Otomasyonlar yüklenemedi",
+          "deleteFailed": "Silinemedi"
         }
       },
       "panel": {
-        "button": "Automation",
-        "kicker": "Automations",
-        "subtitle": "Manage IF/THEN rules",
-        "searchPlaceholder": "Search automations",
-        "filter": "Filter",
-        "edit": "Edit",
+        "button": "Otomasyon",
+        "kicker": "Otomasyonlar",
+        "subtitle": "IF/THEN kurallarını yönetin",
+        "searchPlaceholder": "Otomasyon ara",
+        "filter": "Filtre",
+        "edit": "Düzenle",
         "banner": "Open the automation hub for full control over scenarios.",
         "bannerLink": "Learn more",
         "integrationsCallout": {
@@ -1808,31 +2059,31 @@
           "ctaHub": "Entegrasyonları aç",
           "ctaConnections": "Bağlantılarım"
         },
-        "comingSoon": "This section is in development",
+        "comingSoon": "Bu bölüm geliştiriliyor",
         "history": {
-          "title": "Run history",
-          "subtitle": "Each scenario run: success, error, or skipped. Step details are inside the record.",
-          "searchPlaceholder": "Search by scenario, event, status…",
-          "filterStatus": "Status",
-          "allStatuses": "All statuses",
-          "statusSuccess": "Success",
-          "statusError": "Error",
-          "statusPending": "Queued",
-          "statusSkipped": "Skipped",
-          "colTime": "Time",
-          "colAutomation": "Scenario",
-          "colTrigger": "Event",
-          "colStatus": "Result",
-          "colEntity": "Entity",
-          "colActions": "Steps",
-          "empty": "No runs yet",
-          "openDetails": "Details",
-          "actionsCount": "{{ok}} of {{total}} steps",
-          "errorHint": "Error"
+          "title": "Çalıştırma geçmişi",
+          "subtitle": "Her senaryo çalıştırması: başarılı, hata veya atlandı. Adım ayrıntıları kayıt içindedir.",
+          "searchPlaceholder": "Senaryo, olay, duruma göre ara…",
+          "filterStatus": "Durum",
+          "allStatuses": "Tüm durumlar",
+          "statusSuccess": "Başarılı",
+          "statusError": "Hata",
+          "statusPending": "Kuyrukta",
+          "statusSkipped": "Atlandı",
+          "colTime": "Zaman",
+          "colAutomation": "Senaryo",
+          "colTrigger": "Olay",
+          "colStatus": "Sonuç",
+          "colEntity": "Varlık",
+          "colActions": "Adımlar",
+          "empty": "Henüz çalıştırma yok",
+          "openDetails": "Ayrıntılar",
+          "actionsCount": "{{total}} adımdan {{ok}} başarılı",
+          "errorHint": "Hata"
         },
         "listMeta": {
-          "runs": "Runs",
-          "errors": "Errors"
+          "runs": "Çalıştırmalar",
+          "errors": "Hatalar"
         },
         "integrations": {
           "title": "Senaryolardaki entegrasyonlar",
@@ -2007,60 +2258,136 @@
           "webhookUrlDetails": "Technical details"
         },
         "usage": {
-          "title": "Automation usage",
-          "subtitle": "Summary for the selected period: runs, successes, errors, and trigger distribution.",
-          "period": "Period, days",
-          "runsTotal": "Total runs",
-          "runsSuccess": "Successful",
-          "runsError": "With errors",
-          "automations": "Scenarios in CRM",
-          "activeAutomations": "Active",
-          "topTitle": "Most frequent runs",
-          "triggersTitle": "By event type",
-          "empty": "No data for this period — create and enable scenarios or wait for the schedule."
+          "title": "Otomasyon kullanımı",
+          "subtitle": "Seçilen dönem özeti: çalıştırmalar, başarılar, hatalar ve tetikleyici dağılımı.",
+          "period": "Dönem, gün",
+          "runsTotal": "Toplam çalıştırma",
+          "runsSuccess": "Başarılı",
+          "runsError": "Hatalı",
+          "automations": "CRM senaryoları",
+          "activeAutomations": "Aktif",
+          "topTitle": "En sık çalışanlar",
+          "triggersTitle": "Olay tipine göre",
+          "empty": "Bu dönem için veri yok — senaryo oluşturup açın veya zamanlamayı bekleyin.",
+          "dayOption": "{{count}} gün"
         },
-        "copySuffix": "(copy)",
+        "copySuffix": "(kopya)",
         "titleLeads": "Lead automations",
         "titleProjects": "Project automations",
         "titleSales": "Sales automations",
         "actions": {
-          "duplicate": "Duplicate",
-          "archive": "Archive",
-          "sendNow": "Run now",
-          "sendNowRunning": "Running…",
-          "sendNowOk": "Scenario completed",
-          "sendNowFail": "Run failed"
+          "duplicate": "Çoğalt",
+          "archive": "Arşivle",
+          "sendNow": "Şimdi çalıştır",
+          "sendNowRunning": "Çalışıyor…",
+          "sendNowOk": "Senaryo tamamlandı",
+          "sendNowFail": "Çalıştırma başarısız"
         },
         "runModal": {
-          "title": "Run scenario",
-          "hint": "Pick a data window for report steps (e.g. “Send report”). Other actions run as configured.",
-          "presetLabel": "Data window",
+          "title": "Senaryoyu çalıştır",
+          "hint": "Rapor adımları için veri aralığı seçin (ör. «Rapor gönder»). Diğer eylemler yapılandırıldığı gibi çalışır.",
+          "presetLabel": "Veri aralığı",
           "presets": {
-            "last7": "Last 7 days",
-            "last30": "Last 30 days",
-            "thisMonth": "Month to date",
-            "yesterday": "Yesterday",
-            "custom": "Custom range"
+            "last7": "Son 7 gün",
+            "last30": "Son 30 gün",
+            "thisMonth": "Ay başından beri",
+            "yesterday": "Dün",
+            "custom": "Özel aralık"
           },
-          "dateFrom": "From",
-          "dateTo": "To",
-          "rangePreview": "Report will cover: {{from}} — {{to}} (UTC, calendar days).",
-          "submit": "Run",
-          "cancel": "Cancel",
-          "close": "Close",
-          "success": "Done — check email or run history.",
-          "customDatesRequired": "Enter both from and to dates for a custom range."
+          "dateFrom": "Başlangıç",
+          "dateTo": "Bitiş",
+          "rangePreview": "Rapor kapsamı: {{from}} — {{to}} (UTC, takvim günleri).",
+          "submit": "Çalıştır",
+          "cancel": "İptal",
+          "close": "Kapat",
+          "success": "Tamam — e-postayı veya geçmişi kontrol edin.",
+          "customDatesRequired": "Özel aralık için başlangıç ve bitiş tarihlerini girin."
         },
         "filters": {
-          "all": "All",
-          "active": "Active",
-          "inactive": "Inactive"
+          "all": "Tümü",
+          "active": "Aktif",
+          "inactive": "Pasif"
         },
         "tabs": {
-          "automations": "Automations",
-          "history": "Run history",
-          "integrations": "Integrations",
-          "usage": "Usage"
+          "automations": "Otomasyonlar",
+          "history": "Çalıştırma geçmişi",
+          "integrations": "Entegrasyonlar",
+          "usage": "Kullanım"
+        },
+        "page": {
+          "kicker": "Otomasyonlar · aktif: {{count}}",
+          "title": "Rutini otomatikleştirin",
+          "subtitle": "Tetikleyici ve eylemleri ayarlayın — CRM sizin için çalışsın",
+          "import": "İçe aktar",
+          "newAutomation": "+ Yeni otomasyon",
+          "templatesKicker": "Şablonlar · hızlı başlangıç"
+        },
+        "pageTemplates": {
+          "t1": {
+            "tag": "Popüler",
+            "name": "Yeni lead → Telegram + görev",
+            "flow": [
+              "Lead oluşturuldu",
+              "Telegram",
+              "Görev"
+            ]
+          },
+          "t2": {
+            "tag": "Yeniden etkileşim",
+            "name": "24 saat yanıt yok → e-posta",
+            "flow": [
+              "Gecikme",
+              "E-posta",
+              "Bildirim"
+            ]
+          },
+          "t3": {
+            "tag": "Satış",
+            "name": "Anlaşma kazanıldı → proje",
+            "flow": [
+              "Satış güncellendi",
+              "Proje",
+              "Bildirim"
+            ]
+          },
+          "t4": {
+            "tag": "WhatsApp",
+            "name": "Gelen WA → lead",
+            "flow": [
+              "Webhook",
+              "Lead oluştur",
+              "Atama"
+            ]
+          },
+          "t5": {
+            "tag": "Zamanlama",
+            "name": "Her Pazartesi 9:00 — rapor",
+            "flow": [
+              "Zamanlama",
+              "HTTP",
+              "E-posta"
+            ]
+          },
+          "t6": {
+            "tag": "Formlar",
+            "name": "Site formu → lead + Slack",
+            "flow": [
+              "Webhook",
+              "Lead oluştur",
+              "Slack"
+            ]
+          }
+        },
+        "table": {
+          "colName": "Ad",
+          "colLastRun": "Son çalıştırma",
+          "colRuns": "Çalıştırmalar",
+          "colStatus": "Durum",
+          "errorsShort": "{{count}} hata",
+          "statusActive": "Açık",
+          "statusPaused": "Duraklatıldı",
+          "menuPause": "Duraklat",
+          "menuActivate": "Etkinleştir"
         }
       },
       "form": {
@@ -2104,11 +2431,249 @@
           "collapse": "Daralt",
           "noActions": "Henüz eylem yok",
           "noConfig": "Ek parametre yok",
+          "notConfigured": "Yapılandırılmadı",
           "templates": {
             "leads": "Yeni lead -> e-posta ve not",
             "projects": "Yeni proje -> not ve durum",
             "sales": "Yeni satış -> rapor ve not"
           }
+        },
+        "library": {
+          "groups": {
+            "leadsSales": "Leadler ve satışlar",
+            "contactsCompanies": "Kişiler ve şirketler",
+            "projectsTasks": "Projeler ve görevler",
+            "messaging": "Mesajlar",
+            "timeApi": "Zaman ve API",
+            "notifications": "Bildirimler",
+            "crmObjects": "CRM nesneleri",
+            "reportsExport": "Raporlar ve dışa aktarma",
+            "integrations": "Entegrasyonlar"
+          },
+          "triggerDesc": {
+            "scheduled": "CRON veya aralık"
+          },
+          "actionDesc": {
+            "send_email": "Şablon veya özel e-posta"
+          }
+        },
+        "validation": {
+          "stepLabel": "Adım {{n}}",
+          "nameRequired": "Otomasyon adını girin",
+          "noActions": "Akışta en az bir eylem ekleyin",
+          "webhookUrlMissing": "webhook URL'si eksik",
+          "emailAccountMissing": "e-posta hesabı seçilmedi",
+          "emailRecipientOrTemplateWarning": "alıcı veya şablon seçilmedi",
+          "telegramRecipientMissing": "Telegram bot / alıcılar yapılandırılmadı",
+          "slackConnectionMissing": "Slack bağlantısı yapılandırılmadı",
+          "teamsConnectionMissing": "Teams bağlantısı yapılandırılmadı",
+          "taskTitleWarning": "görev başlığı boş",
+          "noteContentWarning": "not içeriği boş",
+          "reportTypeMissing": "rapor türü seçilmedi"
+        },
+        "templatePresets": {
+          "t1": {
+            "name": "Yeni lead → Telegram + görev"
+          },
+          "t2": {
+            "name": "Yanıtsız lead → e-posta + bildirim"
+          },
+          "t3": {
+            "name": "Anlaşma kazanıldı → not + bildirim"
+          },
+          "t4": {
+            "name": "Gelen webhook → bildirim + atama"
+          },
+          "t5": {
+            "name": "Her Pazartesi — satış raporu"
+          },
+          "t6": {
+            "name": "Site formu → not + Slack"
+          }
+        },
+        "builderUi": {
+          "stripBackTitle": "Otomasyonlara dön",
+          "stripActive": "Açık",
+          "stripDraft": "Taslak",
+          "stripBuilderTab": "Oluşturucu",
+          "stripJsonTab": "JSON",
+          "stripEnabled": "Açık",
+          "stripDisabled": "Kapalı",
+          "stripTest": "Test",
+          "libraryTitle": "Blok kitaplığı",
+          "librarySubtitle": "Akışa eklemek için tıklayın",
+          "librarySearchPlaceholder": "Blok ara…",
+          "tabTriggers": "Tetikleyiciler",
+          "tabActions": "Eylemler",
+          "flowTrigger": "Tetikleyici",
+          "flowAction": "Eylem",
+          "insertStepTitle": "Adım ekle",
+          "titleMoveUp": "Yukarı",
+          "titleMoveDown": "Aşağı",
+          "titleDuplicate": "Çoğalt",
+          "titleDelete": "Sil",
+          "titleAddAction": "Eylem ekle",
+          "flowEnd": "Akış sonu",
+          "cfgEmptyTitle": "Adım ayarları",
+          "cfgEmptyHint": "Parametreleri yapılandırmak için soldaki akıştan bir adım seçin.",
+          "triggerStepCaption": "Tetikleyici · 1 / {{total}} adım",
+          "actionStepCaption": "Eylem · {{n}} / {{total}} adım",
+          "cfgTabParams": "Parametreler",
+          "cfgTabConditions": "Koşullar",
+          "cfgTabLogs": "Günlükler",
+          "triggerFieldLabel": "Tetikleyici olayı",
+          "scheduleSection": "Zamanlama",
+          "generalSection": "Genel",
+          "automationDescriptionPlaceholder": "Bu otomasyon için dahili not",
+          "maxExecutionsLabel": "Maks. çalıştırma",
+          "cooldownLabel": "Bekleme süresi (sn)",
+          "conditionsIntro": "Otomasyon yalnızca tüm koşullar sağlandığında çalışır. Her zaman için boş bırakın.",
+          "conditionFieldPlaceholder": "alan",
+          "conditionValuePlaceholder": "değer",
+          "conditionOp": {
+            "equals": "eşittir",
+            "not_equals": "eşit değildir",
+            "contains": "içerir",
+            "not_contains": "içermez",
+            "greater_than": ">",
+            "less_than": "<",
+            "greater_or_equal": "≥",
+            "less_or_equal": "≤",
+            "is_empty": "boş",
+            "is_not_empty": "boş değil",
+            "starts_with": "ile başlar",
+            "ends_with": "ile biter"
+          },
+          "addCondition": "Koşul ekle",
+          "logsAfterSave": "Günlükler ilk kayıttan ve çalıştırmadan sonra görünür.",
+          "logsLoading": "Yükleniyor…",
+          "logsEmpty": "Henüz çalıştırma yok.",
+          "logActionsExecuted": "{{count}} eylem",
+          "deleteStepTitle": "Adımı kaldır",
+          "webhookPostHint": "Tetikleyici verisi POST ile bu URL'ye gönderilir.",
+          "pickPlaceholder": "— seçin —",
+          "pickEmailAccount": "— hesap seçin —",
+          "pickEmailTemplate": "— şablon yok —",
+          "subjectPlaceholder": "Konu",
+          "emailBodyPlaceholder": "E-posta gövdesi…",
+          "slackMessagePlaceholder": "Slack mesajı",
+          "teamsTitlePlaceholder": "Bildirim",
+          "teamsTextPlaceholder": "Bildirim metni",
+          "whatsappMessagePlaceholder": "Mesaj",
+          "notificationTitlePlaceholder": "Bildirim",
+          "notificationBodyPlaceholder": "Bildirim metni: {{lead.name}}",
+          "notificationRecipientsPlaceholder": "— tüm personel —",
+          "notificationRecipientsHelp": "Boş bırakın — tüm aktif personel alır.",
+          "assignStaffPlaceholder": "— personel seçin —",
+          "assignStaffHelp": "Birden fazla seçebilirsiniz — kayıt hepsine atanır.",
+          "notePlaceholder": "Not içeriği…",
+          "newStatusPlaceholder": "new / won / lost / …",
+          "tagPlaceholder": "vip, soğuk, …",
+          "telegramVarsHint": "Değişkenler: {{lead.name}}, {{lead.email}}, {{sale.name}}, …",
+          "telegramBotLabel": "Telegram botu *",
+          "telegramNoBots": "Bağlı bot yok.",
+          "telegramAddBotsLink": "Bot ekle →",
+          "telegramPickBot": "— bot seçin —",
+          "telegramInactiveSuffix": " (pasif)",
+          "telegramRecipientsLabel": "Alıcılar *",
+          "telegramNoRecipients": "Alıcı yapılandırılmamış.",
+          "telegramAddRecipientsLink": "Alıcı ekle →",
+          "telegramMessagePlaceholder": "🔥 Yeni lead: {{lead.name}} ({{lead.email}})",
+          "reportChannelLabel": "Kanal",
+          "reportFormatSection": "Biçim",
+          "reportFreqDaily": "Günlük",
+          "reportFreqWeekly": "Haftalık",
+          "reportFreqMonthly": "Aylık",
+          "dataExportChannelLabel": "Kanal",
+          "dataExportSourcePathLabel": "Veri kaynağı (yol)",
+          "dataExportUnwrapLabel": "İç içe veriyi düzleştir",
+          "dataExportSubjectLabel": "Konu",
+          "assignTaskStaffLabel": "Atanan *",
+          "jsonPayloadLabel": "JSON gövdesi",
+          "subscriptionStatusLabel": "Abonelik durumu",
+          "subscriberEmailLabel": "Abone e-postası",
+          "mailchimpMergeFieldsLabel": "Birleştirme alanları (JSON)",
+          "connectionMailchimp": "Mailchimp bağlantısı",
+          "connectionZapier": "Zapier bağlantısı",
+          "connectionWhatsApp": "WhatsApp bağlantısı",
+          "connectionGoogleCalendar": "Google Calendar bağlantısı",
+          "connectionOutlook": "Outlook bağlantısı",
+          "eventTitleLabel": "Etkinlik başlığı",
+          "eventTitlePlaceholder": "{{lead.name}} ile görüşme",
+          "eventDescriptionLabel": "Açıklama",
+          "durationMinutesLabel": "Süre (dk)",
+          "startOffsetMinutesLabel": "Başlangıç kayması (dk)",
+          "timeZoneLabel": "Saat dilimi",
+          "marketingIntegrationGoogleAds": "Google Ads pazarlama entegrasyonu",
+          "marketingIntegrationMetaAds": "Meta Ads pazarlama entegrasyonu",
+          "connectionGoogleAds": "Google Ads bağlantısı",
+          "connectionMetaAds": "Meta Ads bağlantısı",
+          "developerTokenLabel": "Developer Token",
+          "customerIdLabel": "Customer ID",
+          "calendarIdLabel": "Calendar ID",
+          "taskIdLabel": "Task ID",
+          "staffLabel": "Personel *",
+          "phoneToLabel": "Kime (telefon)",
+          "paramsJsonLabel": "Parametreler (JSON)",
+          "apiMethodLabel": "API metodu",
+          "bitrixConnectionLabel": "Bitrix24 bağlantısı",
+          "amocrmConnectionLabel": "amoCRM bağlantısı",
+          "hubspotConnectionLabel": "HubSpot bağlantısı",
+          "htmlBodyLabel": "HTML gövdesi",
+          "replyToLabel": "Reply-To",
+          "fromNameLabel": "Gönderen adı",
+          "subjectCampaignLabel": "Konu",
+          "testModalTitle": "Otomasyon doğrulaması",
+          "testModalErrors": "Hatalar",
+          "testModalWarnings": "Uyarılar",
+          "testModalSuccessBody": "Her şey doğru görünüyor. Otomasyon kullanıma hazır.",
+          "testModalClose": "Kapat",
+          "pickerTitle": "Blok seçin",
+          "workspacePushDupField": "Yinelenen kontrol alanı (isteğe bağlı)",
+          "workspacePushSkipDup": "Değer zaten varsa atla",
+          "workspacePushTargetObject": "Hedef tablo UUID (panosu)",
+          "workspacePushHint": "Tetikleyici: özel tablo kaydı. Satırı hedef «Tablo» panosuna kopyalar. objectId = veri tablonuz için koşul ekleyin.",
+          "scheduledHintHtml": "Zamanlanmış çalıştırmalar aşağıdaki alanları kullanır (sıklık, saat, saat dilimi).",
+          "fieldLabel": "Alan",
+          "valueLabel": "Değer",
+          "noteContentLabel": "Not metni",
+          "newStatusLabel": "Yeni durum",
+          "tagLabel": "Etiket",
+          "botIdLabel": "Bot ID",
+          "telegramUserIdLabel": "Telegram kullanıcı ID",
+          "emailAccountShortLabel": "E-posta hesabı",
+          "recipientLabel": "Kime",
+          "templateLabel": "Şablon",
+          "webhookUrlShortLabel": "Webhook URL",
+          "createLeadPlaceholder": "Lead oluştur",
+          "delayStep": "Gecikme",
+          "httpStep": "HTTP",
+          "connectionSlack": "Slack bağlantısı",
+          "connectionTeams": "Microsoft Teams bağlantısı",
+          "titleLabel": "Başlık",
+          "textLabel": "Metin",
+          "httpMethodLabel": "HTTP metodu",
+          "apiPathLabel": "API yolu",
+          "stepConditionsIntro": "Bu adım için koşullar. Bir koşul sağlanmazsa adım atlanır.",
+          "notificationRecipientsLabel": "Alıcılar",
+          "telegramMessageLabel": "Mesaj metni *",
+          "taskTitleLabel": "Görev başlığı",
+          "taskTitlePlaceholder": "{{lead.name}} için geri ara",
+          "taskStatusLabel": "Durum",
+          "taskPriorityLabel": "Öncelik",
+          "priorityLow": "Düşük",
+          "priorityNormal": "Normal",
+          "priorityHigh": "Yüksek",
+          "taskDueDaysLabel": "Vade (tetikleyiciden gün)",
+          "taskAssigneeLabel": "Atanan",
+          "taskAssigneePlaceholder": "— atanmadı —",
+          "duplicateKeyTargetFieldLabel": "Yinelenen anahtar alanı",
+          "skipDuplicatesCheckbox": "Yinelemeleri atla",
+          "customObjectIdLabel": "Nesne ID (targetObjectId)",
+          "pickerSearchPlaceholder": "Eylem veya tetikleyici ara…",
+          "pickerTabTriggerSingular": "Tetikleyici",
+          "pickerKbdNavigate": "gezinme",
+          "pickerKbdClose": "kapat"
         },
         "triggerGroups": {
           "contacts": "Kişiler",
@@ -2501,7 +3066,12 @@
           "create_note": "Not oluştur",
           "update_field": "Alanı güncelle",
           "add_tag": "Etiket ekle",
-          "change_status": "Durumu değiştir"
+          "change_status": "Durumu değiştir",
+          "create_custom_object_record": "Satırı başka tabloya kopyala",
+          "assign_user": "Kullanıcı ata",
+          "assign_task": "Görev ata",
+          "remove_tag": "Etiketi kaldır",
+          "send_notification": "Anlık bildirim"
         },
         "openMarketingIntegrationsPage": "Pazarlama · entegrasyonlar",
         "errors": {
@@ -3943,6 +4513,489 @@
         "errors": {
           "loadFailed": "Analitik yüklenemedi"
         }
+      },
+      "analyticsV2": {
+        "periods": {
+          "d30": "30g",
+          "d7": "7g",
+          "quarter": "ÇÇ",
+          "ytd": "YTD",
+          "all": "Tüm zamanlar"
+        },
+        "views": {
+          "overview": "Özet",
+          "sources": "Kanallar",
+          "managers": "Yöneticiler",
+          "funnel": "Durumlar"
+        },
+        "catalogGroups": {
+          "all": "Tümü",
+          "kpi": "KPI",
+          "charts": "Grafikler",
+          "tables": "Tablolar",
+          "presets": "Hazır"
+        },
+        "nav": {
+          "salesBreadcrumb": "Satışlar",
+          "analyticsTitle": "Analitik",
+          "searchPlaceholder": "Ara…",
+          "share": "Paylaş",
+          "exportCsv": "CSV dışa aktar",
+          "edit": "Düzenle",
+          "done": "Bitti",
+          "saveView": "+ Görünümü kaydet",
+          "periodLabel": "Dönem",
+          "filters": "Filtreler",
+          "filterAll": "Tümü",
+          "addFilter": "+ Filtre",
+          "loading": "Yükleniyor",
+          "salesCountLive": "{{count}} satış · az önce güncellendi",
+          "shareToast": "Bağlantı panoya kopyalandı",
+          "sharePrompt": "Bu bağlantıyı kopyalayın:",
+          "saveDashboard": "Panoyu kaydet",
+          "reset": "Sıfırla",
+          "addBlock": "Blok ekle",
+          "addBlockHint": "KPI, grafikler, tablolar, sıralamalar",
+          "editingMode": "Düzenleme modu",
+          "editingHint": "üstten sürükleyin · köşeden yeniden boyutlandırın · koşullar ayarlarda",
+          "blocksCount": "{{count}} blok",
+          "heroKicker": "● Satış analitiği · {{period}}",
+          "heroTitle": "Satışlar — özet",
+          "heroSubtitle": "KPI’lar, grafikler, sıralamalar, filtreler ve kanal, ürün, durum ile özel alanlara göre kendi görünümleriniz."
+        },
+        "blockTypes": {
+          "metric": {
+            "label": "KPI",
+            "subtitle": "Tek sayı, toplam veya ortalama"
+          },
+          "formula": {
+            "label": "Formül",
+            "subtitle": "KOŞULLU TOPLA, sayı, yüzde, pay, fark"
+          },
+          "donut": {
+            "label": "Halka grafik",
+            "subtitle": "Seçilen alana göre paylar"
+          },
+          "bar": {
+            "label": "Çubuk grafik",
+            "subtitle": "Grupları karşılaştır"
+          },
+          "line": {
+            "label": "Çizgi",
+            "subtitle": "Tarihe göre eğilim"
+          },
+          "funnel": {
+            "label": "Huni",
+            "subtitle": "Aşamalar ve dönüşüm"
+          },
+          "leaderboard": {
+            "label": "Sıralama",
+            "subtitle": "En iyi yöneticiler veya gruplar"
+          },
+          "table": {
+            "label": "Tablo",
+            "subtitle": "Özet tablo stili"
+          },
+          "heatmap": {
+            "label": "Isı haritası",
+            "subtitle": "Gün × saat aktivitesi"
+          },
+          "note": {
+            "label": "Not",
+            "subtitle": "Otomatik özet"
+          }
+        },
+        "status": {
+          "new": "Yeni",
+          "pending": "Beklemede",
+          "processing": "İşleniyor",
+          "on_hold": "Bekletmede",
+          "confirmed": "Onaylandı",
+          "paid": "Ödendi",
+          "complete": "Tamamlandı",
+          "cancelled": "İptal",
+          "refunded": "İade",
+          "failed": "Başarısız",
+          "other": "Diğer"
+        },
+        "statusGroup": {
+          "successful": "Başarılı",
+          "refunds": "İadeler",
+          "cancelled": "İptal",
+          "in_progress": "Devam ediyor",
+          "new": "Yeni",
+          "other": "Diğer"
+        },
+        "fallbacks": {
+          "notSpecified": "Belirtilmedi",
+          "noChannel": "Kanal yok",
+          "noProduct": "Ürün yok",
+          "noCustomer": "Müşteri yok",
+          "noManager": "Yönetici yok",
+          "noData": "Veri yok",
+          "saleShort": "Satış {{id}}"
+        },
+        "money": {
+          "mn": "{{value}}M {{symbol}}",
+          "k": "{{value}}k {{symbol}}"
+        },
+        "weekDaysShort": [
+          "Pts",
+          "Sal",
+          "Çar",
+          "Per",
+          "Cum",
+          "Cts",
+          "Paz"
+        ],
+        "catalog": {
+          "metric_sales": {
+            "title": "Dönem satışları",
+            "subtitle": "Sipariş sayısı"
+          },
+          "metric_confirmation": {
+            "title": "Onay oranı",
+            "subtitle": "onaylı ÷ satış"
+          },
+          "metric_revenue": {
+            "title": "Gelir",
+            "subtitle": "Satış toplamı"
+          },
+          "metric_avg": {
+            "title": "Ortalama sipariş tutarı",
+            "subtitle": "Gelir ÷ satış"
+          },
+          "formula_sales": {
+            "title": "Satış formülü",
+            "subtitle": "Koşullar · sayı · toplam · yüzde"
+          },
+          "line_dynamics": {
+            "title": "Satış eğilimi",
+            "subtitle": "Dönem vs önceki"
+          },
+          "donut_status": {
+            "title": "Duruma göre dağılım",
+            "subtitle": "Paylar ve sayılar"
+          },
+          "bar_channels": {
+            "title": "Kanala göre satışlar",
+            "subtitle": "Kanal · entegrasyon"
+          },
+          "bar_products": {
+            "title": "Ürüne göre satışlar",
+            "subtitle": "Ürün · hizmet"
+          },
+          "heatmap_sales": {
+            "title": "Satış aktivitesi",
+            "subtitle": "Gün × saat"
+          },
+          "funnel_statuses": {
+            "title": "Satış durumları",
+            "subtitle": "Tüm sipariş durumları"
+          },
+          "leaderboard_mgr": {
+            "title": "Yönetici sıralaması",
+            "subtitle": "Satış · onaylar · gelir"
+          },
+          "table_summary": {
+            "title": "Özet tablo",
+            "subtitle": "Gruplama ve toplam"
+          },
+          "note_insight": {
+            "title": "Satış özeti",
+            "subtitle": "Kısa çıkarım"
+          }
+        },
+        "defaults": {
+          "overview": {
+            "b1": {
+              "title": "Dönem satışları",
+              "subtitle": "30 gün"
+            },
+            "b2": {
+              "title": "Onay oranı",
+              "subtitle": "onaylı ÷ satış"
+            },
+            "b3": {
+              "title": "Gelir",
+              "subtitle": "satış toplamı"
+            },
+            "b4": {
+              "title": "Ortalama sipariş tutarı",
+              "subtitle": "gelir ÷ satış"
+            },
+            "b5": {
+              "title": "Satış eğilimi",
+              "subtitle": "dönem vs önceki"
+            },
+            "b6": {
+              "title": "Duruma göre dağılım",
+              "subtitle": "paylar ve sayılar"
+            },
+            "b7": {
+              "title": "Kanala göre satışlar",
+              "subtitle": "kanal · entegrasyon"
+            },
+            "b8": {
+              "title": "Satış durumları",
+              "subtitle": "sipariş türleri"
+            },
+            "b9": {
+              "title": "Yönetici sıralaması",
+              "subtitle": "satış · onaylar · gelir"
+            },
+            "b10": {
+              "title": "Özet tablo",
+              "subtitle": "kanallar"
+            },
+            "b11": {
+              "title": "Saatlik aktivite",
+              "subtitle": "gün × saat"
+            },
+            "b12": {
+              "title": "Haftalık öne çıkanlar",
+              "subtitle": "otomatik özet"
+            }
+          },
+          "sources": {
+            "s1": {
+              "title": "Kanala göre satışlar",
+              "subtitle": "kanal · entegrasyon"
+            },
+            "s2": {
+              "title": "Kanal özeti",
+              "subtitle": "satış · pay · gelir"
+            },
+            "s3": {
+              "title": "Kanal eğilimi",
+              "subtitle": "dönem vs önceki"
+            },
+            "s4": {
+              "title": "Kanal türleri",
+              "subtitle": "doğrudan / ota / b2b"
+            }
+          },
+          "managers": {
+            "m1": {
+              "title": "Dönem satışları",
+              "subtitle": "yöneticilere göre"
+            },
+            "m2": {
+              "title": "Onay oranı",
+              "subtitle": "onaylı ÷ satış"
+            },
+            "m3": {
+              "title": "Yönetici sıralaması",
+              "subtitle": "satış · onaylar · gelir"
+            },
+            "m4": {
+              "title": "Takım özeti",
+              "subtitle": "yönetici / satış / gelir"
+            },
+            "m5": {
+              "title": "Takım aktivitesi",
+              "subtitle": "gün × saat"
+            }
+          },
+          "funnel": {
+            "f1": {
+              "title": "Satış durumları",
+              "subtitle": "tüm sipariş türleri"
+            },
+            "f2": {
+              "title": "Durum grupları",
+              "subtitle": "yeni / devam / başarılı"
+            },
+            "f3": {
+              "title": "Durum eğilimi",
+              "subtitle": "dönem vs önceki"
+            },
+            "f4": {
+              "title": "Onay oranı",
+              "subtitle": "onaylı ÷ satış"
+            },
+            "f5": {
+              "title": "İadeler",
+              "subtitle": "iade edilen"
+            }
+          }
+        },
+        "fields": {
+          "status": "Durum",
+          "statusCode": "Durum kodu",
+          "statusGroup": "Durum grubu",
+          "channel": "Kanal",
+          "channelType": "Kanal tipi",
+          "integration": "Entegrasyon",
+          "product": "Ürün",
+          "market": "Pazar",
+          "manager": "Yönetici",
+          "agentName": "Temsilci",
+          "customer": "Müşteri",
+          "orderNo": "Sipariş numarası",
+          "amount": "Gelir",
+          "currency": "Para birimi",
+          "quantity": "Miktar",
+          "productType": "Ürün tipi",
+          "category": "Kategori",
+          "size": "Beden",
+          "color": "Renk",
+          "leadId": "Lead",
+          "saleDate": "Satış tarihi",
+          "createdDate": "Oluşturulma tarihi",
+          "updatedDate": "Güncellenme tarihi",
+          "checkInAt": "Giriş",
+          "checkOutAt": "Çıkış",
+          "daysToCheckIn": "Girişe kalan gün",
+          "bookingNights": "Gece sayısı"
+        },
+        "metricOptions": {
+          "total": "Toplam satış",
+          "conversion": "Onay oranı",
+          "revenue": "Gelir",
+          "avgRevenue": "Ortalama sipariş tutarı",
+          "won": "Kazanılan satışlar",
+          "lost": "İptal satışları",
+          "refunded": "İadeler",
+          "channels": "Kanallar",
+          "products": "Ürünler",
+          "currencies": "Para birimleri",
+          "response": "Girişe kalan gün",
+          "sumSuffix": "{{label}} — toplam",
+          "avgSuffix": "{{label}} — ortalama",
+          "filledSuffix": "{{label}} — dolu"
+        },
+        "formulaEvaluate": {
+          "pctOfSet": "Seçimin %{{pct}}’i",
+          "countOfTotal": "{{matching}} / {{base}}",
+          "sumField": "{{field}} toplamı"
+        },
+        "addModal": {
+          "catalogKicker": "Blok kataloğu",
+          "title": "Blok ekle",
+          "subtitle": "Yeni bloklar geçerli sekme ve dönemin canlı verilerini kullanır.",
+          "searchPlaceholder": "Blok ara: KPI, kanal, dönüşüm…",
+          "esc": "esc"
+        },
+        "config": {
+          "constructorKicker": "Oluşturucu",
+          "title": "Blok ayarları",
+          "headerSummary": "{{title}} · {{type}} · {{span}}/12",
+          "titleLabel": "Başlık",
+          "subtitleLabel": "Alt başlık",
+          "dataSection": "Blok verisi",
+          "blockTypeLabel": "Blok tipi",
+          "showWhat": "Ne gösteriyoruz",
+          "valueMetricLabel": "Değer metriği",
+          "count": "Adet",
+          "sum": "Toplam",
+          "sumFieldLabel": "Toplam alanı",
+          "formulaSection": "Formül",
+          "formulaLabel": "Formül",
+          "formula_sumif": "KOŞULLU TOPLA (koşul)",
+          "formula_count": "SAY",
+          "formula_percent": "YÜZDE",
+          "formula_ratio": "PAY",
+          "formula_diff": "FARK",
+          "formatLabel": "Biçim",
+          "formulaFormatPercent": "Yüzde",
+          "displayLabel": "Görünüm",
+          "formula_display_metric": "KPI",
+          "formula_display_donut": "Halka grafik",
+          "formula_display_bar": "Çubuk grafik",
+          "formula_display_table": "Tablo",
+          "leftValue": "Sol değer",
+          "rightValue": "Sağ değer",
+          "allValues": "Tüm değerler",
+          "dimensionValueSuffix": "{{label}} — değer",
+          "tableColumnsSection": "Tablo sütunları",
+          "addColumn": "+ Sütun ekle",
+          "remove": "Kaldır",
+          "noExtraColumns": "Ek sütun seçilmedi",
+          "blockConditionsSection": "Blok koşulları",
+          "blockConditionsHint": "Koşullar VE ile birleştirilir. Tek koşuldaki değerler VEYA ile çalışır; böylece birden fazla kanal, ürün, ülke, durum veya yönetici seçebilirsiniz.",
+          "conditionN": "Koşul {{n}}",
+          "addCondition": "+ Koşul ekle",
+          "conditionScopeLabel": "Koşul dilimi",
+          "colorTheme": "Renk teması",
+          "colorAria": "Renk {{color}}",
+          "showLabels": "Etiketleri göster",
+          "sizeSection": "Boyut",
+          "columnsLabel": "Sütunlar",
+          "heightSection": "Yükseklik (px) — veya düzenlemede tutamacı sürükleyin",
+          "footerHome": "Panele git",
+          "footerDelete": "Sil",
+          "footerDone": "Bitti",
+          "duplicateSuffix": " kopyası"
+        },
+        "filterPicker": {
+          "allValues": "Tüm değerler",
+          "noValues": "Değer yok"
+        },
+        "blockChrome": {
+          "dragAria": "Bloğu sürükle",
+          "configure": "Ayarlar",
+          "addHome": "Panele git",
+          "duplicate": "Çoğalt",
+          "delete": "Sil",
+          "resizeWidthAria": "Genişliği değiştir",
+          "resizeHeightAria": "Yüksekliği değiştir",
+          "resizeBothAria": "Boyutu değiştir"
+        },
+        "charts": {
+          "total": "toplam",
+          "valueCol": "Değer",
+          "sumCol": "Toplam, {{currency}}",
+          "salesCol": "Satışlar",
+          "shareCol": "Pay",
+          "currentPeriod": "Geçerli dönem",
+          "prevPeriod": "Önceki dönem",
+          "tooltipCurrent": "Güncel",
+          "tooltipPrev": "Önceki",
+          "heatmapTitle": "{{day}} {{hour}}:00 — {{count}} satış"
+        },
+        "note": {
+          "body": "Seçimde <highlight>{{count}}</highlight> satış var. En iyi kanal — <highlight>{{channel}}</highlight>. Onay oranı — <highlight>{{conversion}}%</highlight>.",
+          "missingRates": "<highlight>{{count}}</highlight> satış için kur bulunamadı — özgün para biriminde gösteriliyor."
+        },
+        "metrics": {
+          "vsPrevPeriod": "{{pct}}% vs önceki dönem",
+          "totalSalesSuffix": "satış",
+          "conversionDeltaPp": "{{sign}}{{pp}} pp onaylı / satış",
+          "conversionDeltaFallback": "{{total}} içinden {{won}} onaylı",
+          "revenueDeltaSuffix": " gelire göre",
+          "revenueDeltaFallback": "{{won}} başarılı satış",
+          "avgCheckHint": "ortalama sipariş tutarı",
+          "wonSuffix": "tamam",
+          "wonFallback": "satışların %{{pct}}’i",
+          "lostSuffix": "iptal",
+          "lostFallback": "satışların %{{pct}}’i",
+          "refundedSuffix": "iade",
+          "refundedFallback": "satışların %{{pct}}’i",
+          "channelsFallback": "aktif kanallar",
+          "productsFallback": "satışlardaki ürünler",
+          "currenciesFallback": "satışlardaki para birimleri",
+          "responseEmpty": "satışlarda giriş tarihi yok",
+          "responseSuffix": "g",
+          "responseDeltaCheckin": "Girişe kadar {{text}}",
+          "responseAvgHint": "girişe ortalama süre",
+          "sumFieldFallback": "{{field}} toplamı",
+          "avgFieldFallback": "{{field}} ortalaması",
+          "filledFallback": "{{field}} dolu"
+        },
+        "csv": {
+          "order": "Sipariş",
+          "status": "Durum",
+          "channel": "Kanal",
+          "product": "Ürün",
+          "customer": "Müşteri",
+          "manager": "Yönetici",
+          "market": "Pazar",
+          "amount": "Tutar",
+          "currency": "Para birimi",
+          "saleDate": "Satış tarihi"
+        },
+        "dimensionValueSuffix": "{{label}} — değer"
       }
     },
     "dashboard": {
@@ -4049,7 +5102,17 @@
         "sub": "Panelde neler oluyor"
       },
       "hero": {
-        "kicker": "Ana ekran"
+        "kicker": "Ana ekran",
+        "stats": {
+          "tasksToday": "Bugün {{count}} görev",
+          "overdue": "{{count}} gecikmiş",
+          "newLeads": "{{count}} yeni lead",
+          "revenue": "{{amount}} € ciro"
+        }
+      },
+      "loading": "Panel yenileniyor…",
+      "errors": {
+        "loadFailed": "Panel verileri yüklenemedi"
       },
       "fallbacks": {
         "user": "Meslektaş",
@@ -4057,7 +5120,9 @@
         "noStatus": "Statü yok",
         "noName": "Adsız",
         "empty": "—",
-        "noDue": "Tarih yok"
+        "noDue": "Tarih yok",
+        "noChannel": "Kanal yok",
+        "notSpecified": "Belirtilmedi"
       },
       "roles": {
         "owner": "Sahip",
@@ -4067,7 +5132,21 @@
         "manager": "Müdür"
       },
       "widgets": {
+        "customize": "Widget'ları özelleştir",
+        "done": "Bitti",
         "addBlock": "Blok ekle",
+        "nothingToAdd": "Tüm bloklar zaten ekranda",
+        "addedToHome": "Widget ana sayfaya eklendi",
+        "resize": "Sütun genişliği",
+        "moveUp": "Yukarı taşı",
+        "moveDown": "Aşağı taşı",
+        "hide": "Ana sayfadan gizle",
+        "editBlock": "Bloğu düzenle",
+        "editModalTitle": "Ana sayfa bloğu",
+        "editTitleLabel": "Başlık",
+        "deleteBlock": "Bloğu kaldır",
+        "drag": "Sürükle",
+        "sizeLabel": "Genişlik {{size}}",
         "names": {
           "kpi": "Göstergeler",
           "quick-actions": "Hızlı işlemler",
@@ -4087,6 +5166,69 @@
         },
         "addBlockHint": "metrikler, raporlar, diğer sayfalardan widget'lar"
       },
+      "quickAccess": {
+        "sectionTitle": "Hızlı erişim",
+        "starTitle": "Favorilere ekle",
+        "kinds": {
+          "projects": "CRM · Projeler",
+          "leads": "CRM · Leadler",
+          "analytics": "Analitik",
+          "calendar": "Takvim"
+        },
+        "labels": {
+          "projectsTable": "Projeler — Tablo",
+          "leadsFunnel": "Satış hunisi",
+          "leadsAnalytics": "Lead analitiği",
+          "meetingsTasks": "Toplantılar ve görevler"
+        }
+      },
+      "salesOrderStatus": {
+        "new": "Yeni",
+        "pending": "Beklemede",
+        "processing": "İşleniyor",
+        "on-hold": "Bekletildi",
+        "on_hold": "Bekletildi",
+        "confirmed": "Onaylandı",
+        "paid": "Ödendi",
+        "completed": "Tamamlandı",
+        "complete": "Tamamlandı",
+        "cancelled": "İptal",
+        "canceled": "İptal",
+        "refunded": "İade",
+        "failed": "Hata",
+        "other": "Diğer"
+      },
+      "presets": {
+        "modalTitle": "Analitik ön ayarları",
+        "tabSales": "Satış analitiği",
+        "tabProjects": "Proje analitiği",
+        "tabLeads": "Lead analitiği",
+        "standardBlocks": "Standart ana sayfa blokları",
+        "openAnalytics": "Tam analitik",
+        "fallback": "Analitik",
+        "metricWonProjects": "Kazanılan projeler",
+        "pickHint": "Aşağıda mini önizleme: blok ana sayfada böyle görünür. Üstteki sekmelerden veri kaynağını seçin.",
+        "addToDashboard": "Ana sayfaya ekle",
+        "previewHint": "Önizleme",
+        "embedFallback": "Bu widget türü için veri yok",
+        "formulaOnFullPage": "Formülü yapılandırmak için tam analitiği açın"
+      },
+      "projectsAnalytics": {
+        "kpiProjects": "Projeler",
+        "kpiRevenue": "Ciro",
+        "openFull": "Tam proje analitiği"
+      },
+      "leadsAnalyticsWidget": {
+        "kpiLeads": "Leadler",
+        "kpiConversion": "Dönüşüm",
+        "openFull": "Tam lead analitiği"
+      },
+      "salesAnalyticsWidget": {
+        "kpiCount": "Siparişler",
+        "kpiAmount": "Tutar",
+        "openFull": "Tam satış analitiği"
+      },
+      "addToHomeFromAnalytics": "Ana sayfaya ekle",
       "projects": {
         "sub": "Öncelik ve görev ilerlemesine göre",
         "tasksLabel": "görev"
@@ -4156,6 +5298,18 @@
         "evening": "İyi akşamlar"
       },
       "kpi": {
+        "todayLeads": "Bugünkü leadler",
+        "todayLeadsHint": "bugün",
+        "totalLeads": "Tüm leadlerim",
+        "totalLeadsHint": "birikimli",
+        "conversion": "Dönüşümüm",
+        "conversionHint": "kapanan leadlere göre",
+        "wonProjects": "Kazanılan projeler",
+        "wonProjectsHint": "adet",
+        "revenue": "Ciro (EUR)",
+        "revenueHint": "kazanılan projelere göre",
+        "tasksTotal": "Toplam görevler",
+        "tasksSubtitle": "Bugün: {{today}}, geciken: {{overdue}}",
         "sectionTitle": "Temel metrikler"
       },
       "sections": {
@@ -5381,6 +6535,24 @@
         "common": {
           "empty": "—"
         }
+      },
+      "permissions": {
+        "contacts": "Kişiler",
+        "companies": "Şirketler",
+        "email": "E-posta",
+        "marketing": "Pazarlama",
+        "tools_automation": "Otomasyon",
+        "custom_objects": "No-code Workspace",
+        "group": {
+          "crm": "CRM",
+          "communication": "İletişim",
+          "tools": "Araçlar",
+          "admin": "Yönetim"
+        },
+        "hint": {
+          "staff": "Personel yönetimi, davetler",
+          "settings": "Şirket ayarları, API, entegrasyonlar"
+        }
       }
     }
   },
@@ -5402,7 +6574,9 @@
       "contact": "İletişim",
       "faq": "SSS",
       "terms": "Şartlar",
-      "changelog": "Güncellemeler"
+      "changelog": "Güncellemeler",
+      "openCrmHint": "CRM'inizi açın — bu çalışma alanında oturum açıldı",
+      "openCrmCta": "CRM'e git"
     },
     "common": {
       "kicker": "Lumiva CRM",

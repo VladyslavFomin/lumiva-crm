@@ -445,22 +445,22 @@ export const DashboardCalendarMini: React.FC<{
       <div className="flex items-center justify-between gap-2">
         <button
           type="button"
-          className="rounded-xl border border-slate-200 px-2 py-1 text-[11px] hover:bg-slate-50"
+          className="rounded-xl border border-neutral-200 px-2 py-1 text-[11px] hover:bg-neutral-50"
           onClick={() => setCursor((c) => addMonths(c, -1))}
         >
           ‹
         </button>
-        <div className="text-xs font-medium text-slate-800 capitalize">{monthLabel}</div>
+        <div className="text-xs font-medium text-[#222] capitalize">{monthLabel}</div>
         <button
           type="button"
-          className="rounded-xl border border-slate-200 px-2 py-1 text-[11px] hover:bg-slate-50"
+          className="rounded-xl border border-neutral-200 px-2 py-1 text-[11px] hover:bg-neutral-50"
           onClick={() => setCursor((c) => addMonths(c, 1))}
         >
           ›
         </button>
       </div>
 
-      <div className="grid grid-cols-7 gap-[2px] text-[9px] text-slate-400 text-center mb-1 font-mono uppercase tracking-[0.06em]">
+      <div className="grid grid-cols-7 gap-[2px] text-[9px] text-neutral-400 text-center mb-1 font-mono uppercase tracking-[0.06em]">
         {dowLabels.map((d) => (
           <div key={d}>{d}</div>
         ))}
@@ -483,10 +483,10 @@ export const DashboardCalendarMini: React.FC<{
               className={
                 'flex flex-col items-center justify-center rounded-[5px] text-[11px] font-mono cursor-pointer transition-colors ' +
                 (isToday
-                  ? 'bg-slate-900 text-white font-medium'
+                  ? 'bg-[#222] text-white font-medium'
                   : isDim
-                  ? 'text-slate-300 hover:bg-slate-50'
-                  : 'text-slate-700 hover:bg-slate-100')
+                  ? 'text-neutral-300 hover:bg-neutral-50'
+                  : 'text-neutral-700 hover:bg-neutral-100')
               }
             >
               {cell.getDate()}
@@ -506,7 +506,7 @@ export const DashboardCalendarMini: React.FC<{
         const todayEntries = entriesForDay(new Date());
         if (!todayEntries.length) return null;
         return (
-          <div className="border-t border-slate-100 pt-3 flex flex-col gap-1.5">
+          <div className="border-t border-neutral-100 pt-3 flex flex-col gap-1.5">
             {todayEntries.map((ent) => {
               const key = ent.source === 'local' ? ent.m.id : `lm-${ent.e.leadId}-${ent.e.meetingId}`;
               const title = ent.source === 'local' ? ent.m.title : ent.e.title;
@@ -517,10 +517,10 @@ export const DashboardCalendarMini: React.FC<{
               const markerColor = kind === 'note' ? '#1769d1' : '#1f8a5e';
               return (
                 <div key={key} className="flex gap-2.5 items-start">
-                  <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10.5px] text-slate-400 w-[44px] shrink-0 pt-0.5 tracking-[0.02em]">{timeStr}</div>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace" }} className="text-[10.5px] text-neutral-400 w-[44px] shrink-0 pt-0.5 tracking-[0.02em]">{timeStr}</div>
                   <div style={{ width: 3, background: markerColor, borderRadius: 2, minHeight: 30, alignSelf: 'stretch' }} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-medium text-slate-900 truncate leading-snug">{title || '—'}</div>
+                    <div className="text-[12px] font-medium text-[#222] truncate leading-snug">{title || '—'}</div>
                   </div>
                 </div>
               );
@@ -540,7 +540,7 @@ export const DashboardCalendarMini: React.FC<{
         <button
           type="button"
           onClick={() => openCreateNote(selectedDay || new Date())}
-          className="rounded-2xl border border-slate-200 bg-white text-slate-800 text-[11px] font-semibold py-2 hover:bg-slate-50"
+          className="rounded-2xl border border-neutral-200 bg-white text-[#222] text-[11px] font-semibold py-2 hover:bg-neutral-50"
         >
           + {t('crm.dashboard.calendar.newNote')}
         </button>
@@ -549,7 +549,7 @@ export const DashboardCalendarMini: React.FC<{
       {modal &&
         createPortal(
           <div
-            className="fixed inset-0 z-[10080] flex items-center justify-center p-3 sm:p-4 bg-slate-900/25 backdrop-blur-sm"
+            className="fixed inset-0 z-[10080] flex items-center justify-center p-3 sm:p-4 bg-black/30 backdrop-blur-sm"
             role="presentation"
             onMouseDown={() => {
               setComposeError(null);
@@ -560,20 +560,20 @@ export const DashboardCalendarMini: React.FC<{
               role="dialog"
               aria-modal="true"
               aria-labelledby="dashboard-calendar-sheet-title"
-              className="flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/10 ring-1 ring-slate-900/[0.04] sm:max-w-lg"
+              className="flex max-h-[min(92vh,760px)] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-neutral-200/90 bg-white shadow-xl shadow-neutral-900/10 ring-1 ring-neutral-900/[0.04] sm:max-w-lg"
               onMouseDown={(e) => e.stopPropagation()}
             >
               {modal === 'compose' && selectedDay && (
                 <>
-                  <header className="shrink-0 border-b border-slate-100 px-4 pb-3 pt-4 sm:px-5">
+                  <header className="shrink-0 border-b border-neutral-100 px-4 pb-3 pt-4 sm:px-5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-neutral-400">
                           {t('crm.dashboard.calendar.sheetKicker')}
                         </p>
                         <h2
                           id="dashboard-calendar-sheet-title"
-                          className="mt-0.5 text-lg font-semibold leading-snug text-slate-900 capitalize sm:text-xl"
+                          className="mt-0.5 text-lg font-semibold leading-snug text-[#222] capitalize sm:text-xl"
                         >
                           {selectedDay.toLocaleDateString(locale, {
                             weekday: 'long',
@@ -581,7 +581,7 @@ export const DashboardCalendarMini: React.FC<{
                             month: 'long',
                           })}
                         </h2>
-                        <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
+                        <p className="mt-1.5 text-xs leading-relaxed text-neutral-500">
                           {composeDayEntries.length === 0
                             ? t('crm.dashboard.calendar.sheetEmptyHint')
                             : t('crm.dashboard.calendar.sheetHasEvents', {
@@ -591,7 +591,7 @@ export const DashboardCalendarMini: React.FC<{
                       </div>
                       <button
                         type="button"
-                        className="shrink-0 rounded-full p-2 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-800"
+                        className="shrink-0 rounded-full p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-[#222]"
                         aria-label={t('crm.common.close')}
                         onClick={() => {
                           setComposeError(null);
@@ -628,7 +628,7 @@ export const DashboardCalendarMini: React.FC<{
                   <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
                     {composeDayEntries.length > 0 && (
                       <section className="mb-6">
-                        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
                           {t('crm.dashboard.calendar.existingEvents')}
                         </h3>
                         <div className="space-y-2">
@@ -650,7 +650,7 @@ export const DashboardCalendarMini: React.FC<{
                                   >
                                     <summary className="cursor-pointer list-none px-3 py-2.5">
                                       <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0 font-medium text-slate-900">{ent.e.title}</div>
+                                        <div className="min-w-0 font-medium text-[#222]">{ent.e.title}</div>
                                         <div className="flex shrink-0 items-center gap-1">
                                           <span className="rounded-md bg-violet-200/80 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-900">
                                             {t('crm.dashboard.calendar.badgeLead')}
@@ -667,7 +667,7 @@ export const DashboardCalendarMini: React.FC<{
                                           </svg>
                                         </div>
                                       </div>
-                                      <div className="mt-1 text-slate-600">
+                                      <div className="mt-1 text-neutral-600">
                                         {new Date(ent.e.startsAt).toLocaleTimeString(locale, {
                                           hour: '2-digit',
                                           minute: '2-digit',
@@ -692,10 +692,10 @@ export const DashboardCalendarMini: React.FC<{
                                       </Link>
                                       {ent.e.attendeeNames && ent.e.attendeeNames.length ? (
                                         <div>
-                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
                                             {t('crm.dashboard.calendar.fieldParticipants')}
                                           </div>
-                                          <div className="text-[11px] text-slate-700">
+                                          <div className="text-[11px] text-neutral-700">
                                             {ent.e.attendeeNames.join(', ')}
                                           </div>
                                         </div>
@@ -712,26 +712,26 @@ export const DashboardCalendarMini: React.FC<{
                                       ) : null}
                                       {ent.e.notes ? (
                                         <div>
-                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
                                             {t('crm.dashboard.calendar.fieldDescription')}
                                           </div>
-                                          <div className="whitespace-pre-wrap text-[11px] text-slate-700">
+                                          <div className="whitespace-pre-wrap text-[11px] text-neutral-700">
                                             {ent.e.notes}
                                           </div>
                                         </div>
                                       ) : null}
                                       <div className="rounded-lg border border-violet-200/80 bg-white/90 px-2.5 py-2">
-                                        <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                        <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
                                           {t('crm.dashboard.calendar.googleSectionTitle')}
                                         </div>
                                         {!ent.e.googleCalendarEventId ? (
-                                          <p className="text-[10px] leading-snug text-slate-600">
+                                          <p className="text-[10px] leading-snug text-neutral-600">
                                             {t('crm.dashboard.calendar.expandNoGoogle')}
                                           </p>
                                         ) : (
                                           <>
                                             {gState?.loading ? (
-                                              <p className="text-[10px] text-slate-500">
+                                              <p className="text-[10px] text-neutral-500">
                                                 {t('crm.dashboard.calendar.googleLoading')}
                                               </p>
                                             ) : null}
@@ -742,10 +742,10 @@ export const DashboardCalendarMini: React.FC<{
                                               <div className="space-y-2">
                                                 {gd.description?.trim() ? (
                                                   <div>
-                                                    <div className="mb-0.5 text-[9px] font-semibold uppercase text-slate-400">
+                                                    <div className="mb-0.5 text-[9px] font-semibold uppercase text-neutral-400">
                                                       {t('crm.dashboard.calendar.googleDescription')}
                                                     </div>
-                                                    <div className="whitespace-pre-wrap text-[11px] text-slate-800">
+                                                    <div className="whitespace-pre-wrap text-[11px] text-[#222]">
                                                       {gd.description}
                                                     </div>
                                                   </div>
@@ -771,8 +771,8 @@ export const DashboardCalendarMini: React.FC<{
                                                   </a>
                                                 ) : null}
                                                 {gd.organizerDisplayName || gd.organizerEmail ? (
-                                                  <div className="text-[10px] text-slate-600">
-                                                    <span className="font-semibold text-slate-500">
+                                                  <div className="text-[10px] text-neutral-600">
+                                                    <span className="font-semibold text-neutral-500">
                                                       {t('crm.dashboard.calendar.organizer')}
                                                     </span>{' '}
                                                     {gd.organizerDisplayName || gd.organizerEmail}
@@ -780,10 +780,10 @@ export const DashboardCalendarMini: React.FC<{
                                                 ) : null}
                                                 {gd.attendees && gd.attendees.length ? (
                                                   <div>
-                                                    <div className="mb-0.5 text-[9px] font-semibold uppercase text-slate-400">
+                                                    <div className="mb-0.5 text-[9px] font-semibold uppercase text-neutral-400">
                                                       {t('crm.dashboard.calendar.googleAttendees')}
                                                     </div>
-                                                    <ul className="list-inside list-disc space-y-0.5 text-[10px] text-slate-700">
+                                                    <ul className="list-inside list-disc space-y-0.5 text-[10px] text-neutral-700">
                                                       {gd.attendees.map((a, i) => (
                                                         <li key={`${a.email || i}-${i}`}>
                                                           {a.displayName || a.email || '—'}
@@ -813,7 +813,7 @@ export const DashboardCalendarMini: React.FC<{
                                 return (
                                   <details
                                     key={ent.m.id}
-                                    className="group rounded-xl border border-slate-200 bg-slate-50/90 text-[11px] [&_summary::-webkit-details-marker]:hidden"
+                                    className="group rounded-xl border border-neutral-200 bg-neutral-50/90 text-[11px] [&_summary::-webkit-details-marker]:hidden"
                                     onToggle={(ev) => {
                                       const el = ev.currentTarget as HTMLDetailsElement;
                                       if (!el.open || !ent.m.googleCalendarEventId) return;
@@ -822,7 +822,7 @@ export const DashboardCalendarMini: React.FC<{
                                   >
                                     <summary className="cursor-pointer list-none px-3 py-2.5">
                                       <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0 font-medium text-slate-900">{ent.m.title}</div>
+                                        <div className="min-w-0 font-medium text-[#222]">{ent.m.title}</div>
                                         <div className="flex shrink-0 items-center gap-1">
                                           <span
                                             className={
@@ -837,7 +837,7 @@ export const DashboardCalendarMini: React.FC<{
                                               : t('crm.dashboard.calendar.badgeMeeting')}
                                           </span>
                                           <svg
-                                            className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180"
+                                            className="h-4 w-4 text-neutral-500 transition-transform group-open:rotate-180"
                                             fill="none"
                                             viewBox="0 0 24 24"
                                             stroke="currentColor"
@@ -849,7 +849,7 @@ export const DashboardCalendarMini: React.FC<{
                                         </div>
                                       </div>
                                       {ent.m.kind === 'meeting' ? (
-                                        <div className="mt-1 text-slate-600">
+                                        <div className="mt-1 text-neutral-600">
                                           {new Date(ent.m.startsAt).toLocaleTimeString(locale, {
                                             hour: '2-digit',
                                             minute: '2-digit',
@@ -861,29 +861,29 @@ export const DashboardCalendarMini: React.FC<{
                                           })}
                                         </div>
                                       ) : (
-                                        <div className="mt-1 text-slate-600">
+                                        <div className="mt-1 text-neutral-600">
                                           {t('crm.dashboard.calendar.allDayNote')}
                                         </div>
                                       )}
-                                      <p className="mt-1 text-[9px] text-slate-500">
+                                      <p className="mt-1 text-[9px] text-neutral-500">
                                         {t('crm.dashboard.calendar.expandHint')}
                                       </p>
                                     </summary>
-                                    <div className="space-y-3 border-t border-slate-200/80 px-3 pb-3 pt-1">
+                                    <div className="space-y-3 border-t border-neutral-200/80 px-3 pb-3 pt-1">
                                       {leadLabels.length ? (
                                         <div>
-                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
                                             {t('crm.dashboard.calendar.leads')}
                                           </div>
-                                          <div className="text-[11px] text-slate-700">{leadLabels.join(', ')}</div>
+                                          <div className="text-[11px] text-neutral-700">{leadLabels.join(', ')}</div>
                                         </div>
                                       ) : null}
                                       {ent.m.attendeeEmails.length ? (
                                         <div>
-                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
                                             {t('crm.dashboard.calendar.fieldParticipants')}
                                           </div>
-                                          <div className="text-[11px] text-slate-700">
+                                          <div className="text-[11px] text-neutral-700">
                                             {ent.m.attendeeEmails.join(', ')}
                                           </div>
                                         </div>
@@ -900,27 +900,27 @@ export const DashboardCalendarMini: React.FC<{
                                       ) : null}
                                       {ent.m.body ? (
                                         <div>
-                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                          <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
                                             {t('crm.dashboard.calendar.fieldDescription')}
                                           </div>
-                                          <div className="whitespace-pre-wrap text-[11px] text-slate-700">
+                                          <div className="whitespace-pre-wrap text-[11px] text-neutral-700">
                                             {ent.m.body}
                                           </div>
                                         </div>
                                       ) : null}
                                       {ent.m.kind === 'meeting' ? (
-                                        <div className="rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                                          <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
+                                        <div className="rounded-lg border border-neutral-200 bg-white px-2.5 py-2">
+                                          <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-neutral-500">
                                             {t('crm.dashboard.calendar.googleSectionTitle')}
                                           </div>
                                           {!ent.m.googleCalendarEventId ? (
-                                            <p className="text-[10px] leading-snug text-slate-600">
+                                            <p className="text-[10px] leading-snug text-neutral-600">
                                               {t('crm.dashboard.calendar.expandNoGoogle')}
                                             </p>
                                           ) : (
                                             <>
                                               {gState?.loading ? (
-                                                <p className="text-[10px] text-slate-500">
+                                                <p className="text-[10px] text-neutral-500">
                                                   {t('crm.dashboard.calendar.googleLoading')}
                                                 </p>
                                               ) : null}
@@ -931,10 +931,10 @@ export const DashboardCalendarMini: React.FC<{
                                                 <div className="space-y-2">
                                                   {gd.description?.trim() ? (
                                                     <div>
-                                                      <div className="mb-0.5 text-[9px] font-semibold uppercase text-slate-400">
+                                                      <div className="mb-0.5 text-[9px] font-semibold uppercase text-neutral-400">
                                                         {t('crm.dashboard.calendar.googleDescription')}
                                                       </div>
-                                                      <div className="whitespace-pre-wrap text-[11px] text-slate-800">
+                                                      <div className="whitespace-pre-wrap text-[11px] text-[#222]">
                                                         {gd.description}
                                                       </div>
                                                     </div>
@@ -960,8 +960,8 @@ export const DashboardCalendarMini: React.FC<{
                                                     </a>
                                                   ) : null}
                                                   {gd.organizerDisplayName || gd.organizerEmail ? (
-                                                    <div className="text-[10px] text-slate-600">
-                                                      <span className="font-semibold text-slate-500">
+                                                    <div className="text-[10px] text-neutral-600">
+                                                      <span className="font-semibold text-neutral-500">
                                                         {t('crm.dashboard.calendar.organizer')}
                                                       </span>{' '}
                                                       {gd.organizerDisplayName || gd.organizerEmail}
@@ -969,10 +969,10 @@ export const DashboardCalendarMini: React.FC<{
                                                   ) : null}
                                                   {gd.attendees && gd.attendees.length ? (
                                                     <div>
-                                                      <div className="mb-0.5 text-[9px] font-semibold uppercase text-slate-400">
+                                                      <div className="mb-0.5 text-[9px] font-semibold uppercase text-neutral-400">
                                                         {t('crm.dashboard.calendar.googleAttendees')}
                                                       </div>
-                                                      <ul className="list-inside list-disc space-y-0.5 text-[10px] text-slate-700">
+                                                      <ul className="list-inside list-disc space-y-0.5 text-[10px] text-neutral-700">
                                                         {gd.attendees.map((a, i) => (
                                                           <li key={`${a.email || i}-${i}`}>
                                                             {a.displayName || a.email || '—'}
@@ -999,17 +999,17 @@ export const DashboardCalendarMini: React.FC<{
                     )}
 
                     <section>
-                      <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                      <h3 className="mb-3 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">
                         {t('crm.dashboard.calendar.newEntrySection')}
                       </h3>
-                      <div className="mb-4 flex gap-1 rounded-xl bg-slate-100 p-1">
+                      <div className="mb-4 flex gap-1 rounded-xl bg-neutral-100 p-1">
                         <button
                           type="button"
                           className={
                             'flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ' +
                             (draft.kind === 'meeting'
                               ? 'bg-[#222222] text-white shadow-sm'
-                              : 'text-slate-600 hover:text-slate-900')
+                              : 'text-neutral-600 hover:text-[#222]')
                           }
                           onClick={() => {
                             if (draft.kind === 'meeting') return;
@@ -1024,7 +1024,7 @@ export const DashboardCalendarMini: React.FC<{
                             'flex-1 rounded-lg py-2.5 text-xs font-semibold transition-all ' +
                             (draft.kind === 'note'
                               ? 'bg-[#222222] text-white shadow-sm'
-                              : 'text-slate-600 hover:text-slate-900')
+                              : 'text-neutral-600 hover:text-[#222]')
                           }
                           onClick={() => {
                             if (draft.kind === 'note') return;
@@ -1035,11 +1035,11 @@ export const DashboardCalendarMini: React.FC<{
                         </button>
                       </div>
 
-                      <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                      <label className="mb-1.5 block text-[11px] font-medium text-neutral-600">
                         {t('crm.dashboard.calendar.subject')}
                       </label>
                       <input
-                        className="mb-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                        className="mb-4 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-[#222] placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                         value={draft.title}
                         placeholder={t('crm.dashboard.calendar.subjectPlaceholder')}
                         onChange={(e) => setDraft((d) => ({ ...d, title: e.target.value }))}
@@ -1049,33 +1049,33 @@ export const DashboardCalendarMini: React.FC<{
                         <>
                           <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <div>
-                              <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                              <label className="mb-1.5 block text-[11px] font-medium text-neutral-600">
                                 {t('crm.dashboard.calendar.start')}
                               </label>
                               <input
                                 type="datetime-local"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-900 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                                className="w-full rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-[12px] text-[#222] focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                                 value={draft.startLocal}
                                 onChange={(e) => setDraft((d) => ({ ...d, startLocal: e.target.value }))}
                               />
                             </div>
                             <div>
-                              <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                              <label className="mb-1.5 block text-[11px] font-medium text-neutral-600">
                                 {t('crm.dashboard.calendar.end')}
                               </label>
                               <input
                                 type="datetime-local"
-                                className="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-[12px] text-slate-900 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                                className="w-full rounded-xl border border-neutral-200 bg-white px-2.5 py-2 text-[12px] text-[#222] focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                                 value={draft.endLocal}
                                 onChange={(e) => setDraft((d) => ({ ...d, endLocal: e.target.value }))}
                               />
                             </div>
                           </div>
-                          <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                          <label className="mb-1.5 block text-[11px] font-medium text-neutral-600">
                             {t('crm.dashboard.calendar.meetingUrl')}
                           </label>
                           <input
-                            className="mb-4 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                            className="mb-4 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-[#222] placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                             placeholder="https://"
                             value={draft.meetingUrl}
                             onChange={(e) => setDraft((d) => ({ ...d, meetingUrl: e.target.value }))}
@@ -1084,27 +1084,27 @@ export const DashboardCalendarMini: React.FC<{
                       )}
 
                       {draft.kind === 'note' && (
-                        <p className="mb-4 text-xs leading-relaxed text-slate-500">
+                        <p className="mb-4 text-xs leading-relaxed text-neutral-500">
                           {t('crm.dashboard.calendar.noteDayHint', {
                             date: selectedDay.toLocaleDateString(locale),
                           })}
                         </p>
                       )}
 
-                      <label className="mb-1.5 block text-[11px] font-medium text-slate-600">
+                      <label className="mb-1.5 block text-[11px] font-medium text-neutral-600">
                         {t('crm.dashboard.calendar.notes')}
                       </label>
                       <textarea
-                        className="mb-4 min-h-[88px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+                        className="mb-4 min-h-[88px] w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm text-[#222] placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none focus:ring-2 focus:ring-neutral-900/10"
                         value={draft.body}
                         onChange={(e) => setDraft((d) => ({ ...d, body: e.target.value }))}
                       />
 
-                      <details className="mb-2 rounded-xl border border-slate-200 bg-slate-50/60 open:[&>summary>svg]:rotate-180 [&_summary::-webkit-details-marker]:hidden">
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-medium text-slate-700 hover:bg-slate-100/80">
+                      <details className="mb-2 rounded-xl border border-neutral-200 bg-neutral-50/60 open:[&>summary>svg]:rotate-180 [&_summary::-webkit-details-marker]:hidden">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-medium text-neutral-700 hover:bg-neutral-100/80">
                           <span>{t('crm.dashboard.calendar.optionalParticipants')}</span>
                           <svg
-                            className="h-4 w-4 shrink-0 text-slate-400 transition-transform"
+                            className="h-4 w-4 shrink-0 text-neutral-400 transition-transform"
                             fill="none"
                             viewBox="0 0 24 24"
                             stroke="currentColor"
@@ -1118,20 +1118,20 @@ export const DashboardCalendarMini: React.FC<{
                             />
                           </svg>
                         </summary>
-                        <div className="space-y-4 border-t border-slate-200 bg-white px-3 pb-3 pt-3">
+                        <div className="space-y-4 border-t border-neutral-200 bg-white px-3 pb-3 pt-3">
                           <div>
-                            <div className="mb-1.5 text-[11px] font-medium text-slate-500">
+                            <div className="mb-1.5 text-[11px] font-medium text-neutral-500">
                               {t('crm.dashboard.calendar.participants')}
                             </div>
-                            <div className="max-h-32 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                            <div className="max-h-32 space-y-1.5 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50/50 p-2">
                               {staff.map((s) => (
                                 <label
                                   key={s.id}
-                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-700"
+                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-neutral-700"
                                 >
                                   <input
                                     type="checkbox"
-                                    className="rounded border-slate-300 accent-[#222222] focus:ring-[#222222]/20"
+                                    className="rounded border-neutral-300 accent-[#222222] focus:ring-[#222222]/20"
                                     checked={draft.staffIds.includes(s.id)}
                                     onChange={(e) => {
                                       setDraft((d) => ({
@@ -1143,24 +1143,24 @@ export const DashboardCalendarMini: React.FC<{
                                     }}
                                   />
                                   <span className="truncate">{s.fullName}</span>
-                                  <span className="truncate text-slate-500">{s.email}</span>
+                                  <span className="truncate text-neutral-500">{s.email}</span>
                                 </label>
                               ))}
                             </div>
                           </div>
                           <div>
-                            <div className="mb-1.5 text-[11px] font-medium text-slate-500">
+                            <div className="mb-1.5 text-[11px] font-medium text-neutral-500">
                               {t('crm.dashboard.calendar.departments')}
                             </div>
-                            <div className="max-h-28 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                            <div className="max-h-28 space-y-1.5 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50/50 p-2">
                               {departments.map((dep) => (
                                 <label
                                   key={dep.id}
-                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-700"
+                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-neutral-700"
                                 >
                                   <input
                                     type="checkbox"
-                                    className="rounded border-slate-300 accent-[#222222] focus:ring-[#222222]/20"
+                                    className="rounded border-neutral-300 accent-[#222222] focus:ring-[#222222]/20"
                                     checked={draft.departmentIds.includes(dep.id)}
                                     onChange={(e) => {
                                       setDraft((d) => ({
@@ -1177,18 +1177,18 @@ export const DashboardCalendarMini: React.FC<{
                             </div>
                           </div>
                           <div>
-                            <div className="mb-1.5 text-[11px] font-medium text-slate-500">
+                            <div className="mb-1.5 text-[11px] font-medium text-neutral-500">
                               {t('crm.dashboard.calendar.leads')}
                             </div>
-                            <div className="max-h-28 space-y-1.5 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50/50 p-2">
+                            <div className="max-h-28 space-y-1.5 overflow-y-auto rounded-lg border border-neutral-200 bg-neutral-50/50 p-2">
                               {leads.slice(0, 80).map((l) => (
                                 <label
                                   key={l.id}
-                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-slate-700"
+                                  className="flex cursor-pointer items-center gap-2 text-[11px] text-neutral-700"
                                 >
                                   <input
                                     type="checkbox"
-                                    className="rounded border-slate-300 accent-[#222222] focus:ring-[#222222]/20"
+                                    className="rounded border-neutral-300 accent-[#222222] focus:ring-[#222222]/20"
                                     checked={draft.leadIds.includes(l.id)}
                                     onChange={(e) => {
                                       setDraft((d) => ({
@@ -1204,7 +1204,7 @@ export const DashboardCalendarMini: React.FC<{
                               ))}
                             </div>
                             {draft.kind === 'meeting' ? (
-                              <p className="mt-2 text-[10px] leading-snug text-slate-500">
+                              <p className="mt-2 text-[10px] leading-snug text-neutral-500">
                                 {t('crm.dashboard.calendar.leadSyncHint')}
                               </p>
                             ) : null}
@@ -1214,11 +1214,11 @@ export const DashboardCalendarMini: React.FC<{
                     </section>
                   </div>
 
-                  <footer className="shrink-0 border-t border-slate-100 bg-white px-4 py-3 sm:px-5">
+                  <footer className="shrink-0 border-t border-neutral-100 bg-white px-4 py-3 sm:px-5">
                     <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center">
                       <button
                         type="button"
-                        className="w-full rounded-xl border border-slate-200 bg-white py-3 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 sm:w-auto sm:min-w-[100px] sm:px-5"
+                        className="w-full rounded-xl border border-neutral-200 bg-white py-3 text-sm font-medium text-neutral-700 transition-colors hover:bg-neutral-50 sm:w-auto sm:min-w-[100px] sm:px-5"
                         onClick={() => {
                           setComposeError(null);
                           setModal(null);

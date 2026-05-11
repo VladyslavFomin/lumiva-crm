@@ -667,12 +667,241 @@
       "settingsApi": "API и интеграции",
       "chat": "Чат",
       "clientAccounts": "Счета клиентов",
+      "sms": "SMS",
+      "smsMessages": "Сообщения",
+      "smsSettings": "Настройка SMS",
+      "deduplication": "Дедупликация",
       "staff": "Сотрудники",
       "staffList": "Список сотрудников",
       "staffPermissions": "Права доступа",
       "departments": "Отделы",
       "settings": "Настройки",
-      "settingsAccount": "Аккаунт"
+      "settingsAccount": "Аккаунт",
+      "aiEmployees": "ИИ-сотрудники",
+      "aiEmployeesDashboard": "Обзор",
+      "aiEmployeesChoose": "Выбор сотрудника",
+      "aiEmployeesApprovals": "Согласования",
+      "aiEmployeesLogs": "Журнал",
+      "aiEmployeesReports": "Отчёты"
+    },
+    "aiEmployees": {
+      "badge": {
+        "workforce": "Команда ИИ"
+      },
+      "naming": {
+        "dashboardHint": "Ассистент в чате CRM отвечает на любые запросы по системе. Здесь — именованные ИИ‑специалисты с ролями, расписанием и согласованиями. Тот же чат может поставить задачу или задать вопрос сотруднику по имени или роли."
+      },
+      "errors": {
+        "generic": "Что-то пошло не так. Попробуйте ещё раз."
+      },
+      "status": {
+        "active": "Активен",
+        "paused": "На паузе",
+        "disabled": "Отключён",
+        "setup_required": "Нужна настройка",
+        "pending": "Ожидает",
+        "approved": "Одобрено",
+        "rejected": "Отклонено",
+        "executed": "Выполнено",
+        "failed": "Ошибка",
+        "draft": "Черновик",
+        "generated": "Сформирован",
+        "sent": "Отправлен"
+      },
+      "plan": {
+        "prefix": "Тариф:",
+        "unlimited": "Без лимита",
+        "usage": "{{used}} / {{limit}} ИИ-сотрудников использовано",
+        "usageUnlimited": "ИИ-сотрудники без ограничения"
+      },
+      "upgradeModal": {
+        "title": "Расширение ИИ-сотрудников",
+        "subtitleSingular": "На вашем тарифе доступен {{count}} ИИ-сотрудник.",
+        "subtitlePlural": "На вашем тарифе доступно {{count}} ИИ-сотрудников.",
+        "body": "Обновите тариф, чтобы добавить больше виртуальных сотрудников и автоматизировать процессы.",
+        "upgradePlan": "Обновить тариф",
+        "comparePlans": "Сравнить тарифы",
+        "cancel": "Отмена",
+        "close": "Закрыть"
+      },
+      "dashboard": {
+        "title": "ИИ-сотрудники",
+        "subtitle": "Управляйте виртуальной ИИ-командой и автоматизируйте процессы в CRM.",
+        "addEmployee": "Добавить ИИ-сотрудника",
+        "loading": "Загрузка ИИ-сотрудников…",
+        "kpiActive": "Активных ИИ-сотрудников",
+        "kpiTasksToday": "Задач выполнено сегодня",
+        "kpiPendingApprovals": "На согласовании",
+        "kpiReports": "Отчётов сформировано",
+        "kpiLeads": "Лидов проанализировано",
+        "kpiMessages": "Черновиков сообщений",
+        "kpiIssues": "Замечаний выявлено",
+        "pendingTitle": "На согласовании",
+        "openQueue": "Открыть очередь",
+        "noApprovalsWaiting": "Нет действий в ожидании согласования.",
+        "recentActivity": "Недавняя активность ИИ",
+        "viewLogs": "Журнал"
+      },
+      "choose": {
+        "title": "Выбор ИИ-сотрудника",
+        "subtitle": "Выберите роль специалиста. На Standard доступны ключевые операционные роли; на Pro — аналитик маркетинга, SMM, CRM analyst и ассистент по бронированиям. Заблокированные роли остаются на экране, чтобы был понятен апгрейд.",
+        "loading": "Загрузка ролей…",
+        "dashboardLink": "Обзор",
+        "planLimitReached": "Лимит тарифа",
+        "upgradeToUnlock": "Разблокировать в тарифе",
+        "addRole": "Добавить: {{role}}"
+      },
+      "create": {
+        "title": "Создание ИИ-сотрудника",
+        "subtitle": "Имя, доступы, правила согласования и расписание работы.",
+        "steps": {
+          "role": "Роль",
+          "identity": "Профиль",
+          "access": "Доступ",
+          "actions": "Действия",
+          "schedule": "Расписание",
+          "review": "Проверка"
+        },
+        "fields": {
+          "name": "Имя",
+          "department": "Отдел",
+          "jobTitle": "Должность",
+          "language": "Язык",
+          "tone": "Тон общения",
+          "schedule": "Расписание",
+          "dailyReportTime": "Время ежедневного отчёта"
+        },
+        "scheduleModes": {
+          "manual": "Только вручную",
+          "always": "Всегда активен",
+          "business_hours": "Только рабочие часы",
+          "custom": "Своё расписание"
+        },
+        "review": {
+          "accesses": "Доступов",
+          "approvalRules": "Правил согласования",
+          "reportTime": "Время отчёта"
+        },
+        "back": "Назад",
+        "continue": "Далее",
+        "activate": "Включить ИИ-сотрудника",
+        "permissionGroups": {
+          "read": "Чтение данных",
+          "actions": "Действия"
+        },
+        "approvalRulesTitle": "Правила согласования",
+        "approvalRequireBefore": "Требовать согласование перед: {{action}}"
+      },
+      "languageOptions": {
+        "english": "English",
+        "russian": "Russian",
+        "turkish": "Turkish",
+        "mixed": "English / Turkish / Russian"
+      },
+      "autonomy": {
+        "read_only": {
+          "title": "Только чтение",
+          "hint": "Только анализ и отчёты."
+        },
+        "suggest": {
+          "title": "Режим предложений",
+          "hint": "Готовит действия для людей."
+        },
+        "assisted": {
+          "title": "Помощник",
+          "hint": "Выполняет безопасные действия."
+        },
+        "auto": {
+          "title": "Авто",
+          "hint": "Разрешённые действия автоматически."
+        }
+      },
+      "empty": {
+        "title": "Соберите виртуальную команду в CRM.",
+        "body": "Добавьте первого ИИ-сотрудника — для лидов, отчётов, задач и поддержки команды.",
+        "cta": "Добавить первого ИИ-сотрудника"
+      },
+      "agentCard": {
+        "today": "Сегодня",
+        "approvals": "Согласования",
+        "reports": "Отчёты",
+        "lastActivity": "Последняя активность: {{time}}",
+        "openProfile": "Открыть профиль",
+        "settings": "Настройки"
+      },
+      "activity": {
+        "none": "Пока нет активности.",
+        "noneShort": "Нет активности"
+      },
+      "approvalsPage": {
+        "title": "Действия ИИ / согласования",
+        "subtitle": "Проверяйте действия ИИ до их влияния на клиентов или данные CRM.",
+        "loading": "Загрузка согласований…",
+        "empty": "Нет ожидающих согласования."
+      },
+      "logsPage": {
+        "title": "Журнал ИИ",
+        "subtitle": "Аудит действий, решений и сбоев ИИ-сотрудников.",
+        "loading": "Загрузка журнала…",
+        "colTime": "Время",
+        "colEmployee": "ИИ-сотрудник",
+        "colAction": "Действие",
+        "colObject": "Объект",
+        "colStatus": "Статус",
+        "colResult": "Результат"
+      },
+      "reportsPage": {
+        "title": "Отчёты ИИ",
+        "subtitle": "Ежедневные и еженедельные отчёты виртуальной команды.",
+        "loading": "Загрузка отчётов…",
+        "empty": "Отчётов пока нет.",
+        "markSent": "Отметить отправленным"
+      },
+      "approvalCard": {
+        "approve": "Одобрить",
+        "reject": "Отклонить",
+        "execute": "Выполнить",
+        "markDone": "Отметить выполненным"
+      },
+      "approvalAction": {
+        "send_email": "отправкой писем",
+        "send_whatsapp": "отправкой WhatsApp",
+        "update_lead_status": "сменой статуса лида",
+        "assign_lead": "назначением лидов",
+        "edit_client_data": "изменением данных клиента",
+        "create_campaign": "созданием кампаний",
+        "bulk_send_campaign": "массовыми рассылками",
+        "connect_integration": "подключением интеграций",
+        "delete_data": "удалением данных"
+      },
+      "profile": {
+        "loading": "Загрузка ИИ-сотрудника…",
+        "fallbackDepartment": "Команда ИИ",
+        "resume": "Включить ИИ",
+        "pause": "Пауза",
+        "runNow": "Запустить",
+        "generateReport": "Сформировать отчёт",
+        "remove": "Удалить",
+        "kpiActionsToday": "Действий сегодня",
+        "kpiLeadsAnalyzed": "Лидов проанализировано",
+        "kpiTasksCreated": "Задач создано",
+        "kpiMessagesDrafted": "Черновиков сообщений",
+        "kpiReportsGen": "Отчётов",
+        "kpiPendingApprovals": "На согласовании",
+        "currentWork": "Текущая работа",
+        "readyManual": "{{name}} готов к ручному запуску.",
+        "pendingSection": "На согласовании",
+        "noPendingForEmployee": "Нет действий на согласовании у этого сотрудника.",
+        "recentActions": "Последние действия",
+        "permissionsSummary": "Сводка прав",
+        "savePermissions": "Сохранить права",
+        "approvalRulesSection": "Правила согласования",
+        "saveApprovalRules": "Сохранить правила",
+        "dailyReportPreview": "Предпросмотр отчёта",
+        "noReportYet": "Отчёт ещё не сформирован.",
+        "recentLogs": "Недавние записи журнала"
+      },
+      "fallbackEmployee": "ИИ-сотрудник"
     },
     "embedForms": {
       "kicker": "Сайт",
@@ -1939,14 +2168,22 @@
         "noStatus": "Без статуса",
         "noName": "Без имени",
         "empty": "—",
-        "noDue": "Без срока"
+        "noDue": "Без срока",
+        "noChannel": "Без канала",
+        "notSpecified": "Не указано"
       },
       "loading": "Обновляем данные дашборда…",
       "errors": {
         "loadFailed": "Не удалось загрузить данные"
       },
       "hero": {
-        "kicker": "Главная панель"
+        "kicker": "Главная панель",
+        "stats": {
+          "tasksToday": "{{count}} задач сегодня",
+          "overdue": "{{count}} просрочено",
+          "newLeads": "{{count}} новых лидов",
+          "revenue": "{{amount}} € выручка"
+        }
       },
       "widgets": {
         "customize": "Настроить виджеты",
@@ -2183,6 +2420,38 @@
         "previewHint": "Превью",
         "embedFallback": "Нет данных для этого вида виджета",
         "formulaOnFullPage": "Откройте полную аналитику для настройки формулы"
+      },
+      "salesOrderStatus": {
+        "new": "Новый",
+        "pending": "Ожидает",
+        "processing": "В обработке",
+        "on-hold": "На удержании",
+        "on_hold": "На удержании",
+        "confirmed": "Подтверждён",
+        "paid": "Оплачен",
+        "completed": "Завершён",
+        "complete": "Завершён",
+        "cancelled": "Отменён",
+        "canceled": "Отменён",
+        "refunded": "Возврат",
+        "failed": "Ошибка",
+        "other": "Другое"
+      },
+      "quickAccess": {
+        "sectionTitle": "Быстрый доступ",
+        "starTitle": "В избранное",
+        "kinds": {
+          "projects": "CRM · Проекты",
+          "leads": "CRM · Лиды",
+          "analytics": "Аналитика",
+          "calendar": "Календарь"
+        },
+        "labels": {
+          "projectsTable": "Проекты — Таблица",
+          "leadsFunnel": "Воронка продаж",
+          "leadsAnalytics": "Аналитика лидов",
+          "meetingsTasks": "Встречи и задачи"
+        }
       },
       "greeting": {
         "morning": "Доброе утро",
@@ -3472,7 +3741,7 @@
         "empty": "Писем пока нет — подключите ящик или нажмите «Забрать с сервера».",
         "selectMessage": "Выберите письмо",
         "openLead": "Лид",
-        "calendarInvite": "Есть приглашение (.ics)",
+        "calendarInvite": "Есть приглашение в календарь",
         "markRead": "Пометить прочитанным",
         "compose": "Написать",
         "reply": "Ответить",
@@ -3779,7 +4048,7 @@
     "automations": {
       "list": {
         "title": "Автоматизации",
-        "subtitle": "Rule-based автоматизации (IF/THEN)",
+        "subtitle": "Правила IF/THEN: триггеры и действия",
         "create": "Создать автоматизацию",
         "loading": "Загрузка...",
         "empty": "Нет автоматизаций",
@@ -4018,7 +4287,8 @@
           "activeAutomations": "Активных",
           "topTitle": "Чаще всего запускаются",
           "triggersTitle": "По типу события",
-          "empty": "За период нет данных — создайте и включите сценарии или дождитесь расписания."
+          "empty": "За период нет данных — создайте и включите сценарии или дождитесь расписания.",
+          "dayOption": "{{count}} дн."
         },
         "copySuffix": "(копия)",
         "titleLeads": "Автоматизации лидов",
@@ -4062,6 +4332,81 @@
           "history": "История запусков",
           "integrations": "Интеграции",
           "usage": "Использование"
+        },
+        "page": {
+          "kicker": "Автоматизации · активных: {{count}}",
+          "title": "Автоматизируйте рутину",
+          "subtitle": "Настройте триггеры и действия — CRM будет работать за вас",
+          "import": "Импорт",
+          "newAutomation": "+ Новая автоматизация",
+          "templatesKicker": "Шаблоны · быстрый старт"
+        },
+        "pageTemplates": {
+          "t1": {
+            "tag": "Популярный",
+            "name": "Новый лид → Telegram + задача",
+            "flow": [
+              "Лид создан",
+              "Telegram",
+              "Задача"
+            ]
+          },
+          "t2": {
+            "tag": "Реактивация",
+            "name": "Лид без ответа 24 ч → письмо",
+            "flow": [
+              "Задержка",
+              "Email",
+              "Уведомление"
+            ]
+          },
+          "t3": {
+            "tag": "Продажи",
+            "name": "Сделка выиграна → проект",
+            "flow": [
+              "Продажа изменена",
+              "Проект",
+              "Уведомление"
+            ]
+          },
+          "t4": {
+            "tag": "WhatsApp",
+            "name": "Сообщение в WA → лид",
+            "flow": [
+              "Webhook",
+              "Создать лид",
+              "Назначить"
+            ]
+          },
+          "t5": {
+            "tag": "Расписание",
+            "name": "Каждый понедельник 9:00 — отчёт",
+            "flow": [
+              "Расписание",
+              "HTTP",
+              "Email"
+            ]
+          },
+          "t6": {
+            "tag": "Формы",
+            "name": "Форма с сайта → лид + Slack",
+            "flow": [
+              "Webhook",
+              "Создать лид",
+              "Slack"
+            ]
+          }
+        },
+        "table": {
+          "colName": "Название",
+          "colLastRun": "Последний запуск",
+          "colRuns": "Запусков",
+          "colStatus": "Статус",
+          "errorsShort": "{{count}} ошиб.",
+          "statusActive": "Активна",
+          "statusPaused": "Пауза",
+          "menuPause": "Приостановить",
+          "menuActivate": "Активировать"
         }
       },
       "form": {
@@ -4105,11 +4450,249 @@
           "collapse": "Свернуть",
           "noActions": "Действий пока нет",
           "noConfig": "Без доп. параметров",
+          "notConfigured": "Не настроено",
           "templates": {
             "leads": "Новый лид -> письмо и заметка",
             "projects": "Новый проект -> заметка и статус",
             "sales": "Новая продажа -> отчёт и заметка"
           }
+        },
+        "library": {
+          "groups": {
+            "leadsSales": "Лиды и продажи",
+            "contactsCompanies": "Контакты и компании",
+            "projectsTasks": "Проекты и задачи",
+            "messaging": "Сообщения",
+            "timeApi": "Время и API",
+            "notifications": "Уведомления",
+            "crmObjects": "CRM-объекты",
+            "reportsExport": "Отчёты и экспорт",
+            "integrations": "Интеграции"
+          },
+          "triggerDesc": {
+            "scheduled": "CRON или интервал"
+          },
+          "actionDesc": {
+            "send_email": "Шаблон или произвольное письмо"
+          }
+        },
+        "validation": {
+          "stepLabel": "Шаг {{n}}",
+          "nameRequired": "Не заполнено название автоматизации",
+          "noActions": "Нет ни одного действия в потоке",
+          "webhookUrlMissing": "не указан URL вебхука",
+          "emailAccountMissing": "не выбран Email-аккаунт",
+          "emailRecipientOrTemplateWarning": "не указан получатель или шаблон письма",
+          "telegramRecipientMissing": "не настроены бот и получатели Telegram",
+          "slackConnectionMissing": "не настроено подключение Slack",
+          "teamsConnectionMissing": "не настроено подключение Teams",
+          "taskTitleWarning": "не указан заголовок задачи",
+          "noteContentWarning": "пустое содержимое заметки",
+          "reportTypeMissing": "не выбран тип отчёта"
+        },
+        "templatePresets": {
+          "t1": {
+            "name": "Новый лид → Telegram + задача"
+          },
+          "t2": {
+            "name": "Лид без ответа → письмо + уведомление"
+          },
+          "t3": {
+            "name": "Сделка выиграна → заметка + уведомление"
+          },
+          "t4": {
+            "name": "Входящий webhook → уведомление + назначение"
+          },
+          "t5": {
+            "name": "Каждый понедельник — отчёт продаж"
+          },
+          "t6": {
+            "name": "Форма с сайта → заметка + Slack"
+          }
+        },
+        "builderUi": {
+          "stripBackTitle": "К автоматизациям",
+          "stripActive": "Активна",
+          "stripDraft": "Черновик",
+          "stripBuilderTab": "Конструктор",
+          "stripJsonTab": "JSON",
+          "stripEnabled": "Включена",
+          "stripDisabled": "Выключена",
+          "stripTest": "Тест",
+          "libraryTitle": "Библиотека блоков",
+          "librarySubtitle": "Нажмите, чтобы добавить в поток",
+          "librarySearchPlaceholder": "Найти блок…",
+          "tabTriggers": "Триггеры",
+          "tabActions": "Действия",
+          "flowTrigger": "Триггер",
+          "flowAction": "Действие",
+          "insertStepTitle": "Вставить шаг",
+          "titleMoveUp": "Вверх",
+          "titleMoveDown": "Вниз",
+          "titleDuplicate": "Дублировать",
+          "titleDelete": "Удалить",
+          "titleAddAction": "Добавить действие",
+          "flowEnd": "Конец потока",
+          "cfgEmptyTitle": "Настройки шага",
+          "cfgEmptyHint": "Выберите шаг в потоке слева, чтобы настроить параметры.",
+          "triggerStepCaption": "Триггер · шаг 1 из {{total}}",
+          "actionStepCaption": "Действие · шаг {{n}} из {{total}}",
+          "cfgTabParams": "Параметры",
+          "cfgTabConditions": "Условия",
+          "cfgTabLogs": "Логи",
+          "triggerFieldLabel": "Событие-триггер",
+          "scheduleSection": "Расписание",
+          "generalSection": "Общее",
+          "automationDescriptionPlaceholder": "Внутренняя заметка об этой автоматизации",
+          "maxExecutionsLabel": "Макс. запусков",
+          "cooldownLabel": "Cooldown (сек)",
+          "conditionsIntro": "Автоматизация запустится только если все условия выполнены. Оставьте пустым, чтобы запускаться всегда.",
+          "conditionFieldPlaceholder": "поле",
+          "conditionValuePlaceholder": "значение",
+          "conditionOp": {
+            "equals": "равно",
+            "not_equals": "не равно",
+            "contains": "содержит",
+            "not_contains": "не содержит",
+            "greater_than": ">",
+            "less_than": "<",
+            "greater_or_equal": "≥",
+            "less_or_equal": "≤",
+            "is_empty": "пусто",
+            "is_not_empty": "не пусто",
+            "starts_with": "начинается с",
+            "ends_with": "заканчивается на"
+          },
+          "addCondition": "Добавить условие",
+          "logsAfterSave": "Логи появятся после первого сохранения и запуска автоматизации.",
+          "logsLoading": "Загрузка…",
+          "logsEmpty": "Запусков пока нет.",
+          "logActionsExecuted": "{{count}} действ.",
+          "deleteStepTitle": "Удалить шаг",
+          "webhookPostHint": "POST-запрос с данными триггера отправляется на этот URL.",
+          "pickPlaceholder": "— выберите —",
+          "pickEmailAccount": "— выберите аккаунт —",
+          "pickEmailTemplate": "— без шаблона —",
+          "subjectPlaceholder": "Тема",
+          "emailBodyPlaceholder": "Текст письма…",
+          "slackMessagePlaceholder": "Сообщение в Slack",
+          "teamsTitlePlaceholder": "Уведомление",
+          "teamsTextPlaceholder": "Текст уведомления",
+          "whatsappMessagePlaceholder": "Сообщение",
+          "notificationTitlePlaceholder": "Уведомление",
+          "notificationBodyPlaceholder": "Текст уведомления: {{lead.name}}",
+          "notificationRecipientsPlaceholder": "— все сотрудники —",
+          "notificationRecipientsHelp": "Оставьте пустым — уведомление получат все активные сотрудники.",
+          "assignStaffPlaceholder": "— выберите сотрудников —",
+          "assignStaffHelp": "Можно выбрать нескольких — запись будет назначена каждому.",
+          "notePlaceholder": "Содержимое заметки…",
+          "newStatusPlaceholder": "new / won / lost / …",
+          "tagPlaceholder": "vip, холодный, …",
+          "telegramVarsHint": "Используйте переменные: {{lead.name}}, {{lead.email}}, {{sale.name}} и др.",
+          "telegramBotLabel": "Telegram бот *",
+          "telegramNoBots": "Нет подключённых ботов.",
+          "telegramAddBotsLink": "Добавить бота →",
+          "telegramPickBot": "— выберите бота —",
+          "telegramInactiveSuffix": " (неактивен)",
+          "telegramRecipientsLabel": "Получатели *",
+          "telegramNoRecipients": "Нет настроенных получателей.",
+          "telegramAddRecipientsLink": "Добавить получателей →",
+          "telegramMessagePlaceholder": "🔥 Новый лид: {{lead.name}} ({{lead.email}})",
+          "reportChannelLabel": "Канал",
+          "reportFormatSection": "Формат",
+          "reportFreqDaily": "Ежедневно",
+          "reportFreqWeekly": "Еженедельно",
+          "reportFreqMonthly": "Ежемесячно",
+          "dataExportChannelLabel": "Канал",
+          "dataExportSourcePathLabel": "Источник данных (путь)",
+          "dataExportUnwrapLabel": "Развернуть массив данных",
+          "dataExportSubjectLabel": "Тема",
+          "assignTaskStaffLabel": "Сотрудник *",
+          "jsonPayloadLabel": "JSON payload",
+          "subscriptionStatusLabel": "Статус подписки",
+          "subscriberEmailLabel": "Email подписчика",
+          "mailchimpMergeFieldsLabel": "Merge fields (JSON)",
+          "connectionMailchimp": "Подключение Mailchimp",
+          "connectionZapier": "Подключение Zapier",
+          "connectionWhatsApp": "Подключение WhatsApp",
+          "connectionGoogleCalendar": "Подключение Google Calendar",
+          "connectionOutlook": "Подключение Outlook",
+          "eventTitleLabel": "Название события",
+          "eventTitlePlaceholder": "Встреча с {{lead.name}}",
+          "eventDescriptionLabel": "Описание",
+          "durationMinutesLabel": "Длительность (мин)",
+          "startOffsetMinutesLabel": "Смещение начала (мин)",
+          "timeZoneLabel": "Часовой пояс",
+          "marketingIntegrationGoogleAds": "Интеграция Google Ads",
+          "marketingIntegrationMetaAds": "Интеграция Meta Ads",
+          "connectionGoogleAds": "Подключение Google Ads",
+          "connectionMetaAds": "Подключение Meta Ads",
+          "developerTokenLabel": "Developer Token",
+          "customerIdLabel": "Customer ID",
+          "calendarIdLabel": "Calendar ID",
+          "taskIdLabel": "Task ID",
+          "staffLabel": "Сотрудники *",
+          "phoneToLabel": "Кому (телефон)",
+          "paramsJsonLabel": "Параметры (JSON)",
+          "apiMethodLabel": "Метод API",
+          "bitrixConnectionLabel": "Подключение Битрикс24",
+          "amocrmConnectionLabel": "Подключение amoCRM",
+          "hubspotConnectionLabel": "Подключение HubSpot",
+          "htmlBodyLabel": "HTML body",
+          "replyToLabel": "Reply-To",
+          "fromNameLabel": "From name",
+          "subjectCampaignLabel": "Subject",
+          "testModalTitle": "Проверка автоматизации",
+          "testModalErrors": "Ошибки",
+          "testModalWarnings": "Предупреждения",
+          "testModalSuccessBody": "Всё настроено корректно. Автоматизация готова к работе.",
+          "testModalClose": "Закрыть",
+          "pickerTitle": "Выберите блок",
+          "workspacePushDupField": "Поле для проверки дубликата (необязательно)",
+          "workspacePushSkipDup": "Пропустить, если значение уже есть",
+          "workspacePushTargetObject": "UUID целевой таблицы (доски)",
+          "workspacePushHint": "Триггер: запись пользовательской таблицы. Копирует строку в целевую «Таблицу». Добавьте условие objectId = ваша таблица.",
+          "scheduledHintHtml": "Запуск по расписанию использует поля ниже (частота, время, часовой пояс).",
+          "fieldLabel": "Поле",
+          "valueLabel": "Значение",
+          "noteContentLabel": "Текст заметки",
+          "newStatusLabel": "Новый статус",
+          "tagLabel": "Тег",
+          "botIdLabel": "Bot ID",
+          "telegramUserIdLabel": "Telegram user ID",
+          "emailAccountShortLabel": "Email-аккаунт",
+          "recipientLabel": "Кому",
+          "templateLabel": "Шаблон",
+          "webhookUrlShortLabel": "URL вебхука",
+          "createLeadPlaceholder": "Создать лид",
+          "delayStep": "Задержка",
+          "httpStep": "HTTP",
+          "connectionSlack": "Подключение Slack",
+          "connectionTeams": "Подключение Microsoft Teams",
+          "titleLabel": "Заголовок",
+          "textLabel": "Текст",
+          "httpMethodLabel": "HTTP метод",
+          "apiPathLabel": "Путь API",
+          "stepConditionsIntro": "Условия для этого шага. Шаг пропустится, если условие не выполнено.",
+          "notificationRecipientsLabel": "Получатели",
+          "telegramMessageLabel": "Текст сообщения *",
+          "taskTitleLabel": "Заголовок задачи",
+          "taskTitlePlaceholder": "Перезвонить {{lead.name}}",
+          "taskStatusLabel": "Статус",
+          "taskPriorityLabel": "Приоритет",
+          "priorityLow": "Низкий",
+          "priorityNormal": "Обычный",
+          "priorityHigh": "Высокий",
+          "taskDueDaysLabel": "Срок (дней от триггера)",
+          "taskAssigneeLabel": "Исполнитель",
+          "taskAssigneePlaceholder": "— не назначен —",
+          "duplicateKeyTargetFieldLabel": "Поле ключа дубликата",
+          "skipDuplicatesCheckbox": "Пропускать дубликаты",
+          "customObjectIdLabel": "Object ID (targetObjectId)",
+          "pickerSearchPlaceholder": "Найти действие или триггер…",
+          "pickerTabTriggerSingular": "Триггер",
+          "pickerKbdNavigate": "навигация",
+          "pickerKbdClose": "закрыть"
         },
         "triggerGroups": {
           "contacts": "Контакты",
@@ -4509,7 +5092,11 @@
           "update_field": "Обновить поле",
           "add_tag": "Добавить тег",
           "change_status": "Изменить статус",
-          "create_custom_object_record": "Копировать строку в другую таблицу"
+          "create_custom_object_record": "Копировать строку в другую таблицу",
+          "assign_user": "Назначить пользователя",
+          "assign_task": "Назначить задачу",
+          "remove_tag": "Убрать тег",
+          "send_notification": "Push-уведомление"
         },
         "openMarketingIntegrationsPage": "Маркетинг · интеграции",
         "errors": {
@@ -5707,7 +6294,23 @@
         "finance": "Финансы",
         "analytics": "Аналитика",
         "settings": "Настройки",
-        "chat": "Чат"
+        "chat": "Чат",
+        "contacts": "Контакты",
+        "companies": "Компании",
+        "email": "Email",
+        "marketing": "Маркетинг",
+        "tools_automation": "Автоматизация",
+        "custom_objects": "No-code Workspace",
+        "group": {
+          "crm": "CRM",
+          "communication": "Коммуникация",
+          "tools": "Инструменты",
+          "admin": "Администрирование"
+        },
+        "hint": {
+          "staff": "Управление сотрудниками, приглашения",
+          "settings": "Настройки компании, API, интеграции"
+        }
       },
       "profile": {
         "invalidId": "Некорректный ID сотрудника",
@@ -6619,6 +7222,488 @@
         "errors": {
           "loadFailed": "Не удалось загрузить аналитику"
         }
+      },
+      "analyticsV2": {
+        "periods": {
+          "d30": "30д",
+          "d7": "7д",
+          "quarter": "КВ",
+          "ytd": "YTD",
+          "all": "Все время"
+        },
+        "views": {
+          "overview": "Обзор",
+          "sources": "Каналы",
+          "managers": "Менеджеры",
+          "funnel": "Статусы"
+        },
+        "catalogGroups": {
+          "all": "Все",
+          "kpi": "KPI",
+          "charts": "Графики",
+          "tables": "Таблицы",
+          "presets": "Готовые"
+        },
+        "nav": {
+          "salesBreadcrumb": "Продажи",
+          "analyticsTitle": "Аналитика",
+          "searchPlaceholder": "Найти…",
+          "share": "Поделиться",
+          "exportCsv": "Экспорт CSV",
+          "edit": "Редактировать",
+          "done": "Готово",
+          "saveView": "+ Сохранить вид",
+          "periodLabel": "Период",
+          "filters": "Фильтры",
+          "filterAll": "Все",
+          "addFilter": "+ Фильтр",
+          "loading": "Загрузка",
+          "salesCountLive": "{{count}} продаж · обновлено только что",
+          "shareToast": "Ссылка скопирована в буфер обмена",
+          "sharePrompt": "Скопируйте ссылку:",
+          "saveDashboard": "Сохранить дашборд",
+          "reset": "Сбросить",
+          "addBlock": "Добавить блок",
+          "addBlockHint": "KPI, графики, таблицы, рейтинги",
+          "editingMode": "Режим редактирования",
+          "editingHint": "тяните за верх · меняйте размер за угол · условия в настройках",
+          "blocksCount": "{{count}} блоков",
+          "heroKicker": "● Аналитика продаж · {{period}}",
+          "heroTitle": "Продажи — обзор",
+          "heroSubtitle": "KPI, графики, рейтинги, фильтры и свои представления по каналам, продуктам, статусам и кастомным полям."
+        },
+        "blockTypes": {
+          "metric": {
+            "label": "KPI",
+            "subtitle": "Одно число, сумма или среднее"
+          },
+          "formula": {
+            "label": "Формула",
+            "subtitle": "СУММЕСЛИ, счёт, процент, доля, разница"
+          },
+          "donut": {
+            "label": "Пончик",
+            "subtitle": "Доли по выбранному полю"
+          },
+          "bar": {
+            "label": "Гистограмма",
+            "subtitle": "Сравнение групп"
+          },
+          "line": {
+            "label": "Линия",
+            "subtitle": "Динамика по датам"
+          },
+          "funnel": {
+            "label": "Воронка",
+            "subtitle": "Этапы и конверсия"
+          },
+          "leaderboard": {
+            "label": "Рейтинг",
+            "subtitle": "Топ менеджеров или групп"
+          },
+          "table": {
+            "label": "Таблица",
+            "subtitle": "Сводная таблица"
+          },
+          "heatmap": {
+            "label": "Heatmap",
+            "subtitle": "Активность день × час"
+          },
+          "note": {
+            "label": "Заметка",
+            "subtitle": "Автоматический вывод"
+          }
+        },
+        "status": {
+          "new": "Новый",
+          "pending": "Ожидает",
+          "processing": "В обработке",
+          "on_hold": "На удержании",
+          "confirmed": "Подтверждён",
+          "paid": "Оплачен",
+          "complete": "Завершён",
+          "cancelled": "Отменён",
+          "refunded": "Возврат",
+          "failed": "Ошибка",
+          "other": "Другое"
+        },
+        "statusGroup": {
+          "successful": "Успешные",
+          "refunds": "Возвраты",
+          "cancelled": "Отменённые",
+          "in_progress": "В работе",
+          "new": "Новые",
+          "other": "Прочие"
+        },
+        "fallbacks": {
+          "notSpecified": "Не указано",
+          "noChannel": "Без канала",
+          "noProduct": "Без продукта",
+          "noCustomer": "Без клиента",
+          "noManager": "Без менеджера",
+          "noData": "нет данных",
+          "saleShort": "Продажа {{id}}"
+        },
+        "money": {
+          "mn": "{{value}} млн {{symbol}}",
+          "k": "{{value}} тыс {{symbol}}"
+        },
+        "weekDaysShort": [
+          "Пн",
+          "Вт",
+          "Ср",
+          "Чт",
+          "Пт",
+          "Сб",
+          "Вс"
+        ],
+        "catalog": {
+          "metric_sales": {
+            "title": "Продажи за период",
+            "subtitle": "Количество заказов"
+          },
+          "metric_confirmation": {
+            "title": "Подтверждение",
+            "subtitle": "confirmed / sales"
+          },
+          "metric_revenue": {
+            "title": "Выручка",
+            "subtitle": "Сумма продаж"
+          },
+          "metric_avg": {
+            "title": "Средний чек",
+            "subtitle": "Выручка / продажи"
+          },
+          "formula_sales": {
+            "title": "Формула по продажам",
+            "subtitle": "Условия · счёт · сумма · процент"
+          },
+          "line_dynamics": {
+            "title": "Динамика продаж",
+            "subtitle": "Период vs предыдущий"
+          },
+          "donut_status": {
+            "title": "Распределение по статусу",
+            "subtitle": "Доли и количество"
+          },
+          "bar_channels": {
+            "title": "Продажи по каналам",
+            "subtitle": "Канал / интеграция"
+          },
+          "bar_products": {
+            "title": "Продажи по продуктам",
+            "subtitle": "Товар / услуга"
+          },
+          "heatmap_sales": {
+            "title": "Активность продаж",
+            "subtitle": "День × час"
+          },
+          "funnel_statuses": {
+            "title": "Статусы продаж",
+            "subtitle": "Все варианты статусов"
+          },
+          "leaderboard_mgr": {
+            "title": "Рейтинг менеджеров",
+            "subtitle": "Продажи · подтверждения · выручка"
+          },
+          "table_summary": {
+            "title": "Сводная таблица",
+            "subtitle": "Группировка и сумма"
+          },
+          "note_insight": {
+            "title": "Инсайт по продажам",
+            "subtitle": "Краткий вывод"
+          }
+        },
+        "defaults": {
+          "overview": {
+            "b1": {
+              "title": "Продажи за период",
+              "subtitle": "30 дней"
+            },
+            "b2": {
+              "title": "Подтверждение",
+              "subtitle": "confirmed / sales"
+            },
+            "b3": {
+              "title": "Выручка",
+              "subtitle": "сумма продаж"
+            },
+            "b4": {
+              "title": "Средний чек",
+              "subtitle": "выручка / продажи"
+            },
+            "b5": {
+              "title": "Динамика продаж",
+              "subtitle": "период vs пред."
+            },
+            "b6": {
+              "title": "Распределение по статусу",
+              "subtitle": "доли и количество"
+            },
+            "b7": {
+              "title": "Продажи по каналам",
+              "subtitle": "channel / integration"
+            },
+            "b8": {
+              "title": "Статусы продаж",
+              "subtitle": "варианты заказов"
+            },
+            "b9": {
+              "title": "Рейтинг менеджеров",
+              "subtitle": "продажи · подтверждения · выручка"
+            },
+            "b10": {
+              "title": "Сводная таблица",
+              "subtitle": "каналы"
+            },
+            "b11": {
+              "title": "Активность по часам",
+              "subtitle": "день × час"
+            },
+            "b12": {
+              "title": "Главное за неделю",
+              "subtitle": "автоматический вывод"
+            }
+          },
+          "sources": {
+            "s1": {
+              "title": "Продажи по каналам",
+              "subtitle": "канал / интеграция"
+            },
+            "s2": {
+              "title": "Сводка каналов",
+              "subtitle": "продажи · доля · выручка"
+            },
+            "s3": {
+              "title": "Динамика каналов",
+              "subtitle": "период vs пред."
+            },
+            "s4": {
+              "title": "Типы каналов",
+              "subtitle": "direct / ota / b2b"
+            }
+          },
+          "managers": {
+            "m1": {
+              "title": "Продажи за период",
+              "subtitle": "по менеджерам"
+            },
+            "m2": {
+              "title": "Подтверждение",
+              "subtitle": "confirmed / sales"
+            },
+            "m3": {
+              "title": "Рейтинг менеджеров",
+              "subtitle": "продажи · подтверждения · выручка"
+            },
+            "m4": {
+              "title": "Сводка по сотрудникам",
+              "subtitle": "менеджер / продажи / выручка"
+            },
+            "m5": {
+              "title": "Активность команды",
+              "subtitle": "день × час"
+            }
+          },
+          "funnel": {
+            "f1": {
+              "title": "Статусы продаж",
+              "subtitle": "все варианты заказов"
+            },
+            "f2": {
+              "title": "Группы статусов",
+              "subtitle": "новые / в работе / успешные"
+            },
+            "f3": {
+              "title": "Динамика статусов",
+              "subtitle": "период vs пред."
+            },
+            "f4": {
+              "title": "Подтверждение",
+              "subtitle": "confirmed / sales"
+            },
+            "f5": {
+              "title": "Возвраты",
+              "subtitle": "refunded"
+            }
+          }
+        },
+        "fields": {
+          "status": "Статус",
+          "statusCode": "Код статуса",
+          "statusGroup": "Группа статуса",
+          "channel": "Канал",
+          "channelType": "Тип канала",
+          "integration": "Интеграция",
+          "product": "Продукт",
+          "market": "Рынок",
+          "manager": "Менеджер",
+          "agentName": "Агент",
+          "customer": "Клиент",
+          "orderNo": "Номер заказа",
+          "amount": "Выручка",
+          "currency": "Валюта",
+          "quantity": "Количество",
+          "productType": "Тип продукта",
+          "category": "Категория",
+          "size": "Размер",
+          "color": "Цвет",
+          "leadId": "Лид",
+          "saleDate": "Дата продажи",
+          "createdDate": "Дата создания",
+          "updatedDate": "Дата обновления",
+          "checkInAt": "Заезд",
+          "checkOutAt": "Выезд",
+          "daysToCheckIn": "Дней до заезда",
+          "bookingNights": "Ночей"
+        },
+        "metricOptions": {
+          "total": "Всего продаж",
+          "conversion": "Подтверждение",
+          "revenue": "Выручка",
+          "avgRevenue": "Средний чек",
+          "won": "Успешные продажи",
+          "lost": "Отменённые продажи",
+          "refunded": "Возвраты",
+          "channels": "Каналы",
+          "products": "Продукты",
+          "currencies": "Валюты",
+          "response": "Дней до заезда",
+          "sumSuffix": "{{label}} — сумма",
+          "avgSuffix": "{{label}} — среднее",
+          "filledSuffix": "{{label}} — заполнено"
+        },
+        "formulaEvaluate": {
+          "pctOfSet": "{{pct}}% от выборки",
+          "countOfTotal": "{{matching}} из {{base}}",
+          "sumField": "сумма {{field}}"
+        },
+        "addModal": {
+          "catalogKicker": "Каталог блоков",
+          "title": "Добавить блок",
+          "subtitle": "Новые блоки сразу используют реальные данные текущей вкладки и периода.",
+          "searchPlaceholder": "Найти блок: KPI, источник, конверсия…",
+          "esc": "esc"
+        },
+        "config": {
+          "constructorKicker": "Конструктор",
+          "title": "Настройки блока",
+          "headerSummary": "{{title}} · {{type}} · {{span}}/12",
+          "titleLabel": "Заголовок",
+          "subtitleLabel": "Подпись",
+          "dataSection": "Данные блока",
+          "blockTypeLabel": "Тип блока",
+          "showWhat": "Что показываем",
+          "valueMetricLabel": "Метрика значения",
+          "count": "Количество",
+          "sum": "Сумма",
+          "sumFieldLabel": "Поле суммы",
+          "formulaSection": "Формула",
+          "formulaLabel": "Формула",
+          "formula_sumif": "СУММЕСЛИ (условие)",
+          "formula_count": "СЧЁТ",
+          "formula_percent": "ПРОЦЕНТ",
+          "formula_ratio": "ДОЛЯ",
+          "formula_diff": "РАЗНИЦА",
+          "formatLabel": "Формат",
+          "formulaFormatPercent": "Процент",
+          "displayLabel": "Отображение",
+          "formula_display_metric": "KPI",
+          "formula_display_donut": "Пончик",
+          "formula_display_bar": "Гистограмма",
+          "formula_display_table": "Таблица",
+          "leftValue": "Левое значение",
+          "rightValue": "Правое значение",
+          "allValues": "Все значения",
+          "tableColumnsSection": "Колонки таблицы",
+          "addColumn": "+ Добавить колонку",
+          "remove": "Удалить",
+          "noExtraColumns": "Дополнительные колонки не выбраны",
+          "blockConditionsSection": "Условия блока",
+          "blockConditionsHint": "Условия между собой объединяются по И. Значения внутри одного условия работают как ИЛИ, чтобы можно было выбрать несколько каналов, товаров, стран, статусов или менеджеров.",
+          "conditionN": "Условие {{n}}",
+          "addCondition": "+ Добавить условие",
+          "conditionScopeLabel": "Срез условия",
+          "colorTheme": "Цветовая тема",
+          "colorAria": "Цвет {{color}}",
+          "showLabels": "Показывать метки",
+          "sizeSection": "Размер",
+          "columnsLabel": "Колонки",
+          "heightSection": "Высота (px) — или тяните за грани в режиме редактирования",
+          "footerHome": "На главную",
+          "footerDelete": "Удалить",
+          "footerDone": "Готово",
+          "duplicateSuffix": " копия"
+        },
+        "filterPicker": {
+          "allValues": "Все значения",
+          "noValues": "Нет значений"
+        },
+        "blockChrome": {
+          "dragAria": "Перетащить блок",
+          "configure": "Настроить",
+          "addHome": "На главную",
+          "duplicate": "Дублировать",
+          "delete": "Удалить",
+          "resizeWidthAria": "Изменить ширину",
+          "resizeHeightAria": "Изменить высоту",
+          "resizeBothAria": "Изменить размер"
+        },
+        "charts": {
+          "total": "всего",
+          "valueCol": "Значение",
+          "sumCol": "Сумма, {{currency}}",
+          "salesCol": "Продажи",
+          "shareCol": "Доля",
+          "currentPeriod": "Текущий период",
+          "prevPeriod": "Предыдущий период",
+          "tooltipCurrent": "Текущий",
+          "tooltipPrev": "Предыдущий",
+          "heatmapTitle": "{{day}} {{hour}}:00 — {{count}} продаж"
+        },
+        "note": {
+          "body": "В выборке <highlight>{{count}}</highlight> продаж. Лучший канал — <highlight>{{channel}}</highlight>. Подтверждение продаж — <highlight>{{conversion}}%</highlight>.",
+          "missingRates": "Не найден курс для <highlight>{{count}}</highlight> продаж — они показаны в исходной валюте."
+        },
+        "metrics": {
+          "vsPrevPeriod": "{{pct}}% vs пред. период",
+          "totalSalesSuffix": "продаж",
+          "conversionDeltaPp": "{{sign}}{{pp}}pp confirmed / sales",
+          "conversionDeltaFallback": "{{won}} подтверждено из {{total}}",
+          "revenueDeltaSuffix": " по выручке",
+          "revenueDeltaFallback": "{{won}} успешных продаж",
+          "avgCheckHint": "средний чек",
+          "wonSuffix": "ok",
+          "wonFallback": "{{pct}}% от продаж",
+          "lostSuffix": "stop",
+          "lostFallback": "{{pct}}% от продаж",
+          "refundedSuffix": "refund",
+          "refundedFallback": "{{pct}}% от продаж",
+          "channelsFallback": "активных каналов",
+          "productsFallback": "продуктов в продажах",
+          "currenciesFallback": "валют в продажах",
+          "responseEmpty": "нет дат заезда в продажах",
+          "responseSuffix": "дн",
+          "responseDeltaCheckin": "{{text}} до заезда",
+          "responseAvgHint": "среднее время до заезда",
+          "sumFieldFallback": "сумма {{field}}",
+          "avgFieldFallback": "среднее {{field}}",
+          "filledFallback": "заполнено {{field}}"
+        },
+        "csv": {
+          "order": "Заказ",
+          "status": "Статус",
+          "channel": "Канал",
+          "product": "Продукт",
+          "customer": "Клиент",
+          "manager": "Менеджер",
+          "market": "Рынок",
+          "amount": "Сумма",
+          "currency": "Валюта",
+          "saleDate": "Дата продажи"
+        },
+        "dimensionValueSuffix": "{{label}} — значение"
       }
     },
     "salesChannels": {
@@ -6750,6 +7835,8 @@
         "yandex_metrika": "Яндекс.Метрика",
         "ga4": "Google Analytics 4",
         "google_ads": "Google Ads",
+        "googleAdsLegacyBundle": "Google Ads · старый общий ключ (тег без Customer ID; часто остаток старых синков до раздельных аккаунтов google_ads_<id>)",
+        "googleAdsAccount": "Google Ads (аккаунт {{id}})",
         "unknown": "Без канала интеграции",
         "import": "Импорт",
         "manual": "Вручную"
@@ -6801,8 +7888,11 @@
         "7d": "7 дней",
         "30d": "30 дней",
         "90d": "90 дней",
+        "custom": "С даты по дату",
         "all": "Все время"
       },
+      "periodDateFromAria": "Дата начала периода",
+      "periodDateToAria": "Дата окончания периода",
       "loading": "Загружаем данные по каналам…",
       "errors": {
         "load": "Не удалось загрузить данные по каналам"
@@ -6863,8 +7953,11 @@
         "7d": "7 дней",
         "30d": "30 дней",
         "90d": "90 дней",
+        "custom": "С даты по дату",
         "all": "Все время"
       },
+      "periodDateFromAria": "Дата начала периода",
+      "periodDateToAria": "Дата окончания периода",
       "loading": "Загружаем кампании…",
       "errors": {
         "load": "Не удалось загрузить кампании"
@@ -6975,7 +8068,22 @@
           "loginCustomerId": "Login customer ID (опционально)",
           "source": "Source (опционально)",
           "medium": "Medium (опционально)",
-          "currency": "Currency (опционально)"
+          "currency": "Currency (опционально)",
+          "accountModeLabel": "Режим Google Ads",
+          "accountModeCustomer": "Один рекламный аккаунт",
+          "accountModeMccManaged": "Все клиентские счета под MCC",
+          "accountModeMccLead": "В поле «Основной ID» укажите Customer ID менеджерского (MCC) счета. Login customer ID обычно тот же при входе через этого менеджера.",
+          "primaryIdPlaceholderMcc": "Customer ID менеджерского (MCC) счёта — 10 цифр",
+          "managedCustomersButton": "Список клиентских счетов (API)",
+          "managedCustomersHide": "Скрыть",
+          "managedCustomersEmpty": "Подходящих клиентских счетов не найдено.",
+          "managedCustomersCaption": "Какие счета подтянутся при синке (с лимитом на бэкенде)",
+          "managedCustomersLoadError": "Не удалось запросить список в Google Ads API",
+          "managedSyncIncludeLabel": "Синхронизировать только эти Customer ID",
+          "managedSyncIncludeHint": "Пустое поле — все счета из списка выше (кроме исключений). Цифры через запятую, пробел или новую строку.",
+          "managedSyncExcludeLabel": "Не синхронизировать эти Customer ID",
+          "managedSyncExcludeHint": "Вычитается после отбора дочерних аккаунтов MCC.",
+          "managedSyncFiltersSave": "Сохранить фильтры синка"
         },
         "meta": {
           "platformAppBanner": "Приложение Meta на платформе уже настроено; для API по-прежнему нужен access token с правами к рекламе для вашего аккаунта.",
@@ -6998,6 +8106,8 @@
       "table": {
         "title": "Текущие интеграции",
         "currencyShort": "Валюта",
+        "syncLookbackShort": "Синк, дн.",
+        "syncLookbackHint": "Календарные дни UTC, включительно до сегодня. Допустимо от 30 до 731; пустое поле — по умолчанию {{defaultDays}}.",
         "subtitle": "Включенные интеграции используются в маркетинговых отчетах.",
         "total": "Всего: {{count}}",
         "empty": "Интеграций пока нет. Добавьте хотя бы GA4 или Метрику.",
@@ -7045,7 +8155,8 @@
         "create": "Не удалось создать интеграцию",
         "update": "Не удалось обновить интеграцию",
         "delete": "Не удалось удалить интеграцию",
-        "sync": "Не удалось синхронизировать"
+        "sync": "Не удалось синхронизировать",
+        "invalidLookback": "Укажите целое число дней от 30 до 731 или оставьте поле пустым для значения по умолчанию."
       },
       "confirmDelete": "Удалить интеграцию «{{name}}»?",
       "syncResult": "Синхронизировано строк: {{count}}",
@@ -7869,7 +8980,9 @@
       "contact": "Контакты",
       "faq": "FAQ",
       "terms": "Условия",
-      "changelog": "Обновления"
+      "changelog": "Обновления",
+      "openCrmHint": "Открыть вашу CRM — вы вошли в это рабочее пространство",
+      "openCrmCta": "Открыть CRM"
     },
     "common": {
       "kicker": "Lumiva CRM",

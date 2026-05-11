@@ -14,11 +14,17 @@ import { NotesModule } from '../notes/notes.module';
 import { Lead } from '../leads/lead.entity';
 import { Project } from '../projects/project.entity';
 import { CompanyTask } from '../companies/company-task.entity';
+import { Company } from '../companies/company.entity';
+import { Contact } from '../contacts/contact.entity';
+import { Sale } from '../sales/sale.entity';
 import { SalesModule } from '../sales/sales.module';
 import { CompaniesModule } from '../companies/companies.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { MarketingModule } from '../marketing/marketing.module';
 import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { StaffUsersModule } from '../staff/staff-users.module';
+import { SmsModule } from '../sms/sms.module';
 
 @Module({
   imports: [
@@ -29,6 +35,9 @@ import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
       Automation,
       AutomationExecution,
       Lead,
+      Contact,
+      Company,
+      Sale,
       Project,
       CompanyTask,
     ]),
@@ -38,6 +47,9 @@ import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
     forwardRef(() => NotesModule),
     forwardRef(() => SalesModule),
     forwardRef(() => CompaniesModule),
+    NotificationsModule,
+    StaffUsersModule,
+    SmsModule,
   ],
   controllers: [AutomationsController],
   providers: [AutomationsService, ReportsService, AutomationsSchedulerService],

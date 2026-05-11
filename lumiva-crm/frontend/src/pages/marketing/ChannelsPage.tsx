@@ -48,8 +48,13 @@ import {
   useMarketingDisplayCurrencyPrefs,
 } from './MarketingDisplayCurrencyToolbar';
 import { convertMarketingAmount } from './marketingDisplayCurrencyStorage';
-
-type PeriodPreset = '7d' | '30d' | '90d' | 'all';
+import {
+  marketingTrafficClampDateRange,
+  marketingTrafficDefaultCustomRange,
+  marketingTrafficPresetRange,
+  marketingTrafficUtcTodayYmd,
+  type MarketingTrafficPeriodPreset,
+} from './marketingTrafficPeriod';
 
 interface DateRange {
   from?: string;
@@ -59,7 +64,7 @@ interface DateRange {
 export const ChannelsPage: React.FC = () => {
   const { t } = useTranslation();
   const locale = getLocale();
-  const [preset, setPreset] = useState<PeriodPreset>('all');
+  const [preset, setPreset] = useState<MarketingTrafficPeriodPreset>('all');
   const [range, setRange] = useState<DateRange>({});
   const [dataSource, setDataSource] = useState('');
   const [stats, setStats] = useState<MarketingTrafficStats | null>(null);
@@ -69,14 +74,15 @@ export const ChannelsPage: React.FC = () => {
     (v: number) => v.toLocaleString(locale, { maximumFractionDigits: 0 }),
     [locale],
   );
-  const periodLabel: Record<PeriodPreset, string> = {
+  const periodLabel: Record<MarketingTrafficPeriodPreset, string> = {
     '7d': t('crm.marketingChannels.periods.7d'),
     '30d': t('crm.marketingChannels.periods.30d'),
     '90d': t('crm.marketingChannels.periods.90d'),
+    custom: t('crm.marketingChannels.periods.custom'),
     all: t('crm.marketingChannels.periods.all'),
   };
 
-  const applyPreset = (p: PeriodPreset) => {
+  const applyPreset = (p: MarketingTrafficPeriodPreset) => {
     setPreset(p);
     setDataSource('');
 
@@ -85,20 +91,12 @@ export const ChannelsPage: React.FC = () => {
       return;
     }
 
-    const today = new Date();
-    const end = new Date(
-      Date.UTC(today.getFullYear(), today.getMonth(), today.getDate()),
-    );
-    const start = new Date(end);
+    if (p === 'custom') {
+      setRange(marketingTrafficDefaultCustomRange());
+      return;
+    }
 
-    if (p === '7d') start.setUTCDate(end.getUTCDate() - 6);
-    if (p === '30d') start.setUTCDate(end.getUTCDate() - 29);
-    if (p === '90d') start.setUTCDate(end.getUTCDate() - 89);
-
-    setRange({
-      from: start.toISOString().slice(0, 10),
-      to: end.toISOString().slice(0, 10),
-    });
+    setRange(marketingTrafficPresetRange(p));
   };
 
   useEffect(() => {
@@ -261,18 +259,62 @@ export const ChannelsPage: React.FC = () => {
           </div>
 
           <div className="flex flex-col items-stretch md:items-end gap-2">
-            <div className={`${marketingFilterBar} w-full md:w-auto md:justify-end`}>
+            <div
+              className={`${marketingFilterBar} w-full md:w-auto md:justify-end flex-wrap gap-y-2`}
+            >
               <span className={marketingFilterLabel}>{t('crm.marketingChannels.periodLabel')}</span>
-              {(['7d', '30d', '90d', 'all'] as PeriodPreset[]).map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => applyPreset(p)}
-                  className={preset === p ? marketingChipActive : marketingChipInactive}
-                >
-                  {periodLabel[p]}
-                </button>
-              ))}
+              {(['7d', '30d', '90d', 'custom', 'all'] as MarketingTrafficPeriodPreset[]).map(
+                (p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => applyPreset(p)}
+                    className={preset === p ? marketingChipActive : marketingChipInactive}
+                  >
+                    {periodLabel[p]}
+                  </button>
+                ),
+              )}
+              {preset === 'custom' && (
+                <>
+                  <input
+                    type="date"
+                    aria-label={t('crm.marketingChannels.periodDateFromAria', {
+                      defaultValue: 'Дата начала',
+                    })}
+                    className={`${marketingSelect} h-10 max-w-[11rem]`}
+                    value={range.from || ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPreset('custom');
+                      setRange((r) =>
+                        marketingTrafficClampDateRange({
+                          from: v,
+                          to: r.to || marketingTrafficUtcTodayYmd(),
+                        }),
+                      );
+                    }}
+                  />
+                  <input
+                    type="date"
+                    aria-label={t('crm.marketingChannels.periodDateToAria', {
+                      defaultValue: 'Дата окончания',
+                    })}
+                    className={`${marketingSelect} h-10 max-w-[11rem]`}
+                    value={range.to || ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setPreset('custom');
+                      setRange((r) =>
+                        marketingTrafficClampDateRange({
+                          from: r.from || marketingTrafficUtcTodayYmd(),
+                          to: v,
+                        }),
+                      );
+                    }}
+                  />
+                </>
+              )}
             </div>
             <div className={`${marketingFilterBar} items-center w-full md:w-auto md:justify-end`}>
               <span className={marketingFilterLabel}>

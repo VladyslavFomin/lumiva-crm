@@ -13,11 +13,22 @@ function fail(message) {
 
 function checkSource() {
   const content = readFileSync(srcPath, 'utf8');
-  if (!content.includes('ProjectsAnalyticsPage')) {
-    fail('LeadsAnalyticsPageV2.tsx must delegate to ProjectsAnalyticsPage.');
+  if (content.includes('ProjectsAnalyticsPage')) {
+    fail('LeadsAnalyticsPageV2.tsx must keep the new standalone leads analytics design, not the old shared page.');
   }
-  if (!content.includes('storageNamespace')) {
-    fail('LeadsAnalyticsPageV2.tsx missing storageNamespace prop.');
+  if (!content.includes('Лиды — обзор')) {
+    fail('LeadsAnalyticsPageV2.tsx missing the leads analytics header.');
+  }
+  if (!content.includes('MainLayout')) {
+    fail('LeadsAnalyticsPageV2.tsx must render inside the CRM MainLayout.');
+  }
+  for (const marker of ["fetchCustomFields('lead')", 'fetchProjects()', 'ConfigDrawer', 'AddBlockModal', 'onResizeStart', 'onMoveStart']) {
+    if (!content.includes(marker)) {
+      fail(`LeadsAnalyticsPageV2.tsx missing leads analytics marker: ${marker}.`);
+    }
+  }
+  if (!/fetchLeadRoi\(\{\s*mode:\s*'sales'/s.test(content)) {
+    fail("LeadsAnalyticsPageV2.tsx missing leads analytics marker: fetchLeadRoi({ mode: 'sales' }).");
   }
 }
 
@@ -40,9 +51,9 @@ function findInDist(dir, needle) {
 }
 
 function checkDist() {
-  const ok = findInDist(distDir, 'storageNamespace');
+  const ok = findInDist(distDir, 'Лиды — обзор') && findInDist(distDir, 'Режим редактирования') && findInDist(distDir, 'Добавить блок');
   if (!ok) {
-    fail('storageNamespace missing in dist bundle. Analytics V2 may not be included.');
+    fail('Leads analytics markers missing in dist bundle. Analytics V2 may not be included.');
   }
 }
 

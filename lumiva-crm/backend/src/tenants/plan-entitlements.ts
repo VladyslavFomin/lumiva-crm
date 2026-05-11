@@ -49,6 +49,8 @@ export const COMPONENT_KEYS = [
   'telegram',
   'chat',
   'client_accounts',
+  'sms',
+  'deduplication',
 ] as const;
 
 const PLAN_RANK: Record<NormalizedTenantPlan, number> = {
@@ -96,13 +98,15 @@ const COMPONENT_MIN_PLAN: Record<string, NormalizedTenantPlan> = {
   marketing_analytics: 'standard',
   tools: 'standard',
   tools_settings: 'standard',
-  custom_objects: 'professional',
-  tools_integrations: 'professional',
-  tools_automation: 'professional',
-  email: 'professional',
+  tools_integrations: 'standard',
+  tools_automation: 'standard',
+  email: 'standard',
+  custom_objects: 'standard',
   telegram: 'professional',
   chat: 'professional',
   client_accounts: 'enterprise',
+  sms: 'standard',
+  deduplication: 'standard',
 };
 
 export function normalizeTenantPlan(plan?: string | null): NormalizedTenantPlan {

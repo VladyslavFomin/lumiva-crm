@@ -20,16 +20,21 @@ export class MarketingSyncService {
     await this.marketing.syncAllActiveAnalyticsIntegrations();
   }
 
-  /** Раз в час обновляем кэш курсов маркетинга (EUR/GBP/TRY/RUB) для всех вариантов отображения. */
+  /** Раз в час подтягиваем курс Frankfurter (прогрев сырого кэша через EUR как валюту отчёта). */
   @Cron('0 * * * *')
   async refreshMarketingFxHourly() {
-    for (const d of ['EUR', 'GBP', 'TRY', 'RUB'] as const) {
+    try {
+      await this.marketing.getMarketingFxRates('EUR', { force: true });
+    } catch (e: unknown) {
+      this.log.warn(
+        `FX hourly prefetch EUR: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+    for (const d of ['USD', 'GBP', 'TRY', 'RUB', 'PLN', 'CHF'] as const) {
       try {
-        await this.marketing.getMarketingFxRates(d, { force: true });
+        await this.marketing.getMarketingFxRates(d, { force: false });
       } catch (e: unknown) {
-        this.log.warn(
-          `FX hourly prefetch ${d}: ${e instanceof Error ? e.message : String(e)}`,
-        );
+        this.log.warn(`FX hourly prefetch ${d}: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   }

@@ -13,7 +13,9 @@ export type PermissionKey =
   | 'contacts'
   | 'companies'
   | 'tools_automation'
-  | 'custom_objects';
+  | 'custom_objects'
+  | 'email'
+  | 'marketing';
 
 export type RolePermissionMatrix = Record<StaffRole, PermissionKey[]>;
 export type UserPermissionMatrix = Record<string, PermissionKey[]>;

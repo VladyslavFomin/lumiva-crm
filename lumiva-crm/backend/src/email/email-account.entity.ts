@@ -18,6 +18,7 @@ import { Tenant } from '../tenants/tenant.entity';
  */
 @Entity('email_accounts')
 @Index(['tenantId', 'email'])
+@Index(['tenantId', 'userId'])
 export class EmailAccount {
   @PrimaryGeneratedColumn('uuid')
   id: string;
@@ -29,6 +30,10 @@ export class EmailAccount {
   @ManyToOne(() => Tenant, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
+
+  // ==== OWNER ====
+  @Column({ type: 'uuid', nullable: true })
+  userId: string | null;
 
   // ==== ОСНОВНЫЕ ДАННЫЕ ====
   @Column({ type: 'varchar', length: 255 })

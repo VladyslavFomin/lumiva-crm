@@ -54,6 +54,7 @@ export class EmailService {
     return {
       id: account.id,
       tenantId: account.tenantId,
+      userId: account.userId,
       email: account.email,
       name: account.name,
       imapHost: account.imapHost,
@@ -79,18 +80,41 @@ export class EmailService {
     };
   }
 
-  /**
-   * Получить все email аккаунты тенанта
-   */
-  async findAllAccounts(tenantId: string): Promise<Record<string, unknown>[]> {
+  /** True only for tenant owner — can see and manage all accounts. */
+  private isOwner(actorRole?: string): boolean {
+    return actorRole === 'owner' || actorRole === 'admin';
+  }
+
+  async findAllAccounts(
+    tenantId: string,
+    actorUserId?: string,
+    actorRole?: string,
+  ): Promise<Record<string, unknown>[]> {
+    if (this.isOwner(actorRole)) {
+      const rows = await this.accountRepo.find({
+        where: { tenantId },
+        order: { createdAt: 'DESC' },
+      });
+      return rows.map((a) => this.toPublicEmailAccount(a));
+    }
+
+    if (!actorUserId) {
+      return [];
+    }
+
     const rows = await this.accountRepo.find({
-      where: { tenantId },
+      where: { tenantId, userId: actorUserId },
       order: { createdAt: 'DESC' },
     });
     return rows.map((a) => this.toPublicEmailAccount(a));
   }
 
-  async requireAccountEntity(tenantId: string, id: string): Promise<EmailAccount> {
+  async requireAccountEntity(
+    tenantId: string,
+    id: string,
+    actorUserId?: string,
+    actorRole?: string,
+  ): Promise<EmailAccount> {
     const account = await this.accountRepo.findOne({
       where: { id, tenantId },
     });
@@ -99,18 +123,23 @@ export class EmailService {
       throw new NotFoundException('Email account not found');
     }
 
+    if (actorUserId && !this.isOwner(actorRole)) {
+      if (account.userId && account.userId !== actorUserId) {
+        throw new NotFoundException('Email account not found');
+      }
+    }
+
     return account;
   }
 
-  /**
-   * Один аккаунт (без токенов и паролей).
-   */
   async findAccount(
     tenantId: string,
     id: string,
+    actorUserId?: string,
+    actorRole?: string,
   ): Promise<Record<string, unknown>> {
     return this.toPublicEmailAccount(
-      await this.requireAccountEntity(tenantId, id),
+      await this.requireAccountEntity(tenantId, id, actorUserId, actorRole),
     );
   }
 
@@ -122,8 +151,10 @@ export class EmailService {
     tenantId: string,
     accountId: string,
     body: { autoCreateFromUnknown?: boolean; skipDomains?: string[] },
+    actorUserId?: string,
+    actorRole?: string,
   ): Promise<Record<string, unknown>> {
-    const account = await this.requireAccountEntity(tenantId, accountId);
+    const account = await this.requireAccountEntity(tenantId, accountId, actorUserId, actorRole);
     const meta =
       account.meta && typeof account.meta === 'object' && !Array.isArray(account.meta)
         ? { ...(account.meta as Record<string, unknown>) }
@@ -184,9 +215,12 @@ export class EmailService {
   async createAccount(
     tenantId: string,
     dto: CreateEmailAccountDto,
+    actorUserId?: string,
   ): Promise<Record<string, unknown>> {
+    const meta = actorUserId ? { createdByUserId: actorUserId } : null;
     const account = this.accountRepo.create({
       tenantId,
+      userId: actorUserId || null,
       email: dto.email,
       name: dto.name || null,
       imapHost: dto.imapHost || null,
@@ -206,6 +240,7 @@ export class EmailService {
       syncOutgoing: dto.syncOutgoing ?? true,
       syncFolder: dto.syncFolder || 'INBOX',
       status: 'active',
+      meta,
     });
 
     const saved = await this.accountRepo.save(account);
@@ -217,8 +252,10 @@ export class EmailService {
     tenantId: string,
     accountId: string,
     body: { signatureHtml?: string | null; signatureText?: string | null },
+    actorUserId?: string,
+    actorRole?: string,
   ): Promise<Record<string, unknown>> {
-    const account = await this.requireAccountEntity(tenantId, accountId);
+    const account = await this.requireAccountEntity(tenantId, accountId, actorUserId, actorRole);
     const meta =
       account.meta && typeof account.meta === 'object' && !Array.isArray(account.meta)
         ? { ...(account.meta as Record<string, unknown>) }
@@ -230,15 +267,14 @@ export class EmailService {
     return this.toPublicEmailAccount(account);
   }
 
-  /**
-   * Обновить email аккаунт
-   */
   async updateAccount(
     tenantId: string,
     id: string,
     dto: UpdateEmailAccountDto,
+    actorUserId?: string,
+    actorRole?: string,
   ): Promise<Record<string, unknown>> {
-    const account = await this.requireAccountEntity(tenantId, id);
+    const account = await this.requireAccountEntity(tenantId, id, actorUserId, actorRole);
 
     if (dto.email !== undefined) account.email = dto.email;
     if (dto.name !== undefined) account.name = dto.name || null;
@@ -269,11 +305,13 @@ export class EmailService {
     return this.toPublicEmailAccount(saved);
   }
 
-  /**
-   * Удалить email аккаунт
-   */
-  async deleteAccount(tenantId: string, id: string): Promise<void> {
-    const account = await this.requireAccountEntity(tenantId, id);
+  async deleteAccount(
+    tenantId: string,
+    id: string,
+    actorUserId?: string,
+    actorRole?: string,
+  ): Promise<void> {
+    const account = await this.requireAccountEntity(tenantId, id, actorUserId, actorRole);
     await this.accountRepo.remove(account);
   }
 
@@ -281,8 +319,13 @@ export class EmailService {
    * Тест подключения к SMTP
    * Использует быструю проверку с короткими таймаутами
    */
-  async testSmtpConnection(tenantId: string, id: string): Promise<boolean> {
-    const account = await this.requireAccountEntity(tenantId, id);
+  async testSmtpConnection(
+    tenantId: string,
+    id: string,
+    actorUserId?: string,
+    actorRole?: string,
+  ): Promise<boolean> {
+    const account = await this.requireAccountEntity(tenantId, id, actorUserId, actorRole);
 
     if (account.oauthRefreshToken && account.oauthProvider) {
       try {
@@ -563,6 +606,14 @@ export class EmailService {
       leadId?: string;
       saleId?: string;
       search?: string;
+      read?: boolean;
+      starred?: boolean;
+      hasCalendarInvite?: boolean;
+      hasLead?: boolean;
+      from?: string;
+      to?: string;
+      dateFrom?: string;
+      dateTo?: string;
       limit?: number;
       offset?: number;
     },
@@ -644,9 +695,82 @@ export class EmailService {
     if (options?.search) {
       const search = `%${options.search.toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(message.subject) LIKE :search OR LOWER(message.textBody) LIKE :search OR LOWER(message.from) LIKE :search)',
-        { search },
+        new Brackets((q) => {
+          q.where('LOWER(COALESCE("message"."subject", \'\')) LIKE :search', {
+            search,
+          })
+            .orWhere('LOWER(COALESCE("message"."textBody", \'\')) LIKE :search', {
+              search,
+            })
+            .orWhere('LOWER(COALESCE("message"."htmlBody", \'\')) LIKE :search', {
+              search,
+            })
+            .orWhere('LOWER(COALESCE("message"."from", \'\')) LIKE :search', {
+              search,
+            })
+            .orWhere(
+              "LOWER(COALESCE(array_to_string(\"message\".\"to\", ','), '')) LIKE :search",
+              { search },
+            );
+        }),
       );
+    }
+
+    if (options?.read !== undefined) {
+      qb.andWhere('message.isRead = :read', { read: options.read });
+    }
+
+    if (options?.starred !== undefined) {
+      qb.andWhere('message.isStarred = :starred', { starred: options.starred });
+    }
+
+    if (options?.hasCalendarInvite !== undefined) {
+      if (options.hasCalendarInvite) {
+        qb.andWhere(
+          "(message.meta -> 'calendarInvite' IS NOT NULL OR message.meta ->> 'hasCalendarAttachment' = 'true')",
+        );
+      } else {
+        qb.andWhere(
+          "(message.meta IS NULL OR (message.meta -> 'calendarInvite' IS NULL AND COALESCE(message.meta ->> 'hasCalendarAttachment', 'false') <> 'true'))",
+        );
+      }
+    }
+
+    if (options?.hasLead !== undefined) {
+      qb.andWhere(
+        options.hasLead ? 'message.leadId IS NOT NULL' : 'message.leadId IS NULL',
+      );
+    }
+
+    if (options?.from?.trim()) {
+      qb.andWhere('LOWER(COALESCE("message"."from", \'\')) LIKE :fromFilter', {
+        fromFilter: `%${options.from.trim().toLowerCase()}%`,
+      });
+    }
+
+    if (options?.to?.trim()) {
+      const toFilter = `%${options.to.trim().toLowerCase()}%`;
+      qb.andWhere(
+        new Brackets((q) => {
+          q.where(
+            "LOWER(COALESCE(array_to_string(\"message\".\"to\", ','), '')) LIKE :toFilter",
+            { toFilter },
+          ).orWhere(
+            "LOWER(COALESCE(array_to_string(\"message\".\"cc\", ','), '')) LIKE :toFilter",
+            { toFilter },
+          );
+        }),
+      );
+    }
+
+    const dateFrom = options?.dateFrom ? new Date(options.dateFrom) : null;
+    if (dateFrom && !Number.isNaN(dateFrom.getTime())) {
+      qb.andWhere('message.date >= :dateFrom', { dateFrom });
+    }
+
+    const dateTo = options?.dateTo ? new Date(options.dateTo) : null;
+    if (dateTo && !Number.isNaN(dateTo.getTime())) {
+      qb.andWhere('message.date <= :dateTo', { dateTo });
     }
 
     const total = await qb.getCount();
@@ -1177,7 +1301,7 @@ export class EmailService {
           content?: Buffer;
         }>
       | undefined,
-  ): Promise<string> {
+  ): Promise<Buffer> {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const MailComposer = require('nodemailer/lib/mail-composer');
     const fromAddr = account.name
@@ -1206,7 +1330,7 @@ export class EmailService {
     return new Promise((resolve, reject) => {
       mail.compile().build((err: Error, buf: Buffer) => {
         if (err) reject(err);
-        else resolve(buf.toString('utf8'));
+        else resolve(buf);
       });
     });
   }
@@ -1309,7 +1433,7 @@ export class EmailService {
       finalHtmlBody,
       attachments,
     );
-    const raw = Buffer.from(rfc822, 'utf8')
+    const raw = rfc822
       .toString('base64')
       .replace(/\+/g, '-')
       .replace(/\//g, '_')

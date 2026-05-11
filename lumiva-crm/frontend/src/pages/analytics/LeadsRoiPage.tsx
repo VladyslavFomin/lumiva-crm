@@ -8,6 +8,9 @@ import {
   type LeadRoiRow,
   type LeadRoiMode,
 } from '../../api/leads';
+import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
+import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
+import { normalizeMarketingDisplayCurrency } from '../marketing/marketingDisplayCurrencyStorage';
 
 import {
   ResponsiveContainer,
@@ -51,6 +54,22 @@ export const LeadsRoiPage: React.FC = () => {
   const [stats, setStats] = useState<LeadsRoiStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const currenciesPresent = useMemo(
+    () => Array.from(new Set(stats?.items?.flatMap((row) => row.sourceCurrencies?.length ? row.sourceCurrencies : [row.currency]) || [])),
+    [stats],
+  );
+  const { state: currencyPrefs, setState: setCurrencyPrefs } =
+    useMarketingDisplayCurrencyPrefs(currenciesPresent);
+  const reportCurrency = normalizeMarketingDisplayCurrency(currencyPrefs.displayCurrency);
+
+  useEffect(() => {
+    if (currencyPrefs.currencyMode === 'converted') return;
+    setCurrencyPrefs({
+      ...currencyPrefs,
+      currencyMode: 'converted',
+      rates: { ...currencyPrefs.rates, [reportCurrency]: 1 },
+    });
+  }, [currencyPrefs, reportCurrency, setCurrencyPrefs]);
   const periodLabels = useMemo<Record<PeriodPreset, string>>(
     () => ({
       '7d': t('crm.leads.roi.period.days7'),
@@ -163,6 +182,9 @@ export const LeadsRoiPage: React.FC = () => {
       from: range.from,
       to: range.to,
       mode,
+      currencyMode: 'converted',
+      displayCurrency: reportCurrency,
+      rates: { ...currencyPrefs.rates, [reportCurrency]: 1 },
     })
       .then((res) => setStats(res))
       .catch((e: any) => {
@@ -170,9 +192,9 @@ export const LeadsRoiPage: React.FC = () => {
         setError(e.message || t('crm.leads.roi.errors.loadFailed'));
       })
       .finally(() => setLoading(false));
-  }, [range.from, range.to, mode, t]);
+  }, [range.from, range.to, mode, reportCurrency, JSON.stringify(currencyPrefs.rates), t]);
 
-  const currency = stats?.currency ?? 'EUR';
+  const currency = stats?.currency ?? reportCurrency;
 
   const topLeads: LeadRoiRow[] = useMemo(() => {
     if (!stats) return [];
@@ -254,6 +276,11 @@ export const LeadsRoiPage: React.FC = () => {
                 </button>
               ))}
             </div>
+
+            <AnalyticsCurrencyControl
+              state={currencyPrefs}
+              onStateChange={setCurrencyPrefs}
+            />
           </div>
         </section>
 

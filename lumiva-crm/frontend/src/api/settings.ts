@@ -48,8 +48,10 @@ export interface CompanySettings {
 /**
  * Получить настройки текущего tenant
  */
-export async function fetchCompanySettings(): Promise<CompanySettings> {
-  return api.get<CompanySettings>('/tenants/settings');
+export async function fetchCompanySettings(options?: {
+  skipUnauthorizedRedirect?: boolean;
+}): Promise<CompanySettings> {
+  return api.get<CompanySettings>('/tenants/settings', options);
 }
 
 /**

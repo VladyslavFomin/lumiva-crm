@@ -635,6 +635,10 @@
       "toolsWebForms": "Site forms",
       "chat": "Chat",
       "clientAccounts": "Client accounts",
+      "sms": "SMS",
+      "smsMessages": "Messages",
+      "smsSettings": "SMS Settings",
+      "deduplication": "Deduplication",
       "staff": "Staff",
       "staffList": "Staff list",
       "staffPermissions": "Access rights",
@@ -642,7 +646,232 @@
       "settings": "Settings",
       "settingsCompany": "Company settings",
       "settingsApi": "API & integrations",
-      "settingsAccount": "Account"
+      "settingsAccount": "Account",
+      "aiEmployees": "AI Employees",
+      "aiEmployeesDashboard": "Dashboard",
+      "aiEmployeesChoose": "Choose employee",
+      "aiEmployeesApprovals": "Approvals",
+      "aiEmployeesLogs": "Logs",
+      "aiEmployeesReports": "Reports"
+    },
+    "aiEmployees": {
+      "badge": {
+        "workforce": "AI Workforce"
+      },
+      "naming": {
+        "dashboardHint": "The CRM chat assistant handles everyday requests across the whole product. AI Employees here are specialist teammates with their own roles, schedules and approvals. You can still ask the chat assistant to assign a task or pose a question to an employee by name or role."
+      },
+      "errors": {
+        "generic": "Something went wrong. Please try again."
+      },
+      "status": {
+        "active": "Active",
+        "paused": "Paused",
+        "disabled": "Disabled",
+        "setup_required": "Setup required",
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "executed": "Executed",
+        "failed": "Failed",
+        "draft": "Draft",
+        "generated": "Generated",
+        "sent": "Sent"
+      },
+      "plan": {
+        "prefix": "Plan:",
+        "unlimited": "Unlimited",
+        "usage": "{{used}} / {{limit}} AI Employees used",
+        "usageUnlimited": "Unlimited AI Employees"
+      },
+      "upgradeModal": {
+        "title": "Upgrade AI Employees",
+        "subtitleSingular": "Your current plan allows {{count}} AI Employee.",
+        "subtitlePlural": "Your current plan allows {{count}} AI Employees.",
+        "body": "Upgrade your plan to add more AI team members and automate more departments.",
+        "upgradePlan": "Upgrade Plan",
+        "comparePlans": "Compare Plans",
+        "cancel": "Cancel",
+        "close": "Close"
+      },
+      "dashboard": {
+        "title": "AI Employees",
+        "subtitle": "Manage your virtual AI team members and automate your CRM workflows.",
+        "addEmployee": "Add AI Employee",
+        "loading": "Loading AI Employees…",
+        "kpiActive": "Active AI Employees",
+        "kpiTasksToday": "Tasks completed today",
+        "kpiPendingApprovals": "Pending approvals",
+        "kpiReports": "Reports generated",
+        "kpiLeads": "Leads analyzed",
+        "kpiMessages": "Messages drafted",
+        "kpiIssues": "Issues detected",
+        "pendingTitle": "Pending approvals",
+        "openQueue": "Open queue",
+        "noApprovalsWaiting": "No approvals are waiting.",
+        "recentActivity": "Recent AI activity",
+        "viewLogs": "View logs"
+      },
+      "choose": {
+        "title": "Choose AI Employee",
+        "subtitle": "Pick a specialist role. Standard includes core operational roles; Pro adds marketing analyst, SMM, CRM analyst and hospitality assistant. Locked roles remain visible so the upgrade path is clear.",
+        "loading": "Loading roles…",
+        "dashboardLink": "Dashboard",
+        "planLimitReached": "Plan limit reached",
+        "upgradeToUnlock": "Upgrade to unlock",
+        "addRole": "Add {{role}}"
+      },
+      "create": {
+        "title": "Create AI Employee",
+        "subtitle": "Set up identity, access permissions, approval rules and operating schedule.",
+        "steps": {
+          "role": "Role",
+          "identity": "Identity",
+          "access": "Access",
+          "actions": "Actions",
+          "schedule": "Schedule",
+          "review": "Review"
+        },
+        "fields": {
+          "name": "Name",
+          "department": "Department",
+          "jobTitle": "Job title",
+          "language": "Language",
+          "tone": "Tone of voice",
+          "schedule": "Schedule",
+          "dailyReportTime": "Daily report time"
+        },
+        "scheduleModes": {
+          "manual": "Manual run only",
+          "always": "Always active",
+          "business_hours": "Business hours only",
+          "custom": "Custom schedule"
+        },
+        "review": {
+          "accesses": "Accesses",
+          "approvalRules": "Approval rules",
+          "reportTime": "Report time"
+        },
+        "back": "Back",
+        "continue": "Continue",
+        "activate": "Activate AI Employee",
+        "permissionGroups": {
+          "read": "Read access",
+          "actions": "Actions"
+        },
+        "approvalRulesTitle": "Approval rules",
+        "approvalRequireBefore": "Require approval before {{action}}"
+      },
+      "languageOptions": {
+        "english": "English",
+        "russian": "Russian",
+        "turkish": "Turkish",
+        "mixed": "English / Turkish / Russian"
+      },
+      "autonomy": {
+        "read_only": {
+          "title": "Read Only",
+          "hint": "Analyze and report only."
+        },
+        "suggest": {
+          "title": "Suggest Mode",
+          "hint": "Prepare actions for people."
+        },
+        "assisted": {
+          "title": "Assisted Mode",
+          "hint": "Execute safe actions."
+        },
+        "auto": {
+          "title": "Auto Mode",
+          "hint": "Run allowed actions automatically."
+        }
+      },
+      "empty": {
+        "title": "Build your virtual CRM team.",
+        "body": "Add your first AI Employee to analyze leads, prepare reports, create tasks and support your team.",
+        "cta": "Add first AI Employee"
+      },
+      "agentCard": {
+        "today": "Today",
+        "approvals": "Approvals",
+        "reports": "Reports",
+        "lastActivity": "Last activity: {{time}}",
+        "openProfile": "Open Profile",
+        "settings": "Settings"
+      },
+      "activity": {
+        "none": "No activity yet.",
+        "noneShort": "No activity yet"
+      },
+      "approvalsPage": {
+        "title": "AI Actions / Approvals",
+        "subtitle": "Review AI-created actions before they affect clients or CRM data.",
+        "loading": "Loading approvals…",
+        "empty": "No pending approvals."
+      },
+      "logsPage": {
+        "title": "AI Logs",
+        "subtitle": "Audit every AI Employee action, decision and fallback.",
+        "loading": "Loading logs…",
+        "colTime": "Time",
+        "colEmployee": "AI Employee",
+        "colAction": "Action",
+        "colObject": "Object",
+        "colStatus": "Status",
+        "colResult": "Result"
+      },
+      "reportsPage": {
+        "title": "AI Reports",
+        "subtitle": "Daily and weekly reports generated by your virtual team.",
+        "loading": "Loading reports…",
+        "empty": "No AI reports yet.",
+        "markSent": "Mark sent"
+      },
+      "approvalCard": {
+        "approve": "Approve",
+        "reject": "Reject",
+        "execute": "Execute",
+        "markDone": "Mark as Done"
+      },
+      "approvalAction": {
+        "send_email": "sending emails",
+        "send_whatsapp": "sending WhatsApp messages",
+        "update_lead_status": "changing lead status",
+        "assign_lead": "assigning leads",
+        "edit_client_data": "editing client data",
+        "create_campaign": "creating campaigns",
+        "bulk_send_campaign": "bulk campaigns",
+        "connect_integration": "connecting integrations",
+        "delete_data": "deleting data"
+      },
+      "profile": {
+        "loading": "Loading AI Employee…",
+        "fallbackDepartment": "AI Team",
+        "resume": "Resume AI",
+        "pause": "Pause AI",
+        "runNow": "Run now",
+        "generateReport": "Generate report",
+        "remove": "Remove",
+        "kpiActionsToday": "Actions today",
+        "kpiLeadsAnalyzed": "Leads analyzed",
+        "kpiTasksCreated": "Tasks created",
+        "kpiMessagesDrafted": "Messages drafted",
+        "kpiReportsGen": "Reports generated",
+        "kpiPendingApprovals": "Pending approvals",
+        "currentWork": "Current Work",
+        "readyManual": "{{name}} is ready for a manual run.",
+        "pendingSection": "Pending Approvals",
+        "noPendingForEmployee": "No pending approvals for this AI Employee.",
+        "recentActions": "Recent Actions",
+        "permissionsSummary": "Permissions Summary",
+        "savePermissions": "Save permissions",
+        "approvalRulesSection": "Approval Rules",
+        "saveApprovalRules": "Save approval rules",
+        "dailyReportPreview": "Daily Report Preview",
+        "noReportYet": "No report generated yet.",
+        "recentLogs": "Recent Logs"
+      },
+      "fallbackEmployee": "AI Employee"
     },
     "settings": {
       "api": {
@@ -1355,6 +1584,8 @@
         "yandex_metrika": "Yandex.Metrica",
         "ga4": "Google Analytics 4",
         "google_ads": "Google Ads",
+        "googleAdsLegacyBundle": "Google Ads · legacy bucket (no Customer ID in the tag; often left over from older syncs before per-account google_ads_<id> keys)",
+        "googleAdsAccount": "Google Ads (account {{id}})",
         "unknown": "No integration channel",
         "import": "Import",
         "manual": "Manual"
@@ -1381,8 +1612,11 @@
         "7d": "7 days",
         "30d": "30 days",
         "90d": "90 days",
+        "custom": "Custom range",
         "all": "All time"
       },
+      "periodDateFromAria": "Period start date",
+      "periodDateToAria": "Period end date",
       "loading": "Loading channel data…",
       "errors": {
         "load": "Could not load channel data"
@@ -1443,8 +1677,11 @@
         "7d": "7 days",
         "30d": "30 days",
         "90d": "90 days",
+        "custom": "Custom range",
         "all": "All time"
       },
+      "periodDateFromAria": "Period start date",
+      "periodDateToAria": "Period end date",
       "loading": "Loading campaigns…",
       "errors": {
         "load": "Could not load campaigns"
@@ -1556,7 +1793,22 @@
           "loginCustomerId": "Login customer ID (optional)",
           "source": "Source (optional)",
           "medium": "Medium (optional)",
-          "currency": "Currency (optional)"
+          "currency": "Currency (optional)",
+          "accountModeLabel": "Google Ads mode",
+          "accountModeCustomer": "Single ad account",
+          "accountModeMccManaged": "All client accounts under MCC",
+          "accountModeMccLead": "For MCC, enter your manager (MCC) customer ID as Primary ID. Login customer ID is often the same when using that manager account.",
+          "primaryIdPlaceholderMcc": "Manager (MCC) customer ID — 10 digits",
+          "managedCustomersButton": "Managed client accounts (API)",
+          "managedCustomersHide": "Hide list",
+          "managedCustomersEmpty": "No eligible client ad accounts found.",
+          "managedCustomersCaption": "Accounts that will be synced (subject to backend limit)",
+          "managedCustomersLoadError": "Could not load the list from Google Ads API",
+          "managedSyncIncludeLabel": "Sync only these Customer IDs",
+          "managedSyncIncludeHint": "Leave blank to sync every account listed above (except exclusions). Separate IDs with comma, space, or newline.",
+          "managedSyncExcludeLabel": "Do not sync these Customer IDs",
+          "managedSyncExcludeHint": "Applied after MCC loads the child-account list.",
+          "managedSyncFiltersSave": "Save sync filters"
         },
         "meta": {
           "platformAppBanner": "The Meta app is configured on the platform; you still need an access token with Ads permissions for your account.",
@@ -1582,6 +1834,8 @@
       "table": {
         "title": "Current integrations",
         "currencyShort": "Currency",
+        "syncLookbackShort": "Sync days",
+        "syncLookbackHint": "UTC calendar days to fetch on sync, inclusive through today. Allowed 30–731; leave empty for default {{defaultDays}}.",
         "subtitle": "Enabled integrations are used in marketing reports.",
         "total": "Total: {{count}}",
         "empty": "No integrations yet. Add at least GA4 or Metrica.",
@@ -1630,6 +1884,7 @@
         "update": "Could not update integration",
         "delete": "Could not delete integration",
         "sync": "Could not sync",
+        "invalidLookback": "Enter a whole number of days from 30 to 731, or leave empty for the default.",
         "patchCurrency": "Could not save currency"
       },
       "confirmDelete": "Delete integration “{{name}}”?",
@@ -2735,6 +2990,488 @@
         "errors": {
           "loadFailed": "Could not load analytics"
         }
+      },
+      "analyticsV2": {
+        "periods": {
+          "d30": "30d",
+          "d7": "7d",
+          "quarter": "Qtr",
+          "ytd": "YTD",
+          "all": "All time"
+        },
+        "views": {
+          "overview": "Overview",
+          "sources": "Channels",
+          "managers": "Managers",
+          "funnel": "Statuses"
+        },
+        "catalogGroups": {
+          "all": "All",
+          "kpi": "KPI",
+          "charts": "Charts",
+          "tables": "Tables",
+          "presets": "Insights"
+        },
+        "nav": {
+          "salesBreadcrumb": "Sales",
+          "analyticsTitle": "Analytics",
+          "searchPlaceholder": "Search…",
+          "share": "Share",
+          "exportCsv": "Export CSV",
+          "edit": "Edit",
+          "done": "Done",
+          "saveView": "+ Save view",
+          "periodLabel": "Period",
+          "filters": "Filters",
+          "filterAll": "All",
+          "addFilter": "+ Filter",
+          "loading": "Loading",
+          "salesCountLive": "{{count}} sales · just updated",
+          "shareToast": "Link copied to clipboard",
+          "sharePrompt": "Copy this link:",
+          "saveDashboard": "Save dashboard",
+          "reset": "Reset",
+          "addBlock": "Add block",
+          "addBlockHint": "KPI, charts, tables, rankings",
+          "editingMode": "Editing mode",
+          "editingHint": "drag from the top · resize from the corner · conditions in settings",
+          "blocksCount": "{{count}} blocks",
+          "heroKicker": "● Sales analytics · {{period}}",
+          "heroTitle": "Sales — overview",
+          "heroSubtitle": "KPIs, charts, rankings, filters, and your own views by channel, product, status, and custom fields."
+        },
+        "blockTypes": {
+          "metric": {
+            "label": "KPI",
+            "subtitle": "One number, sum, or average"
+          },
+          "formula": {
+            "label": "Formula",
+            "subtitle": "SUMIF, count, percent, share, difference"
+          },
+          "donut": {
+            "label": "Donut",
+            "subtitle": "Shares for a chosen field"
+          },
+          "bar": {
+            "label": "Bar chart",
+            "subtitle": "Compare groups"
+          },
+          "line": {
+            "label": "Line",
+            "subtitle": "Trend by date"
+          },
+          "funnel": {
+            "label": "Funnel",
+            "subtitle": "Stages and conversion"
+          },
+          "leaderboard": {
+            "label": "Leaderboard",
+            "subtitle": "Top managers or groups"
+          },
+          "table": {
+            "label": "Table",
+            "subtitle": "Pivot-style table"
+          },
+          "heatmap": {
+            "label": "Heatmap",
+            "subtitle": "Activity day × hour"
+          },
+          "note": {
+            "label": "Note",
+            "subtitle": "Automatic summary"
+          }
+        },
+        "status": {
+          "new": "New",
+          "pending": "Pending",
+          "processing": "Processing",
+          "on_hold": "On hold",
+          "confirmed": "Confirmed",
+          "paid": "Paid",
+          "complete": "Completed",
+          "cancelled": "Cancelled",
+          "refunded": "Refund",
+          "failed": "Failed",
+          "other": "Other"
+        },
+        "statusGroup": {
+          "successful": "Successful",
+          "refunds": "Refunds",
+          "cancelled": "Cancelled",
+          "in_progress": "In progress",
+          "new": "New",
+          "other": "Other"
+        },
+        "fallbacks": {
+          "notSpecified": "Not specified",
+          "noChannel": "No channel",
+          "noProduct": "No product",
+          "noCustomer": "No customer",
+          "noManager": "No manager",
+          "noData": "No data",
+          "saleShort": "Sale {{id}}"
+        },
+        "money": {
+          "mn": "{{value}}M {{symbol}}",
+          "k": "{{value}}k {{symbol}}"
+        },
+        "weekDaysShort": [
+          "Mon",
+          "Tue",
+          "Wed",
+          "Thu",
+          "Fri",
+          "Sat",
+          "Sun"
+        ],
+        "catalog": {
+          "metric_sales": {
+            "title": "Sales in period",
+            "subtitle": "Order count"
+          },
+          "metric_confirmation": {
+            "title": "Confirmation rate",
+            "subtitle": "confirmed / sales"
+          },
+          "metric_revenue": {
+            "title": "Revenue",
+            "subtitle": "Sales sum"
+          },
+          "metric_avg": {
+            "title": "Average order value",
+            "subtitle": "Revenue / sales"
+          },
+          "formula_sales": {
+            "title": "Sales formula",
+            "subtitle": "Conditions · count · sum · percent"
+          },
+          "line_dynamics": {
+            "title": "Sales trend",
+            "subtitle": "Period vs previous"
+          },
+          "donut_status": {
+            "title": "Breakdown by status",
+            "subtitle": "Shares and counts"
+          },
+          "bar_channels": {
+            "title": "Sales by channel",
+            "subtitle": "Channel / integration"
+          },
+          "bar_products": {
+            "title": "Sales by product",
+            "subtitle": "Product / service"
+          },
+          "heatmap_sales": {
+            "title": "Sales activity",
+            "subtitle": "Day × hour"
+          },
+          "funnel_statuses": {
+            "title": "Sales statuses",
+            "subtitle": "All status variants"
+          },
+          "leaderboard_mgr": {
+            "title": "Manager leaderboard",
+            "subtitle": "Sales · confirmations · revenue"
+          },
+          "table_summary": {
+            "title": "Summary table",
+            "subtitle": "Grouping and sum"
+          },
+          "note_insight": {
+            "title": "Sales insight",
+            "subtitle": "Short takeaway"
+          }
+        },
+        "defaults": {
+          "overview": {
+            "b1": {
+              "title": "Sales in period",
+              "subtitle": "30 days"
+            },
+            "b2": {
+              "title": "Confirmation rate",
+              "subtitle": "confirmed / sales"
+            },
+            "b3": {
+              "title": "Revenue",
+              "subtitle": "sales sum"
+            },
+            "b4": {
+              "title": "Average order value",
+              "subtitle": "revenue / sales"
+            },
+            "b5": {
+              "title": "Sales trend",
+              "subtitle": "period vs prev."
+            },
+            "b6": {
+              "title": "Breakdown by status",
+              "subtitle": "shares and counts"
+            },
+            "b7": {
+              "title": "Sales by channel",
+              "subtitle": "channel / integration"
+            },
+            "b8": {
+              "title": "Sales statuses",
+              "subtitle": "order variants"
+            },
+            "b9": {
+              "title": "Manager leaderboard",
+              "subtitle": "sales · confirmations · revenue"
+            },
+            "b10": {
+              "title": "Summary table",
+              "subtitle": "channels"
+            },
+            "b11": {
+              "title": "Hourly activity",
+              "subtitle": "day × hour"
+            },
+            "b12": {
+              "title": "Weekly highlights",
+              "subtitle": "automatic summary"
+            }
+          },
+          "sources": {
+            "s1": {
+              "title": "Sales by channel",
+              "subtitle": "channel / integration"
+            },
+            "s2": {
+              "title": "Channel summary",
+              "subtitle": "sales · share · revenue"
+            },
+            "s3": {
+              "title": "Channel trend",
+              "subtitle": "period vs prev."
+            },
+            "s4": {
+              "title": "Channel types",
+              "subtitle": "direct / ota / b2b"
+            }
+          },
+          "managers": {
+            "m1": {
+              "title": "Sales in period",
+              "subtitle": "by managers"
+            },
+            "m2": {
+              "title": "Confirmation rate",
+              "subtitle": "confirmed / sales"
+            },
+            "m3": {
+              "title": "Manager leaderboard",
+              "subtitle": "sales · confirmations · revenue"
+            },
+            "m4": {
+              "title": "Team summary",
+              "subtitle": "manager / sales / revenue"
+            },
+            "m5": {
+              "title": "Team activity",
+              "subtitle": "day × hour"
+            }
+          },
+          "funnel": {
+            "f1": {
+              "title": "Sales statuses",
+              "subtitle": "all order variants"
+            },
+            "f2": {
+              "title": "Status groups",
+              "subtitle": "new / in progress / successful"
+            },
+            "f3": {
+              "title": "Status trend",
+              "subtitle": "period vs prev."
+            },
+            "f4": {
+              "title": "Confirmation rate",
+              "subtitle": "confirmed / sales"
+            },
+            "f5": {
+              "title": "Refunds",
+              "subtitle": "refunded"
+            }
+          }
+        },
+        "fields": {
+          "status": "Status",
+          "statusCode": "Status code",
+          "statusGroup": "Status group",
+          "channel": "Channel",
+          "channelType": "Channel type",
+          "integration": "Integration",
+          "product": "Product",
+          "market": "Market",
+          "manager": "Manager",
+          "agentName": "Agent",
+          "customer": "Customer",
+          "orderNo": "Order number",
+          "amount": "Revenue",
+          "currency": "Currency",
+          "quantity": "Quantity",
+          "productType": "Product type",
+          "category": "Category",
+          "size": "Size",
+          "color": "Color",
+          "leadId": "Lead",
+          "saleDate": "Sale date",
+          "createdDate": "Created date",
+          "updatedDate": "Updated date",
+          "checkInAt": "Check-in",
+          "checkOutAt": "Check-out",
+          "daysToCheckIn": "Days until check-in",
+          "bookingNights": "Nights"
+        },
+        "metricOptions": {
+          "total": "Total sales",
+          "conversion": "Confirmation rate",
+          "revenue": "Revenue",
+          "avgRevenue": "Average order value",
+          "won": "Won sales",
+          "lost": "Cancelled sales",
+          "refunded": "Refunds",
+          "channels": "Channels",
+          "products": "Products",
+          "currencies": "Currencies",
+          "response": "Days until check-in",
+          "sumSuffix": "{{label}} — sum",
+          "avgSuffix": "{{label}} — average",
+          "filledSuffix": "{{label}} — filled"
+        },
+        "formulaEvaluate": {
+          "pctOfSet": "{{pct}}% of selection",
+          "countOfTotal": "{{matching}} of {{base}}",
+          "sumField": "sum {{field}}"
+        },
+        "addModal": {
+          "catalogKicker": "Block catalog",
+          "title": "Add block",
+          "subtitle": "New blocks use live data from the current tab and period.",
+          "searchPlaceholder": "Find a block: KPI, channel, conversion…",
+          "esc": "esc"
+        },
+        "config": {
+          "constructorKicker": "Builder",
+          "title": "Block settings",
+          "headerSummary": "{{title}} · {{type}} · {{span}}/12",
+          "titleLabel": "Title",
+          "subtitleLabel": "Subtitle",
+          "dataSection": "Block data",
+          "blockTypeLabel": "Block type",
+          "showWhat": "What we show",
+          "valueMetricLabel": "Value metric",
+          "count": "Count",
+          "sum": "Sum",
+          "sumFieldLabel": "Sum field",
+          "formulaSection": "Formula",
+          "formulaLabel": "Formula",
+          "formula_sumif": "SUMIF (condition)",
+          "formula_count": "COUNT",
+          "formula_percent": "PERCENT",
+          "formula_ratio": "SHARE",
+          "formula_diff": "DIFFERENCE",
+          "formatLabel": "Format",
+          "formulaFormatPercent": "Percent",
+          "displayLabel": "Display",
+          "formula_display_metric": "KPI",
+          "formula_display_donut": "Donut",
+          "formula_display_bar": "Bar chart",
+          "formula_display_table": "Table",
+          "leftValue": "Left value",
+          "rightValue": "Right value",
+          "allValues": "All values",
+          "tableColumnsSection": "Table columns",
+          "addColumn": "+ Add column",
+          "remove": "Remove",
+          "noExtraColumns": "No extra columns selected",
+          "blockConditionsSection": "Block conditions",
+          "blockConditionsHint": "Conditions are combined with AND. Values inside one condition work as OR so you can pick several channels, products, countries, statuses, or managers.",
+          "conditionN": "Condition {{n}}",
+          "addCondition": "+ Add condition",
+          "conditionScopeLabel": "Condition slice",
+          "colorTheme": "Color theme",
+          "colorAria": "Color {{color}}",
+          "showLabels": "Show labels",
+          "sizeSection": "Size",
+          "columnsLabel": "Columns",
+          "heightSection": "Height (px) — or drag handles in edit mode",
+          "footerHome": "To dashboard",
+          "footerDelete": "Delete",
+          "footerDone": "Done",
+          "duplicateSuffix": " copy"
+        },
+        "filterPicker": {
+          "allValues": "All values",
+          "noValues": "No values"
+        },
+        "blockChrome": {
+          "dragAria": "Drag block",
+          "configure": "Configure",
+          "addHome": "To dashboard",
+          "duplicate": "Duplicate",
+          "delete": "Delete",
+          "resizeWidthAria": "Resize width",
+          "resizeHeightAria": "Resize height",
+          "resizeBothAria": "Resize"
+        },
+        "charts": {
+          "total": "total",
+          "valueCol": "Value",
+          "sumCol": "Sum, {{currency}}",
+          "salesCol": "Sales",
+          "shareCol": "Share",
+          "currentPeriod": "Current period",
+          "prevPeriod": "Previous period",
+          "tooltipCurrent": "Current",
+          "tooltipPrev": "Previous",
+          "heatmapTitle": "{{day}} {{hour}}:00 — {{count}} sales"
+        },
+        "note": {
+          "body": "The selection contains <highlight>{{count}}</highlight> sales. Best channel — <highlight>{{channel}}</highlight>. Confirmation rate — <highlight>{{conversion}}%</highlight>.",
+          "missingRates": "Exchange rate missing for <highlight>{{count}}</highlight> sales — shown in original currency."
+        },
+        "metrics": {
+          "vsPrevPeriod": "{{pct}}% vs prev. period",
+          "totalSalesSuffix": "sales",
+          "conversionDeltaPp": "{{sign}}{{pp}}pp confirmed / sales",
+          "conversionDeltaFallback": "{{won}} confirmed of {{total}}",
+          "revenueDeltaSuffix": " by revenue",
+          "revenueDeltaFallback": "{{won}} successful sales",
+          "avgCheckHint": "average order value",
+          "wonSuffix": "ok",
+          "wonFallback": "{{pct}}% of sales",
+          "lostSuffix": "stop",
+          "lostFallback": "{{pct}}% of sales",
+          "refundedSuffix": "refund",
+          "refundedFallback": "{{pct}}% of sales",
+          "channelsFallback": "active channels",
+          "productsFallback": "products in sales",
+          "currenciesFallback": "currencies in sales",
+          "responseEmpty": "no check-in dates in sales",
+          "responseSuffix": "d",
+          "responseDeltaCheckin": "{{text}} until check-in",
+          "responseAvgHint": "average lead time to check-in",
+          "sumFieldFallback": "sum {{field}}",
+          "avgFieldFallback": "average {{field}}",
+          "filledFallback": "filled {{field}}"
+        },
+        "csv": {
+          "order": "Order",
+          "status": "Status",
+          "channel": "Channel",
+          "product": "Product",
+          "customer": "Customer",
+          "manager": "Manager",
+          "market": "Market",
+          "amount": "Amount",
+          "currency": "Currency",
+          "saleDate": "Sale date"
+        },
+        "dimensionValueSuffix": "{{label}} — value"
       }
     },
     "integrationsHub": {
@@ -3317,7 +4054,8 @@
           "activeAutomations": "Active",
           "topTitle": "Most frequent runs",
           "triggersTitle": "By event type",
-          "empty": "No data for this period — create and enable scenarios or wait for the schedule."
+          "empty": "No data for this period — create and enable scenarios or wait for the schedule.",
+          "dayOption": "{{count}} days"
         },
         "copySuffix": "(copy)",
         "titleLeads": "Lead automations",
@@ -3361,6 +4099,81 @@
           "history": "Run history",
           "integrations": "Integrations",
           "usage": "Usage"
+        },
+        "page": {
+          "kicker": "Automations · active: {{count}}",
+          "title": "Automate the routine",
+          "subtitle": "Set triggers and actions — let the CRM work for you",
+          "import": "Import",
+          "newAutomation": "+ New automation",
+          "templatesKicker": "Templates · quick start"
+        },
+        "pageTemplates": {
+          "t1": {
+            "tag": "Popular",
+            "name": "New lead → Telegram + task",
+            "flow": [
+              "Lead created",
+              "Telegram",
+              "Task"
+            ]
+          },
+          "t2": {
+            "tag": "Re-engage",
+            "name": "No reply in 24h → send email",
+            "flow": [
+              "Delay",
+              "Email",
+              "Notification"
+            ]
+          },
+          "t3": {
+            "tag": "Sales",
+            "name": "Deal won → create project",
+            "flow": [
+              "Sale updated",
+              "Project",
+              "Notification"
+            ]
+          },
+          "t4": {
+            "tag": "WhatsApp",
+            "name": "Inbound WA → create lead",
+            "flow": [
+              "Webhook",
+              "Create lead",
+              "Assign"
+            ]
+          },
+          "t5": {
+            "tag": "Schedule",
+            "name": "Every Monday 9:00 — report",
+            "flow": [
+              "Schedule",
+              "HTTP",
+              "Email"
+            ]
+          },
+          "t6": {
+            "tag": "Forms",
+            "name": "Site form → lead + Slack",
+            "flow": [
+              "Webhook",
+              "Create lead",
+              "Slack"
+            ]
+          }
+        },
+        "table": {
+          "colName": "Name",
+          "colLastRun": "Last run",
+          "colRuns": "Runs",
+          "colStatus": "Status",
+          "errorsShort": "{{count}} err.",
+          "statusActive": "Active",
+          "statusPaused": "Paused",
+          "menuPause": "Pause",
+          "menuActivate": "Activate"
         }
       },
       "form": {
@@ -3404,11 +4217,249 @@
           "collapse": "Collapse",
           "noActions": "No actions yet",
           "noConfig": "No extra parameters",
+          "notConfigured": "Not configured",
           "templates": {
             "leads": "New lead -> email and note",
             "projects": "New project -> note and status",
             "sales": "New sale -> report and note"
           }
+        },
+        "library": {
+          "groups": {
+            "leadsSales": "Leads & sales",
+            "contactsCompanies": "Contacts & companies",
+            "projectsTasks": "Projects & tasks",
+            "messaging": "Messaging",
+            "timeApi": "Time & API",
+            "notifications": "Notifications",
+            "crmObjects": "CRM objects",
+            "reportsExport": "Reports & export",
+            "integrations": "Integrations"
+          },
+          "triggerDesc": {
+            "scheduled": "CRON or interval"
+          },
+          "actionDesc": {
+            "send_email": "Template or custom email"
+          }
+        },
+        "validation": {
+          "stepLabel": "Step {{n}}",
+          "nameRequired": "Enter an automation name",
+          "noActions": "Add at least one action",
+          "webhookUrlMissing": "webhook URL is not set",
+          "emailAccountMissing": "email account is not selected",
+          "emailRecipientOrTemplateWarning": "recipient or template is not set",
+          "telegramRecipientMissing": "Telegram bot / recipients are not configured",
+          "slackConnectionMissing": "Slack connection is not configured",
+          "teamsConnectionMissing": "Teams connection is not configured",
+          "taskTitleWarning": "task title is empty",
+          "noteContentWarning": "note body is empty",
+          "reportTypeMissing": "report type is not selected"
+        },
+        "templatePresets": {
+          "t1": {
+            "name": "New lead → Telegram + task"
+          },
+          "t2": {
+            "name": "Stale lead → email + notification"
+          },
+          "t3": {
+            "name": "Deal won → note + notification"
+          },
+          "t4": {
+            "name": "Inbound webhook → notify + assign"
+          },
+          "t5": {
+            "name": "Weekly Monday — sales report"
+          },
+          "t6": {
+            "name": "Site form → note + Slack"
+          }
+        },
+        "builderUi": {
+          "stripBackTitle": "Back to automations",
+          "stripActive": "Live",
+          "stripDraft": "Draft",
+          "stripBuilderTab": "Builder",
+          "stripJsonTab": "JSON",
+          "stripEnabled": "Enabled",
+          "stripDisabled": "Disabled",
+          "stripTest": "Test",
+          "libraryTitle": "Block library",
+          "librarySubtitle": "Click to add to the flow",
+          "librarySearchPlaceholder": "Find a block…",
+          "tabTriggers": "Triggers",
+          "tabActions": "Actions",
+          "flowTrigger": "Trigger",
+          "flowAction": "Action",
+          "insertStepTitle": "Insert step",
+          "titleMoveUp": "Move up",
+          "titleMoveDown": "Move down",
+          "titleDuplicate": "Duplicate",
+          "titleDelete": "Delete",
+          "titleAddAction": "Add action",
+          "flowEnd": "End of flow",
+          "cfgEmptyTitle": "Step settings",
+          "cfgEmptyHint": "Select a step in the flow on the left to configure it.",
+          "triggerStepCaption": "Trigger · step 1 of {{total}}",
+          "actionStepCaption": "Action · step {{n}} of {{total}}",
+          "cfgTabParams": "Parameters",
+          "cfgTabConditions": "Conditions",
+          "cfgTabLogs": "Logs",
+          "triggerFieldLabel": "Trigger event",
+          "scheduleSection": "Schedule",
+          "generalSection": "General",
+          "automationDescriptionPlaceholder": "Internal note about this automation",
+          "maxExecutionsLabel": "Max runs",
+          "cooldownLabel": "Cooldown (sec)",
+          "conditionsIntro": "The automation runs only when every condition passes. Leave empty to always run.",
+          "conditionFieldPlaceholder": "field",
+          "conditionValuePlaceholder": "value",
+          "conditionOp": {
+            "equals": "equals",
+            "not_equals": "not equal",
+            "contains": "contains",
+            "not_contains": "does not contain",
+            "greater_than": ">",
+            "less_than": "<",
+            "greater_or_equal": "≥",
+            "less_or_equal": "≤",
+            "is_empty": "empty",
+            "is_not_empty": "not empty",
+            "starts_with": "starts with",
+            "ends_with": "ends with"
+          },
+          "addCondition": "Add condition",
+          "logsAfterSave": "Logs appear after you save and run the automation.",
+          "logsLoading": "Loading…",
+          "logsEmpty": "No runs yet.",
+          "logActionsExecuted": "{{count}} actions",
+          "deleteStepTitle": "Remove step",
+          "webhookPostHint": "POST with trigger payload is sent to this URL.",
+          "pickPlaceholder": "— select —",
+          "pickEmailAccount": "— choose account —",
+          "pickEmailTemplate": "— no template —",
+          "subjectPlaceholder": "Subject",
+          "emailBodyPlaceholder": "Email body…",
+          "slackMessagePlaceholder": "Slack message",
+          "teamsTitlePlaceholder": "Notification",
+          "teamsTextPlaceholder": "Notification text",
+          "whatsappMessagePlaceholder": "Message",
+          "notificationTitlePlaceholder": "Notification",
+          "notificationBodyPlaceholder": "Notification body: {{lead.name}}",
+          "notificationRecipientsPlaceholder": "— all staff —",
+          "notificationRecipientsHelp": "Leave empty — every active staff member receives it.",
+          "assignStaffPlaceholder": "— choose staff —",
+          "assignStaffHelp": "You can pick several — the record is assigned to each.",
+          "notePlaceholder": "Note content…",
+          "newStatusPlaceholder": "new / won / lost / …",
+          "tagPlaceholder": "vip, cold, …",
+          "telegramVarsHint": "Variables: {{lead.name}}, {{lead.email}}, {{sale.name}}, …",
+          "telegramBotLabel": "Telegram bot *",
+          "telegramNoBots": "No bots connected.",
+          "telegramAddBotsLink": "Add bot →",
+          "telegramPickBot": "— choose bot —",
+          "telegramInactiveSuffix": " (inactive)",
+          "telegramRecipientsLabel": "Recipients *",
+          "telegramNoRecipients": "No recipients configured.",
+          "telegramAddRecipientsLink": "Add recipients →",
+          "telegramMessagePlaceholder": "🔥 New lead: {{lead.name}} ({{lead.email}})",
+          "reportChannelLabel": "Channel",
+          "reportFormatSection": "Format",
+          "reportFreqDaily": "Daily",
+          "reportFreqWeekly": "Weekly",
+          "reportFreqMonthly": "Monthly",
+          "dataExportChannelLabel": "Channel",
+          "dataExportSourcePathLabel": "Data source (path)",
+          "dataExportUnwrapLabel": "Unwrap nested data",
+          "dataExportSubjectLabel": "Subject",
+          "assignTaskStaffLabel": "Assignee *",
+          "jsonPayloadLabel": "JSON payload",
+          "subscriptionStatusLabel": "Subscription status",
+          "subscriberEmailLabel": "Subscriber email",
+          "mailchimpMergeFieldsLabel": "Merge fields (JSON)",
+          "connectionMailchimp": "Mailchimp connection",
+          "connectionZapier": "Zapier connection",
+          "connectionWhatsApp": "WhatsApp connection",
+          "connectionGoogleCalendar": "Google Calendar connection",
+          "connectionOutlook": "Outlook connection",
+          "eventTitleLabel": "Event title",
+          "eventTitlePlaceholder": "Meeting with {{lead.name}}",
+          "eventDescriptionLabel": "Description",
+          "durationMinutesLabel": "Duration (min)",
+          "startOffsetMinutesLabel": "Start offset (min)",
+          "timeZoneLabel": "Time zone",
+          "marketingIntegrationGoogleAds": "Google Ads marketing integration",
+          "marketingIntegrationMetaAds": "Meta Ads marketing integration",
+          "connectionGoogleAds": "Google Ads connection",
+          "connectionMetaAds": "Meta Ads connection",
+          "developerTokenLabel": "Developer Token",
+          "customerIdLabel": "Customer ID",
+          "calendarIdLabel": "Calendar ID",
+          "taskIdLabel": "Task ID",
+          "staffLabel": "Staff *",
+          "phoneToLabel": "To (phone)",
+          "paramsJsonLabel": "Parameters (JSON)",
+          "apiMethodLabel": "API method",
+          "bitrixConnectionLabel": "Bitrix24 connection",
+          "amocrmConnectionLabel": "amoCRM connection",
+          "hubspotConnectionLabel": "HubSpot connection",
+          "htmlBodyLabel": "HTML body",
+          "replyToLabel": "Reply-To",
+          "fromNameLabel": "From name",
+          "subjectCampaignLabel": "Subject",
+          "testModalTitle": "Automation validation",
+          "testModalErrors": "Errors",
+          "testModalWarnings": "Warnings",
+          "testModalSuccessBody": "Everything looks correct. The automation is ready to run.",
+          "testModalClose": "Close",
+          "pickerTitle": "Choose block",
+          "workspacePushDupField": "Duplicate-check field (optional)",
+          "workspacePushSkipDup": "Skip if value already exists",
+          "workspacePushTargetObject": "Target table UUID (board)",
+          "workspacePushHint": "Trigger: custom table record. Copies the row into the target «Table» board. Add a condition objectId = your data table.",
+          "scheduledHintHtml": "Scheduled runs use the fields below (frequency, time, timezone).",
+          "fieldLabel": "Field",
+          "valueLabel": "Value",
+          "noteContentLabel": "Note text",
+          "newStatusLabel": "New status",
+          "tagLabel": "Tag",
+          "botIdLabel": "Bot ID",
+          "telegramUserIdLabel": "Telegram user ID",
+          "emailAccountShortLabel": "Email account",
+          "recipientLabel": "To",
+          "templateLabel": "Template",
+          "webhookUrlShortLabel": "Webhook URL",
+          "createLeadPlaceholder": "Create lead",
+          "delayStep": "Delay",
+          "httpStep": "HTTP",
+          "connectionSlack": "Slack connection",
+          "connectionTeams": "Microsoft Teams connection",
+          "titleLabel": "Title",
+          "textLabel": "Text",
+          "httpMethodLabel": "HTTP method",
+          "apiPathLabel": "API path",
+          "stepConditionsIntro": "Conditions for this step. The step is skipped if a condition is not met.",
+          "notificationRecipientsLabel": "Recipients",
+          "telegramMessageLabel": "Message text *",
+          "taskTitleLabel": "Task title",
+          "taskTitlePlaceholder": "Call {{lead.name}} back",
+          "taskStatusLabel": "Status",
+          "taskPriorityLabel": "Priority",
+          "priorityLow": "Low",
+          "priorityNormal": "Normal",
+          "priorityHigh": "High",
+          "taskDueDaysLabel": "Due (days from trigger)",
+          "taskAssigneeLabel": "Assignee",
+          "taskAssigneePlaceholder": "— unassigned —",
+          "duplicateKeyTargetFieldLabel": "Duplicate key field",
+          "skipDuplicatesCheckbox": "Skip duplicates",
+          "customObjectIdLabel": "Object ID (targetObjectId)",
+          "pickerSearchPlaceholder": "Find an action or trigger…",
+          "pickerTabTriggerSingular": "Trigger",
+          "pickerKbdNavigate": "navigate",
+          "pickerKbdClose": "close"
         },
         "triggerGroups": {
           "contacts": "Contacts",
@@ -3808,7 +4859,11 @@
           "update_field": "Update field",
           "add_tag": "Add tag",
           "change_status": "Change status",
-          "create_custom_object_record": "Copy row to another table"
+          "create_custom_object_record": "Copy row to another table",
+          "assign_user": "Assign user",
+          "assign_task": "Assign task",
+          "remove_tag": "Remove tag",
+          "send_notification": "Push notification"
         },
         "openMarketingIntegrationsPage": "Marketing · integrations",
         "errors": {
@@ -4092,7 +5147,17 @@
         "sub": "What is happening in your workspace"
       },
       "hero": {
-        "kicker": "Home"
+        "kicker": "Home",
+        "stats": {
+          "tasksToday": "{{count}} tasks today",
+          "overdue": "{{count}} overdue",
+          "newLeads": "{{count}} new leads",
+          "revenue": "{{amount}} € revenue"
+        }
+      },
+      "loading": "Refreshing dashboard…",
+      "errors": {
+        "loadFailed": "Could not load dashboard data"
       },
       "fallbacks": {
         "user": "Colleague",
@@ -4100,7 +5165,9 @@
         "noStatus": "No status",
         "noName": "No name",
         "empty": "—",
-        "noDue": "No due date"
+        "noDue": "No due date",
+        "noChannel": "No channel",
+        "notSpecified": "Not specified"
       },
       "roles": {
         "owner": "Owner",
@@ -4110,7 +5177,21 @@
         "manager": "Manager"
       },
       "widgets": {
+        "customize": "Customize widgets",
+        "done": "Done",
         "addBlock": "Add block",
+        "nothingToAdd": "All available blocks are already on the screen",
+        "addedToHome": "Widget added to home",
+        "resize": "Column width",
+        "moveUp": "Move up",
+        "moveDown": "Move down",
+        "hide": "Hide from home",
+        "editBlock": "Edit block",
+        "editModalTitle": "Home block",
+        "editTitleLabel": "Title",
+        "deleteBlock": "Remove block",
+        "drag": "Drag",
+        "sizeLabel": "Width {{size}}",
         "names": {
           "kpi": "KPIs",
           "quick-actions": "Quick actions",
@@ -4130,16 +5211,151 @@
         },
         "addBlockHint": "metrics, reports, widgets from other pages"
       },
+      "leadsTimeline": {
+        "title": "My leads trend (14 days)",
+        "subtitle": "How many inquiries arrived each day",
+        "total": "Total in period:",
+        "empty": "No data for the chart yet."
+      },
+      "pipeline": {
+        "title": "Pipeline by my projects",
+        "subtitle": "amount by status",
+        "empty": "You have no projects yet.",
+        "itemLabel": "{{count}} · {{value}} €"
+      },
+      "recentLeads": {
+        "title": "My latest leads",
+        "openAll": "Open all",
+        "headers": {
+          "name": "Name",
+          "channel": "Channel",
+          "status": "Status",
+          "created": "Created"
+        },
+        "empty": "No leads yet."
+      },
+      "tasks": {
+        "title": "My project tasks",
+        "empty": "No tasks assigned to you.",
+        "overdue": "Overdue",
+        "today": "Today",
+        "upcoming": "Upcoming",
+        "fallbackTitle": "Task",
+        "titleWithProject": "{{title}} · {{project}}"
+      },
+      "taskTypes": {
+        "call": "Call",
+        "meeting": "Meeting",
+        "todo": "Task"
+      },
+      "detailModal": {
+        "open": "Details"
+      },
+      "salesByChannel": {
+        "title": "Sales by channel (won projects)"
+      },
+      "quickActions": {
+        "newLead": "New lead",
+        "leadsCalendar": "Leads calendar",
+        "leadsBoard": "Leads board",
+        "projects": "Projects",
+        "workspaces": "Workspaces"
+      },
+      "quickAccess": {
+        "sectionTitle": "Quick access",
+        "starTitle": "Favorite",
+        "kinds": {
+          "projects": "CRM · Projects",
+          "leads": "CRM · Leads",
+          "analytics": "Analytics",
+          "calendar": "Calendar"
+        },
+        "labels": {
+          "projectsTable": "Projects — Table",
+          "leadsFunnel": "Sales funnel",
+          "leadsAnalytics": "Lead analytics",
+          "meetingsTasks": "Meetings & tasks"
+        }
+      },
+      "projectsAnalytics": {
+        "kpiProjects": "Projects",
+        "kpiRevenue": "Revenue",
+        "openFull": "Full project analytics"
+      },
+      "leadsAnalyticsWidget": {
+        "kpiLeads": "Leads",
+        "kpiConversion": "Conversion",
+        "openFull": "Full lead analytics"
+      },
+      "salesAnalyticsWidget": {
+        "kpiCount": "Orders",
+        "kpiAmount": "Amount",
+        "openFull": "Full sales analytics"
+      },
+      "addToHomeFromAnalytics": "Add to home",
+      "presets": {
+        "modalTitle": "Analytics presets",
+        "tabSales": "Sales analytics",
+        "tabProjects": "Project analytics",
+        "tabLeads": "Lead analytics",
+        "standardBlocks": "Standard home blocks",
+        "openAnalytics": "Full analytics",
+        "fallback": "Analytics",
+        "metricWonProjects": "Won projects",
+        "pickHint": "Mini-preview below shows how the block will look on home. Pick a data source with the tabs above.",
+        "addToDashboard": "Add to home",
+        "previewHint": "Preview",
+        "embedFallback": "No data for this widget type",
+        "formulaOnFullPage": "Open full analytics to configure the formula"
+      },
+      "salesOrderStatus": {
+        "new": "New",
+        "pending": "Pending",
+        "processing": "Processing",
+        "on-hold": "On hold",
+        "on_hold": "On hold",
+        "confirmed": "Confirmed",
+        "paid": "Paid",
+        "completed": "Completed",
+        "complete": "Completed",
+        "cancelled": "Cancelled",
+        "canceled": "Cancelled",
+        "refunded": "Refunded",
+        "failed": "Failed",
+        "other": "Other"
+      },
       "projects": {
+        "title": "My projects breakdown",
+        "subtitle": "Open, won and lost deals",
         "sub": "By priority and task progress",
-        "tasksLabel": "tasks"
+        "total": "Total:",
+        "openPotential": "Open potential:",
+        "empty": "You have no projects yet.",
+        "tasksLabel": "tasks",
+        "chips": {
+          "open": "Open",
+          "won": "Won",
+          "lost": "Lost"
+        },
+        "tasksSummary": "Tasks snapshot:",
+        "countLabel": "Projects:",
+        "amountLabel": "Amount:"
       },
       "channels": {
-        "allChannels": "All channels in the CRM"
+        "title": "Leads by channel (mine)",
+        "period": "all time",
+        "allChannels": "All channels in the CRM",
+        "empty": "No leads assigned to you yet."
       },
       "staff": {
         "subLabel": "closed revenue",
-        "leadsLabel": "leads"
+        "leadsLabel": "leads",
+        "headers": {
+          "name": "Team member",
+          "leads": "Leads",
+          "revenue": "Revenue"
+        },
+        "empty": "No team data yet"
       },
       "calendar": {
         "hintSources": "Purple — meetings from lead cards (incl. AI). Blue — your records on this device.",
@@ -4199,6 +5415,18 @@
         "evening": "Good evening"
       },
       "kpi": {
+        "todayLeads": "Leads today",
+        "todayLeadsHint": "current day",
+        "totalLeads": "All my leads",
+        "totalLeadsHint": "lifetime",
+        "conversion": "My conversion",
+        "conversionHint": "closed leads",
+        "wonProjects": "Won projects",
+        "wonProjectsHint": "count",
+        "revenue": "Revenue (EUR)",
+        "revenueHint": "won projects",
+        "tasksTotal": "Tasks total",
+        "tasksSubtitle": "{{overdue}} overdue · {{today}} today",
         "sectionTitle": "Key metrics"
       },
       "sections": {
@@ -5424,6 +6652,24 @@
         "common": {
           "empty": "—"
         }
+      },
+      "permissions": {
+        "contacts": "Contacts",
+        "companies": "Companies",
+        "email": "Email",
+        "marketing": "Marketing",
+        "tools_automation": "Automation",
+        "custom_objects": "No-code Workspace",
+        "group": {
+          "crm": "CRM",
+          "communication": "Communication",
+          "tools": "Tools",
+          "admin": "Administration"
+        },
+        "hint": {
+          "staff": "Staff management, invites",
+          "settings": "Company settings, API, integrations"
+        }
       }
     }
   },
@@ -5445,7 +6691,9 @@
       "contact": "Contact",
       "faq": "FAQ",
       "terms": "Terms",
-      "changelog": "Changelog"
+      "changelog": "Changelog",
+      "openCrmHint": "Open your CRM — logged in as this workspace",
+      "openCrmCta": "Open CRM"
     },
     "common": {
       "kicker": "Lumiva CRM",

@@ -13,7 +13,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
 import * as jwt from 'jsonwebtoken';
-import { Between, Brackets, Repository } from 'typeorm';
+import { Between, Brackets, EntityManager, Repository } from 'typeorm';
 
 import { Lead } from '../leads/lead.entity';
 import { LeadsService } from '../leads/leads.service';
@@ -42,6 +42,8 @@ import { Ga4OAuthStartDto } from './dto/ga4-oauth-start.dto';
 /** Актуальная версия REST Google Ads API (v14 и ниже сняты → 404). */
 export const GOOGLE_ADS_API_VERSION = 'v23';
 
+/** Если по `campaign` строк нет — дневная сводка по `customer`; подпись строки включает CID и имя счёта. */
+
 const GOOGLE_ADS_MARKETING_OAUTH_STATE_TYP = 'lumiva_ga_mkt_oauth_v1' as const;
 const GOOGLE_ADS_MARKETING_OAUTH_TTL_SEC = 900;
 
@@ -61,6 +63,7 @@ export type GoogleAdsMarketingOAuthStateDecoded = {
     loginCustomerId?: string;
     source?: string;
     medium?: string;
+    googleAdsAccountMode?: 'customer' | 'mcc_managed';
   };
 };
 
@@ -153,7 +156,23 @@ function googleAdsSyncFailureHint(detail: string): string {
       'Login Customer ID при этом остаётся ID менеджера, если доступ через MCC.'
     );
   }
+  if (u.includes('INVALID_ARGUMENT') || u.includes('REQUEST CONTAINS AN INVALID ARGUMENT')) {
+    return (
+      ' Возможная причина — некорректная GAQL-строка (например, сортировка по полю, не входящему в SELECT) или запрос списка клиентов не с Customer ID менеджерского (MCC) счёта; проверьте login-customer-id.'
+    );
+  }
   return '';
+}
+
+/** Ключ marketing_traffic для конкретного клиентского Google Ads CID (позволяет несколько аккаунтов в одном tenant). */
+export function marketingTrafficGoogleAdsDataSource(customerDigits: string): string {
+  const d = String(customerDigits || '').replace(/\D/g, '').trim();
+  return (`google_ads_${d}`).slice(0, 80);
+}
+
+export function trafficPresetIsGoogleAds(dataSource: string): boolean {
+  const t = String(dataSource || '').trim();
+  return t === 'google_ads' || /^google_ads_\d{4,15}$/.test(t);
 }
 
 function normTrafficCurrency(raw: string | null | undefined): string {
@@ -298,7 +317,7 @@ export class MarketingService {
     }
   }
 
-  /** Кэш курсов отдельно по валюте отчёта (display). TTL 1 ч; `force` обходит кэш. */
+  /** Кэш вычисленного ответа по валюте отчёта (display). TTL 1 ч; `force` обходит кэш. */
   private readonly marketingFxCache = new Map<
     string,
     {
@@ -308,15 +327,24 @@ export class MarketingService {
         asOf: string;
         source: string;
         multiplyToDisplay: Record<string, number>;
+        availableDisplayCurrencies: string[];
       };
     }
   >();
 
   private readonly marketingFxTtlMs = 60 * 60 * 1000;
 
+  /** Сырые курсы Frankfurter (EUR → *) — один HTTP на TTL, пересчёт multiply под любую display без повторной загрузки. */
+  private frankfurterRawCache: {
+    at: number;
+    ratesVsEur: Record<string, number>;
+    asOf: string;
+    source: string;
+  } | null = null;
+
   /**
-   * Тянем курсы EUR→TRY, GBP с api.frankfurter.app/latest (без /v1 — иначе 404).
-   * RUB в наборе ECB на .app часто отсутствует — добираем с api.frankfurter.dev/v2.
+   * Полный список курсов ECB с api.frankfurter.app/latest?from=EUR (без /v1).
+   * RUB в наборе .app часто отсутствует — добираем с api.frankfurter.dev/v2.
    */
   private async fetchFrankfurterMergedRates(): Promise<{
     ratesVsEur: Record<string, number>;
@@ -324,31 +352,34 @@ export class MarketingService {
     source: string;
   }> {
     const res = await axios.get<{ rates?: Record<string, number>; date?: string }>(
-      'https://api.frankfurter.app/latest?from=EUR&to=TRY,GBP,USD',
+      'https://api.frankfurter.app/latest?from=EUR',
       { timeout: 12_000 },
     );
     const ratesVsEur: Record<string, number> = { ...(res.data?.rates || {}) };
     let asOf = String(res.data?.date ?? '');
     let source = 'Frankfurter api.frankfurter.app (ECB)';
-    try {
-      const r2 = await axios.get<
-        Array<{ date?: string; quote?: string; rate?: number }>
-      >('https://api.frankfurter.dev/v2/rates?base=EUR&quotes=RUB', {
-        timeout: 10_000,
-      });
-      if (Array.isArray(r2.data)) {
-        for (const row of r2.data) {
-          if (row.quote === 'RUB' && row.rate != null && Number(row.rate) > 0) {
-            ratesVsEur.RUB = Number(row.rate);
-            if (row.date) asOf = row.date;
+    const needRub = !(Number(ratesVsEur.RUB) > 0);
+    if (needRub) {
+      try {
+        const r2 = await axios.get<
+          Array<{ date?: string; quote?: string; rate?: number }>
+        >('https://api.frankfurter.dev/v2/rates?base=EUR&quotes=RUB', {
+          timeout: 10_000,
+        });
+        if (Array.isArray(r2.data)) {
+          for (const row of r2.data) {
+            if (row.quote === 'RUB' && row.rate != null && Number(row.rate) > 0) {
+              ratesVsEur.RUB = Number(row.rate);
+              if (row.date) asOf = row.date;
+            }
           }
+          source += ' + RUB (frankfurter.dev v2)';
         }
-        source += ' + RUB (frankfurter.dev v2)';
+      } catch (e: unknown) {
+        this.log.warn(
+          `FX: не удалось подтянуть RUB с frankfurter.dev: ${e instanceof Error ? e.message : e}`,
+        );
       }
-    } catch (e: unknown) {
-      this.log.warn(
-        `FX: не удалось подтянуть RUB с frankfurter.dev: ${e instanceof Error ? e.message : e}`,
-      );
     }
     if (!asOf) asOf = new Date().toISOString().slice(0, 10);
     if (!ratesVsEur || Object.keys(ratesVsEur).length === 0) {
@@ -357,8 +388,28 @@ export class MarketingService {
     return { ratesVsEur, asOf, source };
   }
 
+  /** Один запрос Frankfurter на TTL либо взять из кэша. */
+  private async loadFrankfurterRaw(force: boolean): Promise<{
+    ratesVsEur: Record<string, number>;
+    asOf: string;
+    source: string;
+  }> {
+    const now = Date.now();
+    if (!force && this.frankfurterRawCache && now - this.frankfurterRawCache.at < this.marketingFxTtlMs) {
+      return this.frankfurterRawCache;
+    }
+    try {
+      const m = await this.fetchFrankfurterMergedRates();
+      this.frankfurterRawCache = { at: now, ...m };
+      return this.frankfurterRawCache;
+    } catch (e: unknown) {
+      const msg = axios.isAxiosError(e) ? e.message : String(e);
+      throw new BadRequestException(`FX: Frankfurter недоступен (${msg})`);
+    }
+  }
+
   /**
-   * Курсы для экранов маркетинга: EUR, GBP, TRY, USD (+ RUB с dev API).
+   * Курсы для экранов маркетинга: все валюты из ответа ECB (Frankfurter).
    * Множитель: amount_in_display = amount_in_src * multiplyToDisplay[src].
    */
   async getMarketingFxRates(
@@ -369,51 +420,65 @@ export class MarketingService {
     asOf: string;
     source: string;
     multiplyToDisplay: Record<string, number>;
+    availableDisplayCurrencies: string[];
   }> {
-    const allowed = ['EUR', 'GBP', 'TRY', 'USD', 'RUB'] as const;
-    const set = new Set<string>(allowed);
-    const display = (displayRaw || 'EUR').toUpperCase().slice(0, 8);
-    if (!set.has(display)) {
+    const display = (displayRaw || 'EUR')
+      .toUpperCase()
+      .replace(/[^A-Z]/g, '')
+      .slice(0, 3);
+    if (!/^[A-Z]{3}$/.test(display)) {
       throw new BadRequestException(
-        `Unsupported display currency: ${display}. Allowed: ${allowed.join(', ')}`,
+        `Unsupported display currency code: ${displayRaw}. Use a 3-letter ISO code (e.g. CHF, PLN).`,
       );
     }
     const now = Date.now();
     const force = opts?.force === true;
+    if (force) {
+      this.marketingFxCache.clear();
+    }
     if (!force) {
       const cached = this.marketingFxCache.get(display);
       if (cached && now - cached.at < this.marketingFxTtlMs) {
         return cached.data;
       }
     }
-    let ratesVsEur: Record<string, number>;
-    let asOf: string;
-    let source: string;
-    try {
-      const m = await this.fetchFrankfurterMergedRates();
-      ratesVsEur = m.ratesVsEur;
-      asOf = m.asOf;
-      source = m.source;
-    } catch (e: unknown) {
-      const msg = axios.isAxiosError(e) ? e.message : String(e);
-      throw new BadRequestException(`FX: Frankfurter недоступен (${msg})`);
-    }
+    const { ratesVsEur, asOf, source } = await this.loadFrankfurterRaw(force);
+
     /** Сколько EUR в 1 единице валюты F (1 EUR = r units of F ⇒ 1 F = 1/r EUR). */
     const eurPerUnit: Record<string, number> = { EUR: 1 };
-    for (const c of ['TRY', 'GBP', 'USD', 'RUB'] as const) {
-      const r = Number(ratesVsEur[c]);
-      if (Number.isFinite(r) && r > 0) eurPerUnit[c] = 1 / r;
-      else eurPerUnit[c] = 1;
+    for (const code of Object.keys(ratesVsEur)) {
+      if (!/^[A-Z]{3}$/.test(code)) continue;
+      if (code === 'EUR') continue;
+      const r = Number(ratesVsEur[code]);
+      if (Number.isFinite(r) && r > 0) eurPerUnit[code] = 1 / r;
     }
+
+    const availableDisplayCurrencies = Object.keys(eurPerUnit)
+      .filter((c) => Number(eurPerUnit[c]) > 0)
+      .sort();
+
+    if (!(display in eurPerUnit) || !(Number(eurPerUnit[display]) > 0)) {
+      const sample = availableDisplayCurrencies.slice(0, 12).join(', ');
+      throw new BadRequestException(
+        `Unsupported display currency: ${display}. Not in current ECB set. Examples: ${sample}${
+          availableDisplayCurrencies.length > 12 ? ', …' : ''
+        }`,
+      );
+    }
+
     const multiplyToDisplay: Record<string, number> = {};
-    for (const f of allowed) {
-      multiplyToDisplay[f] = eurPerUnit[f] / eurPerUnit[display];
+    for (const f of Object.keys(eurPerUnit)) {
+      if (Number(eurPerUnit[f]) > 0 && Number(eurPerUnit[display]) > 0) {
+        multiplyToDisplay[f] = eurPerUnit[f] / eurPerUnit[display];
+      }
     }
+
     const data = {
       display,
       asOf,
       source,
       multiplyToDisplay,
+      availableDisplayCurrencies,
     };
     this.marketingFxCache.set(display, { at: now, data });
     return data;
@@ -729,6 +794,41 @@ export class MarketingService {
       ]);
       if (display) out[key] = display;
     }
+
+    for (const r of rows) {
+      const p = this.normalizeMarketingIntegrationProvider(r.provider);
+      if (p !== 'google_ads') continue;
+      const flat = this.flattenNestedIntegrationSettings(
+        this.parseSettingsObject(r.settings),
+      );
+      const pid = this.pickFirstNonEmptyString([
+        r.primaryId,
+        flat.customerId,
+        flat.customer_id,
+      ])?.replace(/\D/g, '');
+      if (!pid || !/^\d{6,15}$/.test(pid)) continue;
+      const mode = String(flat.googleAdsAccountMode || '').trim().toLowerCase();
+      if (mode !== 'mcc_managed') {
+        const key = marketingTrafficGoogleAdsDataSource(pid);
+        if (!out[key]) {
+          const lbl = String(r.name || '').trim();
+          if (lbl) out[key] = lbl.slice(0, 200);
+        }
+        continue;
+      }
+      const lblMap = flat.googleAdsManagedAccountLabels ?? flat.google_ads_managed_account_labels;
+      if (lblMap && typeof lblMap === 'object' && !Array.isArray(lblMap)) {
+        for (const [cid, name] of Object.entries(lblMap as Record<string, unknown>)) {
+          const d = String(cid).replace(/\D/g, '').trim();
+          if (!d || !/^\d{6,15}$/.test(d)) continue;
+          const nm = typeof name === 'string' ? name.trim() : String(name ?? '').trim();
+          const key = marketingTrafficGoogleAdsDataSource(d);
+          // Use the stored name; if absent fall back to the CID so every sub-account
+          // tracked in settings gets an explicit entry in dataSourceLabels.
+          if (!out[key]) out[key] = (nm || `Google Ads · ${d}`).slice(0, 200);
+        }
+      }
+    }
     return out;
   }
 
@@ -969,6 +1069,36 @@ export class MarketingService {
     return out;
   }
 
+  /**
+   * Окно выгрузки рекламных интеграций (Google Ads, Meta): строго календарные дни UTC, включительно [from .. to].
+   * Настройка JSON: syncLookbackDays (или наследованные ключи googleAdsSyncLookbackDays / adsSyncLookbackDays), 30–731, по умолчанию ~2 года.
+   */
+  private resolveAdvertisingSyncInclusiveUtcRange(
+    flatSettings: Record<string, unknown>,
+  ): { from: string; to: string; lookbackDays: number } {
+    const minD = 30;
+    const maxD = 731;
+    const defaultD = 730;
+    const raw =
+      flatSettings.syncLookbackDays ??
+      flatSettings.googleAdsSyncLookbackDays ??
+      flatSettings.adsSyncLookbackDays;
+    let n = Number(raw);
+    if (!Number.isFinite(n)) n = defaultD;
+    n = Math.floor(n);
+    n = Math.min(Math.max(n, minD), maxD);
+
+    const now = new Date();
+    const y = now.getUTCFullYear();
+    const m = now.getUTCMonth();
+    const d = now.getUTCDate();
+    const to = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const startUtcMs = Date.UTC(y, m, d) - (n - 1) * 864e5;
+    const st = new Date(startUtcMs);
+    const from = `${st.getUTCFullYear()}-${String(st.getUTCMonth() + 1).padStart(2, '0')}-${String(st.getUTCDate()).padStart(2, '0')}`;
+    return { from, to, lookbackDays: n };
+  }
+
   private pickFirstNonEmptyString(values: unknown[]): string {
     for (const v of values) {
       if (v === null || v === undefined) continue;
@@ -1079,15 +1209,219 @@ export class MarketingService {
   }
 
   async deleteMarketingIntegration(tenantId: string, id: string) {
-    const res = await this.integrationRepo.delete({ id, tenantId });
-    if (!res.affected) throw new NotFoundException('Integration not found');
+    await this.integrationRepo.manager.transaction(async (em: EntityManager) => {
+      const row = await em.findOne(MarketingIntegration, { where: { id, tenantId } });
+      if (!row) {
+        throw new NotFoundException('Integration not found');
+      }
+      await this.deleteMarketingTrafficTiedToIntegration(em, row);
+      const del = await em.delete(MarketingIntegration, { id, tenantId });
+      if (!del.affected) throw new NotFoundException('Integration not found');
+    });
     return { success: true };
   }
 
   /**
-   * Ручная синхронизация одной интеграции (UI: «Синхронизировать» для Google Ads).
+   * По возможности удалить строки marketing_traffic этого подключения.
+   * Google Ads / GA4 — по точным тегам; Meta и Метрика делят один dataSource между интеграциями —
+   * очищаем весь пул метрик только если других интеграций этого типа у тенанта не останется.
    */
-  /** @returns сколько строк трафика записано (0 — ок, но данных за период нет или синк пропущен). */
+  private async deleteMarketingTrafficTiedToIntegration(
+    em: EntityManager,
+    row: MarketingIntegration,
+  ): Promise<void> {
+    const tenantId = row.tenantId;
+    const prov = this.normalizeMarketingIntegrationProvider(row.provider);
+
+    if (prov === 'google_ads') {
+      const flat = this.flattenNestedIntegrationSettings(
+        this.parseSettingsObject(row.settings),
+      );
+      const mode = String(
+        flat.googleAdsAccountMode || flat.google_ads_account_mode || 'customer',
+      )
+        .trim()
+        .toLowerCase();
+
+      const googleAdsPeers = await this.marketingIntegrationPeersCount(em, tenantId, row.id, [
+        'google_ads',
+      ]);
+
+      if (mode === 'mcc_managed' && googleAdsPeers === 0) {
+        // No other Google Ads integrations — safely remove all google_ads_* and google_ads rows
+        // (covers both tracked accounts and any that were synced before name tracking was added).
+        await em
+          .createQueryBuilder()
+          .delete()
+          .from(MarketingTraffic)
+          .where('tenantId = :tenantId', { tenantId })
+          .andWhere("dataSource LIKE 'google_ads_%'")
+          .execute();
+        await this.marketingTrafficDeleteExactDataSource(em, tenantId, 'google_ads');
+        return;
+      }
+
+      // Either non-MCC mode or there are peer Google Ads integrations.
+      // Use the settings-based tag list (contains all CIDs written by this integration).
+      const tags = this.collectGoogleAdsTrafficDataSourcesForIntegration(row);
+      if (mode === 'mcc_managed' && !tags.length) {
+        this.log.warn(
+          `Удаление Google Ads MCC ${row.id}: в настройках нет googleAdsManagedAccountLabels / whitelist — строки marketing_traffic с тегами google_ads_<cid> не удалены автоматически; при необходимости удалите их вручную из БД.`,
+        );
+      }
+      if (tags.length) await this.marketingTrafficDeleteByDataSources(em, tenantId, tags);
+      if (googleAdsPeers === 0) {
+        await this.marketingTrafficDeleteExactDataSource(em, tenantId, 'google_ads');
+      }
+      return;
+    }
+
+    if (this.isGa4MarketingProvider(prov)) {
+      const pid = String(row.primaryId || '').replace(/\D/g, '').trim();
+      if (pid.length >= 4) {
+        const tag = (`ga4_${pid}`).slice(0, 80);
+        await this.marketingTrafficDeleteExactDataSource(em, tenantId, tag);
+      }
+      return;
+    }
+
+    if (
+      prov === 'yandex_metrika' ||
+      prov === 'yandex_metrica' ||
+      prov === 'yandex_metrika_web'
+    ) {
+      const ymPeers = await this.marketingIntegrationPeersCount(em, tenantId, row.id, [
+        'yandex_metrika',
+        'yandex_metrica',
+        'yandex_metrika_web',
+      ]);
+      if (ymPeers === 0) {
+        await this.marketingTrafficDeleteExactDataSource(em, tenantId, 'yandex_metrika');
+      }
+      return;
+    }
+
+    if (this.isMetaAdsProvider(prov)) {
+      const metaPeers = await this.metaMarketingIntegrationPeersCount(em, tenantId, row.id);
+      if (metaPeers === 0) {
+        await this.marketingTrafficDeleteExactDataSource(em, tenantId, 'meta_ads');
+      }
+      return;
+    }
+  }
+
+  /** Список ключей google_ads_<cid>, которые синк мог сохранять для этого подключения. */
+  private collectGoogleAdsTrafficDataSourcesForIntegration(
+    row: MarketingIntegration,
+  ): string[] {
+    const flat = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const mode = String(flat.googleAdsAccountMode || flat.google_ads_account_mode || 'customer')
+      .trim()
+      .toLowerCase();
+    const tags = new Set<string>();
+
+    const addCidDigits = (raw: unknown) => {
+      const d = String(raw ?? '')
+        .replace(/\D/g, '')
+        .trim();
+      if (/^\d{6,15}$/.test(d)) tags.add(marketingTrafficGoogleAdsDataSource(d));
+    };
+
+    if (mode === 'mcc_managed') {
+      const labels =
+        flat.googleAdsManagedAccountLabels ?? flat.google_ads_managed_account_labels;
+      if (labels && typeof labels === 'object' && !Array.isArray(labels)) {
+        for (const k of Object.keys(labels as Record<string, unknown>)) {
+          addCidDigits(k);
+        }
+      }
+      const wl =
+        flat.googleAdsManagedCustomerIds ?? flat.google_ads_managed_customer_ids;
+      if (Array.isArray(wl)) {
+        for (const it of wl) addCidDigits(it);
+      }
+    } else {
+      addCidDigits(flat.customerId || flat.customer_id || row.primaryId);
+      if (row.primaryId) addCidDigits(row.primaryId);
+    }
+    return [...tags];
+  }
+
+  private async marketingIntegrationPeersCount(
+    em: EntityManager,
+    tenantId: string,
+    excludeId: string,
+    normalizedProviders: string[],
+  ): Promise<number> {
+    const peers = await em.find(MarketingIntegration, {
+      where: { tenantId },
+      select: ['id', 'provider'],
+    });
+    const want = new Set(normalizedProviders);
+    let n = 0;
+    for (const r of peers) {
+      if (r.id === excludeId) continue;
+      if (want.has(this.normalizeMarketingIntegrationProvider(r.provider))) n += 1;
+    }
+    return n;
+  }
+
+  private async metaMarketingIntegrationPeersCount(
+    em: EntityManager,
+    tenantId: string,
+    excludeId: string,
+  ): Promise<number> {
+    const peers = await em.find(MarketingIntegration, {
+      where: { tenantId },
+      select: ['id', 'provider'],
+    });
+    let n = 0;
+    for (const r of peers) {
+      if (r.id === excludeId) continue;
+      if (this.isMetaAdsProvider(this.normalizeMarketingIntegrationProvider(r.provider)))
+        n += 1;
+    }
+    return n;
+  }
+
+  private async marketingTrafficDeleteByDataSources(
+    em: EntityManager,
+    tenantId: string,
+    dataSources: string[],
+  ): Promise<void> {
+    const ds = [...new Set(dataSources.map((s) => String(s || '').trim()).filter(Boolean))];
+    if (!ds.length) return;
+    await em
+      .createQueryBuilder()
+      .delete()
+      .from(MarketingTraffic)
+      .where('tenantId = :tenantId', { tenantId })
+      .andWhere('dataSource IN (:...ds)', { ds })
+      .execute();
+  }
+
+  private async marketingTrafficDeleteExactDataSource(
+    em: EntityManager,
+    tenantId: string,
+    dataSource: string,
+  ): Promise<void> {
+    const ds = String(dataSource || '').trim();
+    if (!ds) return;
+    await em
+      .createQueryBuilder()
+      .delete()
+      .from(MarketingTraffic)
+      .where('tenantId = :tenantId', { tenantId })
+      .andWhere('dataSource = :ds', { ds })
+      .execute();
+  }
+
+  /**
+   * Ручная синхронизация одной интеграции (UI: «Синхронизировать» для Google Ads).
+   * @returns сколько строк трафика записано (0 — ок, но данных за период нет или синк пропущен).
+   */
   async syncMarketingIntegrationById(tenantId: string, id: string): Promise<number> {
     const row = await this.integrationRepo.findOne({ where: { id, tenantId } });
     if (!row) throw new NotFoundException('Integration not found');
@@ -1211,7 +1545,10 @@ export class MarketingService {
       .addSelect('SUM(t.impressions)', 'totalImpressions')
       .addSelect('MAX(t.date)', 'lastDate')
       .where('t.tenantId = :tenantId', { tenantId })
-      .andWhere('t.dataSource IN (:...ds)', { ds: ['google_ads', 'meta_ads'] })
+      .andWhere(
+        '(t.dataSource = :g OR t.dataSource LIKE :gprefix OR t.dataSource = :m)',
+        { g: 'google_ads', gprefix: 'google_ads_%', m: 'meta_ads' },
+      )
       .andWhere("COALESCE(TRIM(t.campaign), '') <> ''")
       .groupBy('t.dataSource')
       .addGroupBy('t.source')
@@ -1235,10 +1572,9 @@ export class MarketingService {
       const clicks = Number(r.totalClicks) || 0;
       const imps = Number(r.totalImpressions) || 0;
       const lastDate = r.lastDate ? String(r.lastDate).slice(0, 10) : null;
-      const label =
-        r.dataSource === 'google_ads'
-          ? `Google Ads · ${campaign}`
-          : `Meta Ads · ${campaign}`;
+      const label = trafficPresetIsGoogleAds(r.dataSource)
+        ? `Google Ads · ${campaign}`
+        : `Meta Ads · ${campaign}`;
       return {
         key,
         label,
@@ -1261,6 +1597,12 @@ export class MarketingService {
     return list.map((e) => this.toSegmentDto(e));
   }
 
+  async getSegment(tenantId: string, id: string): Promise<SegmentDto> {
+    const seg = await this.segmentRepo.findOne({ where: { tenantId, id } });
+    if (!seg) throw new NotFoundException('Сегмент не найден');
+    return this.toSegmentDto(seg);
+  }
+
   async createSegment(
     tenantId: string,
     body: CreateSegmentBodyDto,
@@ -1274,7 +1616,8 @@ export class MarketingService {
       .filter(
         (p) =>
           p &&
-          (p.dataSource === 'google_ads' || p.dataSource === 'meta_ads') &&
+          (trafficPresetIsGoogleAds(String(p.dataSource || '')) ||
+            p.dataSource === 'meta_ads') &&
           String(p.campaign || '').trim(),
       )
       .map((p) => ({
@@ -1361,7 +1704,8 @@ export class MarketingService {
       (p) =>
         p &&
         String(p.campaign || '').trim() &&
-        (p.dataSource === 'google_ads' || p.dataSource === 'meta_ads'),
+        (trafficPresetIsGoogleAds(String(p.dataSource || '')) ||
+          p.dataSource === 'meta_ads'),
     );
     if (presets.length) {
       qb.andWhere(
@@ -1377,7 +1721,7 @@ export class MarketingService {
                   `LOWER(TRIM(COALESCE(l.utmCampaign, ''))) = LOWER(TRIM(:${campParam}))`,
                   { [campParam]: campaign },
                 );
-                if (p.dataSource === 'google_ads') {
+                if (trafficPresetIsGoogleAds(String(p.dataSource || ''))) {
                   inner.andWhere(
                     `(LOWER(TRIM(COALESCE(l.utmSource, ''))) IN ('google', 'adwords') OR LOWER(TRIM(COALESCE(l.utmSource, ''))) LIKE 'google%')`,
                   );
@@ -1428,6 +1772,429 @@ export class MarketingService {
   private googleAdsSearchUrl(customerId: string): string {
     const cid = this.normalizeGoogleAdsCustomerId(customerId);
     return `https://googleads.googleapis.com/${GOOGLE_ADS_API_VERSION}/customers/${cid}/googleAds:search`;
+  }
+
+  /** Разбор одной строки ответа unary search (camelCase / PascalCase). */
+  private pickGoogleAdsSearchRowFields(r: unknown): {
+    date?: string;
+    campaignName?: string;
+    impressions: number;
+    clicks: number;
+    costMicros: number;
+  } {
+    if (!r || typeof r !== 'object') {
+      return { impressions: 0, clicks: 0, costMicros: 0 };
+    }
+    const row = r as Record<string, unknown>;
+    const segBlock = (row.segments || row.Segments) as Record<string, unknown> | undefined;
+    const dateRaw = segBlock?.date ?? segBlock?.Date;
+    const campaign = (row.campaign || row.Campaign) as Record<string, unknown> | undefined;
+    const nameRaw = campaign?.name ?? campaign?.Name;
+    const metrics = (row.metrics || row.Metrics) as Record<string, unknown> | undefined;
+    return {
+      date: typeof dateRaw === 'string' ? dateRaw.trim().slice(0, 10) : undefined,
+      campaignName: typeof nameRaw === 'string' ? nameRaw.trim() : undefined,
+      impressions: Number(metrics?.impressions ?? 0),
+      clicks: Number(metrics?.clicks ?? 0),
+      costMicros: Number(metrics?.costMicros ?? metrics?.cost_micros ?? 0),
+    };
+  }
+
+  private googleAdsGaqlCampaignDailyStats(from: string, to: string): string {
+    // Include REMOVED campaigns so historical spend/impressions are not lost when a
+    // campaign was later deleted (Google Ads excludes REMOVED resources by default;
+    // without the explicit IN clause, accounts where all campaigns are REMOVED would
+    // return 0 rows here and fall back to the customer-level summary).
+    return `
+      SELECT campaign.id, campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
+      FROM campaign
+      WHERE segments.date BETWEEN '${from}' AND '${to}'
+        AND campaign.status IN (ENABLED, PAUSED, REMOVED)
+      ORDER BY segments.date, campaign.id
+    `.trim();
+  }
+
+  /** Дневные итоги по аккаунту — запасной вариант, если отчёт по campaign пуст при ненулевых метриках в UI. */
+  private googleAdsGaqlCustomerDailyStats(from: string, to: string): string {
+    return `
+      SELECT segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
+      FROM customer
+      WHERE segments.date BETWEEN '${from}' AND '${to}'
+      ORDER BY segments.date
+    `.trim();
+  }
+
+  private async googleAdsSearchCampaignOrCustomerDailyMetrics(
+    customerIdDigits: string,
+    headers: Record<string, string>,
+    from: string,
+    to: string,
+    logHint: string,
+  ): Promise<{ results: any[]; level: 'campaign' | 'customer' }> {
+    const qc = this.googleAdsGaqlCampaignDailyStats(from, to);
+    const campaignRows = await this.googleAdsSearchAllPages(
+      customerIdDigits,
+      headers,
+      qc,
+    );
+    if (campaignRows.length) return { results: campaignRows, level: 'campaign' };
+    const qu = this.googleAdsGaqlCustomerDailyStats(from, to);
+    const customerRows = await this.googleAdsSearchAllPages(customerIdDigits, headers, qu);
+    if (customerRows.length) {
+      this.log.log(
+        `${logHint}: customer ${customerIdDigits} — отчёт campaign пуст за ${from}…${to}, берём сводку customer (${customerRows.length} строк GAQL).`,
+      );
+    }
+    return { results: customerRows, level: 'customer' };
+  }
+
+  /** Из resourceName вида \"customers/1234567890\" — только цифры. */
+  private parseGoogleAdsCustomerResourceCid(resourceName: unknown): string | null {
+    if (typeof resourceName !== 'string') return null;
+    const m = /customers\/(\d{4,15})/i.exec(resourceName.trim());
+    return m?.[1]?.trim() || null;
+  }
+
+  /**
+   * POST googleAds:search с постраничным обходом; при status>=400 бросает BadRequestException.
+   */
+  private async googleAdsSearchAllPages(
+    customerIdDigits: string,
+    headers: Record<string, string>,
+    query: string,
+  ): Promise<any[]> {
+    const url = this.googleAdsSearchUrl(customerIdDigits);
+    const out: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const body: Record<string, unknown> = { query };
+      if (pageToken) body.pageToken = pageToken;
+      const res = await axios.post(url, body, {
+        headers,
+        timeout: 180_000,
+        validateStatus: (s) => s < 500,
+      });
+      if (res.status >= 400) {
+        const detail = extractGoogleAdsRestErrorPayload(res.data);
+        const hint = googleAdsSyncFailureHint(detail);
+        const reqId =
+          (typeof res.headers?.['request-id'] === 'string' && res.headers['request-id']) ||
+          (typeof res.headers?.['Request-Id'] === 'string' && res.headers['Request-Id']) ||
+          '';
+        const rid = reqId ? ` [request-id: ${reqId}]` : '';
+        if (detail.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
+          throw new BadRequestException(
+            'Developer token Google Ads только для тестовых аккаунтов. ' +
+              'В Google Ads: Инструменты → API Center подайте заявку на Basic или Standard access для работы с боевым Customer ID. ' +
+              'Интеграцию в CRM заново создавать не нужно — после одобрения токена синк заработает с теми же настройками.' +
+              rid,
+          );
+        }
+        throw new BadRequestException(
+          `Google Ads API: запрос отклонён (${res.status})${detail ? ` — ${detail}` : ''}${hint}${rid}`,
+        );
+      }
+      const results = (res.data?.results || []) as any[];
+      pageToken = res.data?.nextPageToken as string | undefined;
+      out.push(...results);
+    } while (pageToken);
+    return out;
+  }
+
+  /** Рекламные (не‑менеджерские, не тестовые) клиенты под указанным MCC. */
+  private async googleAdsListManagedAdvertisingAccounts(
+    managerCid: string,
+    headers: Record<string, string>,
+    opts: {
+      maxAccounts: number;
+      includeOnlyCids?: Set<string>;
+    },
+  ): Promise<Array<{ cid: string; descriptiveName: string }>> {
+    // Поля в ORDER BY обязаны быть в SELECT (иначе 400 INVALID_ARGUMENT).
+    const q = `
+      SELECT
+        customer_client.id,
+        customer_client.client_customer,
+        customer_client.descriptive_name,
+        customer_client.manager,
+        customer_client.status,
+        customer_client.test_account
+      FROM customer_client
+      WHERE customer_client.status = ENABLED
+      ORDER BY customer_client.id
+    `.trim();
+    const rows = await this.googleAdsSearchAllPages(managerCid, headers, q);
+    const picked: Array<{ cid: string; descriptiveName: string }> = [];
+    const seen = new Set<string>();
+    for (const raw of rows) {
+      const cc = (raw?.customerClient ?? raw?.customer_client) as Record<string, unknown> | undefined;
+      if (!cc || typeof cc !== 'object') continue;
+      if (cc.manager === true || String(cc.manager) === 'true') continue;
+      if (cc.testAccount === true || cc.test_account === true) continue;
+      const cidRaw = cc.clientCustomer ?? cc.client_customer;
+      const cid =
+        typeof cidRaw === 'string'
+          ? this.parseGoogleAdsCustomerResourceCid(cidRaw)
+          : null;
+      if (!cid || !/^\d{6,15}$/.test(cid)) continue;
+      if (opts.includeOnlyCids?.size && !opts.includeOnlyCids.has(cid)) continue;
+      if (seen.has(cid)) continue;
+      seen.add(cid);
+      picked.push({
+        cid,
+        descriptiveName: String(cc.descriptiveName ?? cc.descriptive_name ?? '').trim(),
+      });
+      if (picked.length >= opts.maxAccounts) break;
+    }
+    return picked;
+  }
+
+  /**
+   * Одна строка marketing_traffic на день при GAQL `FROM customer` (нет разбивки по кампаниям/странам).
+   * Явно указываем Customer ID и при наличии название из Ads — чтобы в UI было видно источник.
+   */
+  private googleAdsDailySummaryCampaignTitle(
+    customerIdDigits: string,
+    descriptiveNameOrIntegrationName?: string | null,
+  ): string {
+    const cid = String(customerIdDigits || '').replace(/\D/g, '').trim();
+    const hint = String(descriptiveNameOrIntegrationName || '')
+      .trim()
+      .replace(/\s+/g, ' ');
+    const parts: string[] = [];
+    if (/^\d{6,15}$/.test(cid)) parts.push(cid);
+    if (hint) parts.push(hint.slice(0, 120));
+    parts.push('сводка по дням');
+    let s = parts.join(' · ');
+    if (s.length > 256) s = `${s.slice(0, 253)}…`;
+    return s || 'Google Ads · сводка по дням';
+  }
+
+  private buildGoogleAdsCampaignTrafficEntities(params: {
+    tenantId: string;
+    dataSourceTag: string;
+    currencyNorm: string;
+    results: any[];
+    /** Строки GAQL `FROM customer` без campaign — одна подпись на все дни. */
+    fallbackCampaignLabel?: string;
+  }): MarketingTraffic[] {
+    const rows: MarketingTraffic[] = [];
+    const cur =
+      String(params.currencyNorm || 'EUR').trim().toUpperCase().slice(0, 8) || 'EUR';
+    const fallback = params.fallbackCampaignLabel?.trim();
+    for (const r of params.results) {
+      const picked = this.pickGoogleAdsSearchRowFields(r);
+      if (!picked.date) continue;
+      const name =
+        fallback && fallback.length
+          ? fallback
+          : picked.campaignName?.trim() || '(campaign)';
+      const cost = picked.costMicros / 1_000_000;
+
+      rows.push(
+        this.trafficRepo.create({
+          tenantId: params.tenantId,
+          date: picked.date,
+          dataSource: params.dataSourceTag,
+          source: 'google',
+          medium: 'cpc',
+          campaign: name,
+          sessions: picked.clicks,
+          clicks: picked.clicks,
+          leads: 0,
+          projects: 0,
+          cost: String(cost),
+          revenue: '0',
+          currency: cur,
+          impressions: picked.impressions,
+        }),
+      );
+    }
+    return rows;
+  }
+
+  private parseGoogleAdsMccWhitelist(flatSettings: Record<string, unknown>): Set<string> | undefined {
+    const raw =
+      flatSettings.googleAdsManagedCustomerIds ??
+      flatSettings.google_ads_managed_customer_ids;
+    let list: unknown[] | null = null;
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === 'string') {
+      const t = raw.trim();
+      if (t.startsWith('[')) {
+        try {
+          const p = JSON.parse(t) as unknown;
+          list = Array.isArray(p) ? p : [];
+        } catch {
+          list = [];
+        }
+      } else if (t) {
+        list = t.split(/[\s,;]+/).map((x) => x.trim());
+      }
+    }
+    if (!list || !list.length) return undefined;
+    const out = new Set<string>();
+    for (const it of list) {
+      const d = String(it ?? '').replace(/\D/g, '').trim();
+      if (/^\d{6,15}$/.test(d)) out.add(d);
+    }
+    return out.size ? out : undefined;
+  }
+
+  /** Customer ID исключённые из синка MCC (белый список по-прежнему в googleAdsManagedCustomerIds). */
+  private parseGoogleAdsMccExcludeList(
+    flatSettings: Record<string, unknown>,
+  ): Set<string> | undefined {
+    const raw =
+      flatSettings.googleAdsExcludedManagedCustomerIds ??
+      flatSettings.google_ads_excluded_managed_customer_ids;
+    let list: unknown[] | null = null;
+    if (Array.isArray(raw)) list = raw;
+    else if (typeof raw === 'string') {
+      const t = raw.trim();
+      if (t.startsWith('[')) {
+        try {
+          const p = JSON.parse(t) as unknown;
+          list = Array.isArray(p) ? p : [];
+        } catch {
+          list = [];
+        }
+      } else if (t) {
+        list = t.split(/[\s,;]+/).map((x) => x.trim());
+      }
+    }
+    if (!list || !list.length) return undefined;
+    const out = new Set<string>();
+    for (const it of list) {
+      const d = String(it ?? '').replace(/\D/g, '').trim();
+      if (/^\d{6,15}$/.test(d)) out.add(d);
+    }
+    return out.size ? out : undefined;
+  }
+
+  /**
+   * OAuth мастер сохраняет refresh token в JSON; developer token обычно один на платформу (env).
+   * Собираем поля и отдельно список «чего не хватает» — для UI и логов синка.
+   */
+  private pickGoogleAdsCredentialParts(
+    flat: Record<string, unknown>,
+    rowPrimaryId: string | null,
+  ): {
+    refreshToken: string;
+    customerIdRaw: string;
+    developerToken: string;
+    missingHints: string[];
+  } {
+    const refreshToken = String(flat.refreshToken || flat.refresh_token || '').trim();
+    const customerIdRaw = String(
+      flat.customerId || flat.customer_id || rowPrimaryId || '',
+    ).trim();
+    const developerToken = String(
+      flat.developerToken ||
+        flat.developer_token ||
+        process.env.GOOGLE_ADS_DEVELOPER_TOKEN ||
+        '',
+    ).trim();
+    const missingHints: string[] = [];
+    if (!refreshToken) {
+      missingHints.push(
+        'refresh token — снова выполните вход через Google для этой интеграции или укажите refresh token в расширенных настройках.',
+      );
+    }
+    if (!customerIdRaw) {
+      missingHints.push(
+        'Customer ID — в карточке интеграции должен быть заполнен основной ID (для режима MCC это ID менеджерского счёта).',
+      );
+    }
+    if (!developerToken) {
+      missingHints.push(
+        'developer token — задайте переменную окружения GOOGLE_ADS_DEVELOPER_TOKEN для сервиса API (например в backend/.env для Docker) или поле developerToken в настройках интеграции.',
+      );
+    }
+    return { refreshToken, customerIdRaw, developerToken, missingHints };
+  }
+
+  /** Публичный список клиентских счетов под MCC (режим mcc_managed или явный запрос). */
+  async listGoogleAdsManagedCustomersForIntegration(
+    tenantId: string,
+    integrationId: string,
+  ): Promise<{
+    mode: string;
+    managerId: string;
+    loginCustomerId: string;
+    customers: Array<{ customerId: string; descriptiveName: string | null }>;
+  }> {
+    const row = await this.integrationRepo.findOne({
+      where: { id: integrationId, tenantId },
+    });
+    if (!row || row.provider !== 'google_ads') {
+      throw new NotFoundException('Интеграция Google Ads не найдена');
+    }
+    const flat = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const creds = this.pickGoogleAdsCredentialParts(flat, row.primaryId);
+    if (creds.missingHints.length) {
+      throw new BadRequestException(
+        `Не хватает данных для Google Ads API. ${creds.missingHints.join(' ')}`,
+      );
+    }
+    const { refreshToken, customerIdRaw: mccId, developerToken } = creds;
+    let loginCustomerId = String(
+      flat.loginCustomerId || flat.login_customer_id || '',
+    ).trim();
+    const mode = String(
+      flat.googleAdsAccountMode || flat.google_ads_account_mode || 'customer',
+    )
+      .trim()
+      .toLowerCase();
+    const managerNorm = this.normalizeGoogleAdsCustomerId(mccId);
+    if (mode === 'mcc_managed') {
+      if (!loginCustomerId) loginCustomerId = managerNorm;
+    } else if (!loginCustomerId) {
+      loginCustomerId = managerNorm;
+    }
+
+    const intClientId = String(flat.clientId || flat.client_id || '').trim();
+    const intClientSecret = String(flat.clientSecret || flat.client_secret || '').trim();
+    const integrationOAuth =
+      intClientId && intClientSecret
+        ? { clientId: intClientId, clientSecret: intClientSecret }
+        : undefined;
+    const accessToken = await this.googleOAuthAccessToken(
+      refreshToken,
+      integrationOAuth,
+    );
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${accessToken}`,
+      'developer-token': developerToken,
+      'Content-Type': 'application/json',
+    };
+    const login = this.normalizeGoogleAdsCustomerId(loginCustomerId);
+    if (login) headers['login-customer-id'] = login;
+
+    const maxRaw = Number(
+      flat.googleAdsMccMaxAccounts ?? flat.google_ads_mcc_max_accounts ?? 200,
+    );
+    const maxAccounts = Math.min(
+      500,
+      Math.max(1, Number.isFinite(maxRaw) ? Math.floor(maxRaw) : 200),
+    );
+
+    const list = await this.googleAdsListManagedAdvertisingAccounts(
+      managerNorm,
+      headers,
+      { maxAccounts, includeOnlyCids: undefined },
+    );
+    return {
+      mode,
+      managerId: managerNorm,
+      loginCustomerId: login,
+      customers: list.map((c) => ({
+        customerId: c.cid,
+        descriptiveName: c.descriptiveName ? c.descriptiveName : null,
+      })),
+    };
   }
 
   /**
@@ -1581,8 +2348,37 @@ export class MarketingService {
     return { accessToken: token.trim() };
   }
 
+  private normalizeGoogleAdsSearchAxiosError(err: unknown): never {
+    if (axios.isAxiosError(err)) {
+      const st = err.response?.status;
+      const detail = extractGoogleAdsRestErrorPayload(err.response?.data);
+      const hint = googleAdsSyncFailureHint(detail);
+      if (detail.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
+        throw new BadRequestException(
+          'Developer token Google Ads только для тестовых аккаунтов. ' +
+            'В Google Ads: Инструменты → API Center подайте заявку на Basic или Standard access для работы с боевым Customer ID. ' +
+            'Интеграцию в CRM заново создавать не нужно — после одобрения токена синк заработает с теми же настройками.',
+        );
+      }
+      if (st && st >= 400 && detail) {
+        throw new BadRequestException(
+          `Google Ads API: запрос отклонён (${st}) — ${detail}${hint}`,
+        );
+      }
+      const net =
+        err.code === 'ECONNABORTED' ? 'таймаут запроса к Google Ads' : err.message || 'сеть';
+      throw new BadRequestException(
+        `Google Ads API: нет ответа (${st ?? 'network'}) — ${net}${hint ? `. ${hint}` : ''}`,
+      );
+    }
+    throw err;
+  }
+
   /**
-   * Тянет статистику кампаний за период и пишет строки в marketing_traffic (dataSource=google_ads).
+   * Одна интеграция Google Ads:
+   * - режим по умолчанию `customer` — один рекламный Customer ID (`primaryId`/settings.customerId).
+   * - `mcc_managed` — значение Primary ID трактуется как MCC / менеджерский счёт;
+   *   синк обходит активные клиентские **не‑менеджерские** аккаунты и пишет источники `google_ads_<CID>`.
    */
   /** @returns число сохранённых строк marketing_traffic (0 если пропуск или нет данных). */
   async syncGoogleAdsIntegration(row: MarketingIntegration): Promise<number> {
@@ -1591,24 +2387,23 @@ export class MarketingService {
     const s = this.flattenNestedIntegrationSettings(
       this.parseSettingsObject(row.settings),
     );
-    const refreshToken = String(s.refreshToken || s.refresh_token || '').trim();
-    const customerId = String(s.customerId || s.customer_id || row.primaryId || '').trim();
-    const developerToken = String(
-      s.developerToken ||
-        s.developer_token ||
-        process.env.GOOGLE_ADS_DEVELOPER_TOKEN ||
-        '',
-    ).trim();
-    const loginCustomerId = String(
-      s.loginCustomerId || s.login_customer_id || '',
-    ).trim();
-
-    if (!refreshToken || !customerId || !developerToken) {
+    const creds = this.pickGoogleAdsCredentialParts(s, row.primaryId);
+    if (creds.missingHints.length) {
       this.log.warn(
-        `Google Ads sync skipped for integration ${row.id}: missing refreshToken, customerId or developerToken`,
+        `Google Ads sync skipped for integration ${row.id}: ${creds.missingHints.join(' | ')}`,
       );
       return 0;
     }
+    const { refreshToken, customerIdRaw: primaryDigits, developerToken } = creds;
+    let loginCustomerRaw = String(
+      s.loginCustomerId || s.login_customer_id || '',
+    ).trim();
+
+    const mode = String(
+      s.googleAdsAccountMode || s.google_ads_account_mode || 'customer',
+    )
+      .trim()
+      .toLowerCase();
 
     const intClientId = String(s.clientId || s.client_id || '').trim();
     const intClientSecret = String(s.clientSecret || s.client_secret || '').trim();
@@ -1621,134 +2416,219 @@ export class MarketingService {
       refreshToken,
       integrationOAuth,
     );
-    const end = new Date();
-    const start = new Date();
-    start.setUTCDate(end.getUTCDate() - 30);
-    const from = start.toISOString().slice(0, 10);
-    const to = end.toISOString().slice(0, 10);
 
-    const query = `
-      SELECT campaign.id, campaign.name, segments.date, metrics.impressions, metrics.clicks, metrics.cost_micros
-      FROM campaign
-      WHERE segments.date BETWEEN '${from}' AND '${to}'
-        AND campaign.status != 'REMOVED'
-      ORDER BY segments.date, campaign.id
-    `.trim();
+    const { from, to, lookbackDays } =
+      this.resolveAdvertisingSyncInclusiveUtcRange(s);
 
-    const url = this.googleAdsSearchUrl(customerId);
-    const headers: Record<string, string> = {
+    const currencyNorm =
+      String(s.currency || 'EUR').trim().toUpperCase().slice(0, 8) || 'EUR';
+
+    const baseHeaders: Record<string, string> = {
       Authorization: `Bearer ${accessToken}`,
       'developer-token': developerToken,
       'Content-Type': 'application/json',
     };
-    const login = this.normalizeGoogleAdsCustomerId(loginCustomerId);
-    if (login) headers['login-customer-id'] = login;
 
-    const trafficRows: MarketingTraffic[] = [];
-    let pageToken: string | undefined;
+    const managerNorm = this.normalizeGoogleAdsCustomerId(primaryDigits);
 
-    try {
-      do {
-        // pageSize в теле не передаём: REST googleAds:search фиксирует страницу 10000 строк (PAGE_SIZE_NOT_SUPPORTED).
-        const body: Record<string, unknown> = { query };
-        if (pageToken) body.pageToken = pageToken;
+    /** Подписи аккаунтов для подписей в отчётах — не затираем произвольные ключи пользователя целиком. */
+    const readManagedLabels = (): Record<string, string> => {
+      const raw = s.googleAdsManagedAccountLabels ?? s.google_ads_managed_account_labels;
+      const out: Record<string, string> = {};
+      if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+          const dk = String(k).replace(/\D/g, '').trim();
+          const val = typeof v === 'string' ? v.trim() : String(v ?? '').trim();
+          if (!dk || !val || val.length > 200) continue;
+          out[dk] = val;
+        }
+      }
+      return out;
+    };
 
-        const res = await axios.post(url, body, {
-          headers,
-          timeout: 180_000,
-          validateStatus: (s) => s < 500,
-        });
-        if (res.status >= 400) {
-          const detail = extractGoogleAdsRestErrorPayload(res.data);
-          const hint = googleAdsSyncFailureHint(detail);
-          const reqId =
-            (typeof res.headers?.['request-id'] === 'string' && res.headers['request-id']) ||
-            (typeof res.headers?.['Request-Id'] === 'string' && res.headers['Request-Id']) ||
-            '';
-          const rid = reqId ? ` [request-id: ${reqId}]` : '';
-          if (detail.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
-            throw new BadRequestException(
-              'Developer token Google Ads только для тестовых аккаунтов. ' +
-                'В Google Ads: Инструменты → API Center подайте заявку на Basic или Standard access для работы с боевым Customer ID. ' +
-                'Интеграцию в CRM заново создавать не нужно — после одобрения токена синк заработает с теми же настройками.' +
-                rid,
+    if (mode === 'mcc_managed') {
+      if (!loginCustomerRaw) loginCustomerRaw = managerNorm;
+      const mccHeaders = { ...baseHeaders };
+      const login = this.normalizeGoogleAdsCustomerId(loginCustomerRaw);
+      if (login) mccHeaders['login-customer-id'] = login;
+
+      this.log.log(
+        `Google Ads MCC sync: integration ${row.id} manager ${managerNorm} UTC ${from}..${to} (${lookbackDays}d inclusive)`,
+      );
+
+      const maxRaw = Number(
+        s.googleAdsMccMaxAccounts ?? s.google_ads_mcc_max_accounts ?? 120,
+      );
+      const maxAccounts = Math.min(
+        250,
+        Math.max(1, Number.isFinite(maxRaw) ? Math.floor(maxRaw) : 120),
+      );
+      const filter = this.parseGoogleAdsMccWhitelist(s);
+
+      let clients: Array<{ cid: string; descriptiveName: string }>;
+      try {
+        clients = await this.googleAdsListManagedAdvertisingAccounts(
+          managerNorm,
+          mccHeaders,
+          { maxAccounts, includeOnlyCids: filter },
+        );
+      } catch (e: unknown) {
+        this.normalizeGoogleAdsSearchAxiosError(e);
+      }
+
+      const exclude = this.parseGoogleAdsMccExcludeList(s);
+      if (exclude?.size) {
+        const beforeEx = clients.length;
+        clients = clients.filter((c) => !exclude.has(c.cid));
+        if (beforeEx !== clients.length) {
+          this.log.log(
+            `Google Ads MCC sync (${row.id}): после исключений — ${clients.length}/${beforeEx} клиентских аккаунтов.`,
+          );
+        }
+      }
+
+      if (!clients.length) {
+        this.log.warn(
+          `Google Ads MCC sync (${row.id}): нет активных клиентских рекламных аккаунтов. Проверьте что Primary ID — Customer ID именно менеджерского счёта (MCC).`,
+        );
+        return 0;
+      }
+
+      let totalRows = 0;
+      let failedAccounts = 0;
+      const mergedLabels = readManagedLabels();
+      let labelsDirty = false;
+
+      for (const c of clients) {
+        const tag = marketingTrafficGoogleAdsDataSource(c.cid);
+        try {
+          const { results, level } =
+            await this.googleAdsSearchCampaignOrCustomerDailyMetrics(
+              c.cid,
+              mccHeaders,
+              from,
+              to,
+              `Google Ads MCC sync ${row.id}`,
             );
+          const batch = this.buildGoogleAdsCampaignTrafficEntities({
+            tenantId: row.tenantId,
+            dataSourceTag: tag,
+            currencyNorm,
+            results,
+            fallbackCampaignLabel:
+              level === 'customer'
+                ? this.googleAdsDailySummaryCampaignTitle(c.cid, c.descriptiveName || row.name)
+                : undefined,
+          });
+
+          await this.trafficRepo
+            .createQueryBuilder()
+            .delete()
+            .from(MarketingTraffic)
+            .where('tenantId = :tenantId', { tenantId: row.tenantId })
+            .andWhere('dataSource = :ds', { ds: tag })
+            .andWhere('date BETWEEN :from AND :to', { from, to })
+            .execute();
+
+          if (batch.length) {
+            await this.saveMarketingTrafficChunked(batch);
+            totalRows += batch.length;
           }
-          throw new BadRequestException(
-            `Google Ads API: запрос отклонён (${res.status})${detail ? ` — ${detail}` : ''}${hint}${rid}`,
+          const nm = String(c.descriptiveName || '').trim();
+          // Always track the CID (even without a name) so deletion cleanup can find it.
+          // Update the stored label only when a non-empty name is available or the CID is new.
+          if (!(c.cid in mergedLabels) || (nm && mergedLabels[c.cid] !== nm)) {
+            mergedLabels[c.cid] = nm;
+            labelsDirty = true;
+          }
+        } catch (e: unknown) {
+          failedAccounts += 1;
+          const msg =
+            e instanceof BadRequestException
+              ? e.message
+              : e instanceof Error
+                ? e.message
+                : String(e);
+          this.log.warn(
+            `Google Ads MCC sync: ошибка аккаунта клиента ${c.cid} (${c.descriptiveName || '—'}): ${msg}`,
           );
         }
-        const results = (res.data?.results || []) as any[];
-        pageToken = res.data?.nextPageToken as string | undefined;
+      }
 
-        for (const r of results) {
-          const date = r.segments?.date as string | undefined;
-          const name = r.campaign?.name as string | undefined;
-          if (!date) continue;
-          const impressions = Number(r.metrics?.impressions || 0);
-          const clicks = Number(r.metrics?.clicks || 0);
-          const costMicros = Number(r.metrics?.costMicros || 0);
-          const cost = costMicros / 1_000_000;
+      if (labelsDirty) {
+        const baseSettings = this.parseSettingsObject(row.settings) as Record<
+          string,
+          unknown
+        >;
+        baseSettings.googleAdsManagedAccountLabels = mergedLabels;
+        row.settings = Object.keys(baseSettings).length ? baseSettings : null;
+        await this.integrationRepo.save(row);
+      }
 
-          trafficRows.push(
-            this.trafficRepo.create({
-              tenantId: row.tenantId,
-              date: String(date).slice(0, 10),
-              dataSource: 'google_ads',
-              source: 'google',
-              medium: 'cpc',
-              campaign: name || '(campaign)',
-              sessions: clicks,
-              clicks,
-              leads: 0,
-              projects: 0,
-              cost: String(cost),
-              revenue: '0',
-              currency: String(s.currency || 'EUR').slice(0, 8) || 'EUR',
-              impressions,
-            }),
-          );
-        }
-      } while (pageToken);
-    } catch (err: unknown) {
-      if (axios.isAxiosError(err)) {
-        const st = err.response?.status;
-        const detail = extractGoogleAdsRestErrorPayload(err.response?.data);
-        const hint = googleAdsSyncFailureHint(detail);
-        if (detail.includes('DEVELOPER_TOKEN_NOT_APPROVED')) {
-          throw new BadRequestException(
-            'Developer token Google Ads только для тестовых аккаунтов. ' +
-              'В Google Ads: Инструменты → API Center подайте заявку на Basic или Standard access для работы с боевым Customer ID. ' +
-              'Интеграцию в CRM заново создавать не нужно — после одобрения токена синк заработает с теми же настройками.',
-          );
-        }
-        if (st && st >= 400 && detail) {
-          throw new BadRequestException(
-            `Google Ads API: запрос отклонён (${st}) — ${detail}${hint}`,
-          );
-        }
-        const net = err.code === 'ECONNABORTED' ? 'таймаут запроса к Google Ads' : err.message || 'сеть';
+      if (failedAccounts >= clients.length && clients.length > 0) {
         throw new BadRequestException(
-          `Google Ads API: нет ответа (${st ?? 'network'}) — ${net}${hint ? `. ${hint}` : ''}`,
+          'Google Ads MCC: не удалось выгрузить данные ни по одному клиентскому аккаунту. Проверьте доступ OAuth к дочерним аккаунтам и заголовок login-customer-id (обычно = Customer ID вашего менеджерского счёта).',
         );
       }
-      throw err;
+
+      this.log.log(
+        `Google Ads MCC sync: integration ${row.id} — всего сохранено ${totalRows} строк по ${clients.length - failedAccounts}/${clients.length} аккаунтам`,
+      );
+      return totalRows;
     }
 
-    if (!trafficRows.length) return 0;
+    /* --- режим один рекламный аккаунт --- */
+    const cid = managerNorm;
+    const hdrSingle = { ...baseHeaders };
+    const loginSingle = this.normalizeGoogleAdsCustomerId(loginCustomerRaw);
+    if (loginSingle) hdrSingle['login-customer-id'] = loginSingle;
+
+    this.log.log(
+      `Google Ads sync: integration ${row.id} customer ${cid} UTC ${from}..${to} (${lookbackDays}d inclusive)`,
+    );
+
+    let results: any[];
+    let summaryLevel: 'campaign' | 'customer' = 'campaign';
+    try {
+      const fetched = await this.googleAdsSearchCampaignOrCustomerDailyMetrics(
+        cid,
+        hdrSingle,
+        from,
+        to,
+        `Google Ads sync ${row.id}`,
+      );
+      results = fetched.results;
+      summaryLevel = fetched.level;
+    } catch (e: unknown) {
+      this.normalizeGoogleAdsSearchAxiosError(e);
+    }
+
+    const tag = marketingTrafficGoogleAdsDataSource(cid);
+    const trafficRows = this.buildGoogleAdsCampaignTrafficEntities({
+      tenantId: row.tenantId,
+      dataSourceTag: tag,
+      currencyNorm,
+      results,
+      fallbackCampaignLabel:
+        summaryLevel === 'customer'
+          ? this.googleAdsDailySummaryCampaignTitle(cid, row.name)
+          : undefined,
+    });
 
     await this.trafficRepo
       .createQueryBuilder()
       .delete()
       .from(MarketingTraffic)
       .where('tenantId = :tenantId', { tenantId: row.tenantId })
-      .andWhere('dataSource = :ds', { ds: 'google_ads' })
+      .andWhere('dataSource = :ds', { ds: tag })
       .andWhere('date BETWEEN :from AND :to', { from, to })
       .execute();
 
+    if (!trafficRows.length) return 0;
+
     await this.saveMarketingTrafficChunked(trafficRows);
     this.log.log(
-      `Google Ads v23: saved ${trafficRows.length} rows for tenant ${row.tenantId}`,
+      `Google Ads ${GOOGLE_ADS_API_VERSION}: saved ${trafficRows.length} rows (${tag}) tenant ${row.tenantId}`,
     );
     return trafficRows.length;
   }
@@ -2385,11 +3265,12 @@ export class MarketingService {
       this.parseSettingsObject(row.settings),
     );
 
-    const end = new Date();
-    const start = new Date();
-    start.setUTCDate(end.getUTCDate() - 30);
-    const since = start.toISOString().slice(0, 10);
-    const until = end.toISOString().slice(0, 10);
+    const { from: since, to: until, lookbackDays } =
+      this.resolveAdvertisingSyncInclusiveUtcRange(s);
+
+    this.log.log(
+      `Meta Ads sync: integration ${row.id} window UTC ${since}..${until} (${lookbackDays}d inclusive)`,
+    );
 
     const graphVer = 'v19.0';
     const baseUrl = `https://graph.facebook.com/${graphVer}/${actPath}/insights`;
@@ -2727,6 +3608,8 @@ export class MarketingService {
     const login = dto.loginCustomerId?.trim();
     const source = dto.source?.trim();
     const medium = dto.medium?.trim();
+    const accountMode =
+      dto.googleAdsAccountMode === 'mcc_managed' ? 'mcc_managed' : undefined;
 
     const state = this.encodeGoogleAdsMarketingOauthState({
       tenantId,
@@ -2740,6 +3623,7 @@ export class MarketingService {
         loginCustomerId: login || undefined,
         source: source || undefined,
         medium: medium || undefined,
+        googleAdsAccountMode: accountMode,
       },
     });
     return this.buildGoogleAdsMarketingOAuthAuthorizeUrlWithState(clientId, state);
@@ -2831,6 +3715,9 @@ export class MarketingService {
         if (login) settings.loginCustomerId = login;
         if (d.source) settings.source = d.source;
         if (d.medium) settings.medium = d.medium;
+        if (d.googleAdsAccountMode === 'mcc_managed') {
+          settings.googleAdsAccountMode = 'mcc_managed';
+        }
         const dev = String(process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '').trim();
         if (dev) settings.developerToken = dev;
 

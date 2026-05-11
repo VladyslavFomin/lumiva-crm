@@ -17,7 +17,7 @@ export const DashboardQuickActions: React.FC = () => {
         <Link
           key={to}
           to={to}
-          className="rounded-2xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/80 px-3 py-2.5 text-center text-[11px] font-semibold text-slate-800 shadow-sm shadow-slate-900/[0.03] transition hover:border-teal-300/80 hover:bg-teal-50/40 hover:text-teal-900"
+        className="rounded-2xl border border-neutral-200 bg-white px-3 py-2.5 text-center text-[11px] font-semibold text-[#222] shadow-[0_1px_0_rgba(15,23,42,0.04)] transition hover:border-[#222] hover:bg-neutral-50"
         >
           {t(labelKey)}
         </Link>

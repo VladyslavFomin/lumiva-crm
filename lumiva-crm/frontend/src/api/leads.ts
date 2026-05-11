@@ -414,6 +414,7 @@ export interface LeadRoiRow {
   manager: string | null;    // assignedTo или "Без ответственного"
   totalRevenue: number;      // суммарная выручка по лиду
   currency: string;          // валюта (например, EUR)
+  sourceCurrencies?: string[];
   dealsCount: number;        // сколько оплат / проектов
   firstDealAt: string | null;
   lastDealAt: string | null;
@@ -421,6 +422,8 @@ export interface LeadRoiRow {
 
 export interface LeadsRoiStats {
   currency: string;
+  currencyMode?: 'native' | 'converted';
+  displayCurrency?: string;
   totalRevenue: number;
   leadsWithRevenue: number;
   dealsCount: number;
@@ -438,11 +441,17 @@ export async function fetchLeadRoi(params?: {
   from?: string;        // YYYY-MM-DD
   to?: string;          // YYYY-MM-DD
   mode?: LeadRoiMode;   // 'sales' | 'projects'
+  currencyMode?: 'native' | 'converted';
+  displayCurrency?: string;
+  rates?: Record<string, number>;
 }): Promise<LeadsRoiStats> {
   const search = new URLSearchParams();
   if (params?.from) search.append('from', params.from);
   if (params?.to) search.append('to', params.to);
   if (params?.mode) search.append('source', params.mode); // <-- ВАЖНО
+  if (params?.currencyMode) search.append('currencyMode', params.currencyMode);
+  if (params?.displayCurrency) search.append('displayCurrency', params.displayCurrency);
+  if (params?.rates) search.append('rates', JSON.stringify(params.rates));
 
   const qs = search.toString();
   const url = `/leads/roi${qs ? `?${qs}` : ''}`;

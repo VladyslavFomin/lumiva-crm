@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { Tenant } from '../tenants/tenant.entity';
 import {
   applyTenantModuleToggle,
+  COMPONENT_KEYS,
   isComponentAllowedByPlan,
   isModuleAllowedByPlan,
   isTenantModuleEnabled,
@@ -48,12 +49,12 @@ export class PlatformAdminService {
 
     const enabledModules = tenant.enabledModules || {};
 
-    return MODULE_KEYS.map((key) => ({
-      key,
-      enabled: isTenantModuleEnabled(key, enabledModules),
-      allowedByPlan: isModuleAllowedByPlan(key, tenant.plan),
-      plan: normalizeTenantPlan(tenant.plan),
-    }));
+    return MODULE_KEYS.map((key) => {
+      const allowedByPlan = isModuleAllowedByPlan(key, tenant.plan);
+      const explicit = enabledModules[key];
+      const enabled = typeof explicit === 'boolean' ? explicit : allowedByPlan;
+      return { key, enabled, allowedByPlan, plan: normalizeTenantPlan(tenant.plan) };
+    });
   }
 
   async toggleTenantModule(
@@ -69,7 +70,7 @@ export class PlatformAdminService {
         `Module "${moduleKey}" is not available on current plan "${normalizeTenantPlan(tenant.plan)}"`,
       );
     }
-    const enabledModules = tenant.enabledModules || {};
+    const enabledModules = { ...(tenant.enabledModules || {}) };
     applyTenantModuleToggle(moduleKey, enabled, enabledModules);
     tenant.enabledModules = enabledModules;
 
@@ -87,35 +88,14 @@ export class PlatformAdminService {
     const tenant = await this.tenantsRepo.findOne({ where: { id } });
     if (!tenant) throw new NotFoundException('Tenant not found');
 
-    const availableComponents = [
-      'leads',
-      'projects',
-      'projects_analytics',
-      'projects_kanban',
-      'projects_calendar',
-      'sales',
-      'sales_pipeline',
-      'sales_analytics',
-      'marketing',
-      'marketing_campaigns',
-      'marketing_analytics',
-      'tools',
-      'tools_integrations',
-      'tools_automation',
-      'tools_settings',
-      'custom_objects',
-      'chat',
-      'client_accounts',
-    ];
-
     const enabledComponents = tenant.enabledComponents || {};
 
-    return availableComponents.map((key) => ({
-      key,
-      enabled: enabledComponents[key] === true,
-      allowedByPlan: isComponentAllowedByPlan(key, tenant.plan),
-      plan: normalizeTenantPlan(tenant.plan),
-    }));
+    return COMPONENT_KEYS.map((key) => {
+      const allowedByPlan = isComponentAllowedByPlan(key, tenant.plan);
+      const explicit = enabledComponents[key];
+      const enabled = typeof explicit === 'boolean' ? explicit : allowedByPlan;
+      return { key, enabled, allowedByPlan, plan: normalizeTenantPlan(tenant.plan) };
+    });
   }
 
   async toggleTenantComponent(
@@ -131,9 +111,7 @@ export class PlatformAdminService {
         `Component "${componentKey}" is not available on current plan "${normalizeTenantPlan(tenant.plan)}"`,
       );
     }
-    const enabledComponents = tenant.enabledComponents || {};
-    enabledComponents[componentKey] = enabled;
-    tenant.enabledComponents = enabledComponents;
+    tenant.enabledComponents = { ...(tenant.enabledComponents || {}), [componentKey]: enabled };
 
     await this.tenantsRepo.save(tenant);
 

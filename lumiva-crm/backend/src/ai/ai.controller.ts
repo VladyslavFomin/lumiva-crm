@@ -265,6 +265,61 @@ export class AiController {
     return { ok: true, id: chunk.id };
   }
 
+  @Post('lead-score/:leadId')
+  async scoreLead(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('leadId') leadId: string,
+  ) {
+    return this.assistant.scoreLead(user.tenantId, user.userId!, leadId);
+  }
+
+  @Post('enrich/:entityType/:entityId')
+  async enrichEntity(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('entityType') entityType: string,
+    @Param('entityId') entityId: string,
+  ) {
+    const type = entityType === 'company' ? 'company' : 'lead';
+    return this.assistant.enrichEntity(user.tenantId, user.userId!, type, entityId);
+  }
+
+  @Post('email-reply-suggest')
+  async emailReplySuggest(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { subject?: string; body?: string; senderName?: string },
+  ) {
+    return this.assistant.suggestEmailReply(user.tenantId, user.userId!, body);
+  }
+
+  @Post('next-action/:leadId')
+  async nextAction(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('leadId') leadId: string,
+  ) {
+    return this.assistant.nextAction(user.tenantId, user.userId!, leadId);
+  }
+
+  @Post('outreach-email/:leadId')
+  async outreachEmail(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('leadId') leadId: string,
+  ) {
+    return this.assistant.generateOutreachEmail(user.tenantId, user.userId!, leadId);
+  }
+
+  @Post('find-duplicates')
+  async findDuplicates(@CurrentUser() user: CurrentUserPayload) {
+    return this.assistant.findDuplicates(user.tenantId, user.userId!);
+  }
+
+  @Post('smart-search')
+  async smartSearch(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { query: string },
+  ) {
+    return this.assistant.smartSearch(user.tenantId, user.userId!, body.query || '');
+  }
+
   @Delete('memory/:id')
   async deleteMemory(
     @CurrentUser() user: CurrentUserPayload,

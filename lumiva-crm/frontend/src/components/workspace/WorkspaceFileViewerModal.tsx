@@ -33,7 +33,7 @@ export const WorkspaceFileViewerModal: React.FC<WorkspaceFileViewerModalProps> =
     'inline-flex items-center justify-center rounded-xl px-3 py-2 text-xs font-semibold transition-colors';
 
   return (
-    <div className="fixed inset-0 z-[120] flex flex-col bg-[#0f172a]/90 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[8500] flex flex-col bg-[#0f172a]/90 backdrop-blur-sm">
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-lumiva-bg px-4 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.06)]">
         <span
           className="min-w-0 truncate text-sm font-semibold text-lumiva-accent"

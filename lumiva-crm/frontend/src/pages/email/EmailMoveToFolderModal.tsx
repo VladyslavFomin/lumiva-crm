@@ -42,7 +42,7 @@ export const EmailMoveToFolderModal: React.FC<EmailMoveToFolderModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[85] flex items-end justify-center bg-slate-900/50 p-3 sm:items-center sm:p-6"
+      className="fixed inset-0 z-[8500] flex items-end justify-center bg-slate-900/50 p-3 sm:items-center sm:p-6"
       role="dialog"
       aria-modal
       onMouseDown={(e) => {

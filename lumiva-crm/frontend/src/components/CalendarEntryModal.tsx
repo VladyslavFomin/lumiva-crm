@@ -265,7 +265,7 @@ export const CalendarEntryModal: React.FC<Props> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[2000] flex items-center justify-center p-4"
+      className="fixed inset-0 z-[8500] flex items-center justify-center p-4"
       style={{ background: 'rgba(0,0,0,0.45)' }}
       onMouseDown={() => onClose()}
     >

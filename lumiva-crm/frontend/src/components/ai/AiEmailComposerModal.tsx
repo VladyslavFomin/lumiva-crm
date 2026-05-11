@@ -244,7 +244,7 @@ export const AiEmailComposerModal: React.FC<AiEmailComposerModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-900/40 p-3 sm:items-center sm:p-4"
+      className="fixed inset-0 z-[8600] flex items-end justify-center bg-slate-900/40 p-3 sm:items-center sm:p-4"
       role="dialog"
       aria-modal
       aria-labelledby="ai-email-composer-title"

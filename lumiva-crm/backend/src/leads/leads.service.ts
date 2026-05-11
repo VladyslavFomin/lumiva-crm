@@ -20,6 +20,7 @@ import { AutomationsService } from '../automations/automations.service';
 import { IntegrationsService } from '../integrations/integrations.service';
 import { TriggerEvent } from '../automations/automation.entity';
 import { isOriginAllowedForSite } from '../embed-forms/embed-origin.util';
+import { AiEmployeesService } from '../ai-employees/ai-employees.service';
 
 // Типы для статистики (форма ответа под фронт)
 export interface LeadStatusStat {
@@ -53,6 +54,8 @@ export interface LeadStats {
 }
 
 // ===== ROI по лидам (используется и для продаж, и для проектов) =====
+type RoiCurrencyMode = 'native' | 'converted';
+
 export interface LeadRoiRow {
   leadId: string;
   leadName: string | null;
@@ -68,10 +71,13 @@ export interface LeadRoiRow {
   lastDealAt: string | null;
 
   currency: string;
+  sourceCurrencies?: string[];
 }
 
 export interface LeadsRoiStats {
   currency: string;          // базовая валюта отчёта
+  currencyMode?: RoiCurrencyMode;
+  displayCurrency?: string;
   totalRevenue: number;      // total по всем лидам
   leadsWithRevenue: number;  // кол-во лидов, давших деньги
   dealsCount: number;        // всего сделок/проектов
@@ -80,6 +86,12 @@ export interface LeadsRoiStats {
   to?: string | null;
   items: LeadRoiRow[];
 }
+
+type RoiCurrencyOptions = {
+  currencyMode?: RoiCurrencyMode;
+  displayCurrency?: string;
+  rates?: string;
+};
 
 // ===== Утраты (lost) =====
 export interface LostLeadManagerStat {
@@ -125,6 +137,9 @@ export class LeadsService {
 
     @Inject(forwardRef(() => IntegrationsService))
     private readonly integrationsService: IntegrationsService,
+
+    @Inject(forwardRef(() => AiEmployeesService))
+    private readonly aiEmployeesService: AiEmployeesService,
   ) {}
 
   /** meta.deleted — корзина; не участвует в агрегатах и ROI */
@@ -263,6 +278,8 @@ export class LeadsService {
     } catch (error) {
       console.error('Failed to trigger automation:', error);
     }
+
+    void this.aiEmployeesService.onLeadCreated(tenantId, saved.id).catch(() => undefined);
 
     return saved;
   }
@@ -780,7 +797,44 @@ export class LeadsService {
     };
   }
 
-    // ====== helper: конструируем LeadsRoiStats из сырых рядов + лидов ======
+  private normalizeRoiCurrency(currency?: string | null) {
+    return String(currency || 'EUR').toUpperCase().slice(0, 8) || 'EUR';
+  }
+
+  private parseRoiRates(raw?: string): Record<string, number> {
+    if (!raw) return {};
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return Object.fromEntries(
+        Object.entries(parsed)
+          .map(([currency, rate]) => ({
+            currency: this.normalizeRoiCurrency(currency),
+            rate: Number(rate),
+          }))
+          .filter(({ rate }) => Number.isFinite(rate) && rate > 0)
+          .map(({ currency, rate }) => [currency, rate]),
+      );
+    } catch {
+      return {};
+    }
+  }
+
+  private convertRoiAmount(
+    amountRaw: unknown,
+    currencyRaw: unknown,
+    options?: RoiCurrencyOptions,
+  ) {
+    const amount = Number(amountRaw) || 0;
+    const currency = this.normalizeRoiCurrency(String(currencyRaw || 'EUR'));
+    const mode = options?.currencyMode === 'converted' ? 'converted' : 'native';
+    const displayCurrency = this.normalizeRoiCurrency(options?.displayCurrency);
+    if (mode !== 'converted') return amount;
+    if (currency === displayCurrency) return amount;
+    const rate = this.parseRoiRates(options?.rates)[currency];
+    return rate && Number.isFinite(rate) && rate > 0 ? amount * rate : 0;
+  }
+
+  // ====== helper: конструируем LeadsRoiStats из сырых рядов + лидов ======
   private buildRoiStats(
     raw: {
       leadId: string;
@@ -791,10 +845,15 @@ export class LeadsService {
       currency: string | null;
     }[],
     leads: Lead[],
+    options?: RoiCurrencyOptions,
   ): LeadsRoiStats {
+    const currencyMode = options?.currencyMode === 'converted' ? 'converted' : 'native';
+    const displayCurrency = this.normalizeRoiCurrency(options?.displayCurrency);
     if (!raw.length) {
       return {
-        currency: 'EUR',
+        currency: currencyMode === 'converted' ? displayCurrency : 'EUR',
+        currencyMode,
+        displayCurrency,
         totalRevenue: 0,
         avgCheck: 0,
         leadsWithRevenue: 0,
@@ -812,7 +871,9 @@ export class LeadsService {
 
     if (!rawActive.length) {
       return {
-        currency: 'EUR',
+        currency: currencyMode === 'converted' ? displayCurrency : 'EUR',
+        currencyMode,
+        displayCurrency,
         totalRevenue: 0,
         avgCheck: 0,
         leadsWithRevenue: 0,
@@ -821,27 +882,60 @@ export class LeadsService {
       };
     }
 
-    const items: LeadRoiRow[] = rawActive.map((r) => {
+    const byLead = new Map<string, LeadRoiRow>();
+    const sourceCurrenciesByLead = new Map<string, Set<string>>();
+    for (const r of rawActive) {
       const lead = leadMap.get(r.leadId);
+      const rowCurrency = this.normalizeRoiCurrency(r.currency);
+      const current =
+        byLead.get(r.leadId) ||
+        ({
+          leadId: r.leadId,
+          leadName: lead?.name ?? null,
+          status: (lead?.status as string) ?? null,
+          manager: lead?.assignedTo ?? null,
+          channel: (lead?.source as string) ?? null,
+          totalRevenue: 0,
+          dealsCount: 0,
+          firstDealAt: null,
+          lastDealAt: null,
+          currency: currencyMode === 'converted' ? displayCurrency : rowCurrency,
+          sourceCurrencies: [],
+        } satisfies LeadRoiRow);
+      current.totalRevenue += this.convertRoiAmount(
+        r.totalRevenue,
+        rowCurrency,
+        options,
+      );
+      current.dealsCount += Number(r.dealsCount) || 0;
+      const firstDealAt = r.firstDealAt ? new Date(r.firstDealAt).toISOString() : null;
+      const lastDealAt = r.lastDealAt ? new Date(r.lastDealAt).toISOString() : null;
+      current.firstDealAt =
+        !current.firstDealAt || (firstDealAt && firstDealAt < current.firstDealAt)
+          ? firstDealAt
+          : current.firstDealAt;
+      current.lastDealAt =
+        !current.lastDealAt || (lastDealAt && lastDealAt > current.lastDealAt)
+          ? lastDealAt
+          : current.lastDealAt;
 
+      const currencies = sourceCurrenciesByLead.get(r.leadId) || new Set<string>();
+      currencies.add(rowCurrency);
+      sourceCurrenciesByLead.set(r.leadId, currencies);
+      byLead.set(r.leadId, current);
+    }
+
+    const items = Array.from(byLead.values()).map((row) => {
+      const sourceCurrencies = Array.from(sourceCurrenciesByLead.get(row.leadId) || []);
       return {
-        leadId: r.leadId,
-        leadName: lead?.name ?? null,
-        status: (lead?.status as string) ?? null,
-        manager: lead?.assignedTo ?? null,
-        channel: (lead?.source as string) ?? null,
-
-        totalRevenue: Number(r.totalRevenue) || 0,
-        dealsCount: Number(r.dealsCount) || 0,
-
-        firstDealAt: r.firstDealAt
-          ? new Date(r.firstDealAt).toISOString()
-          : null,
-        lastDealAt: r.lastDealAt
-          ? new Date(r.lastDealAt).toISOString()
-          : null,
-
-        currency: r.currency || 'EUR',
+        ...row,
+        currency:
+          currencyMode === 'converted'
+            ? displayCurrency
+            : sourceCurrencies.length > 1
+              ? sourceCurrencies.join(', ')
+              : row.currency,
+        sourceCurrencies,
       };
     });
 
@@ -855,10 +949,13 @@ export class LeadsService {
     );
     const leadsWithRevenue = items.length;
     const avgCheck = dealsCount > 0 ? totalRevenue / dealsCount : 0;
-    const currency = items[0]?.currency || 'EUR';
+    const currency =
+      currencyMode === 'converted' ? displayCurrency : items[0]?.currency || 'EUR';
 
     return {
       currency,
+      currencyMode,
+      displayCurrency,
       totalRevenue,
       avgCheck,
       leadsWithRevenue,
@@ -993,18 +1090,22 @@ export class LeadsService {
   // ====== ПУБЛИЧНЫЙ метод ROI (переключатель sales / projects) ======
   async getRoiForTenant(
     tenantId: string,
-    opts?: { from?: string; to?: string; source?: 'sales' | 'projects' },
+    opts?: {
+      from?: string;
+      to?: string;
+      source?: 'sales' | 'projects';
+    } & RoiCurrencyOptions,
   ): Promise<LeadsRoiStats> {
     const { from, to, source } = opts || {};
 
     console.log('ROI service: source =', source, 'from =', from, 'to =', to);
 
     if (source === 'projects') {
-      return this.getProjectsRoiForTenantInternal(tenantId, from, to);
+      return this.getProjectsRoiForTenantInternal(tenantId, from, to, opts);
     }
     console.log('ROI service: USING SALES');
     // по умолчанию считаем по продажам
-    return this.getSalesRoiForTenantInternal(tenantId, from, to);
+    return this.getSalesRoiForTenantInternal(tenantId, from, to, opts);
   }
 
   // ====== ROI ДЛЯ ЛИДОВ ПО ПРОДАЖАМ (sales) ======
@@ -1012,6 +1113,7 @@ export class LeadsService {
     tenantId: string,
     from?: string,
     to?: string,
+    options?: RoiCurrencyOptions,
   ): Promise<LeadsRoiStats> {
     const qb = this.salesRepo
       .createQueryBuilder('s')
@@ -1027,7 +1129,7 @@ export class LeadsService {
       .addSelect('COUNT(*)', 'dealsCount')
       .addSelect('MIN(s."createdAt")', 'firstDealAt')
       .addSelect('MAX(s."createdAt")', 'lastDealAt')
-      .addSelect('MIN(s.currency)', 'currency')
+      .addSelect('s.currency', 'currency')
       .where('l."tenantId" = :tenantId', { tenantId })
       .andWhere('s.lead_id IS NOT NULL');
 
@@ -1040,7 +1142,7 @@ export class LeadsService {
       qb.andWhere('s."createdAt" <= :to', { to: toDate.toISOString() });
     }
 
-    qb.groupBy('s.lead_id');
+    qb.groupBy('s.lead_id').addGroupBy('s.currency');
 
     const raw = await qb.getRawMany<{
       leadId: string;
@@ -1058,7 +1160,7 @@ export class LeadsService {
         })
       : [];
 
-    return this.buildRoiStats(raw, leads);
+    return this.buildRoiStats(raw, leads, options);
   }
 
   // ====== ROI ДЛЯ ЛИДОВ ПО ПРОЕКТАМ (projects) ======
@@ -1066,6 +1168,7 @@ private async getProjectsRoiForTenantInternal(
   tenantId: string,
   from?: string,
   to?: string,
+  options?: RoiCurrencyOptions,
 ): Promise<LeadsRoiStats> {
   const qb = this.projectsRepo
     .createQueryBuilder('p')
@@ -1076,7 +1179,7 @@ private async getProjectsRoiForTenantInternal(
     // дата проекта — имя колонки в БД: created_at
     .addSelect('MIN(p."created_at")', 'firstDealAt')
     .addSelect('MAX(p."created_at")', 'lastDealAt')
-    .addSelect('MIN(p.currency)', 'currency')
+    .addSelect('p.currency', 'currency')
     .where('l."tenantId" = :tenantId', { tenantId })
     .andWhere('p.lead_id IS NOT NULL')
     // 👇 здесь была ошибка: isDeleted vs is_deleted
@@ -1091,7 +1194,7 @@ private async getProjectsRoiForTenantInternal(
     qb.andWhere('p."created_at" <= :to', { to: toDate.toISOString() });
   }
 
-  qb.groupBy('p.lead_id');
+  qb.groupBy('p.lead_id').addGroupBy('p.currency');
 
   const raw = await qb.getRawMany<{
     leadId: string;
@@ -1109,7 +1212,7 @@ private async getProjectsRoiForTenantInternal(
       })
     : [];
 
-  return this.buildRoiStats(raw, leads);
+  return this.buildRoiStats(raw, leads, options);
 }
 
   /**

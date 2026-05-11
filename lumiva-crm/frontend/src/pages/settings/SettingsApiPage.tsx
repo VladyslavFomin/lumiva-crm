@@ -271,7 +271,7 @@ export const SettingsApiPage: React.FC = () => {
 
       {modalMode ? (
         <div
-          className="fixed inset-0 z-[280] flex items-center justify-center bg-black/55 p-4"
+          className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/55 p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="api-token-modal-title"

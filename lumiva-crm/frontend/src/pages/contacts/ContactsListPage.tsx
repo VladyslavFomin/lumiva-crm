@@ -974,7 +974,7 @@ export const ContactsListPage: React.FC = () => {
 
         {/* Модальное окно массовых операций */}
         {bulkModalOpen && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4">
+          <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/60 p-4">
             <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 p-5">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>

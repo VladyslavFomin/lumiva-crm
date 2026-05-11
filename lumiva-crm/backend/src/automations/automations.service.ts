@@ -1,4 +1,6 @@
 // src/automations/automations.service.ts
+const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 import {
   Injectable,
   NotFoundException,
@@ -14,6 +16,11 @@ import PDFDocument from 'pdfkit';
 import { Automation, TriggerEvent } from './automation.entity';
 import { AutomationExecution } from './automation-execution.entity';
 import { Lead } from '../leads/lead.entity';
+import { Contact } from '../contacts/contact.entity';
+import { Company } from '../companies/company.entity';
+import { CompanyTask } from '../companies/company-task.entity';
+import { Project } from '../projects/project.entity';
+import { Sale } from '../sales/sale.entity';
 import { CreateAutomationDto } from './dto/create-automation.dto';
 import { UpdateAutomationDto } from './dto/update-automation.dto';
 import { EmailService } from '../email/email.service';
@@ -26,6 +33,9 @@ import { IntegrationsService } from '../integrations/integrations.service';
 import { MarketingService } from '../marketing/marketing.service';
 import type { RunAutomationNowDto } from './dto/run-automation-now.dto';
 import { CustomObjectsService } from '../custom-objects/custom-objects.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { SmsService } from '../sms/sms.service';
+import { StaffUsersService } from '../staff/staff-users.service';
 
 @Injectable()
 export class AutomationsService {
@@ -37,6 +47,16 @@ export class AutomationsService {
     private readonly executionRepo: Repository<AutomationExecution>,
     @InjectRepository(Lead)
     private readonly leadRepo: Repository<Lead>,
+    @InjectRepository(Contact)
+    private readonly contactRepo: Repository<Contact>,
+    @InjectRepository(Company)
+    private readonly companyRepo: Repository<Company>,
+    @InjectRepository(Project)
+    private readonly projectRepo: Repository<Project>,
+    @InjectRepository(CompanyTask)
+    private readonly companyTaskRepo: Repository<CompanyTask>,
+    @InjectRepository(Sale)
+    private readonly saleRepo: Repository<Sale>,
     @Inject(forwardRef(() => EmailService))
     private readonly emailService: EmailService,
     @Inject(forwardRef(() => TelegramCrmService))
@@ -50,6 +70,9 @@ export class AutomationsService {
     private readonly marketingService: MarketingService,
     @Inject(forwardRef(() => CustomObjectsService))
     private readonly customObjectsService: CustomObjectsService,
+    private readonly notificationsService: NotificationsService,
+    private readonly staffUsersService: StaffUsersService,
+    private readonly smsService: SmsService,
   ) {}
 
   /**
@@ -254,6 +277,9 @@ export class AutomationsService {
     event: TriggerEvent,
     triggerData: any,
   ): Promise<void> {
+    // ── Telegram CRM notifications for key events ────────────────────────
+    void this.dispatchTelegramNotification(tenantId, event, triggerData).catch(() => undefined);
+
     // Находим все активные автоматизации для этого события
     const automations = await this.automationRepo.find({
       where: {
@@ -430,6 +456,48 @@ export class AutomationsService {
     }
   }
 
+  /** Send Telegram notifications to tenant staff recipients for key CRM events */
+  private async dispatchTelegramNotification(tenantId: string, event: TriggerEvent, data: any): Promise<void> {
+    const lead = data?.lead;
+    const statusLabels: Record<string, string> = {
+      new: 'Новый', in_progress: 'В работе', contacted: 'Контакт установлен',
+      qualified: 'Квалифицирован', proposal: 'Предложение', negotiation: 'Переговоры',
+      won: 'Выиграно', lost: 'Проиграно', closed: 'Закрыт',
+    };
+    const label = (s: string) => statusLabels[s] || s;
+    const sourceLabels: Record<string, string> = {
+      telegram: 'Telegram', website: 'Сайт', instagram: 'Instagram',
+      facebook: 'Facebook', manual: 'Вручную', email: 'Email',
+    };
+
+    if (event === TriggerEvent.LEAD_CREATED && lead) {
+      const src = lead.source ? ` · ${sourceLabels[lead.source] || lead.source}` : '';
+      await this.telegramCrmService.notifyTenantRecipients(
+        tenantId,
+        `🆕 <b>Новый лид</b>${src}\n<b>${escHtml(lead.name || 'Без имени')}</b>` +
+        (lead.phone ? `\n📞 ${lead.phone}` : '') +
+        (lead.email ? `\n✉️ ${lead.email}` : ''),
+      );
+    } else if (event === TriggerEvent.LEAD_STATUS_CHANGED && lead) {
+      const oldS = label(data?.oldStatus || '');
+      const newS = label(data?.newStatus || '');
+      await this.telegramCrmService.notifyTenantRecipients(
+        tenantId,
+        `🔄 <b>${escHtml(lead.name || 'Лид')}</b>\n${oldS} → <b>${newS}</b>`,
+      );
+    } else if (event === TriggerEvent.LEAD_ASSIGNED && lead) {
+      const assignedIds: string[] = data?.newAssignedUserIds || data?.assignedUserIds ||
+        (data?.newAssignedUserId ? [data.newAssignedUserId] : []);
+      for (const uid of assignedIds) {
+        await this.telegramCrmService.notifyStaffUser(
+          tenantId, uid,
+          `👤 <b>Вам назначен лид</b>\n<b>${escHtml(lead.name || 'Без имени')}</b>` +
+          (lead.phone ? `\n📞 ${lead.phone}` : ''),
+        );
+      }
+    }
+  }
+
   /**
    * Проверить условия
    */
@@ -540,6 +608,9 @@ export class AutomationsService {
         : { _raw: triggerData };
     if (!effectiveTriggerData.tenantId) {
       effectiveTriggerData.tenantId = automation.tenantId;
+    }
+    if (!effectiveTriggerData.automationId) {
+      effectiveTriggerData.automationId = automation.id;
     }
     if (event === TriggerEvent.SCHEDULED && automation.meta?.contextLeadId) {
       effectiveTriggerData = await this.mergeScheduledLeadContext(
@@ -913,6 +984,36 @@ export class AutomationsService {
         }
         await this.integrationsService.postZapierCatchHookRaw(hookUrl, body);
         return { zapierSent: true };
+      }
+
+      case 'send_sms': {
+        const { to, text: smsText } = config;
+        const toRaw = to
+          ? this.interpolateString(String(to), triggerData).trim()
+          : '';
+        const toPhone =
+          toRaw ||
+          String(
+            triggerData?.lead?.phone ||
+              triggerData?.contact?.phone ||
+              triggerData?.phone ||
+              '',
+          ).trim();
+        if (!toPhone) {
+          throw new Error('send_sms: укажите номер to или поле phone у лида/контакта');
+        }
+        const message = this.interpolateString(
+          String(smsText || 'Сообщение из Lumiva CRM'),
+          triggerData,
+        );
+        await this.smsService.sendFromAutomation(
+          tenantId,
+          toPhone,
+          message,
+          triggerData?.lead?.id ? 'lead' : triggerData?.contact?.id ? 'contact' : undefined,
+          triggerData?.lead?.id ?? triggerData?.contact?.id ?? undefined,
+        );
+        return { smsSent: true };
       }
 
       case 'send_whatsapp': {
@@ -1500,16 +1601,39 @@ export class AutomationsService {
       }
 
       case 'send_telegram': {
-        const { botId, telegramUserId, text } = config;
-        if (!botId || !telegramUserId || !text) {
-          throw new Error('Telegram botId, telegramUserId and text are required');
+        const { botId, text } = config;
+        const recipientIds: string[] = Array.isArray(config.recipientIds) ? config.recipientIds : [];
+        const telegramUserId: string = String(config.telegramUserId || '').trim();
+
+        if (!botId || !text) {
+          throw new Error('Telegram botId and text are required');
+        }
+        if (!recipientIds.length && !telegramUserId) {
+          throw new Error('Выберите хотя бы одного получателя Telegram');
         }
 
+        const interpolated = this.interpolateString(text, triggerData);
+
+        if (recipientIds.length) {
+          // New path: resolve recipients from bot.meta.recipients
+          const bot = await this.telegramCrmService.findBot(tenantId, botId);
+          const allRecipients: any[] = (bot.meta?.recipients as any[]) || [];
+          const targets = allRecipients.filter((r: any) => recipientIds.includes(r.id));
+          if (!targets.length) {
+            throw new Error('Указанные получатели Telegram не найдены в настройках бота');
+          }
+          for (const r of targets) {
+            await this.telegramCrmService.sendDirectToChat(tenantId, botId, String(r.telegramChatId), interpolated);
+          }
+          return { telegramSent: targets.length };
+        }
+
+        // Legacy path: single telegramUserId (contact record required)
         return await this.telegramCrmService.sendMessage(
           tenantId,
           botId,
           telegramUserId,
-          this.interpolateString(text, triggerData),
+          interpolated,
           {
             contactId: triggerData.contactId || triggerData.contact?.id,
             companyId: triggerData.companyId || triggerData.company?.id,
@@ -1547,34 +1671,189 @@ export class AutomationsService {
       }
 
       case 'update_field': {
-        // Обновление поля сущности - требует доступа к соответствующему сервису
         const { field, value } = config;
         if (!field || value === undefined) {
           throw new Error('Field and value are required');
         }
 
-        // Это упрощенная версия - в реальности нужно вызывать соответствующий сервис
-        return { fieldUpdated: true, field, value: this.interpolateString(String(value), triggerData) };
+        const resolved = await this.resolveAutomationActionTarget(
+          tenantId,
+          config,
+          triggerData,
+          entityType,
+          entityId,
+          String(field),
+        );
+        const fieldPath = this.stripEntityPrefix(String(field), resolved.type);
+        const nextValue =
+          typeof value === 'string'
+            ? this.interpolateString(value, triggerData)
+            : value;
+        this.setAutomationEntityField(resolved.entity, fieldPath, nextValue);
+        await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+
+        return {
+          fieldUpdated: true,
+          entityType: resolved.type,
+          entityId: resolved.entity.id,
+          field: fieldPath,
+          value: nextValue,
+        };
       }
 
       case 'add_tag': {
         const { tag } = config;
-        if (!tag || !entityId || !entityType) {
-          throw new Error('Tag, entityId and entityType are required');
+        if (!tag) {
+          throw new Error('Tag is required');
         }
 
-        // Упрощенная версия - в реальности нужно вызывать соответствующий сервис
-        return { tagAdded: true, tag: this.interpolateString(tag, triggerData) };
+        const resolved = await this.resolveAutomationActionTarget(
+          tenantId,
+          config,
+          triggerData,
+          entityType,
+          entityId,
+        );
+        const interpolatedTag = this.interpolateString(String(tag), triggerData).trim();
+        if (!interpolatedTag) {
+          throw new Error('Tag is required');
+        }
+        const tags = this.getAutomationEntityTags(resolved.entity);
+        this.setAutomationEntityTags(resolved.entity, [
+          ...new Set([...tags, interpolatedTag]),
+        ]);
+        await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+
+        return {
+          tagAdded: true,
+          entityType: resolved.type,
+          entityId: resolved.entity.id,
+          tag: interpolatedTag,
+        };
+      }
+
+      case 'remove_tag': {
+        const { tag } = config;
+        if (!tag) {
+          throw new Error('Tag is required');
+        }
+
+        const resolved = await this.resolveAutomationActionTarget(
+          tenantId,
+          config,
+          triggerData,
+          entityType,
+          entityId,
+        );
+        const interpolatedTag = this.interpolateString(String(tag), triggerData).trim();
+        if (!interpolatedTag) {
+          throw new Error('Tag is required');
+        }
+        const tags = this.getAutomationEntityTags(resolved.entity).filter(
+          (currentTag) => currentTag !== interpolatedTag,
+        );
+        this.setAutomationEntityTags(resolved.entity, tags);
+        await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+
+        return {
+          tagRemoved: true,
+          entityType: resolved.type,
+          entityId: resolved.entity.id,
+          tag: interpolatedTag,
+        };
       }
 
       case 'change_status': {
         const { status } = config;
-        if (!status || !entityId || !entityType) {
-          throw new Error('Status, entityId and entityType are required');
+        if (!status) {
+          throw new Error('Status is required');
         }
 
-        // Упрощенная версия - в реальности нужно вызывать соответствующий сервис
-        return { statusChanged: true, status: this.interpolateString(status, triggerData) };
+        const resolved = await this.resolveAutomationActionTarget(
+          tenantId,
+          config,
+          triggerData,
+          entityType,
+          entityId,
+        );
+        if (!('status' in resolved.entity)) {
+          throw new Error(`change_status: entity type ${resolved.type} does not support status`);
+        }
+        const nextStatus = this.interpolateString(String(status), triggerData);
+        resolved.entity.status = nextStatus;
+        await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+
+        return {
+          statusChanged: true,
+          entityType: resolved.type,
+          entityId: resolved.entity.id,
+          status: nextStatus,
+        };
+      }
+
+      case 'assign_user': {
+        const configuredUserIds = Array.isArray(config.userIds)
+          ? config.userIds
+          : config.userId
+            ? [config.userId]
+            : [];
+        const assignment = await this.resolveStaffAssignment(
+          tenantId,
+          configuredUserIds.map((id) => String(id || '').trim()).filter(Boolean),
+        );
+        if (!assignment.userIds.length) {
+          throw new Error('assign_user: выберите хотя бы одного сотрудника');
+        }
+
+        const resolved = await this.resolveAutomationActionTarget(
+          tenantId,
+          config,
+          triggerData,
+          entityType,
+          entityId,
+        );
+        this.assignAutomationEntityUsers(resolved.entity, assignment);
+        await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+
+        return {
+          userAssigned: true,
+          entityType: resolved.type,
+          entityId: resolved.entity.id,
+          userIds: assignment.userIds,
+        };
+      }
+
+      case 'assign_task': {
+        const taskId =
+          config.taskId ||
+          triggerData.taskId ||
+          triggerData.task?.id ||
+          (entityType === 'task' ? entityId : null);
+        const userId = String(config.userId || '').trim();
+        if (!taskId || !userId) {
+          throw new Error('assign_task: укажите taskId и сотрудника');
+        }
+
+        const assignment = await this.resolveStaffAssignment(tenantId, [userId]);
+        if (!assignment.userIds.length) {
+          throw new Error('assign_task: сотрудник не найден');
+        }
+
+        const task = await this.companyTaskRepo.findOne({
+          where: { id: String(taskId), tenantId },
+        });
+        if (!task) {
+          throw new Error('assign_task: задача не найдена');
+        }
+        task.assignedUserId = assignment.userIds[0];
+        task.assignedTo = assignment.names[0] ?? null;
+        await this.companyTaskRepo.save(task);
+
+        return {
+          taskAssigned: true,
+          taskId: task.id,
+          userId: task.assignedUserId,
+        };
       }
 
       case 'create_task': {
@@ -1598,10 +1877,13 @@ export class AutomationsService {
           description: config.description
             ? this.interpolateString(String(config.description), triggerData)
             : null,
-          status: (config.status as any) || 'todo',
+          status: this.normalizeCompanyTaskStatus(config.status),
           priority: config.priority ?? null,
-          dueDate: config.dueDate ?? null,
+          dueDate: this.resolveAutomationDueDate(config.dueDate),
           assignedUserId: config.assignedUserId ?? null,
+          assignedTo: config.assignedUserId
+            ? (await this.resolveStaffAssignment(tenantId, [String(config.assignedUserId)])).names[0] ?? null
+            : null,
         });
       }
 
@@ -1668,26 +1950,40 @@ export class AutomationsService {
 
         if (channel === 'telegram') {
           const botId = String(config.botId || '').trim();
+          const recipientIds: string[] = Array.isArray(config.recipientIds) ? config.recipientIds : [];
           const telegramUserId = String(config.telegramUserId || '').trim();
-          if (!botId || !telegramUserId) {
-            throw new Error('send_data_export: для Telegram укажите botId и telegramUserId');
+          if (!botId || (!recipientIds.length && !telegramUserId)) {
+            throw new Error('send_data_export: для Telegram укажите botId и получателей');
           }
-          for (let i = 0; i < attachments.length; i++) {
-            const a = attachments[i];
-            await this.telegramCrmService.sendDocumentFromBuffer(
-              tenantId,
-              botId,
-              telegramUserId,
-              a.filename,
-              a.content,
-              i === 0 ? subject : undefined,
-              {
-                leadId: triggerData.leadId || triggerData.lead?.id,
-                contactId: triggerData.contactId || triggerData.contact?.id,
-                companyId: triggerData.companyId || triggerData.company?.id,
-                saleId: triggerData.saleId || triggerData.sale?.id,
-              },
-            );
+
+          // Resolve chat IDs
+          let chatIds: string[] = telegramUserId ? [telegramUserId] : [];
+          if (recipientIds.length) {
+            const bot = await this.telegramCrmService.findBot(tenantId, botId);
+            const allRecipients: any[] = (bot.meta?.recipients as any[]) || [];
+            chatIds = allRecipients
+              .filter((r: any) => recipientIds.includes(r.id))
+              .map((r: any) => String(r.telegramChatId));
+          }
+
+          for (const chatId of chatIds) {
+            for (let i = 0; i < attachments.length; i++) {
+              const a = attachments[i];
+              await this.telegramCrmService.sendDocumentFromBuffer(
+                tenantId,
+                botId,
+                chatId,
+                a.filename,
+                a.content,
+                i === 0 ? subject : undefined,
+                {
+                  leadId: triggerData.leadId || triggerData.lead?.id,
+                  contactId: triggerData.contactId || triggerData.contact?.id,
+                  companyId: triggerData.companyId || triggerData.company?.id,
+                  saleId: triggerData.saleId || triggerData.sale?.id,
+                },
+              );
+            }
           }
           return { dataExportSent: true, channel: 'telegram', files: attachments.length };
         }
@@ -1852,9 +2148,298 @@ export class AutomationsService {
         });
       }
 
+      case 'send_notification': {
+        const title = config.title ? this.interpolateString(String(config.title), triggerData) : null;
+        const body = this.interpolateString(String(config.body || config.message || ''), triggerData);
+        if (!body) throw new Error('send_notification: текст уведомления не может быть пустым');
+
+        const configuredIds = Array.isArray(config.userIds)
+          ? config.userIds.map((id) => String(id || '').trim()).filter(Boolean)
+          : [];
+        const targetIds = await this.staffUsersService.resolveNotificationUserIdsForTenant(
+          tenantId,
+          configuredIds.length > 0 ? configuredIds : undefined,
+        );
+
+        if (!targetIds.length) return { notificationsSent: 0 };
+
+        await this.notificationsService.create(tenantId, targetIds, title, body, {
+          automationId: triggerData.automationId,
+          triggeredAt: new Date().toISOString(),
+        });
+
+        return { notificationsSent: targetIds.length };
+      }
+
       default:
         throw new Error(`Unknown action type: ${type}`);
     }
+  }
+
+  private async resolveAutomationActionTarget(
+    tenantId: string,
+    config: Record<string, any>,
+    triggerData: any,
+    fallbackEntityType?: string | null,
+    fallbackEntityId?: string | null,
+    fieldPath?: string,
+  ): Promise<{ type: string; entity: any }> {
+    const fieldEntityType = fieldPath ? this.getEntityTypeFromFieldPath(fieldPath) : null;
+    const rawType =
+      config.entityType ||
+      config.targetEntityType ||
+      fieldEntityType ||
+      fallbackEntityType;
+    const type = this.normalizeAutomationEntityType(rawType);
+    if (!type) {
+      throw new Error('Не удалось определить тип сущности для действия автоматизации');
+    }
+    const id =
+      config.entityId ||
+      config.targetEntityId ||
+      config[`${type}Id`] ||
+      triggerData[`${type}Id`] ||
+      triggerData[type]?.id ||
+      (this.normalizeAutomationEntityType(fallbackEntityType) === type
+        ? fallbackEntityId
+        : null);
+
+    if (!id) {
+      throw new Error('Не удалось определить сущность для действия автоматизации');
+    }
+
+    const entity = await this.loadAutomationActionEntity(tenantId, type, String(id));
+    if (!entity) {
+      throw new Error(`Сущность ${type} не найдена`);
+    }
+
+    return { type, entity };
+  }
+
+  private normalizeAutomationEntityType(value: unknown): string | null {
+    const raw = String(value || '').trim().toLowerCase();
+    const map: Record<string, string> = {
+      lead: 'lead',
+      leads: 'lead',
+      contact: 'contact',
+      contacts: 'contact',
+      company: 'company',
+      companies: 'company',
+      sale: 'sale',
+      sales: 'sale',
+      project: 'project',
+      projects: 'project',
+      task: 'task',
+      companytask: 'task',
+      company_task: 'task',
+      companytaskentity: 'task',
+    };
+    return map[raw] || null;
+  }
+
+  private getEntityTypeFromFieldPath(fieldPath: string): string | null {
+    const [firstPart] = fieldPath.split('.');
+    return this.normalizeAutomationEntityType(firstPart);
+  }
+
+  private stripEntityPrefix(fieldPath: string, entityType: string): string {
+    const parts = fieldPath
+      .split('.')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (parts.length > 1 && this.normalizeAutomationEntityType(parts[0]) === entityType) {
+      return parts.slice(1).join('.');
+    }
+    return parts.join('.');
+  }
+
+  private async loadAutomationActionEntity(
+    tenantId: string,
+    entityType: string,
+    entityId: string,
+  ): Promise<any | null> {
+    switch (entityType) {
+      case 'lead':
+        return this.leadRepo.findOne({ where: { id: entityId, tenantId } });
+      case 'contact':
+        return this.contactRepo.findOne({ where: { id: entityId, tenantId } });
+      case 'company':
+        return this.companyRepo.findOne({ where: { id: entityId, tenantId } });
+      case 'project':
+        return this.projectRepo.findOne({ where: { id: entityId, tenantId } });
+      case 'task':
+        return this.companyTaskRepo.findOne({ where: { id: entityId, tenantId } });
+      case 'sale':
+        return this.saleRepo.findOne({ where: { id: entityId, tenantId } as any });
+      default:
+        return null;
+    }
+  }
+
+  private async saveAutomationActionEntity(
+    entityType: string,
+    entity: any,
+  ): Promise<any> {
+    switch (entityType) {
+      case 'lead':
+        return this.leadRepo.save(entity);
+      case 'contact':
+        return this.contactRepo.save(entity);
+      case 'company':
+        return this.companyRepo.save(entity);
+      case 'project':
+        return this.projectRepo.save(entity);
+      case 'task':
+        return this.companyTaskRepo.save(entity);
+      case 'sale':
+        return this.saleRepo.save(entity);
+      default:
+        throw new Error(`Unsupported entity type: ${entityType}`);
+    }
+  }
+
+  private setAutomationEntityField(entity: any, fieldPath: string, value: any): void {
+    const parts = fieldPath
+      .split('.')
+      .map((part) => part.trim())
+      .filter(Boolean);
+    if (!parts.length) {
+      throw new Error('Field is required');
+    }
+
+    const blockedFields = new Set(['id', 'tenantId', 'createdAt', 'updatedAt']);
+    if (blockedFields.has(parts[0])) {
+      throw new Error(`Поле ${parts[0]} нельзя обновлять из автоматизации`);
+    }
+
+    if (parts[0] === 'customFields' || parts[0] === 'meta' || parts[0] === 'rawPayload') {
+      entity[parts[0]] =
+        typeof entity[parts[0]] === 'object' && entity[parts[0]] !== null
+          ? entity[parts[0]]
+          : {};
+      this.setNestedAutomationValue(entity[parts[0]], parts.slice(1), value);
+      return;
+    }
+
+    if (parts.length === 1 && parts[0] in entity) {
+      entity[parts[0]] = value;
+      return;
+    }
+
+    entity.customFields =
+      typeof entity.customFields === 'object' && entity.customFields !== null
+        ? entity.customFields
+        : {};
+    this.setNestedAutomationValue(entity.customFields, parts, value);
+  }
+
+  private setNestedAutomationValue(target: Record<string, any>, parts: string[], value: any): void {
+    if (!parts.length) {
+      throw new Error('Field is required');
+    }
+    let current = target;
+    for (let index = 0; index < parts.length - 1; index++) {
+      const part = parts[index];
+      if (typeof current[part] !== 'object' || current[part] === null || Array.isArray(current[part])) {
+        current[part] = {};
+      }
+      current = current[part];
+    }
+    current[parts[parts.length - 1]] = value;
+  }
+
+  private getAutomationEntityTags(entity: any): string[] {
+    if (Array.isArray(entity.tags)) {
+      return entity.tags.filter((tag: unknown): tag is string => typeof tag === 'string');
+    }
+    const customTags = entity.customFields?.tags;
+    if (Array.isArray(customTags)) {
+      return customTags.filter((tag: unknown): tag is string => typeof tag === 'string');
+    }
+    return [];
+  }
+
+  private setAutomationEntityTags(entity: any, tags: string[]): void {
+    if ('tags' in entity) {
+      entity.tags = tags;
+      return;
+    }
+    entity.customFields =
+      typeof entity.customFields === 'object' && entity.customFields !== null
+        ? entity.customFields
+        : {};
+    entity.customFields.tags = tags;
+  }
+
+  private async resolveStaffAssignment(
+    tenantId: string,
+    staffIds: string[],
+  ): Promise<{ userIds: string[]; names: string[] }> {
+    const selectedIds = [...new Set(staffIds.filter(Boolean))];
+    if (!selectedIds.length) {
+      return { userIds: [], names: [] };
+    }
+    const staff = await this.staffUsersService.listForTenant(tenantId);
+    const selectedStaff = staff.filter((user: any) => selectedIds.includes(user.id));
+    return {
+      userIds: selectedStaff.map((user: any) => user.id),
+      names: selectedStaff.map((user: any) => user.fullName || user.email).filter(Boolean),
+    };
+  }
+
+  private assignAutomationEntityUsers(
+    entity: any,
+    assignment: { userIds: string[]; names: string[] },
+  ): void {
+    const firstUserId = assignment.userIds[0] ?? null;
+    const firstName = assignment.names[0] ?? null;
+    const names = assignment.names.join(', ') || null;
+
+    if ('assignedUserIds' in entity) entity.assignedUserIds = assignment.userIds;
+    if ('assignedToList' in entity) entity.assignedToList = assignment.names;
+    if ('assignedUserId' in entity) entity.assignedUserId = firstUserId;
+    if ('assignedTo' in entity) entity.assignedTo = names;
+    if ('ownerUserIds' in entity) entity.ownerUserIds = assignment.userIds;
+    if ('ownerUserId' in entity) entity.ownerUserId = firstUserId;
+    if ('ownerName' in entity) entity.ownerName = names;
+    if ('managerName' in entity) entity.managerName = names;
+
+    const hasAssignmentField =
+      'assignedUserId' in entity ||
+      'ownerUserId' in entity ||
+      'managerName' in entity;
+    if (!hasAssignmentField) {
+      throw new Error('Эта сущность не поддерживает назначение сотрудника');
+    }
+
+    if ('assignedTo' in entity && !entity.assignedTo) {
+      entity.assignedTo = firstName;
+    }
+  }
+
+  private normalizeCompanyTaskStatus(value: unknown): any {
+    const status = String(value || 'todo').trim();
+    if (status === 'open') return 'todo';
+    if (['todo', 'in_progress', 'review', 'done', 'cancelled'].includes(status)) {
+      return status;
+    }
+    return 'todo';
+  }
+
+  private resolveAutomationDueDate(value: unknown): string | null {
+    if (value === null || value === undefined || value === '') {
+      return null;
+    }
+    const raw = String(value).trim();
+    const dayMatch = raw.match(/^\+?(\d+)(?:\s*d(?:ay)?s?)?$/i);
+    if (dayMatch) {
+      const days = Number(dayMatch[1]);
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + days);
+      return dueDate.toISOString();
+    }
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
   }
 
   private getValueAtPath(root: any, path: string): any {
