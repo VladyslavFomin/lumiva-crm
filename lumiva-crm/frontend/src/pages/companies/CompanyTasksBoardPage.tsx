@@ -15,6 +15,7 @@ import { fetchCompany, type Company } from '../../api/companies';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { useTranslation } from 'react-i18next';
 import { getLocale } from '../../i18n/utils';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const STATUSES: CompanyTaskStatus[] = ['todo', 'in_progress', 'review', 'done', 'cancelled'];
 
@@ -28,6 +29,7 @@ const STATUS_COLORS: Record<CompanyTaskStatus, string> = {
 
 export const CompanyTasksBoardPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const { companyId } = useParams<{ companyId: string }>();
   const navigate = useNavigate();
   const locale = getLocale();
@@ -208,7 +210,12 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
   const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(t('crm.companies.tasks.deleteConfirm'))) return;
+    const ok = await showConfirm(t('crm.companies.tasks.deleteConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      danger: true,
+    });
+    if (!ok) return;
 
     try {
       await deleteCompanyTask(taskId);
@@ -263,7 +270,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
   if (error && !company) {
     return (
       <MainLayout>
-        <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+        <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
           {error}
         </div>
       </MainLayout>
@@ -278,20 +285,20 @@ export const CompanyTasksBoardPage: React.FC = () => {
           <div>
             <button
               onClick={() => navigate('/companies')}
-              className="text-[11px] text-slate-400 hover:text-slate-200 mb-1"
+              className="text-[11px] text-text-tertiary hover:text-[#111827] mb-1"
             >
               {t('crm.companies.analytics.backToList')}
             </button>
-            <h1 className="text-lg font-semibold text-slate-50">
+            <h1 className="page-title">
               {t('crm.companies.tasks.title')}: {company?.name || t('crm.companies.details.page.noCompany')}
             </h1>
-            <div className="text-[11px] text-slate-500">
+            <div className="text-[11px] text-text-tertiary">
               {t('crm.companies.details.tasks.viewBoard')}
             </div>
           </div>
           <button
             onClick={() => companyId && navigate(`/companies/${companyId}/edit`)}
-            className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
+            className="btn-secondary btn-secondary-sm"
           >
             {t('crm.companies.details.page.noCompany')}
           </button>
@@ -299,13 +306,13 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
         {/* Ошибка */}
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
         {/* Фильтры и поиск */}
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-3">
+        <div className="card p-4 space-y-3">
           <div className="flex gap-2">
             <input
               type="text"
@@ -357,7 +364,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                   setFilterAssignedTo(null);
                   setFilterDueDate(null);
                 }}
-                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700 text-slate-400 hover:text-slate-50 transition-colors"
+                className="btn-secondary btn-secondary-sm"
               >
                 {t('crm.companies.tasks.filters.reset')}
               </button>
@@ -366,7 +373,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
         </div>
 
         {/* Создание задачи */}
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+        <div className="card p-4">
           <div className="flex gap-2">
             <input
               type="text"
@@ -383,7 +390,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
             <button
               onClick={handleCreateTask}
               disabled={creating || !newTaskTitle.trim()}
-              className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="btn-primary btn-secondary-sm disabled:opacity-50"
             >
               {creating ? t('crm.companies.tasks.actions.creating') : `+ ${t('crm.companies.tasks.create')}`}
             </button>
@@ -397,7 +404,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
             return (
               <div
                 key={status}
-                className="flex-1 min-w-[260px] max-w-xs bg-slate-950/80 border border-slate-800/80 rounded-3xl p-3 flex flex-col"
+                className="flex-1 min-w-[260px] max-w-xs bg-surface-subtle border border-border-default rounded-3xl p-3 flex flex-col"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDropTo(status)}
               >
@@ -408,11 +415,11 @@ export const CompanyTasksBoardPage: React.FC = () => {
                       className="w-2 h-2 rounded-full"
                       style={{ backgroundColor: STATUS_COLORS[status] }}
                     />
-                    <div className="text-xs text-slate-300 font-medium">
+                    <div className="text-xs text-[#111827] font-medium">
                       {t(`crm.companies.tasks.statuses.${status}`)}
                     </div>
                   </div>
-                  <div className="text-[10px] text-slate-500 bg-slate-800/50 px-2 py-0.5 rounded">
+                  <div className="text-[10px] text-text-tertiary bg-surface-active px-2 py-0.5 rounded">
                     {columnTasks.length}
                   </div>
                 </div>
@@ -425,10 +432,10 @@ export const CompanyTasksBoardPage: React.FC = () => {
                       draggable
                       onDragStart={() => handleDragStart(task.id)}
                       onClick={() => handleEditTask(task)}
-                      className="bg-slate-900/70 border border-slate-800/80 rounded-xl p-3 cursor-pointer hover:border-slate-700/80 transition-colors"
+                      className="bg-white border border-border-default rounded-xl p-3 cursor-pointer hover:border-lumiva-accent/30 hover:bg-surface-hover transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
-                        <h3 className="text-xs font-medium text-slate-50 flex-1 line-clamp-2">
+                        <h3 className="text-xs font-medium text-[#111827] flex-1 line-clamp-2">
                           {task.title}
                         </h3>
                         <div className="flex gap-1 flex-shrink-0">
@@ -453,7 +460,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                       </div>
 
                       {task.description && (
-                        <div className="text-[10px] text-slate-400 mb-2 line-clamp-2">
+                        <div className="text-[10px] text-text-secondary mb-2 line-clamp-2">
                           {task.description}
                         </div>
                       )}
@@ -466,7 +473,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                           const isOverdue = due < today && task.status !== 'done';
                           const isToday = due >= today && due < new Date(today.getTime() + 24 * 60 * 60 * 1000);
                           return (
-                            <div className={`text-[10px] ${isOverdue ? 'text-red-400 font-semibold' : isToday ? 'text-yellow-400' : 'text-slate-500'}`}>
+                            <div className={`text-[10px] ${isOverdue ? 'text-status-error font-semibold' : isToday ? 'text-amber-600' : 'text-text-tertiary'}`}>
                               📅 {due.toLocaleDateString(locale, {
                                 day: '2-digit',
                                 month: '2-digit',
@@ -476,7 +483,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                           );
                         })()}
                         {task.assignedTo && (
-                          <div className="text-[10px] text-slate-500">
+                          <div className="text-[10px] text-text-tertiary">
                             👤 {task.assignedTo}
                           </div>
                         )}
@@ -487,12 +494,12 @@ export const CompanyTasksBoardPage: React.FC = () => {
                           <span
                             className={`px-2 py-0.5 rounded text-[10px] ${
                               task.priority === 'urgent'
-                                ? 'bg-red-950/50 text-red-400'
+                                ? 'bg-red-100 text-red-700'
                                 : task.priority === 'high'
-                                ? 'bg-orange-950/50 text-orange-400'
+                                ? 'bg-orange-100 text-orange-700'
                                 : task.priority === 'medium'
-                                ? 'bg-yellow-950/50 text-yellow-400'
-                                : 'bg-slate-800/50 text-slate-300'
+                                ? 'bg-yellow-100 text-yellow-700'
+                                : 'bg-surface-active text-text-secondary'
                             }`}
                           >
                             {task.priority === 'urgent'
@@ -517,19 +524,19 @@ export const CompanyTasksBoardPage: React.FC = () => {
       {/* Модальное окно редактирования задачи */}
       {editingTask && (
         <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 p-5">
+          <div className="w-full max-w-2xl modal-panel p-5">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
-                <div className="text-xs font-semibold text-slate-50">
+                <div className="text-xs font-semibold text-[#111827]">
                   {t('crm.companies.tasks.edit')}
                 </div>
-                <div className="mt-1 text-[11px] text-slate-500">
+                <div className="mt-1 text-[11px] text-text-tertiary">
                   {t('crm.companies.tasks.actions.editSubtitle')}
                 </div>
               </div>
               <button
                 onClick={() => setEditingTask(null)}
-                className="text-slate-400 hover:text-white text-xl leading-none"
+                className="text-text-tertiary hover:text-[#111827] text-xl leading-none"
                 type="button"
               >
                 ×
@@ -538,7 +545,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1.5">
+                <label className="block text-[10px] text-text-tertiary mb-1.5">
                   {t('crm.companies.tasks.fields.title')}
                 </label>
                 <input
@@ -550,7 +557,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1.5">
+                <label className="block text-[10px] text-text-tertiary mb-1.5">
                   {t('crm.companies.tasks.fields.description')}
                 </label>
                 <textarea
@@ -563,7 +570,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">
                     {t('crm.companies.tasks.fields.priority')}
                   </label>
                   <select
@@ -580,7 +587,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">
                     {t('crm.companies.tasks.fields.dueDate')}
                   </label>
                   <input
@@ -593,7 +600,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] text-slate-500 mb-1.5">
+                <label className="block text-[10px] text-text-tertiary mb-1.5">
                   {t('crm.companies.tasks.fields.assignedTo')}
                 </label>
                 <select
@@ -619,7 +626,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setEditingTask(null)}
-                className="px-4 py-2 text-xs text-slate-400 hover:text-slate-50 transition-colors"
+                className="btn-secondary btn-secondary-sm"
               >
                 {t('crm.common.cancel')}
               </button>
@@ -627,7 +634,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                 type="button"
                 onClick={handleSaveTask}
                 disabled={saving || !editTitle.trim()}
-                className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="btn-primary btn-secondary-sm disabled:opacity-50"
               >
                 {saving ? t('crm.common.saving') : t('crm.common.save')}
               </button>

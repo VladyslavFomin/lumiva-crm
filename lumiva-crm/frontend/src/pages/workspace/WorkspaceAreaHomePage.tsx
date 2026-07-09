@@ -270,7 +270,7 @@ export const WorkspaceAreaHomePage: React.FC = () => {
                   onClick={() =>
                     navigate(`/workspace/new?workspaceAreaId=${areaId}&finish=table&kind=board`)
                   }
-                  className="rounded-xl bg-[#222222] px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-black"
+                  className="btn-primary"
                 >
                   {t('crm.workspace.area.newBoardTable')}
                 </button>
@@ -337,7 +337,7 @@ export const WorkspaceAreaHomePage: React.FC = () => {
               <p className="text-sm text-slate-500">{t('crm.workspace.area.permissionsNote')}</p>
               <Link
                 to="/staff/permissions"
-                className="inline-flex rounded-xl bg-[#222222] px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-black"
+                className="btn-primary btn-primary-lg"
               >
                 {t('crm.workspace.area.permissionsCta')}
               </Link>
@@ -410,8 +410,8 @@ export const WorkspaceAreaHomePage: React.FC = () => {
                               className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
                                 getWorkspaceTableKind(o.meta as Record<string, unknown> | null) ===
                                 'board'
-                                  ? 'bg-slate-900 text-white'
-                                  : 'bg-slate-100 text-slate-700'
+                                  ? 'bg-lumiva-accent text-white'
+                                  : 'bg-surface-subtle text-text-secondary'
                               }`}
                             >
                               {getWorkspaceTableKind(o.meta as Record<string, unknown> | null) ===
@@ -472,7 +472,7 @@ export const WorkspaceAreaHomePage: React.FC = () => {
         <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4">
           <button
             type="button"
-            className="absolute inset-0 bg-slate-900/50 backdrop-blur-[1px]"
+            className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
             aria-label="Close"
             onClick={() => !deletingArea && setDeleteAreaOpen(false)}
           />

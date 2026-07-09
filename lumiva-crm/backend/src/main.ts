@@ -55,6 +55,11 @@ function validateEnv() {
   if (missing.length) {
     throw new Error(`Missing required env vars: ${missing.join(', ')}`);
   }
+  if (process.env.NODE_ENV === 'production' && process.env.EMBED_RELAXED_ORIGIN === '1') {
+    throw new Error(
+      'EMBED_RELAXED_ORIGIN=1 must NOT be set in production — it bypasses all embed-form origin validation.',
+    );
+  }
 }
 
 async function bootstrap() {
@@ -70,7 +75,13 @@ async function bootstrap() {
    */
   const expressApp = express();
   expressApp.set('trust proxy', 1);
-  /* Публичные формы: встраивание с сторонних сайтов (кросс-доменный fetch) */
+  /**
+   * Embed forms CORS — intentionally reflects any Origin so forms work when embedded
+   * on arbitrary third-party domains (that's the product requirement).
+   * Security is enforced at the APPLICATION layer via isOriginAllowedForPublicEmbed(),
+   * which validates the request origin against the tenant's registered site domain.
+   * `credentials: false` (no cookie/auth forwarding) is enforced explicitly below.
+   */
   expressApp.use(
     '/v1/public/embed',
     (req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -84,8 +95,10 @@ async function bootstrap() {
       res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
       res.setHeader(
         'Access-Control-Allow-Headers',
-        'Content-Type, X-Embed-Preview-Token, Authorization, X-Requested-With',
+        'Content-Type, X-Embed-Preview-Token, X-Requested-With',
       );
+      // Explicitly block cookie/credential forwarding from third-party origins
+      res.setHeader('Access-Control-Allow-Credentials', 'false');
       if (req.method === 'OPTIONS') {
         return res.status(204).end();
       }

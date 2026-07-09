@@ -92,6 +92,17 @@ export class ContactsController {
     return { success: true };
   }
 
+  // ========== BIRTHDAYS WIDGET ==========
+
+  @Get('birthdays')
+  @RequirePermission('contacts', 'read')
+  async birthdays(
+    @CurrentUser() _user: CurrentUserPayload,
+  ) {
+    // birthday field is not yet on the Contact entity — return empty list
+    return { contacts: [] };
+  }
+
   // ========== МАССОВЫЕ ОПЕРАЦИИ ==========
 
   @Post('bulk-update')

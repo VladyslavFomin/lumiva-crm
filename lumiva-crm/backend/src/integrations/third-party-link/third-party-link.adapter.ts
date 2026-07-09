@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { SlackWebhookService } from '../slack/slack-webhook.service';
 import { TeamsWebhookService } from '../teams/teams-webhook.service';
 import { ZapierHookService } from '../zapier/zapier-hook.service';
+import { MakeWebhookService } from '../make/make-webhook.service';
 import { WhatsappCloudService } from '../whatsapp/whatsapp-cloud.service';
 import { GoogleCalendarService } from '../google-calendar/google-calendar.service';
 import { OutlookCalendarService } from '../outlook/outlook-calendar.service';
@@ -11,6 +12,10 @@ import { HubspotApiService } from '../hubspot/hubspot-api.service';
 import { GoogleAdsApiService } from '../google-ads/google-ads-api.service';
 import { MetaAdsGraphService } from '../meta-ads/meta-ads-graph.service';
 import { MailchimpApiService } from '../mailchimp/mailchimp-api.service';
+import { OpenAiApiService } from '../openai/openai-api.service';
+import { OneCApiService } from '../onec/onec-api.service';
+import { SapApiService } from '../sap/sap-api.service';
+import { JiraApiService } from '../jira/jira-api.service';
 import type {
   SalesIntegrationAdapter,
   SyncResult,
@@ -48,6 +53,26 @@ type ThirdPartyConfig = {
   defaultLeadSource?: string;
   /** Google Sheets: ID таблицы (из URL) */
   spreadsheetId?: string;
+  /** Jira Cloud URL (https://company.atlassian.net) */
+  jiraUrl?: string;
+  /** Jira: Atlassian account email */
+  jiraEmail?: string;
+  /** Jira/1C: default project key */
+  projectKey?: string;
+  /** 1C/SAP: base URL of the HTTP service */
+  baseUrl?: string;
+  /** 1C: login for basic auth */
+  login?: string;
+  /** 1C: password for basic auth */
+  password?: string;
+  /** 1C: infobase/service name in /hs/{infobase}/ */
+  infobase?: string;
+  /** 1C: custom service path override */
+  servicePath?: string;
+  /** SAP: API key for inbound webhook auth */
+  apiKey?: string;
+  /** Jira/SAP: token for inbound webhook auth */
+  inboundToken?: string;
   [key: string]: unknown;
 };
 
@@ -69,6 +94,7 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
     private readonly slackWebhook: SlackWebhookService,
     private readonly teamsWebhook: TeamsWebhookService,
     private readonly zapierHook: ZapierHookService,
+    private readonly makeWebhook: MakeWebhookService,
     private readonly whatsappCloud: WhatsappCloudService,
     private readonly googleCalendar: GoogleCalendarService,
     private readonly outlookCalendar: OutlookCalendarService,
@@ -78,6 +104,10 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
     private readonly googleAdsApi: GoogleAdsApiService,
     private readonly metaAdsGraph: MetaAdsGraphService,
     private readonly mailchimpApi: MailchimpApiService,
+    private readonly openAiApi: OpenAiApiService,
+    private readonly oneCApi: OneCApiService,
+    private readonly sapApi: SapApiService,
+    private readonly jiraApi: JiraApiService,
   ) {}
 
   async testConnection(entity: IntegrationConnection): Promise<TestConnectionResult> {
@@ -256,10 +286,33 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
           await this.zapierHook.postCatchHook(webhook, {
             source: 'lumiva-crm',
             event: 'connection_test',
-            text: '✅ Тест подключения Zapier / Make из Lumiva CRM',
+            text: '✅ Тест подключения Zapier из Lumiva CRM',
             at: new Date().toISOString(),
           });
-          return { ok: true, message: 'Тестовый payload отправлен в Zapier Catch Hook' };
+          const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+          const inboundHint =
+            base && entity.id
+              ? ` Входящий webhook (Zapier → CRM): ${base}/v1/webhooks/zapier-make/${entity.id}?token=… — укажите этот URL в «HTTP Action» или «Webhooks by Zapier» в вашем Zap.`
+              : '';
+          return { ok: true, message: 'Тестовый payload отправлен в Zapier Catch Hook.' + inboundHint };
+        } catch (e) {
+          return { ok: false, message: (e as Error).message };
+        }
+      }
+      if (cfg.catalogId === 'make') {
+        try {
+          await this.makeWebhook.postWebhook(webhook, {
+            source: 'lumiva-crm',
+            event: 'connection_test',
+            text: '✅ Тест подключения Make (Integromat) из Lumiva CRM',
+            at: new Date().toISOString(),
+          });
+          const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+          const inboundHint =
+            base && entity.id
+              ? ` Входящий webhook (Make → CRM): ${base}/v1/webhooks/zapier-make/${entity.id}?token=… — используйте в модуле «HTTP» или «Webhooks» вашего сценария Make.`
+              : '';
+          return { ok: true, message: 'Тестовый payload отправлен в Make Custom Webhook.' + inboundHint };
         } catch (e) {
           return { ok: false, message: (e as Error).message };
         }
@@ -452,26 +505,49 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
             'amoCRM: укажите базовый URL аккаунта (https://поддомен.amocrm.ru) в поле Webhook URL и токен в поле API token',
         };
       }
-      if (cfg.catalogId === 'jira' || cfg.catalogId === 'sap' || cfg.catalogId === '1c') {
-        return {
-          ok: true,
-          message:
-            'Токен сохранён. Отдельного шага сценария под этот каталог пока нет — используйте действие «Вызвать Webhook» на REST вашей системы или связку через Zapier; нативный шаг — в планах.',
-        };
-      }
       if (cfg.catalogId === 'openai') {
-        if (token.length < 20) {
-          return {
-            ok: false,
-            message:
-              'OpenAI: укажите полноценный API key в поле API token (проверка вызовом API не выполняется).',
-          };
+        const key = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+        if (!key || key.length < 20) {
+          return { ok: false, message: 'OpenAI: укажите полноценный API key (sk-... или sk-proj-...) в поле API token.' };
         }
-        return {
-          ok: true,
-          message:
-            'API ключ сохранён. В сценарии используйте «Вызвать Webhook» на https://api.openai.com/v1/chat/completions (или другой endpoint) с заголовком Authorization: Bearer и телом JSON.',
-        };
+        const base = typeof cfg.webhookUrl === 'string' && cfg.webhookUrl.trim().startsWith('https://') ? cfg.webhookUrl.trim() : undefined;
+        try {
+          return await this.openAiApi.verifyApiKey(key, base);
+        } catch (e) {
+          return { ok: false, message: `OpenAI: ${(e as Error).message}` };
+        }
+      }
+      if (cfg.catalogId === '1c') {
+        const baseUrl = (typeof cfg.baseUrl === 'string' ? cfg.baseUrl.trim() : '') || (typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '');
+        const login = typeof cfg.login === 'string' ? cfg.login.trim() : '';
+        const password = typeof cfg.password === 'string' ? cfg.password.trim() : '';
+        if (!baseUrl) return { ok: false, message: '1С: укажите URL HTTP-сервиса 1С в поле Base URL.' };
+        if (!login) return { ok: false, message: '1С: укажите логин пользователя 1С.' };
+        if (!password) return { ok: false, message: '1С: укажите пароль пользователя 1С.' };
+        try {
+          return await this.oneCApi.testConnection({ baseUrl, login, password, infobase: cfg.infobase, servicePath: cfg.servicePath });
+        } catch (e) {
+          return { ok: false, message: `1С: ${(e as Error).message}` };
+        }
+      }
+      if (cfg.catalogId === 'sap') {
+        const apiKey = (typeof cfg.apiKey === 'string' ? cfg.apiKey.trim() : '') || (typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '');
+        const apiUrl = typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : undefined;
+        return await this.sapApi.testConnection(apiUrl || undefined, apiKey);
+      }
+      if (cfg.catalogId === 'jira') {
+        const jiraUrl = (typeof cfg.jiraUrl === 'string' ? cfg.jiraUrl.trim() : '') || (typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '');
+        const email = (typeof cfg.jiraEmail === 'string' ? cfg.jiraEmail.trim() : '') || (typeof cfg.accountEmail === 'string' ? cfg.accountEmail.trim() : '');
+        const apiToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+        if (!jiraUrl) return { ok: false, message: 'Jira: укажите URL вашего Jira (https://company.atlassian.net) в поле Jira URL.' };
+        if (!email) return { ok: false, message: 'Jira: укажите email Atlassian аккаунта в поле Email.' };
+        if (!apiToken || apiToken.length < 8) return { ok: false, message: 'Jira: укажите API token из id.atlassian.com в поле API token.' };
+        try {
+          const result = await this.jiraApi.testConnection({ jiraUrl, email, apiToken });
+          return { ok: result.ok, message: result.message };
+        } catch (e) {
+          return { ok: false, message: `Jira: ${(e as Error).message}` };
+        }
       }
       return { ok: true, message: 'Токен сохранён (длина проверена)' };
     }
@@ -521,20 +597,43 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
       };
     }
 
-    if (cfg.catalogId === 'jira' || cfg.catalogId === 'sap' || cfg.catalogId === '1c') {
-      return {
-        ok: false,
-        message:
-          'Укажите API-токен (не короче 8 символов) в поле API token — пока нет отдельного шага сценария, см. подсказку «После подключения» в каталоге интеграций.',
-      };
+    if (cfg.catalogId === 'openai') {
+      return { ok: false, message: 'OpenAI: укажите полноценный API key (sk-... или sk-proj-...) в поле API token.' };
     }
 
-    if (cfg.catalogId === 'openai') {
-      return {
-        ok: false,
-        message:
-          'OpenAI: укажите API key в поле API token (ожидается полноценный ключ, см. подсказку в каталоге).',
-      };
+    if (cfg.catalogId === '1c') {
+      const baseUrl = (typeof cfg.baseUrl === 'string' ? cfg.baseUrl.trim() : '') || (typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '');
+      const login = typeof cfg.login === 'string' ? cfg.login.trim() : '';
+      const password = typeof cfg.password === 'string' ? cfg.password.trim() : '';
+      if (!baseUrl) return { ok: false, message: '1С: укажите URL HTTP-сервиса 1С в поле Base URL.' };
+      if (!login) return { ok: false, message: '1С: укажите логин пользователя 1С.' };
+      if (!password) return { ok: false, message: '1С: укажите пароль пользователя 1С.' };
+      try {
+        return await this.oneCApi.testConnection({ baseUrl, login, password, infobase: cfg.infobase, servicePath: cfg.servicePath });
+      } catch (e) {
+        return { ok: false, message: `1С: ${(e as Error).message}` };
+      }
+    }
+
+    if (cfg.catalogId === 'sap') {
+      const apiKey = (typeof cfg.apiKey === 'string' ? cfg.apiKey.trim() : '') || (typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '');
+      const apiUrl = typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : undefined;
+      return await this.sapApi.testConnection(apiUrl || undefined, apiKey);
+    }
+
+    if (cfg.catalogId === 'jira') {
+      const jiraUrl = (typeof cfg.jiraUrl === 'string' ? cfg.jiraUrl.trim() : '') || (typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '');
+      const email = (typeof cfg.jiraEmail === 'string' ? cfg.jiraEmail.trim() : '') || (typeof cfg.accountEmail === 'string' ? cfg.accountEmail.trim() : '');
+      const apiToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+      if (!jiraUrl) return { ok: false, message: 'Jira: укажите URL вашего Jira (https://company.atlassian.net) в поле Jira URL.' };
+      if (!email) return { ok: false, message: 'Jira: укажите email Atlassian аккаунта в поле Email.' };
+      if (!apiToken || apiToken.length < 8) return { ok: false, message: 'Jira: укажите API token из id.atlassian.com в поле API token.' };
+      try {
+        const result = await this.jiraApi.testConnection({ jiraUrl, email, apiToken });
+        return { ok: result.ok, message: result.message };
+      } catch (e) {
+        return { ok: false, message: `Jira: ${(e as Error).message}` };
+      }
     }
 
     if (cfg.catalogId === 'mailchimp') {
@@ -590,6 +689,23 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
         message:
           'Модуль тенанта синхронизирован с подключением; отдельного импорта продаж нет.',
       };
+    }
+    if (cfg?.catalogId === '1c') {
+      const baseUrl = (typeof (cfg as any).baseUrl === 'string' ? (cfg as any).baseUrl.trim() : '') || (typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '');
+      const login = typeof (cfg as any).login === 'string' ? (cfg as any).login.trim() : '';
+      const password = typeof (cfg as any).password === 'string' ? (cfg as any).password.trim() : '';
+      if (!baseUrl || !login || !password) {
+        return { ok: false, created: 0, updated: 0, skipped: 0, message: '1С: не задан URL, логин или пароль' };
+      }
+      try {
+        const orders = await this.oneCApi.fetchOrders(
+          { baseUrl, login, password, infobase: (cfg as any).infobase, servicePath: (cfg as any).servicePath },
+          entity.lastSyncAt ?? undefined,
+        );
+        return { ok: true, created: orders.length, updated: 0, skipped: 0, message: `1С: получено ${orders.length} заказов из HTTP-сервиса` };
+      } catch (e) {
+        return { ok: false, created: 0, updated: 0, skipped: 0, message: `1С: ошибка синхронизации: ${(e as Error).message}` };
+      }
     }
     if (cfg?.catalogId === 'google_sheets') {
       const sync = (cfg as { sync?: { targetKind?: string; workspaceObjectId?: string } }).sync;

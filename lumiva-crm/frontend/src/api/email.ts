@@ -420,3 +420,25 @@ export async function previewEmailTemplate(id: string, data: Record<string, any>
   const res = await api.post<{ subject: string; htmlBody: string; textBody: string }>(`/email/templates/${id}/preview`, data);
   return res;
 }
+
+// ========== BULK SEND ==========
+
+export interface BulkSendDto {
+  templateId?: string;
+  subject: string;
+  html: string;
+  leadFilters?: { source?: string; status?: string };
+  recipientEmails?: string[];
+  fromAccountId: string;
+  trackOpens?: boolean;
+}
+
+export interface BulkSendResult {
+  sent: number;
+  failed: number;
+  jobId: string;
+}
+
+export async function sendBulkEmail(dto: BulkSendDto): Promise<BulkSendResult> {
+  return api.post<BulkSendResult>('/email/bulk-send', dto);
+}

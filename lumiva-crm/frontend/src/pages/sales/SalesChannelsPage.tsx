@@ -13,10 +13,8 @@ import { getLocale } from '../../i18n/utils';
 import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 
-const actionBtnClass =
-  'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 text-[11px] font-medium border border-slate-500/45 text-slate-100 bg-slate-500/[0.08] hover:bg-slate-500/[0.14] disabled:opacity-50 transition-colors';
-const actionBtnDangerClass =
-  'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 text-[11px] font-semibold border border-rose-500/40 bg-rose-200/45 text-rose-950 hover:bg-rose-200/65 hover:border-rose-600/45 disabled:opacity-50 transition-colors';
+const actionBtnClass = 'btn-secondary btn-secondary-sm';
+const actionBtnDangerClass = 'btn-danger btn-secondary-sm';
 
 export const SalesChannelsPage: React.FC = () => {
   const { t } = useTranslation();
@@ -184,16 +182,16 @@ export const SalesChannelsPage: React.FC = () => {
     });
   }, []);
 
-  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'dark');
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'light');
 
   const renderCell = (ch: SalesChannel, columnId: string) => {
     switch (columnId) {
       case 'channel':
         return (
           <div className="flex flex-col">
-            <span className="text-slate-100">{ch.name}</span>
+            <span className="font-medium text-[#111827]">{ch.name}</span>
             {ch.description && (
-              <span className="text-[10px] text-slate-500">{ch.description}</span>
+              <span className="text-[10px] text-text-tertiary">{ch.description}</span>
             )}
           </div>
         );
@@ -205,7 +203,7 @@ export const SalesChannelsPage: React.FC = () => {
         return (
           <div className="min-w-0 max-w-full">
             <span
-              className="block truncate text-slate-100"
+              className="block truncate text-[#111827]"
               title={ch.integrationName?.trim() || undefined}
             >
               {label}
@@ -326,60 +324,40 @@ export const SalesChannelsPage: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-4 md:space-y-6 pb-8">
-        {/* Заголовок */}
-        <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <section className="page-header">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
-              {t('crm.salesChannels.kicker')}
-            </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
-              {t('crm.salesChannels.title')}
-            </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
-              {t('crm.salesChannels.subtitle')}
-            </p>
+            <div className="section-label">{t('crm.salesChannels.kicker')}</div>
+            <h1 className="page-title">{t('crm.salesChannels.title')}</h1>
+            <p className="page-subtitle mt-1 max-w-2xl">{t('crm.salesChannels.subtitle')}</p>
           </div>
 
-          <div className="flex flex-col items-end gap-2 text-[11px] text-slate-300">
+          <div className="flex flex-col items-end gap-2">
             <div className="flex flex-wrap gap-2 justify-end">
-              <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                {t('crm.salesChannels.summary.channels', {
-                  count: channels.length,
-                })}
+              <span className="badge bg-surface-subtle text-[#111827]">
+                {t('crm.salesChannels.summary.channels', { count: channels.length })}
               </span>
-              <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
-                {t('crm.salesChannels.summary.sales', {
-                  count: totalCount,
-                })}
+              <span className="badge bg-surface-subtle text-[#111827]">
+                {t('crm.salesChannels.summary.sales', { count: totalCount })}
               </span>
-              <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
+              <span className="badge bg-surface-subtle text-[#111827]">
                 {t('crm.salesChannels.summary.revenue', {
-                  amount: totalAmount.toLocaleString(locale, {
-                    maximumFractionDigits: 0,
-                  }),
-                })}{' '}
-                €
+                  amount: totalAmount.toLocaleString(locale, { maximumFractionDigits: 0 }),
+                })}{' '}€
               </span>
             </div>
-
-            {/* Кнопка перехода к интеграциям */}
-            <Link
-              to="/app/sales/integrations"
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-600/70 text-[11px] font-medium text-slate-100 bg-slate-950/90 hover:bg-slate-800/90 transition-colors"
-            >
+            <Link to="/app/sales/integrations" className="btn-secondary btn-secondary-sm">
               {t('crm.salesChannels.openIntegrations')}
-              <span className="text-[10px] opacity-80">↗</span>
+              <span className="text-[10px]">↗</span>
             </Link>
           </div>
         </section>
 
-        {/* Диаграмма распределения выручки по каналам */}
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+        <section className="card p-4 md:p-5">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-100">
+            <h2 className="text-sm font-semibold text-[#111827]">
               {t('crm.salesChannels.chart.title')}
             </h2>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-text-tertiary">
               {t('crm.salesChannels.chart.hint')}
             </span>
           </div>
@@ -387,26 +365,25 @@ export const SalesChannelsPage: React.FC = () => {
           {channels.length ? (
             <ChannelBarChart channels={channels} />
           ) : (
-            <div className="text-[11px] text-slate-500 italic">
+            <div className="text-[11px] text-text-tertiary italic">
               {t('crm.salesChannels.chart.empty')}
             </div>
           )}
         </section>
 
-        {/* Таблица каналов */}
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 min-w-0">
+        <section className="card p-4 md:p-5 min-w-0">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-100">
+            <h2 className="text-sm font-semibold text-[#111827]">
               {t('crm.salesChannels.table.title')}
             </h2>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-text-tertiary">
               {t('crm.salesChannels.table.hint')}
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1 table-fixed">
-              <thead className="text-slate-500">
+              <thead className="text-text-tertiary">
                 <tr>
                   {orderedColumns.map((col) => {
                     const fallback =
@@ -441,7 +418,7 @@ export const SalesChannelsPage: React.FC = () => {
                         style={{ width, minWidth: width }}
                       >
                         <div className="flex min-h-[28px] items-center gap-2">
-                          <span className="text-[10px] text-slate-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                          <span className="text-[10px] text-text-tertiary opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
                             ⋮⋮
                           </span>
                           <span>{col.label}</span>
@@ -460,7 +437,7 @@ export const SalesChannelsPage: React.FC = () => {
                 {channels.map((ch) => (
                   <tr
                     key={ch.id}
-                    className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors"
+                    className="bg-white hover:bg-surface-hover transition-colors"
                   >
                     {orderedColumns.map((col) => {
                       const fallback =
@@ -487,7 +464,7 @@ export const SalesChannelsPage: React.FC = () => {
                       return (
                         <td
                           key={col.id}
-                          className="px-2 py-1.5 text-slate-300 min-w-0 align-top"
+                          className="px-2 py-1.5 text-[#111827] min-w-0 align-top"
                           style={{ width, minWidth: width }}
                         >
                           {renderCell(ch, col.id)}
@@ -501,7 +478,7 @@ export const SalesChannelsPage: React.FC = () => {
                   <tr>
                     <td
                       colSpan={orderedColumns.length}
-                      className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
+                      className="px-2 py-5 text-center text-[11px] text-text-tertiary italic"
                     >
                       {t('crm.salesChannels.table.empty')}
                     </td>
@@ -514,7 +491,7 @@ export const SalesChannelsPage: React.FC = () => {
 
         {loading && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-slate-950/95 border border-slate-700/80 text-[11px] text-slate-200 flex items-center gap-2">
+            <div className="px-3 py-1.5 rounded-full bg-white border border-border-default shadow-card-md text-[11px] text-text-secondary flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent animate-pulse" />
               {t('crm.salesChannels.loading')}
             </div>
@@ -523,7 +500,7 @@ export const SalesChannelsPage: React.FC = () => {
 
         {error && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-red-950/95 border border-red-700/80 text-[11px] text-red-100">
+            <div className="px-3 py-1.5 rounded-full bg-status-error-bg border border-red-200 text-[11px] text-status-error shadow-card">
               {error}
             </div>
           </div>
@@ -547,7 +524,7 @@ const ChannelBarChart: React.FC<{ channels: SalesChannel[] }> = ({
 
   if (!top.length) {
     return (
-      <div className="text-[11px] text-slate-500 italic">
+      <div className="text-[11px] text-text-tertiary italic">
         {t('crm.salesChannels.chart.noRevenue')}
       </div>
     );
@@ -561,18 +538,18 @@ const ChannelBarChart: React.FC<{ channels: SalesChannel[] }> = ({
         const width = Math.max(8, (c.totalSalesAmount / max) * 100);
         return (
           <div key={c.id} className="flex items-center gap-3">
-            <div className="w-40 truncate text-slate-200">{c.name}</div>
-            <div className="flex-1 h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
+            <div className="w-40 truncate text-[#111827] font-medium">{c.name}</div>
+            <div className="flex-1 h-1.5 bg-surface-active rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-lumiva-accent-soft to-lumiva-accent"
                 style={{ width: `${width}%` }}
               />
             </div>
-            <div className="w-28 text-right text-slate-200">
+            <div className="w-28 text-right text-[#111827]">
               {c.totalSalesAmount.toLocaleString(locale, {
                 maximumFractionDigits: 0,
               })}{' '}
-              <span className="text-slate-400 text-[10px]">
+              <span className="text-text-tertiary text-[10px]">
                 {c.currency}
               </span>
             </div>
@@ -583,101 +560,3 @@ const ChannelBarChart: React.FC<{ channels: SalesChannel[] }> = ({
   );
 };
 
-const ChannelRow: React.FC<{
-  channel: SalesChannel;
-  saving: boolean;
-  onToggle: () => void;
-  onDelete: () => void;
-}> = ({ channel, saving, onToggle, onDelete }) => {
-  const { t } = useTranslation();
-  const locale = getLocale();
-  const connectedAt = new Date(
-    channel.connectedAt,
-  ).toLocaleDateString(locale);
-
-  const lastSync = channel.lastSyncAt
-    ? new Date(channel.lastSyncAt).toLocaleString(locale)
-    : t('crm.salesChannels.common.empty');
-
-  const statusColor = channel.isEnabled
-    ? 'border border-emerald-500/35 bg-emerald-200/40 text-emerald-950'
-    : 'border border-slate-500/35 bg-slate-500/20 text-slate-100';
-
-  // Хвост API-ключа (если бэкенд его отдаёт, например "apiKeyTail": "1a2b3c")
-  const apiKeyTail = (channel as any).apiKeyTail as string | undefined;
-  const apiKeyLabel = apiKeyTail ? `*****${apiKeyTail}` : t('crm.salesChannels.common.empty');
-
-  return (
-    <tr className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors">
-      <td className="px-2 py-1.5 text-slate-100 whitespace-nowrap">
-        {channel.name}
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {t(`crm.salesChannels.types.${channel.type}`)}
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {channel.integrationName ||
-          channel.integrationId ||
-          t('crm.salesChannels.common.empty')}
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap font-mono text-[10px]">
-        {apiKeyLabel}
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        {connectedAt}
-      </td>
-      <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {channel.totalSalesCount.toLocaleString(locale)}
-      </td>
-      <td className="px-2 py-1.5 text-right text-slate-200 whitespace-nowrap">
-        {channel.totalSalesAmount.toLocaleString(locale, {
-          maximumFractionDigits: 0,
-        })}{' '}
-        <span className="text-slate-400 text-[10px]">
-          {channel.currency}
-        </span>
-      </td>
-      <td className="px-2 py-1.5 whitespace-nowrap">
-        <span
-          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] ${statusColor}`}
-        >
-          {channel.isEnabled
-            ? t('crm.salesChannels.status.enabled')
-            : t('crm.salesChannels.status.disabled')}
-        </span>
-      </td>
-      <td className="px-2 py-1.5 text-slate-300 whitespace-nowrap">
-        <div className="flex flex-col">
-          <span>{lastSync}</span>
-          {channel.lastError && (
-            <span className="text-[10px] text-rose-900 truncate max-w-[220px]">
-              {t('crm.salesChannels.lastError')} {channel.lastError}
-            </span>
-          )}
-        </div>
-      </td>
-      <td className="px-2 py-1.5 whitespace-nowrap">
-        <div className="flex gap-1">
-          <button
-            type="button"
-            onClick={onToggle}
-            disabled={saving}
-            className="px-2 py-0.5 rounded-lg text-[10px] border border-slate-700/80 text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
-          >
-            {channel.isEnabled
-              ? t('crm.salesChannels.actions.disable')
-              : t('crm.salesChannels.actions.enable')}
-          </button>
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={saving}
-            className="px-2 py-0.5 rounded-lg text-[10px] font-semibold border border-rose-500/40 bg-rose-200/45 text-rose-950 hover:bg-rose-200/65 disabled:opacity-50"
-          >
-            {t('crm.salesChannels.actions.delete')}
-          </button>
-        </div>
-      </td>
-    </tr>
-  );
-};

@@ -44,6 +44,7 @@ import {
   marketingThead,
   marketingTr,
 } from './marketingPageChrome';
+import { marketingChannelCardTheme } from './marketingChannelCardTheme';
 
 type Item = MarketingTrafficStats['items'][number];
 
@@ -269,6 +270,7 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
   const onlyUnattributed = dataSourceKey === 'unknown';
+  const chTheme = marketingChannelCardTheme(dataSourceKey);
 
   const provCur = useMemo(() => {
     const cw: Record<string, number> = {};
@@ -655,105 +657,81 @@ export const MarketingChannelAnalyticsModal: React.FC<MarketingChannelAnalyticsM
       }}
     >
       <div className="flex flex-col w-full min-w-0 max-w-[min(1720px,calc(100vw-16px))] sm:max-w-[min(1720px,calc(100vw-24px))] max-h-[min(940px,96dvh)] rounded-2xl border border-[#222222]/12 bg-white shadow-[0_32px_90px_rgba(15,23,42,0.18)] overflow-hidden">
-        <div className="shrink-0 flex items-start justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-4 border-b border-[#222222]/10 bg-gradient-to-r from-slate-50/90 to-white">
-          <div className="min-w-0">
+        <div
+          className={`shrink-0 flex items-center gap-3 px-4 sm:px-6 py-3 sm:py-4 border-b border-[#e7e7e7] ${chTheme.headerBg}`}
+        >
+          {/* Logo badge */}
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: 11,
+              background: chTheme.brandColor,
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+              fontSize: 17,
+              flexShrink: 0,
+              fontFamily: 'Inter Tight, sans-serif',
+            }}
+          >
+            {chTheme.logo}
+          </div>
+          <div className="flex-1 min-w-0">
             <div
               id="mch-analytics-title"
-              className="text-[15px] sm:text-[17px] font-semibold tracking-tight text-[#111827]"
+              className="text-[16px] sm:text-[18px] font-semibold tracking-tight text-[#222]"
             >
               {channelTitle}
             </div>
-            <div className="text-[11px] text-[#222222]/55 mt-1 font-mono truncate">{dataSourceKey}</div>
-            <div className="text-[10px] text-[#222222]/45 mt-1">{periodLabel}</div>
+            <div className="flex items-center gap-3 mt-0.5">
+              <span className="text-[10.5px] text-[#888] font-mono truncate">{dataSourceKey}</span>
+              <span className="text-[10px] text-[#aaa]">·</span>
+              <span className="text-[10.5px] text-[#888] font-mono">{periodLabel}</span>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-xl border border-[#222222]/15 bg-white px-2.5 py-1.5 sm:px-3 sm:py-2 text-[10px] sm:text-[11px] font-semibold text-[#222222] hover:bg-slate-50"
+            style={{ padding: '7px 15px', border: '1px solid #e7e7e7', background: '#fff', color: '#222', borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}
           >
             {t('crm.marketingChannelAnalytics.close', { defaultValue: 'Закрыть' })}
           </button>
         </div>
 
         <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain px-3 py-4 sm:px-5 sm:py-5 space-y-6 sm:space-y-8">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-1.5 sm:gap-2">
+          {/* 9-KPI hairline strip */}
+          <div style={{ border: '1px solid #e7e7e7', borderRadius: 12, overflow: 'hidden', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
             {(
               [
-                {
-                  k: 'impressions',
-                  label: t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' }),
-                  v: formatNumber(aggTotals.impressions),
-                },
-                {
-                  k: 'clicks',
-                  label: t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' }),
-                  v: formatNumber(aggTotals.clicks),
-                  color: 'text-violet-700',
-                },
-                {
-                  k: 'sessions',
-                  label: t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' }),
-                  v: formatNumber(aggTotals.sessions),
-                },
-                {
-                  k: 'leads',
-                  label: t('crm.marketingChannels.kpi.leads'),
-                  v: formatNumber(aggTotals.leads),
-                  color: 'text-amber-800',
-                },
-                {
-                  k: 'ctr',
-                  label: 'CTR',
-                  v: aggTotals.ctr != null ? `${aggTotals.ctr.toFixed(2)}%` : '—',
-                },
-                {
-                  k: 'cpc',
-                  label: 'CPC',
-                  v:
-                    aggTotals.cpc != null && aggTotals.cpc > 0
-                      ? `${formatMoney(aggTotals.cpc)} ${aggTotals.costC.currency}`
-                      : '—',
-                },
-              ] as const
-            ).map((cell) => (
+                { label: t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' }), v: formatNumber(aggTotals.impressions), color: undefined },
+                { label: t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' }), v: formatNumber(aggTotals.clicks), color: '#5a45a8' },
+                { label: t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' }), v: formatNumber(aggTotals.sessions), color: undefined },
+                { label: t('crm.marketingChannels.kpi.leads'), v: formatNumber(aggTotals.leads), color: '#c08319' },
+                { label: 'CTR', v: aggTotals.ctr != null ? `${aggTotals.ctr.toFixed(2)}%` : '—', color: undefined },
+                { label: 'CPC', v: aggTotals.cpc != null && aggTotals.cpc > 0 ? `${formatMoney(aggTotals.cpc)} ${aggTotals.costC.currency}` : '—', color: undefined },
+                { label: t('crm.marketingCampaigns.table.headers.cost'), v: fmtMoneyCell(aggTotals.cost, provCur), color: undefined },
+                { label: t('crm.marketingCampaigns.table.headers.revenue'), v: fmtMoneyCell(aggTotals.revenue, provCur), color: '#1f8a5e' },
+                { label: 'ROAS', v: aggTotals.roas != null && aggTotals.roas > 0 ? aggTotals.roas.toFixed(2) : '—', color: aggTotals.roas ? '#1f8a5e' : undefined },
+              ]
+            ).map((cell, idx, arr) => (
               <div
-                key={cell.k}
-                className="rounded-xl border border-[#222222]/10 bg-white px-2 py-1.5 sm:px-3 sm:py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] min-w-0"
+                key={idx}
+                style={{
+                  padding: '14px 18px',
+                  borderRight: idx < arr.length - 1 ? '1px solid #f0f0f0' : 'none',
+                }}
               >
-                <div className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-[#222222]/45 leading-tight">
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#888', fontWeight: 500 }}>
                   {cell.label}
                 </div>
-                <div
-                  className={`text-[12px] sm:text-[14px] font-semibold tabular-nums mt-0.5 break-all sm:break-normal ${'color' in cell && cell.color ? cell.color : 'text-[#111827]'}`}
-                >
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 18, fontWeight: 600, color: cell.color ?? (cell.v === '—' ? '#b5b5b5' : '#222'), marginTop: 8, letterSpacing: '-0.02em', lineHeight: 1 }}>
                   {cell.v}
                 </div>
               </div>
             ))}
-            <div className="rounded-xl border border-[#222222]/10 bg-white px-2 py-1.5 sm:px-3 sm:py-2 col-span-2 sm:col-span-1 lg:col-span-2 min-w-0">
-              <div className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-[#222222]/45 leading-tight">
-                {t('crm.marketingCampaigns.table.headers.cost')}
-              </div>
-              <div className="text-[12px] sm:text-[14px] font-semibold tabular-nums mt-0.5 break-all sm:break-normal">
-                {fmtMoneyCell(aggTotals.cost, provCur)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-emerald-200/60 bg-gradient-to-br from-white to-emerald-50/40 px-2 py-1.5 sm:px-3 sm:py-2 col-span-2 sm:col-span-1 lg:col-span-2 min-w-0">
-              <div className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-[#222222]/45 leading-tight">
-                {t('crm.marketingCampaigns.table.headers.revenue')}
-              </div>
-              <div className="text-[12px] sm:text-[14px] font-semibold tabular-nums text-emerald-800 mt-0.5 break-all sm:break-normal">
-                {fmtMoneyCell(aggTotals.revenue, provCur)}
-              </div>
-            </div>
-            <div className="rounded-xl border border-[#222222]/10 bg-white px-2 py-1.5 sm:px-3 sm:py-2 min-w-0">
-              <div className="text-[8px] sm:text-[9px] font-semibold uppercase tracking-wide text-[#222222]/45 leading-tight">
-                ROAS
-              </div>
-              <div className="text-[12px] sm:text-[14px] font-semibold tabular-nums text-emerald-800 mt-0.5">
-                {aggTotals.roas != null && aggTotals.roas > 0 ? aggTotals.roas.toFixed(2) : '—'}
-              </div>
-            </div>
           </div>
 
           <section className="space-y-3">

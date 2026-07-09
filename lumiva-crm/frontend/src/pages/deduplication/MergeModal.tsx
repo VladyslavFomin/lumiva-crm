@@ -78,7 +78,7 @@ export const MergeModal: React.FC<Props> = ({ pair, recordA, recordB, onClose, o
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
           <h2 className="text-base font-semibold text-slate-900">Объединить записи</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xl">×</button>
+          <button onClick={onClose} className="text-text-tertiary hover:text-[#111827] text-xl">×</button>
         </div>
 
         {/* Content */}
@@ -101,7 +101,7 @@ export const MergeModal: React.FC<Props> = ({ pair, recordA, recordB, onClose, o
                 >
                   <div className="flex items-center gap-2">
                     <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${winnerId === id ? 'border-slate-900' : 'border-slate-300'}`}>
-                      {winnerId === id && <div className="h-2 w-2 rounded-full bg-slate-900" />}
+                      {winnerId === id && <div className="h-2 w-2 rounded-full bg-lumiva-accent" />}
                     </div>
                     <span className="text-sm font-medium text-slate-900 truncate">
                       {rec ? getValue(rec, pair.entityType === 'contact' ? 'firstName' : (pair.entityType === 'sale' ? 'guestName' : 'name')) || id.slice(0, 8) : id.slice(0, 8)}
@@ -140,7 +140,7 @@ export const MergeModal: React.FC<Props> = ({ pair, recordA, recordB, onClose, o
                           <button
                             onClick={() => setFieldMap((prev) => ({ ...prev, [key]: 'winner' }))}
                             className={`text-left w-full rounded-lg px-2 py-1 transition ${
-                              choice === 'winner' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'
+                              choice === 'winner' ? 'bg-lumiva-accent text-white' : 'hover:bg-surface-subtle text-text-secondary'
                             }`}
                           >
                             {wVal}
@@ -150,7 +150,7 @@ export const MergeModal: React.FC<Props> = ({ pair, recordA, recordB, onClose, o
                           <button
                             onClick={() => setFieldMap((prev) => ({ ...prev, [key]: 'loser' }))}
                             className={`text-left w-full rounded-lg px-2 py-1 transition ${
-                              choice === 'loser' ? 'bg-slate-900 text-white' : 'hover:bg-slate-50 text-slate-700'
+                              choice === 'loser' ? 'bg-lumiva-accent text-white' : 'hover:bg-surface-subtle text-text-secondary'
                             } ${lVal === '—' ? 'opacity-40 cursor-default' : ''}`}
                             disabled={lVal === '—'}
                           >

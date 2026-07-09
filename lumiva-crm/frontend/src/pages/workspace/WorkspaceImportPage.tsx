@@ -1181,7 +1181,7 @@ export const WorkspaceImportPage: React.FC = () => {
                     <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4 sm:p-6">
                       <button
                         type="button"
-                        className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm"
+                        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
                         aria-label={t('crm.workspace.import.areaChannelsClose')}
                         onClick={() => setAreaChannelsModalOpen(false)}
                       />
@@ -1460,7 +1460,7 @@ export const WorkspaceImportPage: React.FC = () => {
                             type="button"
                             disabled={st.syncing}
                             onClick={() => void runChannelSync(conn, st)}
-                            className="rounded-xl bg-[#222222] px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-60"
+                            className="btn-primary"
                           >
                             {st.syncing
                               ? isWoo
@@ -1647,7 +1647,7 @@ export const WorkspaceImportPage: React.FC = () => {
                             type="button"
                             disabled={st.syncing}
                             onClick={() => void runMarketingMetaChannelSync(mrow, st)}
-                            className="rounded-xl bg-[#222222] px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-60"
+                            className="btn-primary"
                           >
                             {st.syncing
                               ? t('crm.workspace.import.metaSyncing')
@@ -1823,7 +1823,7 @@ export const WorkspaceImportPage: React.FC = () => {
                             type="button"
                             disabled={st.syncing}
                             onClick={() => void runMarketingGaChannelSync(grow, st)}
-                            className="rounded-xl bg-[#222222] px-4 py-2 text-sm font-medium text-white hover:bg-black disabled:opacity-60"
+                            className="btn-primary"
                           >
                             {st.syncing
                               ? t('crm.workspace.import.gaSyncing')

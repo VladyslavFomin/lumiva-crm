@@ -11,15 +11,6 @@ import {
   type SeoSettings,
   type SeoMetricsResponse,
 } from '../../api/seo';
-import {
-  createSite,
-  deleteSite,
-  fetchSites,
-  fetchWordpressModuleState,
-  updateSite,
-  type Site,
-  type WordpressModuleSiteRow,
-} from '../../api/sites';
 import { getLocale } from '../../i18n/utils';
 
 export const SeoPage: React.FC = () => {
@@ -30,9 +21,7 @@ export const SeoPage: React.FC = () => {
   searchParamsRef.current = searchParams;
   const [settings, setSettings] = useState<SeoSettings | null>(null);
   const [metrics, setMetrics] = useState<SeoMetricsResponse | null>(null);
-  const [sites, setSites] = useState<Site[]>([]);
-  const [selectedSite, setSelectedSite] = useState<string>('');
-  const [newSiteDomain, setNewSiteDomain] = useState('');
+  const [siteUrlInput, setSiteUrlInput] = useState('');
   const [gscMetricKey, setGscMetricKey] = useState<'clicks' | 'impressions' | 'ctr' | 'position'>('clicks');
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [periodPreset, setPeriodPreset] = useState<'7' | '30' | '90' | 'custom'>('30');
@@ -41,12 +30,7 @@ export const SeoPage: React.FC = () => {
   const [compareEnabled, setCompareEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [addingSite, setAddingSite] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [deletingSite, setDeletingSite] = useState(false);
-  const [wpModules, setWpModules] = useState<WordpressModuleSiteRow[] | null>(null);
-  const [wpLoading, setWpLoading] = useState(false);
-  const [wpSavingKey, setWpSavingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -71,6 +55,7 @@ export const SeoPage: React.FC = () => {
         const msgs: string[] = [];
         if (sRes.status === 'fulfilled') {
           setSettings(sRes.value);
+          setSiteUrlInput(sRes.value.gscPropertyUrl || sRes.value.pageSpeedUrl || '');
         } else {
           console.error(sRes.reason);
           msgs.push(t('crm.marketingSeo.errors.loadSettings'));
@@ -111,46 +96,27 @@ export const SeoPage: React.FC = () => {
     setHoverIndex(null);
   }, [gscMetricKey]);
 
-  useEffect(() => {
-    fetchSites()
-      .then((items) => {
-        setSites(items);
-      })
-      .catch((e) => {
-        console.error(e);
-      });
-  }, []);
-
-  useEffect(() => {
-    if (!selectedSite || selectedSite === '__add__') {
-      setWpModules(null);
-      return;
-    }
-    let alive = true;
-    setWpLoading(true);
-    fetchWordpressModuleState(selectedSite)
-      .then((rows) => {
-        if (alive) setWpModules(rows);
-      })
-      .catch((e) => {
-        console.error(e);
-        if (alive) setWpModules(null);
-      })
-      .finally(() => {
-        if (alive) setWpLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [selectedSite]);
-
   const normalizeSiteUrl = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return '';
+    if (trimmed.startsWith('sc-domain:')) {
+      const domain = trimmed.slice('sc-domain:'.length).replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      return domain ? `https://${domain}/` : '';
+    }
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
     }
     return `https://${trimmed.replace(/\/+$/, '')}/`;
+  };
+
+  const normalizeGscProperty = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('sc-domain:')) {
+      const domain = trimmed.slice('sc-domain:'.length).replace(/^https?:\/\//, '').replace(/\/+$/, '');
+      return domain ? `sc-domain:${domain}` : '';
+    }
+    return normalizeSiteUrl(trimmed);
   };
 
   const buildRange = (days: number) => {
@@ -171,68 +137,39 @@ export const SeoPage: React.FC = () => {
     void runSync({ from: range.from, to: range.to });
   };
 
-  const normalizeDomain = (value: string) => {
-    const trimmed = value.trim();
-    if (!trimmed) return '';
-    try {
-      const withProto = trimmed.startsWith('http://') || trimmed.startsWith('https://')
-        ? trimmed
-        : `https://${trimmed}`;
-      const url = new URL(withProto);
-      return url.host;
-    } catch {
-      return trimmed.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  const errorMessage = (e: unknown, fallback: string) => {
+    if (e instanceof Error && e.message) return e.message;
+    if (typeof e === 'object' && e && 'message' in e) {
+      const message = (e as { message?: unknown }).message;
+      if (typeof message === 'string' && message) return message;
     }
+    return fallback;
   };
 
-  const applyWpModuleOverride = async (key: string, value: boolean | null) => {
-    if (!selectedSite || selectedSite === '__add__') return;
-    setWpSavingKey(key);
-    setError(null);
-    setStatus(null);
-    try {
-      await updateSite(selectedSite, { enabledModules: { [key]: value } });
-      const [rows, siteList] = await Promise.all([
-        fetchWordpressModuleState(selectedSite),
-        fetchSites(),
-      ]);
-      setWpModules(rows);
-      setSites(siteList);
-      setStatus(t('crm.marketingSeo.wordpressModules.saved'));
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || t('crm.marketingSeo.wordpressModules.saveError'));
-    } finally {
-      setWpSavingKey(null);
+  const persistSeoTarget = async () => {
+    if (!settings) return null;
+    const gscPropertyUrl = normalizeGscProperty(siteUrlInput);
+    if (!gscPropertyUrl) {
+      setError(t('crm.marketingSeo.errors.siteRequired'));
+      return null;
     }
-  };
-
-  const copySiteToken = async (token: string) => {
-    try {
-      await navigator.clipboard.writeText(token);
-      setStatus(t('crm.marketingSeo.wordpressModules.tokenCopied'));
-    } catch {
-      setError(t('crm.marketingSeo.wordpressModules.copyFailed'));
-    }
-  };
-
-  const save = async () => {
-    if (!settings) return;
+    const pageSpeedUrl = normalizeSiteUrl(siteUrlInput);
     setSaving(true);
     setError(null);
     setStatus(null);
     try {
       const updated = await updateSeoSettings({
-        gscPropertyUrl: settings.gscPropertyUrl,
-        pageSpeedApiKey: settings.pageSpeedApiKey,
-        pageSpeedUrl: settings.pageSpeedUrl,
+        gscPropertyUrl,
+        pageSpeedUrl,
         pageSpeedStrategy: settings.pageSpeedStrategy,
       });
       setSettings(updated);
-      setStatus(t('crm.marketingSeo.status.saved'));
-    } catch (e: any) {
+      setSiteUrlInput(updated.gscPropertyUrl || gscPropertyUrl);
+      return updated;
+    } catch (e: unknown) {
       console.error(e);
-      setError(e?.message || t('crm.marketingSeo.errors.save'));
+      setError(errorMessage(e, t('crm.marketingSeo.errors.save')));
+      return null;
     } finally {
       setSaving(false);
     }
@@ -242,15 +179,22 @@ export const SeoPage: React.FC = () => {
     setError(null);
     setStatus(null);
     try {
+      if (siteUrlInput.trim()) {
+        const updated = await persistSeoTarget();
+        if (!updated) return;
+      }
       const res = await getGoogleAuthUrl('/app/marketing/seo');
       window.location.href = res.url;
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      setError(e?.message || t('crm.marketingSeo.errors.oauth'));
+      setError(errorMessage(e, t('crm.marketingSeo.errors.oauth')));
     }
   };
 
-  const runSync = async (override?: { from?: string; to?: string }) => {
+  const runSync = async (
+    override?: { from?: string; to?: string },
+    activeSettings: SeoSettings | null = settings,
+  ) => {
     setSyncing(true);
     setError(null);
     setStatus(null);
@@ -270,111 +214,23 @@ export const SeoPage: React.FC = () => {
         setDateFrom(fresh.gsc.dateFrom);
         setDateTo(fresh.gsc.dateTo);
       }
-      if (!result.gsc && settings?.gscPropertyUrl) {
+      if (!result.gsc && activeSettings?.gscPropertyUrl) {
         setError(t('crm.marketingSeo.errors.gscNotSynced'));
-      } else if (!result.psi && settings?.pageSpeedUrl) {
-        setError(t('crm.marketingSeo.errors.psiNotSynced'));
       } else {
         setStatus(t('crm.marketingSeo.status.updated'));
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error(e);
-      setError(e?.message || t('crm.marketingSeo.errors.update'));
+      setError(errorMessage(e, t('crm.marketingSeo.errors.update')));
     } finally {
       setSyncing(false);
     }
   };
 
-  const addSite = async () => {
-    if (!newSiteDomain.trim()) {
-      setError(t('crm.marketingSeo.errors.siteRequired'));
-      return;
-    }
-    setAddingSite(true);
-    setError(null);
-    setStatus(null);
-    try {
-      const domain = normalizeDomain(newSiteDomain);
-      const created = await createSite({ domain });
-      const updated = await fetchSites();
-      setSites(updated);
-      setSelectedSite(created.id);
-      if (settings) {
-        const url = normalizeSiteUrl(created.domain);
-        const propertyUrl =
-          settings.gscPropertyUrl && settings.gscPropertyUrl.startsWith('sc-domain:')
-            ? `sc-domain:${created.domain}`
-            : url;
-        setSettings({
-          ...settings,
-          gscPropertyUrl: propertyUrl,
-          pageSpeedUrl: url,
-        });
-        await updateSeoSettings({
-          gscPropertyUrl: propertyUrl,
-          pageSpeedUrl: url,
-        });
-        await runSync({ from: dateFrom, to: dateTo });
-      }
-      setNewSiteDomain('');
-      setStatus(t('crm.marketingSeo.status.siteAdded'));
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || t('crm.marketingSeo.errors.siteAdd'));
-    } finally {
-      setAddingSite(false);
-    }
-  };
-
-  const applySiteSelection = async (siteId: string) => {
-    if (!settings) return;
-    const site = sites.find((s) => s.id === siteId);
-    if (!site) return;
-    const url = normalizeSiteUrl(site.domain);
-    const propertyUrl =
-      settings.gscPropertyUrl && settings.gscPropertyUrl.startsWith('sc-domain:')
-        ? `sc-domain:${site.domain}`
-        : url;
-    const updated = {
-      ...settings,
-      gscPropertyUrl: propertyUrl,
-      pageSpeedUrl: url,
-    };
-    setSettings(updated);
-    setStatus(null);
-    setError(null);
-    setSaving(true);
-    try {
-      await updateSeoSettings({
-        gscPropertyUrl: updated.gscPropertyUrl,
-        pageSpeedUrl: updated.pageSpeedUrl,
-      });
-      await runSync();
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || t('crm.marketingSeo.errors.siteApply'));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const removeSelectedSite = async () => {
-    if (!selectedSite || selectedSite === '__add__') return;
-    setDeletingSite(true);
-    setError(null);
-    setStatus(null);
-    try {
-      await deleteSite(selectedSite);
-      const updated = await fetchSites();
-      setSites(updated);
-      setSelectedSite('');
-      setStatus(t('crm.marketingSeo.status.siteDeleted'));
-    } catch (e: any) {
-      console.error(e);
-      setError(e?.message || t('crm.marketingSeo.errors.siteDelete'));
-    } finally {
-      setDeletingSite(false);
-    }
+  const runSeoAnalysis = async () => {
+    const updated = await persistSeoTarget();
+    if (!updated) return;
+    await runSync({ from: dateFrom, to: dateTo }, updated);
   };
 
   const clamp = (value: number, min: number, max: number) =>
@@ -760,283 +616,35 @@ export const SeoPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3 text-xs">
                 <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingSeo.site.title')}
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <div className="relative w-full">
-                      <select
-                        value={selectedSite}
-                        onChange={(e) => {
-                          const id = e.target.value;
-                          setSelectedSite(id);
-                          if (id === '__add__') return;
-                          if (id) {
-                            void applySiteSelection(id);
-                          }
-                        }}
-                        className="w-full appearance-none rounded-2xl border border-slate-200 bg-white px-4 py-3 pr-10 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
-                      >
-                        <option value="">{t('crm.marketingSeo.site.placeholder')}</option>
-                        {sites.map((site) => (
-                          <option key={site.id} value={site.id}>
-                            {site.name || site.domain}
-                          </option>
-                        ))}
-                        <option value="__add__">{t('crm.marketingSeo.site.addOption')}</option>
-                      </select>
-                      <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
-                    </div>
+                  {t('crm.marketingSeo.fields.siteUrl')}
+                  <div className="mt-2 flex flex-col gap-2 lg:flex-row lg:items-center">
+                    <input
+                      value={siteUrlInput}
+                      onChange={(e) => setSiteUrlInput(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
+                      placeholder="https://example.com/"
+                    />
                     <button
                       type="button"
-                      onClick={removeSelectedSite}
-                      disabled={!selectedSite || selectedSite === '__add__' || deletingSite}
-                      className="w-full sm:w-auto rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-red-800 shadow-sm hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      onClick={() => void runSeoAnalysis()}
+                      disabled={saving || syncing || !siteUrlInput.trim()}
+                      className="btn-primary w-full whitespace-nowrap lg:!w-auto disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {deletingSite
-                        ? t('crm.marketingSeo.site.deleting')
-                        : t('crm.marketingSeo.site.delete')}
+                      {saving || syncing
+                        ? t('crm.marketingSeo.actions.analyzing')
+                        : t('crm.marketingSeo.actions.analyze')}
                     </button>
                   </div>
                 </label>
-                {selectedSite === '__add__' && (
-                  <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                    {t('crm.marketingSeo.newSite.title')}
-                    <div className="mt-2 flex flex-col sm:flex-row items-center gap-2">
-                      <input
-                        value={newSiteDomain}
-                        onChange={(e) => setNewSiteDomain(e.target.value)}
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
-                        placeholder={t('crm.marketingSeo.newSite.placeholder')}
-                      />
-                      <button
-                        type="button"
-                        onClick={addSite}
-                        disabled={addingSite}
-                        className="btn-primary w-full whitespace-nowrap sm:!w-auto disabled:cursor-not-allowed"
-                      >
-                        {addingSite
-                          ? t('crm.marketingSeo.newSite.adding')
-                          : t('crm.marketingSeo.newSite.add')}
-                      </button>
-                    </div>
-                  </label>
-                )}
-                {selectedSite && selectedSite !== '__add__' && (
-                  <div className="md:col-span-2 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-4 shadow-sm space-y-3">
-                    <div>
-                      <div className="text-[11px] uppercase tracking-[0.2em] text-indigo-800 font-semibold">
-                        {t('crm.marketingSeo.wordpressModules.title')}
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-1">
-                        {t('crm.marketingSeo.wordpressModules.subtitle')}
-                      </p>
-                    </div>
-                    {(() => {
-                      const st = sites.find((s) => s.id === selectedSite);
-                      const tok = st?.apiToken;
-                      if (!tok) return null;
-                      return (
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                            {t('crm.marketingSeo.wordpressModules.siteToken')}
-                          </div>
-                          <div className="mt-1 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-                            <input
-                              readOnly
-                              value={tok}
-                              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-mono text-slate-800 shadow-inner"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => void copySiteToken(tok)}
-                              className="rounded-xl border border-indigo-200 bg-white px-3 py-2 text-[11px] font-semibold text-indigo-900 hover:bg-indigo-50 whitespace-nowrap"
-                            >
-                              {t('crm.marketingSeo.wordpressModules.copyToken')}
-                            </button>
-                          </div>
-                          <p className="text-[10px] text-slate-500 mt-1">
-                            {t('crm.marketingSeo.wordpressModules.tokenHint')}
-                          </p>
-                        </div>
-                      );
-                    })()}
-                    <div className="rounded-xl border border-slate-200/80 bg-white/90 overflow-hidden">
-                      <div className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.2fr)_auto_auto_auto_auto] gap-x-2 gap-y-1 px-3 py-2 bg-slate-50 text-[9px] uppercase tracking-wide text-slate-500 font-semibold border-b border-slate-200">
-                        <span>{t('crm.marketingSeo.wordpressModules.colModule')}</span>
-                        <span className="hidden sm:block text-center">{t('crm.marketingSeo.wordpressModules.colCompany')}</span>
-                        <span className="hidden sm:block text-center">{t('crm.marketingSeo.wordpressModules.colWp')}</span>
-                        <span className="text-right sm:text-center">{t('crm.marketingSeo.wordpressModules.colActions')}</span>
-                      </div>
-                      {wpLoading && (
-                        <div className="px-3 py-4 text-xs text-slate-500">
-                          {t('crm.marketingSeo.wordpressModules.loading')}
-                        </div>
-                      )}
-                      {!wpLoading &&
-                        wpModules?.map((row) => {
-                          const labelKey = `crm.marketingSeo.wordpressModules.keys.${row.key}`;
-                          const tr = t(labelKey);
-                          const title = tr === labelKey ? row.key : tr;
-                          const busy = wpSavingKey === row.key;
-                          const inherit = row.siteOverride === null;
-                          return (
-                            <div
-                              key={row.key}
-                              className="grid grid-cols-[1fr_auto] sm:grid-cols-[minmax(0,1.2fr)_auto_auto_auto_auto] gap-x-2 gap-y-1 items-center px-3 py-2 border-b border-slate-100 last:border-0 text-[11px]"
-                            >
-                              <div className="min-w-0">
-                                <div className="font-medium text-slate-900 truncate" title={title}>
-                                  {title}
-                                </div>
-                                {!row.allowedByPlan && (
-                                  <div className="text-[10px] text-amber-700">
-                                    {t('crm.marketingSeo.wordpressModules.notOnPlan')}
-                                  </div>
-                                )}
-                              </div>
-                              <div className="hidden sm:flex justify-center">
-                                <span
-                                  className={
-                                    'rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
-                                    (row.tenantEnabled ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-200 text-slate-600')
-                                  }
-                                >
-                                  {row.tenantEnabled ? 'ON' : 'OFF'}
-                                </span>
-                              </div>
-                              <div className="hidden sm:flex justify-center">
-                                <span
-                                  className={
-                                    'rounded-full px-2 py-0.5 text-[10px] font-semibold ' +
-                                    (row.effective ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-200 text-slate-600')
-                                  }
-                                >
-                                  {row.effective ? 'ON' : 'OFF'}
-                                </span>
-                              </div>
-                              <div className="flex flex-wrap justify-end gap-1">
-                                <button
-                                  type="button"
-                                  disabled={busy || !row.allowedByPlan}
-                                  onClick={() => void applyWpModuleOverride(row.key, null)}
-                                  className={
-                                    'rounded-lg px-2 py-1 text-[10px] font-semibold border ' +
-                                    (inherit
-                                      ? 'border-indigo-400 bg-indigo-50 text-indigo-900'
-                                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')
-                                  }
-                                >
-                                  {t('crm.marketingSeo.wordpressModules.inherit')}
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={busy || !row.allowedByPlan}
-                                  onClick={() => void applyWpModuleOverride(row.key, true)}
-                                  className={
-                                    'rounded-lg px-2 py-1 text-[10px] font-semibold border ' +
-                                    (row.siteOverride === true
-                                      ? 'border-indigo-400 bg-indigo-50 text-indigo-900'
-                                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')
-                                  }
-                                >
-                                  {t('crm.marketingSeo.wordpressModules.forceOn')}
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={busy || !row.allowedByPlan}
-                                  onClick={() => void applyWpModuleOverride(row.key, false)}
-                                  className={
-                                    'rounded-lg px-2 py-1 text-[10px] font-semibold border ' +
-                                    (row.siteOverride === false
-                                      ? 'border-indigo-400 bg-indigo-50 text-indigo-900'
-                                      : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')
-                                  }
-                                >
-                                  {t('crm.marketingSeo.wordpressModules.forceOff')}
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
-                  </div>
-                )}
-                <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingSeo.fields.gscPropertyUrl')}
-                  <input
-                    value={settings?.gscPropertyUrl || ''}
-                    onChange={(e) =>
-                      setSettings((s) =>
-                        s ? { ...s, gscPropertyUrl: e.target.value } : s,
-                      )
-                    }
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
-                    placeholder="https://example.com/"
-                  />
-                </label>
-                <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingSeo.fields.pageSpeedUrl')}
-                  <input
-                    value={settings?.pageSpeedUrl || ''}
-                    onChange={(e) =>
-                      setSettings((s) =>
-                        s ? { ...s, pageSpeedUrl: e.target.value } : s,
-                      )
-                    }
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
-                    placeholder="https://example.com/"
-                  />
-                </label>
-                <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingSeo.fields.pageSpeedApiKey')}
-                  <input
-                    value={settings?.pageSpeedApiKey || ''}
-                    onChange={(e) =>
-                      setSettings((s) =>
-                        s ? { ...s, pageSpeedApiKey: e.target.value } : s,
-                      )
-                    }
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
-                    placeholder="AIza..."
-                  />
-                </label>
-                <label className="text-[11px] uppercase tracking-[0.2em] text-slate-500">
-                  {t('crm.marketingSeo.fields.pageSpeedStrategy')}
-                  <select
-                    value={settings?.pageSpeedStrategy || 'mobile'}
-                    onChange={(e) =>
-                      setSettings((s) =>
-                        s ? { ...s, pageSpeedStrategy: e.target.value } : s,
-                      )
-                    }
-                    className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm outline-none focus:border-lumiva-accent focus:ring-2 focus:ring-slate-200"
-                  >
-                    <option value="mobile">{t('crm.marketingSeo.fields.strategy.mobile')}</option>
-                    <option value="desktop">{t('crm.marketingSeo.fields.strategy.desktop')}</option>
-                  </select>
-                </label>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  className="btn-primary !w-auto disabled:cursor-not-allowed"
-                >
-                  {saving
-                    ? t('crm.marketingSeo.actions.saving')
-                    : t('crm.marketingSeo.actions.save')}
-                </button>
+                <p className="mt-2 text-[11px] leading-relaxed text-slate-600">
+                  {t('crm.marketingSeo.fields.siteUrlHint')}
+                </p>
               </div>
             </section>
 
-            <section className="grid grid-cols-1 lg:grid-cols-2 gap-4 relative">
+            <section className="relative">
               {syncing && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-white/85 text-[11px] font-medium text-slate-800 shadow-[inset_0_0_0_1px_rgba(226,232,240,0.9)] backdrop-blur-[2px]">
                   {t('crm.marketingSeo.syncingOverlay')}
@@ -1215,65 +823,6 @@ export const SeoPage: React.FC = () => {
                 )}
               </div>
 
-              <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="text-xs font-semibold text-slate-900 mb-3">
-                  {t('crm.marketingSeo.psi.title')}
-                </div>
-                {metrics?.psi ? (
-                  <div className="space-y-3 text-[11px] text-slate-600">
-                    <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-black shadow-[0_12px_35px_rgba(0,0,0,0.05)]">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <div className="text-[11px] uppercase tracking-[0.2em] text-neutral-500">
-                            {t('crm.marketingSeo.psiDonut.title')}
-                          </div>
-                          <div className="text-[11px] text-neutral-500">
-                            {t('crm.marketingSeo.psiDonut.subtitle')}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-xs font-semibold text-black">
-                            {(
-                              (metrics.psi.performance +
-                                metrics.psi.accessibility +
-                                metrics.psi.bestPractices +
-                                metrics.psi.seo) /
-                              4
-                            ).toLocaleString(locale, {
-                              maximumFractionDigits: 1,
-                              minimumFractionDigits: 1,
-                            })}
-                            %
-                          </div>
-                          <div className="text-[11px] text-neutral-500">
-                            {t('crm.marketingSeo.psiDonut.average')}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-                        <DonutStat label={t('crm.marketingSeo.psiDonut.labels.performance')} percent={metrics.psi.performance} />
-                        <DonutStat label={t('crm.marketingSeo.psiDonut.labels.seo')} percent={metrics.psi.seo} />
-                        <DonutStat label={t('crm.marketingSeo.psiDonut.labels.accessibility')} percent={metrics.psi.accessibility} />
-                        <DonutStat label={t('crm.marketingSeo.psiDonut.labels.best')} percent={metrics.psi.bestPractices} />
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-neutral-200 bg-white p-4 text-black shadow-[0_12px_35px_rgba(0,0,0,0.05)]">
-                      <div className="grid grid-cols-2 gap-3 text-[11px] text-neutral-600">
-                        <div>{t('crm.marketingSeo.psiMetrics.lcp', { value: (metrics.psi.lcp / 1000).toFixed(2) })}</div>
-                        <div>{t('crm.marketingSeo.psiMetrics.cls', { value: metrics.psi.cls.toFixed(3) })}</div>
-                        <div>{t('crm.marketingSeo.psiMetrics.fcp', { value: (metrics.psi.fcp / 1000).toFixed(2) })}</div>
-                        <div>{t('crm.marketingSeo.psiMetrics.tbt', { value: (metrics.psi.tbt / 1000).toFixed(2) })}</div>
-                        <div>{t('crm.marketingSeo.psiMetrics.speedIndex', { value: (metrics.psi.speedIndex / 1000).toFixed(2) })}</div>
-                        <div>{t('crm.marketingSeo.psiMetrics.strategy', { value: metrics.psi.strategy })}</div>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-[11px] text-slate-500">
-                    {t('crm.marketingSeo.psi.empty')}
-                  </div>
-                )}
-              </div>
             </section>
 
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">

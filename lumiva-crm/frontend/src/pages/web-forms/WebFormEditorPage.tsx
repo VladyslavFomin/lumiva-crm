@@ -45,7 +45,16 @@ const DEFAULT_DESIGN: Record<string, unknown> = {
   formMaxWidthPx: 512,
 };
 
-type Tab = 'content' | 'design' | 'install';
+type Tab = 'content' | 'fields' | 'steps' | 'logic' | 'booking' | 'design' | 'install';
+type EmbedStep = { id: string; title: string; description?: string };
+type LogicRule = {
+  id: string;
+  fieldId: string;
+  operator: 'equals' | 'not_equals' | 'contains' | 'not_empty' | 'empty';
+  value?: string;
+  action: 'show_field' | 'hide_field';
+  targetFieldId: string;
+};
 
 const ADDABLE_FIELD_TYPES: EmbedFieldType[] = [
   'text',
@@ -54,11 +63,164 @@ const ADDABLE_FIELD_TYPES: EmbedFieldType[] = [
   'tel',
   'number',
   'date',
+  'time',
+  'datetime',
   'textarea',
   'select',
+  'radio',
+  'checkbox',
+  'multi_checkbox',
+  'service',
+  'specialist',
+  'guests',
+  'promo_code',
+  'rating',
+  'range',
+  'html',
+  'divider',
+  'hidden',
+  'utm',
+  'page_url',
   'file',
   'checkbox_consent',
   'messaging',
+];
+
+const FIELD_TYPE_LABELS: Record<EmbedFieldType, string> = {
+  text: 'Текст',
+  email: 'E-mail',
+  url: 'URL',
+  tel: 'Телефон',
+  number: 'Число',
+  date: 'Дата',
+  time: 'Время',
+  datetime: 'Дата и время',
+  textarea: 'Большой текст',
+  select: 'Список',
+  radio: 'Radio',
+  checkbox: 'Чекбокс',
+  multi_checkbox: 'Мультивыбор',
+  hidden: 'Hidden',
+  utm: 'UTM',
+  page_url: 'URL страницы',
+  rating: 'Рейтинг',
+  range: 'Слайдер',
+  html: 'Текстовый блок',
+  divider: 'Разделитель',
+  service: 'Услуга',
+  specialist: 'Специалист',
+  guests: 'Гости',
+  promo_code: 'Промокод',
+  file: 'Файл',
+  checkbox_consent: 'Согласие',
+  messaging: 'Мессенджер',
+};
+
+const TEMPLATE_LABELS: Record<string, string> = {
+  contact: 'Форма обращения',
+  callback: 'Обратный звонок',
+  consultation: 'Консультация',
+  quote: 'Коммерческое предложение',
+  support: 'Техподдержка',
+  brief: 'Бриф',
+  quiz: 'Квиз / подбор услуги',
+  booking: 'Запись на услугу',
+  reservation: 'Бронирование',
+  service_request: 'Заявка на услугу',
+  audit: 'Аудит сайта / маркетинга',
+};
+
+const TEMPLATE_META: Record<string, { description: string; badge: string }> = {
+  contact: { badge: 'Lead', description: 'Классическая заявка с именем, контактами и сообщением.' },
+  callback: { badge: 'Call', description: 'Быстрая форма обратного звонка с выбором удобного времени.' },
+  consultation: { badge: 'Sales', description: 'Запрос консультации для услуг, CRM, разработки и маркетинга.' },
+  quote: { badge: 'B2B', description: 'Запрос коммерческого предложения с компанией и ТЗ.' },
+  support: { badge: 'Helpdesk', description: 'Обращение в поддержку с темой, описанием и каналом связи.' },
+  brief: { badge: 'Brief', description: 'Расширенный бриф с файлами и подробным описанием задачи.' },
+  quiz: { badge: 'Quiz', description: 'Многошаговый квиз для подбора услуги и сегментации лида.' },
+  booking: { badge: 'Booking', description: 'Запись на услугу с выбором специалиста, даты и времени.' },
+  reservation: { badge: 'Reserve', description: 'Бронирование с датами, гостями, опциями и промокодом.' },
+  service_request: { badge: 'Service', description: 'Заявка на конкретную услугу с UTM и URL страницы.' },
+  audit: { badge: 'Audit', description: 'Заявка на аудит сайта, рекламы, аналитики или UX.' },
+};
+
+const VISUAL_PRESETS: Array<{
+  key: string;
+  name: string;
+  description: string;
+  patch: Record<string, unknown>;
+}> = [
+  {
+    key: 'classic',
+    name: 'Classic',
+    description: 'Чистая универсальная форма.',
+    patch: {
+      visualPreset: 'classic',
+      backgroundColor: '#ffffff',
+      textColor: '#111827',
+      fieldBackground: '#f9fafb',
+      borderColor: '#e5e7eb',
+      buttonBackground: '#111827',
+      buttonTextColor: '#ffffff',
+      accentColor: '#2563eb',
+      optionStyle: 'cards',
+      headerStyle: 'plain',
+    },
+  },
+  {
+    key: 'spa',
+    name: 'Spa / Wellness',
+    description: 'Мягкий зелёный стиль для записи и услуг.',
+    patch: {
+      visualPreset: 'spa',
+      backgroundColor: '#ffffff',
+      textColor: '#405f57',
+      fieldBackground: '#eef7f2',
+      borderColor: '#dbe8e1',
+      buttonBackground: '#48685f',
+      buttonTextColor: '#ffffff',
+      accentColor: '#5fa898',
+      optionStyle: 'list',
+      headerStyle: 'band',
+      headerBackground: '#48685f',
+      headerTextColor: '#ffffff',
+    },
+  },
+  {
+    key: 'hotel',
+    name: 'Hotel Booking',
+    description: 'Премиальный стиль резервации.',
+    patch: {
+      visualPreset: 'hotel',
+      backgroundColor: '#ffffff',
+      textColor: '#102a43',
+      fieldBackground: '#ffffff',
+      borderColor: '#d9e2ec',
+      buttonBackground: '#0f2a44',
+      buttonTextColor: '#ffffff',
+      accentColor: '#1d6580',
+      optionStyle: 'list',
+      headerStyle: 'plain',
+      fontFamily: 'Georgia, "Times New Roman", serif',
+    },
+  },
+  {
+    key: 'dark',
+    name: 'Dark Popup',
+    description: 'Контрастный popup для лид-форм.',
+    patch: {
+      visualPreset: 'dark',
+      backgroundColor: '#111827',
+      textColor: '#f8fafc',
+      fieldBackground: '#1f2937',
+      borderColor: '#374151',
+      buttonBackground: '#60a5fa',
+      buttonTextColor: '#08111f',
+      accentColor: '#93c5fd',
+      optionStyle: 'cards',
+      headerStyle: 'plain',
+    },
+  },
 ];
 
 function newFieldId() {
@@ -99,7 +261,14 @@ export const WebFormEditorPage: React.FC = () => {
   const [tab, setTab] = useState<Tab>('content');
   const [name, setName] = useState('');
   const [published, setPublished] = useState(false);
-  const [fieldConfig, setFieldConfig] = useState<{ fields: EmbedFieldConfigItem[] }>({
+  const [fieldConfig, setFieldConfig] = useState<{
+    fields: EmbedFieldConfigItem[];
+    steps?: EmbedStep[];
+    settings?: Record<string, unknown>;
+    display?: Record<string, unknown>;
+    logic?: LogicRule[];
+    booking?: Record<string, unknown>;
+  }>({
     fields: [],
   });
   const [design, setDesign] = useState<Record<string, unknown>>({ ...DEFAULT_DESIGN });
@@ -122,7 +291,14 @@ export const WebFormEditorPage: React.FC = () => {
       setRow(f);
       setName(f.name);
       setPublished(f.published);
-      setFieldConfig(f.fieldConfig as { fields: EmbedFieldConfigItem[] });
+      setFieldConfig(f.fieldConfig as {
+        fields: EmbedFieldConfigItem[];
+        steps?: EmbedStep[];
+        settings?: Record<string, unknown>;
+        display?: Record<string, unknown>;
+        logic?: LogicRule[];
+        booking?: Record<string, unknown>;
+      });
       setDesign({ ...DEFAULT_DESIGN, ...(f.design || {}) });
       setSuccessMessage(f.successMessage || '');
       setPrivacyPolicyUrl(f.privacyPolicyUrl || '');
@@ -169,18 +345,54 @@ export const WebFormEditorPage: React.FC = () => {
     setDesign((d) => ({ ...d, [key]: v }));
   };
 
+  const setFieldConfigSection = (section: 'settings' | 'display' | 'booking', key: string, value: unknown) => {
+    setFieldConfig((fc) => ({
+      ...fc,
+      [section]: { ...(fc[section] || {}), [key]: value },
+    }));
+  };
+
+  const parseOptionLines = (value: unknown) => String(value || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [rawValue, rawLabel, rawPrice, rawDescription, rawImage] = line.split('|');
+      const optionValue = rawValue.trim();
+      return {
+        value: optionValue,
+        label: rawLabel?.trim() || optionValue,
+        price: rawPrice?.trim() || undefined,
+        description: rawDescription?.trim() || undefined,
+        imageUrl: rawImage?.trim() || undefined,
+      };
+    });
+
+  const syncBookingOptions = (fieldType: 'service' | 'specialist', raw: string) => {
+    const options = parseOptionLines(raw);
+    setFieldConfig((fc) => ({
+      ...fc,
+      fields: fc.fields.map((field) => field.type === fieldType ? { ...field, options } : field),
+      booking: {
+        ...(fc.booking || {}),
+        [fieldType === 'service' ? 'servicesText' : 'specialistsText']: raw,
+      },
+    }));
+  };
+
   const addFieldOfType = (type: EmbedFieldType) => {
     setFieldConfig((fc) => {
       const used = new Set(fc.fields.map((f) => f.key));
       const keySeed =
-        type === 'checkbox_consent' ? 'consent' : type;
+        type === 'checkbox_consent' ? 'consent' : type === 'page_url' ? 'page_url' : type;
       let key: string = keySeed;
       let n = 1;
       while (used.has(key)) {
         key = `${keySeed}_${n++}`;
       }
       const id = newFieldId();
-      const defLabel = t(`crm.embedForms.fieldPaletteLabels.${type}`);
+      const defLabel = FIELD_TYPE_LABELS[type] || t(`crm.embedForms.fieldPaletteLabels.${type}`);
+      const optionTypes: EmbedFieldType[] = ['select', 'radio', 'multi_checkbox', 'service', 'specialist'];
       const next: EmbedFieldConfigItem = {
         id,
         type,
@@ -189,13 +401,23 @@ export const WebFormEditorPage: React.FC = () => {
         colSpan: 2,
         required: type === 'checkbox_consent',
         options:
-          type === 'select'
+          optionTypes.includes(type)
             ? [
                 { value: 'opt1', label: t('crm.embedForms.selectOpt1') },
                 { value: 'opt2', label: t('crm.embedForms.selectOpt2') },
               ]
             : undefined,
       };
+      if (type === 'range') {
+        next.min = 0;
+        next.max = 100;
+        next.defaultValue = 50;
+      }
+      if (type === 'guests') {
+        next.min = 1;
+        next.max = 20;
+        next.defaultValue = 1;
+      }
       if (type === 'messaging') {
         next.required = false;
       }
@@ -274,22 +496,70 @@ export const WebFormEditorPage: React.FC = () => {
 
   const iframeCode = useMemo(() => {
     if (!row) return '';
-    return `<iframe title="${row.name}" src="${embedPageUrl}" width="100%" height="700" style="border:0" loading="lazy"></iframe>`;
+    return `<iframe id="lumiva-form-${row.publicId}" title="${row.name}" src="${embedPageUrl}" width="100%" height="700" style="border:0;width:100%" loading="lazy"></iframe>
+<script>
+  window.addEventListener('message', function(event) {
+    if (!event.data || event.data.type !== 'lumiva-form-resize' || event.data.publicId !== '${row.publicId}') return;
+    var iframe = document.getElementById('lumiva-form-${row.publicId}');
+    if (iframe && event.data.height) iframe.style.height = event.data.height + 'px';
+  });
+</script>`;
   }, [row, embedPageUrl]);
+
+  const popupCode = useMemo(() => {
+    if (!row) return '';
+    const display = fieldConfig.display || {};
+    const buttonText = String(display.popupButtonText || 'Оставить заявку');
+    const width = String(display.popupWidthPx || 760);
+    const blur = display.popupBlur === false ? '0' : '1';
+    return `<button type="button" data-lumiva-form="${row.publicId}" data-lumiva-width="${width}" data-lumiva-blur="${blur}">${buttonText}</button>
+<script src="${window.location.origin}/forms/widget.js" async></script>`;
+  }, [row, fieldConfig.display]);
+
+  const floatingCode = useMemo(() => {
+    if (!row) return '';
+    const display = fieldConfig.display || {};
+    return `<script src="${window.location.origin}/forms/widget.js" async data-lumiva-floating="${row.publicId}" data-lumiva-label="${String(display.floatingLabel || 'Оставить заявку')}" data-lumiva-position="${String(display.floatingPosition || 'right-bottom')}" data-lumiva-delay="${String(display.floatingDelaySec || 0)}"></script>`;
+  }, [row, fieldConfig.display]);
 
   const openPreview = async () => {
     if (!row) return;
-    const { token } = await postEmbedPreviewToken(row.id);
-    const u = new URL(`${window.location.origin}/embed/${row.publicId}`);
-    u.searchParams.set('preview', '1');
-    u.searchParams.set('pt', token);
-    window.open(u.toString(), '_blank', 'noopener,noreferrer');
+    const previewWindow = window.open('', '_blank');
+    if (!previewWindow) {
+      setError('Браузер заблокировал новое окно. Разрешите pop-up для CRM и попробуйте ещё раз.');
+      return;
+    }
+    previewWindow.document.write('<!doctype html><title>Preview</title><body style="font-family:system-ui;padding:24px;color:#222">Loading preview...</body>');
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = await updateEmbedForm(row.id, {
+        name: name.trim(),
+        published,
+        fieldConfig: fieldConfig as unknown as Record<string, unknown>,
+        design,
+        successMessage: successMessage.trim() || null,
+        privacyPolicyUrl: privacyPolicyUrl.trim() || null,
+      });
+      setRow(saved);
+      const { token } = await postEmbedPreviewToken(saved.id);
+      const u = new URL(`${window.location.origin}/embed/${saved.publicId}`);
+      u.searchParams.set('preview', '1');
+      u.searchParams.set('pt', token);
+      previewWindow.location.href = u.toString();
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : t('crm.embedForms.editor.saveError');
+      setError(message);
+      previewWindow.document.body.innerHTML = `<pre style="white-space:pre-wrap;color:#b91c1c;font-family:system-ui">${message.replace(/[<>&]/g, (ch) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[ch] || ch))}</pre>`;
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (isNew) {
     return (
       <MainLayout>
-        <div className="max-w-lg mx-auto px-4 py-8 text-[#222]">
+        <div className="max-w-5xl mx-auto px-4 py-8 text-[#222]">
           <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">
             {t('crm.embedForms.kicker')}
           </p>
@@ -339,17 +609,26 @@ export const WebFormEditorPage: React.FC = () => {
               <label className="block text-xs font-semibold text-slate-700 mb-1">
                 {t('crm.embedForms.create.template')}
               </label>
-              <select
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                value={createTemplate}
-                onChange={(e) => setCreateTemplate(e.target.value)}
-              >
-                {templateKeys.map((k) => (
-                  <option key={k} value={k}>
-                    {t(`crm.embedForms.templates.${k}`)}
-                  </option>
-                ))}
-              </select>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {templateKeys.map((k) => {
+                  const active = createTemplate === k;
+                  const meta = TEMPLATE_META[k] || { badge: 'Form', description: 'Готовый шаблон формы для сайта.' };
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setCreateTemplate(k)}
+                      className={`rounded-2xl border p-4 text-left transition ${active ? 'border-[#222] bg-[#222] text-white shadow-lg' : 'border-slate-200 bg-white text-[#222] hover:border-slate-400 hover:shadow-sm'}`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="text-sm font-semibold">{TEMPLATE_LABELS[k] || t(`crm.embedForms.templates.${k}`)}</div>
+                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${active ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'}`}>{meta.badge}</span>
+                      </div>
+                      <p className={`mt-2 text-xs leading-5 ${active ? 'text-white/75' : 'text-slate-500'}`}>{meta.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <button
               type="button"
@@ -448,14 +727,22 @@ export const WebFormEditorPage: React.FC = () => {
         )}
 
         <div className="lv-embed-tabs">
-          {(['content', 'design', 'install'] as Tab[]).map((k) => (
+          {(['content', 'fields', 'steps', 'logic', 'booking', 'design', 'install'] as Tab[]).map((k) => (
             <button
               key={k}
               type="button"
               onClick={() => setTab(k)}
               className={'lv-embed-tab' + (tab === k ? ' is-active' : '')}
             >
-              {t(`crm.embedForms.editor.tab.${k}`)}
+              {{
+                content: 'Основное',
+                fields: 'Поля',
+                steps: 'Шаги',
+                logic: 'Логика',
+                booking: 'Запись / бронирование',
+                design: t('crm.embedForms.editor.tab.design'),
+                install: t('crm.embedForms.editor.tab.install'),
+              }[k]}
             </button>
           ))}
         </div>
@@ -491,7 +778,12 @@ export const WebFormEditorPage: React.FC = () => {
                 />
               </div>
             </div>
-            <div className="lv-embed-sec lv-embed-sec--border">
+          </div>
+        )}
+
+        {tab === 'fields' && (
+          <div className="lv-embed-card space-y-5">
+            <div className="lv-embed-sec">
               <h2 className="lv-embed-sec-title">{t('crm.embedFields.fieldsTitle')}</h2>
               <p className="lv-embed-hint">{t('crm.embedForms.editorUi.addFieldHint')}</p>
               <div className="lv-embed-palette">
@@ -502,132 +794,84 @@ export const WebFormEditorPage: React.FC = () => {
                     className="lv-embed-palette__btn"
                     onClick={() => addFieldOfType(ft)}
                   >
-                    {t(`crm.embedForms.fieldPaletteShort.${ft}`)}
-                    <kbd>{t(`crm.embedForms.fieldPaletteKbd.${ft}`)}</kbd>
+                    {FIELD_TYPE_LABELS[ft] || t(`crm.embedForms.fieldPaletteShort.${ft}`)}
+                    <kbd>{ft}</kbd>
                   </button>
                 ))}
               </div>
-              <div className="space-y-3 mt-2">
+              <div className="space-y-3 mt-4">
                 {fieldConfig.fields.map((f, idx) => (
                   <div key={f.id} className="lv-embed-field-card">
                     <div className="lv-embed-field-card__head">
                       <div className="lv-embed-badges">
-                        <span className="lv-embed-badge">{f.type}</span>
+                        <span className="lv-embed-badge">{FIELD_TYPE_LABELS[f.type] || f.type}</span>
                         <code className="text-[11px] text-slate-500 font-mono">{f.key}</code>
                       </div>
                       <div className="lv-embed-field-card__actions">
                         <div className="lv-embed-width" role="group" aria-label={t('crm.embedForms.editorUi.colWidth')}>
-                          <button
-                            type="button"
-                            className={f.colSpan === 1 ? 'is-on' : ''}
-                            onClick={() => updateField(f.id, { colSpan: 1 })}
-                          >
-                            ½
-                          </button>
-                          <button
-                            type="button"
-                            className={!f.colSpan || f.colSpan === 2 ? 'is-on' : ''}
-                            onClick={() => updateField(f.id, { colSpan: 2 })}
-                          >
-                            100%
-                          </button>
+                          <button type="button" className={f.colSpan === 1 ? 'is-on' : ''} onClick={() => updateField(f.id, { colSpan: 1 })}>½</button>
+                          <button type="button" className={!f.colSpan || f.colSpan === 2 ? 'is-on' : ''} onClick={() => updateField(f.id, { colSpan: 2 })}>100%</button>
                         </div>
-                        <button
-                          type="button"
-                          className="lv-embed-ico"
-                          onClick={() => moveField(f.id, -1)}
-                          disabled={idx === 0}
-                          title={t('crm.embedForms.editorUi.moveUp')}
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          className="lv-embed-ico"
-                          onClick={() => moveField(f.id, 1)}
-                          disabled={idx >= fieldConfig.fields.length - 1}
-                          title={t('crm.embedForms.editorUi.moveDown')}
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          className="lv-embed-ico"
-                          onClick={() => removeField(f.id)}
-                          disabled={fieldConfig.fields.length < 2}
-                          title={t('crm.embedForms.editorUi.remove')}
-                        >
-                          ×
-                        </button>
+                        <button type="button" className="lv-embed-ico" onClick={() => moveField(f.id, -1)} disabled={idx === 0}>↑</button>
+                        <button type="button" className="lv-embed-ico" onClick={() => moveField(f.id, 1)} disabled={idx >= fieldConfig.fields.length - 1}>↓</button>
+                        <button type="button" className="lv-embed-ico" onClick={() => removeField(f.id)} disabled={fieldConfig.fields.length < 2}>×</button>
                       </div>
                     </div>
                     <div>
                       <span className="lv-embed-lbl">{t('crm.embedFields.label')}</span>
-                      <input
-                        className="lv-embed-inp max-w-none"
-                        value={f.label}
-                        onChange={(e) => updateField(f.id, { label: e.target.value })}
-                      />
+                      <input className="lv-embed-inp max-w-none" value={f.label} onChange={(e) => updateField(f.id, { label: e.target.value })} />
                     </div>
-                    {f.type !== 'checkbox_consent' && f.type !== 'file' && f.type !== 'messaging' && (
+                    {fieldConfig.steps?.length ? (
+                      <div>
+                        <span className="lv-embed-lbl">Шаг</span>
+                        <select className="lv-embed-inp max-w-none" value={f.stepId || ''} onChange={(e) => updateField(f.id, { stepId: e.target.value || undefined })}>
+                          <option value="">Без шага / всегда</option>
+                          {fieldConfig.steps.map((step) => <option key={step.id} value={step.id}>{step.title}</option>)}
+                        </select>
+                      </div>
+                    ) : null}
+                    {!['checkbox_consent', 'file', 'messaging', 'html', 'divider', 'hidden', 'utm', 'page_url'].includes(f.type) && (
                       <div>
                         <span className="lv-embed-lbl">{t('crm.embedFields.placeholder')}</span>
-                        <input
-                          className="lv-embed-inp max-w-none"
-                          value={f.placeholder || ''}
-                          onChange={(e) => updateField(f.id, { placeholder: e.target.value })}
-                        />
+                        <input className="lv-embed-inp max-w-none" value={f.placeholder || ''} onChange={(e) => updateField(f.id, { placeholder: e.target.value })} />
                       </div>
                     )}
-                    {f.type === 'select' && (
+                    {['html', 'divider'].includes(f.type) ? (
+                      <div className="sm:col-span-2">
+                        <span className="lv-embed-lbl">Текст блока</span>
+                        <textarea className="lv-embed-inp max-w-none min-h-[80px]" value={f.helpText || f.placeholder || ''} onChange={(e) => updateField(f.id, { helpText: e.target.value })} />
+                      </div>
+                    ) : null}
+                    {['select', 'radio', 'multi_checkbox', 'service', 'specialist'].includes(f.type) && (
                       <div className="sm:col-span-2 space-y-2">
                         <span className="lv-embed-lbl">{t('crm.embedForms.editorUi.selectOptions')}</span>
                         {(f.options || []).map((opt, oi) => (
                           <div key={oi} className="flex flex-wrap gap-2 items-center">
-                            <input
-                              className="lv-embed-inp flex-1 min-w-[100px] max-w-none"
-                              value={opt.value}
-                              onChange={(e) => {
-                                const o = [...(f.options || [])];
-                                o[oi] = { ...o[oi], value: e.target.value };
-                                updateField(f.id, { options: o });
-                              }}
-                            />
-                            <input
-                              className="lv-embed-inp flex-1 min-w-[120px] max-w-none"
-                              value={opt.label}
-                              onChange={(e) => {
-                                const o = [...(f.options || [])];
-                                o[oi] = { ...o[oi], label: e.target.value };
-                                updateField(f.id, { options: o });
-                              }}
-                            />
+                            <input className="lv-embed-inp flex-1 min-w-[100px] max-w-none" value={opt.value} onChange={(e) => {
+                              const o = [...(f.options || [])];
+                              o[oi] = { ...o[oi], value: e.target.value };
+                              updateField(f.id, { options: o });
+                            }} />
+                            <input className="lv-embed-inp flex-1 min-w-[120px] max-w-none" value={opt.label} onChange={(e) => {
+                              const o = [...(f.options || [])];
+                              o[oi] = { ...o[oi], label: e.target.value };
+                              updateField(f.id, { options: o });
+                            }} />
                           </div>
                         ))}
-                        <button
-                          type="button"
-                          className="lv-embed-btn text-xs"
-                          onClick={() =>
-                            updateField(f.id, {
-                              options: [
-                                ...(f.options || []),
-                                { value: `v_${fieldConfig.fields.length}`, label: t('crm.embedForms.editorUi.newOption') },
-                              ],
-                            })
-                          }
-                        >
-                          {t('crm.embedForms.editorUi.addOption')}
-                        </button>
+                        <button type="button" className="lv-embed-btn text-xs" onClick={() => updateField(f.id, { options: [...(f.options || []), { value: `v_${Date.now().toString(36)}`, label: t('crm.embedForms.editorUi.newOption') }] })}>{t('crm.embedForms.editorUi.addOption')}</button>
                       </div>
                     )}
-                    {f.type !== 'checkbox_consent' && f.type !== 'messaging' && f.type !== 'file' && (
+                    {['number', 'range', 'guests', 'rating'].includes(f.type) ? (
+                      <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div><span className="lv-embed-lbl">Min</span><input type="number" className="lv-embed-inp max-w-none" value={f.min ?? ''} onChange={(e) => updateField(f.id, { min: e.target.value === '' ? undefined : Number(e.target.value) })} /></div>
+                        <div><span className="lv-embed-lbl">Max</span><input type="number" className="lv-embed-inp max-w-none" value={f.max ?? ''} onChange={(e) => updateField(f.id, { max: e.target.value === '' ? undefined : Number(e.target.value) })} /></div>
+                        <div><span className="lv-embed-lbl">Default</span><input className="lv-embed-inp max-w-none" value={String(f.defaultValue ?? '')} onChange={(e) => updateField(f.id, { defaultValue: e.target.value })} /></div>
+                      </div>
+                    ) : null}
+                    {!['checkbox_consent', 'messaging', 'file', 'html', 'divider', 'hidden', 'utm', 'page_url'].includes(f.type) && (
                       <div className="sm:col-span-2 flex items-center">
-                        <EmbedSwitch
-                          id={`req-${f.id}`}
-                          checked={f.required}
-                          onChange={(v) => updateField(f.id, { required: v })}
-                          label={t('crm.embedFields.required')}
-                        />
+                        <EmbedSwitch id={`req-${f.id}`} checked={f.required} onChange={(v) => updateField(f.id, { required: v })} label={t('crm.embedFields.required')} />
                       </div>
                     )}
                   </div>
@@ -637,11 +881,249 @@ export const WebFormEditorPage: React.FC = () => {
           </div>
         )}
 
+        {tab === 'steps' && (
+          <div className="lv-embed-card space-y-5">
+            <div className="lv-embed-sec">
+              <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-semibold text-[#222]">Шаги формы</div>
+                    <p className="text-xs text-slate-500">Для квиза, записи и бронирования назначайте поля на шаги.</p>
+                  </div>
+                  <button
+                    type="button"
+                    className="lv-embed-btn text-xs"
+                    onClick={() => {
+                      const id = `step_${Date.now().toString(36)}`;
+                      setFieldConfig((fc) => ({
+                        ...fc,
+                        steps: [...(fc.steps || []), { id, title: `Шаг ${(fc.steps || []).length + 1}` }],
+                        settings: { ...(fc.settings || {}), showProgress: true },
+                      }));
+                    }}
+                  >
+                    Добавить шаг
+                  </button>
+                </div>
+                {fieldConfig.steps?.length ? (
+                  <div className="mt-3 space-y-2">
+                    {fieldConfig.steps.map((step, idx) => (
+                      <div key={step.id} className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs text-slate-500 w-12">#{idx + 1}</span>
+                        <input
+                          className="lv-embed-inp flex-1 max-w-none"
+                          value={step.title}
+                          onChange={(e) => setFieldConfig((fc) => ({
+                            ...fc,
+                            steps: (fc.steps || []).map((s) => s.id === step.id ? { ...s, title: e.target.value } : s),
+                          }))}
+                        />
+                        <button
+                          type="button"
+                          className="lv-embed-btn text-xs"
+                          onClick={() => setFieldConfig((fc) => ({
+                            ...fc,
+                            steps: (fc.steps || []).filter((s) => s.id !== step.id),
+                            fields: fc.fields.map((field) => field.stepId === step.id ? { ...field, stepId: undefined } : field),
+                          }))}
+                        >
+                          Удалить
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-slate-500">Шаги выключены, форма отображается одним экраном.</p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <span className="lv-embed-lbl">Текст кнопки далее</span>
+                  <input className="lv-embed-inp max-w-none" value={String(fieldConfig.settings?.nextText || 'Далее')} onChange={(e) => setFieldConfigSection('settings', 'nextText', e.target.value)} />
+                </div>
+                <div>
+                  <span className="lv-embed-lbl">Текст кнопки назад</span>
+                  <input className="lv-embed-inp max-w-none" value={String(fieldConfig.settings?.backText || 'Назад')} onChange={(e) => setFieldConfigSection('settings', 'backText', e.target.value)} />
+                </div>
+                <div>
+                  <span className="lv-embed-lbl">Текст отправки</span>
+                  <input className="lv-embed-inp max-w-none" value={String(fieldConfig.settings?.submitText || 'Отправить')} onChange={(e) => setFieldConfigSection('settings', 'submitText', e.target.value)} />
+                </div>
+                <div className="flex items-end">
+                  <EmbedSwitch id="show-progress" checked={fieldConfig.settings?.showProgress !== false} onChange={(v) => setFieldConfigSection('settings', 'showProgress', v)} label="Показывать прогресс" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === 'logic' && (
+          <div className="lv-embed-card space-y-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="lv-embed-sec-title">Условная логика</h2>
+                <p className="lv-embed-hint">Показывайте или скрывайте поля по ответам пользователя.</p>
+              </div>
+              <button
+                type="button"
+                className="lv-embed-btn"
+                onClick={() => setFieldConfig((fc) => ({
+                  ...fc,
+                  logic: [
+                    ...(fc.logic || []),
+                    {
+                      id: `rule_${Date.now().toString(36)}`,
+                      fieldId: fc.fields[0]?.id || '',
+                      operator: 'equals',
+                      value: '',
+                      action: 'show_field',
+                      targetFieldId: fc.fields[1]?.id || fc.fields[0]?.id || '',
+                    },
+                  ],
+                }))}
+              >
+                Добавить правило
+              </button>
+            </div>
+            <div className="space-y-3">
+              {(fieldConfig.logic || []).map((rule) => (
+                <div key={rule.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-5">
+                    <div>
+                      <span className="lv-embed-lbl">Если поле</span>
+                      <select className="lv-embed-inp max-w-none" value={rule.fieldId} onChange={(e) => setFieldConfig((fc) => ({ ...fc, logic: (fc.logic || []).map((r) => r.id === rule.id ? { ...r, fieldId: e.target.value } : r) }))}>
+                        {fieldConfig.fields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <span className="lv-embed-lbl">Условие</span>
+                      <select className="lv-embed-inp max-w-none" value={rule.operator} onChange={(e) => setFieldConfig((fc) => ({ ...fc, logic: (fc.logic || []).map((r) => r.id === rule.id ? { ...r, operator: e.target.value as LogicRule['operator'] } : r) }))}>
+                        <option value="equals">равно</option>
+                        <option value="not_equals">не равно</option>
+                        <option value="contains">содержит</option>
+                        <option value="not_empty">заполнено</option>
+                        <option value="empty">пусто</option>
+                      </select>
+                    </div>
+                    <div>
+                      <span className="lv-embed-lbl">Значение</span>
+                      <input className="lv-embed-inp max-w-none" value={rule.value || ''} onChange={(e) => setFieldConfig((fc) => ({ ...fc, logic: (fc.logic || []).map((r) => r.id === rule.id ? { ...r, value: e.target.value } : r) }))} />
+                    </div>
+                    <div>
+                      <span className="lv-embed-lbl">Действие</span>
+                      <select className="lv-embed-inp max-w-none" value={rule.action} onChange={(e) => setFieldConfig((fc) => ({ ...fc, logic: (fc.logic || []).map((r) => r.id === rule.id ? { ...r, action: e.target.value as LogicRule['action'] } : r) }))}>
+                        <option value="show_field">показать поле</option>
+                        <option value="hide_field">скрыть поле</option>
+                      </select>
+                    </div>
+                    <div>
+                      <span className="lv-embed-lbl">Целевое поле</span>
+                      <select className="lv-embed-inp max-w-none" value={rule.targetFieldId} onChange={(e) => setFieldConfig((fc) => ({ ...fc, logic: (fc.logic || []).map((r) => r.id === rule.id ? { ...r, targetFieldId: e.target.value } : r) }))}>
+                        {fieldConfig.fields.map((field) => <option key={field.id} value={field.id}>{field.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="mt-3 text-xs font-semibold text-rose-600"
+                    onClick={() => setFieldConfig((fc) => ({ ...fc, logic: (fc.logic || []).filter((r) => r.id !== rule.id) }))}
+                  >
+                    Удалить правило
+                  </button>
+                </div>
+              ))}
+              {!fieldConfig.logic?.length ? <p className="text-sm text-slate-500">Правил пока нет. Форма работает без условной логики.</p> : null}
+            </div>
+          </div>
+        )}
+
+        {tab === 'booking' && (
+          <div className="lv-embed-card space-y-5">
+            <div>
+              <h2 className="lv-embed-sec-title">Запись / бронирование</h2>
+              <p className="lv-embed-hint">Настройте услуги, специалистов и расписание. Значения синхронизируются с полями типа “Услуга” и “Специалист”.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              <div>
+                <span className="lv-embed-lbl">Услуги: value|Название|цена|длительность/описание</span>
+                <textarea
+                  className="lv-embed-inp max-w-none min-h-[180px]"
+                  value={String(fieldConfig.booking?.servicesText || 'wellness|Wellness massage|$10.00|60 min\nrelax|Relaxing massage|$15.00|60 min\ndetox|Spa detox|$17.00|60 min')}
+                  onChange={(e) => syncBookingOptions('service', e.target.value)}
+                />
+              </div>
+              <div>
+                <span className="lv-embed-lbl">Специалисты: value|Имя|роль|аватар URL</span>
+                <textarea
+                  className="lv-embed-inp max-w-none min-h-[180px]"
+                  value={String(fieldConfig.booking?.specialistsText || 'any|Любой свободный|Автоназначение\nmanager|Hannah Wellson|Cosmetologist\nexpert|Anna Doe|Spa detox therapist')}
+                  onChange={(e) => syncBookingOptions('specialist', e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div>
+                <span className="lv-embed-lbl">Timezone</span>
+                <input className="lv-embed-inp max-w-none" value={String(fieldConfig.booking?.timezone || 'Europe/Zurich')} onChange={(e) => setFieldConfigSection('booking', 'timezone', e.target.value)} />
+              </div>
+              <div>
+                <span className="lv-embed-lbl">Длительность слота, мин</span>
+                <input type="number" className="lv-embed-inp max-w-none" value={Number(fieldConfig.booking?.slotMinutes || 30)} onChange={(e) => setFieldConfigSection('booking', 'slotMinutes', Number(e.target.value) || 30)} />
+              </div>
+              <div>
+                <span className="lv-embed-lbl">Буфер между слотами, мин</span>
+                <input type="number" className="lv-embed-inp max-w-none" value={Number(fieldConfig.booking?.bufferMinutes || 0)} onChange={(e) => setFieldConfigSection('booking', 'bufferMinutes', Number(e.target.value) || 0)} />
+              </div>
+            </div>
+            <div>
+              <span className="lv-embed-lbl">Расписание / правила доступности</span>
+              <textarea className="lv-embed-inp max-w-none min-h-[120px]" value={String(fieldConfig.booking?.scheduleText || 'Пн-Пт 09:00-18:00')} onChange={(e) => setFieldConfigSection('booking', 'scheduleText', e.target.value)} />
+            </div>
+          </div>
+        )}
+
         {tab === 'design' && (
           <div className="lv-embed-card lv-embed-design">
             <div>
               <h2 className="lv-embed-sec-title mb-1">{t('crm.embedDesign.tuningTitle')}</h2>
               <p className="lv-embed-hint mb-4">{t('crm.embedDesign.tuningHint')}</p>
+              <div className="mb-5">
+                <span className="lv-embed-lbl">Визуальный пресет</span>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {VISUAL_PRESETS.map((preset) => {
+                    const active = String(design.visualPreset || 'classic') === preset.key;
+                    return (
+                      <button
+                        key={preset.key}
+                        type="button"
+                        className={`rounded-2xl border p-3 text-left transition ${active ? 'border-[#222] bg-[#222] text-white' : 'border-slate-200 bg-white text-[#222] hover:border-slate-400'}`}
+                        onClick={() => setDesign((prev) => ({ ...prev, ...preset.patch }))}
+                      >
+                        <div className="font-semibold text-sm">{preset.name}</div>
+                        <div className={`mt-1 text-xs ${active ? 'text-white/70' : 'text-slate-500'}`}>{preset.description}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <span className="lv-embed-lbl">Стиль вариантов</span>
+                  <select className="lv-embed-inp max-w-none" value={String(design.optionStyle || 'cards')} onChange={(e) => setDesignK('optionStyle', e.target.value)}>
+                    <option value="cards">Карточки</option>
+                    <option value="list">Список как booking</option>
+                    <option value="compact">Компактные кнопки</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="lv-embed-lbl">Шапка формы</span>
+                  <select className="lv-embed-inp max-w-none" value={String(design.headerStyle || 'plain')} onChange={(e) => setDesignK('headerStyle', e.target.value)}>
+                    <option value="plain">Обычная</option>
+                    <option value="band">Цветная плашка</option>
+                    <option value="centered">По центру</option>
+                  </select>
+                </div>
+              </div>
               <div className="lv-embed-number-grid">
                 {[
                   ['fontSizePx', t('crm.embedDesign.fontSize')],
@@ -697,6 +1179,8 @@ export const WebFormEditorPage: React.FC = () => {
                   ['buttonBackground', t('crm.embedDesign.btnBg')],
                   ['buttonTextColor', t('crm.embedDesign.btnText')],
                   ['accentColor', t('crm.embedDesign.accent')],
+                  ['headerBackground', 'Фон шапки'],
+                  ['headerTextColor', 'Текст шапки'],
                 ].map(([key, lab]) => (
                   <EmbedColorField
                     key={key}
@@ -722,6 +1206,39 @@ export const WebFormEditorPage: React.FC = () => {
         {tab === 'install' && (
           <div className="lv-embed-card space-y-5">
             <p className="text-sm text-[#555] leading-relaxed">{t('crm.embedInstall.hint')}</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h2 className="lv-embed-sec-title mb-3">Настройки popup / floating</h2>
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div>
+                  <span className="lv-embed-lbl">Текст popup-кнопки</span>
+                  <input className="lv-embed-inp max-w-none" value={String(fieldConfig.display?.popupButtonText || 'Оставить заявку')} onChange={(e) => setFieldConfigSection('display', 'popupButtonText', e.target.value)} />
+                </div>
+                <div>
+                  <span className="lv-embed-lbl">Ширина popup, px</span>
+                  <input type="number" className="lv-embed-inp max-w-none" value={Number(fieldConfig.display?.popupWidthPx || 760)} onChange={(e) => setFieldConfigSection('display', 'popupWidthPx', Number(e.target.value) || 760)} />
+                </div>
+                <div className="flex items-end">
+                  <EmbedSwitch id="popup-blur" checked={fieldConfig.display?.popupBlur !== false} onChange={(v) => setFieldConfigSection('display', 'popupBlur', v)} label="Blur background" />
+                </div>
+                <div>
+                  <span className="lv-embed-lbl">Floating текст</span>
+                  <input className="lv-embed-inp max-w-none" value={String(fieldConfig.display?.floatingLabel || 'Оставить заявку')} onChange={(e) => setFieldConfigSection('display', 'floatingLabel', e.target.value)} />
+                </div>
+                <div>
+                  <span className="lv-embed-lbl">Позиция floating</span>
+                  <select className="lv-embed-inp max-w-none" value={String(fieldConfig.display?.floatingPosition || 'right-bottom')} onChange={(e) => setFieldConfigSection('display', 'floatingPosition', e.target.value)}>
+                    <option value="right-bottom">Справа снизу</option>
+                    <option value="left-bottom">Слева снизу</option>
+                    <option value="right-center">Справа по центру</option>
+                    <option value="left-center">Слева по центру</option>
+                  </select>
+                </div>
+                <div>
+                  <span className="lv-embed-lbl">Задержка показа, сек</span>
+                  <input type="number" className="lv-embed-inp max-w-none" value={Number(fieldConfig.display?.floatingDelaySec || 0)} onChange={(e) => setFieldConfigSection('display', 'floatingDelaySec', Number(e.target.value) || 0)} />
+                </div>
+              </div>
+            </div>
             <div>
               <span className="lv-embed-lbl">{t('crm.embedInstall.url')}</span>
               <code className="lv-embed-mono block break-all whitespace-pre-wrap text-[#222]">
@@ -735,6 +1252,24 @@ export const WebFormEditorPage: React.FC = () => {
                 className="lv-embed-mono w-full min-h-[120px] resize-y"
                 value={iframeCode}
               />
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <div>
+                <span className="lv-embed-lbl">Popup по кнопке</span>
+                <textarea
+                  readOnly
+                  className="lv-embed-mono w-full min-h-[130px] resize-y"
+                  value={popupCode}
+                />
+              </div>
+              <div>
+                <span className="lv-embed-lbl">Floating widget</span>
+                <textarea
+                  readOnly
+                  className="lv-embed-mono w-full min-h-[130px] resize-y"
+                  value={floatingCode}
+                />
+              </div>
             </div>
             <button
               type="button"

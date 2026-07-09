@@ -20,7 +20,7 @@ import {
 } from '../../api/leads';
 import type { Lead, LeadStatus, LeadActivity } from '../../api/leads';
 import { fetchStaff, type StaffUser } from '../../api/staff';
-import { ccpApi, type CcpSite } from '../../api/ccp';
+import { ccpApi, type CcpClient, type CcpSite } from '../../api/ccp';
 import { fetchCompanies, createCompany, type Company } from '../../api/companies';
 import { createContact } from '../../api/contacts';
 import { CompanySelect } from '../../components/CompanySelect';
@@ -129,6 +129,8 @@ export const LeadFormPage: React.FC = () => {
   const [projectActivitiesLoading, setProjectActivitiesLoading] = useState(false);
   const [projectActivitiesError, setProjectActivitiesError] = useState<string | null>(null);
 
+  const [ccpClient, setCcpClient] = useState<CcpClient | null>(null);
+  const [ccpClientLoading, setCcpClientLoading] = useState(false);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
   const [accountBusy, setAccountBusy] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
@@ -660,6 +662,37 @@ export const LeadFormPage: React.FC = () => {
       alive = false;
     };
   }, [id, isNew, t]);
+
+  // CCP client lookup when lead has ClientCabinet source
+  useEffect(() => {
+    if (isNew || !lead.email) { setCcpClient(null); return; }
+    const src = (lead.source || lead.channel || '').toLowerCase();
+    const meta = lead.meta as any;
+    const ccpClientId: string | undefined = meta?.ccpClientId;
+    if (src !== 'clientcabinet' && !ccpClientId) { setCcpClient(null); return; }
+    let alive = true;
+    setCcpClientLoading(true);
+    const doFetch = async () => {
+      try {
+        // Prefer direct ID lookup, fallback to email search
+        if (ccpClientId) {
+          const c = await ccpApi.client(ccpClientId).catch(() => null);
+          if (!alive) return;
+          if (c) { setCcpClient(c); return; }
+        }
+        const res = await ccpApi.clients({ search: lead.email, per: 5 });
+        if (!alive) return;
+        const items: CcpClient[] = Array.isArray(res) ? res : ((res as any)?.items ?? []);
+        const match = items.find(
+          (cl: any) => cl.email?.toLowerCase() === lead.email?.toLowerCase()
+        );
+        setCcpClient(match ?? null);
+      } catch { setCcpClient(null); }
+      finally { if (alive) setCcpClientLoading(false); }
+    };
+    void doFetch();
+    return () => { alive = false; };
+  }, [isNew, lead.source, lead.channel, lead.email, lead.meta]);
 
   // История по всем проектам этого лида (как на странице проекта)
   useEffect(() => {
@@ -1423,6 +1456,49 @@ export const LeadFormPage: React.FC = () => {
 
             {/* ════ RIGHT SIDEBAR ═════════════════════════════════ */}
             <div className="lg:sticky lg:top-6" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+
+              {/* ── CCP account summary (ClientCabinet leads only) ─── */}
+              {!isNew && (ccpClient || ccpClientLoading) && (
+                <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, background: '#fafafa' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: FG3 }}>
+                      Клиентский кабинет
+                    </div>
+                    {ccpClient && (
+                      <Link
+                        to="/client-accounts"
+                        style={{ fontFamily: FM, fontSize: 10, color: FG3, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
+                        onMouseEnter={e => (e.currentTarget.style.color = INK)}
+                        onMouseLeave={e => (e.currentTarget.style.color = FG3)}
+                      >
+                        Перейти в счёт ↗
+                      </Link>
+                    )}
+                  </div>
+                  {ccpClientLoading && <div style={{ fontSize: 12, color: FG4 }}>Загрузка…</div>}
+                  {ccpClient && !ccpClientLoading && (
+                    <>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: INK, marginBottom: 8 }}>
+                        {(ccpClient as any).name || (ccpClient as any).email}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {[
+                          { label: 'EUR', value: Number((ccpClient as any).balanceEur || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+                          { label: 'USD', value: Number((ccpClient as any).balanceUsd || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+                        ].map(({ label, value }) => (
+                          <div key={label} style={{ background: '#fff', border: `1px solid ${LINE}`, borderRadius: 8, padding: '8px 10px' }}>
+                            <div style={{ fontFamily: FM, fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: FG4, marginBottom: 4 }}>{label}</div>
+                            <div style={{ fontFamily: FM, fontSize: 13, fontWeight: 600, color: INK }}>{value}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ fontFamily: FM, fontSize: 10, color: FG4, marginTop: 8 }}>
+                        WP#{(ccpClient as any).wpUserId} · {(ccpClient as any).email}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               {/* AI Sidebar — only for saved leads */}
               {!isNew && (

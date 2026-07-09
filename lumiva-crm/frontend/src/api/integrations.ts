@@ -2,7 +2,7 @@
 import { api } from './client';
 
 // Типы интеграций – должны совпадать с backend (IntegrationKind)
-export type IntegrationKind = 'woocommerce' | 'manual-import' | 'other' | 'third_party_link';
+export type IntegrationKind = 'woocommerce' | 'shopify' | 'manual-import' | 'other' | 'third_party_link';
 
 // Адаптер (тип интеграции, который можно выбрать при создании подключения)
 export interface IntegrationAdapterDto {
@@ -44,6 +44,8 @@ export interface IntegrationConnectionDto {
   siteFormInboundWebhookPasteUrl?: string | null;
   /** Lumiva Wizard: POST CF7 в CRM с X-Api-Token */
   lumivaWizardCf7IngestUrl?: string | null;
+  /** Zapier / Make: URL для входящих данных (Zapier/Make → CRM → лид) */
+  zapierMakeInboundWebhookUrl?: string | null;
   /** Только GET /integrations/:id — полный config (секреты). */
   config?: Record<string, unknown> | null;
 }

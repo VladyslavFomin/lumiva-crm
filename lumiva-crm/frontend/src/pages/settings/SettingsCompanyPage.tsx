@@ -471,8 +471,8 @@ export const SettingsCompanyPage: React.FC = () => {
                   className={
                     'rounded-xl border px-4 py-2 text-sm font-medium transition-colors ' +
                     (tab === x.id
-                      ? 'border-[#222222] bg-[#222222] text-white shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300')
+                      ? 'border-lumiva-accent bg-lumiva-accent text-white shadow-btn-primary'
+                      : 'border-border-default bg-white text-text-secondary hover:border-border-strong')
                   }
                 >
                   {x.label}
@@ -587,7 +587,7 @@ export const SettingsCompanyPage: React.FC = () => {
                       <button
                         type="submit"
                         disabled={saving}
-                        className="rounded-xl bg-lumiva-accent px-5 py-2.5 text-sm font-semibold text-slate-950 hover:bg-lumiva-accent-soft disabled:opacity-60"
+                        className="btn-primary btn-primary-lg"
                       >
                         {saving ? t('crm.settings.company.saving') : t('crm.settings.company.save')}
                       </button>
@@ -662,7 +662,7 @@ export const SettingsCompanyPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => navigate('/billing')}
-                        className="rounded-xl border border-[#222222] bg-[#222222] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#333333]"
+                        className="btn-primary btn-primary-lg"
                 >
                   {t('crm.settings.company.billing.manage')}
                 </button>
@@ -869,7 +869,7 @@ export const SettingsCompanyPage: React.FC = () => {
                       type="button"
                       disabled={inviteSending || !inviteEmail.trim()}
                       onClick={() => void handleSendInvite()}
-                      className="rounded-xl bg-[#222222] px-5 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+                      className="btn-primary btn-primary-lg"
                     >
                       {inviteSending
                         ? t('crm.settings.company.invites.sending')
@@ -967,7 +967,7 @@ export const SettingsCompanyPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => navigate('/billing')}
-                    className="mt-4 rounded-xl bg-[#222222] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#333333]"
+                    className="mt-4 btn-primary"
                   >
                     {t('crm.settings.company.storage.buyMore')}
                   </button>

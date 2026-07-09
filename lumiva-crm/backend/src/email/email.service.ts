@@ -1463,6 +1463,88 @@ export class EmailService {
     );
   }
 
+  // ========== BULK SEND ==========
+
+  /**
+   * Bulk-send an email to multiple recipients.
+   * Resolves leads from filters if provided, then combines with recipientEmails.
+   */
+  async sendBulk(
+    tenantId: string,
+    dto: {
+      templateId?: string;
+      subject: string;
+      html: string;
+      leadFilters?: { source?: string; status?: string; tag?: string };
+      recipientEmails?: string[];
+      fromAccountId: string;
+      trackOpens?: boolean;
+    },
+  ): Promise<{ sent: number; failed: number; jobId: string }> {
+    // Collect emails from lead filters
+    const emails = new Set<string>(dto.recipientEmails ?? []);
+
+    if (dto.leadFilters && Object.keys(dto.leadFilters).length > 0) {
+      const qb = this.leadRepo
+        .createQueryBuilder('lead')
+        .select(['lead.email'])
+        .where('lead.tenantId = :tenantId', { tenantId })
+        .andWhere('lead.email IS NOT NULL')
+        .andWhere("lead.email != ''");
+
+      if (dto.leadFilters.source) {
+        qb.andWhere('lead.source = :source', { source: dto.leadFilters.source });
+      }
+      if (dto.leadFilters.status) {
+        qb.andWhere('lead.status = :status', { status: dto.leadFilters.status });
+      }
+
+      const leads = await qb.getMany();
+      for (const l of leads) {
+        if (l.email) emails.add(l.email);
+      }
+    }
+
+    const account = await this.requireAccountEntity(tenantId, dto.fromAccountId);
+
+    const jobId = `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+    let sent = 0;
+    let failed = 0;
+
+    const TRACKING_PIXEL_SRC =
+      process.env.PUBLIC_API_URL
+        ? `${process.env.PUBLIC_API_URL}/v1/email/track/${jobId}`
+        : `/v1/email/track/${jobId}`;
+
+    for (const recipientEmail of emails) {
+      let html = dto.html;
+
+      if (dto.trackOpens) {
+        const pixel = `<img src="${TRACKING_PIXEL_SRC}" width="1" height="1" style="display:none" alt="" />`;
+        if (html.includes('</body>')) {
+          html = html.replace('</body>', `${pixel}</body>`);
+        } else {
+          html = html + pixel;
+        }
+      }
+
+      try {
+        await this.sendEmail(tenantId, {
+          accountId: account.id,
+          to: [recipientEmail],
+          subject: dto.subject,
+          htmlBody: html,
+          templateId: dto.templateId,
+        });
+        sent++;
+      } catch {
+        failed++;
+      }
+    }
+
+    return { sent, failed, jobId };
+  }
+
   private async sendEmailViaOutlook(
     tenantId: string,
     account: EmailAccount,

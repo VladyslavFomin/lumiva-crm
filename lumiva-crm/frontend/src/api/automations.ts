@@ -27,7 +27,8 @@ export type TriggerEvent =
   | 'note.created'
   | 'custom_object.record_created'
   | 'custom_object.record_updated'
-  | 'custom_object.status_changed';
+  | 'custom_object.status_changed'
+  | 'shopify.payment_received';
 
 export type ActionType =
   | 'create_task'
@@ -57,7 +58,8 @@ export type ActionType =
   | 'create_note'
   | 'send_report'
   | 'send_data_export'
-  | 'create_custom_object_record';
+  | 'create_custom_object_record'
+  | 'create_jira_issue';
 
 export interface Condition {
   field: string;

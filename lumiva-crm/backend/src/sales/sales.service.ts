@@ -1289,4 +1289,21 @@ export class SalesService {
 
     return saved;
   }
+
+  async getRecent(tenantId: string, limit = 10): Promise<{ sales: Array<{ id: string; name: string | null; amount: number | null; currency: string | null; status: string; createdAt: Date }> }> {
+    const rows = await this.saleRepo.find({
+      where: { tenantId },
+      order: { createdAt: 'DESC' },
+      take: Math.min(limit, 50),
+    });
+    const sales = rows.map((s) => ({
+      id: s.id,
+      name: s.guestName || s.agentName || null,
+      amount: s.amount ?? null,
+      currency: s.currency ?? null,
+      status: s.status,
+      createdAt: s.createdAt,
+    }));
+    return { sales };
+  }
 }

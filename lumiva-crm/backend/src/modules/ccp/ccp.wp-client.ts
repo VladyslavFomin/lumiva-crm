@@ -1,9 +1,11 @@
 // src/modules/ccp/ccp.wp-client.ts
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, Logger } from '@nestjs/common';
 
 type Json = any;
 
 export class CcpWpClient {
+  private readonly log = new Logger(CcpWpClient.name);
+
   constructor(
     private readonly base: string,
     private readonly token: string,
@@ -44,21 +46,41 @@ export class CcpWpClient {
     }
   }
 
+  private errorMessage(data: any, fallback: string) {
+    if (typeof data !== 'string') {
+      return data?.message || data?.error || fallback;
+    }
+
+    const stripped = data
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return stripped.slice(0, 240) || fallback;
+  }
+
   private async request(method: string, path: string, body?: any): Promise<Json> {
-    const res = await fetch(this.url(path), {
+    const url = this.url(path);
+    const res = await fetch(url, {
       method,
       headers: this.headers(),
       body: body === undefined ? undefined : JSON.stringify(body),
     });
 
     const data = await this.parse(res);
+    const itemsCount = Array.isArray(data?.items)
+      ? data.items.length
+      : Array.isArray(data)
+        ? data.length
+        : undefined;
+    this.log.log(
+      `CCP external ${method} ${url} -> ${res.status}${itemsCount === undefined ? '' : ` items=${itemsCount}`}`,
+    );
 
     if (!res.ok) {
-      // отдаём максимально понятную ошибку
-      const msg =
-        typeof data === 'string'
-          ? data
-          : (data?.message || data?.error || `WP request failed (${res.status})`);
+      const msg = this.errorMessage(data, `WP request failed (${res.status})`);
       throw new BadRequestException(`WP ${method} ${path} -> ${res.status}: ${msg}`);
     }
 

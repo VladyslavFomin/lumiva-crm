@@ -143,6 +143,15 @@ export const AutomationFormPage: React.FC = () => {
     if (entity && defaults[entity]) {
       setFormData((prev) => ({ ...prev, triggerEvent: defaults[entity] }));
     }
+    const action = params.get('action');
+    if (action) {
+      setFormData((prev) => ({
+        ...prev,
+        triggerEvent: 'lead.created',
+        actions: [{ type: action as ActionType, config: {} }],
+      }));
+      setTimeout(() => { setSelectedStep(0); }, 50);
+    }
   }, [id, location.search, leadIdFromQuery]);
 
   /** From lead card: weekly schedule + email to this lead; server honors meta.contextLeadId for cron. */
@@ -333,6 +342,14 @@ export const AutomationFormPage: React.FC = () => {
     () =>
       crmIntegrations.filter(
         (c) => c.kind === 'third_party_link' && c.linkCatalogId === 'meta_ads',
+      ),
+    [crmIntegrations],
+  );
+
+  const jiraConnections = useMemo(
+    () =>
+      crmIntegrations.filter(
+        (c) => c.kind === 'third_party_link' && c.linkCatalogId === 'jira',
       ),
     [crmIntegrations],
   );
@@ -610,6 +627,8 @@ export const AutomationFormPage: React.FC = () => {
         warnings.push(`${label}: ${t('crm.automations.form.validation.noteContentWarning')}`);
       if (action.type === 'send_report' && !action.config.reportType)
         errors.push(`${label}: ${t('crm.automations.form.validation.reportTypeMissing')}`);
+      if (action.type === 'create_jira_issue' && !action.config.integrationConnectionId)
+        errors.push(`${label}: Выберите подключение Jira`);
     });
     return { errors, warnings };
   };
@@ -1501,7 +1520,10 @@ export const AutomationFormPage: React.FC = () => {
                         <input className="cfg-input" value={selAction.config.to || ''} onChange={e => ua('to', e.target.value)} placeholder="{{lead.email}}" />
                       </div>
                       <div className="cfg-field">
-                        <label className="cfg-field-label">{t('crm.automations.form.emailAction.template')}</label>
+                        <label className="cfg-field-label" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                          <span>{t('crm.automations.form.emailAction.template')}</span>
+                          <a href="/marketing/email-templates/new" target="_blank" rel="noreferrer" style={{fontSize:'11px',color:'var(--ink)',opacity:0.6,textDecoration:'underline',fontWeight:400}}>+ {t('crm.automations.form.builderUi.createEmailTemplate')}</a>
+                        </label>
                         <select className="cfg-select" value={selAction.config.templateId || ''} onChange={e => ua('templateId', e.target.value)}>
                           <option value="">{t('crm.automations.form.builderUi.pickEmailTemplate')}</option>
                           {emailTemplates.map(tpl => <option key={tpl.id} value={tpl.id}>{tpl.name}</option>)}
@@ -2316,6 +2338,41 @@ export const AutomationFormPage: React.FC = () => {
                           onChange={ids => ua('assignedUserId', ids[0] || '')}
                           placeholder={t('crm.automations.form.builderUi.taskAssigneePlaceholder')}
                         />
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── create_jira_issue ── */}
+                  {selAction.type === 'create_jira_issue' && (
+                    <>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.jiraConnectionLabel', 'Jira Connection')}</label>
+                        <select className="cfg-select" value={selAction.config.integrationConnectionId || ''} onChange={e => ua('integrationConnectionId', e.target.value)}>
+                          <option value="">{t('crm.automations.form.builderUi.selectConnection', '— выберите подключение —')}</option>
+                          {jiraConnections.map(c => (
+                            <option key={c.id} value={c.id}>{c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.jiraTitleLabel', 'Заголовок задачи')}</label>
+                        <input className="cfg-input" placeholder="Задача из Lumiva CRM · {{lead.name}}" value={selAction.config.title || ''} onChange={e => ua('title', e.target.value)} />
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.jiraDescriptionLabel', 'Описание')}</label>
+                        <textarea className="cfg-input" rows={3} placeholder="{{lead.name}} — {{lead.status}}" value={selAction.config.description || ''} onChange={e => ua('description', e.target.value)} style={{resize:'vertical'}} />
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.jiraProjectKeyLabel', 'Project Key (опционально)')}</label>
+                        <input className="cfg-input code" placeholder="CRM" value={selAction.config.projectKey || ''} onChange={e => ua('projectKey', e.target.value)} />
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.jiraIssueTypeLabel', 'Тип задачи')}</label>
+                        <select className="cfg-select" value={selAction.config.issueType || 'Task'} onChange={e => ua('issueType', e.target.value)}>
+                          <option value="Task">Task</option>
+                          <option value="Bug">Bug</option>
+                          <option value="Story">Story</option>
+                        </select>
                       </div>
                     </>
                   )}

@@ -86,11 +86,16 @@ module.exports = {
           from: { opacity: '0', transform: 'scale(0.96)' },
           to:   { opacity: '1', transform: 'scale(1)' },
         },
+        'indeterminate-bar': {
+          '0%':   { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(300%)' },
+        },
       },
       animation: {
         'fade-in':  'fade-in 0.2s ease-out',
         'slide-up': 'slide-up 0.25s ease-out',
         'scale-in': 'scale-in 0.2s ease-out',
+        'indeterminate-bar': 'indeterminate-bar 1.2s ease-in-out infinite',
       },
     },
   },

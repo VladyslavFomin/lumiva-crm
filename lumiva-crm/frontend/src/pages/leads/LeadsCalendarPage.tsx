@@ -777,7 +777,7 @@ export const LeadsCalendarPage: React.FC = () => {
         {(actionMessage || actionError) && (
           <div
             className={`rounded-xl border px-3 py-2 text-xs ${
-              actionError ? 'border-rose-800/70 bg-rose-950/40 text-rose-300' : 'border-emerald-800/70 bg-emerald-950/40 text-emerald-300'
+              actionError ? 'border-red-200 bg-status-error-bg text-status-error' : 'border-green-200 bg-status-success-bg text-status-success'
             }`}
           >
             {actionError || actionMessage}
@@ -789,21 +789,21 @@ export const LeadsCalendarPage: React.FC = () => {
             <button
               type="button"
               onClick={() => shiftMonth(-1)}
-              className="rounded-xl border border-slate-700/80 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-900/80"
+              className="btn-secondary btn-secondary-sm"
             >
               ←
             </button>
             <button
               type="button"
               onClick={() => shiftMonth(1)}
-              className="rounded-xl border border-slate-700/80 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-900/80"
+              className="btn-secondary btn-secondary-sm"
             >
               →
             </button>
             <button
               type="button"
               onClick={goToday}
-              className="rounded-xl border border-slate-700/80 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-900/80"
+              className="btn-secondary btn-secondary-sm"
             >
               {t('crm.leads.calendar.actions.today')}
             </button>
@@ -815,8 +815,8 @@ export const LeadsCalendarPage: React.FC = () => {
               {t('crm.leads.calendar.actions.planMeeting')}
             </button>
           </div>
-          <div className="text-sm font-semibold text-slate-100 capitalize">{monthFormatter.format(currentMonth)}</div>
-          <label className="inline-flex items-center gap-2 text-xs text-slate-300">
+          <div className="text-sm font-semibold text-[#111827] capitalize">{monthFormatter.format(currentMonth)}</div>
+          <label className="inline-flex items-center gap-2 text-xs text-text-secondary">
             <input
               type="checkbox"
               checked={showArchived}
@@ -826,9 +826,9 @@ export const LeadsCalendarPage: React.FC = () => {
           </label>
         </div>
 
-        <div className="relative rounded-3xl border border-slate-800/80 bg-slate-900/70 p-3 sm:p-4">
+        <div className="relative card p-3 sm:p-4">
           {loading ? (
-            <div className="px-2 py-3 text-xs text-slate-400">
+            <div className="px-2 py-3 text-xs text-text-tertiary">
               {t('crm.leads.calendar.loading')}
             </div>
           ) : error ? (
@@ -838,7 +838,7 @@ export const LeadsCalendarPage: React.FC = () => {
               <div className="min-w-[980px]">
                 <div className="grid grid-cols-7 gap-2 pb-2">
                   {weekDays.map((day) => (
-                    <div key={day} className="px-2 py-1 text-[11px] uppercase tracking-[0.08em] text-slate-400">
+                    <div key={day} className="px-2 py-1 text-[11px] uppercase tracking-[0.08em] text-text-tertiary">
                       {day}
                     </div>
                   ))}
@@ -849,18 +849,18 @@ export const LeadsCalendarPage: React.FC = () => {
                       key={dayCell.key}
                       className={`min-h-[150px] rounded-2xl border p-2 ${
                         dayCell.inCurrentMonth
-                          ? 'border-slate-700/70 bg-slate-950/60'
-                          : 'border-slate-800/60 bg-slate-950/30'
+                          ? 'border-border-default bg-white'
+                          : 'border-border-default bg-surface-subtle'
                       }`}
                     >
                       <div className="mb-2 flex items-center justify-between">
-                        <div className={`text-xs font-semibold ${dayCell.inCurrentMonth ? 'text-slate-100' : 'text-slate-500'}`}>
+                        <div className={`text-xs font-semibold ${dayCell.inCurrentMonth ? 'text-[#111827]' : 'text-text-tertiary'}`}>
                           {dayCell.date.getDate()}
                         </div>
                         <button
                           type="button"
                           onClick={() => openCreateMeeting(dayCell.key)}
-                          className="rounded-md border border-slate-700/70 px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-900/70"
+                          className="rounded-md border border-border-default px-1.5 py-0.5 text-[10px] text-text-secondary hover:bg-surface-hover transition-colors"
                         >
                           +
                         </button>
@@ -869,7 +869,7 @@ export const LeadsCalendarPage: React.FC = () => {
                         {dayCell.items.slice(0, 3).map(({ lead, meeting }) => (
                           <div
                             key={meeting.id}
-                            className="rounded-lg border border-slate-700/70 bg-slate-900/80 px-2 py-1"
+                            className="rounded-lg border border-border-default bg-surface-subtle px-2 py-1"
                           >
                             <button
                               type="button"
@@ -878,14 +878,14 @@ export const LeadsCalendarPage: React.FC = () => {
                             >
                               <div className="flex items-center gap-1.5">
                                 <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(lead.status)}`} />
-                                <span className="truncate text-[11px] text-slate-100">{meeting.title || lead.name || `#${lead.id.slice(0, 6)}`}</span>
+                                <span className="truncate text-[11px] text-[#111827]">{meeting.title || lead.name || `#${lead.id.slice(0, 6)}`}</span>
                               </div>
-                              <div className="truncate text-[10px] text-slate-400">
+                              <div className="truncate text-[10px] text-text-tertiary">
                                 {dateTimeFormatter.format(new Date(meeting.startsAt))} ·{' '}
                                 {lead.name || lead.email || lead.phone || t('crm.leads.calendar.fallbacks.lead')}
                               </div>
                               {meeting.attendeeNames && meeting.attendeeNames.length ? (
-                                <div className="truncate text-[10px] text-slate-500">
+                                <div className="truncate text-[10px] text-text-tertiary">
                                   {t('crm.leads.calendar.labels.team')}{' '}
                                   {meeting.attendeeNames.join(', ')}
                                 </div>
@@ -895,7 +895,7 @@ export const LeadsCalendarPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => openEditMeeting(lead, meeting)}
-                                className="rounded-md border border-slate-700/70 px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-900/70"
+                                className="rounded-md border border-border-default px-1.5 py-0.5 text-[10px] text-text-secondary hover:bg-surface-hover transition-colors"
                               >
                                 {t('crm.leads.calendar.actions.editShort')}
                               </button>
@@ -913,7 +913,7 @@ export const LeadsCalendarPage: React.FC = () => {
                                   href={meeting.meetingUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="rounded-md border border-slate-700/70 px-1.5 py-0.5 text-[10px] text-slate-300 hover:bg-slate-900/70"
+                                  className="rounded-md border border-border-default px-1.5 py-0.5 text-[10px] text-text-secondary hover:bg-surface-hover transition-colors"
                                 >
                                   {t('crm.leads.calendar.actions.link')}
                                 </a>
@@ -922,7 +922,7 @@ export const LeadsCalendarPage: React.FC = () => {
                           </div>
                         ))}
                         {dayCell.items.length > 3 ? (
-                          <div className="px-1 text-[10px] text-slate-400">+{dayCell.items.length - 3}</div>
+                          <div className="px-1 text-[10px] text-text-tertiary">+{dayCell.items.length - 3}</div>
                         ) : null}
                       </div>
                     </div>
@@ -934,15 +934,15 @@ export const LeadsCalendarPage: React.FC = () => {
 
           {meetingDraft.open ? (
             <div
-              className="absolute inset-0 z-20 flex items-center justify-center bg-slate-950/55 p-4"
+              className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
               onClick={() => setMeetingDraft(emptyDraft)}
             >
               <div
-                className="w-full max-w-xl rounded-3xl border border-slate-700 bg-slate-950 p-4 shadow-[0_30px_80px_rgba(15,23,42,0.45)]"
+                className="w-full max-w-xl modal-panel p-4"
                 onClick={(e) => e.stopPropagation()}
               >
                 <div className="mb-3 flex items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-slate-100">
+                  <div className="text-sm font-semibold text-[#111827]">
                     {meetingDraft.meetingId
                       ? t('crm.leads.calendar.form.editMeeting')
                       : t('crm.leads.calendar.form.newMeeting')}
@@ -950,7 +950,7 @@ export const LeadsCalendarPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setMeetingDraft(emptyDraft)}
-                    className="rounded-full border border-slate-700 px-2 py-0.5 text-xs text-slate-300 hover:bg-slate-900/70"
+                    className="rounded-full border border-border-default px-2 py-0.5 text-xs text-text-secondary hover:bg-surface-hover transition-colors"
                   >
                     ×
                   </button>
@@ -959,7 +959,7 @@ export const LeadsCalendarPage: React.FC = () => {
                   <select
                     value={meetingDraft.leadId}
                     onChange={(e) => setMeetingDraft((prev) => ({ ...prev, leadId: e.target.value }))}
-                    className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                    className="base-input px-3 py-2 text-sm"
                   >
                     <option value="">
                       {t('crm.leads.calendar.form.selectLead')}
@@ -971,18 +971,18 @@ export const LeadsCalendarPage: React.FC = () => {
                     ))}
                   </select>
 
-                  <div className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2">
-                    <div className="mb-2 text-[11px] text-slate-400">
+                  <div className="rounded-xl border border-border-default bg-surface-subtle px-3 py-2">
+                    <div className="mb-2 text-[11px] text-text-tertiary">
                       {t('crm.leads.calendar.form.inviteManagers')}
                     </div>
                     <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
                       {staffUsers.length === 0 ? (
-                        <div className="text-[11px] text-slate-500">
+                        <div className="text-[11px] text-text-tertiary">
                           {t('crm.leads.calendar.form.noTeamMembers')}
                         </div>
                       ) : (
                         staffUsers.map((user) => (
-                          <label key={user.id} className="flex items-center gap-2 text-xs text-slate-200">
+                          <label key={user.id} className="flex items-center gap-2 text-xs text-[#111827]">
                             <input
                               type="checkbox"
                               checked={meetingDraft.attendeeUserIds.includes(user.id)}
@@ -1006,34 +1006,34 @@ export const LeadsCalendarPage: React.FC = () => {
                     value={meetingDraft.title}
                     onChange={(e) => setMeetingDraft((prev) => ({ ...prev, title: e.target.value }))}
                     placeholder={t('crm.leads.calendar.form.meetingTitle')}
-                    className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                    className="base-input px-3 py-2 text-sm"
                   />
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <input
                       type="datetime-local"
                       value={meetingDraft.startsAt}
                       onChange={(e) => setMeetingDraft((prev) => ({ ...prev, startsAt: e.target.value }))}
-                      className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                      className="base-input px-3 py-2 text-sm"
                     />
                     <input
                       type="datetime-local"
                       value={meetingDraft.endsAt}
                       onChange={(e) => setMeetingDraft((prev) => ({ ...prev, endsAt: e.target.value }))}
-                      className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                      className="base-input px-3 py-2 text-sm"
                     />
                   </div>
                   <input
                     value={meetingDraft.meetingUrl}
                     onChange={(e) => setMeetingDraft((prev) => ({ ...prev, meetingUrl: e.target.value }))}
                     placeholder="https://meet.google.com/... or Zoom/Teams link"
-                    className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                    className="base-input px-3 py-2 text-sm"
                   />
                   <textarea
                     value={meetingDraft.notes}
                     onChange={(e) => setMeetingDraft((prev) => ({ ...prev, notes: e.target.value }))}
                     placeholder={t('crm.leads.calendar.form.notesPlaceholder')}
                     rows={3}
-                    className="rounded-xl border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100"
+                    className="base-input px-3 py-2 text-sm"
                   />
                 </div>
                 <div className="mt-3 flex items-center justify-between gap-2">
@@ -1043,7 +1043,7 @@ export const LeadsCalendarPage: React.FC = () => {
                         type="button"
                         onClick={closeMeeting}
                         disabled={meetingSaving}
-                        className="rounded-xl border border-amber-700 px-3 py-1.5 text-xs font-semibold text-amber-200 hover:bg-amber-900/20 disabled:opacity-60"
+                        className="rounded-xl border border-amber-400 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-60"
                       >
                         {t('crm.leads.calendar.actions.closeMeeting')}
                       </button>
@@ -1053,7 +1053,7 @@ export const LeadsCalendarPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setMeetingDraft(emptyDraft)}
-                      className="rounded-xl border border-slate-700 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-900/70"
+                      className="btn-secondary btn-secondary-sm"
                     >
                       {t('crm.leads.calendar.actions.cancel')}
                     </button>
@@ -1061,7 +1061,7 @@ export const LeadsCalendarPage: React.FC = () => {
                       type="button"
                       onClick={saveMeeting}
                       disabled={meetingSaving}
-                      className="rounded-xl border border-[#222222] bg-[#222222] px-3 py-1.5 text-xs font-semibold text-white hover:bg-black disabled:opacity-60"
+                      className="btn-primary btn-secondary-sm disabled:opacity-60"
                     >
                       {meetingSaving
                         ? t('crm.leads.calendar.actions.saving')
@@ -1074,17 +1074,17 @@ export const LeadsCalendarPage: React.FC = () => {
           ) : null}
         </div>
 
-        <div className="rounded-3xl border border-slate-800/80 bg-slate-900/70 p-4">
+        <div className="card p-4">
           <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="text-sm font-semibold text-slate-100">{upcomingTitle}</div>
-              <div className="text-[11px] text-slate-400">{autoReminderHint}</div>
+              <div className="text-sm font-semibold text-[#111827]">{upcomingTitle}</div>
+              <div className="text-[11px] text-text-tertiary">{autoReminderHint}</div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <select
                 value={upcomingRange}
                 onChange={(e) => setUpcomingRange(e.target.value as 'today' | 'week' | 'month' | 'all')}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200"
+                className="base-select px-2.5 py-1.5 text-xs"
               >
                 <option value="today">{t('crm.leads.calendar.actions.today')}</option>
                 <option value="week">{t('crm.leads.calendar.filters.rangeWeek')}</option>
@@ -1094,7 +1094,7 @@ export const LeadsCalendarPage: React.FC = () => {
               <select
                 value={upcomingProvider}
                 onChange={(e) => setUpcomingProvider(e.target.value as 'all' | 'google' | 'teams' | 'zoom' | 'other')}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200"
+                className="base-select px-2.5 py-1.5 text-xs"
               >
                 <option value="all">{t('crm.leads.calendar.filters.providerAny')}</option>
                 <option value="google">Google Meet</option>
@@ -1106,30 +1106,30 @@ export const LeadsCalendarPage: React.FC = () => {
                 value={upcomingQuery}
                 onChange={(e) => setUpcomingQuery(e.target.value)}
                 placeholder={t('crm.leads.calendar.filters.search')}
-                className="rounded-xl border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-200"
+                className="base-select px-2.5 py-1.5 text-xs"
               />
             </div>
           </div>
           <div className="space-y-2">
             {upcomingMeetings.length === 0 ? (
-              <div className="rounded-xl border border-slate-800 bg-slate-950/50 px-3 py-2 text-xs text-slate-400">
+              <div className="rounded-xl border border-border-default bg-surface-subtle px-3 py-2 text-xs text-text-tertiary">
                 {t('crm.leads.calendar.upcoming.empty')}
               </div>
             ) : (
               upcomingMeetings.map(({ lead, meeting }) => (
                 <div
                   key={`${lead.id}_${meeting.id}`}
-                  className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 px-3 py-2 lg:flex-row lg:items-center lg:justify-between"
+                  className="flex flex-col gap-2 rounded-xl border border-border-default bg-white px-3 py-2 lg:flex-row lg:items-center lg:justify-between hover:bg-surface-hover transition-colors"
                 >
                   <div className="min-w-0">
-                    <div className="truncate text-xs font-semibold text-slate-100">
+                    <div className="truncate text-xs font-semibold text-[#111827]">
                       {meeting.title || t('crm.leads.calendar.meeting.defaultTitle')}
                     </div>
-                    <div className="truncate text-[11px] text-slate-400">
+                    <div className="truncate text-[11px] text-text-tertiary">
                       {dateTimeFormatter.format(new Date(meeting.startsAt))} · {lead.name || lead.email || lead.phone || `#${lead.id.slice(0, 6)}`}
                     </div>
                     {meeting.attendeeNames && meeting.attendeeNames.length ? (
-                      <div className="truncate text-[11px] text-slate-500">
+                      <div className="truncate text-[11px] text-text-tertiary">
                         {t('crm.leads.calendar.labels.team')}{' '}
                         {meeting.attendeeNames.join(', ')}
                       </div>
@@ -1139,14 +1139,14 @@ export const LeadsCalendarPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => openEditMeeting(lead, meeting)}
-                      className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-900/70"
+                      className="rounded-md border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-surface-hover transition-colors"
                     >
                       {t('crm.leads.calendar.actions.edit')}
                     </button>
                     <button
                       type="button"
                       onClick={() => sendMeetingInvite(lead, meeting)}
-                      className="rounded-md border border-indigo-700/60 px-2 py-1 text-[11px] text-indigo-200 hover:bg-indigo-900/40"
+                      className="rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] text-indigo-700 hover:bg-indigo-100 transition-colors"
                     >
                       {t('crm.leads.calendar.actions.sendInvite')}
                     </button>
@@ -1155,7 +1155,7 @@ export const LeadsCalendarPage: React.FC = () => {
                         href={meeting.meetingUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-900/70"
+                        className="rounded-md border border-border-default px-2 py-1 text-[11px] text-text-secondary hover:bg-surface-hover transition-colors"
                       >
                         {t('crm.leads.calendar.actions.openLink')}
                       </a>

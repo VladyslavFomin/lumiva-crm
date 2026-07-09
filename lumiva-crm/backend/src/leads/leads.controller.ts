@@ -12,6 +12,7 @@ import {
   ForbiddenException,
   NotFoundException,
   Query,
+  BadRequestException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -28,6 +29,7 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { User } from '../users/user.entity';
 import { StaffUser, StaffRole } from '../staff/staff-user.entity';
 import { SearchLeadsQueryDto } from './dto/search-leads-query.dto';
+import { parseCsvRobust } from '../lib/import-spreadsheet.util';
 
 interface CurrentUserPayload {
   sub: string;       // id из таблицы users
@@ -217,12 +219,6 @@ export class LeadsController {
     if (role && !allowed.includes(role)) {
       throw new ForbiddenException('Недостаточно прав для просмотра ROI');
     }
-console.log('ROI controller: query.source =', source);
-
-  const normalized: 'sales' | 'projects' =
-    source === 'projects' ? 'projects' : 'sales';
-
-  console.log('ROI controller: normalized =', normalized);
     return this.leadsService.getRoiForTenant(tenantId, {
       from,
       to,
@@ -388,5 +384,145 @@ console.log('ROI controller: query.source =', source);
     }
 
     return this.leadsService.removeForTenant(tenantId, id);
+  }
+
+  // ====================== GET /leads/funnel-today ======================
+  @Get('funnel-today')
+  async funnelToday(@CurrentUser() user: CurrentUserPayload) {
+    return this.leadsService.getFunnelToday(user.tenantId);
+  }
+
+  // ====================== GET /leads/sources-weekly ======================
+  @Get('sources-weekly')
+  async sourcesWeekly(@CurrentUser() user: CurrentUserPayload) {
+    return this.leadsService.getSourcesWeekly(user.tenantId);
+  }
+
+  // ====================== CSV IMPORT ======================
+
+  /**
+   * POST /leads/import/preview
+   * Returns first 5 rows + headers without importing.
+   */
+  @Post('import/preview')
+  async previewCsvImport(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { csvData: string; hasHeaderRow?: boolean },
+  ): Promise<{ headers: string[]; rows: string[][]; totalRows: number }> {
+    const { role } = user;
+    const canImportRoles: StaffRole[] = ['owner', 'manager', 'sales'];
+    if (!canImportRoles.includes(role || 'viewer')) {
+      throw new ForbiddenException('Недостаточно прав для импорта лидов');
+    }
+
+    if (!body.csvData || typeof body.csvData !== 'string') {
+      throw new BadRequestException('csvData is required');
+    }
+
+    const parsed = parseCsvRobust(body.csvData);
+    const previewRows = parsed.rows.slice(0, 5).map((row) =>
+      parsed.columns.map((col) => row[col] ?? ''),
+    );
+
+    return {
+      headers: parsed.columns,
+      rows: previewRows,
+      totalRows: parsed.rows.length,
+    };
+  }
+
+  /**
+   * POST /leads/import
+   * Import leads from CSV using a column mapping.
+   */
+  @Post('import')
+  async importLeadsWithMapping(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body()
+    body: {
+      csvData: string;
+      columnMapping: Record<string, string>; // csvColumn -> leadField
+      options?: { hasHeaderRow?: boolean };
+    },
+  ): Promise<{ imported: number; skipped: number; errors: number }> {
+    const { tenantId, role } = user;
+    const canImportRoles: StaffRole[] = ['owner', 'manager', 'sales'];
+    if (!canImportRoles.includes(role || 'viewer')) {
+      throw new ForbiddenException('Недостаточно прав для импорта лидов');
+    }
+
+    if (!body.csvData || typeof body.csvData !== 'string') {
+      throw new BadRequestException('csvData is required');
+    }
+
+    const parsed = parseCsvRobust(body.csvData);
+    const mapping = body.columnMapping || {};
+
+    // Build reverse map: leadField -> csvColumn
+    const fieldToCol: Record<string, string> = {};
+    for (const [csvCol, leadField] of Object.entries(mapping)) {
+      if (leadField && leadField !== 'skip') {
+        fieldToCol[leadField] = csvCol;
+      }
+    }
+
+    let imported = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    const VALID_STATUSES = new Set(['new', 'in_progress', 'waiting', 'won', 'lost']);
+
+    for (const row of parsed.rows) {
+      try {
+        const get = (field: string): string | undefined => {
+          const col = fieldToCol[field];
+          if (!col) return undefined;
+          const v = row[col]?.trim();
+          return v || undefined;
+        };
+
+        // firstName + lastName => name, or direct name field
+        let name = get('name');
+        if (!name) {
+          const firstName = get('firstName') || '';
+          const lastName = get('lastName') || '';
+          const combined = [firstName, lastName].filter(Boolean).join(' ').trim();
+          if (combined) name = combined;
+        }
+
+        const email = get('email');
+        const phone = get('phone');
+        const source = get('source');
+        const rawStatus = get('status');
+        const status = rawStatus && VALID_STATUSES.has(rawStatus) ? rawStatus : undefined;
+        const company = get('company');
+        const notes = get('notes');
+
+        // Skip completely empty rows
+        if (!name && !email && !phone) {
+          skipped++;
+          continue;
+        }
+
+        await this.leadsService.createForTenant(tenantId, {
+          name: name || email || phone || 'Unknown',
+          email: email || undefined,
+          phone: phone || undefined,
+          source: source || 'csv_import',
+          status: status || 'new',
+          meta: {
+            importedFromCsv: true,
+            company: company || undefined,
+            notes: notes || undefined,
+          },
+        });
+
+        imported++;
+      } catch {
+        errors++;
+      }
+    }
+
+    return { imported, skipped, errors };
   }
 }

@@ -14,11 +14,11 @@ import {
   postAiImage,
   type AiChatMessageDto,
   type AiChatSalesImportContext,
-  type AiChatWorkspaceCsvContext,
+  type AiChatWorkspaceFileContext,
   type AiMemoryChunkDto,
   type AiQuotaSnapshot,
 } from '../../api/ai';
-import { previewSalesImport } from '../../api/imports';
+import { previewSalesImport, previewWorkspaceFileImport } from '../../api/imports';
 import { ApiError, createAiAddonCheckoutSession } from '../../api/client';
 import { AiChatMarkdown } from './AiChatMarkdown';
 import { AiEmailComposerModal } from './AiEmailComposerModal';
@@ -46,72 +46,6 @@ function greetingDisplayName(raw: string | null | undefined, fallback: string): 
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
-function slugCsvFieldKey(header: string, used: Set<string>): string {
-  let base = header
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-z0-9а-яё_]/gi, '')
-    .replace(/_+/g, '_')
-    .slice(0, 60);
-  if (!base) base = 'col';
-  let k = base;
-  let n = 1;
-  while (used.has(k)) {
-    k = `${base}_${n++}`;
-  }
-  used.add(k);
-  return k;
-}
-
-function splitCsvLine(line: string, delim: string): string[] {
-  const out: string[] = [];
-  let cur = '';
-  let q = false;
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i];
-    if (c === '"') {
-      q = !q;
-      continue;
-    }
-    if (!q && c === delim) {
-      out.push(cur.trim().replace(/^"|"$/g, ''));
-      cur = '';
-      continue;
-    }
-    cur += c;
-  }
-  out.push(cur.trim().replace(/^"|"$/g, ''));
-  return out;
-}
-
-function parseWorkspaceCsv(
-  text: string,
-  fileName: string,
-  maxRows: number,
-): AiChatWorkspaceCsvContext {
-  const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
-  const hint = fileName.replace(/\.[^/.]+$/, '') || 'table';
-  if (!lines.length) {
-    return { fileName, tableNameHint: hint, headers: [], fieldKeys: [], rows: [] };
-  }
-  const delim =
-    lines[0].split(';').length > lines[0].split(',').length ? ';' : ',';
-  const headerCells = splitCsvLine(lines[0], delim);
-  const headers = headerCells.map((h, i) => h.trim() || `column_${i + 1}`);
-  const used = new Set<string>();
-  const fieldKeys = headers.map((h) => slugCsvFieldKey(h, used));
-  const rows: Record<string, string>[] = [];
-  for (let i = 1; i < lines.length && rows.length < maxRows; i++) {
-    const cells = splitCsvLine(lines[i], delim);
-    const row: Record<string, string> = {};
-    fieldKeys.forEach((key, j) => {
-      row[key] = cells[j] ?? '';
-    });
-    rows.push(row);
-  }
-  return { fileName, tableNameHint: hint, headers, fieldKeys, rows };
-}
 
 function PaperclipIcon({ className }: { className?: string }) {
   return (
@@ -124,6 +58,48 @@ function PaperclipIcon({ className }: { className?: string }) {
         strokeLinejoin="round"
       />
     </svg>
+  );
+}
+
+function TableGridIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth={1.6} />
+      <path d="M3.5 9.5h17M9.5 4.5v15" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** Заметный "проговариваемый" прелоадер на время создания таблицы рабочей области и импорта строк из файла. */
+function WorkspaceImportingIndicator({
+  fileName,
+  totalRows,
+}: {
+  fileName?: string;
+  totalRows: number;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-violet-50 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(139,92,246,0.12)]">
+      <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
+        <span className="absolute inset-0 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
+        <TableGridIcon className="h-3.5 w-3.5 text-violet-700" />
+      </span>
+      <div className="min-w-0">
+        <div className="text-xs font-semibold text-violet-900">
+          {t('crm.aiAssistant.workspaceImporting')}
+        </div>
+        {fileName && (
+          <div className="truncate text-[11px] text-violet-600">
+            {fileName}
+            {totalRows ? ` · ${totalRows} ${t('crm.aiAssistant.rowsShort')}` : ''}
+          </div>
+        )}
+        <div className="mt-1.5 h-1 w-40 max-w-full overflow-hidden rounded-full bg-violet-100">
+          <div className="h-full w-1/3 animate-indeterminate-bar rounded-full bg-violet-500" />
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -336,8 +312,12 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
   >(null);
   const [salesImportAttachment, setSalesImportAttachment] =
     useState<AiChatSalesImportContext | null>(null);
-  const [workspaceCsvAttachment, setWorkspaceCsvAttachment] =
-    useState<AiChatWorkspaceCsvContext | null>(null);
+  const [workspaceFileAttachment, setWorkspaceFileAttachment] =
+    useState<AiChatWorkspaceFileContext | null>(null);
+  const [workspaceImportPending, setWorkspaceImportPending] = useState<{
+    fileName?: string;
+    totalRows: number;
+  } | null>(null);
   const [imagePanelOpen, setImagePanelOpen] = useState(false);
   const [imagePromptLocal, setImagePromptLocal] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -491,28 +471,27 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
 
   const send = async () => {
     const text = input.trim();
-    const hasAtt = Boolean(salesImportAttachment || workspaceCsvAttachment);
+    const hasAtt = Boolean(salesImportAttachment || workspaceFileAttachment);
     if ((!text && !hasAtt) || loading) return;
     const salesCtx = salesImportAttachment || undefined;
     const wsCtx =
-      workspaceCsvAttachment &&
-      workspaceCsvAttachment.headers.length > 0 &&
-      workspaceCsvAttachment.rows.length > 0
-        ? workspaceCsvAttachment
+      workspaceFileAttachment && workspaceFileAttachment.columns.length > 0
+        ? workspaceFileAttachment
         : undefined;
     setInput('');
     setSalesImportAttachment(null);
-    setWorkspaceCsvAttachment(null);
+    setWorkspaceFileAttachment(null);
     setError(null);
     setHub(false);
     setLoading(true);
+    if (wsCtx) setWorkspaceImportPending({ fileName: wsCtx.fileName, totalRows: wsCtx.totalRows });
     try {
       const sid = await ensureSessionId();
       const res = await postAiChat({
         sessionId: sid,
         message: text,
         salesImportContext: salesCtx,
-        workspaceCsvContext: wsCtx,
+        workspaceFileContext: wsCtx,
         imageFollowUpContext:
           lastImageUrl != null
             ? {
@@ -540,9 +519,10 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
       setError(msg);
       setInput(text);
       if (salesCtx) setSalesImportAttachment(salesCtx);
-      if (wsCtx) setWorkspaceCsvAttachment(wsCtx);
+      if (wsCtx) setWorkspaceFileAttachment(wsCtx);
     } finally {
       setLoading(false);
+      setWorkspaceImportPending(null);
     }
   };
 
@@ -574,28 +554,36 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
     e.target.value = '';
     if (!file) return;
     setError(null);
-    try {
-      const prev = await previewSalesImport(file);
+    setSalesImportAttachment(null);
+    setWorkspaceFileAttachment(null);
+    let wsErrorMessage: string | null = null;
+    const [salesResult, wsResult] = await Promise.all([
+      previewSalesImport(file).catch(() => null),
+      previewWorkspaceFileImport(file).catch((err) => {
+        wsErrorMessage = err instanceof Error ? err.message : null;
+        return null;
+      }),
+    ]);
+    if (salesResult) {
       setSalesImportAttachment({
-        importId: prev.importId,
-        suggestedMapping: prev.suggestedMapping,
+        importId: salesResult.importId,
+        suggestedMapping: salesResult.suggestedMapping,
         fileName: file.name,
-        totalRows: prev.totalRows,
+        totalRows: salesResult.totalRows,
       });
-      setWorkspaceCsvAttachment(null);
-    } catch {
-      try {
-        const raw = await file.text();
-        const ws = parseWorkspaceCsv(raw, file.name, 55);
-        if (ws.headers.length > 0 && ws.fieldKeys.length > 0) {
-          setWorkspaceCsvAttachment(ws);
-          setSalesImportAttachment(null);
-        } else {
-          setError(t('crm.aiAssistant.attachParseError'));
-        }
-      } catch {
-        setError(t('crm.aiAssistant.attachParseError'));
-      }
+    }
+    if (wsResult && wsResult.columns.length > 0) {
+      setWorkspaceFileAttachment({
+        importId: wsResult.importId,
+        fileName: file.name,
+        tableNameHint: file.name.replace(/\.[^/.]+$/, ''),
+        columns: wsResult.columns,
+        sample: wsResult.sample,
+        totalRows: wsResult.totalRows,
+      });
+    }
+    if (!salesResult && !(wsResult && wsResult.columns.length > 0)) {
+      setError(wsErrorMessage || t('crm.aiAssistant.attachParseError'));
     }
   };
 
@@ -746,7 +734,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
           ref={fileInputRef}
           type="file"
           className="hidden"
-          accept=".csv,.txt,.xml,text/csv,text/plain,application/xml,text/xml"
+          accept=".csv,.txt,.xml,.xlsx,.xls,text/csv,text/plain,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           onChange={(e) => void onAttachFile(e)}
         />
         <div className="h-0.5 w-full shrink-0 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500" aria-hidden />
@@ -1043,18 +1031,18 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                                 </button>
                               </span>
                             )}
-                            {workspaceCsvAttachment &&
-                              workspaceCsvAttachment.headers.length > 0 && (
+                            {workspaceFileAttachment &&
+                              workspaceFileAttachment.columns.length > 0 && (
                                 <span className="inline-flex max-w-[min(100%,280px)] items-center gap-1 truncate rounded-full border border-emerald-200 bg-emerald-50/90 px-2 py-0.5 text-[10px] text-emerald-950">
                                   <span className="truncate">
                                     {t('crm.aiAssistant.attachedWorkspaceCsv')}:{' '}
-                                    {workspaceCsvAttachment.fileName} (
-                                    {workspaceCsvAttachment.rows.length})
+                                    {workspaceFileAttachment.fileName} (
+                                    {workspaceFileAttachment.totalRows})
                                   </span>
                                   <button
                                     type="button"
                                     className="shrink-0 text-rose-600 hover:underline"
-                                    onClick={() => setWorkspaceCsvAttachment(null)}
+                                    onClick={() => setWorkspaceFileAttachment(null)}
                                   >
                                     {t('crm.aiAssistant.removeAttachment')}
                                   </button>
@@ -1072,7 +1060,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                                 !configured ||
                                 (!input.trim() &&
                                   !salesImportAttachment &&
-                                  !workspaceCsvAttachment)
+                                  !workspaceFileAttachment)
                               }
                               onClick={() => void send()}
                               title={t('crm.aiAssistant.send')}
@@ -1226,14 +1214,20 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                       </div>
                     </div>
                   ))}
-                  {(loading || imageGenPending) && (
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                      <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400" />
-                      {imageGenPending
-                        ? t('crm.aiAssistant.imageGenerating')
-                        : t('crm.aiAssistant.thinking')}
-                    </div>
-                  )}
+                  {(loading || imageGenPending) &&
+                    (workspaceImportPending ? (
+                      <WorkspaceImportingIndicator
+                        fileName={workspaceImportPending.fileName}
+                        totalRows={workspaceImportPending.totalRows}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 text-xs text-slate-400">
+                        <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400" />
+                        {imageGenPending
+                          ? t('crm.aiAssistant.imageGenerating')
+                          : t('crm.aiAssistant.thinking')}
+                      </div>
+                    ))}
                   <div ref={bottomRef} />
                 </div>
               )}
@@ -1272,16 +1266,16 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                             </button>
                           </span>
                         )}
-                        {workspaceCsvAttachment &&
-                          workspaceCsvAttachment.headers.length > 0 && (
+                        {workspaceFileAttachment &&
+                          workspaceFileAttachment.columns.length > 0 && (
                             <span className="inline-flex max-w-[200px] items-center gap-1 truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] text-emerald-950">
                               <span className="truncate">
-                                {workspaceCsvAttachment.fileName}
+                                {workspaceFileAttachment.fileName}
                               </span>
                               <button
                                 type="button"
                                 className="shrink-0 text-rose-600"
-                                onClick={() => setWorkspaceCsvAttachment(null)}
+                                onClick={() => setWorkspaceFileAttachment(null)}
                               >
                                 ×
                               </button>
@@ -1321,7 +1315,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                             !configured ||
                             (!input.trim() &&
                               !salesImportAttachment &&
-                              !workspaceCsvAttachment)
+                              !workspaceFileAttachment)
                           }
                           onClick={() => void send()}
                           title={t('crm.aiAssistant.send')}

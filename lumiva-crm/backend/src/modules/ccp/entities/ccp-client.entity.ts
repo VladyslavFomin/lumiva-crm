@@ -22,6 +22,9 @@ export class CcpClientEntity {
   @Column({ type: 'varchar', length: 255, nullable: true })
   name: string | null;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  phone: string | null;
+
   @Column({ type: 'numeric', precision: 18, scale: 2, default: 0 })
   balanceEur: string;
 
@@ -57,4 +60,25 @@ export class CcpClientEntity {
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   tgChatId: string | null; // ccp_tg_chat_id
+
+  @Column({ type: 'jsonb', nullable: true })
+  meta: Record<string, any> | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  investmentStyle: string | null;
+
+  @Column({ type: 'numeric', precision: 7, scale: 2, nullable: true })
+  investmentAnnualPercent: string | null;
+
+  @Column({ type: 'numeric', precision: 18, scale: 2, nullable: true })
+  creditLeverage: string | null;
+
+  @Column({ type: 'numeric', precision: 7, scale: 4, nullable: true })
+  creditRepayMonthlyPercent: string | null;
+
+  @Column({ type: 'numeric', precision: 7, scale: 4, nullable: true })
+  investmentProfitMonthlyPercent: string | null;
+
+  @Column({ type: 'numeric', precision: 7, scale: 4, nullable: true })
+  accountDebitMonthlyPercent: string | null;
 }

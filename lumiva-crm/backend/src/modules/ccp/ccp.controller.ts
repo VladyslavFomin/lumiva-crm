@@ -4,6 +4,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -68,6 +69,40 @@ export class CcpController {
   }
 
   /**
+   * PATCH /v1/ccp/sites/:id
+   * body: { siteUrl?, wpRestBase?, wpToken?, isActive? }
+   */
+  @Patch('sites/:id')
+  async updateSite(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Body()
+    body: {
+      siteUrl?: string;
+      wpRestBase?: string | null;
+      wpToken?: string | null;
+      isActive?: boolean;
+    },
+  ) {
+    const tenantId = this.tenantId(user);
+    const siteId = String(id || '').trim();
+    if (!siteId) throw new BadRequestException('siteId is required');
+    return this.ccp.updateSite(tenantId, siteId, body || {});
+  }
+
+  /**
+   * DELETE /v1/ccp/sites/:id
+   * Soft-delete: hides the site from account selectors but keeps synced data.
+   */
+  @Delete('sites/:id')
+  async deleteSite(@CurrentUser() user: CurrentUserPayload, @Param('id') id: string) {
+    const tenantId = this.tenantId(user);
+    const siteId = String(id || '').trim();
+    if (!siteId) throw new BadRequestException('siteId is required');
+    return this.ccp.deactivateSite(tenantId, siteId);
+  }
+
+  /**
    * POST /v1/ccp/sites/connect
    * body: { siteId, wpRestBase, wpToken }
    */
@@ -108,6 +143,7 @@ export class CcpController {
     @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('per') per?: string,
+    @Query('fresh') fresh?: string,
   ) {
     const tenantId = this.tenantId(user);
 
@@ -116,6 +152,23 @@ export class CcpController {
       search: search ? String(search) : undefined,
       page: page ? Number(page) : undefined,
       per: per ? Number(per) : undefined,
+      fresh: fresh === '1' || fresh === 'true',
+    });
+  }
+
+  /**
+   * GET /v1/ccp/clients/:id/analytics?fresh=1
+   */
+  @Get('clients/:id/analytics')
+  async getClientAnalytics(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id') id: string,
+    @Query('fresh') fresh?: string,
+  ) {
+    const tenantId = this.tenantId(user);
+    if (!id) throw new BadRequestException('id is required');
+    return this.ccp.getClientAnalytics(tenantId, String(id), {
+      fresh: fresh === '1' || fresh === 'true',
     });
   }
 

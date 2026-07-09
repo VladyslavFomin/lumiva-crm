@@ -481,7 +481,7 @@ export const ProjectsBoardPage: React.FC = () => {
                         )}
                         {cardFields.includes('progress') && (
                           <div className="flex items-center gap-2 mb-1">
-                            <div className="flex-1 h-1.5 rounded-full bg-slate-800/80 overflow-hidden">
+                            <div className="flex-1 h-1.5 rounded-full bg-surface-active overflow-hidden">
                               <div
                                 className="h-full rounded-full transition-all"
                                 style={{ width: `${percent}%`, backgroundColor: color }}

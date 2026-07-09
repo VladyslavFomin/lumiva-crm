@@ -71,6 +71,11 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
           label: getTriggerLabel('custom_object.status_changed', t),
           icon: 'custom',
         },
+        {
+          id: 'shopify.payment_received',
+          label: getTriggerLabel('shopify.payment_received', t),
+          icon: 'sale',
+        },
       ],
     },
   ];
@@ -133,6 +138,7 @@ export function buildAutomationActionGroups(t: TFunction): AutomationLibGroup[] 
         { id: 'send_meta_ads', label: getActionLabel('send_meta_ads', t), icon: 'globe' },
         { id: 'send_google_calendar', label: getActionLabel('send_google_calendar', t), icon: 'calendar' },
         { id: 'send_outlook_calendar', label: getActionLabel('send_outlook_calendar', t), icon: 'calendar' },
+        { id: 'create_jira_issue', label: getActionLabel('create_jira_issue', t), icon: 'api' },
       ],
     },
   ];

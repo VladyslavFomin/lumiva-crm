@@ -28,6 +28,15 @@ class UpdateCcpTxnMetaDto {
   @IsString()
   @MaxLength(64)
   ccp_status?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  financialCategory?: string;
+
+  @IsOptional()
+  @IsInt()
+  transactionTypeId?: number;
 }
 
 export class UpdateCcpTxnDto {

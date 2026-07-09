@@ -34,11 +34,18 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { WhatsappWebhookModule } from './integrations/whatsapp/whatsapp-webhook.module';
 import { AmocrmInboundWebhookModule } from './integrations/amocrm/amocrm-inbound-webhook.module';
 import { WordpressCf7InboundWebhookModule } from './integrations/wordpress-cf7/wordpress-cf7-inbound-webhook.module';
+import { ZapierMakeInboundModule } from './integrations/zapier-make/zapier-make-inbound.module';
+import { SlackInboundModule } from './integrations/slack/slack-inbound.module';
+import { SapInboundModule } from './integrations/sap/sap-inbound.module';
+import { JiraInboundModule } from './integrations/jira/jira-inbound.module';
+import { ShopifyInboundModule } from './integrations/shopify/shopify-inbound.module';
+import { WooCommerceInboundModule } from './integrations/woocommerce/woocommerce-inbound.module';
 import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { MarketingModule } from './marketing/marketing.module';
 import { SmmModule } from './smm/smm.module';
 import { CustomObjectsModule } from './custom-objects/custom-objects.module';
 import { WorkspaceAreasModule } from './workspace-areas/workspace-areas.module';
+import { ProductsModule } from './products/products.module';
 import { PublicModule } from './public/public.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
@@ -270,7 +277,14 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     WhatsappWebhookModule,
     AmocrmInboundWebhookModule,
     WordpressCf7InboundWebhookModule,
+    ZapierMakeInboundModule,
+    SlackInboundModule,
+    SapInboundModule,
+    JiraInboundModule,
+    ShopifyInboundModule,
+    WooCommerceInboundModule,
     CustomObjectsModule,
+    ProductsModule,
     WorkspaceAreasModule,
     MarketingModule,
     ApiTokensModule,

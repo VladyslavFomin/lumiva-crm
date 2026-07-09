@@ -297,6 +297,19 @@ export class CustomObjectsController {
     return this.service.getAnalytics(user.tenantId, objectId);
   }
 
+  /**
+   * "Headless" preview — no target table yet. Used by the AI chat: a spreadsheet is
+   * attached before the user (or the model) has picked/created a workspace table for it.
+   */
+  @Post('import/preview')
+  @UseInterceptors(FileInterceptor('file'))
+  async previewHeadlessImport(
+    @CurrentUser() user: CurrentUserPayload,
+    @UploadedFile() file: any,
+  ) {
+    return this.service.previewHeadlessImport(user.tenantId, file);
+  }
+
   @Post(':objectId/import/preview')
   @UseInterceptors(FileInterceptor('file'))
   async previewImport(

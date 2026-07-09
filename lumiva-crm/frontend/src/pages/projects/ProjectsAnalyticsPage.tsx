@@ -386,6 +386,13 @@ interface ProjectsAnalyticsPageProps {
     title?: string;
     subtitle?: string;
   };
+  analyticsLabels?: {
+    total?: string;
+    line?: string;
+    table?: string;
+    record?: string;
+  };
+  defaultWidgetsOverride?: WidgetConfig[];
 }
 
 export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
@@ -395,6 +402,8 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
   analyticsFields = EMPTY_ANALYTICS_FIELDS,
   dashboardPresetSource = 'projects',
   header,
+  analyticsLabels,
+  defaultWidgetsOverride,
 }) => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
@@ -681,6 +690,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     () =>
       analyticsFields.filter((field) => {
         const type = String(field.type || '').toLowerCase();
+        if (['text', 'select', 'date', 'datetime'].includes(type)) return false;
         if (type === 'number') return true;
         if (numericKeyLooksMonetary(field.key, field.label || '')) {
           return true;
@@ -1056,6 +1066,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
   const defaultWidgets = useMemo<WidgetConfig[]>(
     () => {
+      if (defaultWidgetsOverride?.length) return defaultWidgetsOverride;
       if (isWorkspaceMode) {
         const firstDimension = dynamicFormulaScopeOptions[0] || dynamicDimensionOptions[0];
         const firstNumeric = dynamicNumericFields[0];
@@ -1063,7 +1074,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           {
             id: 'metric-total',
             type: 'metric',
-            title: t('crm.projects.analytics.kpis.total'),
+            title: analyticsLabels?.total || t('crm.projects.analytics.kpis.total'),
             metricKey: 'total',
             size: 'sm',
             span: 3,
@@ -1099,7 +1110,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           {
             id: 'chart-workspace-line',
             type: 'line',
-            title: 'Динамика записей',
+            title: analyticsLabels?.line || 'Динамика записей',
             chartKey: firstDimension?.id || 'projects',
             chartValueMode: firstNumeric ? 'sum' : 'count',
             chartValueField: firstNumeric ? `field:${firstNumeric.key}` : undefined,
@@ -1129,7 +1140,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
           {
             id: 'table-records',
             type: 'table',
-            title: t('crm.projects.analytics.table.title'),
+            title: analyticsLabels?.table || t('crm.projects.analytics.table.title'),
             tableKey: 'projects',
             size: 'md',
             span: 6,
@@ -1277,7 +1288,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         },
       ];
     },
-    [t, isWorkspaceMode, dynamicDimensionOptions, dynamicFormulaScopeOptions, dynamicNumericFields],
+    [t, isWorkspaceMode, dynamicDimensionOptions, dynamicFormulaScopeOptions, dynamicNumericFields, analyticsLabels, defaultWidgetsOverride],
   );
 
   const hasData = !loading && !error;
@@ -1853,7 +1864,13 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         const value = parseNumericLoose(raw);
         return acc + (value ?? 0);
       }, 0);
-      return new Intl.NumberFormat(locale).format(sum);
+      const fieldLabel = analyticsFieldMap.get(fieldKey)?.label || fieldKey;
+      const currencySuffix = /\bUSD\b/i.test(fieldLabel) || /usd/i.test(fieldKey)
+        ? ' USD'
+        : /\bEUR\b/i.test(fieldLabel) || /eur/i.test(fieldKey)
+          ? ' EUR'
+          : '';
+      return `${new Intl.NumberFormat(locale).format(sum)}${currencySuffix}`;
     }
     if (key?.startsWith('avg:')) {
       const fieldKey = key.slice(4);
@@ -2913,7 +2930,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               <thead className="sticky top-0 bg-white/95 text-[10px] uppercase tracking-[0.16em] text-neutral-400 backdrop-blur">
                 <tr className="border-b border-neutral-200">
                   <th className="py-2 pr-3 text-left font-medium">
-                    {t('crm.projects.analytics.table.headers.project')}
+                    {isWorkspaceMode ? (analyticsLabels?.record || 'Запись') : t('crm.projects.analytics.table.headers.project')}
                   </th>
                   {previewFields.map((field) => (
                     <th key={field.key} className="py-2 px-3 text-left font-medium">
@@ -3110,7 +3127,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
               <button
                 type="button"
                 className="hidden sm:inline-flex items-center gap-2 btn-secondary"
-                onClick={() => exportCsv(filteredItems, period)}
+                onClick={() => exportCsv()}
               >
                 <Icon name="download" size={15} />
                 <span className="hidden md:inline">Экспорт CSV</span>

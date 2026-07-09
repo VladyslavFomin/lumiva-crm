@@ -110,13 +110,13 @@ export const SalesIntegrationNewPage: React.FC = () => {
       <div className="space-y-4 md:space-y-6 pb-8 max-w-3xl">
         <section className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
+            <div className="text-[11px] uppercase tracking-[0.25em] text-text-tertiary mb-1">
               {t('crm.salesIntegrationNew.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            <h1 className="page-title">
               {t('crm.salesIntegrationNew.title')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-xl">
+            <p className="text-xs text-text-tertiary mt-1 max-w-xl">
               {t('crm.salesIntegrationNew.subtitle')}
             </p>
           </div>
@@ -124,34 +124,34 @@ export const SalesIntegrationNewPage: React.FC = () => {
           <button
             type="button"
             onClick={() => navigate('/app/sales/integrations')}
-            className="px-3 py-1.5 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 hover:bg-slate-900/80"
+            className="btn-secondary btn-secondary-sm"
           >
             {t('crm.salesIntegrationNew.back')}
           </button>
         </section>
 
         {error && (
-          <div className="text-xs text-red-300 bg-red-950/50 border border-red-800/60 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 space-y-4">
+        <section className="card p-4 md:p-5 space-y-4">
           {loading ? (
-            <div className="text-[11px] text-slate-400">
+            <div className="text-[11px] text-text-tertiary">
               {t('crm.salesIntegrationNew.loading')}
             </div>
           ) : (
             <>
               {/* Тип интеграции */}
               <div className="space-y-1">
-                <label className="text-[11px] text-slate-400">
+                <label className="form-label">
                   {t('crm.salesIntegrationNew.fields.type')}
                 </label>
                 <select
                   value={kind}
                   onChange={(e) => setKind(e.target.value as IntegrationKind)}
-                  className="h-9 w-full max-w-xs rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
+                  className="base-input h-9 max-w-xs text-[12px] px-2.5"
                 >
                   <option value="">
                     {t('crm.salesIntegrationNew.fields.typePlaceholder')}
@@ -163,7 +163,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
                   ))}
                 </select>
                 {selectedAdapter && (
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <p className="text-[11px] text-text-tertiary mt-1">
                     {selectedAdapter.description ??
                       t('crm.salesIntegrationNew.fields.typeFallback')}
                   </p>
@@ -173,7 +173,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
               {/* Название + канал */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1">
-                  <label className="text-[11px] text-slate-400">
+                  <label className="form-label">
                     {t('crm.salesIntegrationNew.fields.name')}
                   </label>
                   <input
@@ -181,17 +181,17 @@ export const SalesIntegrationNewPage: React.FC = () => {
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder={t('crm.salesIntegrationNew.fields.namePlaceholder')}
-                    className="h-9 w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
+                    className="base-input h-9 text-[12px] px-2.5"
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[11px] text-slate-400">
+                  <label className="form-label">
                     {t('crm.salesIntegrationNew.fields.channel')}
                   </label>
                   <select
                     value={channelId}
                     onChange={(e) => setChannelId(e.target.value)}
-                    className="h-9 w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
+                    className="base-input h-9 text-[12px] px-2.5"
                   >
                     <option value="">
                       {t('crm.salesIntegrationNew.fields.channelPlaceholder')}
@@ -207,7 +207,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
 
               {/* Описание */}
               <div className="space-y-1">
-                <label className="text-[11px] text-slate-400">
+                <label className="form-label">
                   {t('crm.salesIntegrationNew.fields.description')}
                 </label>
                 <textarea
@@ -217,19 +217,19 @@ export const SalesIntegrationNewPage: React.FC = () => {
                   placeholder={t(
                     'crm.salesIntegrationNew.fields.descriptionPlaceholder',
                   )}
-                  className="w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 py-2 outline-none resize-none"
+                  className="base-input text-[12px] px-2.5 py-2 resize-none"
                 />
               </div>
 
               {/* Блок настроек WooCommerce (MVP) */}
               {kind === 'woocommerce' && (
-                <div className="border border-slate-800/80 rounded-2xl p-3.5 space-y-3 bg-slate-950/60">
-                  <div className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
+                <div className="border border-border-default rounded-2xl p-3.5 space-y-3 bg-surface-subtle">
+                  <div className="section-label">
                     {t('crm.salesIntegrationNew.woocommerce.title')}
                   </div>
                   <div className="space-y-2">
                     <div className="space-y-1">
-                      <label className="text-[11px] text-slate-400">
+                      <label className="form-label">
                         {t('crm.salesIntegrationNew.woocommerce.url')}
                       </label>
                       <input
@@ -237,23 +237,23 @@ export const SalesIntegrationNewPage: React.FC = () => {
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
                         placeholder="https://yourshop.com"
-                        className="h-9 w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
+                        className="base-input h-9 text-[12px] px-2.5"
                       />
                     </div>
                     <div className="grid md:grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <label className="text-[11px] text-slate-400">
+                        <label className="form-label">
                           {t('crm.salesIntegrationNew.woocommerce.consumerKey')}
                         </label>
                         <input
                           type="text"
                           value={consumerKey}
                           onChange={(e) => setConsumerKey(e.target.value)}
-                          className="h-9 w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
+                          className="base-input h-9 text-[12px] px-2.5"
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[11px] text-slate-400">
+                        <label className="form-label">
                           {t(
                             'crm.salesIntegrationNew.woocommerce.consumerSecret',
                           )}
@@ -262,11 +262,11 @@ export const SalesIntegrationNewPage: React.FC = () => {
                           type="password"
                           value={consumerSecret}
                           onChange={(e) => setConsumerSecret(e.target.value)}
-                          className="h-9 w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[12px] text-slate-100 px-2.5 outline-none"
+                          className="base-input h-9 text-[12px] px-2.5"
                         />
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-500">
+                    <p className="text-[10px] text-text-tertiary">
                       {t('crm.salesIntegrationNew.woocommerce.hint')}
                     </p>
                   </div>
@@ -278,7 +278,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
                   type="button"
                   onClick={handleSave}
                   disabled={saving || loading}
-                  className="px-4 py-2 rounded-xl bg-lumiva-accent text-slate-950 text-xs font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
+                  className="btn-primary disabled:opacity-60"
                 >
                   {saving
                     ? t('crm.salesIntegrationNew.actions.saving')

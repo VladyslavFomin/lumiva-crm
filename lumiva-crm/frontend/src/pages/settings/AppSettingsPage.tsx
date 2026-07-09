@@ -75,73 +75,59 @@ export const AppSettingsPage: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-4">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="page-header">
           <div>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.settings.app.sectionLabel')}
-            </div>
-            <h1 className="text-lg font-semibold text-slate-50">
-              {t('crm.settings.app.title')}
-            </h1>
+            <div className="page-subtitle">{t('crm.settings.app.sectionLabel')}</div>
+            <h1 className="page-title">{t('crm.settings.app.title')}</h1>
           </div>
         </div>
 
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
         {saved && (
-          <div className="text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-700/60 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-success bg-status-success-bg border border-green-200 rounded-xl px-3 py-2">
             {t('crm.settings.app.success')}
           </div>
         )}
 
         {loading && (
-          <div className="text-xs text-slate-400">
-            {t('crm.settings.app.loading')}
-          </div>
+          <div className="text-xs text-text-tertiary">{t('crm.settings.app.loading')}</div>
         )}
 
         {!loading && data && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-5 space-y-4">
-            {/* Основные поля */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-              {/* Название */}
-              <div className="space-y-1.5">
-                <div className="text-slate-400">{t('crm.settings.app.fields.name')}</div>
+          <div className="card p-5 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="form-group">
+                <label className="form-label">{t('crm.settings.app.fields.name')}</label>
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/80 border border-slate-800/80 text-sm outline-none"
+                  className="base-input"
                   placeholder={t('crm.settings.app.fields.namePlaceholder')}
                 />
               </div>
 
-              {/* Клиентский ключ (read-only) */}
-              <div className="space-y-1.5">
-                <div className="text-slate-400">{t('crm.settings.app.fields.clientKey')}</div>
+              <div className="form-group">
+                <label className="form-label">{t('crm.settings.app.fields.clientKey')}</label>
                 <input
                   value={data.clientKey}
                   readOnly
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950/50 border border-slate-800/80 text-sm outline-none text-slate-400"
+                  className="base-input bg-surface-subtle text-text-secondary"
                 />
-                <div className="text-[10px] text-slate-500">
-                  {t('crm.settings.app.fields.clientKeyHint')}
-                </div>
+                <span className="form-hint">{t('crm.settings.app.fields.clientKeyHint')}</span>
               </div>
-
             </div>
 
-            {/* Кнопка сохранить */}
-            <div className="pt-3 border-t border-slate-800/70 mt-3 flex justify-end">
+            <div className="pt-3 border-t border-border-default flex justify-end">
               <button
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="px-4 py-2 rounded-xl bg-lumiva-accent text-slate-950 text-xs font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
+                className="btn-primary"
               >
                 {saving ? t('crm.settings.app.saving') : t('crm.settings.app.save')}
               </button>

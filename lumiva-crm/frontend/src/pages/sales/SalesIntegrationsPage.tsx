@@ -68,10 +68,8 @@ function isSalesRelatedIntegration(conn: IntegrationConnectionDto): boolean {
   return !THIRD_PARTY_NON_SALES_CATALOG_IDS.has(cid);
 }
 
-const actionBtnClass =
-  'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 text-[11px] font-medium border border-slate-500/45 text-slate-100 bg-slate-500/[0.08] hover:bg-slate-500/[0.14] disabled:opacity-50 transition-colors';
-const actionBtnDangerClass =
-  'inline-flex items-center justify-center rounded-lg px-2.5 py-1.5 text-[11px] font-semibold border border-rose-500/40 bg-rose-200/45 text-rose-950 hover:bg-rose-200/65 hover:border-rose-600/45 disabled:opacity-50 transition-colors';
+const actionBtnClass = 'btn-secondary btn-secondary-sm disabled:opacity-50';
+const actionBtnDangerClass = 'btn-danger btn-secondary-sm disabled:opacity-50';
 
 type WooEditFormState = {
   name: string;
@@ -150,6 +148,7 @@ export const SalesIntegrationsPage: React.FC = () => {
   const kindLabels = useMemo(
     () => ({
       woocommerce: t('crm.salesIntegrations.kinds.woocommerce'),
+      shopify: t('crm.integrationsCatalog.items.shopify.name', { defaultValue: 'Shopify' }),
       'manual-import': t('crm.salesIntegrations.kinds.manualImport'),
       other: t('crm.salesIntegrations.kinds.other'),
       third_party_link: t('crm.salesIntegrations.kinds.thirdPartyLink'),
@@ -366,7 +365,7 @@ export const SalesIntegrationsPage: React.FC = () => {
     });
   }, []);
 
-  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'dark');
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'light');
 
   const renderCell = (
     conn: IntegrationConnectionDto,
@@ -387,10 +386,10 @@ export const SalesIntegrationsPage: React.FC = () => {
         ? 'border border-emerald-500/35 bg-emerald-200/40 text-emerald-950'
         : conn.lastSyncStatus === 'error'
           ? 'border border-rose-500/40 bg-rose-200/45 text-rose-950'
-          : 'border border-slate-500/35 bg-slate-500/20 text-slate-100';
+          : 'border border-border-default bg-surface-subtle text-text-secondary';
     const enabledColor = conn.isEnabled
       ? 'border border-emerald-500/35 bg-emerald-200/40 text-emerald-950'
-      : 'border border-slate-500/35 bg-slate-500/20 text-slate-100';
+      : 'border border-border-default bg-surface-subtle text-text-secondary';
 
     switch (columnId) {
       case 'connection': {
@@ -402,9 +401,9 @@ export const SalesIntegrationsPage: React.FC = () => {
             : '');
         return (
           <div className="flex flex-col">
-            <span className="text-slate-100">{conn.name}</span>
+            <span className="text-[#111827]">{conn.name}</span>
             {sub ? (
-              <span className="text-[10px] text-slate-500 truncate max-w-[220px]">
+              <span className="text-[10px] text-text-tertiary truncate max-w-[220px]">
                 {sub}
               </span>
             ) : null}
@@ -454,7 +453,7 @@ export const SalesIntegrationsPage: React.FC = () => {
             {conn.totalSalesAmount.toLocaleString(locale, {
               maximumFractionDigits: 0,
             })}{' '}
-            <span className="text-slate-400 text-[10px]">
+            <span className="text-text-tertiary text-[10px]">
               {conn.currency}
             </span>
           </>
@@ -870,26 +869,26 @@ export const SalesIntegrationsPage: React.FC = () => {
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
               {t('crm.salesIntegrations.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            <h1 className="page-title">
               {t('crm.salesIntegrations.title')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            <p className="text-xs text-text-tertiary mt-1 max-w-2xl">
               {t('crm.salesIntegrations.subtitle')}
             </p>
           </div>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,2fr)]">
-          <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
-            <h2 className="text-sm font-semibold text-slate-100 mb-2">
+          <div className="card p-4 md:p-5">
+            <h2 className="text-sm font-semibold text-[#111827] mb-2">
               {t('crm.salesIntegrations.available.title')}
             </h2>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-2xl">
+            <p className="text-xs text-text-tertiary leading-relaxed max-w-2xl">
               {t('crm.salesIntegrations.available.movedToHubBody')}
             </p>
             <Link
               to="/integrations-hub?woo=1"
-              className="mt-4 inline-flex items-center justify-center rounded-xl bg-lumiva-accent px-4 py-2 text-[11px] font-semibold text-slate-950 hover:bg-lumiva-accent-soft"
+              className="mt-4 btn-primary btn-secondary-sm"
             >
               {t('crm.salesIntegrations.available.movedToHubButton')}
             </Link>
@@ -897,9 +896,9 @@ export const SalesIntegrationsPage: React.FC = () => {
 
           {/* Форма редактирования подключения */}
           {editOpen && editConn && (
-            <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+            <div className="card p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-100">
+                <h2 className="text-sm font-semibold text-[#111827]">
                   {editMode === 'lumiva_simple'
                     ? t('crm.salesIntegrations.edit.lumivaSimpleTitle')
                     : editMode === 'third_party_config'
@@ -911,7 +910,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={closeEditPanel}
-                  className="text-[11px] text-slate-400 hover:text-slate-100"
+                  className="text-[11px] text-text-tertiary hover:text-[#111827]"
                 >
                   ✕ {t('crm.salesIntegrations.edit.close')}
                 </button>
@@ -919,8 +918,8 @@ export const SalesIntegrationsPage: React.FC = () => {
 
               <div className="relative space-y-3 text-xs min-h-[120px]">
                 {editLoading ? (
-                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-slate-950/70 backdrop-blur-[2px]">
-                    <span className="text-[11px] text-slate-200">
+                  <div className="absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-white/80 backdrop-blur-[2px]">
+                    <span className="text-[11px] text-text-secondary">
                       {t('crm.salesIntegrations.edit.loadingDetails')}
                     </span>
                   </div>
@@ -928,11 +927,11 @@ export const SalesIntegrationsPage: React.FC = () => {
 
                 {editMode === 'lumiva_simple' ? (
                   <>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-text-tertiary leading-relaxed">
                       {t('crm.salesIntegrations.edit.lumivaSimpleHint')}
                     </p>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.name')}
                       </label>
                       <input
@@ -941,11 +940,11 @@ export const SalesIntegrationsPage: React.FC = () => {
                         onChange={(e) =>
                           setEditForm((f) => ({ ...f, name: e.target.value }))
                         }
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
+                        className="base-input h-8 text-[11px] px-2"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.description')}
                       </label>
                       <input
@@ -957,17 +956,17 @@ export const SalesIntegrationsPage: React.FC = () => {
                             description: e.target.value,
                           }))
                         }
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
+                        className="base-input h-8 text-[11px] px-2"
                       />
                     </div>
                   </>
                 ) : editMode === 'adapter_simple' ? (
                   <>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-text-tertiary leading-relaxed">
                       {t('crm.salesIntegrations.edit.adapterSimpleHint')}
                     </p>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.name')}
                       </label>
                       <input
@@ -976,11 +975,11 @@ export const SalesIntegrationsPage: React.FC = () => {
                         onChange={(e) =>
                           setEditForm((f) => ({ ...f, name: e.target.value }))
                         }
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
+                        className="base-input h-8 text-[11px] px-2"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.channel')}
                       </label>
                       <select
@@ -991,7 +990,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                             channelId: e.target.value,
                           }))
                         }
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
+                        className="base-input h-8 text-[11px] px-2"
                       >
                         <option value="">
                           {t('crm.salesIntegrations.edit.channelAuto')}
@@ -1004,7 +1003,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.description')}
                       </label>
                       <input
@@ -1016,17 +1015,17 @@ export const SalesIntegrationsPage: React.FC = () => {
                             description: e.target.value,
                           }))
                         }
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none"
+                        className="base-input h-8 text-[11px] px-2"
                       />
                     </div>
                   </>
                 ) : editMode === 'third_party_config' ? (
                   <>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <p className="text-[11px] text-text-tertiary leading-relaxed">
                       {t('crm.salesIntegrations.edit.thirdPartyHint')}
                     </p>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.name')}
                       </label>
                       <input
@@ -1036,11 +1035,11 @@ export const SalesIntegrationsPage: React.FC = () => {
                           setTpForm((f) => ({ ...f, name: e.target.value }))
                         }
                         disabled={editLoading}
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                        className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.channel')}
                       </label>
                       <select
@@ -1049,7 +1048,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                           setTpForm((f) => ({ ...f, channelId: e.target.value }))
                         }
                         disabled={editLoading}
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                        className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                       >
                         <option value="">
                           {t('crm.salesIntegrations.edit.channelAuto')}
@@ -1062,7 +1061,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.description')}
                       </label>
                       <input
@@ -1075,11 +1074,11 @@ export const SalesIntegrationsPage: React.FC = () => {
                           }))
                         }
                         disabled={editLoading}
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                        className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.configJson')}
                       </label>
                       <textarea
@@ -1093,14 +1092,14 @@ export const SalesIntegrationsPage: React.FC = () => {
                         disabled={editLoading}
                         spellCheck={false}
                         rows={12}
-                        className="w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 py-2 outline-none font-mono leading-relaxed disabled:opacity-50"
+                        className="base-input text-[11px] px-2 py-2 font-mono leading-relaxed disabled:opacity-50"
                       />
                     </div>
                   </>
                 ) : (
                   <>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.name')}
                       </label>
                       <input
@@ -1110,11 +1109,11 @@ export const SalesIntegrationsPage: React.FC = () => {
                           setEditForm((f) => ({ ...f, name: e.target.value }))
                         }
                         disabled={editLoading}
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                        className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.channel')}
                       </label>
                       <select
@@ -1126,7 +1125,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                           }))
                         }
                         disabled={editLoading}
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                        className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                       >
                         <option value="">
                           {t('crm.salesIntegrations.edit.channelAuto')}
@@ -1139,7 +1138,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] text-slate-400 mb-1">
+                      <label className="form-label mb-1">
                         {t('crm.salesIntegrations.edit.description')}
                       </label>
                       <input
@@ -1152,12 +1151,12 @@ export const SalesIntegrationsPage: React.FC = () => {
                           }))
                         }
                         disabled={editLoading}
-                        className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                        className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                       />
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1">
+                        <label className="form-label mb-1">
                           {t('crm.salesIntegrations.edit.url')}
                         </label>
                         <input
@@ -1167,11 +1166,11 @@ export const SalesIntegrationsPage: React.FC = () => {
                             setEditForm((f) => ({ ...f, url: e.target.value }))
                           }
                           disabled={editLoading}
-                          className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                          className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                         />
                       </div>
                       <div>
-                        <label className="block text-[11px] text-slate-400 mb-1">
+                        <label className="form-label mb-1">
                           {t('crm.salesIntegrations.edit.consumerKey')}
                         </label>
                         <input
@@ -1184,11 +1183,11 @@ export const SalesIntegrationsPage: React.FC = () => {
                             }))
                           }
                           disabled={editLoading}
-                          className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                          className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                         />
                       </div>
                       <div className="md:col-span-2">
-                        <label className="block text-[11px] text-slate-400 mb-1">
+                        <label className="form-label mb-1">
                           {t('crm.salesIntegrations.edit.consumerSecret')}
                         </label>
                         <input
@@ -1202,7 +1201,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                           }
                           placeholder="cs_..."
                           disabled={editLoading}
-                          className="w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none disabled:opacity-50"
+                          className="base-input h-8 text-[11px] px-2 disabled:opacity-50"
                         />
                       </div>
                     </div>
@@ -1214,7 +1213,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                     type="button"
                     onClick={closeEditPanel}
                     disabled={updating}
-                    className="px-3 py-1.5 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 bg-slate-950/80 hover:bg-slate-900/80 disabled:opacity-50"
+                    className="btn-secondary btn-secondary-sm disabled:opacity-50"
                   >
                     {t('crm.salesIntegrations.common.cancel')}
                   </button>
@@ -1222,7 +1221,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                     type="button"
                     onClick={handleUpdate}
                     disabled={updating || editLoading}
-                    className="px-4 py-1.5 rounded-xl bg-lumiva-accent text-slate-950 text-[11px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60"
+                    className="btn-primary btn-secondary-sm disabled:opacity-60"
                   >
                     {updating
                       ? t('crm.salesIntegrations.common.saving')
@@ -1235,24 +1234,24 @@ export const SalesIntegrationsPage: React.FC = () => {
         </section>
 
         {/* Таблица интеграций */}
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 min-w-0">
+        <section className="card p-4 md:p-5 min-w-0">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between mb-3">
             <div>
-              <h2 className="text-sm font-semibold text-slate-100">
+              <h2 className="text-sm font-semibold text-[#111827]">
                 {t('crm.salesIntegrations.list.title')}
               </h2>
-              <p className="text-[10px] text-slate-500 mt-1 max-w-2xl leading-relaxed">
+              <p className="text-[10px] text-text-tertiary mt-1 max-w-2xl leading-relaxed">
                 {t('crm.salesIntegrations.list.filteredNote')}
               </p>
             </div>
-            <span className="text-[11px] text-slate-500 shrink-0">
+            <span className="text-[11px] text-text-tertiary shrink-0">
               {t('crm.salesIntegrations.list.subtitle')}
             </span>
           </div>
 
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1 table-fixed">
-              <thead className="text-slate-500">
+              <thead className="text-text-tertiary">
                 <tr>
                   {orderedColumns.map((col) => {
                     const fallback =
@@ -1283,7 +1282,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                         style={{ width, minWidth: width }}
                       >
                         <div className="flex min-h-[28px] items-center gap-2">
-                          <span className="text-[10px] text-slate-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                          <span className="text-[10px] text-text-tertiary opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
                             ⋮⋮
                           </span>
                           <span>{col.label}</span>
@@ -1302,7 +1301,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                 {salesConnections.map((conn) => (
                   <tr
                     key={conn.id}
-                    className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors"
+                    className="bg-white hover:bg-surface-hover transition-colors"
                   >
                     {orderedColumns.map((col) => {
                       const fallback =
@@ -1325,7 +1324,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                       return (
                         <td
                           key={col.id}
-                          className="px-2 py-1.5 text-slate-300"
+                          className="px-2 py-1.5 text-[#111827]"
                           style={{ width, minWidth: width }}
                         >
                           {renderCell(conn, col.id)}
@@ -1339,7 +1338,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                   <tr>
                     <td
                       colSpan={orderedColumns.length}
-                      className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
+                      className="px-2 py-5 text-center text-[11px] text-text-tertiary italic"
                     >
                       {t('crm.salesIntegrations.list.empty')}
                     </td>
@@ -1350,7 +1349,7 @@ export const SalesIntegrationsPage: React.FC = () => {
           </div>
 
           {loading && (
-            <div className="mt-3 text-[11px] text-slate-400">
+            <div className="mt-3 text-[11px] text-text-tertiary">
               {t('crm.salesIntegrations.loading')}
             </div>
           )}
@@ -1358,7 +1357,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
         {error && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-red-950/95 border border-red-700/80 text-[11px] text-red-100">
+            <div className="px-3 py-1.5 rounded-full bg-status-error-bg border border-red-200 text-[11px] text-status-error">
               {error}
             </div>
           </div>
@@ -1375,25 +1374,25 @@ export const SalesIntegrationsPage: React.FC = () => {
             }}
           >
             <div
-              className={`w-full max-w-lg rounded-2xl border bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden ${
+              className={`modal-panel overflow-hidden max-w-lg w-full ${
                 integrationModal.variant === 'error'
-                  ? 'border-rose-500/50 ring-1 ring-rose-500/20'
+                  ? 'ring-1 ring-status-error/20'
                   : integrationModal.variant === 'success'
-                    ? 'border-emerald-500/40 ring-1 ring-emerald-500/15'
-                    : 'border-sky-500/35 ring-1 ring-sky-500/15'
+                    ? 'ring-1 ring-status-success/20'
+                    : ''
               }`}
             >
-              <div className="flex items-start justify-between gap-3 border-b border-slate-800/90 px-5 py-4">
+              <div className="flex items-start justify-between gap-3 border-b border-border-default px-5 py-4">
                 <h2
                   id="sales-integration-modal-title"
-                  className="text-base font-semibold text-slate-50 leading-snug pr-2"
+                  className="text-base font-semibold text-[#111827] leading-snug pr-2"
                 >
                   {integrationModal.title}
                 </h2>
                 <button
                   type="button"
                   onClick={closeIntegrationModal}
-                  className="shrink-0 rounded-lg px-2 py-1 text-lg leading-none text-slate-400 hover:bg-slate-800 hover:text-slate-100"
+                  className="shrink-0 rounded-lg px-2 py-1 text-lg leading-none text-text-tertiary hover:bg-surface-hover hover:text-[#111827]"
                   aria-label={t('crm.salesIntegrations.modal.close')}
                 >
                   ×
@@ -1402,31 +1401,31 @@ export const SalesIntegrationsPage: React.FC = () => {
               <div className="max-h-[min(70vh,520px)] overflow-y-auto px-5 py-4 space-y-4">
                 {integrationModal.syncStats && (
                   <div className="space-y-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                       {t('crm.salesIntegrations.modal.salesStatsHint')}
                     </p>
                     <div className="grid grid-cols-3 gap-2">
-                      <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
-                        <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                      <div className="rounded-xl bg-surface-subtle border border-border-default px-2 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-text-tertiary">
                           {t('crm.salesIntegrations.modal.statCreated')}
                         </div>
-                        <div className="text-lg font-semibold tabular-nums text-slate-100">
+                        <div className="text-lg font-semibold tabular-nums text-[#111827]">
                           {integrationModal.syncStats.created}
                         </div>
                       </div>
-                      <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
-                        <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                      <div className="rounded-xl bg-surface-subtle border border-border-default px-2 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-text-tertiary">
                           {t('crm.salesIntegrations.modal.statUpdated')}
                         </div>
-                        <div className="text-lg font-semibold tabular-nums text-slate-100">
+                        <div className="text-lg font-semibold tabular-nums text-[#111827]">
                           {integrationModal.syncStats.updated}
                         </div>
                       </div>
-                      <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
-                        <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                      <div className="rounded-xl bg-surface-subtle border border-border-default px-2 py-2 text-center">
+                        <div className="text-[10px] uppercase tracking-wide text-text-tertiary">
                           {t('crm.salesIntegrations.modal.statSkipped')}
                         </div>
-                        <div className="text-lg font-semibold tabular-nums text-slate-100">
+                        <div className="text-lg font-semibold tabular-nums text-[#111827]">
                           {integrationModal.syncStats.skipped}
                         </div>
                       </div>
@@ -1435,31 +1434,31 @@ export const SalesIntegrationsPage: React.FC = () => {
                       integrationModal.syncStats.workspaceUpdated !== undefined ||
                       integrationModal.syncStats.workspaceSkipped !== undefined) && (
                       <>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 pt-1">
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-tertiary pt-1">
                           {t('crm.salesIntegrations.modal.workspaceStatsHint')}
                         </p>
                         <div className="grid grid-cols-3 gap-2">
-                          <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
-                            <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                          <div className="rounded-xl bg-surface-subtle border border-border-default px-2 py-2 text-center">
+                            <div className="text-[10px] uppercase tracking-wide text-text-tertiary">
                               {t('crm.salesIntegrations.modal.statWsCreated')}
                             </div>
-                            <div className="text-lg font-semibold tabular-nums text-slate-100">
+                            <div className="text-lg font-semibold tabular-nums text-[#111827]">
                               {integrationModal.syncStats.workspaceCreated ?? '—'}
                             </div>
                           </div>
-                          <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
-                            <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                          <div className="rounded-xl bg-surface-subtle border border-border-default px-2 py-2 text-center">
+                            <div className="text-[10px] uppercase tracking-wide text-text-tertiary">
                               {t('crm.salesIntegrations.modal.statWsUpdated')}
                             </div>
-                            <div className="text-lg font-semibold tabular-nums text-slate-100">
+                            <div className="text-lg font-semibold tabular-nums text-[#111827]">
                               {integrationModal.syncStats.workspaceUpdated ?? '—'}
                             </div>
                           </div>
-                          <div className="rounded-xl bg-slate-950/90 border border-slate-800 px-2 py-2 text-center">
-                            <div className="text-[10px] uppercase tracking-wide text-slate-500">
+                          <div className="rounded-xl bg-surface-subtle border border-border-default px-2 py-2 text-center">
+                            <div className="text-[10px] uppercase tracking-wide text-text-tertiary">
                               {t('crm.salesIntegrations.modal.statWsSkipped')}
                             </div>
-                            <div className="text-lg font-semibold tabular-nums text-slate-100">
+                            <div className="text-lg font-semibold tabular-nums text-[#111827]">
                               {integrationModal.syncStats.workspaceSkipped ?? '—'}
                             </div>
                           </div>
@@ -1473,17 +1472,17 @@ export const SalesIntegrationsPage: React.FC = () => {
                     <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-600 mb-1.5">
                       {t('crm.salesIntegrations.modal.detailLabel')}
                     </div>
-                    <p className="text-[13px] text-slate-900 leading-relaxed whitespace-pre-wrap break-words">
+                    <p className="text-[13px] text-[#111827] leading-relaxed whitespace-pre-wrap break-words">
                       {integrationModal.message}
                     </p>
                   </div>
                 )}
               </div>
-              <div className="border-t border-slate-800/90 px-5 py-3 flex justify-end bg-slate-950/40">
+              <div className="border-t border-border-default px-5 py-3 flex justify-end bg-surface-subtle">
                 <button
                   type="button"
                   onClick={closeIntegrationModal}
-                  className="inline-flex items-center justify-center rounded-xl px-5 py-2 text-[12px] font-semibold bg-lumiva-accent text-slate-950 hover:bg-lumiva-accent-soft transition-colors"
+                  className="btn-primary"
                 >
                   {t('crm.salesIntegrations.modal.close')}
                 </button>

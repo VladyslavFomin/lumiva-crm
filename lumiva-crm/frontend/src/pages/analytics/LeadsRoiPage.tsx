@@ -100,17 +100,17 @@ export const LeadsRoiPage: React.FC = () => {
     const row = payload[0].payload as LeadRoiRow & { revenueFormatted?: string };
 
     return (
-      <div className="rounded-2xl border border-slate-700/80 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-100 shadow-xl">
+      <div className="rounded-2xl border border-border-default bg-white px-3 py-2 text-[11px] text-[#111827] shadow-card">
         <div className="font-medium">
           {row.leadName || t('crm.leads.roi.table.unnamed')} ({label})
         </div>
-        <div className="mt-1 text-slate-300">
+        <div className="mt-1 text-text-secondary">
           {t('crm.leads.roi.tooltip.revenue')}{' '}
           <span className="font-mono">
             {row.revenueFormatted ?? row.totalRevenue} {row.currency}
           </span>
         </div>
-        <div className="mt-0.5 text-slate-500">
+        <div className="mt-0.5 text-text-tertiary">
           {t('crm.leads.roi.tooltip.deals', { count: row.dealsCount })}{' '}
           {row.firstDealAt && row.lastDealAt && (
             <>

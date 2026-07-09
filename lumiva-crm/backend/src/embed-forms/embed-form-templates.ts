@@ -7,6 +7,11 @@ export const EMBED_TEMPLATE_KEYS = [
   'quote',
   'support',
   'brief',
+  'quiz',
+  'booking',
+  'reservation',
+  'service_request',
+  'audit',
 ] as const;
 
 export type EmbedTemplateKey = (typeof EMBED_TEMPLATE_KEYS)[number];
@@ -18,8 +23,24 @@ export type EmbedFieldType =
   | 'tel'
   | 'number'
   | 'date'
+  | 'time'
+  | 'datetime'
   | 'textarea'
   | 'select'
+  | 'radio'
+  | 'checkbox'
+  | 'multi_checkbox'
+  | 'hidden'
+  | 'utm'
+  | 'page_url'
+  | 'rating'
+  | 'range'
+  | 'html'
+  | 'divider'
+  | 'service'
+  | 'specialist'
+  | 'guests'
+  | 'promo_code'
   | 'file'
   | 'checkbox_consent'
   | 'messaging';
@@ -31,14 +52,35 @@ export interface EmbedFieldConfigItem {
   key: string;
   label: string;
   placeholder?: string;
+  helpText?: string;
   required: boolean;
+  stepId?: string;
+  defaultValue?: string | number | boolean | string[];
   maxLength?: number;
-  options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  options?: {
+    value: string;
+    label: string;
+    description?: string;
+    price?: string | number;
+    duration?: string;
+    imageUrl?: string;
+  }[];
   /** 2 = вся ширина, 1 = половина (два поля в ряд) */
   colSpan?: 1 | 2;
   /** Сообщение валидации (RU) — фронт может подменить i18n */
   validationHint?: string;
 }
+
+type EmbedFormFieldConfig = {
+  fields: EmbedFieldConfigItem[];
+  steps?: { id: string; title: string; description?: string }[];
+  settings?: Record<string, unknown>;
+  display?: Record<string, unknown>;
+  logic?: Array<Record<string, unknown>>;
+  booking?: Record<string, unknown>;
+};
 
 export const DEFAULT_DESIGN: Record<string, unknown> = {
   fontFamily:
@@ -70,7 +112,7 @@ export const DEFAULT_DESIGN: Record<string, unknown> = {
 
 const mkId = (n: string) => `f_${n}_${randomBytes(3).toString('hex')}`;
 
-const templates: Record<EmbedTemplateKey, { fieldConfig: { fields: EmbedFieldConfigItem[] } }> = {
+const templates: Record<EmbedTemplateKey, { fieldConfig: EmbedFormFieldConfig }> = {
   contact: {
     fieldConfig: {
       fields: [
@@ -383,6 +425,146 @@ const templates: Record<EmbedTemplateKey, { fieldConfig: { fields: EmbedFieldCon
       ],
     },
   },
+  quiz: {
+    fieldConfig: {
+      steps: [
+        { id: 'goal', title: 'Цель' },
+        { id: 'details', title: 'Детали' },
+        { id: 'contacts', title: 'Контакты' },
+      ],
+      settings: { showProgress: true, nextText: 'Далее', backText: 'Назад', submitText: 'Получить предложение' },
+      fields: [
+        { id: mkId('goal_title'), type: 'html', key: 'goal_title', label: 'Подберём решение за 1 минуту', required: false, stepId: 'goal', colSpan: 2 },
+        {
+          id: mkId('goal'),
+          type: 'radio',
+          key: 'request_goal',
+          label: 'Что нужно сделать?',
+          required: true,
+          stepId: 'goal',
+          colSpan: 2,
+          options: [
+            { value: 'site', label: 'Сайт / лендинг' },
+            { value: 'ads', label: 'Реклама / лиды' },
+            { value: 'crm', label: 'CRM / автоматизация' },
+            { value: 'consulting', label: 'Консультация' },
+          ],
+        },
+        {
+          id: mkId('budget'),
+          type: 'select',
+          key: 'budget',
+          label: 'Ориентировочный бюджет',
+          required: false,
+          stepId: 'details',
+          options: [
+            { value: 'under_1000', label: 'До 1 000' },
+            { value: '1000_5000', label: '1 000 - 5 000' },
+            { value: '5000_plus', label: '5 000+' },
+            { value: 'unknown', label: 'Пока не знаю' },
+          ],
+        },
+        { id: mkId('deadline'), type: 'select', key: 'deadline', label: 'Когда нужно запустить?', required: false, stepId: 'details', options: [
+          { value: 'asap', label: 'Как можно скорее' },
+          { value: 'month', label: 'В течение месяца' },
+          { value: 'later', label: 'Позже' },
+        ] },
+        { id: mkId('name'), type: 'text', key: 'name', label: 'Имя', required: true, stepId: 'contacts', colSpan: 1 },
+        { id: mkId('phone'), type: 'tel', key: 'phone', label: 'Телефон / мессенджер', required: true, stepId: 'contacts', colSpan: 1 },
+        { id: mkId('email'), type: 'email', key: 'email', label: 'E-mail', required: false, stepId: 'contacts' },
+        { id: mkId('consent'), type: 'checkbox_consent', key: 'consent', label: 'Согласие на обработку персональных данных', required: true, stepId: 'contacts' },
+      ],
+    },
+  },
+  booking: {
+    fieldConfig: {
+      steps: [
+        { id: 'service', title: 'Услуга' },
+        { id: 'time', title: 'Дата и время' },
+        { id: 'contacts', title: 'Контакты' },
+      ],
+      settings: { showProgress: true, nextText: 'Далее', backText: 'Назад', submitText: 'Записаться' },
+      fields: [
+        { id: mkId('service'), type: 'service', key: 'service', label: 'Услуга', required: true, stepId: 'service', options: [
+          { value: 'consultation', label: 'Консультация' },
+          { value: 'demo', label: 'Демонстрация' },
+          { value: 'audit', label: 'Аудит' },
+        ] },
+        { id: mkId('specialist'), type: 'specialist', key: 'specialist', label: 'Специалист', required: false, stepId: 'service', options: [
+          { value: 'any', label: 'Любой свободный' },
+          { value: 'manager', label: 'Менеджер' },
+          { value: 'expert', label: 'Эксперт' },
+        ] },
+        { id: mkId('date'), type: 'date', key: 'booking_date', label: 'Дата', required: true, stepId: 'time', colSpan: 1 },
+        { id: mkId('time'), type: 'time', key: 'booking_time', label: 'Время', required: true, stepId: 'time', colSpan: 1 },
+        { id: mkId('name'), type: 'text', key: 'name', label: 'Имя', required: true, stepId: 'contacts', colSpan: 1 },
+        { id: mkId('phone'), type: 'tel', key: 'phone', label: 'Телефон', required: true, stepId: 'contacts', colSpan: 1 },
+        { id: mkId('comment'), type: 'textarea', key: 'comment', label: 'Комментарий', required: false, stepId: 'contacts' },
+        { id: mkId('consent'), type: 'checkbox_consent', key: 'consent', label: 'Согласие на обработку персональных данных', required: true, stepId: 'contacts' },
+      ],
+    },
+  },
+  reservation: {
+    fieldConfig: {
+      steps: [
+        { id: 'dates', title: 'Даты' },
+        { id: 'options', title: 'Параметры' },
+        { id: 'contacts', title: 'Контакты' },
+      ],
+      settings: { showProgress: true, nextText: 'Далее', backText: 'Назад', submitText: 'Забронировать' },
+      fields: [
+        { id: mkId('start'), type: 'date', key: 'date_from', label: 'Дата начала / заезда', required: true, stepId: 'dates', colSpan: 1 },
+        { id: mkId('end'), type: 'date', key: 'date_to', label: 'Дата окончания / выезда', required: false, stepId: 'dates', colSpan: 1 },
+        { id: mkId('guests'), type: 'guests', key: 'guests', label: 'Количество гостей', required: true, stepId: 'options', min: 1, max: 50, defaultValue: 1, colSpan: 1 },
+        { id: mkId('extras'), type: 'multi_checkbox', key: 'extras', label: 'Дополнительные услуги', required: false, stepId: 'options', options: [
+          { value: 'transfer', label: 'Трансфер' },
+          { value: 'breakfast', label: 'Завтрак' },
+          { value: 'vip', label: 'VIP сопровождение' },
+        ] },
+        { id: mkId('promo'), type: 'promo_code', key: 'promo_code', label: 'Промокод', required: false, stepId: 'options' },
+        { id: mkId('name'), type: 'text', key: 'name', label: 'Имя', required: true, stepId: 'contacts', colSpan: 1 },
+        { id: mkId('phone'), type: 'tel', key: 'phone', label: 'Телефон', required: true, stepId: 'contacts', colSpan: 1 },
+        { id: mkId('email'), type: 'email', key: 'email', label: 'E-mail', required: false, stepId: 'contacts' },
+        { id: mkId('consent'), type: 'checkbox_consent', key: 'consent', label: 'Согласие на обработку персональных данных', required: true, stepId: 'contacts' },
+      ],
+    },
+  },
+  service_request: {
+    fieldConfig: {
+      fields: [
+        { id: mkId('service'), type: 'service', key: 'service', label: 'Интересующая услуга', required: true, options: [
+          { value: 'seo', label: 'SEO' },
+          { value: 'ads', label: 'Реклама' },
+          { value: 'crm', label: 'CRM' },
+          { value: 'development', label: 'Разработка' },
+        ] },
+        { id: mkId('website'), type: 'url', key: 'website_url', label: 'Сайт', required: false },
+        { id: mkId('message'), type: 'textarea', key: 'message', label: 'Что нужно сделать?', required: true, maxLength: 8000 },
+        { id: mkId('name'), type: 'text', key: 'name', label: 'Имя', required: true, colSpan: 1 },
+        { id: mkId('phone'), type: 'tel', key: 'phone', label: 'Телефон', required: true, colSpan: 1 },
+        { id: mkId('utm'), type: 'utm', key: 'utm_source', label: 'UTM source', required: false },
+        { id: mkId('page'), type: 'page_url', key: 'page_url', label: 'Страница заявки', required: false },
+        { id: mkId('consent'), type: 'checkbox_consent', key: 'consent', label: 'Согласие на обработку персональных данных', required: true },
+      ],
+    },
+  },
+  audit: {
+    fieldConfig: {
+      fields: [
+        { id: mkId('website'), type: 'url', key: 'website_url', label: 'Адрес сайта', required: true },
+        { id: mkId('channels'), type: 'multi_checkbox', key: 'channels', label: 'Что проверить?', required: true, options: [
+          { value: 'seo', label: 'SEO' },
+          { value: 'ads', label: 'Рекламу' },
+          { value: 'analytics', label: 'Аналитику' },
+          { value: 'ux', label: 'UX / конверсию' },
+        ] },
+        { id: mkId('budget'), type: 'range', key: 'monthly_budget', label: 'Примерный месячный бюджет', required: false, min: 0, max: 50000, defaultValue: 5000 },
+        { id: mkId('name'), type: 'text', key: 'name', label: 'Имя', required: true, colSpan: 1 },
+        { id: mkId('email'), type: 'email', key: 'email', label: 'E-mail', required: true, colSpan: 1 },
+        { id: mkId('consent'), type: 'checkbox_consent', key: 'consent', label: 'Согласие на обработку персональных данных', required: true },
+      ],
+    },
+  },
 };
 
 export function isTemplateKey(s: string): s is EmbedTemplateKey {
@@ -391,11 +573,9 @@ export function isTemplateKey(s: string): s is EmbedTemplateKey {
 
 export function getTemplateFieldConfig(
   key: EmbedTemplateKey,
-): { fields: EmbedFieldConfigItem[] } {
+): EmbedFormFieldConfig {
   // Генерация id при создании с новыми id — клонируем шаблон
-  return JSON.parse(JSON.stringify(templates[key].fieldConfig)) as {
-    fields: EmbedFieldConfigItem[];
-  };
+  return JSON.parse(JSON.stringify(templates[key].fieldConfig)) as EmbedFormFieldConfig;
 }
 
 export function getDefaultDesignClone(): Record<string, unknown> {

@@ -66,6 +66,9 @@ export enum TriggerEvent {
   CUSTOM_OBJECT_RECORD_CREATED = 'custom_object.record_created',
   CUSTOM_OBJECT_RECORD_UPDATED = 'custom_object.record_updated',
   CUSTOM_OBJECT_STATUS_CHANGED = 'custom_object.status_changed',
+
+  // Shopify
+  SHOPIFY_PAYMENT_RECEIVED = 'shopify.payment_received',
 }
 
 export enum ActionType {

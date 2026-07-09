@@ -375,9 +375,9 @@ export const SaleDetailsPage: React.FC = () => {
   const renderCustomFieldInput = (field: CustomField) => {
     const value = getCustomFieldValue(field);
     const commonClass =
-      'w-full h-8 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 outline-none';
+      'base-input h-8 text-[11px] px-2';
     const label = (
-      <div className="text-[11px] text-slate-400 mb-1">
+      <div className="form-label mb-1">
         {field.label}
         {field.required && <span className="text-rose-400 ml-1">*</span>}
       </div>
@@ -387,7 +387,7 @@ export const SaleDetailsPage: React.FC = () => {
       return (
         <label
           key={field.id}
-          className="flex items-center gap-2 text-[11px] text-slate-300"
+          className="flex items-center gap-2 text-[11px] text-[#111827]"
         >
           <input
             type="checkbox"
@@ -407,7 +407,7 @@ export const SaleDetailsPage: React.FC = () => {
             value={value ?? ''}
             onChange={(e) => setCustomFieldValue(field, e.target.value)}
             placeholder={field.placeholder || ''}
-            className="w-full rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-2 py-2 outline-none resize-y"
+            className="base-input text-[11px] px-2 py-2 resize-y"
             rows={3}
           />
         </div>
@@ -652,24 +652,24 @@ export const SaleDetailsPage: React.FC = () => {
         {/* Заголовок */}
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
+            <div className="text-[11px] uppercase tracking-[0.25em] text-text-tertiary mb-1">
               {t('crm.sales.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            <h1 className="page-title">
               {t('crm.sales.details.titleWithOrder', {
                 orderNo: saleOrderDisplayNumber(sale as Record<string, unknown>),
               })}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            <p className="text-xs text-text-tertiary mt-1 max-w-2xl">
               {t('crm.sales.details.subtitle')}
             </p>
           </div>
 
-          <div className="flex flex-col items-end gap-2 text-[11px] text-slate-300">
+          <div className="flex flex-col items-end gap-2">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-1 px-3 py-1 rounded-xl border border-slate-700/80 text-[11px] text-slate-200 bg-slate-950/80 hover:bg-slate-900/80"
+              className="btn-secondary btn-secondary-sm"
             >
               {`← ${t('crm.sales.details.back')}`}
             </button>
@@ -677,7 +677,7 @@ export const SaleDetailsPage: React.FC = () => {
         </section>
 
         {loading && (
-          <div className="text-[11px] text-slate-400">{t('crm.sales.details.loading')}</div>
+          <div className="text-[11px] text-text-tertiary">{t('crm.sales.details.loading')}</div>
         )}
 
         {error && (
@@ -687,23 +687,23 @@ export const SaleDetailsPage: React.FC = () => {
         {data && !loading && !error && (
           <>
             {/* Шапка: три колонки с разделителями */}
-            <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-6 text-xs">
-              <div className="mb-4 border-b border-slate-800/80 pb-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+            <section className="card p-4 md:p-6 text-xs">
+              <div className="mb-4 border-b border-border-default pb-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
                   {t('crm.sales.details.structure.heroKicker')}
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-slate-800/90 gap-y-8 md:gap-y-0">
+              <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-border-default gap-y-8 md:gap-y-0">
                 {/* Заказ */}
                 <div className="space-y-2 md:pr-6">
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[11px] text-text-secondary">
                     {t('crm.sales.details.sections.order')}
                   </div>
-                  <div className="text-slate-100 text-xl font-semibold tabular-nums tracking-tight">
+                  <div className="text-[#111827] text-xl font-semibold tabular-nums tracking-tight">
                     {saleOrderDisplayNumber(sale as Record<string, unknown>)}
                   </div>
                   <div className="pt-1 space-y-1.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
                       {t('crm.sales.details.subsections.status')}
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-sm">
@@ -716,51 +716,51 @@ export const SaleDetailsPage: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <div className="text-[10px] text-slate-500 font-mono break-all pt-2 border-t border-slate-800/60">
+                  <div className="text-[10px] text-text-tertiary font-mono break-all pt-2 border-t border-border-default">
                     {t('crm.sales.details.fields.internalRecordId')}
-                    <span className="text-slate-400"> · </span>
+                    <span className="text-text-secondary"> · </span>
                     <span className="break-all">{sale.id || data.id}</span>
                   </div>
                   <dl className="space-y-1.5 pt-2">
                     <div className="flex justify-between gap-4">
-                      <dt className="text-slate-500 shrink-0">{t('crm.sales.details.fields.purchaseDate')}</dt>
-                      <dd className="text-slate-100 text-right">{purchaseDate}</dd>
+                      <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.purchaseDate')}</dt>
+                      <dd className="text-[#111827] text-right">{purchaseDate}</dd>
                     </div>
                     <div className="flex justify-between gap-4">
-                      <dt className="text-slate-500 shrink-0">{t('crm.sales.details.fields.updatedAt')}</dt>
-                      <dd className="text-slate-100 text-right">{updatedAt}</dd>
+                      <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.updatedAt')}</dt>
+                      <dd className="text-[#111827] text-right">{updatedAt}</dd>
                     </div>
                   </dl>
                 </div>
 
                 {/* Финансы и канал */}
                 <div className="space-y-2 md:px-6">
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[11px] text-text-secondary">
                     {t('crm.sales.details.sections.amountAndChannel')}
                   </div>
-                  <div className="text-slate-100 text-lg font-semibold tabular-nums">
+                  <div className="text-[#111827] text-lg font-semibold tabular-nums">
                     {amount != null
                       ? `${amount.toLocaleString(locale, {
                           maximumFractionDigits: 2,
                         })} ${currency}`
                       : t('crm.sales.common.empty')}
                   </div>
-                  <dl className="space-y-1.5 pt-2 border-t border-slate-800/60">
+                  <dl className="space-y-1.5 pt-2 border-t border-border-default">
                     <div className="flex justify-between gap-4">
-                      <dt className="text-slate-500 shrink-0">{t('crm.sales.details.fields.channel')}</dt>
-                      <dd className="text-slate-100 text-right min-w-0">{channelLabel}</dd>
+                      <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.channel')}</dt>
+                      <dd className="text-[#111827] text-right min-w-0">{channelLabel}</dd>
                     </div>
                     {data?.channel?.name
                       ? null
                       : rawChannelId && UUID_LIKE.test(rawChannelId) ? (
-                          <div className="text-[10px] font-mono text-slate-500 break-all pt-1">
+                          <div className="text-[10px] font-mono text-text-tertiary break-all pt-1">
                             {t('crm.sales.details.fields.channelIdInternal')}: {rawChannelId}
                           </div>
                         ) : null}
                     {data.integration && (
                       <div className="flex justify-between gap-4">
-                        <dt className="text-slate-500 shrink-0">{t('crm.sales.details.fields.integration')}</dt>
-                        <dd className="text-slate-100 text-right min-w-0">
+                        <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.integration')}</dt>
+                        <dd className="text-[#111827] text-right min-w-0">
                           {data.integration.name} · {data.integration.kind}
                         </dd>
                       </div>
@@ -782,16 +782,16 @@ export const SaleDetailsPage: React.FC = () => {
 
                 {/* Клиент */}
                 <div className="space-y-2 md:pl-6">
-                  <div className="text-[11px] text-slate-400">
+                  <div className="text-[11px] text-text-secondary">
                     {t('crm.sales.details.sections.client')}
                   </div>
-                  <div className="text-slate-100 text-base font-medium leading-snug">
+                  <div className="text-[#111827] text-base font-medium leading-snug">
                     {clientName || t('crm.sales.common.empty')}
                   </div>
                   {country && (
-                    <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
-                      <span className="text-slate-500">{t('crm.sales.details.fields.country')}: </span>
-                      <span className="text-slate-100">{country}</span>
+                    <div className="text-[11px] text-text-secondary pt-2 border-t border-border-default">
+                      <span className="text-text-tertiary">{t('crm.sales.details.fields.country')}: </span>
+                      <span className="text-[#111827]">{country}</span>
                     </div>
                   )}
                 </div>
@@ -803,15 +803,15 @@ export const SaleDetailsPage: React.FC = () => {
               productName ||
               wpOrderNoForDisplay !== '—' ||
               productUrl) && (
-              <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-6 text-xs">
-                <header className="border-b border-slate-800/80 pb-4 mb-6">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 mb-1">
+              <section className="card p-4 md:p-6 text-xs">
+                <header className="border-b border-border-default pb-4 mb-6">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary mb-1">
                     {t('crm.sales.details.structure.orderContentsKicker')}
                   </div>
-                  <h2 className="text-base font-semibold text-slate-100 tracking-tight">
+                  <h2 className="text-base font-semibold text-[#111827] tracking-tight">
                     {t('crm.sales.details.sections.orderContents')}
                   </h2>
-                  <p className="text-[11px] text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                  <p className="text-[11px] text-text-tertiary mt-1 max-w-2xl leading-relaxed">
                     {t('crm.sales.details.orderContentsHint')}
                   </p>
                 </header>
@@ -821,13 +821,13 @@ export const SaleDetailsPage: React.FC = () => {
                     wpOrderNoForDisplay !== '—' ||
                     productUrl) && (
                     <div className="space-y-3">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                         {t('crm.sales.details.orderContentsFromCrm')}
                       </h3>
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div>
-                            <div className="text-[11px] text-slate-500 mb-1">
+                            <div className="text-[11px] text-text-tertiary mb-1">
                               {t('crm.sales.details.fields.productName')}
                             </div>
                             <div className="text-slate-900 text-[13px] font-medium leading-snug">
@@ -835,7 +835,7 @@ export const SaleDetailsPage: React.FC = () => {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[11px] text-slate-500 mb-1">
+                            <div className="text-[11px] text-text-tertiary mb-1">
                               {t('crm.sales.details.fields.externalOrderNo')}
                             </div>
                             <div className="text-slate-900 font-mono text-[11px] tabular-nums">
@@ -845,7 +845,7 @@ export const SaleDetailsPage: React.FC = () => {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[11px] text-slate-500 mb-1">
+                            <div className="text-[11px] text-text-tertiary mb-1">
                               {t('crm.sales.details.fields.productLink')}
                             </div>
                             {productUrl ? (
@@ -858,7 +858,7 @@ export const SaleDetailsPage: React.FC = () => {
                                 {productUrl}
                               </a>
                             ) : (
-                              <span className="text-slate-400">
+                              <span className="text-text-secondary">
                                 {t('crm.sales.common.empty')}
                               </span>
                             )}
@@ -872,12 +872,12 @@ export const SaleDetailsPage: React.FC = () => {
                   (productName ||
                     wpOrderNoForDisplay !== '—' ||
                     productUrl) ? (
-                    <div className="h-px bg-slate-800/70" aria-hidden />
+                    <div className="h-px bg-border-default" aria-hidden />
                   ) : null}
 
                   {wooOrderSummary && (
                     <div className="space-y-3">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                         {t('crm.sales.details.orderContentsFromStore')}
                       </h3>
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-4">
@@ -887,7 +887,7 @@ export const SaleDetailsPage: React.FC = () => {
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
-                            <div className="text-[11px] text-slate-500 mb-1">
+                            <div className="text-[11px] text-text-tertiary mb-1">
                               {t('crm.sales.details.wooOrder.currency')}
                             </div>
                             <div className="text-slate-900 font-semibold tabular-nums">
@@ -895,7 +895,7 @@ export const SaleDetailsPage: React.FC = () => {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[11px] text-slate-500 mb-1">
+                            <div className="text-[11px] text-text-tertiary mb-1">
                               {t('crm.sales.details.wooOrder.totalTax')}
                             </div>
                             <div className="text-slate-900 tabular-nums">
@@ -903,7 +903,7 @@ export const SaleDetailsPage: React.FC = () => {
                             </div>
                           </div>
                           <div>
-                            <div className="text-[11px] text-slate-500 mb-1">
+                            <div className="text-[11px] text-text-tertiary mb-1">
                               {t('crm.sales.details.wooOrder.orderTotal')}
                             </div>
                             <div className="text-slate-900 font-semibold tabular-nums">
@@ -965,18 +965,18 @@ export const SaleDetailsPage: React.FC = () => {
             )}
 
             {/* Управление заказом: по подпунктам, светлые панели как у ответственных */}
-            <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-6 text-xs">
-              <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between border-b border-slate-800/80 pb-4 mb-6">
+            <section className="card p-4 md:p-6 text-xs">
+              <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between border-b border-border-default pb-4 mb-6">
                 <div className="min-w-0 space-y-1">
-                  <h2 className="text-base font-semibold text-slate-100 tracking-tight">
+                  <h2 className="text-base font-semibold text-[#111827] tracking-tight">
                     {t('crm.sales.details.sections.management')}
                   </h2>
-                  <p className="text-[11px] text-slate-500 max-w-xl leading-relaxed">
+                  <p className="text-[11px] text-text-tertiary max-w-xl leading-relaxed">
                     {t('crm.sales.details.managementIntro')}
                   </p>
                 </div>
                 {saving && (
-                  <span className="text-[11px] text-slate-400 shrink-0 tabular-nums">
+                  <span className="text-[11px] text-text-secondary shrink-0 tabular-nums">
                     {t('crm.sales.details.actions.saving')}
                   </span>
                 )}
@@ -986,14 +986,14 @@ export const SaleDetailsPage: React.FC = () => {
                 {/* Команда и лид — две колонки на xl */}
                 <div className="grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-8 xl:items-start">
                   <div className="space-y-3 xl:col-span-7 min-w-0">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                       {t('crm.sales.details.subsections.team')}
                     </h3>
-                    <label className="block text-[11px] font-medium text-slate-400 sr-only">
+                    <label className="block text-[11px] font-medium text-text-secondary sr-only">
                       {t('crm.sales.details.fields.manager')}
                     </label>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
-                      <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-slate-500">
+                      <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
                         {t('crm.projects.detail.owner.byDepartment')}
                       </div>
                       <div className="mb-2 text-[11px] text-slate-600">
@@ -1053,7 +1053,7 @@ export const SaleDetailsPage: React.FC = () => {
                                         {u.fullName || u.email}
                                       </span>
                                       {u.email ? (
-                                        <span className="text-slate-500">
+                                        <span className="text-text-tertiary">
                                           {' · '}
                                           {u.email}
                                         </span>
@@ -1070,7 +1070,7 @@ export const SaleDetailsPage: React.FC = () => {
                   </div>
 
                   <div className="space-y-3 xl:col-span-5 min-w-0">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                       {t('crm.sales.details.subsections.lead')}
                     </h3>
                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-3">
@@ -1084,10 +1084,10 @@ export const SaleDetailsPage: React.FC = () => {
                             value={leadQuery}
                             onChange={(e) => setLeadQuery(e.target.value)}
                             placeholder={t('crm.sales.details.placeholders.searchLead')}
-                            className="w-full min-h-[36px] border-0 bg-transparent px-3 py-2 text-[11px] text-slate-800 outline-none placeholder:text-slate-400 pr-9"
+                            className="w-full min-h-[36px] border-0 bg-transparent px-3 py-2 text-[11px] text-slate-800 outline-none placeholder:text-text-secondary pr-9"
                           />
                           {leadSearching && (
-                            <span className="pointer-events-none absolute right-3 text-[11px] text-slate-400">
+                            <span className="pointer-events-none absolute right-3 text-[11px] text-text-secondary">
                               …
                             </span>
                           )}
@@ -1108,7 +1108,7 @@ export const SaleDetailsPage: React.FC = () => {
                                     {lead.name ||
                                       t('crm.sales.details.fallbacks.noName')}
                                   </span>
-                                  <span className="block w-full truncate text-[10px] text-slate-500">
+                                  <span className="block w-full truncate text-[10px] text-text-tertiary">
                                     {lead.phone ||
                                       lead.email ||
                                       t('crm.sales.details.fallbacks.noContacts')}
@@ -1118,7 +1118,7 @@ export const SaleDetailsPage: React.FC = () => {
                             </div>
                           ) : (
                             !leadSearching && (
-                              <div className="border-t border-slate-200 px-3 py-2.5 text-[11px] text-slate-500">
+                              <div className="border-t border-slate-200 px-3 py-2.5 text-[11px] text-text-tertiary">
                                 {t('crm.sales.details.fallbacks.noResults')}
                               </div>
                             )
@@ -1137,7 +1137,7 @@ export const SaleDetailsPage: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleOpenLead}
-                            className="inline-flex px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-slate-900 hover:text-white hover:border-slate-900"
+                            className="inline-flex px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-surface-hover"
                           >
                             {t('crm.sales.details.actions.open')}
                           </button>
@@ -1159,7 +1159,7 @@ export const SaleDetailsPage: React.FC = () => {
                           type="button"
                           disabled={!!formLeadId || creatingLead}
                           onClick={handleCreateLeadFromSale}
-                          className="inline-flex px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-slate-900 hover:text-white hover:border-slate-900 disabled:opacity-50"
+                          className="inline-flex px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-surface-hover disabled:opacity-50"
                         >
                           {creatingLead
                             ? t('crm.sales.details.actions.creatingLead')
@@ -1178,7 +1178,7 @@ export const SaleDetailsPage: React.FC = () => {
                 {/* Кастомные поля */}
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                       {t('crm.sales.details.subsections.customFields')}
                     </h3>
                     <button
@@ -1219,7 +1219,7 @@ export const SaleDetailsPage: React.FC = () => {
 
                 {/* Заметки */}
                 <div className="space-y-3">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
                     {t('crm.sales.details.subsections.notes')}
                   </h3>
                   <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
@@ -1231,7 +1231,7 @@ export const SaleDetailsPage: React.FC = () => {
                       value={formNotes}
                       onChange={(e) => setFormNotes(e.target.value)}
                       placeholder={t('crm.sales.details.placeholders.notes')}
-                      className="w-full rounded-xl bg-white border border-slate-200 text-[11px] text-slate-900 px-3 py-2 outline-none resize-y placeholder:text-slate-400 focus:border-lumiva-accent/60 focus:ring-1 focus:ring-lumiva-accent/20"
+                      className="w-full rounded-xl bg-white border border-slate-200 text-[11px] text-slate-900 px-3 py-2 outline-none resize-y placeholder:text-text-secondary focus:border-lumiva-accent/60 focus:ring-1 focus:ring-lumiva-accent/20"
                     />
                   </div>
                 </div>
@@ -1242,7 +1242,7 @@ export const SaleDetailsPage: React.FC = () => {
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="inline-flex justify-center px-6 py-2.5 rounded-xl bg-lumiva-accent text-slate-950 text-[12px] font-semibold hover:bg-lumiva-accent-soft disabled:opacity-60 shadow-sm"
+                  className="btn-primary btn-primary-lg disabled:opacity-60"
                 >
                   {saving ? t('crm.sales.details.actions.saving') : t('crm.sales.details.actions.save')}
                 </button>
@@ -1251,17 +1251,17 @@ export const SaleDetailsPage: React.FC = () => {
 
             {/* Дополнительные поля записи (без дублей шапки и без служебных ключей) */}
             {pairsSaleFiltered.length > 0 && (
-              <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 text-xs">
+              <section className="card p-4 md:p-5 text-xs">
                 <div className="text-sm font-semibold text-slate-100 mb-0.5">
                   {t('crm.sales.details.sections.allSaleFields')}
                 </div>
-                <p className="text-[11px] text-slate-500 mb-3 max-w-2xl">
+                <p className="text-[11px] text-text-tertiary mb-3 max-w-2xl">
                   {t('crm.sales.details.allSaleFieldsHint')}
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                   {pairsSaleFiltered.map(([key, value]) => (
                     <div key={key} className="flex gap-2">
-                      <div className="w-40 text-[11px] text-slate-500 truncate">
+                      <div className="w-40 text-[11px] text-text-tertiary truncate">
                         {saleGridFieldLabel(key)}
                       </div>
                       <div className="flex-1 text-slate-100 break-all">
@@ -1277,14 +1277,14 @@ export const SaleDetailsPage: React.FC = () => {
 
             {/* Дополнительные данные (meta) */}
             {pairsMeta.length > 0 && (
-              <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 text-xs">
+              <section className="card p-4 md:p-5 text-xs">
                 <div className="text-sm font-semibold text-slate-100 mb-2">
                   {t('crm.sales.details.sections.metaFields')}
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
                   {pairsMeta.map(([key, value]) => (
                     <div key={key} className="flex gap-2">
-                      <div className="w-40 text-[11px] text-slate-500 truncate">
+                      <div className="w-40 text-[11px] text-text-tertiary truncate">
                         {metaGridFieldLabel(key)}
                       </div>
                       <div className="flex-1 text-slate-100 break-all">

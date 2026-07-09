@@ -8,10 +8,12 @@ import {
   Body,
   Param,
   Query,
+  Res,
   UseGuards,
   ParseUUIDPipe,
   NotFoundException,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { EmailService } from './email.service';
 import { EmailSyncService } from './email-sync.service';
 import { EmailImapSyncService } from './email-imap-sync.service';
@@ -403,5 +405,39 @@ export class EmailController {
     @Body() data: Record<string, any>,
   ) {
     return this.emailService.applyTemplate(user.tenantId, id, data);
+  }
+
+  // ==== BULK SEND ====
+  @Post('bulk-send')
+  @RequirePermission('email', 'write')
+  async bulkSend(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body()
+    dto: {
+      templateId?: string;
+      subject: string;
+      html: string;
+      leadFilters?: { source?: string; status?: string; tag?: string };
+      recipientEmails?: string[];
+      fromAccountId: string;
+      trackOpens?: boolean;
+    },
+  ): Promise<{ sent: number; failed: number; jobId: string }> {
+    return this.emailService.sendBulk(user.tenantId, dto);
+  }
+
+  // ==== OPEN TRACKING PIXEL (public, no auth) ====
+  @Get('track/:messageId')
+  async trackOpen(
+    @Param('messageId') _messageId: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    const gif = Buffer.from(
+      'R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7',
+      'base64',
+    );
+    res.setHeader('Content-Type', 'image/gif');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.end(gif);
   }
 }

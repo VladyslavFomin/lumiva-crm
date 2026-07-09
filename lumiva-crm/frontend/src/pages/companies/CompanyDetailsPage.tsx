@@ -351,7 +351,7 @@ export const CompanyDetailsPage: React.FC = () => {
   if (error || !company) {
     return (
       <MainLayout>
-        <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+        <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
           {error || t('crm.companies.details.page.errors.notFound')}
         </div>
       </MainLayout>
@@ -1058,7 +1058,7 @@ export const CompanyDetailsPage: React.FC = () => {
               )}
               <button
                 onClick={() => navigate(`/companies/${id}/tasks`)}
-                className="w-full mt-2 px-4 py-2 text-xs rounded-xl bg-slate-900 text-white font-semibold hover:bg-slate-800 transition-colors"
+                className="w-full mt-2 btn-primary btn-secondary-sm"
               >
                 {t('crm.companies.details.tasks.viewBoard')}
               </button>

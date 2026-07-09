@@ -64,4 +64,7 @@ export class CcpTransferEntity {
 
   @Column({ type: 'text', nullable: true })
   desc: string | null; // ccp_tr_desc
+
+  @Column({ type: 'jsonb', nullable: true })
+  meta: Record<string, any> | null;
 }

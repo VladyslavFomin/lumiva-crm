@@ -422,16 +422,16 @@ export const SalesPage: React.FC = () => {
     });
   }, []);
 
-  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'dark');
+  const columnDrag = useWorkspaceStyleColumnDrag(reorderColumns, 'light');
 
   const renderCustomFieldCell = (sale: Sale, field: CustomField) => {
     const value = sale.customFields?.[field.key];
     const commonClass =
-      'w-full px-2 py-1 rounded-lg bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-200 outline-none focus:border-lumiva-accent-soft';
+      'w-full px-2 py-1 rounded-lg bg-white border border-border-default text-[11px] text-[#111827] outline-none focus:border-lumiva-accent/40';
 
     if (field.type === 'boolean') {
       return (
-        <label className="inline-flex items-center gap-2 text-[11px] text-slate-300">
+        <label className="inline-flex items-center gap-2 text-[11px] text-[#111827]">
           <input
             type="checkbox"
             checked={Boolean(value)}
@@ -525,34 +525,34 @@ export const SalesPage: React.FC = () => {
       sale.guestName && sale.agentName ? sale.agentName : null;
     switch (column.id) {
       case 'date':
-        return <span className="text-slate-100">{fmtDateTime}</span>;
+        return <span className="text-[#111827]">{fmtDateTime}</span>;
       case 'id': {
         const wpId = saleWpNumericId(sale);
         return (
-          <span className="font-mono text-[11px] text-slate-300 tabular-nums">
+          <span className="font-mono text-[11px] text-text-secondary tabular-nums">
             {wpId ?? '—'}
           </span>
         );
       }
       case 'channel':
         return (
-          <div className="flex flex-col text-slate-300 gap-0.5">
+          <div className="flex flex-col text-text-secondary gap-0.5">
             {channelSite || channelIntegration ? (
               <>
                 {channelSite ? (
-                  <span className="text-slate-200">{channelSite}</span>
+                  <span className="text-[#111827]">{channelSite}</span>
                 ) : null}
                 {channelIntegration ? (
-                  <span className="text-[10px] text-slate-500 leading-tight">
+                  <span className="text-[10px] text-text-tertiary leading-tight">
                     {channelIntegration}
                   </span>
                 ) : null}
               </>
             ) : (
-              <span className="text-slate-500">{t('crm.sales.common.empty')}</span>
+              <span className="text-text-tertiary">{t('crm.sales.common.empty')}</span>
             )}
             {sale.managerName ? (
-              <span className="text-[10px] text-slate-500 mt-0.5">
+              <span className="text-[10px] text-text-tertiary mt-0.5">
                 {t('crm.sales.list.manager')}: {sale.managerName}
               </span>
             ) : null}
@@ -560,10 +560,10 @@ export const SalesPage: React.FC = () => {
         );
       case 'product':
         return (
-          <div className="flex flex-col text-slate-300">
+          <div className="flex flex-col text-text-secondary">
             <span>{productName}</span>
             {marketLabel && (
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-text-tertiary">
                 {t('crm.sales.list.market')}: {marketLabel}
               </span>
             )}
@@ -571,10 +571,10 @@ export const SalesPage: React.FC = () => {
         );
       case 'customer':
         return (
-          <div className="flex flex-col text-slate-300">
+          <div className="flex flex-col text-text-secondary">
             <span>{clientName}</span>
             {clientCompany && (
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-text-tertiary">
                 {t('crm.sales.list.company')}: {clientCompany}
               </span>
             )}
@@ -582,9 +582,9 @@ export const SalesPage: React.FC = () => {
         );
       case 'amount':
         return (
-          <span className="text-slate-100">
+          <span className="text-[#111827] font-medium">
             {sale.amount.toLocaleString(locale, { maximumFractionDigits: 0 })}{' '}
-            <span className="text-slate-400">{sale.currency}</span>
+            <span className="text-text-tertiary">{sale.currency}</span>
           </span>
         );
       case 'status':
@@ -605,7 +605,7 @@ export const SalesPage: React.FC = () => {
         const wooAdminUrl = sale.wooAdminEditUrl;
         const openLabel = t('crm.sales.list.openInWpAdmin');
         const linkClasses =
-          'inline-flex items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-lg border border-slate-800 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-slate-900 hover:text-white hover:border-slate-900 max-w-none';
+          'inline-flex items-center justify-center gap-1 whitespace-nowrap px-2.5 py-1 rounded-lg border border-border-default bg-white text-[11px] font-medium text-[#111827] shadow-sm transition-colors hover:bg-surface-hover max-w-none';
         return (
           <div className="flex flex-col gap-1 items-start min-w-0">
             {wooAdminUrl ? (
@@ -647,16 +647,16 @@ export const SalesPage: React.FC = () => {
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
               {t('crm.sales.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            <h1 className="page-title">
               {t('crm.sales.title')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-xl">
+            <p className="text-xs text-text-tertiary mt-1 max-w-xl">
               {t('crm.sales.subtitle')}
             </p>
             {user?.name && (
-              <p className="text-[11px] text-slate-500 mt-1">
+              <p className="text-[11px] text-text-tertiary mt-1">
                 {t('crm.sales.manager')}:{' '}
-                <span className="text-slate-300">{user.name}</span>
+                <span className="text-text-secondary">{user.name}</span>
               </p>
             )}
           </div>
@@ -664,17 +664,17 @@ export const SalesPage: React.FC = () => {
 	              <AnalyticsCurrencyControl
 	                state={currencyPrefs}
 	                onStateChange={setCurrencyPrefs}
-	                variant="dark"
+	                variant="light"
 	              />
 	              {stats && (
-              <div className="flex flex-wrap gap-2 text-[11px] text-slate-300">
-                <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
+              <div className="flex flex-wrap gap-2 text-[11px] text-text-secondary">
+                <span className="badge bg-surface-subtle">
                   {t('crm.sales.summary.totalSales')}:{' '}
                   <span className="font-semibold">
                     {stats.totalCount.toLocaleString(locale)}
                   </span>
                 </span>
-                <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
+                <span className="badge bg-surface-subtle">
                   {t('crm.sales.summary.revenue')}:{' '}
                   <span className="font-semibold">
 	                    {stats.totalAmount.toLocaleString(locale, {
@@ -683,7 +683,7 @@ export const SalesPage: React.FC = () => {
 	                    {reportCurrency}
                   </span>
                 </span>
-                <span className="px-2 py-1 rounded-full bg-slate-900/80 border border-slate-800/80">
+                <span className="badge bg-surface-subtle">
                   {t('crm.sales.summary.avgCheck')}:{' '}
                   <span className="font-semibold">
 	                    {stats.avgCheck.toLocaleString(locale, {
@@ -697,7 +697,7 @@ export const SalesPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setAutomationOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80 inline-flex items-center gap-2"
+              className="btn-secondary btn-secondary-sm inline-flex items-center gap-2"
             >
               <svg
                 width="14"
@@ -726,7 +726,7 @@ export const SalesPage: React.FC = () => {
         </section>
 
         {/* Фильтры */}
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-3.5 md:p-4 flex flex-col gap-3">
+        <section className="card p-3.5 md:p-4 flex flex-col gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-2 py-1 shadow-sm">
               <span className="text-[11px] text-slate-600 pl-1">
@@ -754,7 +754,7 @@ export const SalesPage: React.FC = () => {
 
           <div className="flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between">
             <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-[11px] text-slate-500">
+              <span className="text-[11px] text-text-tertiary">
                 {t('crm.sales.filters.status')}:
               </span>
               <StatusPill
@@ -778,7 +778,7 @@ export const SalesPage: React.FC = () => {
               <select
                 value={filters.channelId || ''}
                 onChange={onChannelChange}
-                className="h-8 px-2.5 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 outline-none min-w-[150px]"
+                className="base-select h-8 px-2.5 text-[11px] min-w-[150px]"
               >
                 <option value="">{t('crm.sales.filters.allChannels')}</option>
                 {channels.map((ch) => (
@@ -794,9 +794,9 @@ export const SalesPage: React.FC = () => {
                   placeholder={t('crm.sales.filters.searchPlaceholder')}
                   defaultValue={filters.search || ''}
                   onChange={onSearchChange}
-                  className="h-8 w-56 md:w-72 rounded-xl bg-slate-950/90 border border-slate-800/80 text-[11px] text-slate-100 px-7 pr-2 outline-none"
+                  className="base-input h-8 w-56 md:w-72 text-[11px] px-7 pr-2"
                 />
-                <span className="absolute left-2 top-1.5 text-slate-500 text-[13px]">
+                <span className="absolute left-2 top-1.5 text-text-tertiary text-[13px]">
                   🔍
                 </span>
               </div>
@@ -807,12 +807,12 @@ export const SalesPage: React.FC = () => {
         {/* KPI + «графики» по статусам и валютам */}
         {stats && (
           <section className="grid gap-4 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1.4fr)]">
-            <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+            <div className="card p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-100">
+                <h2 className="text-sm font-semibold text-[#111827]">
                   {t('crm.sales.charts.statusStructureTitle')}
                 </h2>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-text-tertiary">
                   {t('crm.sales.charts.statusStructureHint')}
                 </span>
               </div>
@@ -823,12 +823,12 @@ export const SalesPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5">
+            <div className="card p-4 md:p-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-slate-100">
+                <h2 className="text-sm font-semibold text-[#111827]">
                   {t('crm.sales.charts.byCurrencyTitle')}
                 </h2>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-text-tertiary">
                   {t('crm.sales.charts.byCurrencyHint')}
                 </span>
               </div>
@@ -846,14 +846,14 @@ export const SalesPage: React.FC = () => {
         )}
 
         {/* Таблица продаж */}
-        <section className="bg-slate-900/80 border border-slate-800/80 rounded-3xl p-4 md:p-5 min-w-0">
+        <section className="card p-4 md:p-5 min-w-0">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-slate-100">
+            <h2 className="text-sm font-semibold text-[#111827]">
               {t('crm.sales.list.title')}
             </h2>
             <div className="flex items-center gap-3">
               {list && (
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-text-tertiary">
                   {t('crm.sales.list.shown', {
                     shown: list.items.length,
                     total: list.total.toLocaleString(locale),
@@ -863,7 +863,7 @@ export const SalesPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCustomFieldsOpen(true)}
-                className="px-3 py-1.5 text-xs rounded-xl border border-slate-700/80 text-slate-200 hover:bg-slate-900/80"
+                className="btn-secondary btn-secondary-sm"
               >
                 {`+ ${t('crm.sales.list.addColumn')}`}
               </button>
@@ -872,7 +872,7 @@ export const SalesPage: React.FC = () => {
 
           <div className="overflow-x-auto">
             <table className="w-full text-[11px] md:text-xs border-separate border-spacing-y-1 table-fixed">
-              <thead className="text-slate-500">
+              <thead className="text-text-tertiary">
                 <tr>
                   {orderedColumns.map((col) => {
                     const fallback =
@@ -905,7 +905,7 @@ export const SalesPage: React.FC = () => {
                         style={{ width, minWidth: width }}
                       >
                         <div className="flex min-h-[28px] items-center gap-2">
-                          <span className="text-[10px] text-slate-400 opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
+                          <span className="text-[10px] text-text-tertiary opacity-0 group-hover/colhdr:opacity-100 transition-opacity">
                             ⋮⋮
                           </span>
                           <span>{col.label}</span>
@@ -924,7 +924,7 @@ export const SalesPage: React.FC = () => {
                 {list?.items.map((s: Sale) => (
                   <tr
                     key={s.id}
-                    className="bg-slate-950/80 hover:bg-slate-900/80 transition-colors cursor-pointer"
+                    className="bg-white hover:bg-surface-hover transition-colors cursor-pointer"
                     onClick={() => navigate(`/app/sales/${s.id}`)}
                   >
                     {orderedColumns.map((col) => {
@@ -950,7 +950,7 @@ export const SalesPage: React.FC = () => {
                       return (
                         <td
                           key={col.id}
-                          className="px-2 py-1.5 text-slate-400"
+                          className="px-2 py-1.5 text-[#111827]"
                           style={{ width, minWidth: width }}
                         >
                           {renderCell(s, col)}
@@ -964,7 +964,7 @@ export const SalesPage: React.FC = () => {
                   <tr>
                     <td
                       colSpan={orderedColumns.length}
-                      className="px-2 py-5 text-center text-[11px] text-slate-500 italic"
+                      className="px-2 py-5 text-center text-[11px] text-text-tertiary italic"
                     >
                       {t('crm.sales.list.empty')}
                     </td>
@@ -976,7 +976,7 @@ export const SalesPage: React.FC = () => {
 
           {/* Пагинация */}
           {list && pageCount > 1 && (
-            <div className="mt-4 flex justify-between items-center text-[11px] text-slate-400">
+            <div className="mt-4 flex justify-between items-center text-[11px] text-text-secondary">
               <div>
                 {t('crm.sales.pagination.page', {
                   page: list.page,
@@ -988,7 +988,7 @@ export const SalesPage: React.FC = () => {
                   type="button"
                   disabled={list.page <= 1}
                   onClick={() => onPageChange(list.page - 1)}
-                  className="px-2 py-1 rounded-lg border border-slate-700/80 disabled:opacity-40 bg-slate-950/80 hover:bg-slate-900/80"
+                  className="btn-secondary btn-secondary-sm disabled:opacity-40"
                 >
                   {t('crm.sales.pagination.prev')}
                 </button>
@@ -996,7 +996,7 @@ export const SalesPage: React.FC = () => {
                   type="button"
                   disabled={list.page >= pageCount}
                   onClick={() => onPageChange(list.page + 1)}
-                  className="px-2 py-1 rounded-lg border border-slate-700/80 disabled:opacity-40 bg-slate-950/80 hover:bg-slate-900/80"
+                  className="btn-secondary btn-secondary-sm disabled:opacity-40"
                 >
                   {t('crm.sales.pagination.next')}
                 </button>
@@ -1022,7 +1022,7 @@ export const SalesPage: React.FC = () => {
 
         {loading && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-slate-950/95 border border-slate-700/80 text-[11px] text-slate-200 flex items-center gap-2">
+            <div className="px-3 py-1.5 rounded-full bg-white border border-border-default shadow-card text-[11px] text-text-secondary flex items-center gap-2">
               <span className="h-1.5 w-1.5 rounded-full bg-lumiva-accent animate-pulse" />
               {t('crm.sales.loading')}
             </div>
@@ -1031,7 +1031,7 @@ export const SalesPage: React.FC = () => {
 
         {error && (
           <div className="fixed inset-x-0 bottom-3 flex justify-center pointer-events-none">
-            <div className="px-3 py-1.5 rounded-full bg-red-950/95 border border-red-700/80 text-[11px] text-red-100">
+            <div className="px-3 py-1.5 rounded-full bg-status-error-bg border border-red-200 text-[11px] text-status-error">
               {error}
             </div>
           </div>
@@ -1056,8 +1056,8 @@ const QuickRangeButton: React.FC<{
     className={
       'px-3 py-1.5 rounded-xl text-[11px] transition ' +
       (active
-        ? 'bg-black text-white font-semibold shadow-[0_10px_30px_rgba(15,23,42,0.2)]'
-        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100')
+        ? 'bg-lumiva-accent text-white font-semibold shadow-sm'
+        : 'text-text-secondary hover:text-[#111827] hover:bg-surface-hover')
     }
   >
     {label}
@@ -1075,8 +1075,8 @@ const StatusPill: React.FC<{
     className={
       'px-2.5 py-1 rounded-full text-[11px] border ' +
       (active
-        ? 'border-lumiva-accent-soft bg-lumiva-accent/15 text-slate-50'
-        : 'border-slate-700/80 text-slate-300 hover:bg-slate-900/80')
+        ? 'border-lumiva-accent bg-lumiva-accent text-white'
+        : 'border-border-default text-text-secondary hover:bg-surface-hover')
     }
   >
     {label}
@@ -1103,15 +1103,15 @@ const StatusBarRow: React.FC<{
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-slate-300">{statusLabel}</span>
-        <span className="text-slate-500 whitespace-nowrap">
+        <span className="text-text-secondary">{statusLabel}</span>
+        <span className="text-text-tertiary whitespace-nowrap">
           {t('crm.sales.units.items', {
             count: stat.count,
           })}{' '}
 	          · {stat.amount.toLocaleString(locale)} {currency}
         </span>
       </div>
-      <div className="h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-surface-active rounded-full overflow-hidden">
         <div
           className={`h-full bg-gradient-to-r ${color}`}
           style={{ width: `${width}%` }}
@@ -1133,14 +1133,14 @@ const CurrencyRowList: React.FC<{
         const width = Math.max(8, (c.amount / max) * 100);
         return (
           <div key={c.currency} className="flex items-center gap-3">
-            <div className="w-10 text-slate-300">{c.currency}</div>
-            <div className="flex-1 h-1.5 bg-slate-800/80 rounded-full overflow-hidden">
+            <div className="w-10 text-text-secondary">{c.currency}</div>
+            <div className="flex-1 h-1.5 bg-surface-active rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-lumiva-accent-soft to-lumiva-accent"
                 style={{ width: `${width}%` }}
               />
             </div>
-            <div className="w-24 text-right text-slate-300">
+            <div className="w-24 text-right text-text-secondary">
               {c.amount.toLocaleString(locale, {
                 maximumFractionDigits: 0,
               })}

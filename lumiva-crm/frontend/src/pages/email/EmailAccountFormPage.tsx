@@ -95,7 +95,7 @@ export const EmailAccountFormPage: React.FC = () => {
   if (loading) {
     return (
       <MainLayout>
-        <div className="text-center py-12 text-xs text-slate-400">{t('crm.email.accounts.loading')}</div>
+        <div className="text-center py-12 text-xs text-text-tertiary">{t('crm.email.accounts.loading')}</div>
       </MainLayout>
     );
   }
@@ -103,222 +103,151 @@ export const EmailAccountFormPage: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-4">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="page-header">
           <div>
-            <h1 className="text-lg font-semibold text-slate-50">
+            <h1 className="page-title">
               {id ? t('crm.email.form.titleEdit') : t('crm.email.form.titleNew')}
             </h1>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.email.form.subtitle')}
-            </div>
+            <p className="page-subtitle">{t('crm.email.form.subtitle')}</p>
           </div>
-          <button
-            onClick={() => navigate('/app/email')}
-            className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-50 transition-colors"
-          >
-            Отмена
+          <button onClick={() => navigate('/app/email')} className="btn-ghost">
+            {t('crm.email.form.actions.cancel')}
           </button>
         </div>
 
-        {/* Ошибка */}
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Основная информация */}
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            <h2 className="text-xs font-semibold text-slate-300 mb-3">{t('crm.email.form.sections.basic')}</h2>
+          <div className="card p-4 space-y-4">
+            <h2 className="section-label">{t('crm.email.form.sections.basic')}</h2>
 
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.email')}</label>
-              <input
-                type="email"
-                required
-                value={formData.email}
+            <div className="form-group">
+              <label className="form-label">{t('crm.email.form.fields.email')}</label>
+              <input type="email" required value={formData.email}
                 onChange={(e) => handleChange('email', e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                placeholder="user@example.com"
-              />
+                className="base-input" placeholder="user@example.com" />
             </div>
 
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.name')}</label>
-              <input
-                type="text"
-                value={formData.name}
+            <div className="form-group">
+              <label className="form-label">{t('crm.email.form.fields.name')}</label>
+              <input type="text" value={formData.name}
                 onChange={(e) => handleChange('name', e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                placeholder="Рабочий email"
-              />
+                className="base-input" placeholder="Рабочий email" />
             </div>
           </div>
 
-          {/* SMTP (отправка) */}
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            <h2 className="text-xs font-semibold text-slate-300 mb-3">{t('crm.email.form.sections.smtp')}</h2>
+          {/* SMTP */}
+          <div className="card p-4 space-y-4">
+            <h2 className="section-label">{t('crm.email.form.sections.smtp')}</h2>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.smtpHost')}</label>
-                <input
-                  type="text"
-                  required
-                  value={formData.smtpHost}
+              <div className="form-group">
+                <label className="form-label">{t('crm.email.form.fields.smtpHost')}</label>
+                <input type="text" required value={formData.smtpHost}
                   onChange={(e) => handleChange('smtpHost', e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="smtp.titan.email"
-                />
+                  className="base-input" placeholder="smtp.titan.email" />
               </div>
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">
+              <div className="form-group">
+                <label className="form-label">
                   {t('crm.email.form.fields.smtpPort')}
-                  <span className="ml-2 text-slate-500 text-[10px]">
+                  <span className="ml-1.5 text-text-tertiary font-normal normal-case tracking-normal">
                     ({t('crm.email.form.hints.smtpPort')})
                   </span>
                 </label>
-                <input
-                  type="number"
-                  required
-                  value={formData.smtpPort}
+                <input type="number" required value={formData.smtpPort}
                   onChange={(e) => handleChange('smtpPort', parseInt(e.target.value) || 465)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="465 или 587"
-                />
-                <div className="text-[10px] text-slate-500 mt-1">
-                  {t('crm.email.form.hints.titanEmail')}
-                </div>
+                  className="base-input" placeholder="465 или 587" />
+                <span className="form-hint">{t('crm.email.form.hints.titanEmail')}</span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-4">
               <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.smtpSecure')}</label>
-                <div className="text-[10px] text-slate-500">{t('crm.email.form.hints.secureRecommended')}</div>
+                <div className="form-label">{t('crm.email.form.fields.smtpSecure')}</div>
+                <div className="form-hint">{t('crm.email.form.hints.secureRecommended')}</div>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.smtpSecure}
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input type="checkbox" checked={formData.smtpSecure}
                   onChange={(e) => handleChange('smtpSecure', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:bg-emerald-500 transition-colors" />
+                  className="sr-only peer" />
+                <div className="w-10 h-5 bg-border-strong peer-focus:outline-none rounded-full peer peer-checked:bg-status-success transition-colors" />
                 <div className="absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
               </label>
             </div>
 
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.smtpUser')}</label>
-              <input
-                type="text"
-                required
-                value={formData.smtpUsername}
+            <div className="form-group">
+              <label className="form-label">{t('crm.email.form.fields.smtpUser')}</label>
+              <input type="text" required value={formData.smtpUsername}
                 onChange={(e) => handleChange('smtpUsername', e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                placeholder="user@example.com"
-              />
+                className="base-input" placeholder="user@example.com" />
             </div>
 
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.smtpPassword')}</label>
-              <input
-                type="password"
-                required={!id}
-                value={formData.smtpPassword}
+            <div className="form-group">
+              <label className="form-label">{t('crm.email.form.fields.smtpPassword')}</label>
+              <input type="password" required={!id} value={formData.smtpPassword}
                 onChange={(e) => handleChange('smtpPassword', e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                placeholder={id ? t('crm.email.form.hints.passwordLeaveEmpty') : t('crm.email.form.hints.passwordPlaceholder')}
-              />
-              {id && (
-                <div className="text-[10px] text-slate-500 mt-1">{t('crm.email.form.hints.passwordLeaveEmpty')}</div>
-              )}
+                className="base-input"
+                placeholder={id ? t('crm.email.form.hints.passwordLeaveEmpty') : t('crm.email.form.hints.passwordPlaceholder')} />
+              {id && <span className="form-hint">{t('crm.email.form.hints.passwordLeaveEmpty')}</span>}
             </div>
           </div>
 
-          {/* IMAP (получение) - опционально */}
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            <h2 className="text-xs font-semibold text-slate-300 mb-3">{t('crm.email.form.sections.imap')}</h2>
+          {/* IMAP */}
+          <div className="card p-4 space-y-4">
+            <h2 className="section-label">{t('crm.email.form.sections.imap')}</h2>
 
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.imapHost')}</label>
-                <input
-                  type="text"
-                  value={formData.imapHost || ''}
+              <div className="form-group">
+                <label className="form-label">{t('crm.email.form.fields.imapHost')}</label>
+                <input type="text" value={formData.imapHost || ''}
                   onChange={(e) => handleChange('imapHost', e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="imap.gmail.com"
-                />
+                  className="base-input" placeholder="imap.gmail.com" />
               </div>
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.imapPort')}</label>
-                <input
-                  type="number"
-                  value={formData.imapPort || ''}
+              <div className="form-group">
+                <label className="form-label">{t('crm.email.form.fields.imapPort')}</label>
+                <input type="number" value={formData.imapPort || ''}
                   onChange={(e) => handleChange('imapPort', parseInt(e.target.value) || undefined)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                  placeholder="993"
-                />
+                  className="base-input" placeholder="993" />
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.imapSecure')}</label>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={formData.imapSecure}
+            <div className="flex items-center justify-between gap-4">
+              <div className="form-label">{t('crm.email.form.fields.imapSecure')}</div>
+              <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                <input type="checkbox" checked={formData.imapSecure}
                   onChange={(e) => handleChange('imapSecure', e.target.checked)}
-                  className="sr-only peer"
-                />
-                <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:bg-emerald-500 transition-colors" />
+                  className="sr-only peer" />
+                <div className="w-10 h-5 bg-border-strong peer-focus:outline-none rounded-full peer peer-checked:bg-status-success transition-colors" />
                 <div className="absolute left-0.5 top-0.5 w-4 h-4 rounded-full bg-white transition-transform peer-checked:translate-x-5" />
               </label>
             </div>
 
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.imapUser')}</label>
-              <input
-                type="text"
-                value={formData.imapUsername || ''}
+            <div className="form-group">
+              <label className="form-label">{t('crm.email.form.fields.imapUser')}</label>
+              <input type="text" value={formData.imapUsername || ''}
                 onChange={(e) => handleChange('imapUsername', e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                placeholder="user@example.com"
-              />
+                className="base-input" placeholder="user@example.com" />
             </div>
 
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1.5">{t('crm.email.form.fields.imapPassword')}</label>
-              <input
-                type="password"
-                value={formData.imapPassword || ''}
+            <div className="form-group">
+              <label className="form-label">{t('crm.email.form.fields.imapPassword')}</label>
+              <input type="password" value={formData.imapPassword || ''}
                 onChange={(e) => handleChange('imapPassword', e.target.value)}
-                className="w-full px-3 py-2 text-xs bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200 transition-colors"
-                placeholder={id ? t('crm.email.form.hints.passwordLeaveEmpty') : t('crm.email.form.hints.passwordPlaceholder')}
-              />
+                className="base-input"
+                placeholder={id ? t('crm.email.form.hints.passwordLeaveEmpty') : t('crm.email.form.hints.passwordPlaceholder')} />
             </div>
           </div>
 
-          {/* Кнопки действий */}
           <div className="flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => navigate('/app/email')}
-              className="px-4 py-2 text-xs text-slate-400 hover:text-slate-50 transition-colors"
-            >
+            <button type="button" onClick={() => navigate('/app/email')} className="btn-secondary">
               {t('crm.email.form.actions.cancel')}
             </button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
+            <button type="submit" disabled={saving} className="btn-primary">
               {saving ? t('crm.email.form.actions.saving') : id ? t('crm.email.form.actions.save') : t('crm.email.form.actions.create')}
             </button>
           </div>

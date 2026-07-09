@@ -9,10 +9,14 @@ import { IntegrationRegistryService } from './integration-registry.service';
 
 // адаптеры интеграций
 import { WooCommerceAdapter } from './woocommerce/woocommerce.adapter';
+import { ShopifyAdapter } from './shopify/shopify.adapter';
+import { ShopifyApiService } from './shopify/shopify-api.service';
+import { ShopifySyncScheduler } from './shopify/shopify-sync.scheduler';
 import { ThirdPartyLinkAdapter } from './third-party-link/third-party-link.adapter';
 import { SlackWebhookService } from './slack/slack-webhook.service';
 import { TeamsWebhookService } from './teams/teams-webhook.service';
 import { ZapierHookService } from './zapier/zapier-hook.service';
+import { MakeWebhookService } from './make/make-webhook.service';
 import { WhatsappCloudService } from './whatsapp/whatsapp-cloud.service';
 import { GoogleCalendarService } from './google-calendar/google-calendar.service';
 import { OutlookCalendarService } from './outlook/outlook-calendar.service';
@@ -27,6 +31,10 @@ import { IntegrationHubCatalogService } from './catalog/integration-hub-catalog.
 import { GoogleSheetsSyncModule } from './google-sheets/google-sheets-sync.module';
 import { Lead } from '../leads/lead.entity';
 import { GoogleCalendarOAuthService } from './google-calendar/google-calendar-oauth.service';
+import { OpenAiApiService } from './openai/openai-api.service';
+import { OneCApiService } from './onec/onec-api.service';
+import { SapApiService } from './sap/sap-api.service';
+import { JiraApiService } from './jira/jira-api.service';
 
 // сущности из других модулей
 import { Sale } from '../sales/sale.entity';
@@ -60,6 +68,10 @@ import { LeadsModule } from '../leads/leads.module';
     SlackWebhookService,
     TeamsWebhookService,
     ZapierHookService,
+    MakeWebhookService,
+    ShopifyApiService,
+    ShopifyAdapter,
+    ShopifySyncScheduler,
     WhatsappCloudService,
     GoogleCalendarService,
     OutlookCalendarService,
@@ -74,8 +86,12 @@ import { LeadsModule } from '../leads/leads.module';
     LegacyHttpInboundCleanupService,
     IntegrationHubCatalogService,
     GoogleCalendarOAuthService,
+    OpenAiApiService,
+    OneCApiService,
+    SapApiService,
+    JiraApiService,
   ],
   controllers: [IntegrationsController],
-  exports: [IntegrationsService],
+  exports: [IntegrationsService, JiraApiService],
 })
 export class IntegrationsModule {}

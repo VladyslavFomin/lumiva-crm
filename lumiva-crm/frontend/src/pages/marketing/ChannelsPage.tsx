@@ -21,23 +21,14 @@ import {
 } from '../../utils/marketingChannelDisplay';
 import {
   marketingCard,
-  marketingChipActive,
-  marketingChipInactive,
-  marketingFilterBar,
-  marketingFilterLabel,
+  marketingGrpTitle,
   marketingH1,
   marketingKicker,
-  marketingKpiHint,
+  marketingKpiCell,
   marketingKpiLabel,
-  marketingKpiStripeBrand,
-  marketingKpiStripeDuo,
-  marketingKpiStripeEmerald,
-  marketingKpiStripeViolet,
   marketingKpiValue,
   marketingLead,
-  marketingMetaLine,
   marketingPageShell,
-  marketingSectionSub,
   marketingSectionTitle,
   marketingSelect,
 } from './marketingPageChrome';
@@ -248,102 +239,137 @@ export const ChannelsPage: React.FC = () => {
     return { topSources, topMediums, topCampaigns };
   }, [items]);
 
+  const totalClicks = useMemo(
+    () => items.reduce((s, r) => s + (r.clicks || 0), 0),
+    [items],
+  );
+
+  const INK = '#222';
+  const LINE = '#e7e7e7';
+  const FG3 = '#888';
+  const BG = '#fafafa';
+
+  const btnIconStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '7px 13px',
+    fontSize: 12.5,
+    fontWeight: 500,
+    borderRadius: 8,
+    border: `1px solid ${LINE}`,
+    background: '#fff',
+    color: INK,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  };
+
+  const segBtn = (active: boolean): React.CSSProperties => ({
+    background: active ? '#fff' : 'none',
+    border: 'none',
+    padding: '6px 12px',
+    fontSize: 12,
+    color: active ? INK : FG3,
+    borderRadius: 6,
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+    fontWeight: active ? 500 : 400,
+    boxShadow: active ? '0 1px 2px rgba(0,0,0,0.04)' : 'none',
+  });
+
   return (
     <MainLayout>
-      <div className={`${marketingPageShell} space-y-5 md:space-y-6 pb-2`}>
-        <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div>
-            <div className={marketingKicker}>{t('crm.marketingChannels.kicker')}</div>
-            <h1 className={marketingH1}>{t('crm.marketingChannels.title')}</h1>
-            <p className={marketingLead}>{t('crm.marketingChannels.subtitle')}</p>
-          </div>
+      <div className={`${marketingPageShell} space-y-5 md:space-y-6`}>
 
-          <div className="flex flex-col items-stretch md:items-end gap-2">
-            <div
-              className={`${marketingFilterBar} w-full md:w-auto md:justify-end flex-wrap gap-y-2`}
-            >
-              <span className={marketingFilterLabel}>{t('crm.marketingChannels.periodLabel')}</span>
-              {(['7d', '30d', '90d', 'custom', 'all'] as MarketingTrafficPeriodPreset[]).map(
-                (p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => applyPreset(p)}
-                    className={preset === p ? marketingChipActive : marketingChipInactive}
-                  >
-                    {periodLabel[p]}
-                  </button>
-                ),
-              )}
-              {preset === 'custom' && (
-                <>
-                  <input
-                    type="date"
-                    aria-label={t('crm.marketingChannels.periodDateFromAria', {
-                      defaultValue: 'Дата начала',
-                    })}
-                    className={`${marketingSelect} h-10 max-w-[11rem]`}
-                    value={range.from || ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setPreset('custom');
-                      setRange((r) =>
-                        marketingTrafficClampDateRange({
-                          from: v,
-                          to: r.to || marketingTrafficUtcTodayYmd(),
-                        }),
-                      );
-                    }}
-                  />
-                  <input
-                    type="date"
-                    aria-label={t('crm.marketingChannels.periodDateToAria', {
-                      defaultValue: 'Дата окончания',
-                    })}
-                    className={`${marketingSelect} h-10 max-w-[11rem]`}
-                    value={range.to || ''}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      setPreset('custom');
-                      setRange((r) =>
-                        marketingTrafficClampDateRange({
-                          from: r.from || marketingTrafficUtcTodayYmd(),
-                          to: v,
-                        }),
-                      );
-                    }}
-                  />
-                </>
-              )}
+        {/* ── Header ─────────────────────────────────────────────── */}
+        <section style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 18 }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
+            <div>
+              <div className={marketingKicker}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: INK, flexShrink: 0 }} />
+                {t('crm.marketingChannels.kicker')}
+              </div>
+              <h1 className={marketingH1}>{t('crm.marketingChannels.title')}</h1>
+              <p className={marketingLead}>{t('crm.marketingChannels.subtitle')}</p>
             </div>
-            <div className={`${marketingFilterBar} items-center w-full md:w-auto md:justify-end`}>
-              <span className={marketingFilterLabel}>
-                {t('crm.marketingTraffic.dataSourceLabel')}
-              </span>
-              <select
-                value={dataSource}
-                onChange={(e) => setDataSource(e.target.value)}
-                className={marketingSelect}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                style={btnIconStyle}
+                onClick={() => { applyPreset(preset); }}
               >
-                <option value="">
-                  {t('crm.marketingTraffic.dataSourceAll')}
-                </option>
-                {dataSourceOptions.map((ds) => (
-                  <option key={ds} value={ds}>
-                    {marketingDataSourceLabel(t, ds, view.dataSourceLabels)}
-                  </option>
-                ))}
-              </select>
+                ↺ {t('crm.common.refresh', { defaultValue: 'Обновить' })}
+              </button>
             </div>
           </div>
         </section>
 
+        {/* ── Toolbar ────────────────────────────────────────────── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {/* Period segment */}
+          <div style={{ display: 'inline-flex', background: BG, border: `1px solid ${LINE}`, borderRadius: 8, padding: 2 }}>
+            {(['7d', '30d', '90d', 'custom', 'all'] as MarketingTrafficPeriodPreset[]).map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => applyPreset(p)}
+                style={segBtn(preset === p)}
+              >
+                {periodLabel[p]}
+              </button>
+            ))}
+          </div>
+          {preset === 'custom' && (
+            <>
+              <input
+                type="date"
+                aria-label={t('crm.marketingChannels.periodDateFromAria', { defaultValue: 'Дата начала' })}
+                className={`${marketingSelect} h-9`}
+                value={range.from || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPreset('custom');
+                  setRange((r) => marketingTrafficClampDateRange({ from: v, to: r.to || marketingTrafficUtcTodayYmd() }));
+                }}
+              />
+              <input
+                type="date"
+                aria-label={t('crm.marketingChannels.periodDateToAria', { defaultValue: 'Дата окончания' })}
+                className={`${marketingSelect} h-9`}
+                value={range.to || ''}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setPreset('custom');
+                  setRange((r) => marketingTrafficClampDateRange({ from: r.from || marketingTrafficUtcTodayYmd(), to: v }));
+                }}
+              />
+            </>
+          )}
+          {/* DataSource */}
+          <select
+            value={dataSource}
+            onChange={(e) => setDataSource(e.target.value)}
+            style={{ fontSize: 12, border: `1px solid ${LINE}`, borderRadius: 8, padding: '7px 10px', background: '#fff', color: INK, fontFamily: 'inherit', cursor: 'pointer' }}
+          >
+            <option value="">{t('crm.marketingTraffic.dataSourceAll')}</option>
+            {dataSourceOptions.map((ds) => (
+              <option key={ds} value={ds}>{marketingDataSourceLabel(t, ds, view.dataSourceLabels)}</option>
+            ))}
+          </select>
+          <div style={{ flex: 1 }} />
+          {!loading && (
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: FG3, letterSpacing: '0.04em' }}>
+              {dataSourceOptions.length} {t('crm.marketingChannels.channelsCount', { defaultValue: 'КАНАЛА' })}
+            </span>
+          )}
+        </div>
+
         {loading && (
-          <div className="text-[11px] text-[#222222]/50">{t('crm.marketingChannels.loading')}</div>
+          <div className="text-[11px]" style={{ color: FG3 }}>{t('crm.marketingChannels.loading')}</div>
         )}
 
         {error && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[11px] text-red-800">
+          <div style={{ borderRadius: 10, border: '1px solid #f0c8cf', background: '#fbecef', padding: '10px 14px', fontSize: 12, color: '#9a1f31' }}>
             {error}
           </div>
         )}
@@ -356,85 +382,99 @@ export const ChannelsPage: React.FC = () => {
               onStateChange={setCurPrefs}
             />
 
-            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className={marketingKpiStripeBrand}>
-                <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.sessions')}</div>
+            {/* ── KPI strip (6-col hairline) ──────────────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', border: `1px solid ${LINE}`, borderRadius: 12, background: '#fff', overflow: 'hidden' }}
+              className="[&>*:nth-child(6n)]:border-r-0 max-xl:[grid-template-columns:repeat(3,1fr)] max-sm:[grid-template-columns:repeat(2,1fr)]"
+            >
+              <div className={marketingKpiCell}>
+                <div className={marketingKpiLabel}>{t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })}</div>
+                <div className={marketingKpiValue}>{formatNumber(totalImpressions)}</div>
+              </div>
+              <div className={marketingKpiCell}>
+                <div className={marketingKpiLabel}>{t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' })}</div>
                 <div className={marketingKpiValue}>{formatNumber(view.totalSessions || 0)}</div>
-                <div className={marketingKpiHint}>{t('crm.marketingChannels.kpi.sessionsHint')}</div>
               </div>
-              <div className={marketingKpiStripeViolet}>
+              <div className={marketingKpiCell}>
+                <div className={marketingKpiLabel}>{t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' })}</div>
+                <div className={`${marketingKpiValue} text-[#5a45a8]`}>{formatNumber(totalClicks)}</div>
+              </div>
+              <div className={marketingKpiCell}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.leads')}</div>
-                <div className={`${marketingKpiValue} text-violet-600`}>
-                  {formatNumber(view.totalLeads || 0)}
-                </div>
-                <div className={marketingKpiHint}>{t('crm.marketingChannels.kpi.leadsHint')}</div>
+                <div className={`${marketingKpiValue} text-[#c08319]`}>{formatNumber(view.totalLeads || 0)}</div>
               </div>
-              <div className={marketingKpiStripeEmerald}>
+              <div className={marketingKpiCell}>
+                <div className={marketingKpiLabel}>{t('crm.marketingTraffic.spendLabel', { defaultValue: 'Расходы' })}</div>
+                <div className={marketingKpiValue}>
+                  {spendSummary ? spendSummary : '—'}
+                </div>
+              </div>
+              <div className={marketingKpiCell} style={{ borderRight: 0 }}>
                 <div className={marketingKpiLabel}>{t('crm.marketingChannels.kpi.revenue')}</div>
-                <div className={`${marketingKpiValue} text-emerald-600 text-left leading-tight`}>
+                <div className={`${marketingKpiValue} !text-[16px] text-[#1f8a5e] leading-snug`}>
                   {kpiRevenue.kind === 'split' ? (
-                    <span className="block text-base sm:text-lg font-semibold break-words">
-                      {kpiRevenue.parts.map((p) => (
-                        <span key={p.c} className="inline-block mr-2">
-                          {formatMoney(p.v)} {p.c}
-                        </span>
-                      ))}
-                    </span>
+                    kpiRevenue.parts.map((p) => (
+                      <span key={p.c} className="block">
+                        {formatMoney(p.v)} <span style={{ fontSize: 11, color: FG3, fontWeight: 500 }}>{p.c}</span>
+                      </span>
+                    ))
                   ) : (
                     <>
                       {formatMoney(kpiRevenue.sum)}
-                      {` ${kpiRevenue.cur}`}
-                      {kpiRevenue.miss && curPrefs.currencyMode === 'converted' ? '*' : ''}
+                      <span style={{ fontSize: 11, color: FG3, fontWeight: 500, marginLeft: 4 }}>
+                        {kpiRevenue.cur}
+                        {kpiRevenue.miss && curPrefs.currencyMode === 'converted' ? '*' : ''}
+                      </span>
                     </>
                   )}
                 </div>
-                <div className={marketingKpiHint}>{t('crm.marketingChannels.kpi.revenueHint')}</div>
               </div>
-              <div className={marketingKpiStripeDuo}>
-                <div className={marketingKpiLabel}>
-                  {t('crm.marketingTraffic.kpi.dbRows', {
-                    defaultValue: 'Строк в БД (период)',
-                  })}
-                </div>
-                <div className={marketingKpiValue}>{formatNumber(totalRows)}</div>
-                <div className={marketingKpiHint}>
-                  {t('crm.marketingTraffic.kpi.dbRowsHint', {
-                    defaultValue: 'Сколько записей marketing_traffic попало в выборку',
-                  })}
-                </div>
-              </div>
-            </section>
+            </div>
 
-            <section className={`${marketingCard} space-y-4`}>
-              <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className={marketingSectionTitle}>
-                    {t('crm.marketingTraffic.summaryStripTitle', {
-                      defaultValue: 'Сводка периода',
-                    })}
-                  </div>
-                  <div className={marketingSectionSub}>
-                    {t('crm.marketingTraffic.summaryStripSubtitle', {
-                      defaultValue:
-                        'Таблица — сводка по каждому источнику данных за период (строки в выборке и метрики). Валюта — как на панели выше. Детальные карточки каналов — ниже.',
-                    })}
-                  </div>
+            {/* ── Section: Каналы ────────────────────────────────── */}
+            <div className={marketingGrpTitle}>
+              {t('crm.marketingChannelBlocks.title', { defaultValue: 'Каналы' })}
+              <div style={{ flex: 1, height: 1, background: '#f0f0f0' }} />
+            </div>
+
+            <MarketingChannelBlocks
+              items={deferredItemsForBlocks}
+              t={t}
+              currencyMode={curPrefs.currencyMode}
+              displayCurrency={curPrefs.displayCurrency}
+              rates={curPrefs.rates}
+              formatNumber={formatNumber}
+              formatMoney={formatMoney}
+              dataSourceLabels={view.dataSourceLabels}
+              trafficDateFrom={range.from}
+              trafficDateTo={range.to}
+              title=""
+              subtitle=""
+            />
+
+            {/* ── Section: Сводка ────────────────────────────────── */}
+            <div className={marketingGrpTitle}>
+              {t('crm.marketingTraffic.summaryStripTitle', { defaultValue: 'Сводка по каналам' })}
+              <div style={{ flex: 1, height: 1, background: '#f0f0f0' }} />
+            </div>
+
+            <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 18px', borderBottom: `1px solid ${LINE}` }}>
+                <div style={{ fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em', color: INK }}>
+                  {t('crm.marketingTraffic.summaryStripTitle', { defaultValue: 'Разбивка по источникам данных' })}
                 </div>
-                <div className={marketingMetaLine}>
-                  {t('crm.marketingTraffic.rawRowsLabel', { defaultValue: 'Строк в периоде' })}:{' '}
-                  <span className="font-semibold tabular-nums text-[#222222]">{formatNumber(totalRows)}</span>
+                <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: FG3, letterSpacing: '0.04em' }}>
+                  {t('crm.marketingTraffic.rawRowsLabel', { defaultValue: 'Строк' })}:{' '}
+                  <span style={{ color: INK, fontWeight: 600 }}>{formatNumber(totalRows)}</span>
                   {totalImpressions > 0 && (
-                    <span className="ml-3">
+                    <span style={{ marginLeft: 12 }}>
                       {t('crm.marketingTraffic.impressionsLabel', { defaultValue: 'Показы' })}:{' '}
-                      <span className="font-semibold tabular-nums text-[#222222]">
-                        {formatNumber(totalImpressions)}
-                      </span>
+                      <span style={{ color: INK, fontWeight: 600 }}>{formatNumber(totalImpressions)}</span>
                     </span>
                   )}
                   {spendSummary && (
-                    <span className="ml-3">
+                    <span style={{ marginLeft: 12 }}>
                       {t('crm.marketingTraffic.spendLabel', { defaultValue: 'Расход' })}:{' '}
-                      <span className="font-semibold tabular-nums text-[#222222]">{spendSummary}</span>
+                      <span style={{ color: INK, fontWeight: 600 }}>{spendSummary}</span>
                     </span>
                   )}
                 </div>
@@ -449,89 +489,60 @@ export const ChannelsPage: React.FC = () => {
                 formatMoney={formatMoney}
                 t={t}
               />
-            </section>
+            </div>
 
-            <MarketingChannelBlocks
-              items={deferredItemsForBlocks}
-              t={t}
-              currencyMode={curPrefs.currencyMode}
-              displayCurrency={curPrefs.displayCurrency}
-              rates={curPrefs.rates}
-              formatNumber={formatNumber}
-              formatMoney={formatMoney}
-              dataSourceLabels={view.dataSourceLabels}
-              trafficDateFrom={range.from}
-              trafficDateTo={range.to}
-              title={t('crm.marketingChannelBlocks.title', { defaultValue: 'Каналы' })}
-              subtitle={t('crm.marketingChannelBlocks.subtitleTraffic', {
-                defaultValue:
-                  'Отдельный блок на каждый источник данных (Яндекс, Meta, Google и т.д.): метрики и топ кампаний по расходу.',
-              })}
-            />
+            {/* ── Top sources / mediums / campaigns ───────────────── */}
+            <div className={marketingGrpTitle}>
+              {t('crm.marketingChannels.topSources', { defaultValue: 'Источники, площадки, кампании' })}
+              <div style={{ flex: 1, height: 1, background: '#f0f0f0' }} />
+            </div>
 
             <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              <div className={marketingCard}>
+              <div className={marketingCard} style={{ borderColor: LINE }}>
                 <div className={`${marketingSectionTitle} mb-3`}>{t('crm.marketingChannels.topSources')}</div>
                 <div className="space-y-2 text-[11px]">
                   {topSources.map(([name, value]) => (
-                    <div
-                      key={name}
-                      className="flex items-center justify-between rounded-lg border border-[#222222]/8 bg-slate-50/60 px-2.5 py-1.5 text-[#222222]/80"
-                    >
-                      <span>{labelSanitizedDimension(t, name, 'source')}</span>
-                      <span className="font-semibold tabular-nums text-[#222222]">{formatNumber(value)}</span>
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 8, border: `1px solid ${LINE}`, background: BG }}>
+                      <span style={{ color: INK }}>{labelSanitizedDimension(t, name, 'source')}</span>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: INK }}>{formatNumber(value)}</span>
                     </div>
                   ))}
-                  {topSources.length === 0 && (
-                    <div className="text-[#222222]/45">{t('crm.marketingChannels.common.noData')}</div>
-                  )}
+                  {topSources.length === 0 && <div style={{ color: FG3 }}>{t('crm.marketingChannels.common.noData')}</div>}
                 </div>
               </div>
 
-              <div className={marketingCard}>
+              <div className={marketingCard} style={{ borderColor: LINE }}>
                 <div className={`${marketingSectionTitle} mb-3`}>{t('crm.marketingChannels.topMediums')}</div>
                 <div className="space-y-2 text-[11px]">
                   {topMediums.map(([name, value]) => (
-                    <div
-                      key={name}
-                      className="flex items-center justify-between rounded-lg border border-[#222222]/8 bg-slate-50/60 px-2.5 py-1.5 text-[#222222]/80"
-                    >
-                      <span>{labelSanitizedDimension(t, name, 'medium')}</span>
-                      <span className="font-semibold tabular-nums text-[#222222]">{formatNumber(value)}</span>
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', borderRadius: 8, border: `1px solid ${LINE}`, background: BG }}>
+                      <span style={{ color: INK }}>{labelSanitizedDimension(t, name, 'medium')}</span>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: INK }}>{formatNumber(value)}</span>
                     </div>
                   ))}
-                  {topMediums.length === 0 && (
-                    <div className="text-[#222222]/45">{t('crm.marketingChannels.common.noData')}</div>
-                  )}
+                  {topMediums.length === 0 && <div style={{ color: FG3 }}>{t('crm.marketingChannels.common.noData')}</div>}
                 </div>
               </div>
 
-              <div className={marketingCard}>
+              <div className={marketingCard} style={{ borderColor: LINE }}>
                 <div className={`${marketingSectionTitle} mb-3`}>{t('crm.marketingChannels.topCampaigns')}</div>
                 <div className="space-y-2 text-[11px]">
                   {topCampaigns.map(([name, value]) => (
-                    <div
-                      key={name}
-                      className="flex items-center justify-between rounded-lg border border-[#222222]/8 bg-slate-50/60 px-2.5 py-1.5 text-[#222222]/80"
-                    >
-                      <span className="truncate pr-2">
+                    <div key={name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '6px 10px', borderRadius: 8, border: `1px solid ${LINE}`, background: BG }}>
+                      <span style={{ color: INK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                         {labelSanitizedDimension(t, name, 'campaign')}
                       </span>
-                      <span className="shrink-0 font-semibold tabular-nums text-emerald-600">
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, color: '#1f8a5e', flexShrink: 0 }}>
                         {formatMoney(value.revenue)}
                         {view.currency === 'MIXED' ? (
-                          <span className="text-[9px] text-[#222222]/45 font-normal ml-1">
-                            {t('crm.marketingCurrency.mixedShort', { defaultValue: 'разн. вал.' })}
+                          <span style={{ fontSize: 9, color: FG3, fontWeight: 400, marginLeft: 4 }}>
+                            {t('crm.marketingCurrency.mixedShort', { defaultValue: 'разн.' })}
                           </span>
-                        ) : (
-                          ` ${currency}`
-                        )}
+                        ) : ` ${currency}`}
                       </span>
                     </div>
                   ))}
-                  {topCampaigns.length === 0 && (
-                    <div className="text-[#222222]/45">{t('crm.marketingChannels.common.noData')}</div>
-                  )}
+                  {topCampaigns.length === 0 && <div style={{ color: FG3 }}>{t('crm.marketingChannels.common.noData')}</div>}
                 </div>
               </div>
             </section>

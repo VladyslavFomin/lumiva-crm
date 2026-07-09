@@ -25,11 +25,18 @@ import { IntegrationConnectionTestSyncActions } from '../../components/integrati
 import { MarketingIntegrationSetupModal } from '../../components/integrations/MarketingIntegrationSetupModal';
 import { Ga4MarketingQuickConnectModal } from '../../components/integrations/Ga4MarketingQuickConnectModal';
 import { WooCommerceHubSheet } from '../../components/integrations/WooCommerceHubSheet';
+import { ShopifyConnectModal } from '../../components/integrations/ShopifyConnectModal';
+import { ZapierMakeConnectModal } from '../../components/integrations/ZapierMakeConnectModal';
 import {
   IntegrationThirdPartyConnectModal,
   isHubThirdPartyConnectCatalogId,
 } from '../../components/integrations/IntegrationThirdPartyConnectModal';
 import { GoogleSheetsConnectionSettingsModal } from '../../components/integrations/GoogleSheetsConnectionSettingsModal';
+import { SlackConnectModal } from '../../components/integrations/SlackConnectModal';
+import { OpenAiConnectModal } from '../../components/integrations/OpenAiConnectModal';
+import { OneCConnectModal } from '../../components/integrations/OneCConnectModal';
+import { SapConnectModal } from '../../components/integrations/SapConnectModal';
+import { JiraConnectModal } from '../../components/integrations/JiraConnectModal';
 import {
   MarketingIntegrationsPanel,
   type MarketingIntegrationProviderKey,
@@ -48,6 +55,28 @@ const CATALOG_CATEGORY_ORDER: IntegrationHubCrmModule[] = [
   'calendar',
   'automations',
 ];
+
+const CATALOG_BRAND_COLORS: Record<string, string> = {
+  google_ads: '#EA4335',
+  meta_ads: '#0866FF',
+  google_analytics: '#0F9D58',
+  yandex_metrika: '#FC3F1D',
+  mailchimp: '#FFE01B',
+  shopify: '#96BF48',
+  woocommerce: '#96588A',
+  slack: '#4A154B',
+  openai: '#412991',
+  google_sheets: '#34A853',
+  google_calendar: '#1A73E8',
+  telegram: '#26A5E4',
+  whatsapp: '#25D366',
+  make: '#6D00CC',
+  zapier: '#FF4A00',
+  '1c': '#E5302A',
+  jira: '#0052CC',
+  sap: '#0FAAFF',
+  sms: '#6366F1',
+};
 
 /** Фильтр каталога по модулю CRM без «marketing» — отдельная вкладка «Реклама и счётчики». */
 const CATALOG_MODULE_FILTER_ORDER = CATALOG_CATEGORY_ORDER.filter((m) => m !== 'marketing');
@@ -92,6 +121,7 @@ function lifecycleBadgeClass(lifecycle: IntegrationHubCatalogEntry['lifecycle'])
 
 function connectionMatchesCatalogId(c: IntegrationConnectionDto, catalogId: string): boolean {
   if (catalogId === 'woocommerce') return c.kind === 'woocommerce';
+  if (catalogId === 'shopify') return c.kind === 'shopify';
   return c.kind === 'third_party_link' && c.linkCatalogId === catalogId;
 }
 
@@ -100,6 +130,7 @@ function isHubCatalogConnection(
   catalogIds: Set<string>,
 ): boolean {
   if (c.kind === 'woocommerce') return catalogIds.has('woocommerce');
+  if (c.kind === 'shopify') return catalogIds.has('shopify');
   return Boolean(
     c.kind === 'third_party_link' && c.linkCatalogId && catalogIds.has(c.linkCatalogId),
   );
@@ -151,6 +182,7 @@ export const IntegrationsHubPage: React.FC = () => {
   };
 
   const [wooSheetOpen, setWooSheetOpen] = useState(false);
+  const [shopifyModalOpen, setShopifyModalOpen] = useState(false);
 
   useEffect(() => {
     if (searchParams.get('module') !== 'marketing') return;
@@ -465,115 +497,143 @@ export const IntegrationsHubPage: React.FC = () => {
     const marketingProvider = marketingProviderForCatalog(entry.id);
     const connN = countForCatalogId(entry.id);
     const n = marketingProvider ? marketingRowsForCatalog(entry.id, marketingRows) : connN;
+    const isConnected = n > 0;
     const caps = capabilityChips(entry.capabilities);
+    const name = integrationCatalogName(entry.id, t);
+    const brandColor = CATALOG_BRAND_COLORS[entry.id];
     const showThirdPartyConnect =
       entry.id !== 'woocommerce' &&
       !marketingProvider &&
       isHubThirdPartyConnectCatalogId(entry.id);
+
+    const lcClass = entry.lifecycle === 'live'
+      ? 'text-[#1f8a5e] border-[#c5e3d2] bg-[#eaf4ee]'
+      : entry.lifecycle === 'beta'
+        ? 'text-[#7a4a09] border-[#f0d9a8] bg-[#fbf2dc]'
+        : 'text-[#888] border-[#e7e7e7] bg-[#fafafa]';
+
     return (
-      <div key={entry.id} className={catalogCardHover}>
+      <div
+        key={entry.id}
+        className="rounded-2xl border border-[#e7e7e7] bg-white p-[18px] flex flex-col transition-all duration-150 hover:-translate-y-px hover:shadow-[0_12px_28px_-14px_rgba(0,0,0,0.16)]"
+        style={isConnected && brandColor ? { borderTop: `3px solid ${brandColor}` } : undefined}
+      >
+        {/* Top: icon + name + badge */}
         <div className="flex items-start gap-3">
           <IntegrationBrandIcon
             catalogId={entry.id}
-            label={integrationCatalogName(entry.id, t)}
+            label={name}
             size={44}
-            className="mt-0.5 ring-1 ring-black/[0.04]"
+            className="shrink-0 rounded-xl ring-1 ring-black/[0.04] mt-0.5"
           />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm font-semibold text-slate-900 truncate">
-                {integrationCatalogName(entry.id, t)}
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[15px] font-semibold tracking-tight text-[#222] truncate">
+                {name}
               </span>
-              <span
-                className={`text-[10px] font-semibold uppercase tracking-wide rounded-full border px-2 py-0.5 shrink-0 ${lifecycleBadgeClass(entry.lifecycle)}`}
-              >
+              <span className={`text-[9px] font-semibold uppercase tracking-[0.08em] px-2 py-[3px] rounded-full border shrink-0 ${lcClass}`}>
                 {t(`crm.integrationsHub.lifecycle.${entry.lifecycle}`)}
               </span>
-              {n > 0 ? (
-                <span className="text-[10px] font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+              {isConnected ? (
+                <span className="text-[9px] font-semibold text-[#1f8a5e] bg-[#eaf4ee] border border-[#c5e3d2] rounded-full px-2 py-[3px] shrink-0">
                   {t('crm.integrationsHub.connectedCount', { count: n })}
                 </span>
               ) : null}
             </div>
-            <div className="mt-2 text-[10px] text-slate-500 font-medium uppercase tracking-wide">
-              {t('crm.integrationsHub.modulesLabel')}
+            <div className="font-mono text-[10px] text-[#888] mt-0.5 tracking-[0.02em]">
+              {entry.id.replace(/_/g, ' ')}
             </div>
-            <div className="mt-1 flex flex-wrap gap-1">
-              {entry.modules.map((m) => (
-                <span
-                  key={m}
-                  className="rounded-md bg-slate-100 text-slate-700 px-2 py-0.5 text-[10px]"
-                >
-                  {t(`crm.integrationsHub.module.${m}`)}
-                </span>
-              ))}
-            </div>
-            {caps.length > 0 ? (
-              <>
-                <div className="mt-2 text-[10px] text-slate-500 font-medium uppercase tracking-wide">
-                  {t('crm.integrationsHub.capabilitiesLabel')}
-                </div>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {caps.map(({ key }) => (
-                    <span
-                      key={key}
-                      className="rounded-md border border-slate-200 text-slate-700 px-2 py-0.5 text-[10px]"
-                    >
-                      {t(`crm.integrationsHub.cap.${key}`)}
-                    </span>
-                  ))}
-                </div>
-              </>
-            ) : null}
+          </div>
+        </div>
+
+        {/* Description */}
+        {entry.description ? (
+          <p className="text-[12.5px] text-[#555] leading-[1.5] mt-3 flex-1">{entry.description}</p>
+        ) : null}
+
+        {/* Tags: modules + capabilities */}
+        {(entry.modules.length > 0 || caps.length > 0) ? (
+          <div className="flex flex-wrap gap-1 mt-3">
+            {entry.modules.map((m) => (
+              <span key={m} className="font-mono text-[9.5px] text-[#555] px-2 py-[3px] border border-[#e7e7e7] rounded-md bg-[#fafafa]">
+                {t(`crm.integrationsHub.module.${m}`)}
+              </span>
+            ))}
+            {caps.map(({ key }) => (
+              <span key={key} className="font-mono text-[9.5px] text-[#555] px-2 py-[3px] border border-[#e7e7e7] rounded-md bg-[#fafafa]">
+                {t(`crm.integrationsHub.cap.${key}`)}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        {/* Footer */}
+        <div className="flex items-center justify-between mt-4 pt-3.5 border-t border-[#f0f0f0]">
+          <div className="font-mono text-[10.5px] text-[#888]">
+            {isConnected
+              ? <><span className="text-[#222] font-semibold">{n}</span> {t('crm.integrationsHub.connectedCount', { count: n }).split(':')[1]?.trim() ?? ''}</>
+              : t('crm.integrationsHub.notConnected')}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
             {entry.id === 'woocommerce' ? (
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setWooSheetOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#222] text-white text-[12px] font-medium rounded-lg transition hover:bg-black"
+              >
+                {t('crm.integrationsHub.wooOpenSheet')}
+              </button>
+            ) : null}
+            {entry.id === 'shopify' ? (
+              <>
                 <button
                   type="button"
-                  onClick={() => setWooSheetOpen(true)}
-                  className="rounded-full bg-[#222222] px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm transition hover:bg-black hover:shadow-md active:scale-[0.98]"
+                  onClick={() => setShopifyModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#222] text-white text-[12px] font-medium rounded-lg transition hover:bg-black"
                 >
-                  {t('crm.integrationsHub.wooOpenSheet')}
+                  {t('crm.integrationsHub.connectCatalog')}
                 </button>
-              </div>
+                {countForCatalogId('shopify') > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setTab('connections')}
+                    className="inline-flex items-center px-3 py-1.5 border border-[#e7e7e7] text-[#222] text-[12px] font-medium rounded-lg bg-white transition hover:border-[#222]"
+                  >
+                    {t('crm.integrationsHub.viewConnectionsCount', { count: countForCatalogId('shopify') })}
+                  </button>
+                ) : null}
+              </>
             ) : null}
             {marketingProvider ? (
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+              <>
                 <button
                   type="button"
                   onClick={() => {
                     if (marketingProvider === 'google_analytics' && n === 0) {
                       setGa4QuickConnectOpen(true);
                     } else {
-                      setMarketingModal({
-                        catalogId: entry.id,
-                        provider: marketingProvider,
-                      });
+                      setMarketingModal({ catalogId: entry.id, provider: marketingProvider });
                     }
                   }}
-                  className="rounded-full bg-[#222222] px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm transition hover:bg-black hover:shadow-md active:scale-[0.98]"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#222] text-white text-[12px] font-medium rounded-lg transition hover:bg-black"
                 >
-                  {n > 0
-                    ? t('crm.integrationsHub.marketingSetup')
-                    : t('crm.integrationsHub.connectCatalog')}
+                  {n > 0 ? t('crm.integrationsHub.marketingSetup') : t('crm.integrationsHub.connectCatalog')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setMarketingModal(null);
-                    setTab('marketing');
-                  }}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                  onClick={() => { setMarketingModal(null); setTab('marketing'); }}
+                  className="inline-flex items-center px-3 py-1.5 border border-[#e7e7e7] text-[#222] text-[12px] font-medium rounded-lg bg-white transition hover:border-[#222]"
                 >
                   {t('crm.integrationsHub.marketingOpenTab')}
                 </button>
-              </div>
+              </>
             ) : null}
             {showThirdPartyConnect ? (
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+              <>
                 <button
                   type="button"
                   onClick={() => setConnectCatalogId(entry.id)}
-                  className="rounded-full bg-[#222222] px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm transition hover:bg-black hover:shadow-md active:scale-[0.98]"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#222] text-white text-[12px] font-medium rounded-lg transition hover:bg-black"
                 >
                   {t('crm.integrationsHub.connectCatalog')}
                 </button>
@@ -581,12 +641,20 @@ export const IntegrationsHubPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setTab('connections')}
-                    className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-semibold text-slate-800 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+                    className="inline-flex items-center px-3 py-1.5 border border-[#e7e7e7] text-[#222] text-[12px] font-medium rounded-lg bg-white transition hover:border-[#222]"
                   >
                     {t('crm.integrationsHub.viewConnectionsCount', { count: connN })}
                   </button>
                 ) : null}
-              </div>
+                {entry.id === 'mailchimp' && connN > 0 ? (
+                  <Link
+                    to="/automations/new?action=send_mailchimp"
+                    className="inline-flex items-center px-3 py-1.5 border border-[#e7e7e7] text-[#222] text-[12px] font-medium rounded-lg bg-white transition hover:border-[#222]"
+                  >
+                    {t('crm.integrationsHub.mailchimpSetupScenario')}
+                  </Link>
+                ) : null}
+              </>
             ) : null}
           </div>
         </div>
@@ -596,123 +664,182 @@ export const IntegrationsHubPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        {/* ── PAGE HEADER ── */}
+        <div className="flex items-end justify-between gap-5 pb-5 border-b border-[#e7e7e7] mb-5 flex-wrap">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {t('crm.integrationsHub.title')}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#222]" />
+              <span className="font-mono text-[11px] tracking-[0.12em] uppercase text-[#888]">
+                {t('crm.integrationsHub.title')}
+              </span>
+            </div>
+            <h1 className="text-[24px] font-semibold tracking-tight text-[#222] leading-tight">
+              {activeTab === 'marketing'
+                ? t('crm.integrationsHub.navMarketingIntegrationTab')
+                : activeTab === 'connections'
+                  ? t('crm.integrationsHub.tabs.connections')
+                  : t('crm.integrationsHub.tabs.catalog')}
             </h1>
-            <p className="text-xs text-slate-600 mt-1 max-w-3xl leading-relaxed">
+            <p className="text-[13px] text-[#888] mt-1.5 max-w-[560px] leading-[1.45]">
               {t('crm.integrationsHub.subtitle')}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="rounded-full border border-slate-200/90 bg-white px-4 py-2 text-xs font-semibold text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md active:scale-[0.98] disabled:opacity-50 disabled:hover:translate-y-0"
+              className="inline-flex items-center gap-1.5 px-3 py-[7px] border border-[#e7e7e7] rounded-lg text-[12.5px] font-medium text-[#222] bg-white hover:border-[#222] transition-colors disabled:opacity-50"
             >
               {t('crm.integrationsHub.refresh')}
             </button>
             <Link
               to="/automations"
-              className="inline-flex items-center justify-center rounded-full border border-slate-200/90 bg-white px-4 py-2 text-xs font-semibold text-slate-800 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md active:scale-[0.98]"
+              className="inline-flex items-center gap-1.5 px-3 py-[7px] border border-[#e7e7e7] rounded-lg text-[12.5px] font-medium text-[#222] bg-white hover:border-[#222] transition-colors"
             >
               {t('crm.integrationsHub.openAutomationsScenarios')}
             </Link>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200/90 bg-white p-3 shadow-sm sm:p-4">
-          <div className="flex flex-wrap items-center gap-2">
+        {/* ── MODULE TABS (underline style) ── */}
+        <div className="flex border-b border-[#e7e7e7] mb-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {([
+            { id: 'catalog' as HubTab, label: t('crm.integrationsHub.tabs.catalog'), count: catalog.length },
+            { id: 'connections' as HubTab, label: t('crm.integrationsHub.tabs.connections'), count: connections.length },
+            { id: 'marketing' as HubTab, label: t('crm.integrationsHub.navMarketingIntegrationTab'), count: marketingRows.length },
+          ]).map(({ id, label, count }) => (
             <button
+              key={id}
               type="button"
-              onClick={() => setTab('catalog')}
-              className={hubChip(activeTab === 'catalog', 'nav')}
+              onClick={() => setTab(id)}
+              className={[
+                'inline-flex items-center gap-2 px-3.5 py-2.5 text-[13px] border-b-[1.5px] -mb-px whitespace-nowrap transition-colors',
+                activeTab === id
+                  ? 'text-[#222] border-[#222] font-medium'
+                  : 'text-[#888] border-transparent hover:text-[#222] font-normal',
+              ].join(' ')}
             >
-              {t('crm.integrationsHub.tabs.catalog')}
+              {label}
+              <span className="font-mono text-[10px] bg-[#f5f5f5] text-[#888] px-1.5 py-0.5 rounded leading-none">
+                {count}
+              </span>
             </button>
-            <button
-              type="button"
-              onClick={() => setTab('connections')}
-              className={hubChip(activeTab === 'connections', 'nav')}
-            >
-              {t('crm.integrationsHub.tabs.connections')}
-            </button>
-            <button
-              type="button"
-              onClick={() => setTab('marketing')}
-              className={hubChip(activeTab === 'marketing', 'nav')}
-            >
-              {t('crm.integrationsHub.navMarketingIntegrationTab')}
-            </button>
-            <span
-              className="hidden h-6 w-px shrink-0 bg-slate-200 sm:block"
-              aria-hidden
-            />
-            {MODULE_FILTER_CHIPS.map((m) => {
-              const on = activeTab === 'catalog' && moduleFilter === m;
-              return (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setCatalogModule(m)}
-                  className={hubChip(on, 'filter')}
-                >
-                  {m === 'all'
-                    ? t('crm.integrationsHub.catalogFilterAll')
-                    : t(`crm.integrationsHub.module.${m}`)}
-                </button>
-              );
-            })}
-          </div>
+          ))}
         </div>
 
+        {/* ── SUMMARY STRIP ── */}
+        {!loading && !error && (
+          <div className="grid grid-cols-2 md:grid-cols-4 border border-[#e7e7e7] rounded-xl bg-white overflow-hidden mb-[22px]">
+            {[
+              {
+                label: t('crm.integrationsHub.tabs.connections'),
+                value: hubConnections.length,
+                unit: `/ ${catalog.length}`,
+                sub: hubConnections.length > 0 ? `● ${hubConnections.length}` : '—',
+                green: hubConnections.length > 0,
+              },
+              {
+                label: t('crm.integrationsHub.tabs.catalog'),
+                value: catalog.length,
+                unit: '',
+                sub: t('crm.integrationsHub.catalogFilterAll'),
+                green: false,
+              },
+              {
+                label: t('crm.integrationsHub.navMarketingIntegrationTab'),
+                value: marketingRows.length,
+                unit: '',
+                sub: 'rows',
+                green: false,
+              },
+              {
+                label: t('crm.integrationsHub.connectionsHeading'),
+                value: connections.length,
+                unit: '',
+                sub: 'total',
+                green: false,
+              },
+            ].map((kpi, i) => (
+              <div key={i} className={`px-4 py-4 ${i < 3 ? 'border-r border-[#e7e7e7]' : ''}`}>
+                <div className="font-mono text-[9.5px] uppercase tracking-[0.1em] text-[#888] font-medium">
+                  {kpi.label}
+                </div>
+                <div className="text-[26px] font-semibold tracking-tight text-[#222] mt-2.5 leading-none">
+                  {kpi.value}
+                  {kpi.unit ? <span className="text-[12px] text-[#888] font-medium ml-1">{kpi.unit}</span> : null}
+                </div>
+                <div className={`font-mono text-[10px] mt-1.5 ${kpi.green ? 'text-[#1f8a5e]' : 'text-[#888]'}`}>
+                  {kpi.sub}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {actionMsg && (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800">
+          <div className="rounded-xl border border-[#e7e7e7] bg-[#fafafa] px-3 py-2 text-xs text-[#222] mb-4">
             {actionMsg}
           </div>
         )}
-
         {loading && (
-          <p className="text-xs text-slate-500">{t('crm.automations.list.loading')}</p>
+          <p className="text-xs text-[#888] mb-4">{t('crm.automations.list.loading')}</p>
         )}
         {error && (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">
+          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 mb-4">
             {error}
           </div>
         )}
 
+        {/* ── CATALOG TAB ── */}
         {!loading && !error && activeTab === 'catalog' && (
-          <section className="space-y-8">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:justify-between">
-              <h2 className="text-sm font-semibold text-slate-900">
-                {t('crm.integrationsHub.catalogHeading')}
-              </h2>
-              <p className="text-[10px] text-slate-500 max-w-xl leading-snug sm:text-right">
-                {t('crm.integrationsHub.openAutomationsIntegrationsHint')}
-              </p>
+          <section>
+            {/* Module filter chips */}
+            <div className="flex flex-wrap items-center gap-1.5 mb-6">
+              {MODULE_FILTER_CHIPS.map((m) => {
+                const on = moduleFilter === m;
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setCatalogModule(m)}
+                    className={[
+                      'px-3 py-1.5 text-[11px] font-medium rounded-lg border transition-colors',
+                      on
+                        ? 'bg-[#222] text-white border-[#222]'
+                        : 'bg-white text-[#555] border-[#e7e7e7] hover:border-[#222]',
+                    ].join(' ')}
+                  >
+                    {m === 'all' ? t('crm.integrationsHub.catalogFilterAll') : t(`crm.integrationsHub.module.${m}`)}
+                  </button>
+                );
+              })}
             </div>
+
             {catalogByCategory.length === 0 ? (
-              <p className="text-sm text-slate-500">{t('crm.integrationsHub.catalogEmptyFilter')}</p>
+              <p className="text-sm text-[#888]">{t('crm.integrationsHub.catalogEmptyFilter')}</p>
             ) : (
               catalogByCategory.map(({ key: catKey, entries }) => (
-                <div key={catKey} className="space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-500">
-                    {t(`crm.integrationsHub.catalogCategory.${catKey}`)}
-                  </h3>
+                <div key={catKey} className="mb-7">
+                  <div className="flex items-center gap-2.5 mb-4">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#888] font-medium whitespace-nowrap">
+                      {t(`crm.integrationsHub.catalogCategory.${catKey}`)}
+                    </span>
+                    <div className="flex-1 h-px bg-[#f0f0f0]" />
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {entries.map((entry) => renderCatalogEntry(entry))}
                   </div>
                 </div>
               ))
             )}
-            <p className="text-xs text-slate-600 leading-relaxed">
+
+            <p className="text-xs text-[#555] leading-relaxed mt-4">
               {t('crm.integrationsHub.wooChannelsHint')}{' '}
               <Link
                 to="/app/sales/channels"
-                className="font-semibold text-[#222222] underline decoration-slate-300 underline-offset-2 hover:decoration-[#222222]"
+                className="font-semibold text-[#222] underline decoration-slate-300 underline-offset-2 hover:decoration-[#222]"
               >
                 {t('crm.integrationsHub.wooChannelsLink')}
               </Link>
@@ -720,14 +847,15 @@ export const IntegrationsHubPage: React.FC = () => {
           </section>
         )}
 
+        {/* ── CONNECTIONS TAB ── */}
         {!loading && !error && activeTab === 'connections' && (
           <section className="space-y-8">
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">
+              <h2 className="text-sm font-semibold text-[#222]">
                 {t('crm.integrationsHub.connectionsHeading')}
               </h2>
               {connections.length === 0 ? (
-                <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                <p className="text-xs text-[#888] mt-1 max-w-2xl leading-relaxed">
                   {t('crm.integrationsHub.connectionsEmpty')}
                 </p>
               ) : null}
@@ -735,11 +863,14 @@ export const IntegrationsHubPage: React.FC = () => {
 
             <div className="max-w-4xl space-y-4">
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
-                  {t('crm.integrationsHub.wpLumivaSectionTitle')}
-                </h3>
-                <details className="mt-2 rounded-xl border border-slate-200/90 bg-slate-50/80 px-3 py-2 text-[11px] text-slate-600">
-                  <summary className="cursor-pointer select-none font-semibold text-slate-800 list-none [&::-webkit-details-marker]:hidden">
+                <div className="flex items-center gap-2.5 mb-2">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#888] font-medium whitespace-nowrap">
+                    {t('crm.integrationsHub.wpLumivaSectionTitle')}
+                  </span>
+                  <div className="flex-1 h-px bg-[#f0f0f0]" />
+                </div>
+                <details className="mt-2 rounded-xl border border-[#e7e7e7] bg-[#fafafa] px-3 py-2 text-[11px] text-[#555]">
+                  <summary className="cursor-pointer select-none font-semibold text-[#222] list-none [&::-webkit-details-marker]:hidden">
                     <span className="underline decoration-slate-300 underline-offset-2">
                       {t('crm.integrationsHub.wpLumivaSectionHintsSummary')}
                     </span>
@@ -755,9 +886,9 @@ export const IntegrationsHubPage: React.FC = () => {
                   return (
                     <div
                       key={catId}
-                      className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-sm"
+                      className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-[#e7e7e7] bg-white"
                     >
-                      <div className="space-y-2 border-b border-slate-200/90 bg-slate-50/95 px-3 py-3 sm:px-4">
+                      <div className="space-y-2 border-b border-[#e7e7e7] bg-[#fafafa] px-3 py-3 sm:px-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
                             <IntegrationBrandIcon
@@ -766,20 +897,20 @@ export const IntegrationsHubPage: React.FC = () => {
                               size={36}
                               className="shrink-0 ring-1 ring-black/[0.04]"
                             />
-                            <div className="min-w-0 text-sm font-semibold text-slate-900 leading-tight">
+                            <div className="min-w-0 text-sm font-semibold text-[#222] leading-tight">
                               {integrationCatalogName(catId, t)}
                             </div>
                           </div>
                           <button
                             type="button"
                             onClick={() => setConnectCatalogId(catId)}
-                            className="shrink-0 rounded-full bg-[#222222] px-3 py-1.5 text-[10px] font-semibold text-white shadow-sm transition hover:bg-black hover:shadow-md active:scale-[0.98] sm:px-4 sm:py-2 sm:text-[11px]"
+                            className="shrink-0 rounded-lg bg-[#222] px-3 py-1.5 text-[11px] font-medium text-white transition hover:bg-black"
                           >
                             {t('crm.integrationsHub.wpLumivaConnectNew')}
                           </button>
                         </div>
-                        <details className="rounded-lg border border-slate-200/80 bg-white/90 px-2.5 py-1.5 text-[10px] text-slate-600">
-                          <summary className="cursor-pointer select-none font-semibold text-slate-800 list-none [&::-webkit-details-marker]:hidden">
+                        <details className="rounded-lg border border-[#e7e7e7] bg-white px-2.5 py-1.5 text-[10px] text-[#555]">
+                          <summary className="cursor-pointer select-none font-semibold text-[#222] list-none [&::-webkit-details-marker]:hidden">
                             <span className="underline decoration-slate-300 underline-offset-2">
                               {t('crm.integrationsHub.wpLumivaCatalogHintsSummary')}
                             </span>
@@ -809,7 +940,7 @@ export const IntegrationsHubPage: React.FC = () => {
                                       disabled={togglingId === c.id}
                                       onClick={() => void handleToggleIntegrationEnabled(c)}
                                       className={
-                                        'rounded-full border px-3 py-1.5 text-[10px] font-semibold transition disabled:opacity-50 ' +
+                                        'rounded-lg border px-3 py-1.5 text-[11px] font-medium transition disabled:opacity-50 ' +
                                         (c.isEnabled
                                           ? 'border-amber-200 bg-amber-50 text-amber-950 hover:bg-amber-100'
                                           : 'border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-100')
@@ -836,7 +967,7 @@ export const IntegrationsHubPage: React.FC = () => {
                             ))}
                           </div>
                         ) : (
-                          <p className="text-xs text-slate-500 italic">
+                          <p className="text-xs text-[#888] italic">
                             {t('crm.integrationsHub.wpLumivaEmptyRow')}
                           </p>
                         )}
@@ -849,9 +980,12 @@ export const IntegrationsHubPage: React.FC = () => {
 
             {hubRestConnections.length > 0 && (
               <div className="space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-[0.12em] text-slate-600">
-                  {t('crm.integrationsHub.otherHubConnectionsHeading')}
-                </h3>
+                <div className="flex items-center gap-2.5">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#888] font-medium whitespace-nowrap">
+                    {t('crm.integrationsHub.otherHubConnectionsHeading')}
+                  </span>
+                  <div className="flex-1 h-px bg-[#f0f0f0]" />
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {hubRestConnections.map((c) => (
                     <IntegrationConnectionCard
@@ -879,7 +1013,7 @@ export const IntegrationsHubPage: React.FC = () => {
                                 syncingId === c.id
                               }
                               onClick={() => void handleGoogleCalendarReconnect(c.id)}
-                              className="w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                              className="w-full rounded-lg border border-[#e7e7e7] bg-white px-3 py-2 text-[11px] font-medium text-[#222] hover:bg-[#fafafa] disabled:opacity-50"
                             >
                               {googleCalendarOAuthBusyId === c.id
                                 ? t('crm.integrationsHub.googleCalendar.oauthBusy')
@@ -890,7 +1024,7 @@ export const IntegrationsHubPage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setGoogleSheetsSettingsId(c.id)}
-                              className="w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-800 hover:bg-slate-50"
+                              className="w-full rounded-lg border border-[#e7e7e7] bg-white px-3 py-2 text-[11px] font-medium text-[#222] hover:bg-[#fafafa]"
                             >
                               {t('crm.integrationsHub.googleSheetsImportSettings')}
                             </button>
@@ -905,7 +1039,7 @@ export const IntegrationsHubPage: React.FC = () => {
                           />
                           <Link
                             to="/app/sales/integrations"
-                            className="inline-block text-[10px] font-semibold text-[#222222] underline decoration-slate-300 underline-offset-2 hover:decoration-[#222222]"
+                            className="inline-block text-[10px] font-semibold text-[#222] underline decoration-slate-300 underline-offset-2 hover:decoration-[#222]"
                           >
                             {t('crm.integrationsHub.editConnectionKeys')}
                           </Link>
@@ -919,9 +1053,12 @@ export const IntegrationsHubPage: React.FC = () => {
 
             {otherConnections.length > 0 && (
               <div>
-                <h3 className="text-xs font-semibold text-slate-600 mb-2">
-                  {t('crm.integrationsHub.otherConnectionsHeading')}
-                </h3>
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#888] font-medium whitespace-nowrap">
+                    {t('crm.integrationsHub.otherConnectionsHeading')}
+                  </span>
+                  <div className="flex-1 h-px bg-[#f0f0f0]" />
+                </div>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {otherConnections.map((c) => (
                     <IntegrationConnectionCard
@@ -933,7 +1070,7 @@ export const IntegrationsHubPage: React.FC = () => {
                       surfaceTone="whiteDashed"
                       connectorSubtitle={false}
                       metaLine={
-                        <div className="text-[10px] text-slate-500 mt-0.5">
+                        <div className="text-[10px] text-[#888] mt-0.5">
                           {t('crm.integrationsHub.kind')}: {c.kind}
                           {c.linkCatalogId ? ` · ${c.linkCatalogId}` : ''}
                         </div>
@@ -941,7 +1078,7 @@ export const IntegrationsHubPage: React.FC = () => {
                       lastSyncVariant="hub"
                       showLastSyncStatus
                       showSalesIntegrationsLink={
-                        c.kind === 'woocommerce' || c.kind === 'manual-import'
+                        c.kind === 'woocommerce' || c.kind === 'shopify' || c.kind === 'manual-import'
                       }
                       footer={
                         <div className="space-y-2">
@@ -954,7 +1091,7 @@ export const IntegrationsHubPage: React.FC = () => {
                                 syncingId === c.id
                               }
                               onClick={() => void handleGoogleCalendarReconnect(c.id)}
-                              className="w-full rounded-full border border-slate-300 bg-white px-3 py-2 text-[11px] font-semibold text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+                              className="w-full rounded-lg border border-[#e7e7e7] bg-white px-3 py-2 text-[11px] font-medium text-[#222] hover:bg-[#fafafa] disabled:opacity-50"
                             >
                               {googleCalendarOAuthBusyId === c.id
                                 ? t('crm.integrationsHub.googleCalendar.oauthBusy')
@@ -971,7 +1108,7 @@ export const IntegrationsHubPage: React.FC = () => {
                           />
                           <Link
                             to="/app/sales/integrations"
-                            className="inline-block text-[10px] font-semibold text-[#222222] underline decoration-slate-300 underline-offset-2 hover:decoration-[#222222]"
+                            className="inline-block text-[10px] font-semibold text-[#222] underline decoration-slate-300 underline-offset-2 hover:decoration-[#222]"
                           >
                             {t('crm.integrationsHub.editConnectionKeys')}
                           </Link>
@@ -985,6 +1122,7 @@ export const IntegrationsHubPage: React.FC = () => {
           </section>
         )}
 
+        {/* ── MARKETING TAB ── */}
         {!loading && !error && activeTab === 'marketing' && (
           <MarketingIntegrationsPanel
             variant="embedded"
@@ -998,6 +1136,12 @@ export const IntegrationsHubPage: React.FC = () => {
         open={wooSheetOpen}
         onClose={() => setWooSheetOpen(false)}
         onCreated={() => void load({ quiet: true })}
+      />
+
+      <ShopifyConnectModal
+        open={shopifyModalOpen}
+        onClose={() => setShopifyModalOpen(false)}
+        onCreated={() => { void load({ quiet: true }); }}
       />
 
       {marketingModal ? (
@@ -1015,12 +1159,51 @@ export const IntegrationsHubPage: React.FC = () => {
         onClose={() => setGa4QuickConnectOpen(false)}
       />
 
-      <IntegrationThirdPartyConnectModal
-        open={Boolean(connectCatalogId)}
-        catalogId={connectCatalogId ?? ''}
-        onClose={() => setConnectCatalogId(null)}
-        onCreated={() => void load({ quiet: true })}
-      />
+      {connectCatalogId === 'slack' ? (
+        <SlackConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : connectCatalogId === 'openai' ? (
+        <OpenAiConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : connectCatalogId === '1c' ? (
+        <OneCConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : connectCatalogId === 'sap' ? (
+        <SapConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : connectCatalogId === 'jira' ? (
+        <JiraConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : (connectCatalogId === 'zapier' || connectCatalogId === 'make') ? (
+        <ZapierMakeConnectModal
+          open
+          catalogId={connectCatalogId}
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : (
+        <IntegrationThirdPartyConnectModal
+          open={Boolean(connectCatalogId)}
+          catalogId={connectCatalogId ?? ''}
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      )}
 
       {googleSheetsSettingsId ? (
         <GoogleSheetsConnectionSettingsModal

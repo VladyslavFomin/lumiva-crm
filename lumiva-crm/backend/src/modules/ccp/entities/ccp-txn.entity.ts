@@ -40,6 +40,9 @@ export class CcpTxnEntity {
   @Column({ type: 'varchar', length: 64, nullable: true })
   ccpStatus: string | null;
 
+  @Column({ type: 'jsonb', nullable: true })
+  meta: Record<string, any> | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

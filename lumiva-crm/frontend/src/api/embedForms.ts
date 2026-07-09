@@ -8,8 +8,24 @@ export type EmbedFieldType =
   | 'tel'
   | 'number'
   | 'date'
+  | 'time'
+  | 'datetime'
   | 'textarea'
   | 'select'
+  | 'radio'
+  | 'checkbox'
+  | 'multi_checkbox'
+  | 'hidden'
+  | 'utm'
+  | 'page_url'
+  | 'rating'
+  | 'range'
+  | 'html'
+  | 'divider'
+  | 'service'
+  | 'specialist'
+  | 'guests'
+  | 'promo_code'
   | 'file'
   | 'checkbox_consent'
   | 'messaging';
@@ -20,11 +36,32 @@ export interface EmbedFieldConfigItem {
   key: string;
   label: string;
   placeholder?: string;
+  helpText?: string;
   required: boolean;
+  stepId?: string;
+  defaultValue?: string | number | boolean | string[];
   maxLength?: number;
-  options?: { value: string; label: string }[];
+  min?: number;
+  max?: number;
+  options?: {
+    value: string;
+    label: string;
+    description?: string;
+    price?: string | number;
+    duration?: string;
+    imageUrl?: string;
+  }[];
   /** 2 = полная ширина, 1 = половина (два поля в ряд) */
   colSpan?: 1 | 2;
+}
+
+export interface EmbedFormFieldConfig {
+  fields: EmbedFieldConfigItem[];
+  steps?: { id: string; title: string; description?: string }[];
+  settings?: Record<string, unknown>;
+  display?: Record<string, unknown>;
+  logic?: Array<Record<string, unknown>>;
+  booking?: Record<string, unknown>;
 }
 
 export interface EmbedFormRow {
@@ -34,7 +71,7 @@ export interface EmbedFormRow {
   name: string;
   publicId: string;
   templateKey: string;
-  fieldConfig: { fields: EmbedFieldConfigItem[] };
+  fieldConfig: EmbedFormFieldConfig;
   design: Record<string, unknown>;
   published: boolean;
   honeypotField: string;
@@ -98,7 +135,7 @@ export interface PublicEmbedConfig {
   publicId: string;
   name: string;
   templateKey: string;
-  fieldConfig: { fields: EmbedFieldConfigItem[] };
+  fieldConfig: EmbedFormFieldConfig;
   design: Record<string, unknown>;
   honeypotField: string;
   successMessage: string | null;

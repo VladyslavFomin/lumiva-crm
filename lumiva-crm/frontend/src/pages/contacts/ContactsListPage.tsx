@@ -45,7 +45,7 @@ type ContactTableColId =
 
 export const ContactsListPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -116,7 +116,12 @@ export const ContactsListPage: React.FC = () => {
   const handleOpen = (id: string) => navigate(`/app/contacts/${id}`);
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(t('crm.contacts.list.deleteConfirm'))) return;
+    const ok = await showConfirm(t('crm.contacts.list.deleteConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteContact(id);
       setContacts(contacts.filter((c) => c.id !== id));
@@ -454,8 +459,13 @@ export const ContactsListPage: React.FC = () => {
     );
   };
 
-  const deleteCustomGroup = (groupId: string) => {
-    if (!window.confirm(t('crm.contacts.list.groups.confirmDelete'))) return;
+  const deleteCustomGroup = async (groupId: string) => {
+    const ok = await showConfirm(t('crm.contacts.list.groups.confirmDelete'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      danger: true,
+    });
+    if (!ok) return;
     setCustomGroups((prev) => prev.filter((group) => group.id !== groupId));
     setContactGroupMap((prev) => {
       const next: Record<string, string> = {};
@@ -961,7 +971,7 @@ export const ContactsListPage: React.FC = () => {
           </>
         )}
         {groupMode === 'custom' && draggingContactId && (
-          <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-slate-700 bg-slate-950/95 px-3 py-2 text-[11px] text-slate-200 shadow-xl">
+          <div className="fixed bottom-4 right-4 z-50 rounded-xl border border-border-default bg-white px-3 py-2 text-[11px] text-text-secondary shadow-card">
             {dragOverGroupKey
               ? t('crm.contacts.list.groups.dragToGroup', {
                   group:
@@ -975,19 +985,19 @@ export const ContactsListPage: React.FC = () => {
         {/* Модальное окно массовых операций */}
         {bulkModalOpen && (
           <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 p-5">
+            <div className="w-full max-w-2xl modal-panel p-5">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <div className="text-xs font-semibold text-slate-50">
+                  <div className="text-xs font-semibold text-[#111827]">
                     {t('crm.contacts.bulk.title')}
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500">
+                  <div className="mt-1 text-[11px] text-text-tertiary">
                     {t('crm.contacts.bulk.subtitle', { count: selectedIds.size })}
                   </div>
                 </div>
                 <button
                   onClick={() => setBulkModalOpen(false)}
-                  className="text-slate-400 hover:text-white text-xl leading-none"
+                  className="text-text-tertiary hover:text-[#111827] text-xl leading-none"
                   type="button"
                 >
                   ×
@@ -996,7 +1006,7 @@ export const ContactsListPage: React.FC = () => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">
                     {t('crm.contacts.bulk.assignedTo')}
                   </label>
                   <select
@@ -1014,7 +1024,7 @@ export const ContactsListPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">{t('crm.contacts.bulk.status')}</label>
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">{t('crm.contacts.bulk.status')}</label>
                   <select
                     value={bulkStatus}
                     onChange={(e) => setBulkStatus(e.target.value)}
@@ -1028,7 +1038,7 @@ export const ContactsListPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">
                     {t('crm.contacts.bulk.tags')}
                   </label>
                   <input
@@ -1045,7 +1055,7 @@ export const ContactsListPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setBulkModalOpen(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-slate-50 transition-colors"
+                  className="btn-secondary btn-secondary-sm"
                 >
                   {t('crm.contacts.bulk.cancel')}
                 </button>
@@ -1053,7 +1063,7 @@ export const ContactsListPage: React.FC = () => {
                   type="button"
                   onClick={handleBulkUpdate}
                   disabled={bulkSaving}
-                  className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="btn-primary btn-secondary-sm disabled:opacity-50"
                 >
                   {bulkSaving ? t('crm.contacts.bulk.saving') : t('crm.contacts.bulk.apply')}
                 </button>

@@ -61,12 +61,13 @@ export type AiChatSalesImportContext = {
   totalRows?: number;
 };
 
-export type AiChatWorkspaceCsvContext = {
+export type AiChatWorkspaceFileContext = {
+  importId: string;
   fileName?: string;
   tableNameHint?: string;
-  headers: string[];
-  fieldKeys: string[];
-  rows: Record<string, string>[];
+  columns: string[];
+  sample: Record<string, unknown>[];
+  totalRows: number;
 };
 
 export type AiChatImageFollowUpContext = {
@@ -79,7 +80,7 @@ export async function postAiChat(body: {
   sessionId?: string | null;
   message: string;
   salesImportContext?: AiChatSalesImportContext;
-  workspaceCsvContext?: AiChatWorkspaceCsvContext;
+  workspaceFileContext?: AiChatWorkspaceFileContext;
   imageFollowUpContext?: AiChatImageFollowUpContext;
 }): Promise<AiChatResponse> {
   return api.post<AiChatResponse>('/ai/chat', body);

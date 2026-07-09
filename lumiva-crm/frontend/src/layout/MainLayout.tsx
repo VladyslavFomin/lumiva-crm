@@ -869,6 +869,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       },
 
       {
+        label: t('crm.nav.products'),
+        path: '/app/products',
+        icon: 'products',
+        section: 'clients',
+        matchPaths: ['/app/products', '/products'],
+        children: [
+          { label: t('crm.nav.productsList'), path: '/app/products' },
+          { label: t('crm.nav.productsStock'), path: '/app/products/stock' },
+          { label: t('crm.nav.productsAttributes'), path: '/app/products/attributes' },
+          { label: t('crm.nav.productsFieldTypes'), path: '/app/products/field-types' },
+        ],
+      },
+
+      {
         label: t('crm.nav.contacts'),
         path: '/app/contacts',
         icon: 'contacts',
@@ -989,6 +1003,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         path: '/app/client-accounts',
         icon: 'invoice',
         section: 'management',
+        matchPaths: ['/app/client-accounts', '/client-accounts'],
+        children: [
+          { label: t('crm.nav.clientAccounts'), path: '/app/client-accounts' },
+          { label: 'Финансовые операции', path: '/app/client-accounts/operations' },
+          { label: 'Сайты счетов', path: '/app/client-accounts/sites' },
+        ],
       },
 
       {
@@ -1050,6 +1070,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/chat')) return 'chat';
     if (p.startsWith('/client-accounts')) return 'client_accounts';
     if (p.startsWith('/workspace')) return 'custom_objects';
+    if (p.startsWith('/products')) return 'products';
     if (p.startsWith('/sms')) return 'sms';
     return null;
   };
@@ -1063,7 +1084,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // Если компонент не найден в списке, разрешаем доступ (новый компонент)
     // Если найден, проверяем его статус
     // Для новых модулей (contacts, companies, automations) разрешаем доступ по умолчанию
-    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects'].includes(componentKey)) {
+    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects', 'products'].includes(componentKey)) {
       return true;
     }
     return component ? component.enabled : true;
@@ -1092,6 +1113,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/sales')) return 'analytics';
     if (p.startsWith('/marketing')) return 'marketing';
     if (p.startsWith('/workspace')) return 'custom_objects';
+    if (p.startsWith('/products')) return 'products';
     if (p.startsWith('/sms')) return 'chat';
     if (p.startsWith('/contacts/duplicates')) return 'settings';
     return null;

@@ -10,6 +10,7 @@ import { MarketingModule } from '../marketing/marketing.module';
 import { EmailModule } from '../email/email.module';
 import { TelegramCrmModule } from '../telegram-crm/telegram-crm.module';
 import { LeadsModule } from '../leads/leads.module';
+import { IntegrationsModule } from '../integrations/integrations.module';
 import { AiAgent } from './ai-agent.entity';
 import { AiAgentPermission } from './ai-agent-permission.entity';
 import { AiAgentApprovalRule } from './ai-agent-approval-rule.entity';
@@ -49,6 +50,7 @@ import { AiEmployeesSchedulerService } from './ai-employees.scheduler';
     forwardRef(() => EmailModule),
     forwardRef(() => TelegramCrmModule),
     forwardRef(() => LeadsModule),
+    forwardRef(() => IntegrationsModule),
   ],
   controllers: [
     AiRolesController,

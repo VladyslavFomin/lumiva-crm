@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
@@ -491,6 +491,27 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
   {
     type: 'function',
     function: {
+      name: 'crm_workspace_import_file',
+      description:
+        'Импортировать ВСЕ строки из файла (Excel/CSV), прикреплённого пользователем в этом чате, прямо в таблицу рабочей области — без передачи строк через контекст модели. Используй вместо crm_workspace_bulk_add_records, когда в сообщении есть вложение с importId. Сначала создай таблицу через crm_workspace_create_table (или используй уже существующую), затем вызови этот инструмент с её objectId и importId из вложения. В ответе будет unmatchedColumns — колонки файла, для которых не нашлось поле; если он не пуст, можно вызвать инструмент ещё раз (тем же objectId и importId) с явным fieldMapping — это безопасно и не создаст дублей полей, но ДОБАВИТ повторные строки, поэтому обязательно исправляй маппинг с первой попытки, а не действием наугад.',
+      parameters: {
+        type: 'object',
+        properties: {
+          objectId: { type: 'string', description: 'UUID таблицы рабочей области (из crm_workspace_create_table)' },
+          importId: { type: 'string', description: 'importId вложения из сообщения пользователя' },
+          fieldMapping: {
+            type: 'object',
+            description:
+              'Соответствие: key поля таблицы → название колонки файла (из columns вложения). Если не задано — подберётся автоматически по схожести названий field.key/label и названия колонки.',
+          },
+        },
+        required: ['objectId', 'importId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'crm_generate_image',
       description:
         'Сгенерировать или перегенерировать изображение по текстовому описанию (DALL·E). Вызывай, когда пользователь просит нарисовать картинку ИЛИ изменить/переделать недавнюю (другой человек, одежда, стиль, фон). Модель не видит пиксели прошлой картинки — передай полное новое описание сцены с учётом всех правок; для качества промпт лучше на английском.',
@@ -668,6 +689,7 @@ export class AiToolsService {
     @InjectRepository(AiMemoryChunk)
     private readonly memoryRepo: Repository<AiMemoryChunk>,
     private readonly marketing: MarketingService,
+    @Inject(forwardRef(() => LeadsService))
     private readonly leadsService: LeadsService,
     private readonly notesService: NotesService,
     private readonly projectsService: ProjectsService,
@@ -896,6 +918,8 @@ export class AiToolsService {
           return JSON.stringify(
             await this.toolWorkspaceBulkAddRecords(ctx.tenantId, args),
           );
+        case 'crm_workspace_import_file':
+          return JSON.stringify(await this.toolWorkspaceImportFile(ctx.tenantId, args));
         case 'crm_get_lead':
           return JSON.stringify(await this.toolGetLead(ctx, args));
         case 'crm_update_lead':
@@ -2039,6 +2063,28 @@ export class AiToolsService {
       attempted: max,
       errors: rowErrors.length ? rowErrors : undefined,
     };
+  }
+
+  private async toolWorkspaceImportFile(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ) {
+    const objectId = String(args.objectId || '').trim();
+    const importId = String(args.importId || '').trim();
+    if (!objectId) return { ok: false, error: 'objectId_required' };
+    if (!importId) return { ok: false, error: 'importId_required' };
+    const fieldMapping = args.fieldMapping as Record<string, string | null> | undefined;
+    try {
+      const result = await this.customObjects.attachImportAndApply(
+        tenantId,
+        importId,
+        objectId,
+        fieldMapping && typeof fieldMapping === 'object' ? fieldMapping : undefined,
+      );
+      return { ...result, objectId, ...this.workspaceToolLinkPayload(null, objectId, null) };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'import_failed' };
+    }
   }
 
   private async toolGenerateImage(

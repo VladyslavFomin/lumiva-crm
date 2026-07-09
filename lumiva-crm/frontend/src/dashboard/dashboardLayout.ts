@@ -20,6 +20,10 @@ export const DASHBOARD_CORE_WIDGET_IDS = [
   'recent-leads',
   'recent-tasks',
   'staff',
+  'funnel_today',
+  'lead_sources_week',
+  'recent_deals',
+  'birthdays',
 ] as const;
 
 /** Добавляются с других страниц («Добавить на главную») */
@@ -92,7 +96,13 @@ export interface DashboardLayoutState {
 function defaultLayout(): DashboardLayoutState {
   return {
     order: [...DASHBOARD_CORE_WIDGET_IDS, ...DASHBOARD_EXTRA_WIDGET_IDS],
-    hidden: new Set<string>([...DASHBOARD_EXTRA_WIDGET_IDS]),
+    hidden: new Set<string>([
+      ...DASHBOARD_EXTRA_WIDGET_IDS,
+      'funnel_today',
+      'lead_sources_week',
+      'recent_deals',
+      'birthdays',
+    ]),
     sizes: {
       kpi: 'lg',
       'profile-completion': 'md',
@@ -109,6 +119,10 @@ function defaultLayout(): DashboardLayoutState {
       'projects-analytics': 'lg',
       'leads-analytics': 'lg',
       'sales-analytics': 'lg',
+      funnel_today: 'md',
+      lead_sources_week: 'md',
+      recent_deals: 'md',
+      birthdays: 'md',
     },
     heights: {},
     presetInstances: {},
@@ -133,6 +147,10 @@ function defaultHeightForWidgetId(id: string): number {
     'projects-analytics': 220,
     'leads-analytics': 220,
     'sales-analytics': 220,
+    funnel_today: 280,
+    lead_sources_week: 260,
+    recent_deals: 320,
+    birthdays: 280,
   };
   return map[id] ?? 280;
 }

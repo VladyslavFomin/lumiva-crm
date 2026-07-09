@@ -110,10 +110,12 @@ export const IntegrationConnectionCard: React.FC<
     <div className={`${surfaceClass} ${cardClassName}`.trim()}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 gap-2">
-          {(c.kind === 'third_party_link' && c.linkCatalogId) || c.kind === 'woocommerce' ? (
+          {(c.kind === 'third_party_link' && c.linkCatalogId) || c.kind === 'woocommerce' || c.kind === 'shopify' ? (
             <IntegrationBrandIcon
               catalogId={
-                c.kind === 'woocommerce' ? 'woocommerce' : (c.linkCatalogId as string)
+                c.kind === 'woocommerce' ? 'woocommerce'
+                  : c.kind === 'shopify' ? 'shopify'
+                    : (c.linkCatalogId as string)
               }
               label={c.name}
               size={40}
@@ -268,6 +270,29 @@ export const IntegrationConnectionCard: React.FC<
             <p className="mt-2 text-[10px] text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1.5">
               {t('crm.automations.panel.integrations.siteFormInboundUrlMissingEnv')}
             </p>
+          )}
+          {(c.linkCatalogId === 'zapier' || c.linkCatalogId === 'make') && c.zapierMakeInboundWebhookUrl && (
+            <details className="mt-2 rounded-lg border border-slate-200 bg-white px-2 py-2 text-[10px] text-slate-800">
+              <summary className="cursor-pointer font-semibold text-slate-900 select-none">
+                {t('crm.automations.panel.integrations.zapierMakeInboundTitle')}
+              </summary>
+              <p className="mt-2 text-[9px] text-slate-600 leading-snug">
+                {t('crm.automations.panel.integrations.zapierMakeInboundHint', {
+                  platform: c.linkCatalogId === 'make' ? 'Make' : 'Zapier',
+                })}
+              </p>
+              <code className="mt-1 block break-all text-[9px] text-slate-700 bg-slate-50 rounded px-2 py-1.5 border border-slate-100">
+                {c.zapierMakeInboundWebhookUrl}
+              </code>
+              <button
+                type="button"
+                onClick={() => void copyText(c.zapierMakeInboundWebhookUrl || '')}
+                className="mt-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-[10px] font-semibold text-slate-800 hover:bg-slate-50"
+              >
+                {t('crm.automations.panel.integrations.zapierMakeCopyUrl')}
+                {cf7CopyHint ? ` · ${cf7CopyHint}` : ''}
+              </button>
+            </details>
           )}
         </>
       )}

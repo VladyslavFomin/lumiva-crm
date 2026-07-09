@@ -204,7 +204,7 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
         )}
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 items-stretch [content-visibility:auto]">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-stretch [content-visibility:auto]">
         {columnPrepared.map(({ ds, rows, agg, provCur, top }) => {
           const theme = marketingChannelCardTheme(ds);
           const costConv = convertMarketingAmount(
@@ -234,157 +234,120 @@ export const MarketingChannelBlocks: React.FC<MarketingChannelBlocksProps> = ({
           const rateStar =
             costConv.missingRate && currencyMode === 'converted' ? '*' : '';
 
-          const metricCell =
-            'rounded-xl border px-2.5 py-2 bg-white/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]';
+          const LINE = '#e7e7e7';
+          const LINE3 = '#f0f0f0';
+          const INK = '#222';
+          const FG3 = '#888';
+
+          const kpiItems = [
+            { l: t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' }), v: formatNumber(agg.impressions), color: undefined },
+            { l: t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики / просмотры' }), v: formatNumber(agg.clicks || agg.sessions), color: '#5a45a8' },
+            { l: t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии / визиты' }), v: formatNumber(agg.sessions), color: undefined },
+            { l: t('crm.marketingChannels.kpi.leads'), v: formatNumber(agg.leads), color: '#c08319' },
+            { l: 'CTR', v: agg.ctrPct != null ? `${agg.ctrPct.toFixed(2)}%` : '—', color: undefined },
+            { l: 'CPC', v: cpc != null && cpc > 0 ? `${formatMoney(cpc)} ${costConv.currency}${rateStar}` : '—', color: undefined },
+            { l: 'CPM', v: cpm != null && cpm > 0 ? `${formatMoney(cpm)} ${costConv.currency}${rateStar}` : '—', color: undefined },
+            { l: 'ROAS', v: roasCh != null && roasCh > 0 ? roasCh.toFixed(2) : '—', color: roasCh ? '#1f8a5e' : undefined },
+            { l: 'CPL', v: cplCh != null && cplCh > 0 ? `${formatMoney(cplCh)} ${costConv.currency}${rateStar}` : '—', color: undefined },
+          ];
 
           return (
             <div
               key={ds}
-              className={`flex flex-col h-full min-h-0 rounded-2xl border border-black/[0.07] bg-white overflow-hidden contain-layout ${theme.topBorder} ${theme.cardShadow}`}
+              className={`flex flex-col h-full min-h-0 bg-white overflow-hidden ${theme.topBorder} ${theme.cardShadow}`}
+              style={{ borderRadius: 14, border: `1px solid ${LINE}`, transition: 'box-shadow .15s, transform .15s' }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 12px 28px -12px rgba(0,0,0,0.14)'; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.transform = ''; (e.currentTarget as HTMLElement).style.boxShadow = ''; }}
             >
-              <div className={`px-4 pt-4 pb-3 ${theme.headerBg}`}>
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-[15px] font-semibold tracking-tight text-[#111827]">
-                      {marketingDataSourceLabel(t, ds, dataSourceLabels)}
-                    </div>
-                    <div
-                      className={`text-[10px] font-mono mt-1 inline-flex max-w-full truncate rounded-md border px-2 py-0.5 ${theme.pill}`}
-                      title={ds}
-                    >
-                      {ds}
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setDetailModal({
-                        ds,
-                        title: marketingDataSourceLabel(t, ds, dataSourceLabels),
-                        rows,
-                      })
-                    }
-                    className="shrink-0 rounded-xl border border-[#222222]/18 bg-white px-3 py-1.5 text-[10px] font-semibold text-[#222222] shadow-[0_4px_14px_rgba(34,34,34,0.06)] transition hover:bg-slate-50"
-                  >
-                    {t('crm.marketingChannelBlocks.moreDetails', { defaultValue: 'Подробнее' })}
-                  </button>
+              {/* Card head */}
+              <div className={theme.headerBg} style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 12, borderBottom: `1px solid ${LINE}` }}>
+                {/* Logo badge */}
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: theme.brandColor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 15, flexShrink: 0, fontFamily: 'Inter Tight, sans-serif' }}>
+                  {theme.logo}
                 </div>
-                {ds === 'unknown' && (
-                  <p className={`mt-3 ${marketingWarnBanner} !text-[10px] !leading-relaxed`}>
-                    {t('crm.marketingChannelBlocks.unknownExplain', {
-                      defaultValue:
-                        'Строки без поля канала (data source) в CRM: часто импорт из n8n/аналитики без тега интеграции. Показы и расходы здесь могут дублировать срез Meta/Google по сессиям без UTM — не складывайте с соседними колонками как «ещё одну рекламу».',
-                    })}
-                  </p>
-                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, letterSpacing: '-0.015em', color: INK }}>
+                    {marketingDataSourceLabel(t, ds, dataSourceLabels)}
+                  </div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10.5, color: FG3, marginTop: 2, letterSpacing: '0.02em' }}>
+                    {ds}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setDetailModal({
+                      ds,
+                      title: marketingDataSourceLabel(t, ds, dataSourceLabels),
+                      rows,
+                    })
+                  }
+                  style={{ padding: '6px 13px', border: `1px solid ${LINE}`, background: '#fff', color: INK, borderRadius: 8, fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', transition: 'border-color .12s', flexShrink: 0 }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = INK; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = LINE; }}
+                >
+                  {t('crm.marketingChannelBlocks.moreDetails', { defaultValue: 'Details' })}
+                </button>
               </div>
 
-              <div className="px-4 pb-2 flex-1 flex flex-col min-h-0">
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-3 text-[11px]">
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingTraffic.table.impressions', { defaultValue: 'Показы' })}
+              {ds === 'unknown' && (
+                <div className={`mx-4 mt-3 ${marketingWarnBanner} !text-[10px] !leading-relaxed`}>
+                  {t('crm.marketingChannelBlocks.unknownExplain', {
+                    defaultValue:
+                      'Строки без поля канала (data source) в CRM: часто импорт из n8n/аналитики без тега интеграции. Показы и расходы здесь могут дублировать срез Meta/Google по сессиям без UTM — не складывайте с соседними колонками как «ещё одну рекламу».',
+                  })}
+                </div>
+              )}
+
+              {/* 9-KPI hairline grid (3×3) */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                {kpiItems.map((kpi, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: '12px 16px',
+                      borderRight: (idx + 1) % 3 !== 0 ? `1px solid ${LINE3}` : 'none',
+                      borderBottom: `1px solid ${LINE3}`,
+                    }}
+                  >
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
+                      {kpi.l}
                     </div>
-                    <div className="font-semibold tabular-nums text-[#111827] mt-0.5">
-                      {formatNumber(agg.impressions)}
-                    </div>
-                  </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingTraffic.table.clicks', { defaultValue: 'Клики' })}
-                    </div>
-                    <div className="font-semibold tabular-nums text-violet-700 mt-0.5">
-                      {formatNumber(agg.clicks)}
-                    </div>
-                  </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingTraffic.table.sessions', { defaultValue: 'Сессии' })}
-                    </div>
-                    <div className="font-semibold tabular-nums text-[#111827] mt-0.5">
-                      {formatNumber(agg.sessions)}
-                    </div>
-                  </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingChannels.kpi.leads')}
-                    </div>
-                    <div className="font-semibold tabular-nums text-amber-800 mt-0.5">
-                      {formatNumber(agg.leads)}
+                    <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 14, fontWeight: 600, color: kpi.color ?? (kpi.v === '—' ? '#b5b5b5' : INK), marginTop: 6, letterSpacing: '-0.02em' }}>
+                      {kpi.v}
                     </div>
                   </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingChannelBlocks.ctr', { defaultValue: 'CTR' })}
-                    </div>
-                    <div className="font-semibold tabular-nums text-[#111827] mt-0.5">
-                      {agg.ctrPct != null ? `${agg.ctrPct.toFixed(2)}%` : '—'}
-                    </div>
+                ))}
+              </div>
+
+              {/* Spend + Revenue wide row */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+                <div style={{ padding: '13px 16px', borderRight: `1px solid ${LINE3}`, borderBottom: `1px solid ${LINE3}` }}>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
+                    {t('crm.marketingCampaigns.table.headers.cost')}
                   </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingChannelBlocks.cpc', { defaultValue: 'CPC' })}
-                    </div>
-                    <div className="font-semibold tabular-nums text-[#111827] mt-0.5">
-                      {cpc != null && cpc > 0
-                        ? `${formatMoney(cpc)} ${costConv.currency}${rateStar}`
-                        : '—'}
-                    </div>
-                  </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingChannelBlocks.cpm', { defaultValue: 'CPM' })}
-                    </div>
-                    <div className="font-semibold tabular-nums text-[#111827] mt-0.5">
-                      {cpm != null && cpm > 0
-                        ? `${formatMoney(cpm)} ${costConv.currency}${rateStar}`
-                        : '—'}
-                    </div>
-                  </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingCampaigns.kpi.roas')}
-                    </div>
-                    <div className="font-semibold tabular-nums text-emerald-800 mt-0.5">
-                      {roasCh != null && roasCh > 0 ? roasCh.toFixed(2) : '—'}
-                    </div>
-                  </div>
-                  <div className={`${metricCell} border-[#222222]/8`}>
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingChannelBlocks.cplShort', { defaultValue: 'CPL' })}
-                    </div>
-                    <div className="font-semibold tabular-nums text-rose-700 mt-0.5">
-                      {cplCh != null && cplCh > 0
-                        ? `${formatMoney(cplCh)} ${costConv.currency}${rateStar}`
-                        : '—'}
-                    </div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: INK, marginTop: 6, letterSpacing: '-0.02em' }}>
+                    {fmtMoney(agg.cost, provCur)}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-2 gap-2 mb-4 text-[11px]">
-                  <div className="rounded-xl border border-[#222222]/10 bg-gradient-to-br from-white to-slate-50/50 px-3 py-2.5">
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingCampaigns.table.headers.cost')}
-                    </div>
-                    <div className="font-semibold tabular-nums text-[#111827] mt-0.5">
-                      {fmtMoney(agg.cost, provCur)}
-                    </div>
+                <div style={{ padding: '13px 16px', borderBottom: `1px solid ${LINE3}` }}>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.07em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
+                    {t('crm.marketingCampaigns.table.headers.revenue')}
                   </div>
-                  <div className="rounded-xl border border-[#222222]/10 bg-gradient-to-br from-white to-emerald-50/30 px-3 py-2.5">
-                    <div className="text-[#222222]/48 font-medium">
-                      {t('crm.marketingCampaigns.table.headers.revenue')}
-                    </div>
-                    <div className="font-semibold tabular-nums text-emerald-800 mt-0.5">
-                      {fmtMoney(agg.revenue, provCur)}
-                    </div>
+                  <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#1f8a5e', marginTop: 6, letterSpacing: '-0.02em' }}>
+                    {fmtMoney(agg.revenue, provCur)}
                   </div>
                 </div>
+              </div>
 
-                <div className="text-[11px] font-semibold text-[#222222]/50 mb-2 tracking-wide uppercase">
-                  {t('crm.marketingChannelBlocks.topCampaigns', { defaultValue: 'Кампании' })}
+              {/* Campaigns mini-table */}
+              <div style={{ borderTop: `1px solid ${LINE}`, flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                <div style={{ padding: '12px 16px 8px', fontFamily: 'JetBrains Mono, monospace', fontSize: 9.5, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, fontWeight: 500 }}>
+                  {t('crm.marketingChannelBlocks.topCampaigns', { defaultValue: 'Campaigns' })} · {top.length}
                 </div>
                 <div
-                  className={`${marketingTableWrap} flex-1 min-h-[180px] max-h-[280px] flex flex-col border-[#222222]/8`}
+                  className={`${marketingTableWrap} flex-1 max-h-[260px] flex flex-col`}
+                  style={{ borderRadius: 0, border: 'none', borderTop: `1px solid ${LINE}` }}
                 >
                   <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0">
                     <table className="w-max min-w-full text-left text-[11px] border-separate border-spacing-0">

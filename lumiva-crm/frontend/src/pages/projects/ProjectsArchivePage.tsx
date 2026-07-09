@@ -58,29 +58,29 @@ export const ProjectsArchivePage: React.FC = () => {
     <MainLayout>
       <div className="space-y-4">
         <div>
-          <h1 className="text-lg font-semibold text-slate-50">
+          <h1 className="page-title">
             {t('crm.projects.archive.title')}
           </h1>
-          <div className="text-[11px] text-slate-500">
+          <div className="page-subtitle">
             {t('crm.projects.archive.subtitle')}
           </div>
         </div>
 
         {error && (
-          <div className="text-[12px] text-rose-400 bg-rose-950/40 border border-rose-900/60 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+        <div className="card p-4">
           {loading ? (
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-text-tertiary">
               {t('crm.projects.loading')}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-[760px] w-full text-xs border-separate border-spacing-y-1 table-fixed">
-                <thead className="text-slate-500">
+                <thead className="text-text-tertiary">
                   <tr>
                     <th className="px-3 py-1 text-left">
                       {t('crm.projects.list.headers.name')}
@@ -104,29 +104,29 @@ export const ProjectsArchivePage: React.FC = () => {
                 </thead>
                 <tbody>
                   {projects.map((p) => (
-                    <tr key={p.id} className="bg-slate-950/80">
-                      <td className="px-3 py-1.5 text-slate-200">{p.name}</td>
-                      <td className="px-3 py-1.5 text-slate-300">{p.status}</td>
-                      <td className="px-3 py-1.5 text-slate-300">
+                    <tr key={p.id} className="bg-white hover:bg-surface-hover transition-colors">
+                      <td className="px-3 py-1.5 text-[#111827]">{p.name}</td>
+                      <td className="px-3 py-1.5 text-text-secondary">{p.status}</td>
+                      <td className="px-3 py-1.5 text-text-secondary">
                         {p.owner ?? t('crm.projects.common.emptyValue')}
                       </td>
-                      <td className="px-3 py-1.5 text-slate-300">
+                      <td className="px-3 py-1.5 text-text-secondary">
                         {p.amount} {p.currency}
                       </td>
-                      <td className="px-3 py-1.5 text-slate-400">{p.createdAt}</td>
+                      <td className="px-3 py-1.5 text-text-tertiary">{p.createdAt}</td>
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleUnarchive(p.id)}
-                            className="text-[11px] text-sky-300 hover:text-sky-200"
+                            className="btn-secondary btn-secondary-sm"
                           >
                             {t('crm.projects.archive.actions.unarchive')}
                           </button>
                           <button
                             type="button"
                             onClick={() => handleDelete(p.id)}
-                            className="text-[11px] text-rose-400 hover:text-rose-300"
+                            className="btn-danger btn-secondary-sm"
                           >
                             {t('crm.projects.list.bulk.delete')}
                           </button>
@@ -138,7 +138,7 @@ export const ProjectsArchivePage: React.FC = () => {
                     <tr>
                       <td
                         colSpan={6}
-                        className="px-3 py-3 text-center text-[12px] text-slate-500"
+                        className="px-3 py-3 text-center text-xs text-text-tertiary"
                       >
                         {t('crm.projects.archive.empty')}
                       </td>

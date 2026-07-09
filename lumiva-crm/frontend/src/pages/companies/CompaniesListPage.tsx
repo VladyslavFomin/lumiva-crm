@@ -25,7 +25,7 @@ type CompanyTableColId = 'name' | 'contacts' | 'assignee' | 'status' | 'industry
 
 export const CompaniesListPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +79,12 @@ export const CompaniesListPage: React.FC = () => {
   const handleOpen = (id: string) => navigate(`/companies/${id}`);
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(t('crm.companies.list.deleteConfirm'))) return;
+    const ok = await showConfirm(t('crm.companies.list.deleteConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteCompany(id);
       setCompanies(companies.filter((c) => c.id !== id));
@@ -527,7 +532,7 @@ export const CompaniesListPage: React.FC = () => {
                       checked={selectedIds.has(company.id)}
                       onChange={() => handleToggleSelect(company.id)}
                       onClick={(e) => e.stopPropagation()}
-                      className="mt-1 w-4 h-4 rounded border-slate-600 bg-slate-800 text-lumiva-accent focus:ring-lumiva-accent flex-shrink-0"
+                      className="mt-1 w-4 h-4 rounded border-border-default bg-white text-lumiva-accent focus:ring-lumiva-accent flex-shrink-0"
                     />
                     <div className="flex-1">
                       <h3
@@ -740,19 +745,19 @@ export const CompaniesListPage: React.FC = () => {
         {/* Модальное окно массовых операций */}
         {bulkModalOpen && (
           <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-950 p-5">
+            <div className="w-full max-w-2xl modal-panel p-5">
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
-                  <div className="text-xs font-semibold text-slate-50">
+                  <div className="text-xs font-semibold text-[#111827]">
                     {t('crm.companies.bulk.title')}
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500">
+                  <div className="mt-1 text-[11px] text-text-tertiary">
                     {t('crm.companies.bulk.subtitle', { count: selectedIds.size })}
                   </div>
                 </div>
                 <button
                   onClick={() => setBulkModalOpen(false)}
-                  className="text-slate-400 hover:text-white text-xl leading-none"
+                  className="text-text-tertiary hover:text-[#111827] text-xl leading-none"
                   type="button"
                 >
                   ×
@@ -761,7 +766,7 @@ export const CompaniesListPage: React.FC = () => {
 
               <div className="space-y-3">
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">
                     {t('crm.companies.bulk.assignedTo')}
                   </label>
                   <select
@@ -779,7 +784,7 @@ export const CompaniesListPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">{t('crm.companies.bulk.status')}</label>
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">{t('crm.companies.bulk.status')}</label>
                   <select
                     value={bulkStatus}
                     onChange={(e) => setBulkStatus(e.target.value)}
@@ -793,7 +798,7 @@ export const CompaniesListPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] text-slate-500 mb-1.5">
+                  <label className="block text-[10px] text-text-tertiary mb-1.5">
                     {t('crm.companies.bulk.tags')}
                   </label>
                   <input
@@ -810,7 +815,7 @@ export const CompaniesListPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setBulkModalOpen(false)}
-                  className="px-4 py-2 text-xs text-slate-400 hover:text-slate-50 transition-colors"
+                  className="btn-secondary btn-secondary-sm"
                 >
                   {t('crm.companies.bulk.cancel')}
                 </button>
@@ -818,7 +823,7 @@ export const CompaniesListPage: React.FC = () => {
                   type="button"
                   onClick={handleBulkUpdate}
                   disabled={bulkSaving}
-                  className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="btn-primary btn-secondary-sm disabled:opacity-50"
                 >
                   {bulkSaving ? t('crm.companies.bulk.saving') : t('crm.companies.bulk.apply')}
                 </button>

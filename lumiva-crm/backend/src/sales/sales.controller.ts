@@ -93,6 +93,15 @@ export class SalesController {
     return this.salesService.findOneDetailed(user.tenantId, id);
   }
 
+  @Get('recent')
+  async recent(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('limit') limit?: string,
+  ) {
+    const parsedLimit = limit ? parseInt(limit, 10) : 10;
+    return this.salesService.getRecent(user.tenantId, parsedLimit);
+  }
+
   @Patch(':id')
   async update(
     @CurrentUser() user: CurrentUserPayload,

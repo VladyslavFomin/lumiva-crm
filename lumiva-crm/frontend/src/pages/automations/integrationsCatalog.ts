@@ -40,6 +40,7 @@ export const BUILT_IN_INTEGRATIONS: IntegrationCatalogItem[] = [
   { id: 'email', status: 'live', href: '/app/email' },
   { id: 'telegram', status: 'live' },
   { id: 'woocommerce', status: 'live' },
+  { id: 'shopify', status: 'beta' },
   { id: 'marketing_api', status: 'live', href: '/app/integrations-hub?tab=marketing' },
   { id: 'ms_teams', status: 'live' },
 ];
@@ -88,7 +89,12 @@ export const ROADMAP_INTEGRATIONS: IntegrationCatalogItem[] = [
   },
   {
     id: 'zapier',
-    status: 'in_development',
+    status: 'beta',
+    prefersPlatformOAuth: false,
+  },
+  {
+    id: 'make',
+    status: 'beta',
     prefersPlatformOAuth: false,
   },
   {

@@ -91,7 +91,7 @@ export const AccountSecurityTab: React.FC = () => {
         type="button"
         onClick={() => void handleChangePassword()}
         disabled={passSaving}
-        className="rounded-xl bg-[#222222] px-4 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+        className="btn-primary btn-primary-lg"
       >
         {passSaving ? t('crm.account.security.saving') : t('crm.account.security.save')}
       </button>

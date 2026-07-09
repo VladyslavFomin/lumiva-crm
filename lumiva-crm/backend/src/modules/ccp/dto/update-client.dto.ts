@@ -36,6 +36,31 @@ class UpdateCcpClientMetaDto {
   @MaxLength(64)
   ccp_tg_chat_id?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  ccp_investment_style?: string;
+
+  @IsOptional()
+  @IsNumber()
+  ccp_investment_annual_percent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  ccp_credit_leverage?: number;
+
+  @IsOptional()
+  @IsNumber()
+  ccp_credit_repay_monthly_percent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  ccp_investment_profit_monthly_percent?: number;
+
+  @IsOptional()
+  @IsNumber()
+  ccp_account_debit_monthly_percent?: number;
+
   // LEGACY (оставляем для совместимости)
   @IsOptional()
   @IsNumber()

@@ -91,6 +91,9 @@ import { ProjectsCalendarPage } from '../pages/projects/ProjectsCalendarPage';
 // CCP
 import ClientAccountsPage from '../pages/client-accounts/ClientAccountsPage';
 import ClientAccountDetailsPage from '../pages/client-accounts/ClientAccountDetailsPage';
+import ClientAccountAnalyticsPage from '../pages/client-accounts/ClientAccountAnalyticsPage';
+import ClientAccountSitesPage from '../pages/client-accounts/ClientAccountSitesPage';
+import ClientFinancialOperationsPage from '../pages/client-accounts/ClientFinancialOperationsPage';
 
 // MARKETING
 import { TrafficPage } from '../pages/marketing/TrafficPage';
@@ -114,6 +117,12 @@ import { CompaniesListPage } from '../pages/companies/CompaniesListPage';
 import { CompanyFormPage } from '../pages/companies/CompanyFormPage';
 import { CompanyDetailsPage } from '../pages/companies/CompanyDetailsPage';
 import { CompanyTasksBoardPage } from '../pages/companies/CompanyTasksBoardPage';
+import { ProductsListPage } from '../pages/products/ProductsListPage';
+import { ProductFormPage } from '../pages/products/ProductFormPage';
+import { ProductAttributesPage } from '../pages/products/ProductAttributesPage';
+import { ProductFieldTypesPage } from '../pages/products/ProductFieldTypesPage';
+import { ProductStockPage } from '../pages/products/ProductStockPage';
+import { ProductImportPage } from '../pages/products/ProductImportPage';
 import { AutomationsPage as AutomationsPageNew } from '../pages/automations/AutomationsPage';
 import { IntegrationsHubPage } from '../pages/integrations/IntegrationsHubPage';
 import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
@@ -786,6 +795,64 @@ export const AppRouter: React.FC = () => {
           }
         />
 
+        {/* -------- ТОВАРЫ -------- */}
+        <Route
+          path="/products"
+          element={
+            <ProtectedRoute>
+              <ProductsListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/new"
+          element={
+            <ProtectedRoute>
+              <ProductFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/attributes"
+          element={
+            <ProtectedRoute>
+              <ProductAttributesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/field-types"
+          element={
+            <ProtectedRoute>
+              <ProductFieldTypesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/stock"
+          element={
+            <ProtectedRoute>
+              <ProductStockPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/import"
+          element={
+            <ProtectedRoute>
+              <ProductImportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/:id"
+          element={
+            <ProtectedRoute>
+              <ProductFormPage />
+            </ProtectedRoute>
+          }
+        />
+
         {/* -------- АВТОМАТИЗАЦИИ (новый модуль) -------- */}
         <Route
           path="/automations"
@@ -858,6 +925,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AiEmployeesPage view="reports" />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-employees/:id/edit"
+          element={
+            <ProtectedRoute>
+              <AiEmployeesPage view="edit" />
             </ProtectedRoute>
           }
         />
@@ -1002,6 +1077,33 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <ClientAccountsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/client-accounts/sites"
+          element={
+            <ProtectedRoute>
+              <ClientAccountSitesPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/client-accounts/operations"
+          element={
+            <ProtectedRoute>
+              <ClientFinancialOperationsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/client-accounts/:clientId/analytics"
+          element={
+            <ProtectedRoute>
+              <ClientAccountAnalyticsPage />
             </ProtectedRoute>
           }
         />

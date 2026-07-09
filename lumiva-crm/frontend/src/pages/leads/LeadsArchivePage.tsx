@@ -75,28 +75,28 @@ export const LeadsArchivePage: React.FC = () => {
     <MainLayout>
       <div className="space-y-4">
         <div>
-          <h1 className="text-lg font-semibold text-slate-50">
+          <h1 className="page-title">
             {t('crm.leads.archive.title')}
           </h1>
-          <div className="text-[11px] text-slate-500">
+          <div className="page-subtitle">
             {t('crm.leads.archive.subtitle')}
           </div>
         </div>
 
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+        <div className="card p-4">
           {loading ? (
-            <div className="text-xs text-slate-400">{t('crm.leads.archive.loading')}</div>
+            <div className="text-xs text-text-tertiary">{t('crm.leads.archive.loading')}</div>
           ) : archivedLeads.length === 0 ? (
-            <div className="text-xs text-slate-400">{t('crm.leads.archive.empty')}</div>
+            <div className="text-xs text-text-tertiary">{t('crm.leads.archive.empty')}</div>
           ) : (
             <table className="w-full text-xs border-separate border-spacing-y-1 table-fixed">
-              <thead className="text-slate-500">
+              <thead className="text-text-tertiary">
                 <tr>
                   <th className="text-left px-2 py-1">{t('crm.leads.archive.columns.name')}</th>
                   <th className="text-left px-2 py-1">{t('crm.leads.archive.columns.status')}</th>
@@ -106,39 +106,39 @@ export const LeadsArchivePage: React.FC = () => {
               </thead>
               <tbody>
                 {archivedLeads.map((lead) => (
-                  <tr key={lead.id} className="bg-slate-950/80">
-                    <td className="px-2 py-1.5 text-slate-100">{lead.name || '—'}</td>
+                  <tr key={lead.id} className="bg-white hover:bg-surface-hover transition-colors">
+                    <td className="px-2 py-1.5 text-[#111827]">{lead.name || '—'}</td>
                     <td className="px-2 py-1.5">
                       <span
                         className={`inline-flex px-2 py-0.5 rounded-full border text-[11px] font-semibold ${
-                          statusStyles[lead.status] ?? 'bg-slate-900 text-slate-200 border-slate-800'
+                          statusStyles[lead.status] ?? 'bg-surface-subtle text-text-secondary border-border-default'
                         }`}
                       >
                         {lead.status}
                       </span>
                     </td>
-                    <td className="px-2 py-1.5 text-slate-400">
+                    <td className="px-2 py-1.5 text-text-tertiary">
                       {new Date(lead.createdAt).toLocaleString(locale)}
                     </td>
                     <td className="px-2 py-1.5 text-right space-x-2">
                       <button
                         type="button"
                         onClick={() => unarchiveLead(lead)}
-                        className="px-2 py-1 rounded-lg border border-slate-700/80 text-slate-200 hover:bg-slate-900/80 text-[11px]"
+                        className="btn-secondary btn-secondary-sm"
                       >
                         {t('crm.leads.archive.actions.restore')}
                       </button>
                       <button
                         type="button"
                         onClick={() => moveToTrash(lead)}
-                        className="px-2 py-1 rounded-lg border border-rose-500/60 text-rose-300 hover:bg-rose-950/60 text-[11px]"
+                        className="btn-danger btn-secondary-sm"
                       >
                         {t('crm.leads.archive.actions.trash')}
                       </button>
                       <button
                         type="button"
                         onClick={() => hardDelete(lead)}
-                        className="px-2 py-1 rounded-lg border border-rose-500/60 text-rose-300 hover:bg-rose-950/60 text-[11px]"
+                        className="btn-danger btn-secondary-sm"
                       >
                         {t('crm.leads.archive.actions.delete')}
                       </button>

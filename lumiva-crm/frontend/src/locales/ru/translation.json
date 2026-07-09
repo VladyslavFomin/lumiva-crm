@@ -507,7 +507,7 @@
       "attachedSales": "Импорт продаж",
       "attachedWorkspaceCsv": "Таблица в рабочую область",
       "removeAttachment": "Убрать",
-      "attachParseError": "Не удалось разобрать файл. Для продаж нужен CSV/XML в формате импорта CRM; для таблицы — CSV с заголовками в первой строке.",
+      "attachParseError": "Не удалось разобрать файл. Для продаж нужен CSV/XML в формате импорта CRM; для таблицы рабочей области — CSV или Excel с заголовками в первой строке.",
       "cardsIntro": "Подборка вариантов начала работы",
       "emailComposer": {
         "title": "Письмо клиенту",
@@ -616,7 +616,9 @@
           "prompt": "Составь чек-лист подготовки к импорту продаж в CRM.",
           "tag": "Импорт"
         }
-      ]
+      ],
+      "workspaceImporting": "Создаю таблицу и переношу данные…",
+      "rowsShort": "строк"
     },
     "nav": {
       "dashboard": "Главная",
@@ -636,6 +638,12 @@
       "projectsArchive": "Архив проектов",
       "projectsTrash": "Корзина проектов",
       "sales": "Продажи",
+      "products": "Товары",
+      "productsList": "Список товаров",
+      "productsStock": "Склад",
+      "productsAttributes": "Атрибуты",
+      "productsFieldTypes": "Типы полей",
+      "productsCategories": "Категории",
       "salesAnalytics": "Аналитика продаж",
       "salesChannels": "Каналы продаж",
       "salesIntegrations": "Интеграции",
@@ -740,7 +748,9 @@
         "openQueue": "Открыть очередь",
         "noApprovalsWaiting": "Нет действий в ожидании согласования.",
         "recentActivity": "Недавняя активность ИИ",
-        "viewLogs": "Журнал"
+        "viewLogs": "Журнал",
+        "hireCardTitle": "Нанять нового ИИ",
+        "hireCardSubtitle": "10 ролей: лиды, продажи, маркетинг, поддержка, отчёты"
       },
       "choose": {
         "title": "Выбор ИИ-сотрудника",
@@ -769,7 +779,10 @@
           "language": "Язык",
           "tone": "Тон общения",
           "schedule": "Расписание",
-          "dailyReportTime": "Время ежедневного отчёта"
+          "dailyReportTime": "Время ежедневного отчёта",
+          "avatarColor": "Цвет",
+          "avatarStyle": "Стиль аватара",
+          "aiProvider": "Провайдер ИИ"
         },
         "scheduleModes": {
           "manual": "Только вручную",
@@ -787,10 +800,15 @@
         "activate": "Включить ИИ-сотрудника",
         "permissionGroups": {
           "read": "Чтение данных",
-          "actions": "Действия"
+          "actions": "Действия",
+          "workspace": "Рабочая область и данные"
         },
         "approvalRulesTitle": "Правила согласования",
-        "approvalRequireBefore": "Требовать согласование перед: {{action}}"
+        "approvalRequireBefore": "Требовать согласование перед: {{action}}",
+        "avatarPreviewLabel": "превью",
+        "aiProviderPlatform": "Ключ платформы (управляется администратором)",
+        "editTitle": "Настройка",
+        "saveChanges": "Сохранить изменения"
       },
       "languageOptions": {
         "english": "English",
@@ -848,7 +866,8 @@
         "colAction": "Действие",
         "colObject": "Объект",
         "colStatus": "Статус",
-        "colResult": "Результат"
+        "colResult": "Результат",
+        "tokensLabel": "ток."
       },
       "reportsPage": {
         "title": "Отчёты ИИ",
@@ -872,7 +891,8 @@
         "create_campaign": "созданием кампаний",
         "bulk_send_campaign": "массовыми рассылками",
         "connect_integration": "подключением интеграций",
-        "delete_data": "удалением данных"
+        "delete_data": "удалением данных",
+        "create_workspace_table": "созданием таблиц рабочей области"
       },
       "profile": {
         "loading": "Загрузка ИИ-сотрудника…",
@@ -899,9 +919,180 @@
         "saveApprovalRules": "Сохранить правила",
         "dailyReportPreview": "Предпросмотр отчёта",
         "noReportYet": "Отчёт ещё не сформирован.",
-        "recentLogs": "Недавние записи журнала"
+        "recentLogs": "Недавние записи журнала",
+        "tabs": {
+          "overview": "Обзор",
+          "assign": "Назначения и права",
+          "approvals": "Согласования",
+          "journal": "Журнал",
+          "reports": "Отчёты"
+        },
+        "aboutSection": "Чем занимается",
+        "todayStats": "Показатели · сегодня",
+        "configSection": "Конфигурация",
+        "autonomySection": "Уровень автономии",
+        "scheduleSection": "Расписание",
+        "saveAssignments": "Сохранить назначения",
+        "edit": "Изменить"
       },
-      "fallbackEmployee": "ИИ-сотрудник"
+      "fallbackEmployee": "ИИ-сотрудник",
+      "roleCatalog": {
+        "lead_manager": {
+          "title": "ИИ Менеджер по лидам",
+          "shortTitle": "Менеджер по лидам",
+          "department": "Продажи",
+          "jobTitle": "ИИ Менеджер по лидам",
+          "description": "Анализирует новые лиды, определяет приоритет, выявляет спам и готовит следующие шаги для менеджеров.",
+          "functions": [
+            "Скоринг Hot/Warm/Cold",
+            "Выявление спама и VIP",
+            "Сводки по лидам",
+            "Предложения задач менеджерам",
+            "Ежедневный отчёт по лидам"
+          ]
+        },
+        "sales_manager": {
+          "title": "ИИ Менеджер продаж",
+          "shortTitle": "Менеджер продаж",
+          "department": "Продажи",
+          "jobTitle": "ИИ Менеджер продаж",
+          "description": "Помогает отделу продаж с последующими контактами, рисками по воронке, сообщениями клиентам и ежедневными отчётами.",
+          "functions": [
+            "Анализ воронки",
+            "Черновики follow-up",
+            "Обнаружение зависших сделок",
+            "Создание задач",
+            "Ежедневный отчёт по продажам"
+          ]
+        },
+        "marketing_manager": {
+          "title": "ИИ Маркетинг-менеджер",
+          "shortTitle": "Маркетинг-менеджер",
+          "department": "Маркетинг",
+          "jobTitle": "ИИ Маркетинг-менеджер",
+          "description": "Анализирует маркетинговую активность, готовит идеи кампаний, черновики писем и рекомендации по каналам.",
+          "functions": [
+            "Идеи кампаний",
+            "Проверка UTM",
+            "Черновики писем",
+            "Рекомендации по бюджету",
+            "Ежедневный маркетинговый отчёт"
+          ]
+        },
+        "support_manager": {
+          "title": "ИИ Менеджер поддержки",
+          "shortTitle": "Менеджер поддержки",
+          "department": "Поддержка",
+          "jobTitle": "ИИ Менеджер поддержки",
+          "description": "Классифицирует обращения в поддержку, готовит ответы, создаёт тикеты и эскалирует сложные случаи людям.",
+          "functions": [
+            "Классификация обращений",
+            "Ответы по FAQ",
+            "Предложения тикетов",
+            "Контроль времени ответа",
+            "Ежедневный отчёт поддержки"
+          ]
+        },
+        "project_manager": {
+          "title": "ИИ Проджект-менеджер",
+          "shortTitle": "Проджект-менеджер",
+          "department": "Проекты",
+          "jobTitle": "ИИ Проджект-менеджер",
+          "description": "Отслеживает проекты, просроченные задачи, риски, ответственных и готовит сводки по проектам для руководителей.",
+          "functions": [
+            "Контроль дедлайнов",
+            "Обнаружение просроченных задач",
+            "Сводки по проектам",
+            "Проверка ответственных",
+            "Ежедневный отчёт по проектам"
+          ]
+        },
+        "marketing_analyst": {
+          "title": "ИИ Маркетинг-аналитик",
+          "shortTitle": "Маркетинг-аналитик",
+          "department": "Маркетинг",
+          "jobTitle": "ИИ Маркетинг-аналитик",
+          "description": "Анализирует эффективность каналов, CPL, CPA, ROAS и результаты источников там, где есть данные.",
+          "functions": [
+            "Сравнение каналов",
+            "Диагностика кампаний",
+            "Идеи перераспределения бюджета",
+            "Сводки по эффективности",
+            "Отчёт по аналитике для руководства"
+          ]
+        },
+        "smm_manager": {
+          "title": "ИИ SMM-менеджер",
+          "shortTitle": "SMM-менеджер",
+          "department": "Маркетинг",
+          "jobTitle": "ИИ SMM-менеджер",
+          "description": "Создаёт идеи контента, подписи, сценарии коротких видео, хэштеги и контент-планы.",
+          "functions": [
+            "Идеи постов",
+            "Подписи",
+            "Сценарии Reels/Shorts",
+            "Контент-планы",
+            "Подбор хэштегов"
+          ]
+        },
+        "email_assistant": {
+          "title": "ИИ Email-ассистент",
+          "shortTitle": "Email-ассистент",
+          "department": "Коммуникации",
+          "jobTitle": "ИИ Email-ассистент",
+          "description": "Готовит ответы на письма, последующие сообщения, сводки переписки и черновики, требующие согласования перед отправкой.",
+          "functions": [
+            "Черновики ответов",
+            "Письма follow-up",
+            "Сводки переписки",
+            "Проверка неотвеченных писем",
+            "Предложения шаблонов"
+          ]
+        },
+        "crm_analyst": {
+          "title": "ИИ CRM-аналитик",
+          "shortTitle": "CRM-аналитик",
+          "department": "Менеджмент",
+          "jobTitle": "ИИ CRM-аналитик",
+          "description": "Анализирует активность в CRM, продажи, лиды, задачи и узкие места процессов для руководства.",
+          "functions": [
+            "Оценка состояния CRM",
+            "Обнаружение узких мест",
+            "Отчёты для руководства",
+            "Анализ активности команды",
+            "Рекомендации по процессам"
+          ]
+        },
+        "reservation_assistant": {
+          "title": "ИИ Ассистент по бронированию",
+          "shortTitle": "Ассистент по бронированию",
+          "department": "Резервации",
+          "jobTitle": "ИИ Ассистент по бронированию / гостеприимству",
+          "description": "Обрабатывает запросы на бронирование, официальные ответы на RU/TR/EN и проверку данных о бронях.",
+          "functions": [
+            "Сводки по запросам на бронь",
+            "Черновики ответов гостям",
+            "Проверка дат и номеров",
+            "Коммуникация с агентствами",
+            "Ежедневный отчёт по броням"
+          ]
+        }
+      },
+      "departments": {
+        "sales": "Продажи",
+        "marketing": "Маркетинг",
+        "support": "Поддержка",
+        "projects": "Проекты",
+        "communications": "Коммуникации",
+        "management": "Менеджмент",
+        "reservations": "Резервации"
+      },
+      "planBadge": {
+        "included": "Включено",
+        "pro": "Доступно на Pro",
+        "business": "Доступно на Business",
+        "enterprise": "Доступно на Enterprise"
+      }
     },
     "embedForms": {
       "kicker": "Сайт",
@@ -1722,6 +1913,9 @@
       "saving": "Сохраняем...",
       "cancel": "Отмена",
       "close": "Закрыть",
+      "next": "Далее",
+      "back": "Назад",
+      "optional": "необязательно",
       "ok": "Ок",
       "confirm": "Подтвердить",
       "modalNotice": "Уведомление",
@@ -2216,8 +2410,24 @@
           "leads-analytics": "Аналитика лидов",
           "sales-analytics": "Аналитика продаж",
           "profile-completion": "Завершите профиль",
-          "learn-inspire": "Учитесь и вдохновляйтесь"
+          "learn-inspire": "Учитесь и вдохновляйтесь",
+          "funnel_today": "Воронка сегодня",
+          "lead_sources_week": "Источники лидов (7 дней)",
+          "recent_deals": "Последние сделки",
+          "birthdays": "Дни рождения на этой неделе"
         },
+        "funnelToday": "Воронка сегодня",
+        "funnelTodayEmpty": "Лидов сегодня нет",
+        "funnelTodayTotal": "Итого: {{count}}",
+        "leadSourcesWeek": "Источники лидов (7 дней)",
+        "leadSourcesWeekSub": "Последние 7 дней",
+        "leadSourcesWeekEmpty": "Нет данных по источникам",
+        "recentDeals": "Последние сделки",
+        "recentDealsEmpty": "Нет сделок",
+        "recentDealsFallbackName": "Сделка",
+        "birthdays": "Дни рождения на этой неделе",
+        "birthdaysEmpty": "Нет дней рождения на этой неделе",
+        "birthdaysUnknown": "Неизвестно",
         "addBlockHint": "метрики, отчёты, виджеты с других страниц"
       },
       "detailModal": {
@@ -3993,6 +4203,7 @@
       "openAutomationsScenarios": "К сценариям",
       "openAutomationsIntegrationsHint": "В сценариях выберите уже настроенные здесь подключения в триггерах и действиях.",
       "connectedCount": "Подключено: {{count}}",
+      "notConnected": "Не подключено",
       "lifecycle": {
         "live": "В продакшене",
         "beta": "Бета",
@@ -4035,6 +4246,7 @@
       "catalogFilterAll": "Все",
       "connectCatalog": "Подключить",
       "viewConnectionsCount": "Подключения ({{count}})",
+      "mailchimpSetupScenario": "Настроить сценарий",
       "catalogEmptyFilter": "Нет позиций с таким фильтром — выберите другой раздел или «Все».",
       "googleSheetsImportSettings": "Импорт из таблицы: куда, превью, строки",
       "googleSheetsSettingsTitle": "Google Таблицы — настройка импорта",
@@ -4043,7 +4255,214 @@
       "googleSheetsSettingsLoadError": "Не удалось загрузить подключение.",
       "googleSheetsSettingsSave": "Сохранить",
       "googleSheetsTokenKeepPlaceholder": "Пусто — не менять токен",
-      "editConnectionKeys": "Список и ключи в Продажи → Интеграции"
+      "editConnectionKeys": "Список и ключи в Продажи → Интеграции",
+      "shopify": {
+        "title": "Shopify",
+        "subtitle": "Импорт заказов из вашего магазина Shopify в CRM",
+        "errors": {
+          "missing": "Укажите домен магазина и Access Token"
+        },
+        "guide": {
+          "title": "Как получить Access Token",
+          "step1": "В панели Shopify перейдите: Настройки → Приложения и каналы продаж",
+          "step2": "Нажмите «Разработать приложения» → «Создать приложение»",
+          "step3": "В разделе «Конфигурация API» отметьте права: read_orders, read_customers, read_products",
+          "step4": "Нажмите «Установить» → скопируйте «Admin API access token» (начинается с shpat_)",
+          "permissions": "Минимально необходимые права: read_orders, read_customers. Для синхронизации товаров добавьте read_products.",
+          "next": "Далее: настройка подключения",
+          "back": "Назад"
+        },
+        "form": {
+          "name": "Название подключения",
+          "namePlaceholder": "Мой магазин Shopify",
+          "domain": "Домен магазина",
+          "domainHint": "Например: my-store.myshopify.com или ваш кастомный домен",
+          "token": "Admin API Access Token",
+          "tokenHint": "Токен начинается с shpat_... — из раздела «Разработчикам» в настройках магазина"
+        }
+      },
+      "zapierMake": {
+        "title": "Подключить {{platform}}",
+        "subtitle": "Двунаправленная интеграция: CRM ↔ {{platform}}",
+        "tabOutbound": "CRM → {{platform}}",
+        "tabInbound": "{{platform}} → CRM",
+        "outboundTitle": "Отправка данных из CRM в {{platform}}",
+        "outboundDesc": "Укажите URL вашего Catch Hook (Zapier) или Custom Webhook (Make). CRM отправит туда JSON с данными из триггера автоматизации.",
+        "zapier": {
+          "step1": "В Zapier создайте новый Zap",
+          "step2": "Выберите триггер «Webhooks by Zapier → Catch Hook»",
+          "step3": "Скопируйте URL вебхука и вставьте ниже"
+        },
+        "make": {
+          "step1": "В Make создайте новый сценарий",
+          "step2": "Добавьте модуль «Webhooks → Custom webhook»",
+          "step3": "Скопируйте URL вебхука и вставьте ниже"
+        },
+        "inboundTitle": "Приём данных от {{platform}} в CRM",
+        "inboundDesc": "CRM генерирует уникальный URL. Укажите его как endpoint в вашем сценарии {{platform}} — любой JSON-запрос создаст лид в CRM.",
+        "inboundFieldsHint": "Поля name, email, phone, message автоматически распознаются из любого JSON. Остальные поля сохраняются в заметку к лиду.",
+        "done": {
+          "title": "Подключение создано",
+          "desc": "Интеграция с {{platform}} готова. Инбаунд URL появится в карточке подключения на вкладке «Подключения».",
+          "findUrl": "Нажмите «Подключения» → найдите карточку и раскройте «Входящий webhook»."
+        },
+        "form": {
+          "name": "Название подключения",
+          "outboundUrl": "URL Catch Hook / Custom Webhook ({{platform}})",
+          "outboundUrlHint": "Необязательно. Нужен, если хотите отправлять данные из CRM в {{platform}} через действие «Отправить в {{platform}}».",
+          "inboundToken": "Токен для входящего webhook",
+          "inboundTokenHint": "Будет частью URL. Передайте его в заголовке Authorization: Bearer … или параметре ?token= при отправке из {{platform}}.",
+          "leadSource": "Источник лида (по умолчанию)",
+          "leadSourceHint": "Значение поля «Источник» для лидов, созданных через этот webhook.",
+          "regenerate": "Новый"
+        }
+      },
+      "slack": {
+        "title": "Подключить Slack",
+        "subtitle": "Уведомления в Slack и создание лидов из сообщений",
+        "tabOutbound": "CRM → Slack",
+        "tabInbound": "Slack → CRM",
+        "form": {
+          "name": "Название подключения"
+        },
+        "outbound": {
+          "guideTitle": "Как создать Incoming Webhook в Slack",
+          "step1": "Перейдите на api.slack.com/apps — создайте приложение или откройте существующее",
+          "step2": "Включите Incoming Webhooks и нажмите «Add New Webhook to Workspace»",
+          "step3": "Выберите канал и скопируйте сгенерированный Webhook URL",
+          "webhookUrl": "Slack Incoming Webhook URL",
+          "webhookHint": "Формат: https://hooks.slack.com/services/T.../B.../..."
+        },
+        "inbound": {
+          "guideTitle": "Приём лидов из Slack в CRM",
+          "guideDesc": "После сохранения вы получите входящий URL вебхука. Настройте Slack Workflow Builder или бот на отправку данных по этому URL — каждый запрос создаст лид в Lumiva CRM.",
+          "token": "Токен безопасности",
+          "regenerate": "Пересоздать",
+          "defaultSource": "Источник лида по умолчанию"
+        },
+        "done": {
+          "title": "Slack подключён!",
+          "inboundUrl": "Входящий URL вебхука (Slack → CRM):",
+          "hint": "Добавьте этот URL в Slack Workflow Builder или вашего бота. Передавайте токен как параметр ?token=..."
+        },
+        "errors": {
+          "create": "Не удалось создать подключение Slack"
+        }
+      },
+      "openai": {
+        "title": "Подключить OpenAI",
+        "subtitle": "GPT-4o, o1 и другие модели в AI-автоматизациях и AI-сотрудниках",
+        "guide": {
+          "title": "Как получить API ключ OpenAI",
+          "step1": "Перейдите на platform.openai.com и войдите в аккаунт",
+          "step2": "Откройте раздел API keys и создайте новый секретный ключ",
+          "step3": "Скопируйте ключ — он начинается с sk- или sk-proj-"
+        },
+        "form": {
+          "apiKey": "API ключ OpenAI",
+          "model": "Модель по умолчанию",
+          "baseUrl": "Base URL",
+          "baseUrlHint": "Оставьте пустым для стандартного API OpenAI. Заполните для Azure/прокси.",
+          "name": "Название подключения",
+          "testKey": "Проверить ключ",
+          "testing": "Проверяем…"
+        },
+        "errors": {
+          "noKey": "Введите API ключ",
+          "create": "Не удалось создать подключение OpenAI"
+        }
+      },
+      "onec": {
+        "title": "Подключить 1С:Предприятие",
+        "subtitle": "Синхронизация заказов и клиентов из 1С через HTTP-сервис",
+        "guide": {
+          "title": "Как настроить HTTP-сервис 1С",
+          "step1": "Откройте 1С:Предприятие и включите модуль HTTP-сервиса",
+          "step2": "Опубликуйте HTTP-сервис (например, «crm») по адресу /hs/crm/",
+          "step3": "Убедитесь, что сервис возвращает список заказов на эндпоинте /orders",
+          "step4": "Создайте отдельного пользователя с доступом к HTTP-сервису",
+          "step5": "Введите URL базы, логин и пароль ниже",
+          "note": "Сервер 1С должен быть доступен с сервера Lumiva CRM. При локальной установке настройте файрвол или VPN.",
+          "next": "Перейти к настройкам"
+        },
+        "form": {
+          "baseUrl": "URL базы",
+          "baseUrlHint": "Пример: http://192.168.1.1/buh — адрес веб-сервера 1С",
+          "login": "Пользователь",
+          "password": "Пароль",
+          "infobase": "Инфобаза / имя сервиса",
+          "infobaseHint": "Используется как /hs/{имя}/ (по умолчанию: crm)",
+          "servicePath": "Кастомный путь сервиса",
+          "name": "Название подключения"
+        },
+        "errors": {
+          "missing": "Заполните URL, логин и пароль",
+          "create": "Не удалось создать подключение 1С"
+        }
+      },
+      "sap": {
+        "title": "Подключить SAP",
+        "subtitle": "Приём событий из SAP ERP / Business One в лиды Lumiva CRM",
+        "guide": {
+          "title": "Как настроить вебхук из SAP",
+          "step1": "На следующем шаге вы получите URL входящего вебхука",
+          "step2": "В SAP настройте исходящий вебхук или iDoc с POST-запросом на этот URL",
+          "step3": "Задайте токен безопасности (заголовок X-SAP-Token или параметр ?token=)",
+          "step4": "Каждое входящее событие создаёт или обновляет лид в Lumiva CRM",
+          "next": "Перейти к настройкам"
+        },
+        "form": {
+          "apiKey": "Токен безопасности (X-SAP-Token)",
+          "regenerate": "Сгенерировать",
+          "apiKeyHint": "Этот токен SAP должен передавать в заголовке X-SAP-Token или параметре ?token=",
+          "sapUrl": "URL SAP API",
+          "sapUrlHint": "Опционально — используется для тестового пинга",
+          "defaultSource": "Источник лида по умолчанию",
+          "name": "Название подключения"
+        },
+        "done": {
+          "title": "Подключение SAP создано!",
+          "inboundUrl": "Входящий URL (настройте в SAP):",
+          "tokenLabel": "Токен безопасности:",
+          "hint": "Укажите этот URL и токен в настройках исходящего канала SAP."
+        },
+        "errors": {
+          "noKey": "Задайте токен безопасности",
+          "create": "Не удалось создать подключение SAP"
+        }
+      },
+      "jira": {
+        "title": "Подключить Jira",
+        "subtitle": "Создание задач в Jira из CRM и получение обновлений статуса",
+        "guide": {
+          "title": "Как подключить Jira Cloud",
+          "step1": "Перейдите на id.atlassian.com → Безопасность → API-токены",
+          "step2": "Создайте новый токен и скопируйте его",
+          "step3": "Введите URL вашего Jira (например, https://company.atlassian.net)",
+          "step4": "После сохранения настройте вебхук Jira на входящий URL для обновлений",
+          "next": "Перейти к настройкам"
+        },
+        "form": {
+          "jiraUrl": "URL Jira",
+          "email": "Email Atlassian аккаунта",
+          "apiToken": "API токен",
+          "apiTokenHint": "Создать на id.atlassian.com → Безопасность → API-токены",
+          "projectKey": "Ключ проекта по умолчанию",
+          "inboundToken": "Токен входящего вебхука",
+          "inboundTokenHint": "Добавьте к URL вебхука Jira: ?token=...",
+          "regenerate": "Сгенерировать",
+          "name": "Название подключения"
+        },
+        "done": {
+          "title": "Jira подключена!",
+          "inboundUrl": "URL входящего вебхука (для Jira → Настройки проекта → Вебхуки):",
+          "hint": "В Jira: Настройки проекта → Вебхуки → Создать. События: Issue created/updated."
+        },
+        "errors": {
+          "missing": "Заполните URL Jira, email и токен",
+          "create": "Не удалось создать подключение Jira"
+        }
+      }
     },
     "automations": {
       "list": {
@@ -4154,6 +4573,9 @@
           "amocrmInboundUrlTitle": "URL для вебхука amoCRM",
           "amocrmInboundUrlHint": "В amoМаркет → Webhooks укажите этот адрес. Рекомендуется добавить к URL параметр ?secret= и тот же секрет ниже. Альтернатива: заголовок X-Lumiva-Secret или Authorization: Bearer.",
           "amocrmInboundUrlMissingEnv": "Публичный адрес для вебхука пока недоступен — попросите администратора проверить настройки API.",
+          "zapierMakeInboundTitle": "Входящий webhook ({{platform}} → CRM)",
+          "zapierMakeInboundHint": "Добавьте этот URL в модуль «HTTP» или «Webhooks» вашего сценария {{platform}}. При POST-запросе в CRM автоматически создаётся лид.",
+          "zapierMakeCopyUrl": "Копировать URL",
           "siteFormInboundUrlTitle": "URL для формы на сайте (WordPress / CF7)",
           "siteFormInboundUrlHint": "Укажите в плагине формы или «CF7 to Webhook» как endpoint POST. При заданном секрете в подключении добавьте тот же ?secret= к URL.",
           "siteFormInboundUrlMissingEnv": "Публичный адрес для формы пока недоступен — попросите администратора проверить настройки API.",
@@ -4573,6 +4995,7 @@
           "pickPlaceholder": "— выберите —",
           "pickEmailAccount": "— выберите аккаунт —",
           "pickEmailTemplate": "— без шаблона —",
+          "createEmailTemplate": "Создать шаблон",
           "subjectPlaceholder": "Тема",
           "emailBodyPlaceholder": "Текст письма…",
           "slackMessagePlaceholder": "Сообщение в Slack",
@@ -4733,7 +5156,8 @@
           "NOTE_CREATED": "Заметка создана",
           "CUSTOM_OBJECT_RECORD_CREATED": "Запись создана (custom object)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Запись обновлена (custom object)",
-          "CUSTOM_OBJECT_STATUS_CHANGED": "Статус записи изменён (custom object)"
+          "CUSTOM_OBJECT_STATUS_CHANGED": "Статус записи изменён (custom object)",
+          "SHOPIFY_PAYMENT_RECEIVED": "Получен платёж в Shopify"
         },
         "report": {
           "type": "Тип отчёта",
@@ -5096,7 +5520,9 @@
           "assign_user": "Назначить пользователя",
           "assign_task": "Назначить задачу",
           "remove_tag": "Убрать тег",
-          "send_notification": "Push-уведомление"
+          "send_notification": "Push-уведомление",
+          "create_jira_issue": "Создать задачу в Jira",
+          "shopify_payment_received": "Получен платёж в Shopify"
         },
         "openMarketingIntegrationsPage": "Маркетинг · интеграции",
         "errors": {
@@ -5131,6 +5557,12 @@
             "name": "WooCommerce",
             "description": "Заказы и оплаты — импорт и связка с продажами в CRM.",
             "linkLabel": "Продажи · интеграции",
+            "nextStep": ""
+          },
+          "sms": {
+            "name": "SMS",
+            "description": "Отправка SMS-уведомлений из сценариев автоматизации через Twilio, SMSC или SMS.RU.",
+            "linkLabel": "",
             "nextStep": ""
           },
           "marketing_api": {
@@ -5194,10 +5626,22 @@
             "nextStep": "Сценарий → «Запрос HubSpot (CRM API)»."
           },
           "zapier": {
-            "name": "Zapier / Make",
-            "description": "Отправка JSON в Catch Hook; дальше логика на стороне Zapier или Make.",
+            "name": "Zapier",
+            "description": "Двунаправленная интеграция: CRM отправляет данные в Zapier Catch Hook, а Zapier может создавать лиды в CRM через входящий вебхук.",
             "linkLabel": "",
-            "nextStep": "Сценарий → «Zapier / Catch Hook»."
+            "nextStep": "Подключить → настроить Outbound URL и Inbound Token → скопировать URL из карточки подключения."
+          },
+          "make": {
+            "name": "Make (Integromat)",
+            "description": "Двунаправленная интеграция: CRM отправляет данные в Make Custom Webhook, а Make может создавать лиды в CRM через входящий вебхук.",
+            "linkLabel": "",
+            "nextStep": "Подключить → настроить Outbound URL и Inbound Token → скопировать URL из карточки подключения."
+          },
+          "shopify": {
+            "name": "Shopify",
+            "description": "Импорт заказов из Shopify в раздел продаж CRM. Автоматически создаёт лиды по email клиента.",
+            "linkLabel": "",
+            "nextStep": "Подключить → указать домен и Access Token → синхронизировать."
           },
           "google_ads": {
             "name": "Google Ads",
@@ -6297,6 +6741,7 @@
         "chat": "Чат",
         "contacts": "Контакты",
         "companies": "Компании",
+        "products": "Товары",
         "email": "Email",
         "marketing": "Маркетинг",
         "tools_automation": "Автоматизация",
@@ -8205,7 +8650,7 @@
     "marketingSeo": {
       "kicker": "Маркетинг · SEO & контент",
       "title": "Контроль SEO и качества сайта",
-      "subtitle": "Эта страница показывает, насколько сайт готов к росту: скорость, индексируемость, ошибки и структура контента. Часть данных берём из аналитики, остальное подключается через Search Console и PageSpeed.",
+      "subtitle": "Введите URL сайта, подключите Google Search Console и запускайте SEO-анализ по кликам, показам, CTR и средней позиции.",
       "loading": "Загружаем данные…",
       "status": {
         "saved": "Сохранено",
@@ -8229,8 +8674,8 @@
         "loadSettings": "Не удалось загрузить настройки SEO."
       },
       "connections": {
-        "title": "Подключения",
-        "subtitle": "Настройте Search Console и PageSpeed для вашего сайта.",
+        "title": "SEO-анализ сайта",
+        "subtitle": "Один сценарий: URL сайта, доступ к Search Console и обновление метрик.",
         "gscConnected": "GSC подключен",
         "connectGsc": "Подключить GSC",
         "refresh": "Обновить метрики",
@@ -8303,6 +8748,8 @@
         }
       },
       "fields": {
+        "siteUrl": "URL сайта для SEO-анализа",
+        "siteUrlHint": "URL сохраняется как property для Google Search Console. Если в GSC используется доменная property, можно указать формат sc-domain:example.com.",
         "gscPropertyUrl": "GSC property URL",
         "pageSpeedUrl": "PageSpeed URL",
         "pageSpeedApiKey": "PageSpeed API Key",
@@ -8313,6 +8760,8 @@
         }
       },
       "actions": {
+        "analyze": "Проверить SEO",
+        "analyzing": "Проверяем…",
         "save": "Сохранить",
         "saving": "Сохраняем…"
       },
@@ -8324,8 +8773,8 @@
         "impressions": "Показы",
         "ctr": "CTR",
         "position": "Позиция",
-        "trendTitle": "Spend / Leads",
-        "trendSource": "Search",
+        "trendTitle": "Динамика органики",
+        "trendSource": "Search Console",
         "legend": {
           "current": "Текущий период",
           "previous": "Предыдущий период"
@@ -8339,9 +8788,9 @@
         "empty": "Нет данных. Подключите GSC и выполните синхронизацию."
       },
       "gscDonut": {
-        "title": "Конверсии по каналам",
-        "subtitle": "Воронка лидов и сделок",
-        "average": "средняя по сети",
+        "title": "SEO-сигналы",
+        "subtitle": "CTR, позиция и видимость",
+        "average": "средний CTR",
         "labels": {
           "ctr": "CTR",
           "rank": "Rank",
@@ -8382,11 +8831,11 @@
         ]
       },
       "connect": {
-        "title": "Что нужно подключить",
+        "title": "Как работает проверка",
         "items": [
-          "Google Search Console — индексация, ошибки, CTR.",
-          "PageSpeed Insights — скорость и Core Web Vitals.",
-          "Analytics (GA4/Метрика) — поведение и конверсии."
+          "Вставьте URL сайта или GSC property.",
+          "Подключите Google Search Console для доступа к данным.",
+          "Запустите проверку — CRM подтянет клики, показы, CTR и позиции."
         ]
       },
       "oauthCallback": {
@@ -8960,6 +9409,227 @@
       "sectionBreakdown": "Spend and traffic structure",
       "sectionGeo": "Geography",
       "sectionTrend": "Daily trend"
+    },
+    "products": {
+      "list": {
+        "title": "Товары",
+        "subtitle": "Каталог товаров, остатки и настройки полей.",
+        "searchPlaceholder": "Поиск по названию или артикулу…",
+        "addButton": "Добавить товар",
+        "importButton": "Импорт",
+        "exportButton": "Экспорт",
+        "exportCsv": "Экспорт CSV",
+        "exportXlsx": "Экспорт XLSX",
+        "filters": {
+          "allStatuses": "Все статусы",
+          "allCategories": "Все категории",
+          "variableOnly": "Только вариативные"
+        },
+        "columns": {
+          "name": "Название",
+          "sku": "Артикул",
+          "category": "Категория",
+          "status": "Статус",
+          "price": "Цена",
+          "quantity": "Остаток",
+          "variable": "Вариативный",
+          "actions": "Действия"
+        },
+        "empty": "Товаров пока нет",
+        "lowStockBadge": "Мало на складе",
+        "deleteConfirm": "Удалить этот товар?",
+        "duplicateButton": "Дублировать",
+        "errors": {
+          "loadFailed": "Не удалось загрузить товары",
+          "deleteFailed": "Не удалось удалить товар",
+          "duplicateFailed": "Не удалось дублировать товар"
+        }
+      },
+      "status": {
+        "active": "Активен",
+        "draft": "Черновик",
+        "archived": "В архиве",
+        "out_of_stock": "Нет в наличии"
+      },
+      "form": {
+        "newTitle": "Новый товар",
+        "editTitle": "Редактирование товара",
+        "backToList": "К списку товаров",
+        "fields": {
+          "name": "Название",
+          "sku": "Артикул",
+          "description": "Описание",
+          "category": "Категория",
+          "categoryPlaceholder": "— Без категории",
+          "status": "Статус",
+          "price": "Цена",
+          "costPrice": "Себестоимость",
+          "currency": "Валюта",
+          "unit": "Единица измерения",
+          "lowStockThreshold": "Порог «мало на складе»",
+          "externalId": "Внешний ID"
+        },
+        "variable": {
+          "label": "Вариативный товар",
+          "hint": "У товара есть варианты (например, цвет и размер) — у каждого свой остаток и, опционально, своя цена и артикул."
+        },
+        "variants": {
+          "title": "Варианты",
+          "attributesLabel": "Атрибуты вариаций",
+          "attributesHint": "Выберите атрибуты (например, Цвет, Размер) — комбинации будут сгенерированы автоматически.",
+          "generateButton": "Сгенерировать варианты",
+          "empty": "Варианты ещё не созданы",
+          "table": {
+            "combination": "Комбинация",
+            "sku": "Артикул",
+            "quantity": "Остаток",
+            "priceOverride": "Цена (переопределение)",
+            "active": "Активен"
+          }
+        },
+        "customFields": {
+          "title": "Дополнительные поля",
+          "empty": "Дополнительные поля не настроены — добавьте их в разделе «Типы полей»."
+        },
+        "actions": {
+          "create": "Создать",
+          "save": "Сохранить",
+          "cancel": "Отмена",
+          "delete": "Удалить",
+          "duplicate": "Дублировать"
+        },
+        "errors": {
+          "nameRequired": "Название товара обязательно",
+          "loadFailed": "Не удалось загрузить товар",
+          "saveFailed": "Не удалось сохранить товар",
+          "deleteFailed": "Не удалось удалить товар"
+        }
+      },
+      "attributes": {
+        "title": "Атрибуты",
+        "subtitle": "Атрибуты вариаций товаров — например, Цвет, Размер.",
+        "addButton": "Добавить атрибут",
+        "nameLabel": "Название атрибута",
+        "namePlaceholder": "Например, Цвет",
+        "valuesTitle": "Значения",
+        "addValueLabel": "Новое значение",
+        "addValueButton": "Добавить значение",
+        "valueLabel": "Значение",
+        "colorLabel": "Цвет (опционально)",
+        "deleteConfirm": "Удалить этот атрибут?",
+        "deleteValueConfirm": "Удалить это значение?",
+        "empty": "Атрибуты ещё не созданы",
+        "errors": {
+          "loadFailed": "Не удалось загрузить атрибуты",
+          "saveFailed": "Не удалось сохранить атрибут"
+        }
+      },
+      "fieldTypes": {
+        "title": "Типы полей",
+        "subtitle": "Дополнительные поля карточки товара — конструктор, как ACF.",
+        "addButton": "Добавить поле",
+        "table": {
+          "label": "Название",
+          "type": "Тип",
+          "required": "Обязательное",
+          "width": "Ширина",
+          "actions": "Действия"
+        },
+        "modal": {
+          "labelField": "Название поля",
+          "typeField": "Тип поля",
+          "requiredField": "Обязательное поле",
+          "widthField": "Ширина",
+          "descriptionField": "Подсказка под полем",
+          "optionsField": "Варианты",
+          "addOption": "Добавить вариант",
+          "optionValue": "Значение",
+          "optionLabel": "Подпись",
+          "showInList": "Показывать в списке товаров",
+          "showInQuickEdit": "Показывать в быстром редактировании",
+          "save": "Сохранить",
+          "cancel": "Отмена"
+        },
+        "types": {
+          "text": "Текст",
+          "textarea": "Многострочный текст",
+          "number": "Число",
+          "date": "Дата",
+          "datetime": "Дата и время",
+          "boolean": "Переключатель",
+          "select": "Список (один выбор)",
+          "multiselect": "Список (несколько)",
+          "radio": "Радиокнопки",
+          "url": "Ссылка",
+          "media": "Изображение/файл",
+          "gallery": "Галерея"
+        },
+        "deleteConfirm": "Удалить это поле?",
+        "empty": "Дополнительные поля ещё не созданы",
+        "errors": {
+          "loadFailed": "Не удалось загрузить поля",
+          "saveFailed": "Не удалось сохранить поле"
+        },
+        "editButton": "Изменить"
+      },
+      "stock": {
+        "title": "Склад",
+        "subtitle": "Остатки товаров и вариантов.",
+        "searchPlaceholder": "Поиск по названию или артикулу…",
+        "lowStockOnly": "Только с низким остатком",
+        "columns": {
+          "product": "Товар",
+          "sku": "Артикул",
+          "variant": "Вариант",
+          "quantity": "Остаток",
+          "threshold": "Порог",
+          "actions": "Действия"
+        },
+        "adjustButton": "Корректировка",
+        "adjustModal": {
+          "title": "Корректировка остатка",
+          "deltaLabel": "Изменение (+/-)",
+          "deltaHint": "Положительное число — приход, отрицательное — списание.",
+          "reasonLabel": "Причина",
+          "save": "Сохранить",
+          "cancel": "Отмена"
+        },
+        "empty": "Нет товаров с остатками",
+        "errors": {
+          "loadFailed": "Не удалось загрузить склад",
+          "adjustFailed": "Не удалось скорректировать остаток"
+        }
+      },
+      "categories": {
+        "title": "Категории",
+        "addButton": "Добавить категорию",
+        "nameLabel": "Название категории",
+        "namePlaceholder": "Например, Электроника",
+        "deleteConfirm": "Удалить эту категорию? Товары останутся без категории.",
+        "empty": "Категории ещё не созданы"
+      },
+      "import": {
+        "title": "Импорт товаров",
+        "subtitle": "Загрузите файл Excel или CSV с товарами.",
+        "dropHint": "Перетащите файл сюда или нажмите, чтобы выбрать",
+        "chooseFile": "Выбрать файл",
+        "back": "Назад",
+        "mappingTitle": "Сопоставление колонок",
+        "columnHeader": "Колонка в файле",
+        "fieldHeader": "Поле товара",
+        "updateExistingLabel": "Обновлять существующие товары (по артикулу)",
+        "applyButton": "Импортировать",
+        "applying": "Импортируем…",
+        "resultTitle": "Импорт завершён",
+        "resultCreated": "Создано товаров: {{count}}",
+        "resultUpdated": "Обновлено товаров: {{count}}",
+        "resultErrors": "Ошибок: {{count}}",
+        "close": "Закрыть",
+        "errors": {
+          "previewFailed": "Не удалось прочитать файл",
+          "applyFailed": "Не удалось выполнить импорт"
+        }
+      }
     }
   },
   "publicPages": {

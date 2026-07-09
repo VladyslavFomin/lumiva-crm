@@ -82,6 +82,8 @@ export interface IntegrationConnectionDto {
   amocrmInboundWebhookUrl?: string | null;
   /** WordPress / CF7: URL для заявок с сайта (если задан PUBLIC_API_URL) */
   siteFormInboundWebhookUrl?: string | null;
+  /** Zapier / Make: URL входящего вебхука (если задан PUBLIC_API_URL) */
+  zapierMakeInboundWebhookUrl?: string | null;
   /** Lumiva Wizard / CRM Connector: POST лида с X-Api-Token (тот же хост, что и публичный API) */
   lumivaWizardCf7IngestUrl?: string | null;
   /**
@@ -822,12 +824,14 @@ export class IntegrationsService {
     let siteFormInboundWebhookUrl: string | null = null;
     let siteFormInboundWebhookPasteUrl: string | null = null;
     let lumivaWizardCf7IngestUrl: string | null = null;
+    let zapierMakeInboundWebhookUrl: string | null = null;
 
     if (entity.configJson) {
       try {
         const cfg = JSON.parse(entity.configJson);
         if (cfg.consumerKey) snippet = '…' + String(cfg.consumerKey).slice(-4);
         if (cfg.apiKey) snippet = '…' + String(cfg.apiKey).slice(-4);
+        if (entity.kind === 'shopify' && cfg.shopDomain) snippet = String(cfg.shopDomain);
         if (entity.kind === 'third_party_link' && cfg.catalogId) {
           linkCatalogId = String(cfg.catalogId);
           snippet = linkCatalogId;
@@ -848,6 +852,12 @@ export class IntegrationsService {
                   ? `${siteFormInboundWebhookUrl}?secret=${encodeURIComponent(sec)}`
                   : siteFormInboundWebhookUrl;
             }
+          }
+          if ((linkCatalogId === 'zapier' || linkCatalogId === 'make') && base) {
+            const inboundToken = String(cfg.inboundToken || '').trim();
+            zapierMakeInboundWebhookUrl =
+              `${base}/v1/webhooks/zapier-make/${entity.id}` +
+              (inboundToken ? `?token=${encodeURIComponent(inboundToken)}` : '');
           }
         }
       } catch {
@@ -878,6 +888,7 @@ export class IntegrationsService {
       siteFormInboundWebhookUrl,
       siteFormInboundWebhookPasteUrl,
       lumivaWizardCf7IngestUrl,
+      zapierMakeInboundWebhookUrl,
     };
 
     if (opts?.includeFullConfig && entity.configJson) {

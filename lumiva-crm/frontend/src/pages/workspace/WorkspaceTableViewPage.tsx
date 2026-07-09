@@ -5277,14 +5277,14 @@ export const WorkspaceTableViewPage: React.FC = () => {
         {deleteDialog && (
           <div className="fixed inset-0 z-50">
             <div
-              className="absolute inset-0 bg-slate-950/45 backdrop-blur-[1px]"
+              className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
               onClick={() => {
                 if (!deleting) setDeleteDialog(null);
               }}
             />
-            <div className="absolute left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 rounded-2xl border border-slate-700/60 bg-slate-900 p-6 shadow-2xl">
+            <div className="absolute left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 modal-panel p-6">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-status-error-bg text-status-error">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
@@ -5299,8 +5299,8 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   </svg>
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-xl font-semibold text-white">{t('crm.workspace.table.deleteConfirm')}</h3>
-                  <p className="mt-1 text-sm text-slate-300">
+                  <h3 className="text-lg font-semibold text-[#111827]">{t('crm.workspace.table.deleteConfirm')}</h3>
+                  <p className="mt-1 text-sm text-text-secondary">
                     {deleteDialog.kind === 'column'
                       ? t('crm.workspace.table.deleteColumnConfirm', { label: deleteDialog.field.label })
                       : t('crm.workspace.table.deleteGroupConfirm', {
@@ -5308,7 +5308,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                           count: deleteDialog.itemCount,
                         })}
                   </p>
-                  <p className="mt-2 text-xs text-slate-400">{t('crm.workspace.table.deleteIrreversible')}</p>
+                  <p className="mt-2 text-xs text-text-tertiary">{t('crm.workspace.table.deleteIrreversible')}</p>
                 </div>
               </div>
               <div className="mt-6 flex justify-end gap-2">
@@ -5316,7 +5316,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   type="button"
                   onClick={() => setDeleteDialog(null)}
                   disabled={deleting}
-                  className="rounded-xl border border-slate-600 bg-slate-800/80 px-4 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-60"
+                  className="btn-secondary disabled:opacity-60"
                 >
                   {t('crm.workspace.table.cancel')}
                 </button>
@@ -5324,7 +5324,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   type="button"
                   onClick={() => void confirmDelete()}
                   disabled={deleting}
-                  className="rounded-xl bg-rose-500 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-600 disabled:opacity-60"
+                  className="btn-danger disabled:opacity-60"
                 >
                   {deleting ? t('crm.workspace.table.deleting') : t('crm.workspace.table.bulkDelete')}
                 </button>

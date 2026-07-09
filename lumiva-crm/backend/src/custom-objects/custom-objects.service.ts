@@ -8,11 +8,10 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { mkdir, writeFile } from 'fs/promises';
 import { extname } from 'path';
 import { randomUUID } from 'crypto';
-import ExcelJS from 'exceljs';
 import { CustomObject } from './custom-object.entity';
 import { CustomObjectField } from './custom-object-field.entity';
 import { CustomObjectRecord } from './custom-object-record.entity';
@@ -36,8 +35,8 @@ import { parseDecimalString } from '../lib/locale-number.util';
 import type { CustomObjectFieldType } from './custom-object-field.entity';
 import {
   buildSuggestedCustomObjectFieldMapping,
-  makeUniqueHeaders,
   parseCsvRobust,
+  parseXlsxRobust,
 } from '../lib/import-spreadsheet.util';
 import {
   getWorkspaceTableKind,
@@ -2168,78 +2167,9 @@ export class CustomObjectsService {
     };
   }
 
-  private excelCellToString(value: any): string {
-    if (value === null || value === undefined) return '';
-    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      return String(value).trim();
-    }
-    if (value instanceof Date) return value.toISOString();
-    if (typeof value === 'object') {
-      if (typeof value.text === 'string') return value.text.trim();
-      if (typeof value.result === 'string' || typeof value.result === 'number') {
-        return String(value.result).trim();
-      }
-      if (Array.isArray(value.richText)) {
-        return value.richText.map((chunk: any) => String(chunk?.text || '')).join('').trim();
-      }
-    }
-    return String(value).trim();
-  }
-
-  /**
-   * Читает строку Excel колонка 1..row.cellCount подряд (включая пустые ячейки).
-   * Раньше заголовки прогонялись через .filter(Boolean) — первая пустая ячейка в шапке
-   * выкидывалась, а данные строк оставались со сдвигом: LOCATION получала значение из колонки A и т.д.
-   */
-  private excelRowToCellStrings(row: ExcelJS.Row): string[] {
-    const n = row.cellCount;
-    if (!n || n < 1) return [];
-    const out: string[] = [];
-    for (let c = 1; c <= n; c++) {
-      out.push(this.excelCellToString(row.getCell(c).value));
-    }
-    return out;
-  }
-
+  /** Делегирует в общий парсер `parseXlsxRobust` (переиспользуется модулем `products`). */
   private async parseXlsx(buffer: Buffer) {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(buffer as any);
-    const sheet = workbook.worksheets[0];
-    if (!sheet)
-      return { columns: [] as string[], rows: [] as Array<Record<string, any>>, headerRowNumber: 1 };
-    let headerRowNumber = 1;
-    let columns: string[] = [];
-
-    for (let rowNum = 1; rowNum <= Math.min(sheet.rowCount, 50); rowNum++) {
-      const row = sheet.getRow(rowNum);
-      const labels = this.excelRowToCellStrings(row);
-      if (labels.some((l) => l.trim() !== '')) {
-        headerRowNumber = rowNum;
-        while (labels.length > 0 && labels[labels.length - 1].trim() === '') {
-          labels.pop();
-        }
-        if (!labels.length) continue;
-        columns = makeUniqueHeaders(labels).columns;
-        break;
-      }
-    }
-
-    if (!columns.length) {
-      return { columns: [] as string[], rows: [] as Array<Record<string, any>>, headerRowNumber: 1 };
-    }
-
-    const width = columns.length;
-    const rows: Array<Record<string, any>> = [];
-    for (let rowNum = headerRowNumber + 1; rowNum <= sheet.rowCount; rowNum++) {
-      const row = sheet.getRow(rowNum);
-      const obj: Record<string, any> = {};
-      for (let c = 1; c <= width; c++) {
-        obj[columns[c - 1]] = this.excelCellToString(row.getCell(c).value);
-      }
-      const hasData = Object.values(obj).some((v) => String(v ?? '').trim() !== '');
-      if (hasData) rows.push(obj);
-    }
-    return { columns, rows, headerRowNumber };
+    return parseXlsxRobust(buffer);
   }
 
   private uniqueValuesByColumn(
@@ -2310,6 +2240,89 @@ export class CustomObjectsService {
       headerRowNumber: parsed.headerRowNumber,
       uniqueValuesByColumn,
     };
+  }
+
+  /**
+   * Same parsing as {@link previewImport}, but with no target table yet — used by the AI
+   * chat when a spreadsheet is attached before the user (or the model) has decided which
+   * workspace table it should become. Call {@link attachImportAndApply} once a table exists.
+   */
+  async previewHeadlessImport(
+    tenantId: string,
+    file: any,
+  ): Promise<{
+    importId: string;
+    columns: string[];
+    sample: Array<Record<string, any>>;
+    totalRows: number;
+  }> {
+    if (!file) throw new BadRequestException('Нужен файл');
+    const filename = (file.originalname || '').toLowerCase();
+    let parsed: { columns: string[]; rows: Array<Record<string, any>>; headerRowNumber: number };
+    if (filename.endsWith('.xlsx') || filename.endsWith('.xls')) {
+      parsed = await this.parseXlsx(file.buffer);
+    } else {
+      parsed = this.parseCsv(file.buffer.toString('utf-8'));
+    }
+    if (!parsed.columns.length) {
+      throw new BadRequestException('Не удалось найти колонки — проверьте, что в первой строке есть заголовки.');
+    }
+    const session = await this.importRepo.save(
+      this.importRepo.create({
+        tenantId,
+        objectId: null,
+        originalFileName: file.originalname || null,
+        columns: parsed.columns,
+        rows: parsed.rows,
+        sample: parsed.rows.slice(0, 20),
+        totalRows: parsed.rows.length,
+        suggestedMapping: null,
+        status: 'preview',
+      }),
+    );
+    return {
+      importId: session.id,
+      columns: session.columns,
+      sample: session.sample,
+      totalRows: session.totalRows,
+    };
+  }
+
+  /**
+   * Adopts a headless (table-less) import session into a specific table and imports every
+   * row into it — the bridge the AI chat's `crm_workspace_import_file` tool calls after the
+   * model has created (or picked) the target table via `crm_workspace_create_table`.
+   *
+   * Re-callable for the same (importId, objectId) pair — e.g. once with an auto-guessed
+   * mapping, then again with an explicit `fieldMapping` if the model sees unmatched columns
+   * in the first result and wants to correct it. Only rejects if the session is headless-gone
+   * (already attached to a *different* table).
+   */
+  async attachImportAndApply(
+    tenantId: string,
+    importId: string,
+    objectId: string,
+    fieldMapping?: Record<string, string | null>,
+    defaultValues?: Record<string, any>,
+  ) {
+    await this.getObject(tenantId, objectId);
+    const session = await this.importRepo.findOne({ where: { id: importId, tenantId } });
+    if (!session || (session.objectId && session.objectId !== objectId)) {
+      throw new NotFoundException('Import session not found, or it is already attached to a different table');
+    }
+    const fields = await this.listFields(tenantId, objectId);
+    let mapping = fieldMapping && Object.keys(fieldMapping).length ? fieldMapping : undefined;
+    if (!mapping) {
+      mapping = this.buildSuggestedMapping(session.columns, fields);
+    }
+    const mappedColumns = new Set(Object.values(mapping).filter((v): v is string => Boolean(v)));
+    const unmatchedColumns = session.columns.filter((c) => !mappedColumns.has(c));
+    if (session.objectId !== objectId) {
+      session.objectId = objectId;
+      await this.importRepo.save(session);
+    }
+    const result = await this.applyImport(tenantId, objectId, { importId, fieldMapping: mapping, defaultValues });
+    return { ...result, fieldMapping: mapping, unmatchedColumns };
   }
 
   async applyImport(tenantId: string, objectId: string, payload: ImportApplyPayload) {

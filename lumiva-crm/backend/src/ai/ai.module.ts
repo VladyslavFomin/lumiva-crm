@@ -74,6 +74,6 @@ import { AiController } from './ai.controller';
     AiToolsService,
     AiAssistantService,
   ],
-  exports: [AiQuotaService, AiOpenAiService, AiAssistantService],
+  exports: [AiQuotaService, AiOpenAiService, AiAssistantService, AiToolsService],
 })
 export class AiModule {}

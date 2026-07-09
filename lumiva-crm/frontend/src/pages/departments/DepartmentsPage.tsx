@@ -290,7 +290,7 @@ export const DepartmentsPage: React.FC = () => {
           </div>
           <button
             onClick={handleCreate}
-            className="px-3 py-1.5 text-xs rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold transition-colors"
+            className="btn-primary btn-secondary-sm"
           >
             + {t('crm.departments.create')}
           </button>
@@ -319,7 +319,7 @@ export const DepartmentsPage: React.FC = () => {
             </div>
             <button
               onClick={handleCreate}
-              className="px-4 py-2 text-xs rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-semibold transition-colors"
+              className="btn-primary btn-secondary-sm"
             >
               {t('crm.departments.createFirst')}
             </button>

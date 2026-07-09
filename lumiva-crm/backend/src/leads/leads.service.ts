@@ -1098,12 +1098,9 @@ export class LeadsService {
   ): Promise<LeadsRoiStats> {
     const { from, to, source } = opts || {};
 
-    console.log('ROI service: source =', source, 'from =', from, 'to =', to);
-
     if (source === 'projects') {
       return this.getProjectsRoiForTenantInternal(tenantId, from, to, opts);
     }
-    console.log('ROI service: USING SALES');
     // по умолчанию считаем по продажам
     return this.getSalesRoiForTenantInternal(tenantId, from, to, opts);
   }
@@ -1377,5 +1374,37 @@ private async getProjectsRoiForTenantInternal(
 
     sale.leadId = lead.id;
     return this.salesRepo.save(sale);
+  }
+
+  // ===== DASHBOARD WIDGETS =====
+
+  async getFunnelToday(tenantId: string): Promise<{ statuses: Array<{ status: string; count: number }> }> {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const rows = await this.leadsRepo
+      .createQueryBuilder('l')
+      .select('l.status', 'status')
+      .addSelect('COUNT(*)', 'count')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere('l.createdAt >= :todayStart', { todayStart })
+      .groupBy('l.status')
+      .getRawMany();
+    return { statuses: rows.map((r) => ({ status: r.status, count: Number(r.count) })) };
+  }
+
+  async getSourcesWeekly(tenantId: string): Promise<{ sources: Array<{ source: string; count: number }> }> {
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    weekAgo.setHours(0, 0, 0, 0);
+    const rows = await this.leadsRepo
+      .createQueryBuilder('l')
+      .select("COALESCE(l.source, 'unknown')", 'source')
+      .addSelect('COUNT(*)', 'count')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere('l.createdAt >= :weekAgo', { weekAgo })
+      .groupBy("COALESCE(l.source, 'unknown')")
+      .orderBy('count', 'DESC')
+      .getRawMany();
+    return { sources: rows.map((r) => ({ source: r.source, count: Number(r.count) })) };
   }
 }

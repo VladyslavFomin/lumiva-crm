@@ -791,6 +791,22 @@ export class TelegramCrmService {
     await this.botRepo.save(bot);
   }
 
+  async deleteBot(tenantId: string, id: string): Promise<void> {
+    const bot = await this.findBot(tenantId, id);
+
+    // Stop polling for this bot
+    try { this.polling().stopPollingBot(bot.id); } catch {}
+
+    // Remove webhook from Telegram (best-effort)
+    try {
+      await axios.post(`https://api.telegram.org/bot${bot.botToken}/deleteWebhook`, { drop_pending_updates: true });
+    } catch (e) {
+      this.log.warn(`deleteWebhook failed for bot ${bot.id}: ${(e as Error).message}`);
+    }
+
+    await this.botRepo.delete({ id: bot.id, tenantId });
+  }
+
   // ── Private helpers ───────────────────────────────────────────────────────
 
   private getMessageType(message: any): string {

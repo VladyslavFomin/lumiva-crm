@@ -43,6 +43,10 @@ import { DashboardLayoutTemplateModal } from '../dashboard/DashboardLayoutTempla
 import {
   flattenLeadMeetingsFromLeads,
   type LeadMeetingCalendarEvent } from '../dashboard/flattenLeadMeetings';
+import { FunnelTodayWidget } from '../dashboard/widgets/FunnelTodayWidget';
+import { LeadSourcesWidget } from '../dashboard/widgets/LeadSourcesWidget';
+import { RecentDealsWidget } from '../dashboard/widgets/RecentDealsWidget';
+import { BirthdaysWidget } from '../dashboard/widgets/BirthdaysWidget';
 
 interface LeadShort {
   id: string;
@@ -1041,6 +1045,7 @@ export const DashboardPage: React.FC = () => {
       case 'projects':
         return t('crm.dashboard.projects.sub');
       case 'calendar': return now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
+      case 'lead_sources_week': return t('crm.dashboard.widgets.leadSourcesWeekSub', { defaultValue: 'Last 7 days' });
       default: return undefined;
     }
   };
@@ -1320,6 +1325,14 @@ export const DashboardPage: React.FC = () => {
             <Link to="/sales/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.salesAnalyticsWidget.openFull')}</Link>
           </div>
         );
+      case 'funnel_today':
+        return <FunnelTodayWidget />;
+      case 'lead_sources_week':
+        return <LeadSourcesWidget />;
+      case 'recent_deals':
+        return <RecentDealsWidget />;
+      case 'birthdays':
+        return <BirthdaysWidget />;
       default:
         return null;
     }
@@ -1617,7 +1630,7 @@ export const DashboardPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => { saveWidgetTitle(widgetEditId, widgetEditTitle); setWidgetEditOpen(false); setWidgetEditId(null); }}
-                      className="rounded-xl border border-[#222222] bg-[#222222] px-4 py-2 text-[12px] font-semibold !text-white shadow-sm hover:opacity-95"
+                      className="btn-primary"
                     >
                       {t('crm.common.save')}
                     </button>

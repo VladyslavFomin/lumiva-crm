@@ -63,7 +63,7 @@ export class AiAssistantService {
 - Чтобы перенести в рабочую область данные по рекламе/каналам из CRM (то, что в маркетинге и marketing_traffic), используй crm_workspace_import_marketing_channels — он создаёт таблицу с колонками и заполняет строки. Не создавай пустую таблицу только через crm_workspace_create_table без fields и без последующих crm_workspace_add_record.
 - Если таблица уже создана без колонок — добавь поля через crm_workspace_add_field, затем crm_workspace_describe_table и crm_workspace_add_record с правильными key.
 - Если в сообщении есть блок «Вложение: импорт продаж» с importId — для завершения импорта вызови crm_sales_import_apply (маппинг из suggestedMapping, если пользователь не указал иное).
-- Если блок «CSV в рабочую область» — создай таблицу с полями text по fieldKeys и заполни через crm_workspace_bulk_add_records (при большом файле пользователь может отправить только фрагмент строк).
+- Если в сообщении есть блок «Вложение: файл в рабочую область» с importId (CSV/Excel) — создай таблицу через crm_workspace_create_table с полями по columns/sample, затем ОБЯЗАТЕЛЬНО вызови crm_workspace_import_file с её objectId и importId, чтобы перенести все строки файла; не пытайся построчно передавать данные через crm_workspace_bulk_add_records для файла из вложения — там может быть гораздо больше строк, чем показано в sample.
 - Изображения: для новой картинки или правок к недавней вызывай crm_generate_image с полным промптом (лучше на английском). Ты не видишь пиксели прошлого изображения — опиши сцену целиком с учётом правок.
 - Если есть блок «Недавнее изображение в этом чате» и пользователь просит изменить персонажа, одежду, стиль или детали — обязательно вызови crm_generate_image; не отвечай только общими рассуждениями и не предлагай «текст отзыва» вместо перегенерации.
 - После успешного crm_generate_image в ответе пользователю укажи ссылку на картинку из результата инструмента (markdown ![img](url) или явный URL).
@@ -194,12 +194,13 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
       fileName?: string;
       totalRows?: number;
     };
-    workspaceCsvContext?: {
+    workspaceFileContext?: {
+      importId: string;
       fileName?: string;
       tableNameHint?: string;
-      headers: string[];
-      fieldKeys: string[];
-      rows: Record<string, string>[];
+      columns: string[];
+      sample: Record<string, unknown>[];
+      totalRows: number;
     };
     imageFollowUpContext?: {
       lastUserPrompt?: string;
@@ -216,11 +217,12 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
   }> {
     const text = String(input.message || '').trim();
     const hasSalesAtt = Boolean(input.salesImportContext?.importId);
-    const hasWsCsv =
-      Array.isArray(input.workspaceCsvContext?.headers) &&
-      input.workspaceCsvContext!.headers.length > 0;
+    const hasWsFile =
+      Boolean(input.workspaceFileContext?.importId) &&
+      Array.isArray(input.workspaceFileContext?.columns) &&
+      input.workspaceFileContext!.columns.length > 0;
     const hasImgCtx = Boolean(input.imageFollowUpContext?.lastUrl?.trim());
-    if (!text && !hasSalesAtt && !hasWsCsv && !hasImgCtx) {
+    if (!text && !hasSalesAtt && !hasWsFile && !hasImgCtx) {
       throw new BadRequestException('Пустое сообщение');
     }
 
@@ -232,10 +234,10 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
         `\n\n--- Вложение: импорт продаж (CSV) — ${c.fileName || 'файл'}, строк: ${c.totalRows ?? '?'} ---\nimportId: ${c.importId}\nsuggestedMapping (JSON): ${JSON.stringify(c.suggestedMapping || {})}\nДействие: вызови crm_sales_import_apply с importId; fieldMapping можно опустить (подставится из сессии) или скорректировать; channelId — только если пользователь дал UUID канала.`,
       );
     }
-    if (hasWsCsv) {
-      const w = input.workspaceCsvContext!;
+    if (hasWsFile) {
+      const w = input.workspaceFileContext!;
       parts.push(
-        `\n\n--- Вложение: CSV в рабочую область — ${w.fileName || 'файл'}, передано строк: ${w.rows.length} ---\nfieldKeys (key колонок): ${JSON.stringify(w.fieldKeys)}\nheaders (подписи): ${JSON.stringify(w.headers)}\nrows (JSON): ${JSON.stringify(w.rows)}\nСначала crm_workspace_create_table: name осмысленное (${w.tableNameHint || w.fileName || 'таблица'}), fields: по одному полю на каждый fieldKeys с type text, label из headers; enabledViews при необходимости ["analytics"]. Затем crm_workspace_bulk_add_records с objectId и records = массив объектов с ключами из fieldKeys.`,
+        `\n\n--- Вложение: файл в рабочую область — ${w.fileName || 'файл'}, всего строк: ${w.totalRows} ---\nimportId: ${w.importId}\ncolumns (колонки файла): ${JSON.stringify(w.columns)}\nsample (первые строки, только для ознакомления — это не все данные): ${JSON.stringify(w.sample)}\nСначала вызови crm_workspace_create_table: name осмысленное (${w.tableNameHint || w.fileName || 'таблица'}), придумай fields (key/label/type) по columns и sample; enabledViews при необходимости ["analytics"]. Затем вызови crm_workspace_import_file с objectId созданной таблицы и importId — он сам перенесёт ВСЕ ${w.totalRows} строк из файла в таблицу (не проси и не пытайся передать сами строки — используй только importId). fieldMapping можно не указывать — колонки подберутся к полям автоматически по схожести названий; укажи явно, только если подбор точно будет неверным.`,
       );
     }
     if (hasImgCtx) {
@@ -253,10 +255,10 @@ ${memoryBlock ? `\nКонтекст из памяти клиента:\n${memoryB
         `\n\n--- Вложение: импорт продаж (CSV) — ${c.fileName || 'файл'}, строк: ${c.totalRows ?? '?'} ---\nimportId: ${c.importId}\nsuggestedMapping (JSON): ${JSON.stringify(c.suggestedMapping || {})}\nДействие: вызови crm_sales_import_apply с importId; fieldMapping можно опустить (подставится из сессии) или скорректировать; channelId — только если пользователь дал UUID канала.`,
       );
     }
-    if (hasWsCsv) {
-      const w = input.workspaceCsvContext!;
+    if (hasWsFile) {
+      const w = input.workspaceFileContext!;
       partsVisible.push(
-        `\n\n--- Вложение: CSV в рабочую область — ${w.fileName || 'файл'}, передано строк: ${w.rows.length} ---\nfieldKeys (key колонок): ${JSON.stringify(w.fieldKeys)}\nheaders (подписи): ${JSON.stringify(w.headers)}\nrows (JSON): ${JSON.stringify(w.rows)}\nСначала crm_workspace_create_table: name осмысленное (${w.tableNameHint || w.fileName || 'таблица'}), fields: по одному полю на каждый fieldKeys с type text, label из headers; enabledViews при необходимости ["analytics"]. Затем crm_workspace_bulk_add_records с objectId и records = массив объектов с ключами из fieldKeys.`,
+        `\n\n--- Вложение: файл в рабочую область — ${w.fileName || 'файл'}, всего строк: ${w.totalRows} ---\nimportId: ${w.importId}\ncolumns (колонки файла): ${JSON.stringify(w.columns)}\nsample (первые строки, только для ознакомления — это не все данные): ${JSON.stringify(w.sample)}\nСначала вызови crm_workspace_create_table: name осмысленное (${w.tableNameHint || w.fileName || 'таблица'}), придумай fields (key/label/type) по columns и sample; enabledViews при необходимости ["analytics"]. Затем вызови crm_workspace_import_file с objectId созданной таблицы и importId — он сам перенесёт ВСЕ ${w.totalRows} строк из файла в таблицу (не проси и не пытайся передать сами строки — используй только importId). fieldMapping можно не указывать — колонки подберутся к полям автоматически по схожести названий; укажи явно, только если подбор точно будет неверным.`,
       );
     }
 

@@ -63,7 +63,7 @@ export const StaffDetailPage: React.FC = () => {
       .toUpperCase();
 
     return (
-      <div className="h-16 w-16 rounded-full bg-slate-800 flex items-center justify-center text-sm text-slate-200">
+      <div className="h-16 w-16 rounded-full bg-lumiva-accent flex items-center justify-center text-sm text-white font-semibold">
         {initials || t('crm.staff.common.initialsFallback')}
       </div>
     );
@@ -75,31 +75,29 @@ export const StaffDetailPage: React.FC = () => {
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="text-[11px] text-slate-400 hover:text-slate-200"
+          className="text-[11px] text-text-secondary hover:text-[#111827] transition-colors"
         >
           ← {t('crm.staff.detail.back')}
         </button>
 
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
         {loading && (
-          <div className="text-xs text-slate-400">{t('crm.staff.detail.loading')}</div>
+          <div className="text-xs text-text-tertiary">{t('crm.staff.detail.loading')}</div>
         )}
 
         {!loading && item && (
-          <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-5 space-y-4">
+          <div className="card p-5 space-y-4">
             <div className="flex items-center gap-4">
               {renderAvatar()}
               <div>
-                <div className="text-lg font-semibold text-slate-50">
-                  {item.fullName}
-                </div>
-                <div className="text-xs text-slate-400">{item.email}</div>
-                <div className="text-[10px] text-slate-500 mt-1 break-all">
+                <div className="page-title">{item.fullName}</div>
+                <div className="text-xs text-text-secondary">{item.email}</div>
+                <div className="text-[10px] text-text-tertiary mt-1 break-all">
                   {t('crm.staff.detail.id', { id: item.id })}
                 </div>
               </div>
@@ -107,46 +105,33 @@ export const StaffDetailPage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
               <div className="space-y-2">
-                <div className="text-slate-500">{t('crm.staff.detail.role')}</div>
-                <div className="inline-flex px-2 py-1 rounded-full bg-slate-800 text-slate-100">
+                <div className="text-text-secondary">{t('crm.staff.detail.role')}</div>
+                <span className="badge bg-surface-subtle text-[#111827]">
                   {roleLabels[item.role]}
-                </div>
+                </span>
               </div>
 
               <div className="space-y-2">
-                <div className="text-slate-500">{t('crm.staff.detail.department')}</div>
-                <div className="text-slate-100">
+                <div className="text-text-secondary">{t('crm.staff.detail.department')}</div>
+                <div className="text-[#111827]">
                   {item.department || t('crm.staff.common.notSpecified')}
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="text-slate-500">{t('crm.staff.detail.status')}</div>
-                <div
-                  className={
-                    'inline-flex px-2 py-1 rounded-full ' +
-                    (item.isActive
-                      ? 'bg-emerald-900/60 text-emerald-300'
-                      : 'bg-slate-800 text-slate-400')
-                  }
-                >
+                <div className="text-text-secondary">{t('crm.staff.detail.status')}</div>
+                <span className={item.isActive ? 'badge-active' : 'badge-inactive'}>
                   {item.isActive ? t('crm.staff.status.active') : t('crm.staff.status.disabled')}
-                </div>
+                </span>
               </div>
 
               <div className="space-y-2">
-                <div className="text-slate-500">{t('crm.staff.detail.external')}</div>
-                <div className="text-slate-100">
+                <div className="text-text-secondary">{t('crm.staff.detail.external')}</div>
+                <div className="text-[#111827]">
                   {item.externalId || t('crm.staff.common.empty')}
                 </div>
               </div>
             </div>
-
-            {/* Здесь позже:
-                - смена аватара
-                - управление приглашениями / сброс пароля
-                - детальные права доступа (RBAC)
-             */}
           </div>
         )}
       </div>

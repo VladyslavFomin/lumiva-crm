@@ -4,6 +4,93 @@
  * + duplicate header disambiguation for stable row objects
  */
 
+import ExcelJS from 'exceljs';
+import { BadRequestException } from '@nestjs/common';
+
+function excelCellToString(value: any): string {
+  if (value === null || value === undefined) return '';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+    return String(value).trim();
+  }
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'object') {
+    if (typeof value.text === 'string') return value.text.trim();
+    if (typeof value.result === 'string' || typeof value.result === 'number') {
+      return String(value.result).trim();
+    }
+    if (Array.isArray(value.richText)) {
+      return value.richText.map((chunk: any) => String(chunk?.text || '')).join('').trim();
+    }
+  }
+  return String(value).trim();
+}
+
+/**
+ * Читает строку Excel колонка 1..row.cellCount подряд (включая пустые ячейки), чтобы не
+ * терять сдвиг колонок из-за пустой первой ячейки в шапке.
+ */
+function excelRowToCellStrings(row: ExcelJS.Row): string[] {
+  const n = row.cellCount;
+  if (!n || n < 1) return [];
+  const out: string[] = [];
+  for (let c = 1; c <= n; c++) {
+    out.push(excelCellToString(row.getCell(c).value));
+  }
+  return out;
+}
+
+/**
+ * Реальный парсер .xlsx (ExcelJS, только современный zip-based формат — легаси бинарный .xls
+ * не поддерживается никакой версией ExcelJS). Общий для custom-objects и products, чтобы не
+ * дублировать ~60 строк парсинга в каждом модуле.
+ */
+export async function parseXlsxRobust(buffer: Buffer): Promise<{
+  columns: string[];
+  rows: Array<Record<string, any>>;
+  headerRowNumber: number;
+}> {
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.load(buffer as any);
+  } catch {
+    throw new BadRequestException(
+      'Не удалось прочитать этот Excel-файл. Поддерживается только современный формат .xlsx (старый бинарный .xls — нет). Пересохраните файл как .xlsx или CSV и попробуйте снова.',
+    );
+  }
+  const sheet = workbook.worksheets[0];
+  if (!sheet) return { columns: [], rows: [], headerRowNumber: 1 };
+
+  let headerRowNumber = 1;
+  let columns: string[] = [];
+  for (let rowNum = 1; rowNum <= Math.min(sheet.rowCount, 50); rowNum++) {
+    const row = sheet.getRow(rowNum);
+    const labels = excelRowToCellStrings(row);
+    if (labels.some((l) => l.trim() !== '')) {
+      headerRowNumber = rowNum;
+      while (labels.length > 0 && labels[labels.length - 1].trim() === '') {
+        labels.pop();
+      }
+      if (!labels.length) continue;
+      columns = makeUniqueHeaders(labels).columns;
+      break;
+    }
+  }
+  if (!columns.length) return { columns: [], rows: [], headerRowNumber: 1 };
+
+  const width = columns.length;
+  const rows: Array<Record<string, any>> = [];
+  for (let rowNum = headerRowNumber + 1; rowNum <= sheet.rowCount; rowNum++) {
+    const row = sheet.getRow(rowNum);
+    const obj: Record<string, any> = {};
+    for (let c = 1; c <= width; c++) {
+      obj[columns[c - 1]] = excelCellToString(row.getCell(c).value);
+    }
+    const hasData = Object.values(obj).some((v) => String(v ?? '').trim() !== '');
+    if (hasData) rows.push(obj);
+  }
+  return { columns, rows, headerRowNumber };
+}
+
 export function countDelimitersOutsideQuotes(line: string, delim: string): number {
   let n = 0;
   let inQuotes = false;

@@ -59,6 +59,81 @@ export class AiOpenAiService {
     return Math.max(1, Math.ceil(usd * 100));
   }
 
+  async chatCompletionWithConfig(
+    input: {
+      messages: ChatMessage[];
+      tools?: unknown[];
+      toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+    },
+    overrideConfig?: { apiKey: string; baseUrl?: string; model?: string },
+  ): Promise<{
+    message: ChatMessage;
+    usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+  }> {
+    let apiKey: string;
+    let base: string;
+    let model: string;
+    if (overrideConfig) {
+      apiKey = overrideConfig.apiKey;
+      base = (overrideConfig.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '');
+      model = overrideConfig.model || 'gpt-4o-mini';
+    } else {
+      const cfg = await this.resolveConfig();
+      apiKey = cfg.apiKey;
+      base = cfg.base;
+      model = cfg.model;
+    }
+    const url = `${base}/chat/completions`;
+    const body: Record<string, unknown> = {
+      model,
+      messages: input.messages,
+      temperature: 0.6,
+    };
+    if (input.tools?.length) {
+      body.tools = input.tools;
+      body.tool_choice = input.toolChoice ?? 'auto';
+    }
+    try {
+      const res = await axios.post(url, body, {
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        timeout: 120_000,
+      });
+      const choice = res.data?.choices?.[0];
+      const msg = choice?.message;
+      if (!msg) {
+        throw new Error('Empty completion');
+      }
+      const usage = res.data?.usage || {
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        total_tokens: 0,
+      };
+      return {
+        message: {
+          role: 'assistant',
+          content: msg.content ?? null,
+          tool_calls: msg.tool_calls,
+        },
+        usage,
+      };
+    } catch (e) {
+      const ax = e as AxiosError;
+      const data = ax.response?.data as any;
+      this.log.error(
+        `OpenAI error: ${ax.response?.status} ${JSON.stringify(data || ax.message)}`,
+      );
+      throw new BadRequestException({
+        code: 'AI_PROVIDER_ERROR',
+        message:
+          data?.error?.message ||
+          'Ошибка провайдера AI. Проверьте ключ и лимиты.',
+      });
+    }
+  }
+
   async chatCompletion(input: {
     messages: ChatMessage[];
     tools?: unknown[];

@@ -3,12 +3,89 @@ import { api } from './client';
 
 export type Money = string;
 
+export type CcpFinancialSummary = {
+  currency?: string | null;
+  balance?: number | string | null;
+  displayBalance?: number | string | null;
+  totalBalance?: number | string | null;
+  totalEquity?: number | string | null;
+  balanceOperational?: number | string | null;
+  profitBalance?: number | string | null;
+  creditBalance?: number | string | null;
+  availableProfit?: number | string | null;
+  invested?: number | string | null;
+  investmentTotal?: number | string | null;
+  profitAccrued?: number | string | null;
+  profitAccrualTotal?: number | string | null;
+  accountFee?: number | string | null;
+  accountWriteOff?: number | string | null;
+  withdrawn?: number | string | null;
+  transfers?: number | string | null;
+  creditLeverage?: number | string | null;
+  creditLeverageTotal?: number | string | null;
+  manualAdjustments?: number | string | null;
+  expectedProfit?: number | string | null;
+};
+
+export type CcpAccountFinancial = CcpFinancialSummary & {
+  availableProfit?: number | string | null;
+  expectedProfitDetails?: any[];
+};
+
+export type CcpAccount = {
+  id?: string | number | null;
+  externalId?: string | null;
+  externalAccountId?: string | null;
+  wpUserId?: string | number | null;
+  externalUserId?: string | number | null;
+  number?: string | null;
+  currency?: string | null;
+  currencySign?: string | null;
+  contractSum?: number | string | null;
+  depositSum?: number | string | null;
+  balance?: number | string | null;
+  displayBalance?: number | string | null;
+  totalBalance?: number | string | null;
+  totalEquity?: number | string | null;
+  profit?: number | string | null;
+  credit?: number | string | null;
+  balanceOperational?: number | string | null;
+  profitBalance?: number | string | null;
+  creditBalance?: number | string | null;
+  status?: string | null;
+  createdAt?: string | null;
+  financial?: CcpAccountFinancial | null;
+};
+
+export type CcpInvestment = {
+  transactionId?: string | number | null;
+  accountId?: string | number | null;
+  assetId?: string | number | null;
+  assetName?: string | null;
+  assetExcerpt?: string | null;
+  assetCategory?: string | null;
+  assetCalculation?: string | null;
+  assetProfitRate?: number | string | null;
+  currency?: string | null;
+  currencySign?: string | null;
+  invested?: number | string | null;
+  expectedProfit?: number | string | null;
+  createdAt?: string | null;
+};
+
+export type CcpClientMeta = Record<string, any> & {
+  accounts?: CcpAccount[];
+  financialSummary?: CcpFinancialSummary[];
+  investments?: CcpInvestment[];
+};
+
 export type CcpSite = {
   id: string;
   tenantId?: string;
   siteUrl?: string;
   siteHost?: string | null;
   wpRestBase?: string;
+  wpToken?: string | null;
   isActive?: boolean;
   updatedAt?: string;
   createdAt?: string;
@@ -22,6 +99,7 @@ export type CcpClient = {
 
   email: string;
   name?: string | null;
+  phone?: string | null;
 
   balanceEur: Money;
   balanceUsd: Money;
@@ -32,6 +110,14 @@ export type CcpClient = {
   analyticsUrl?: string | null;
   filesList?: string | null;
   tgChatId?: string | null;
+  meta?: CcpClientMeta | null;
+
+  investmentStyle?: string | null;
+  investmentAnnualPercent?: Money | null;
+  creditLeverage?: Money | null;
+  creditRepayMonthlyPercent?: Money | null;
+  investmentProfitMonthlyPercent?: Money | null;
+  accountDebitMonthlyPercent?: Money | null;
 
   ibanEur?: string | null;
   ibanUsd?: string | null;
@@ -54,6 +140,7 @@ export type CcpTxn = {
   date?: string | null;
   desc?: string | null;
   ccpStatus?: string | null;
+  meta?: Record<string, any> | null;
   updatedAt?: string;
   createdAt?: string;
 };
@@ -82,6 +169,7 @@ export type CcpTransfer = {
   note?: string | null;
 
   ccpStatus?: string | null;
+  meta?: Record<string, any> | null;
   updatedAt?: string;
   createdAt?: string;
 };
@@ -91,6 +179,31 @@ export type ApiList<T> = {
   page: number;
   per: number;
   total: number;
+};
+
+export type CcpClientAnalytics = {
+  client: CcpClient;
+  txns: CcpTxn[];
+  transfers: CcpTransfer[];
+  sync: { fresh: boolean; errors: string[] };
+  metrics: {
+    balances: { eur: number; usd: number; total: number };
+    counts: { txns: number; transfers: number };
+    spending: { eur: number; usd: number; total: number };
+    transfers: { incoming: number; outgoing: number; net: number };
+    investments: {
+      amount: number;
+      byKind: Record<string, number>;
+      style: string | null;
+      annualPercent: number | null;
+      profitMonthlyPercent: number | null;
+      expectedAnnualProfit: number | null;
+      expectedMonthlyProfit: number | null;
+    };
+    accountCosts: { monthlyPercent: number | null; expectedMonthlyDebit: number | null };
+    credit: { leverage: number | null; repayMonthlyPercent: number | null; expectedMonthlyRepay: number | null };
+    expected: { netMonthly: number | null; netAnnual: number | null };
+  };
 };
 
 export type CreateCcpTxnDto = {
@@ -141,12 +254,30 @@ export const ccpApi = {
   // POST /ccp/sites  (если используешь)
   addSite: (body: { siteUrl: string }) => api.post<CcpSite>('/ccp/sites', body),
 
+  updateSite: (
+    id: string,
+    body: {
+      siteUrl?: string;
+      wpRestBase?: string | null;
+      wpToken?: string | null;
+      isActive?: boolean;
+    },
+  ) => api.patch<CcpSite>(`/ccp/sites/${encodeURIComponent(id)}`, body),
+
+  deleteSite: (id: string) => api.delete<{ ok: boolean; id: string }>(`/ccp/sites/${encodeURIComponent(id)}`),
+
+  connectSite: (body: { siteId: string; wpRestBase: string; wpToken: string }) =>
+    api.post<CcpSite>('/ccp/sites/connect', body),
+
   // GET /ccp/clients?...
-  clients: (params: { siteId?: string; search?: string; page?: number; per?: number } = {}) =>
+  clients: (params: { siteId?: string; search?: string; page?: number; per?: number; fresh?: 0 | 1 } = {}) =>
     api.get<ApiList<CcpClient>>(`/ccp/clients${qs(params)}`),
 
   // GET /ccp/clients/:id
   client: (id: string) => api.get<CcpClient>(`/ccp/clients/${encodeURIComponent(id)}`),
+
+  clientAnalytics: (id: string, params: { fresh?: 0 | 1 } = {}) =>
+    api.get<CcpClientAnalytics>(`/ccp/clients/${encodeURIComponent(id)}/analytics${qs(params)}`),
 
   // PATCH /ccp/clients/:id
   updateClient: (id: string, body: any) =>
@@ -157,11 +288,11 @@ export const ccpApi = {
     api.post<CcpClient>(`/ccp/clients${qs({ siteId })}`, body),
 
   // GET /ccp/txns?...
-  txns: (params: { siteId: string; wpUserId: number; page?: number; per?: number; fresh?: 0 | 1 } ) =>
+  txns: (params: { siteId: string; wpUserId?: number; page?: number; per?: number; fresh?: 0 | 1 } ) =>
     api.get<ApiList<CcpTxn>>(`/ccp/txns${qs(params)}`),
 
   // GET /ccp/transfers?...
-  transfers: (params: { siteId: string; wpUserId: number; page?: number; per?: number; fresh?: 0 | 1 }) =>
+  transfers: (params: { siteId: string; wpUserId?: number; page?: number; per?: number; fresh?: 0 | 1 }) =>
     api.get<ApiList<CcpTransfer>>(`/ccp/transfers${qs(params)}`),
 
   // PATCH /ccp/txns/:siteId/:wpPostId

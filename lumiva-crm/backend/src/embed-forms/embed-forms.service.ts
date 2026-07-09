@@ -340,6 +340,9 @@ export class EmbedFormsService {
       : [];
 
     for (const spec of fields) {
+      if (spec.type === 'html' || spec.type === 'divider') {
+        continue;
+      }
       if (spec.type === 'file') {
         if (!fileIds.length && spec.required) {
           throw new BadRequestException(`Field ${spec.key} (file) required`);
@@ -347,6 +350,20 @@ export class EmbedFormsService {
         continue;
       }
       const raw = body[spec.id];
+      if (spec.type === 'multi_checkbox') {
+        const arr = Array.isArray(raw)
+          ? raw.map((x) => safePlain(x, 200)).filter(Boolean)
+          : [];
+        if (spec.required && !arr.length) {
+          throw new BadRequestException(`Field ${spec.key} is required`);
+        }
+        const allowed = new Set((spec.options || []).map((o) => o.value));
+        if (arr.some((value) => !allowed.has(value))) {
+          throw new BadRequestException(`Invalid value for ${spec.key}`);
+        }
+        parsed[spec.key] = arr;
+        continue;
+      }
       if (spec.type === 'checkbox_consent') {
         const on = raw === true || raw === 'true' || raw === 1 || raw === '1';
         if (spec.required && !on) {
@@ -379,7 +396,7 @@ export class EmbedFormsService {
           throw new BadRequestException('Invalid URL');
         }
       }
-      if (spec.type === 'number' && s) {
+      if ((spec.type === 'number' || spec.type === 'range' || spec.type === 'guests') && s) {
         if (!Number.isFinite(Number(s))) {
           throw new BadRequestException(`Invalid number for ${spec.key}`);
         }
@@ -390,7 +407,16 @@ export class EmbedFormsService {
           throw new BadRequestException(`Invalid date for ${spec.key}`);
         }
       }
-      if (spec.type === 'select' && s) {
+      if (spec.type === 'time' && s && !/^\d{2}:\d{2}$/.test(s)) {
+        throw new BadRequestException(`Invalid time for ${spec.key}`);
+      }
+      if (spec.type === 'datetime' && s) {
+        const d = Date.parse(String(s));
+        if (Number.isNaN(d)) {
+          throw new BadRequestException(`Invalid datetime for ${spec.key}`);
+        }
+      }
+      if (['select', 'radio', 'service', 'specialist'].includes(spec.type) && s) {
         const ok = (spec.options || []).some((o) => o.value === s);
         if (!ok) {
           throw new BadRequestException(`Invalid value for ${spec.key}`);
@@ -401,8 +427,10 @@ export class EmbedFormsService {
           throw new BadRequestException('Invalid messaging value');
         }
       }
-      if (spec.type === 'number' && s) {
+      if ((spec.type === 'number' || spec.type === 'range' || spec.type === 'guests') && s) {
         parsed[spec.key] = Number(s);
+      } else if (spec.type === 'checkbox') {
+        parsed[spec.key] = raw === true || raw === 'true' || raw === 1 || raw === '1';
       } else {
         parsed[spec.key] = s;
       }

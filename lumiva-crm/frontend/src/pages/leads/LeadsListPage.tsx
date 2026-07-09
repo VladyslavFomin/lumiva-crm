@@ -31,6 +31,7 @@ import { WorkspaceCrmEntityMultiField } from '../../components/workspace/Workspa
 import { parseCrmEntityIdsFromCell } from '../../workspace/workspaceCrmEntityIds';
 import { getFixedPopoverLayout, type FixedPopoverLayout } from '../../utils/tablePopoverFixedPosition';
 import '../projects/ProjectsListPage.css';
+import { LeadsCsvImportModal } from './LeadsCsvImportModal';
 
 type LeadListColumn =
   | { id: string; label: string }
@@ -67,6 +68,7 @@ export const LeadsListPage: React.FC = () => {
   const [groupMode, setGroupMode] = useState<'status' | 'company' | 'channel' | 'none' | 'custom'>('status');
   const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [csvImportOpen, setCsvImportOpen] = useState(false);
   const [bulkStatus, setBulkStatus] = useState<LeadStatus | ''>('');
   const [showArchived, setShowArchived] = useState(false);
   const [automationOpen, setAutomationOpen] = useState(false);
@@ -1967,6 +1969,18 @@ export const LeadsListPage: React.FC = () => {
                 {t('crm.leads.list.export')}
               </button>
 
+              <button
+                type="button"
+                className="lv-tb-btn"
+                title="Import leads from CSV"
+                onClick={() => setCsvImportOpen(true)}
+              >
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                  <path d="M14 10v3a1 1 0 01-1 1H3a1 1 0 01-1-1v-3M8 14V5M5 8l3-3 3 3" />
+                </svg>
+                Import CSV
+              </button>
+
               <div style={{ position: 'relative' }} ref={columnsMenuRef}>
                 <button type="button" className={`lv-tb-btn${columnsOpen ? ' active' : ''}`} onClick={() => setColumnsOpen((prev) => !prev)}>
                   <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
@@ -2341,6 +2355,20 @@ export const LeadsListPage: React.FC = () => {
       {duplicatesOpen && (
         <AiDuplicatesModal onClose={() => setDuplicatesOpen(false)} />
       )}
+
+      <LeadsCsvImportModal
+        open={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        onImported={() => {
+          setCsvImportOpen(false);
+          // Reload leads after import
+          setLoading(true);
+          fetchLeads()
+            .then((data) => setLeads(data))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+        }}
+      />
     </MainLayout>
   );
 };

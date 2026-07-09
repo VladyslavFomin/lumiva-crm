@@ -458,3 +458,35 @@ export async function fetchLeadRoi(params?: {
 
   return api.get<LeadsRoiStats>(url);
 }
+
+// ========== CSV IMPORT ==========
+
+export interface CsvImportPreviewResponse {
+  headers: string[];
+  rows: string[][];
+  totalRows: number;
+}
+
+export interface CsvImportResult {
+  imported: number;
+  skipped: number;
+  errors: number;
+}
+
+export async function previewCsvImport(
+  csvData: string,
+  hasHeaderRow: boolean = true,
+): Promise<CsvImportPreviewResponse> {
+  return api.post<CsvImportPreviewResponse>('/leads/import/preview', {
+    csvData,
+    hasHeaderRow,
+  });
+}
+
+export async function importLeadsWithMapping(
+  csvData: string,
+  columnMapping: Record<string, string>,
+): Promise<CsvImportResult> {
+  return api.post<CsvImportResult>('/leads/import', { csvData, columnMapping });
+}
+

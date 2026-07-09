@@ -17,7 +17,7 @@ import {
 } from '../../components/crm/OwnerAvatarsRow';
 import { SmsSendModal } from '../../components/sms/SmsSendModal';
 
-type TabId = 'main' | 'company' | 'leads' | 'projects';
+type TabId = 'main' | 'leads' | 'projects';
 
 export const ContactDetailsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -51,14 +51,18 @@ export const ContactDetailsPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    // Загружаем основную информацию контакта
     fetchContact(id)
       .then((data) => {
         if (!alive) return;
         setContact(data);
+        // Load company inline if linked
+        if (data.companyId) {
+          fetchCompany(data.companyId)
+            .then((c) => { if (alive) setCompany(c); })
+            .catch(() => {});
+        }
       })
       .catch((e) => {
-        console.error(e);
         if (!alive) return;
         setError(e.message || t('crm.contacts.form.errors.loadFailed'));
       })
@@ -66,22 +70,19 @@ export const ContactDetailsPage: React.FC = () => {
         if (!alive) return;
         setLoading(false);
       });
+
+    return () => { alive = false; };
   }, [id, t]);
 
   useEffect(() => {
     let alive = true;
     fetchStaff()
-      .then((list) => {
-        if (alive) setStaff(list);
-      })
-      .catch(() => {
-        if (alive) setStaff([]);
-      });
-    return () => {
-      alive = false;
-    };
+      .then((list) => { if (alive) setStaff(list); })
+      .catch(() => { if (alive) setStaff([]); });
+    return () => { alive = false; };
   }, []);
 
+  // Quick leads for main tab
   useEffect(() => {
     if (!id || loading || !contact) return;
     let alive = true;
@@ -89,87 +90,52 @@ export const ContactDetailsPage: React.FC = () => {
       .then((items) => {
         if (!alive) return;
         setQuickLeads(
-          items
-            .filter((lead) => lead.contactId === id && !isLeadInTrash(lead))
-            .slice(0, 3),
+          items.filter((lead) => lead.contactId === id && !isLeadInTrash(lead)).slice(0, 3),
         );
       })
-      .catch(() => {
-        // ignore
-      });
-    return () => {
-      alive = false;
-    };
+      .catch(() => {});
+    return () => { alive = false; };
   }, [id, loading, contact]);
 
-  // Загружаем данные для активной вкладки
+  // Tab-specific data
   useEffect(() => {
     if (!id || loading || !contact) return;
-
     let alive = true;
 
     switch (tab) {
-      case 'company':
-        if (contact.companyId) {
-          fetchCompany(contact.companyId)
-            .then((data) => {
-              if (!alive) return;
-              setCompany(data);
-            })
-            .catch((e) => console.error('Ошибка загрузки компании:', e));
-        }
-        break;
-
       case 'leads':
         fetchLeads()
           .then((data) => {
             if (!alive) return;
-            const contactLeads = data.filter(
-              (lead) => lead.contactId === id && !isLeadInTrash(lead),
-            );
-            setLeads(contactLeads);
+            setLeads(data.filter((lead) => lead.contactId === id && !isLeadInTrash(lead)));
           })
-          .catch((e) => console.error('Ошибка загрузки лидов:', e));
+          .catch(() => {});
         break;
 
       case 'projects':
-        // Сначала загружаем лиды, потом проекты
         fetchLeads()
           .then((leadsData) => {
             if (!alive) return;
-            const contactLeads = leadsData.filter(
-              (lead) => lead.contactId === id && !isLeadInTrash(lead),
-            );
-            const leadIds = contactLeads.map((l) => l.id);
-
-            if (leadIds.length === 0) {
-              setProjects([]);
-              return;
-            }
-
+            const leadIds = leadsData
+              .filter((lead) => lead.contactId === id && !isLeadInTrash(lead))
+              .map((l) => l.id);
+            if (!leadIds.length) { setProjects([]); return; }
             return fetchProjects().then((data) => {
               if (!alive) return;
-              const contactProjects = data.items.filter((project) =>
-                leadIds.includes(project.leadId || ''),
-              );
-              setProjects(contactProjects);
+              setProjects(data.items.filter((p) => leadIds.includes(p.leadId || '')));
             });
           })
-          .catch((e) => console.error('Ошибка загрузки проектов:', e));
+          .catch(() => {});
         break;
     }
 
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [id, tab, loading, contact]);
 
   if (loading) {
     return (
       <MainLayout>
-        <div className="text-center py-12 text-xs text-slate-400">
-          {t('crm.common.loading')}
-        </div>
+        <div className="text-center py-12 text-xs text-slate-400">{t('crm.common.loading')}</div>
       </MainLayout>
     );
   }
@@ -177,7 +143,7 @@ export const ContactDetailsPage: React.FC = () => {
   if (error || !contact) {
     return (
       <MainLayout>
-        <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+        <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
           {error || t('crm.contacts.details.page.errors.notFound')}
         </div>
       </MainLayout>
@@ -193,115 +159,125 @@ export const ContactDetailsPage: React.FC = () => {
   return (
     <MainLayout>
       <div className="space-y-4">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 rounded-[14px] border border-[#e7e7e7] bg-white p-5">
           <div>
             <button
               onClick={() => navigate('/contacts')}
-              className="text-[11px] text-slate-500 hover:text-slate-700 mb-1"
+              className="flex items-center gap-1 text-[11px] text-[#888] hover:text-[#222] mb-2 transition-colors"
             >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
               {t('crm.contacts.details.page.backToList')}
             </button>
-            <h1 className="text-lg font-semibold text-slate-900">{fullName}</h1>
-            <div className="text-[11px] text-slate-500">
-              {t('crm.contacts.details.page.subtitle')}
-            </div>
+            <h1 className="cd-display text-[20px] font-semibold text-[#222] tracking-[-0.02em]">{fullName}</h1>
+            {contact.position && company && (
+              <div className="mt-1 text-[12px] text-[#888]">
+                {contact.position}
+                {' · '}
+                <button
+                  type="button"
+                  onClick={() => navigate(`/companies/${company.id}`)}
+                  className="text-[#222] hover:underline"
+                >
+                  {company.name}
+                </button>
+              </div>
+            )}
+            {contact.position && !company && (
+              <div className="mt-1 text-[12px] text-[#888]">{contact.position}</div>
+            )}
+            {!contact.position && company && (
+              <div className="mt-1 text-[12px] text-[#888]">
+                <button
+                  type="button"
+                  onClick={() => navigate(`/companies/${company.id}`)}
+                  className="text-[#222] hover:underline"
+                >
+                  {company.name}
+                </button>
+              </div>
+            )}
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => navigate(`/contacts/${id}/edit`)}
-              className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
+              className="rounded-[8px] border border-[#e7e7e7] bg-white px-3.5 py-2 text-[12px] font-medium text-[#444] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
             >
               {t('crm.contacts.form.titleEdit')}
             </button>
           </div>
         </div>
 
-        {/* Вкладки */}
-        <div className="inline-flex bg-white border border-slate-200 rounded-2xl p-1 text-[13px]">
-          {[
-            { id: 'main', label: t('crm.contacts.details.tabs.main') },
-            { id: 'company', label: t('crm.contacts.details.tabs.company') },
-            { id: 'leads', label: t('crm.contacts.details.tabs.leads') },
+        {/* Tabs */}
+        <div className="inline-flex bg-white border border-[#e7e7e7] rounded-[12px] p-1 text-[13px]">
+          {([
+            { id: 'main',     label: t('crm.contacts.details.tabs.main') },
+            { id: 'leads',    label: t('crm.contacts.details.tabs.leads') },
             { id: 'projects', label: t('crm.contacts.details.tabs.projects') },
-          ].map((t) => (
+          ] as { id: TabId; label: string }[]).map((item) => (
             <button
-              key={t.id}
+              key={item.id}
               type="button"
-              onClick={() => setTab(t.id as TabId)}
+              onClick={() => setTab(item.id)}
               className={
-                'px-4 py-1.5 rounded-xl transition-colors ' +
-                (tab === t.id
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-500 hover:text-slate-800')
+                'px-4 py-1.5 rounded-[8px] text-[12px] font-medium transition-colors ' +
+                (tab === item.id
+                  ? 'bg-[#222] text-white'
+                  : 'text-[#888] hover:text-[#222]')
               }
             >
-              {t.label}
+              {item.label}
             </button>
           ))}
         </div>
 
-        {/* Контент вкладок */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-4">
+        {/* Tab content */}
+        <div className="rounded-[14px] border border-[#e7e7e7] bg-white p-5">
+
+          {/* ── MAIN ── */}
           {tab === 'main' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
+              {/* Contact fields grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {contact.email && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Email</div>
-                    <div className="text-xs text-slate-700">
-                      <a
-                        href={`mailto:${contact.email}`}
-                        className="text-blue-600 hover:text-blue-500"
-                      >
-                        {contact.email}
-                      </a>
-                    </div>
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">Email</div>
+                    <a href={`mailto:${contact.email}`} className="text-[13px] text-[#222] hover:underline">
+                      {contact.email}
+                    </a>
                   </div>
                 )}
                 {contact.phone && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">
                       {t('crm.contacts.form.fields.phone')}
                     </div>
-                    <div className="text-xs text-slate-700 flex items-center gap-2">
-                      <a
-                        href={`tel:${contact.phone}`}
-                        className="text-blue-600 hover:text-blue-500"
-                      >
+                    <div className="flex items-center gap-2">
+                      <a href={`tel:${contact.phone}`} className="text-[13px] text-[#222] hover:underline">
                         {contact.phone}
                       </a>
                       <button
                         onClick={() => setSmsOpen(true)}
-                        title="Отправить SMS"
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 transition"
+                        className="rounded-[6px] border border-[#e7e7e7] bg-[#fafafa] px-2 py-0.5 text-[10px] font-medium text-[#555] hover:border-[#222] hover:text-[#222] transition-colors"
                       >
                         SMS
                       </button>
                     </div>
                   </div>
                 )}
-                {smsOpen && contact.phone && (
-                  <SmsSendModal
-                    phone={contact.phone}
-                    entityType="contact"
-                    entityId={contact.id}
-                    onClose={() => setSmsOpen(false)}
-                  />
-                )}
                 {contact.position && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">
                       {t('crm.contacts.form.fields.position')}
                     </div>
-                    <div className="text-xs text-slate-700">{contact.position}</div>
+                    <div className="text-[13px] text-[#222]">{contact.position}</div>
                   </div>
                 )}
                 <div>
-                  <div className="text-[10px] text-slate-500 mb-1">
+                  <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">
                     {t('crm.contacts.details.page.assignee')}
                   </div>
-                  <div className="text-xs text-slate-700">
+                  <div className="text-[13px] text-[#444]">
                     {contact.assignedTo ||
                       (Array.isArray(contact.customFields?.assignedToList)
                         ? (contact.customFields?.assignedToList as string[]).join(', ')
@@ -311,47 +287,46 @@ export const ContactDetailsPage: React.FC = () => {
                 </div>
                 {(contact.city || contact.country) && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">
                       {t('crm.contacts.form.fields.address')}
                     </div>
-                    <div className="text-xs text-slate-700">
-                      {[contact.city, contact.country].filter(Boolean).join(', ') ||
-                        t('crm.projects.common.emptyValue')}
+                    <div className="text-[13px] text-[#444]">
+                      {[contact.city, contact.country].filter(Boolean).join(', ')}
                     </div>
                   </div>
                 )}
                 {contact.linkedin && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">LinkedIn</div>
-                    <div className="text-xs text-slate-700">
-                      <a
-                        href={contact.linkedin}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-500"
-                      >
-                        {contact.linkedin}
-                      </a>
-                    </div>
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">LinkedIn</div>
+                    <a
+                      href={contact.linkedin}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[13px] text-[#222] hover:underline truncate block max-w-[200px]"
+                    >
+                      {contact.linkedin}
+                    </a>
                   </div>
                 )}
                 {contact.telegram && (
                   <div>
-                    <div className="text-[10px] text-slate-500 mb-1">Telegram</div>
-                    <div className="text-xs text-slate-700">{contact.telegram}</div>
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">Telegram</div>
+                    <div className="text-[13px] text-[#222]">{contact.telegram}</div>
                   </div>
                 )}
               </div>
+
+              {/* Tags */}
               {contact.tags && contact.tags.length > 0 && (
                 <div>
-                    <div className="text-[10px] text-slate-500 mb-1">
-                      {t('crm.projects.detail.fields.tags')}
-                    </div>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-2">
+                    {t('crm.projects.detail.fields.tags')}
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
                     {contact.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px]"
+                        className="inline-flex items-center rounded-full border border-[#e7e7e7] bg-[#fafafa] px-2.5 py-[3px] text-[11px] text-[#555]"
                       >
                         {tag}
                       </span>
@@ -359,8 +334,48 @@ export const ContactDetailsPage: React.FC = () => {
                   </div>
                 </div>
               )}
+
+              {/* Company card — inline, no separate tab */}
+              {contact.companyId && (
+                <div className="rounded-[10px] border border-[#e7e7e7] bg-[#fafafa] p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">
+                      {t('crm.contacts.details.tabs.company')}
+                    </div>
+                    {company && (
+                      <button
+                        type="button"
+                        onClick={() => navigate(`/companies/${company.id}`)}
+                        className="text-[11px] text-[#888] hover:text-[#222] transition-colors flex items-center gap-1"
+                      >
+                        Открыть
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                      </button>
+                    )}
+                  </div>
+                  {company ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-[8px] border border-[#e7e7e7] bg-white flex items-center justify-center flex-shrink-0 text-[13px] font-semibold text-[#222]">
+                        {company.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-[13px] font-semibold text-[#222] truncate">{company.name}</div>
+                        <div className="text-[11px] text-[#888] mt-0.5 flex items-center gap-2">
+                          {company.email && <span className="truncate">{company.email}</span>}
+                          {company.email && company.phone && <span className="text-[#e7e7e7]">·</span>}
+                          {company.phone && <span>{company.phone}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-[12px] text-[#888]">{t('crm.common.loading')}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Linked leads */}
               <div>
-                <div className="text-[10px] text-slate-500 mb-1">
+                <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-2">
                   {t('crm.contacts.details.page.linkedLeads')}
                 </div>
                 {quickLeads.length > 0 ? (
@@ -370,7 +385,7 @@ export const ContactDetailsPage: React.FC = () => {
                         key={lead.id}
                         type="button"
                         onClick={() => navigate(`/leads/${lead.id}`)}
-                        className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 text-slate-700 hover:border-slate-400 transition-colors"
+                        className="rounded-[8px] border border-[#e7e7e7] bg-white px-3 py-1.5 text-[12px] text-[#444] hover:border-[#222] hover:text-[#222] transition-colors"
                       >
                         {lead.name || t('crm.projects.detail.fields.leadNameFallback')}
                       </button>
@@ -378,13 +393,13 @@ export const ContactDetailsPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setTab('leads')}
-                      className="px-2 py-1 text-[11px] rounded-lg border border-slate-300 text-slate-600 hover:text-slate-800 transition-colors"
+                      className="rounded-[8px] border border-[#e7e7e7] bg-[#fafafa] px-3 py-1.5 text-[12px] text-[#888] hover:text-[#222] transition-colors"
                     >
                       {t('crm.contacts.details.page.allLeads')}
                     </button>
                   </div>
                 ) : (
-                  <div className="text-xs text-slate-500">
+                  <div className="text-[13px] text-[#888]">
                     {t('crm.contacts.details.page.leadsNotLinked')}
                   </div>
                 )}
@@ -392,58 +407,11 @@ export const ContactDetailsPage: React.FC = () => {
             </div>
           )}
 
-          {tab === 'company' && (
-            <div>
-              {contact.companyId ? (
-                company ? (
-                  <div className="space-y-3">
-                    <div>
-                      <div className="text-[10px] text-slate-500 mb-1">
-                        {t('crm.companies.form.fields.name')}
-                      </div>
-                      <div className="text-xs font-medium text-slate-900">{company.name}</div>
-                    </div>
-                    {company.email && (
-                      <div>
-                        <div className="text-[10px] text-slate-500 mb-1">
-                          {t('crm.companies.form.fields.email')}
-                        </div>
-                        <div className="text-xs text-slate-700">{company.email}</div>
-                      </div>
-                    )}
-                    {company.phone && (
-                      <div>
-                        <div className="text-[10px] text-slate-500 mb-1">
-                          {t('crm.companies.form.fields.phone')}
-                        </div>
-                        <div className="text-xs text-slate-700">{company.phone}</div>
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/companies/${company.id}`)}
-                      className="px-4 py-2 text-xs rounded-xl bg-lumiva-accent text-slate-950 font-semibold hover:bg-lumiva-accent-soft transition-colors"
-                    >
-                      {t('crm.contacts.details.page.openCompany')}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-xs text-slate-400">
-                    {t('crm.common.loading')}
-                  </div>
-                )
-              ) : (
-                <div className="text-center py-8 text-xs text-slate-500">
-                  {t('crm.contacts.details.company.empty')}
-                </div>
-              )}
-            </div>
-          )}
-
+          {/* ── LEADS ── */}
           {tab === 'leads' && (
             <div className="space-y-2">
               {leads.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">
+                <div className="text-center py-8 text-[13px] text-[#888]">
                   {t('crm.contacts.details.leads.empty')}
                 </div>
               ) : (
@@ -452,51 +420,24 @@ export const ContactDetailsPage: React.FC = () => {
                     <table className="lv-proj-table lv-leads-table">
                       <thead>
                         <tr>
-                          <th className="lv-tcol-name">
-                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.leads.lead')}</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">Email</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">{t('crm.contacts.form.fields.phone')}</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.leads.owner')}</span>
-                          </th>
+                          <th className="lv-tcol-name"><span className="lv-th-inner">{t('crm.contacts.details.page.tables.leads.lead')}</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">Email</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">{t('crm.contacts.form.fields.phone')}</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">{t('crm.contacts.details.page.tables.leads.owner')}</span></th>
                         </tr>
                       </thead>
                       <tbody>
                         {leads.map((lead) => {
                           const leadOwners = resolveLeadAssigneesDisplay(lead, staff);
                           return (
-                            <tr
-                              key={lead.id}
-                              onClick={() => navigate(`/leads/${lead.id}`)}
-                              className="lv-proj-row"
-                            >
-                              <td className="lv-tcol-name">
-                                {lead.name ||
-                                  lead.email ||
-                                  lead.phone ||
-                                  `${t('crm.contacts.details.page.tables.leads.lead')} ${lead.id.slice(0, 6)}`}
-                              </td>
-                              <td className="lv-tcol-center">
-                                {lead.email || t('crm.projects.common.emptyValue')}
-                              </td>
-                              <td className="lv-tcol-center">
-                                {lead.phone || t('crm.projects.common.emptyValue')}
-                              </td>
+                            <tr key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)} className="lv-proj-row">
+                              <td className="lv-tcol-name">{lead.name || lead.email || lead.phone || `Лид ${lead.id.slice(0, 6)}`}</td>
+                              <td className="lv-tcol-center">{lead.email || '—'}</td>
+                              <td className="lv-tcol-center">{lead.phone || '—'}</td>
                               <td className="lv-tcol-center">{lead.status}</td>
                               <td className="lv-tcol-center lv-td-popover">
-                                {leadOwners.length ? (
-                                  <OwnerAvatarsRow items={leadOwners} readOnly />
-                                ) : (
-                                  <span className="text-[var(--fg-3)]">—</span>
-                                )}
+                                {leadOwners.length ? <OwnerAvatarsRow items={leadOwners} readOnly /> : <span className="text-[var(--fg-3)]">—</span>}
                               </td>
                             </tr>
                           );
@@ -509,10 +450,11 @@ export const ContactDetailsPage: React.FC = () => {
             </div>
           )}
 
+          {/* ── PROJECTS ── */}
           {tab === 'projects' && (
             <div className="space-y-2">
               {projects.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">
+                <div className="text-center py-8 text-[13px] text-[#888]">
                   {t('crm.contacts.details.projects.empty')}
                 </div>
               ) : (
@@ -521,40 +463,22 @@ export const ContactDetailsPage: React.FC = () => {
                     <table className="lv-proj-table lv-leads-table">
                       <thead>
                         <tr>
-                          <th className="lv-tcol-name">
-                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.project')}</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.owner')}</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.budget')}</span>
-                          </th>
-                          <th className="lv-tcol-center">
-                            <span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.updated')}</span>
-                          </th>
+                          <th className="lv-tcol-name"><span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.project')}</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">{t('crm.contacts.form.fields.status')}</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.owner')}</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.budget')}</span></th>
+                          <th className="lv-tcol-center"><span className="lv-th-inner">{t('crm.contacts.details.page.tables.projects.updated')}</span></th>
                         </tr>
                       </thead>
                       <tbody>
                         {projects.map((project) => {
                           const projOwners = resolveProjectOwnersDisplay(project, staff);
                           return (
-                            <tr
-                              key={project.id}
-                              onClick={() => navigate(`/projects/${project.id}`)}
-                              className="lv-proj-row"
-                            >
+                            <tr key={project.id} onClick={() => navigate(`/projects/${project.id}`)} className="lv-proj-row">
                               <td className="lv-tcol-name">{project.name}</td>
                               <td className="lv-tcol-center">{project.status}</td>
                               <td className="lv-tcol-center lv-td-popover">
-                                {projOwners.length ? (
-                                  <OwnerAvatarsRow items={projOwners} readOnly />
-                                ) : (
-                                  <span className="text-[var(--fg-3)]">—</span>
-                                )}
+                                {projOwners.length ? <OwnerAvatarsRow items={projOwners} readOnly /> : <span className="text-[var(--fg-3)]">—</span>}
                               </td>
                               <td className="lv-tcol-center">
                                 {new Intl.NumberFormat(locale, {
@@ -563,9 +487,7 @@ export const ContactDetailsPage: React.FC = () => {
                                   minimumFractionDigits: 0,
                                 }).format(Number(project.amount || 0))}
                               </td>
-                              <td className="lv-tcol-center">
-                                {project.updatedAt || t('crm.projects.common.emptyValue')}
-                              </td>
+                              <td className="lv-tcol-center">{project.updatedAt || '—'}</td>
                             </tr>
                           );
                         })}
@@ -578,17 +500,15 @@ export const ContactDetailsPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {smsOpen && contact.phone && (
+        <SmsSendModal
+          phone={contact.phone}
+          entityType="contact"
+          entityId={contact.id}
+          onClose={() => setSmsOpen(false)}
+        />
+      )}
     </MainLayout>
   );
 };
-
-
-
-
-
-
-
-
-
-
-

@@ -72,12 +72,13 @@ export class AiController {
         fileName?: string;
         totalRows?: number;
       };
-      workspaceCsvContext?: {
+      workspaceFileContext?: {
+        importId: string;
         fileName?: string;
         tableNameHint?: string;
-        headers: string[];
-        fieldKeys: string[];
-        rows: Record<string, string>[];
+        columns: string[];
+        sample: Record<string, unknown>[];
+        totalRows: number;
       };
       imageFollowUpContext?: {
         lastUserPrompt?: string;
@@ -94,7 +95,7 @@ export class AiController {
       sessionId: body.sessionId,
       message: body.message || '',
       salesImportContext: body.salesImportContext,
-      workspaceCsvContext: body.workspaceCsvContext,
+      workspaceFileContext: body.workspaceFileContext,
       imageFollowUpContext: body.imageFollowUpContext,
     });
   }

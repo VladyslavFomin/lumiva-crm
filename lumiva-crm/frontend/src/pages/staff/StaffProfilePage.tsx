@@ -378,7 +378,7 @@ export const StaffProfilePage: React.FC = () => {
             <button
               type="button"
               onClick={() => navigate('/app/profile/overview')}
-              className="rounded-md border border-neutral-200/90 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50"
+              className="btn-secondary btn-secondary-sm"
             >
               {t('crm.staff.profile.selfProfile')}
             </button>
@@ -401,55 +401,55 @@ export const StaffProfilePage: React.FC = () => {
           <>
             {/* KPI */}
             <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              <div className="rounded-lg border border-neutral-200/90 bg-white px-4 py-3 shadow-sm">
-                <div className="mb-1 text-[11px] font-medium text-neutral-500">
+              <div className="card px-4 py-3">
+                <div className="mb-1 text-[11px] font-medium text-text-secondary">
                   {t('crm.staff.profile.kpis.leadsTitle')}
                 </div>
-                <div className="text-2xl font-semibold tabular-nums text-neutral-900">
+                <div className="text-2xl font-semibold tabular-nums text-[#111827]">
                   {leadsCount}
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className="mt-1 text-[11px] text-text-secondary">
                   {t('crm.staff.profile.kpis.leadsHint', {
                     name: staff.fullName || t('crm.staff.profile.kpis.managerFallback'),
                   })}
                 </div>
               </div>
 
-              <div className="rounded-lg border border-neutral-200/90 bg-white px-4 py-3 shadow-sm">
-                <div className="mb-1 text-[11px] font-medium text-neutral-500">
+              <div className="card px-4 py-3">
+                <div className="mb-1 text-[11px] font-medium text-text-secondary">
                   {t('crm.staff.profile.kpis.projectsTitle')}
                 </div>
-                <div className="text-2xl font-semibold tabular-nums text-neutral-900">
+                <div className="text-2xl font-semibold tabular-nums text-[#111827]">
                   {projectsCount}
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className="mt-1 text-[11px] text-text-secondary">
                   {t('crm.staff.profile.kpis.projectsHint')}
                 </div>
               </div>
 
-              <div className="rounded-lg border border-neutral-200/90 bg-white px-4 py-3 shadow-sm">
-                <div className="mb-1 text-[11px] font-medium text-neutral-500">
+              <div className="card px-4 py-3">
+                <div className="mb-1 text-[11px] font-medium text-text-secondary">
                   {t('crm.staff.profile.kpis.tasksTitle')}
                 </div>
-                <div className="text-2xl font-semibold tabular-nums text-neutral-900">
+                <div className="text-2xl font-semibold tabular-nums text-[#111827]">
                   {tasksCount}
                 </div>
-                <div className="mt-1 text-[11px] text-neutral-500">
+                <div className="mt-1 text-[11px] text-text-secondary">
                   {t('crm.staff.profile.kpis.tasksHint')}
                 </div>
               </div>
             </div>
 
             {/* Вкладки */}
-            <div className="inline-flex rounded-lg border border-neutral-200/90 bg-neutral-50 p-0.5 text-[13px]">
+            <div className="inline-flex rounded-2xl border border-border-default bg-surface-subtle p-0.5 text-[13px]">
               <button
                 type="button"
                 onClick={() => setTab('overview')}
                 className={
-                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
+                  'rounded-xl px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'overview'
-                    ? 'bg-white text-neutral-900 shadow-sm'
-                    : 'text-neutral-600 hover:text-neutral-900')
+                    ? 'bg-white text-[#111827] shadow-sm'
+                    : 'text-text-secondary hover:text-[#111827]')
                 }
               >
                 {t('crm.staff.profile.tabs.overview')}
@@ -458,10 +458,10 @@ export const StaffProfilePage: React.FC = () => {
                 type="button"
                 onClick={() => setTab('leads')}
                 className={
-                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
+                  'rounded-xl px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'leads'
-                    ? 'bg-white text-neutral-900 shadow-sm'
-                    : 'text-neutral-600 hover:text-neutral-900')
+                    ? 'bg-white text-[#111827] shadow-sm'
+                    : 'text-text-secondary hover:text-[#111827]')
                 }
               >
                 {t('crm.staff.profile.tabs.leads')}
@@ -470,10 +470,10 @@ export const StaffProfilePage: React.FC = () => {
                 type="button"
                 onClick={() => setTab('projects')}
                 className={
-                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
+                  'rounded-xl px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'projects'
-                    ? 'bg-white text-neutral-900 shadow-sm'
-                    : 'text-neutral-600 hover:text-neutral-900')
+                    ? 'bg-white text-[#111827] shadow-sm'
+                    : 'text-text-secondary hover:text-[#111827]')
                 }
               >
                 {t('crm.staff.profile.tabs.projects')}
@@ -482,10 +482,10 @@ export const StaffProfilePage: React.FC = () => {
                 type="button"
                 onClick={() => setTab('tasks')}
                 className={
-                  'rounded-md px-3 py-1.5 font-medium transition-colors ' +
+                  'rounded-xl px-3 py-1.5 font-medium transition-colors ' +
                   (tab === 'tasks'
-                    ? 'bg-white text-neutral-900 shadow-sm'
-                    : 'text-neutral-600 hover:text-neutral-900')
+                    ? 'bg-white text-[#111827] shadow-sm'
+                    : 'text-text-secondary hover:text-[#111827]')
                 }
               >
                 {t('crm.staff.profile.tabs.tasks')}
@@ -495,7 +495,7 @@ export const StaffProfilePage: React.FC = () => {
             {/* Контент вкладок */}
             {tab === 'overview' && (
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-                <div className="space-y-4 rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm lg:col-span-1">
+                <div className="space-y-4 card p-4 lg:col-span-1">
                   <div>
                     <div className="mb-1 text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
                       {t('crm.staff.profile.contacts.title')}
@@ -516,7 +516,7 @@ export const StaffProfilePage: React.FC = () => {
                           value={staff.role}
                           disabled={savingRole}
                           onChange={(e) => handleChangeRole(e.target.value as StaffRole)}
-                          className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-900 outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-200"
+                          className="base-select text-xs py-1.5"
                         >
                           {Object.entries(roleLabels).map(([k, v]) => (
                             <option key={k} value={k}>
@@ -538,7 +538,7 @@ export const StaffProfilePage: React.FC = () => {
                           value={departmentDraft}
                           disabled={savingDept}
                           onChange={(e) => setDepartmentDraft(e.target.value)}
-                          className="w-full rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs text-neutral-900 outline-none focus:border-neutral-400 focus:ring-1 focus:ring-neutral-200"
+                          className="base-select text-xs py-1.5"
                         >
                           <option value="">{t('crm.staff.profile.departmentPlaceholder')}</option>
                           {departments
@@ -564,7 +564,7 @@ export const StaffProfilePage: React.FC = () => {
                           type="button"
                           disabled={savingDept || !departmentDirty}
                           onClick={() => void handleSaveDepartment()}
-                          className="rounded-md border border-neutral-200/90 bg-white px-2.5 py-1 text-[11px] font-medium text-neutral-800 shadow-sm transition-colors hover:bg-neutral-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="btn-secondary btn-secondary-sm"
                         >
                           {savingDept ? t('crm.common.saving') : t('crm.staff.profile.saveDepartment')}
                         </button>
@@ -582,11 +582,11 @@ export const StaffProfilePage: React.FC = () => {
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       {staff.isActive ? (
-                        <span className="inline-flex rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-200/80">
+                        <span className="badge-active">
                           {t('crm.staff.status.active')}
                         </span>
                       ) : (
-                        <span className="inline-flex rounded-md bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-600 ring-1 ring-neutral-200/80">
+                        <span className="badge-inactive">
                           {t('crm.staff.status.disabled')}
                         </span>
                       )}
@@ -597,7 +597,7 @@ export const StaffProfilePage: React.FC = () => {
                             type="button"
                             disabled={statusLoading}
                             onClick={handleToggleActive}
-                            className="rounded-md border border-neutral-200/90 bg-white px-2 py-1 text-[11px] font-medium text-neutral-700 shadow-sm transition-colors hover:bg-neutral-50 disabled:opacity-60"
+                            className="btn-secondary btn-secondary-sm"
                           >
                             {statusLoading
                               ? t('crm.staff.profile.statusChanging')
@@ -608,7 +608,7 @@ export const StaffProfilePage: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleDeleteStaff}
-                            className="rounded-md border border-red-200 bg-white px-2 py-1 text-[11px] font-medium text-red-700 transition-colors hover:bg-red-50"
+                            className="btn-danger btn-secondary-sm"
                           >
                             {t('crm.staff.profile.delete')}
                           </button>
@@ -626,7 +626,7 @@ export const StaffProfilePage: React.FC = () => {
                         type="button"
                         onClick={handleGenerateLogin}
                         disabled={loginLoading}
-                        className="rounded-md bg-neutral-900 px-3 py-1.5 text-[11px] font-semibold text-white transition-colors hover:bg-neutral-800 disabled:opacity-60"
+                        className="btn-primary btn-primary-sm"
                       >
                         {loginLoading
                           ? t('crm.staff.profile.access.creating')
@@ -663,15 +663,15 @@ export const StaffProfilePage: React.FC = () => {
                 </div>
 
                 <div className="space-y-4 lg:col-span-2">
-                  <div className="rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm">
+                  <div className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-text-secondary">
                         {t('crm.staff.profile.leads.recentTitle', { count: leadsCount })}
                       </div>
                       <button
                         type="button"
                         onClick={() => setTab('leads')}
-                        className="text-[11px] font-medium text-neutral-700 underline-offset-2 hover:underline"
+                        className="text-[11px] font-medium text-text-secondary underline-offset-2 hover:underline"
                       >
                         {t('crm.staff.profile.leads.all')}
                       </button>
@@ -682,7 +682,7 @@ export const StaffProfilePage: React.FC = () => {
                           key={l.id}
                           type="button"
                           onClick={() => navigate(`/app/leads/${l.id}`)}
-                          className="w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-neutral-50"
+                          className="w-full rounded-xl px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-hover"
                         >
                           <div className="font-medium text-neutral-900">
                             {l.name || t('crm.staff.profile.leads.fallbackName')}
@@ -701,15 +701,15 @@ export const StaffProfilePage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-neutral-200/90 bg-white p-4 shadow-sm">
+                  <div className="card p-4">
                     <div className="mb-2 flex items-center justify-between">
-                      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-neutral-500">
+                      <div className="text-[11px] font-medium uppercase tracking-[0.06em] text-text-secondary">
                         {t('crm.staff.profile.projects.recentTitle', { count: projectsCount })}
                       </div>
                       <button
                         type="button"
                         onClick={() => setTab('projects')}
-                        className="text-[11px] font-medium text-neutral-700 underline-offset-2 hover:underline"
+                        className="text-[11px] font-medium text-text-secondary underline-offset-2 hover:underline"
                       >
                         {t('crm.staff.profile.projects.all')}
                       </button>
@@ -720,7 +720,7 @@ export const StaffProfilePage: React.FC = () => {
                           key={p.id}
                           type="button"
                           onClick={() => navigate(`/projects/${p.id}`)}
-                          className="w-full rounded-md px-2 py-1.5 text-left text-xs transition-colors hover:bg-neutral-50"
+                          className="w-full rounded-xl px-2 py-1.5 text-left text-xs transition-colors hover:bg-surface-hover"
                         >
                           <div className="font-medium text-neutral-900">{p.name}</div>
                           <div className="text-[11px] text-neutral-500">

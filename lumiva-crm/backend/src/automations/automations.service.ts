@@ -7,6 +7,7 @@ import {
   BadRequestException,
   Inject,
   forwardRef,
+  Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThan } from 'typeorm';
@@ -35,10 +36,12 @@ import type { RunAutomationNowDto } from './dto/run-automation-now.dto';
 import { CustomObjectsService } from '../custom-objects/custom-objects.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SmsService } from '../sms/sms.service';
+import { JiraApiService } from '../integrations/jira/jira-api.service';
 import { StaffUsersService } from '../staff/staff-users.service';
 
 @Injectable()
 export class AutomationsService {
+  private readonly logger = new Logger(AutomationsService.name);
   private scheduleRunning = false;
   constructor(
     @InjectRepository(Automation)
@@ -73,6 +76,7 @@ export class AutomationsService {
     private readonly notificationsService: NotificationsService,
     private readonly staffUsersService: StaffUsersService,
     private readonly smsService: SmsService,
+    private readonly jiraApi: JiraApiService,
   ) {}
 
   /**
@@ -102,9 +106,7 @@ export class AutomationsService {
       throw new NotFoundException('Automation not found');
     }
 
-    console.log('Loading automation:', automation.id);
-    console.log('Actions from DB:', JSON.stringify(automation.actions, null, 2));
-    console.log('Actions type:', typeof automation.actions, Array.isArray(automation.actions));
+    this.logger.debug(`Loading automation: ${automation.id}`);
 
     return automation;
   }
@@ -116,8 +118,7 @@ export class AutomationsService {
     tenantId: string,
     dto: CreateAutomationDto,
   ): Promise<Automation> {
-    console.log('Creating automation with actions:', JSON.stringify(dto.actions, null, 2));
-    console.log('Actions type:', typeof dto.actions, Array.isArray(dto.actions));
+    this.logger.debug(`Creating automation with ${dto.actions?.length ?? 0} actions`);
     
     // Преобразуем ActionDto[] в формат entity, гарантируя что config всегда объект
     const actions = dto.actions.map(action => ({
@@ -141,7 +142,7 @@ export class AutomationsService {
     });
 
     const saved = await this.automationRepo.save(automation);
-    console.log('Created automation actions:', JSON.stringify(saved.actions, null, 2));
+    this.logger.debug(`Created automation ${saved.id}`);
     return saved;
   }
 
@@ -160,8 +161,7 @@ export class AutomationsService {
     if (dto.triggerEvent !== undefined) automation.triggerEvent = dto.triggerEvent;
     if (dto.conditions !== undefined) automation.conditions = dto.conditions || null;
     if (dto.actions !== undefined) {
-      console.log('Updating actions:', JSON.stringify(dto.actions, null, 2));
-      console.log('Actions type:', typeof dto.actions, Array.isArray(dto.actions));
+      this.logger.debug(`Updating actions for automation ${id}`);
       // Преобразуем ActionDto[] в формат entity, гарантируя что config всегда объект
       automation.actions = dto.actions.map(action => ({
         type: action.type,
@@ -174,7 +174,7 @@ export class AutomationsService {
     if (dto.meta !== undefined) automation.meta = dto.meta;
 
     const saved = await this.automationRepo.save(automation);
-    console.log('Saved automation actions:', JSON.stringify(saved.actions, null, 2));
+    this.logger.debug(`Saved automation ${saved.id}`);
     return saved;
   }
 
@@ -1552,8 +1552,12 @@ export class AutomationsService {
         // Извлекаем email получателя из triggerData если to не указан
         let recipientEmail: string[] = [];
         if (to) {
-          recipientEmail = Array.isArray(to) ? to : [to];
-        } else {
+          const toArr = Array.isArray(to) ? to : [to];
+          recipientEmail = toArr
+            .map((addr) => this.interpolateString(String(addr), triggerData).trim())
+            .filter(Boolean);
+        }
+        if (!recipientEmail.length) {
           // Пытаемся извлечь email из triggerData
           const emailFromData = 
             triggerData.lead?.email || 
@@ -1574,15 +1578,7 @@ export class AutomationsService {
         const companyId = triggerData.companyId || triggerData.company?.id;
         const saleId = triggerData.saleId || triggerData.sale?.id;
         
-        console.log('Sending email:', {
-          accountId,
-          to: recipientEmail,
-          leadId,
-          contactId,
-          companyId,
-          saleId,
-          templateId,
-        });
+        this.logger.debug(`Sending email to ${recipientEmail} (accountId=${accountId})`);
         
         // Если указан templateId, передаем его и данные для интерполяции
         // Иначе используем прямые значения subject/textBody/htmlBody
@@ -2169,6 +2165,25 @@ export class AutomationsService {
         });
 
         return { notificationsSent: targetIds.length };
+      }
+
+      case 'create_jira_issue': {
+        const connectionId = action.config.integrationConnectionId as string;
+        const title = this.interpolateString(action.config.title as string || 'Задача из Lumiva CRM', triggerData);
+        const description = this.interpolateString(action.config.description as string || '', triggerData);
+        const projectKey = (action.config.projectKey as string || '').trim();
+        if (!connectionId) throw new Error('create_jira_issue: укажите integrationConnectionId подключения Jira');
+        const conn = await this.integrationsService.findOneForTenant(tenantId, connectionId);
+        const raw = (conn.config as Record<string, any>) || {};
+        if (!raw.jiraUrl || !raw.jiraEmail || !raw.apiToken) throw new Error('create_jira_issue: неполная конфигурация Jira (jiraUrl / jiraEmail / apiToken)');
+        const cfg = { jiraUrl: String(raw.jiraUrl), email: String(raw.jiraEmail), apiToken: String(raw.apiToken), projectKey: raw.projectKey ? String(raw.projectKey) : undefined };
+        await this.jiraApi.createIssue(cfg, {
+          summary: title,
+          description,
+          projectKey: projectKey || raw.projectKey || '',
+          issueType: (action.config.issueType as string) || 'Task',
+        });
+        return { jiraIssueCreated: true };
       }
 
       default:

@@ -10,6 +10,8 @@ export const THIRD_PARTY_CATALOG_IDS = [
   'amocrm',
   'hubspot',
   'zapier',
+  /** Make (Integromat) — visual automation platform */
+  'make',
   'google_ads',
   'meta_ads',
   'mailchimp',
@@ -40,6 +42,7 @@ export const CATALOG_ID_TO_ENV_SUFFIX: Record<string, string> = {
   amocrm: 'AMOCRM',
   hubspot: 'HUBSPOT',
   zapier: 'ZAPIER',
+  make: 'MAKE',
   google_ads: 'GOOGLE_ADS',
   meta_ads: 'META_ADS',
   mailchimp: 'MAILCHIMP',

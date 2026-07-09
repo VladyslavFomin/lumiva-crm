@@ -26,6 +26,7 @@ const TRIGGER_EVENT_TO_FORM: Record<string, string> = {
   'custom_object.record_created': 'CUSTOM_OBJECT_RECORD_CREATED',
   'custom_object.record_updated': 'CUSTOM_OBJECT_RECORD_UPDATED',
   'custom_object.status_changed': 'CUSTOM_OBJECT_STATUS_CHANGED',
+  'shopify.payment_received': 'SHOPIFY_PAYMENT_RECEIVED',
 };
 
 export const getTriggerLabel = (event: string, t: TFunction): string => {

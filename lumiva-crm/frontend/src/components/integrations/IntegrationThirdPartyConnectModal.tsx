@@ -44,6 +44,7 @@ const THIRD_PARTY_IDS = new Set([
   'amocrm',
   'hubspot',
   'zapier',
+  'make',
   'google_ads',
   'meta_ads',
   'mailchimp',

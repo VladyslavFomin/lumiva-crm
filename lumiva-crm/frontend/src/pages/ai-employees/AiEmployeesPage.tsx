@@ -1,10 +1,20 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import type { TFunction } from 'i18next';
+import type { TFunction, i18n as I18NextInstance } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
-import { Button } from '../../components/ui/Button';
+import { fetchIntegrations, type IntegrationConnectionDto } from '../../api/integrations';
 import { cn } from '../../lib/cn';
+import {
+  AiAvatar,
+  deriveAvatarAccent,
+  deriveAvatarStyle,
+  AI_AVATAR_ACCENTS,
+  AI_AVATAR_STYLES,
+  type AiAvatarAccent,
+  type AiAvatarStyle,
+} from './AiAvatar';
+import './ai-employees.css';
 import {
   approveAiAction,
   createAiEmployee,
@@ -38,45 +48,7 @@ import {
   type AiPlanSnapshot,
 } from '../../api/aiEmployees';
 
-type AiEmployeesView = 'dashboard' | 'choose' | 'create' | 'approvals' | 'logs' | 'reports';
-
-/** Shell + surfaces aligned with `DashboardPage` / `DashboardWidgetChrome` */
-const PAGE_SHELL =
-  'relative isolate overflow-visible rounded-2xl border border-slate-200 bg-white px-3 py-5 sm:px-4 md:px-7 md:py-7';
-const CHROME_SURFACE =
-  'rounded-3xl border border-slate-200/70 bg-white/85 backdrop-blur-sm ring-1 ring-slate-900/[0.04] shadow-[0_1px_2px_rgba(15,23,42,0.04)]';
-const CHROME_SURFACE_HOVER =
-  'transition-[border-color,background-color,box-shadow] duration-300 hover:border-slate-300/90 hover:bg-white hover:shadow-[0_8px_30px_-12px_rgba(15,23,42,0.1)] hover:ring-slate-900/[0.06]';
-const CHROME_GRADIENT =
-  'pointer-events-none absolute inset-0 rounded-3xl opacity-0 transition-opacity duration-500 group-hover:opacity-100 bg-gradient-to-br from-white/0 via-sky-50/25 to-slate-50/40';
-
-function AiEmployeesPageShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className={PAGE_SHELL}>
-      <div className="relative z-10">{children}</div>
-    </div>
-  );
-}
-
-function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2">
-      <svg
-        className="h-3.5 w-3.5 shrink-0 text-slate-400"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden
-      >
-        <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-      </svg>
-      <h2 className="text-[13px] font-semibold tracking-tight text-slate-800">{children}</h2>
-    </div>
-  );
-}
+type AiEmployeesView = 'dashboard' | 'choose' | 'create' | 'edit' | 'approvals' | 'logs' | 'reports';
 
 const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
   {
@@ -111,13 +83,16 @@ const permissionGroups: Array<{ titleKey: string; keys: string[] }> = [
       'create_note',
       'update_lead_status',
       'assign_lead',
-      'create_campaign',
       'draft_email',
       'send_email',
       'draft_whatsapp',
       'send_whatsapp',
       'create_report',
     ],
+  },
+  {
+    titleKey: 'crm.aiEmployees.create.permissionGroups.workspace',
+    keys: ['create_project', 'create_workspace_table', 'manage_workspace_data'],
   },
 ];
 
@@ -127,34 +102,161 @@ const approvalKeys = [
   'update_lead_status',
   'assign_lead',
   'edit_client_data',
-  'create_campaign',
-  'bulk_send_campaign',
   'connect_integration',
   'delete_data',
+  'create_workspace_table',
 ];
 
-function languageOptionValues(): Array<{ value: string; labelKey: string }> {
-  return [
-    { value: 'English', labelKey: 'crm.aiEmployees.languageOptions.english' },
-    { value: 'Russian', labelKey: 'crm.aiEmployees.languageOptions.russian' },
-    { value: 'Turkish', labelKey: 'crm.aiEmployees.languageOptions.turkish' },
-    { value: 'English / Turkish / Russian', labelKey: 'crm.aiEmployees.languageOptions.mixed' },
-  ];
+const REAL_EXECUTABLE_ACTIONS = new Set([
+  'send_email',
+  'send_telegram',
+  'update_lead_status',
+  'assign_lead',
+  'create_project',
+  'create_workspace_table',
+  'workspace_add_record',
+  'workspace_bulk_add_records',
+  'workspace_add_field',
+  'workspace_enable_views',
+]);
+
+const AVATAR_SWATCH_BG: Record<AiAvatarAccent, string> = {
+  ink: '#222',
+  slate: '#eef1f5',
+  green: '#eaf4ee',
+  amber: '#fbf2dc',
+  blue: '#eef3fb',
+  rose: '#fbecef',
+  violet: '#f1eefb',
+};
+
+/* ---------------------------------------------------------------- icons */
+const ICON = {
+  back: <path d="M15 6l-6 6 6 6" />,
+  chevR: <path d="M9 6l6 6-6 6" />,
+  check: <path d="M5 12l4 4 10-10" />,
+  plus: (
+    <>
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+    </>
+  ),
+  x: (
+    <>
+      <path d="M6 6l12 12" />
+      <path d="M6 18L18 6" />
+    </>
+  ),
+  shield: <path d="M12 2l8 3v7c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V5z" />,
+  bolt: <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" />,
+  play: <path d="M6 4l14 8-14 8z" />,
+  pause: (
+    <>
+      <rect x="6" y="5" width="4" height="14" rx="1" />
+      <rect x="14" y="5" width="4" height="14" rx="1" />
+    </>
+  ),
+  trash: (
+    <>
+      <path d="M4 7h16" />
+      <path d="M9 7V4h6v3" />
+      <path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" />
+    </>
+  ),
+  edit: (
+    <>
+      <path d="M4 20h4l10-10-4-4L4 16z" />
+      <path d="M14 6l4 4" />
+    </>
+  ),
+  sparkles: (
+    <>
+      <path d="M12 3l1.6 5L19 9.6 13.6 11 12 16l-1.6-5L5 9.6 10.4 8z" />
+      <path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" />
+    </>
+  ),
+  doc: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="2" />
+      <path d="M8 8h8" />
+      <path d="M8 12h8" />
+      <path d="M8 16h5" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  wand: (
+    <>
+      <path d="M4 20l10-10" />
+      <path d="M14 6l4 4" />
+      <path d="M17 3l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" />
+    </>
+  ),
+  clock: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M4 5a2 2 0 012-2h13v16H6a2 2 0 00-2 2z" />
+      <path d="M4 19a2 2 0 012-2h13" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6" />
+      <path d="M16 4a3.5 3.5 0 010 7" />
+      <path d="M22 20c0-2.6-1.4-4.6-3.5-5.5" />
+    </>
+  ),
+  lead: (
+    <>
+      <path d="M3 12c0-5 4-9 9-9s9 4 9 9-4 9-9 9" />
+      <path d="M3 12l4-4" />
+      <path d="M3 12l4 4" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 7l9 6 9-6" />
+    </>
+  ),
+  send: <path d="M22 2L11 13M22 2l-7 20-4-9-9-4z" />,
+} as const;
+
+function I({ d, size = 16, sw = 1.7 }: { d: React.ReactNode; size?: number; sw?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {d}
+    </svg>
+  );
 }
 
-function autonomyModeDefs(): Array<{ key: AiAgentAutonomyMode; titleKey: string; hintKey: string }> {
-  return [
-    { key: 'read_only', titleKey: 'crm.aiEmployees.autonomy.read_only.title', hintKey: 'crm.aiEmployees.autonomy.read_only.hint' },
-    { key: 'suggest', titleKey: 'crm.aiEmployees.autonomy.suggest.title', hintKey: 'crm.aiEmployees.autonomy.suggest.hint' },
-    { key: 'assisted', titleKey: 'crm.aiEmployees.autonomy.assisted.title', hintKey: 'crm.aiEmployees.autonomy.assisted.hint' },
-    { key: 'auto', titleKey: 'crm.aiEmployees.autonomy.auto.title', hintKey: 'crm.aiEmployees.autonomy.auto.hint' },
-  ];
+function clickableProps(fn: () => void) {
+  return {
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: fn,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        fn();
+      }
+    },
+  };
 }
 
+/* ---------------------------------------------------------------- helpers */
 function labelize(value: string) {
-  return value
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (m) => m.toUpperCase());
+  return value.replace(/_/g, ' ').replace(/\b\w/g, (m) => m.toUpperCase());
 }
 
 function formatDate(value: string | null | undefined, t: TFunction, locale?: string) {
@@ -171,112 +273,112 @@ function formatDate(value: string | null | undefined, t: TFunction, locale?: str
 
 function extractError(error: unknown, t: TFunction) {
   const payload = (error as any)?.payload;
-  return (
-    payload?.message ||
-    (error as Error)?.message ||
-    t('crm.aiEmployees.errors.generic')
-  );
+  return payload?.message || (error as Error)?.message || t('crm.aiEmployees.errors.generic');
 }
 
-function initials(name?: string | null) {
-  return (name || 'AI')
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((x) => x[0]?.toUpperCase())
-    .join('');
+function actionIcon(actionType: string): React.ReactNode {
+  if (actionType.includes('email') || actionType.includes('whatsapp') || actionType.includes('telegram')) return ICON.mail;
+  if (actionType.includes('lead')) return ICON.lead;
+  if (actionType.includes('workspace') || actionType.includes('project') || actionType.includes('report')) return ICON.doc;
+  return ICON.bolt;
 }
 
+function languageOptionValues(): Array<{ value: string; labelKey: string }> {
+  return [
+    { value: 'English', labelKey: 'crm.aiEmployees.languageOptions.english' },
+    { value: 'Russian', labelKey: 'crm.aiEmployees.languageOptions.russian' },
+    { value: 'Turkish', labelKey: 'crm.aiEmployees.languageOptions.turkish' },
+    { value: 'English / Turkish / Russian', labelKey: 'crm.aiEmployees.languageOptions.mixed' },
+  ];
+}
+
+function agentAvatarProps(agent: AiAgent): { accent: AiAvatarAccent; avStyle: AiAvatarStyle } {
+  const settings = (agent.settings || {}) as Record<string, unknown>;
+  return {
+    accent: (settings.avatarAccent as AiAvatarAccent) || deriveAvatarAccent(agent.id),
+    avStyle: (settings.avatarStyle as AiAvatarStyle) || deriveAvatarStyle(agent.id),
+  };
+}
+
+/**
+ * The role catalog (title/description/functions/…) is authored once in English on the
+ * backend and only localized here, keyed by role key — matches the pattern used for
+ * status/autonomy labels (i18n key with a fallback to the raw API string).
+ */
+function trRole(
+  roleKey: string,
+  field: 'title' | 'shortTitle' | 'department' | 'jobTitle' | 'description',
+  fallback: string,
+  t: TFunction,
+  i18n: I18NextInstance,
+): string {
+  const key = `crm.aiEmployees.roleCatalog.${roleKey}.${field}`;
+  return i18n.exists(key) ? t(key) : fallback;
+}
+
+function trRoleFunctions(roleKey: string, fallback: string[], t: TFunction, i18n: I18NextInstance): string[] {
+  const key = `crm.aiEmployees.roleCatalog.${roleKey}.functions`;
+  if (!i18n.exists(key)) return fallback;
+  const value = t(key, { returnObjects: true });
+  return Array.isArray(value) ? (value as string[]) : fallback;
+}
+
+const KNOWN_DEPARTMENT_KEYS: Record<string, string> = {
+  Sales: 'sales',
+  Marketing: 'marketing',
+  Support: 'support',
+  Projects: 'projects',
+  Communications: 'communications',
+  Management: 'management',
+  Reservations: 'reservations',
+};
+
+/** Departments are free-editable per agent; only translate when it still matches a role's English default. */
+function trDepartment(value: string | null | undefined, t: TFunction): string {
+  if (!value) return '';
+  const key = KNOWN_DEPARTMENT_KEYS[value];
+  return key ? t(`crm.aiEmployees.departments.${key}`, { defaultValue: value }) : value;
+}
+
+const KNOWN_PLAN_BADGE_KEYS: Record<string, string> = {
+  Included: 'included',
+  'Available on Pro': 'pro',
+  'Available on Business': 'business',
+  'Available on Enterprise': 'enterprise',
+};
+
+function trPlanBadge(value: string, t: TFunction): string {
+  const key = KNOWN_PLAN_BADGE_KEYS[value];
+  return key ? t(`crm.aiEmployees.planBadge.${key}`, { defaultValue: value }) : value;
+}
+
+/* ---------------------------------------------------------------- shared bits */
 function StatusBadge({ status }: { status: string }) {
   const { t } = useTranslation();
-  const cls =
-    status === 'active'
-      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-      : status === 'paused'
-        ? 'bg-amber-50 text-amber-700 border-amber-200'
-        : status === 'pending'
-          ? 'bg-sky-50 text-sky-700 border-sky-200'
-          : status === 'failed'
-            ? 'bg-red-50 text-red-700 border-red-200'
-            : 'bg-slate-100 text-slate-600 border-slate-200';
   return (
-    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', cls)}>
+    <span className={cn('ai-st', status)}>
+      <span className={cn('dot', status === 'active' && 'live')} />
       {t(`crm.aiEmployees.status.${status}`, { defaultValue: labelize(status) })}
     </span>
-  );
-}
-
-function AgentAvatar({ agent, role }: { agent?: Partial<AiAgent> | null; role?: Partial<AiEmployeeRole> | null }) {
-  const color = agent?.roleAccent || role?.accent || '#111827';
-  if (agent?.avatarUrl) {
-    return (
-      <img
-        src={agent.avatarUrl}
-        alt=""
-        className="h-12 w-12 rounded-3xl object-cover ring-1 ring-slate-900/[0.06]"
-      />
-    );
-  }
-  return (
-    <div
-      className="flex h-12 w-12 items-center justify-center rounded-3xl text-sm font-semibold text-white shadow-[0_2px_8px_-2px_rgba(15,23,42,0.25)] ring-1 ring-white/10"
-      style={{ backgroundColor: color }}
-    >
-      {initials(agent?.name || role?.defaultName)}
-    </div>
-  );
-}
-
-function PageHeader({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle: string;
-  children?: React.ReactNode;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="mb-6 flex flex-col gap-3 border-b border-slate-100 pb-6 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <div
-          
-          className="mb-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400"
-        >
-          {t('crm.aiEmployees.badge.workforce')}
-        </div>
-        <h1
-          
-          className="text-[26px] font-semibold leading-tight tracking-tight text-slate-900 md:text-[30px]"
-        >
-          {title}
-        </h1>
-        <p className="mt-2.5 max-w-2xl text-sm leading-relaxed text-slate-500">{subtitle}</p>
-      </div>
-      {children ? (
-        <div className="flex flex-wrap items-center gap-2">{children}</div>
-      ) : null}
-    </div>
   );
 }
 
 function PlanUsage({ plan }: { plan?: AiPlanSnapshot | null }) {
   const { t } = useTranslation();
   if (!plan) return null;
-  const limitText = plan.unlimited
-    ? t('crm.aiEmployees.plan.usageUnlimited')
-    : t('crm.aiEmployees.plan.usage', { used: plan.used, limit: plan.limit });
   return (
-    <div
-      
-      className="inline-flex max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-slate-200/90 bg-white px-3 py-1.5 text-[10.5px] uppercase tracking-[0.08em] text-slate-600 shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-    >
-      <span className="font-medium text-slate-900">
-        {t('crm.aiEmployees.plan.prefix')} {labelize(plan.plan)}
-      </span>
-      <span className="hidden h-1 w-1 rounded-full bg-slate-300 sm:inline" />
-      <span className="font-normal normal-case tracking-normal text-slate-500">{limitText}</span>
+    <div className="ai-plan">
+      <div>
+        <div className="pl">
+          {t('crm.aiEmployees.plan.prefix')} {labelize(plan.plan)}
+        </div>
+        <div className="pv">{plan.unlimited ? t('crm.aiEmployees.plan.usageUnlimited') : `${plan.used} / ${plan.limit}`}</div>
+      </div>
+      {!plan.unlimited && plan.limit ? (
+        <div className="track">
+          <span style={{ width: `${Math.min(100, (plan.used / plan.limit) * 100)}%` }} />
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -304,15 +406,15 @@ function UpgradeModal({ open, onClose, plan }: { open: boolean; onClose: () => v
         <div className="space-y-4 p-6">
           <p className="text-sm leading-6 text-slate-600">{t('crm.aiEmployees.upgradeModal.body')}</p>
           <div className="flex flex-wrap gap-2">
-            <Button variant="primary" onClick={() => { window.location.href = '/billing'; }}>
+            <button className="aib" onClick={() => { window.location.href = '/billing'; }}>
               {t('crm.aiEmployees.upgradeModal.upgradePlan')}
-            </Button>
-            <Button onClick={() => { window.location.href = '/pricing'; }}>
+            </button>
+            <button className="aib ghost" onClick={() => { window.location.href = '/pricing'; }}>
               {t('crm.aiEmployees.upgradeModal.comparePlans')}
-            </Button>
-            <Button variant="ghost" onClick={onClose}>
+            </button>
+            <button className="aib ghost" onClick={onClose}>
               {t('crm.aiEmployees.upgradeModal.cancel')}
-            </Button>
+            </button>
           </div>
         </div>
       </div>
@@ -320,68 +422,56 @@ function UpgradeModal({ open, onClose, plan }: { open: boolean; onClose: () => v
   );
 }
 
-function KpiCard({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
+function KpiTile({ label, value, icon }: { label: string; value: React.ReactNode; icon: React.ReactNode }) {
   return (
-    <div className={cn('group relative min-h-[104px] overflow-hidden p-4 md:p-5', CHROME_SURFACE, CHROME_SURFACE_HOVER)}>
-      <div className={CHROME_GRADIENT} />
-      <div className="relative z-10">
-        <div
-          
-          className="text-[9px] font-medium uppercase tracking-[0.12em] text-slate-400"
-        >
-          {label}
-        </div>
-        <div className="mt-2 text-2xl font-semibold tracking-tight text-slate-900">{value}</div>
-        {hint ? <div className="mt-1 text-[11px] text-slate-400">{hint}</div> : null}
+    <div className="ai-kpi">
+      <div className="l">
+        <span className="ic">
+          <I d={icon} size={11} />
+        </span>
+        {label}
       </div>
+      <div className="v">{value}</div>
     </div>
   );
 }
 
-function AgentCard({ agent }: { agent: AiAgent }) {
-  const navigate = useNavigate();
+function AgentCard({ agent, onOpen }: { agent: AiAgent; onOpen: () => void }) {
   const { t, i18n } = useTranslation();
-  const lastAt = formatDate(agent.stats?.lastActivityAt, t, i18n.language);
+  const { accent, avStyle } = agentAvatarProps(agent);
+  const roleTitle = trRole(agent.role, 'title', agent.roleTitle || '', t, i18n);
+  const roleDescription = trRole(agent.role, 'description', agent.roleDescription || '', t, i18n);
   return (
-    <div className={cn('group relative flex h-full flex-col gap-5 overflow-hidden p-5 lg:p-6', CHROME_SURFACE, CHROME_SURFACE_HOVER)}>
-      <div className={CHROME_GRADIENT} />
-      <div className="relative z-10 flex h-full flex-col gap-5">
-        <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <AgentAvatar agent={agent} />
-          <div>
-            <div className="font-semibold tracking-tight text-slate-900">{agent.name}</div>
-            <div className="text-xs text-slate-500">{agent.roleTitle}</div>
+    <div className="ai-card" {...clickableProps(onOpen)}>
+      <div className="ai-card-top">
+        <AiAvatar name={agent.name} accent={accent} avStyle={avStyle} size="lg" src={agent.avatarUrl} />
+        <div className="ai-card-body">
+          <div className="nm">
+            {agent.name}
+            <StatusBadge status={agent.status} />
           </div>
-        </div>
-        <StatusBadge status={agent.status} />
-      </div>
-      <p className="line-clamp-2 text-sm leading-6 text-slate-600">{agent.roleDescription}</p>
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div className="rounded-2xl bg-slate-50/90 px-2 py-3 ring-1 ring-slate-900/[0.04]">
-          <div className="text-lg font-semibold text-slate-950">{agent.stats?.actionsToday ?? 0}</div>
-          <div className="text-[11px] text-slate-500">{t('crm.aiEmployees.agentCard.today')}</div>
-        </div>
-        <div className="rounded-2xl bg-slate-50/90 px-2 py-3 ring-1 ring-slate-900/[0.04]">
-          <div className="text-lg font-semibold text-slate-950">{agent.stats?.pendingApprovals ?? 0}</div>
-          <div className="text-[11px] text-slate-500">{t('crm.aiEmployees.agentCard.approvals')}</div>
-        </div>
-        <div className="rounded-2xl bg-slate-50/90 px-2 py-3 ring-1 ring-slate-900/[0.04]">
-          <div className="text-lg font-semibold text-slate-950">{agent.stats?.reportsGenerated ?? 0}</div>
-          <div className="text-[11px] text-slate-500">{t('crm.aiEmployees.agentCard.reports')}</div>
+          <div className="role">{roleTitle}</div>
         </div>
       </div>
-      <div className="mt-auto border-t border-slate-100 pt-4">
-        <div className="mb-3 text-xs text-slate-500">{t('crm.aiEmployees.agentCard.lastActivity', { time: lastAt })}</div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="primary" size="sm" onClick={() => navigate(`/ai-employees/${agent.id}`)}>
-            {t('crm.aiEmployees.agentCard.openProfile')}
-          </Button>
-          <Button size="sm" onClick={() => navigate(`/ai-employees/${agent.id}`)}>
-            {t('crm.aiEmployees.agentCard.settings')}
-          </Button>
-        </div>
+      <div className="desc">{roleDescription}</div>
+      <div style={{ display: 'flex', gap: 6, marginTop: 12, flexWrap: 'wrap' }}>
+        <span className="ai-auto">{t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`)}</span>
+        {agent.department ? <span className="ai-auto">{trDepartment(agent.department, t)}</span> : null}
+        <span className="ai-auto">{agent.dailyReportTime}</span>
       </div>
+      <div className="ai-card-foot">
+        <div className="ai-card-stat">
+          <div className="sv">{agent.stats?.actionsToday ?? 0}</div>
+          <div className="sl">{t('crm.aiEmployees.agentCard.today')}</div>
+        </div>
+        <div className={cn('ai-card-stat', (agent.stats?.pendingApprovals ?? 0) > 0 && 'alert')}>
+          <div className="sv">{agent.stats?.pendingApprovals ?? 0}</div>
+          <div className="sl">{t('crm.aiEmployees.agentCard.approvals')}</div>
+        </div>
+        <div className="ai-card-stat">
+          <div className="sv">{agent.stats?.reportsGenerated ?? 0}</div>
+          <div className="sl">{t('crm.aiEmployees.agentCard.reports')}</div>
+        </div>
       </div>
     </div>
   );
@@ -389,83 +479,346 @@ function AgentCard({ agent }: { agent: AiAgent }) {
 
 function RoleCard({
   role,
+  selected,
   planFull,
-  onAdd,
+  onSelect,
   onUpgrade,
 }: {
   role: AiEmployeeRole;
+  selected?: boolean;
   planFull?: boolean;
-  onAdd: () => void;
+  onSelect: () => void;
   onUpgrade: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const locked = role.locked || planFull;
+  const title = trRole(role.key, 'title', role.title, t, i18n);
+  const shortTitle = trRole(role.key, 'shortTitle', role.shortTitle, t, i18n);
+  const description = trRole(role.key, 'description', role.description, t, i18n);
+  const functions = trRoleFunctions(role.key, role.functions, t, i18n);
   return (
-    <div className={cn('group relative overflow-hidden p-5 lg:p-6', CHROME_SURFACE, !locked && CHROME_SURFACE_HOVER)}>
-      <div className={cn(CHROME_GRADIENT, locked && 'hidden')} />
-      <div className="relative z-10">
-      {locked ? (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-white/72 backdrop-blur-[2px]">
-          <div
-            
-            className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-[10px] font-medium uppercase tracking-[0.08em] text-slate-700 shadow-sm"
-          >
-            {planFull ? t('crm.aiEmployees.choose.planLimitReached') : role.badge}
-          </div>
+    <div className={cn('ai-role', selected && 'on', locked && 'locked')} {...clickableProps(() => (locked ? onUpgrade() : onSelect()))}>
+      <AiAvatar name={shortTitle} accent={deriveAvatarAccent(role.key)} avStyle={deriveAvatarStyle(role.key)} size="md" />
+      <div className="ai-role-body">
+        <div className="rn">
+          {title}
+          {locked ? <span className="plan-badge">{planFull ? t('crm.aiEmployees.choose.planLimitReached') : trPlanBadge(role.badge, t)}</span> : null}
         </div>
-      ) : null}
-      <div className={cn('space-y-4', locked && 'opacity-45')}>
-        <div className="flex items-start gap-3">
-          <AgentAvatar role={role} />
-          <div className="min-w-0">
-            <div className="font-semibold text-slate-950">{role.title}</div>
-            <div className="mt-1 text-xs text-slate-500">{role.department}</div>
-          </div>
-        </div>
-        <p className="min-h-[72px] text-sm leading-6 text-slate-600">{role.description}</p>
-        <div className="space-y-2">
-          {role.functions.slice(0, 5).map((item) => (
-            <div key={item} className="flex items-center gap-2 text-xs text-slate-600">
-              <span className="h-1.5 w-1.5 rounded-full bg-slate-900" />
-              {item}
-            </div>
+        <div className="rd">{description}</div>
+        <div className="rf">
+          {functions.slice(0, 4).map((f) => (
+            <span key={f}>{f}</span>
           ))}
         </div>
-        <div className="flex items-center justify-between gap-3 pt-2">
-          <span className="badge bg-slate-100 text-slate-600">{role.badge}</span>
-          <Button size="sm" variant={locked ? 'secondary' : 'primary'} onClick={locked ? onUpgrade : onAdd}>
-            {locked ? t('crm.aiEmployees.choose.upgradeToUnlock') : t('crm.aiEmployees.choose.addRole', { role: role.shortTitle })}
-          </Button>
-        </div>
       </div>
+      {locked ? (
+        <div className="rlock">
+          <I d={ICON.shield} size={15} />
+        </div>
+      ) : (
+        <div className="rcheck">
+          <I d={ICON.check} size={12} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ApprovalList({ actions, onChanged }: { actions: AiAgentAction[]; onChanged: () => void }) {
+  const { t, i18n } = useTranslation();
+  const [busy, setBusy] = useState<Record<string, string>>({});
+
+  const run = async (action: AiAgentAction, kind: 'approve' | 'reject' | 'execute') => {
+    setBusy((s) => ({ ...s, [action.id]: kind }));
+    try {
+      if (kind === 'approve') await approveAiAction(action.id);
+      if (kind === 'reject') await rejectAiAction(action.id);
+      if (kind === 'execute') await executeAiAction(action.id);
+      onChanged();
+    } finally {
+      setBusy((s) => {
+        const next = { ...s };
+        delete next[action.id];
+        return next;
+      });
+    }
+  };
+
+  if (!actions.length) {
+    return (
+      <div className="ai-empty">
+        <div className="ei">
+          <I d={ICON.check} size={22} />
+        </div>
+        <div className="et">{t('crm.aiEmployees.approvalsPage.empty')}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ai-appr">
+      {actions.map((action) => {
+        const canRealExecute = REAL_EXECUTABLE_ACTIONS.has(action.actionType);
+        return (
+          <div className="ai-appr-item" key={action.id}>
+            <div className="at">
+              <I d={actionIcon(action.actionType)} size={16} />
+            </div>
+            <div className="ai-appr-body">
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+                <div className="att">{action.title}</div>
+                <span className={cn('ai-appr-badge', action.status)}>
+                  {t(`crm.aiEmployees.status.${action.status}`, { defaultValue: labelize(action.status) })}
+                </span>
+              </div>
+              <div className="atmeta">
+                <span>{action.agent?.name || t('crm.aiEmployees.fallbackEmployee')}</span>
+                <span className="sep">•</span>
+                <span>{labelize(action.actionType)}</span>
+                <span className="sep">•</span>
+                <span>{formatDate(action.createdAt, t, i18n.language)}</span>
+              </div>
+              {action.reason ? <div className="ai-appr-reason">{action.reason}</div> : null}
+              {action.status === 'pending' ? (
+                <div className="ai-appr-actions">
+                  <button className="ai-appr-btn approve" disabled={!!busy[action.id]} onClick={() => run(action, 'approve')}>
+                    <I d={ICON.check} size={13} />
+                    {t('crm.aiEmployees.approvalCard.approve')}
+                  </button>
+                  <button className="ai-appr-btn reject" disabled={!!busy[action.id]} onClick={() => run(action, 'reject')}>
+                    <I d={ICON.x} size={13} />
+                    {t('crm.aiEmployees.approvalCard.reject')}
+                  </button>
+                </div>
+              ) : null}
+              {action.status === 'approved' ? (
+                <div className="ai-appr-actions">
+                  <button className="ai-appr-btn approve" disabled={!!busy[action.id]} onClick={() => run(action, 'execute')}>
+                    <I d={ICON.bolt} size={13} />
+                    {canRealExecute ? t('crm.aiEmployees.approvalCard.execute') : t('crm.aiEmployees.approvalCard.markDone')}
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function LogList({ logs }: { logs: AiAgentLog[] }) {
+  const { t, i18n } = useTranslation();
+  if (!logs.length) {
+    return (
+      <div className="ai-empty">
+        <div className="ei">
+          <I d={ICON.book} size={22} />
+        </div>
+        <div className="et">{t('crm.aiEmployees.activity.none')}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="ai-log">
+      {logs.map((log) => (
+        <div className="ai-log-item" key={log.id}>
+          <div className="ai-log-time">{formatDate(log.createdAt, t, i18n.language)}</div>
+          <div className="ai-log-main">
+            <div className="ai-log-ev">
+              <span className={cn('ai-log-dot', log.status === 'error' ? 'err' : log.status === 'warning' ? 'info' : 'ok')} />
+              <span className="ai-log-type">{log.outputSummary || labelize(log.eventType)}</span>
+            </div>
+            <div className="ai-log-io">
+              {log.agent?.name || t('crm.aiEmployees.fallbackEmployee')}
+              <span className="arr">→</span>
+              {labelize(log.eventType)}
+            </div>
+            {log.tokensUsed ? (
+              <div className="ai-log-tok">
+                <span>{log.model || ''}</span>
+                <span>
+                  {log.tokensUsed.toLocaleString()} {t('crm.aiEmployees.logsPage.tokensLabel')}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ReportBrowser({ reports, onChanged }: { reports: AiAgentReport[]; onChanged: () => void }) {
+  const { t, i18n } = useTranslation();
+  const [selId, setSelId] = useState<string | undefined>(reports[0]?.id);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (!reports.some((r) => r.id === selId)) setSelId(reports[0]?.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reports]);
+  const cur = reports.find((r) => r.id === selId) || reports[0];
+
+  if (!reports.length) {
+    return (
+      <div className="ai-empty">
+        <div className="ei">
+          <I d={ICON.doc} size={22} />
+        </div>
+        <div className="et">{t('crm.aiEmployees.reportsPage.empty')}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="ai-reports">
+      <div className="ai-report-list">
+        {reports.map((r) => (
+          <div key={r.id} className={cn('ai-report-item', cur?.id === r.id && 'active')} onClick={() => setSelId(r.id)}>
+            <div className="rt">{r.title}</div>
+            <div className="rm">
+              <span>{formatDate(r.createdAt, t, i18n.language)}</span>
+              <span className={cn('ai-appr-badge', r.status === 'sent' ? 'approved' : 'executed')}>
+                {t(`crm.aiEmployees.status.${r.status}`, { defaultValue: labelize(r.status) })}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="ai-report-view">
+        {cur ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+              <div>
+                <h2>{cur.title}</h2>
+                <div className="rsub">
+                  {formatDate(cur.createdAt, t, i18n.language)}
+                  {cur.agent ? ` · ${cur.agent.name}` : ''}
+                </div>
+              </div>
+              {cur.status !== 'sent' ? (
+                <button
+                  className="aib sm"
+                  disabled={busy}
+                  onClick={async () => {
+                    setBusy(true);
+                    try {
+                      await sendAiReport(cur.id, ['dashboard']);
+                      onChanged();
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                >
+                  <I d={ICON.send} size={13} />
+                  {t('crm.aiEmployees.reportsPage.markSent')}
+                </button>
+              ) : null}
+            </div>
+            <div className="ai-report-md">{cur.contentMd}</div>
+          </>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function EmptyState({ onAdd }: { onAdd: () => void }) {
+function PermissionEditor({
+  permissions,
+  setPermissions,
+}: {
+  permissions: Record<string, boolean>;
+  setPermissions: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+}) {
   const { t } = useTranslation();
   return (
-    <div
-      className={cn(
-        'relative overflow-hidden rounded-3xl border border-dashed border-slate-200/90 bg-gradient-to-b from-slate-50/80 via-white to-white px-6 py-14 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.8)] ring-1 ring-slate-900/[0.03]',
-      )}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.12),transparent)]" />
-      <div className="relative z-10">
-        <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-3xl bg-slate-900 text-lg font-semibold text-white shadow-[0_8px_24px_-8px_rgba(15,23,42,0.35)] ring-1 ring-white/10">
-          AI
+    <div className="flex flex-col gap-3.5">
+      {permissionGroups.map((group) => (
+        <div key={group.titleKey} className="ai-panel">
+          <div className="ai-panel-head">
+            <div className="pt">{t(group.titleKey)}</div>
+          </div>
+          <div className="ai-panel-body flush">
+            {group.keys.map((key) => (
+              <div className="ai-perm" key={key}>
+                <div className="pi">
+                  <I d={ICON.shield} size={15} />
+                </div>
+                <div className="pb">
+                  <div className="pn">{labelize(key)}</div>
+                </div>
+                <button
+                  type="button"
+                  className={cn('ai-toggle', permissions[key] ? 'on' : 'off')}
+                  onClick={() => setPermissions((prev) => ({ ...prev, [key]: !prev[key] }))}
+                />
+              </div>
+            ))}
+          </div>
         </div>
-        <h2 className="text-lg font-semibold tracking-tight text-slate-900">{t('crm.aiEmployees.empty.title')}</h2>
-        <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-slate-500">{t('crm.aiEmployees.empty.body')}</p>
-        <Button className="mt-7" variant="primary" onClick={onAdd}>
-          {t('crm.aiEmployees.empty.cta')}
-        </Button>
+      ))}
+    </div>
+  );
+}
+
+function ApprovalEditor({
+  approvalRules,
+  setApprovalRules,
+}: {
+  approvalRules: Record<string, boolean>;
+  setApprovalRules: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="ai-panel">
+      <div className="ai-panel-head">
+        <div className="pt">{t('crm.aiEmployees.create.approvalRulesTitle')}</div>
+      </div>
+      <div className="ai-panel-body flush">
+        {approvalKeys.map((key) => (
+          <div className="ai-perm" key={key}>
+            <div className="pb">
+              <div className="pn">{t(`crm.aiEmployees.approvalAction.${key}`)}</div>
+            </div>
+            <button
+              type="button"
+              className={cn('ai-toggle', approvalRules[key] ? 'on' : 'off')}
+              onClick={() => setApprovalRules((prev) => ({ ...prev, [key]: !prev[key] }))}
+            />
+          </div>
+        ))}
       </div>
     </div>
   );
 }
 
+function AutonomySelector({ value, onChange }: { value: AiAgentAutonomyMode; onChange: (m: AiAgentAutonomyMode) => void }) {
+  const { t } = useTranslation();
+  const modes: Array<{ key: AiAgentAutonomyMode; lvl: number }> = [
+    { key: 'read_only', lvl: 25 },
+    { key: 'suggest', lvl: 50 },
+    { key: 'assisted', lvl: 75 },
+    { key: 'auto', lvl: 100 },
+  ];
+  return (
+    <div className="ai-autonomy">
+      {modes.map((m) => (
+        <button key={m.key} type="button" className={cn('ai-autonomy-opt', value === m.key && 'on')} onClick={() => onChange(m.key)}>
+          <div className="an">
+            {value === m.key ? <I d={ICON.check} size={13} /> : null}
+            {t(`crm.aiEmployees.autonomy.${m.key}.title`)}
+          </div>
+          <div className="ad">{t(`crm.aiEmployees.autonomy.${m.key}.hint`)}</div>
+          <div className="lvl">
+            <span style={{ width: `${m.lvl}%` }} />
+          </div>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------- views */
 function DashboardView() {
   const navigate = useNavigate();
   const { t } = useTranslation();
@@ -479,10 +832,7 @@ function DashboardView() {
     setLoading(true);
     setError('');
     try {
-      const [employees, actions] = await Promise.all([
-        fetchAiEmployees(),
-        fetchAiActions({ status: 'pending', limit: 5 }),
-      ]);
+      const [employees, actions] = await Promise.all([fetchAiEmployees(), fetchAiActions({ status: 'pending', limit: 5 })]);
       setData(employees);
       setPending(actions.items);
     } catch (e) {
@@ -504,68 +854,124 @@ function DashboardView() {
 
   return (
     <MainLayout>
-      <AiEmployeesPageShell>
-      <div className="w-full">
-        <PageHeader
-          title={t('crm.aiEmployees.dashboard.title')}
-          subtitle={t('crm.aiEmployees.dashboard.subtitle')}
-        >
-          <PlanUsage plan={data?.plan} />
-          <Button variant="primary" onClick={add}>
-            {t('crm.aiEmployees.dashboard.addEmployee')}
-          </Button>
-        </PageHeader>
-        <p className="mb-6 max-w-3xl text-sm leading-relaxed text-slate-500">{t('crm.aiEmployees.naming.dashboardHint')}</p>
+      <div className="ai-emp">
+        <div className="ai-hero">
+          <div>
+            <div className="kicker">
+              <span className="dot" />
+              {t('crm.aiEmployees.badge.workforce')}
+            </div>
+            <h1>{t('crm.aiEmployees.dashboard.title')}</h1>
+            <p className="sub">{t('crm.aiEmployees.dashboard.subtitle')}</p>
+          </div>
+          <div className="ai-hero-actions">
+            <PlanUsage plan={data?.plan} />
+            <button className="aib" onClick={add}>
+              <I d={ICON.plus} size={15} />
+              {t('crm.aiEmployees.dashboard.addEmployee')}
+            </button>
+          </div>
+        </div>
+        <p style={{ fontSize: 12.5, color: 'var(--fg-3)', margin: '-8px 0 20px', maxWidth: 640, lineHeight: 1.5 }}>
+          {t('crm.aiEmployees.naming.dashboardHint')}
+        </p>
 
-        {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
-        {loading ? <div className="text-sm text-slate-500">{t('crm.aiEmployees.dashboard.loading')}</div> : null}
+        {error ? (
+          <div className="ai-panel" style={{ padding: 16, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
+            {error}
+          </div>
+        ) : null}
+        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.dashboard.loading')}</div> : null}
 
         {data ? (
           <>
-            <div className="mb-8 grid gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-4 xl:grid-cols-7">
-              <KpiCard label={t('crm.aiEmployees.dashboard.kpiActive')} value={data.kpis.activeAiEmployees} />
-              <KpiCard label={t('crm.aiEmployees.dashboard.kpiTasksToday')} value={data.kpis.tasksCompletedToday} />
-              <KpiCard label={t('crm.aiEmployees.dashboard.kpiPendingApprovals')} value={data.kpis.pendingApprovals} />
-              <KpiCard label={t('crm.aiEmployees.dashboard.kpiReports')} value={data.kpis.reportsGenerated} />
-              <KpiCard label={t('crm.aiEmployees.dashboard.kpiLeads')} value={data.kpis.leadsAnalyzed} />
-              <KpiCard label={t('crm.aiEmployees.dashboard.kpiMessages')} value={data.kpis.messagesDrafted} />
-              <KpiCard label={t('crm.aiEmployees.dashboard.kpiIssues')} value={data.kpis.issuesDetected} />
+            <div className="ai-kpis">
+              <KpiTile label={t('crm.aiEmployees.dashboard.kpiActive')} value={data.kpis.activeAiEmployees} icon={ICON.users} />
+              <KpiTile label={t('crm.aiEmployees.dashboard.kpiTasksToday')} value={data.kpis.tasksCompletedToday} icon={ICON.bolt} />
+              <KpiTile label={t('crm.aiEmployees.dashboard.kpiPendingApprovals')} value={data.kpis.pendingApprovals} icon={ICON.shield} />
+              <KpiTile label={t('crm.aiEmployees.dashboard.kpiReports')} value={data.kpis.reportsGenerated} icon={ICON.doc} />
+              <KpiTile label={t('crm.aiEmployees.dashboard.kpiLeads')} value={data.kpis.leadsAnalyzed} icon={ICON.lead} />
+              <KpiTile label={t('crm.aiEmployees.dashboard.kpiIssues')} value={data.kpis.issuesDetected} icon={ICON.x} />
             </div>
 
-            {data.items.length === 0 ? (
-              <EmptyState onAdd={add} />
-            ) : (
-              <div className="grid gap-4 lg:grid-cols-2 md:gap-5 xl:grid-cols-3">
-                {data.items.map((agent) => (
-                  <AgentCard key={agent.id} agent={agent} />
-                ))}
+            <div className="ai-grp">
+              {t('crm.aiEmployees.dashboard.title')} <span className="cnt">· {data.items.length}</span>
+            </div>
+            <div className="ai-roster">
+              {data.items.map((agent) => (
+                <AgentCard key={agent.id} agent={agent} onOpen={() => navigate(`/ai-employees/${agent.id}`)} />
+              ))}
+              <div
+                className="ai-card"
+                {...clickableProps(add)}
+                style={{
+                  border: '1.5px dashed var(--line-2)',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  minHeight: 220,
+                  background: 'rgba(255,255,255,0.5)',
+                }}
+              >
+                <div
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 12,
+                    background: 'var(--bg-soft)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--fg-3)',
+                    margin: '0 auto 12px',
+                  }}
+                >
+                  <I d={ICON.plus} size={20} />
+                </div>
+                <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>
+                  {t('crm.aiEmployees.dashboard.hireCardTitle')}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 5, maxWidth: 220, marginLeft: 'auto', marginRight: 'auto' }}>
+                  {t('crm.aiEmployees.dashboard.hireCardSubtitle')}
+                </div>
               </div>
-            )}
+            </div>
 
-            <div className="mt-10 grid gap-6 border-t border-slate-100 pt-8 lg:grid-cols-[1.05fr_0.95fr]">
-              <section>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <SectionHeading>{t('crm.aiEmployees.dashboard.pendingTitle')}</SectionHeading>
-                  <Button size="sm" onClick={() => navigate('/ai-employees/approvals')}>{t('crm.aiEmployees.dashboard.openQueue')}</Button>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="ai-grp" style={{ margin: 0, flex: 1 }}>
+                    {t('crm.aiEmployees.dashboard.pendingTitle')}
+                  </div>
+                  <button className="aib ghost sm" onClick={() => navigate('/ai-employees/approvals')}>
+                    {t('crm.aiEmployees.dashboard.openQueue')}
+                  </button>
                 </div>
-                <div className="space-y-3">
-                  {pending.length ? pending.map((action) => <ApprovalCard key={action.id} action={action} onChanged={load} compact />) : (
-                    <div className={cn('rounded-3xl border border-slate-200/70 bg-slate-50/50 p-5 text-sm text-slate-500 ring-1 ring-slate-900/[0.03]')}>{t('crm.aiEmployees.dashboard.noApprovalsWaiting')}</div>
-                  )}
+                <div className="ai-panel">
+                  <div className="ai-panel-body flush">
+                    <ApprovalList actions={pending} onChanged={load} />
+                  </div>
                 </div>
-              </section>
-              <section>
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <SectionHeading>{t('crm.aiEmployees.dashboard.recentActivity')}</SectionHeading>
-                  <Button size="sm" onClick={() => navigate('/ai-employees/logs')}>{t('crm.aiEmployees.dashboard.viewLogs')}</Button>
+              </div>
+              <div>
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="ai-grp" style={{ margin: 0, flex: 1 }}>
+                    {t('crm.aiEmployees.dashboard.recentActivity')}
+                  </div>
+                  <button className="aib ghost sm" onClick={() => navigate('/ai-employees/logs')}>
+                    {t('crm.aiEmployees.dashboard.viewLogs')}
+                  </button>
                 </div>
-                <ActivityList logs={data.recentLogs} />
-              </section>
+                <div className="ai-panel">
+                  <div className="ai-panel-body flush">
+                    <LogList logs={data.recentLogs} />
+                  </div>
+                </div>
+              </div>
             </div>
           </>
         ) : null}
       </div>
-      </AiEmployeesPageShell>
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} plan={data?.plan} />
     </MainLayout>
   );
@@ -591,36 +997,45 @@ function ChooseView() {
       .finally(() => {
         if (alive) setLoading(false);
       });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, []);
 
   const planFull = plan?.limit != null && plan.used >= plan.limit;
 
   return (
     <MainLayout>
-      <AiEmployeesPageShell>
-      <div className="w-full">
-        <PageHeader
-          title={t('crm.aiEmployees.choose.title')}
-          subtitle={t('crm.aiEmployees.choose.subtitle')}
-        >
-          <PlanUsage plan={plan} />
-          <Button onClick={() => navigate('/ai-employees')}>{t('crm.aiEmployees.choose.dashboardLink')}</Button>
-        </PageHeader>
-        {loading ? <div className="text-sm text-slate-500">{t('crm.aiEmployees.choose.loading')}</div> : null}
-        <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3">
+      <div className="ai-emp">
+        <div className="ai-hero" style={{ marginBottom: 20 }}>
+          <div>
+            <div className="kicker">
+              <span className="dot" />
+              {t('crm.aiEmployees.badge.workforce')}
+            </div>
+            <h1>{t('crm.aiEmployees.choose.title')}</h1>
+            <p className="sub">{t('crm.aiEmployees.choose.subtitle')}</p>
+          </div>
+          <div className="ai-hero-actions">
+            <PlanUsage plan={plan} />
+            <button className="aib ghost" onClick={() => navigate('/ai-employees')}>
+              {t('crm.aiEmployees.choose.dashboardLink')}
+            </button>
+          </div>
+        </div>
+        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.choose.loading')}</div> : null}
+        <div className="ai-role-grid">
           {roles.map((role) => (
             <RoleCard
               key={role.key}
               role={role}
               planFull={planFull}
-              onAdd={() => navigate(`/ai-employees/new?role=${role.key}`)}
+              onSelect={() => navigate(`/ai-employees/new?role=${role.key}`)}
               onUpgrade={() => setUpgradeOpen(true)}
             />
           ))}
         </div>
       </div>
-      </AiEmployeesPageShell>
       <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} plan={plan} />
     </MainLayout>
   );
@@ -628,7 +1043,7 @@ function ChooseView() {
 
 function CreateView() {
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [search] = useSearchParams();
   const [roles, setRoles] = useState<AiEmployeeRole[]>([]);
   const [plan, setPlan] = useState<AiPlanSnapshot | null>(null);
@@ -639,6 +1054,8 @@ function CreateView() {
   const [jobTitle, setJobTitle] = useState('');
   const [language, setLanguage] = useState('English');
   const [tone, setTone] = useState('Professional, warm, concise');
+  const [avatarAccent, setAvatarAccent] = useState<AiAvatarAccent>('ink');
+  const [avatarStyle, setAvatarStyle] = useState<AiAvatarStyle>('rings');
   const [autonomyMode, setAutonomyMode] = useState<AiAgentAutonomyMode>('suggest');
   const [scheduleMode, setScheduleMode] = useState<'always' | 'business_hours' | 'custom' | 'manual'>('manual');
   const [dailyReportTime, setDailyReportTime] = useState('18:00');
@@ -647,24 +1064,36 @@ function CreateView() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [allConnections, setAllConnections] = useState<IntegrationConnectionDto[]>([]);
+  const [openaiConnectionId, setOpenaiConnectionId] = useState('');
+  const openaiConnections = useMemo(
+    () => allConnections.filter((c) => c.kind === 'third_party_link' && c.linkCatalogId === 'openai'),
+    [allConnections],
+  );
 
   useEffect(() => {
     let alive = true;
-    Promise.all([fetchAiRoles(), fetchAiPlanLimits()]).then(([r, p]) => {
+    Promise.all([fetchAiRoles(), fetchAiPlanLimits(), fetchIntegrations()]).then(([r, p, conns]) => {
       if (!alive) return;
       setRoles(r);
       setPlan(p);
+      setAllConnections(conns);
       const selected = r.find((role) => role.key === roleKey) || r.find((role) => role.available);
       if (selected) {
         setRoleKey(selected.key);
         setName((current) => current || selected.defaultName);
-        setDepartment((current) => current || selected.department);
-        setJobTitle((current) => current || selected.jobTitle);
+        setDepartment((current) => current || trRole(selected.key, 'department', selected.department, t, i18n));
+        setJobTitle((current) => current || trRole(selected.key, 'jobTitle', selected.jobTitle, t, i18n));
+        setAvatarAccent(deriveAvatarAccent(selected.key));
+        setAvatarStyle(deriveAvatarStyle(selected.key));
         setPermissions(selected.defaultPermissions.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
         setApprovalRules(selected.defaultApprovalRules.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
       }
     });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const selectedRole = roles.find((role) => role.key === roleKey);
@@ -676,8 +1105,10 @@ function CreateView() {
     }
     setRoleKey(role.key);
     setName(role.defaultName);
-    setDepartment(role.department);
-    setJobTitle(role.jobTitle);
+    setDepartment(trRole(role.key, 'department', role.department, t, i18n));
+    setJobTitle(trRole(role.key, 'jobTitle', role.jobTitle, t, i18n));
+    setAvatarAccent(deriveAvatarAccent(role.key));
+    setAvatarStyle(deriveAvatarStyle(role.key));
     setPermissions(role.defaultPermissions.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
     setApprovalRules(role.defaultApprovalRules.reduce<Record<string, boolean>>((acc, key) => ({ ...acc, [key]: true }), {}));
   };
@@ -700,6 +1131,7 @@ function CreateView() {
         permissions,
         approvalRules,
         status: 'active',
+        settings: { ...(openaiConnectionId ? { openaiConnectionId } : {}), avatarAccent, avatarStyle },
       });
       navigate(`/ai-employees/${res.agent.id}`);
     } catch (e) {
@@ -711,329 +1143,252 @@ function CreateView() {
   };
 
   const stepIds = ['role', 'identity', 'access', 'actions', 'schedule', 'review'] as const;
+  const back = () => (step === 0 ? navigate('/ai-employees/choose') : setStep((s) => Math.max(0, s - 1)));
 
   return (
     <MainLayout>
-      <AiEmployeesPageShell>
-      <div className="w-full">
-        <PageHeader title={t('crm.aiEmployees.create.title')} subtitle={t('crm.aiEmployees.create.subtitle')}>
-          <PlanUsage plan={plan} />
-        </PageHeader>
-        {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      <div className="ai-emp">
+        <button className="ai-back" onClick={back}>
+          <I d={ICON.back} size={14} />
+          {t('crm.aiEmployees.create.back')}
+        </button>
+        <div className="ai-create">
+          <div style={{ marginBottom: 22 }}>
+            <div className="kicker" style={{ marginBottom: 8 }}>
+              <span className="dot" />
+              {t('crm.aiEmployees.create.title')}
+            </div>
+            <h1 style={{ fontSize: 26 }}>
+              {selectedRole
+                ? `${t('crm.aiEmployees.create.title')} · ${trRole(selectedRole.key, 'title', selectedRole.title, t, i18n)}`
+                : t('crm.aiEmployees.create.title')}
+            </h1>
+          </div>
+          {error ? (
+            <div className="ai-panel" style={{ padding: 14, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
+              {error}
+            </div>
+          ) : null}
 
-        <div className="mb-6 grid grid-cols-3 gap-2 md:grid-cols-6 md:gap-3">
-          {stepIds.map((sid, index) => (
-            <button
-              key={sid}
-              type="button"
-              onClick={() => setStep(index)}
-              className={cn(
-                'rounded-xl border px-3 py-2 text-[11px] font-medium transition-colors',
-                step === index
-                  ? 'border-slate-900 bg-slate-900 text-white shadow-[0_4px_14px_-6px_rgba(15,23,42,0.45)]'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
-              )}
-            >
-              {index + 1}. {t(`crm.aiEmployees.create.steps.${sid}`)}
-            </button>
-          ))}
-        </div>
-
-        {step === 0 ? (
-          <div className="grid gap-4 md:grid-cols-2 md:gap-5 xl:grid-cols-3">
-            {roles.map((role) => (
-              <button key={role.key} type="button" className="text-left" onClick={() => selectRole(role)}>
-                <div
-                  className={cn(
-                    'group relative h-full overflow-hidden p-5 transition-colors lg:p-6',
-                    CHROME_SURFACE,
-                    role.key === roleKey ? 'ring-2 ring-slate-900 ring-offset-2 ring-offset-white' : CHROME_SURFACE_HOVER,
-                  )}
-                >
-                  <div className={cn(CHROME_GRADIENT, role.key === roleKey && 'opacity-40')} />
-                  <div className="relative z-10 flex flex-col gap-4">
-                  <div className="flex items-start gap-3">
-                    <AgentAvatar role={role} />
-                    <div>
-                      <div className="font-semibold tracking-tight text-slate-900">{role.title}</div>
-                      <div className="mt-1 text-xs text-slate-500">{role.badge}</div>
-                    </div>
-                  </div>
-                  <p className="text-sm leading-relaxed text-slate-600">{role.description}</p>
-                  </div>
-                </div>
-              </button>
+          <div className="ai-steps">
+            {stepIds.map((sid, index) => (
+              <div key={sid} className={cn('ai-step', step === index && 'active', step > index && 'done')}>
+                <span className="sn">{step > index ? <I d={ICON.check} size={13} /> : index + 1}</span>
+                <span className="sl">{t(`crm.aiEmployees.create.steps.${sid}`)}</span>
+                {index < stepIds.length - 1 ? <span className="sbar" /> : null}
+              </div>
             ))}
           </div>
-        ) : null}
 
-        {step === 1 ? (
-          <div className={cn('p-5 lg:p-6', CHROME_SURFACE)}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <Field label={t('crm.aiEmployees.create.fields.name')}><input className="base-input" value={name} onChange={(e) => setName(e.target.value)} /></Field>
-              <Field label={t('crm.aiEmployees.create.fields.department')}><input className="base-input" value={department} onChange={(e) => setDepartment(e.target.value)} /></Field>
-              <Field label={t('crm.aiEmployees.create.fields.jobTitle')}><input className="base-input" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} /></Field>
-              <Field label={t('crm.aiEmployees.create.fields.language')}>
-                <select className="base-select" value={language} onChange={(e) => setLanguage(e.target.value)}>
-                  {languageOptionValues().map((item) => (
-                    <option key={item.value} value={item.value}>{t(item.labelKey)}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label={t('crm.aiEmployees.create.fields.tone')}>
-                <input className="base-input" value={tone} onChange={(e) => setTone(e.target.value)} />
-              </Field>
-            </div>
-          </div>
-        ) : null}
-
-        {step === 2 ? (
-          <PermissionEditor permissions={permissions} setPermissions={setPermissions} />
-        ) : null}
-
-        {step === 3 ? (
-          <div className="space-y-5">
-            <div className="grid gap-3 md:grid-cols-4">
-              {autonomyModeDefs().map((mode) => (
-                <button
-                  key={mode.key}
-                  type="button"
-                  onClick={() => setAutonomyMode(mode.key)}
-                  className={cn(
-                    'relative overflow-hidden rounded-3xl border bg-white/90 p-4 text-left ring-1 ring-slate-900/[0.04] transition-colors',
-                    autonomyMode === mode.key
-                      ? 'border-slate-900 shadow-[0_4px_18px_-8px_rgba(15,23,42,0.35)] ring-slate-900/15'
-                      : 'border-slate-200/80 hover:border-slate-300 hover:bg-white',
-                  )}
-                >
-                  <div className="text-sm font-semibold tracking-tight text-slate-900">{t(mode.titleKey)}</div>
-                  <div className="mt-2 text-xs leading-relaxed text-slate-500">{t(mode.hintKey)}</div>
-                </button>
+          {step === 0 ? (
+            <div className="ai-role-grid">
+              {roles.map((role) => (
+                <RoleCard key={role.key} role={role} selected={role.key === roleKey} onSelect={() => selectRole(role)} onUpgrade={() => setUpgradeOpen(true)} />
               ))}
             </div>
-            <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} />
-          </div>
-        ) : null}
+          ) : null}
 
-        {step === 4 ? (
-          <div className={cn('p-5 lg:p-6', CHROME_SURFACE)}>
-            <div className="grid gap-4 md:grid-cols-3">
-              <Field label={t('crm.aiEmployees.create.fields.schedule')}>
-                <select className="base-select" value={scheduleMode} onChange={(e) => setScheduleMode(e.target.value as any)}>
-                  <option value="manual">{t('crm.aiEmployees.create.scheduleModes.manual')}</option>
-                  <option value="always">{t('crm.aiEmployees.create.scheduleModes.always')}</option>
-                  <option value="business_hours">{t('crm.aiEmployees.create.scheduleModes.business_hours')}</option>
-                  <option value="custom">{t('crm.aiEmployees.create.scheduleModes.custom')}</option>
-                </select>
-              </Field>
-              <Field label={t('crm.aiEmployees.create.fields.dailyReportTime')}>
-                <input className="base-input" type="time" value={dailyReportTime} onChange={(e) => setDailyReportTime(e.target.value)} />
-              </Field>
+          {step === 1 && selectedRole ? (
+            <>
+              <div className="ai-form-card">
+                <div className="fct">{t('crm.aiEmployees.create.steps.identity')}</div>
+                <div className="ai-av-picker">
+                  <div className="ai-av-preview">
+                    <AiAvatar name={name || selectedRole.defaultName} accent={avatarAccent} avStyle={avatarStyle} size="xl" />
+                    <span className="apl">{t('crm.aiEmployees.create.avatarPreviewLabel')}</span>
+                  </div>
+                  <div className="ai-av-controls">
+                    <div className="ai-field" style={{ margin: 0 }}>
+                      <label className="ai-label">{t('crm.aiEmployees.create.fields.name')}</label>
+                      <input className="ai-input" value={name} onChange={(e) => setName(e.target.value)} />
+                    </div>
+                    <div style={{ marginTop: 14 }}>
+                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarColor')}</label>
+                      <div className="ai-av-swatches">
+                        {AI_AVATAR_ACCENTS.map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            className={cn('ai-av-sw', avatarAccent === a && 'on')}
+                            style={{ background: AVATAR_SWATCH_BG[a] }}
+                            onClick={() => setAvatarAccent(a)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 14 }}>
+                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarStyle')}</label>
+                      <div className="ai-av-styles">
+                        {AI_AVATAR_STYLES.map((s) => (
+                          <button key={s} type="button" className={cn('ai-av-style', avatarStyle === s && 'on')} onClick={() => setAvatarStyle(s)}>
+                            <AiAvatar name={name || 'AI'} accent={avatarAccent} avStyle={s} size="sm" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="ai-form-card">
+                <div className="fct">{t('crm.aiEmployees.create.fields.tone')}</div>
+                <div className="ai-field-row">
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.language')}</label>
+                    <select className="ai-select" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                      {languageOptionValues().map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {t(item.labelKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.tone')}</label>
+                    <input className="ai-input" value={tone} onChange={(e) => setTone(e.target.value)} />
+                  </div>
+                </div>
+                <div className="ai-field-row" style={{ marginTop: 16 }}>
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.department')}</label>
+                    <input className="ai-input" value={department} onChange={(e) => setDepartment(e.target.value)} />
+                  </div>
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.jobTitle')}</label>
+                    <input className="ai-input" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+                  </div>
+                </div>
+                <div className="ai-field" style={{ marginTop: 16, marginBottom: 0 }}>
+                  <label className="ai-label">{t('crm.aiEmployees.create.fields.aiProvider')}</label>
+                  <select className="ai-select" value={openaiConnectionId} onChange={(e) => setOpenaiConnectionId(e.target.value)}>
+                    <option value="">{t('crm.aiEmployees.create.aiProviderPlatform')}</option>
+                    {openaiConnections.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </>
+          ) : null}
+
+          {step === 2 ? <PermissionEditor permissions={permissions} setPermissions={setPermissions} /> : null}
+
+          {step === 3 ? (
+            <div className="flex flex-col gap-3.5">
+              <div className="ai-panel">
+                <div className="ai-panel-head">
+                  <div className="pt">
+                    <I d={ICON.wand} size={14} />
+                    {t('crm.aiEmployees.profile.autonomySection')}
+                  </div>
+                </div>
+                <div className="ai-panel-body">
+                  <AutonomySelector value={autonomyMode} onChange={setAutonomyMode} />
+                </div>
+              </div>
+              <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} />
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        {step === 5 ? (
-          <div className={cn('p-5 lg:p-6', CHROME_SURFACE)}>
-            <div className="flex flex-col gap-5 md:flex-row md:items-start">
-              <AgentAvatar role={selectedRole} agent={{ name }} />
-              <div className="min-w-0 flex-1">
-                <h2 className="text-lg font-semibold text-slate-950">{name || selectedRole?.defaultName}</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {selectedRole?.title} · {t(`crm.aiEmployees.autonomy.${autonomyMode}.title`)}
-                </p>
-                <div className="mt-5 grid gap-3 md:grid-cols-3">
-                  <SummaryTile label={t('crm.aiEmployees.create.review.accesses')} value={Object.values(permissions).filter(Boolean).length} />
-                  <SummaryTile label={t('crm.aiEmployees.create.review.approvalRules')} value={Object.values(approvalRules).filter(Boolean).length} />
-                  <SummaryTile label={t('crm.aiEmployees.create.review.reportTime')} value={dailyReportTime} />
+          {step === 4 ? (
+            <div className="ai-form-card">
+              <div className="fct">{t('crm.aiEmployees.create.fields.schedule')}</div>
+              <div className="ai-field-row">
+                <div className="ai-field" style={{ margin: 0 }}>
+                  <label className="ai-label">{t('crm.aiEmployees.create.fields.schedule')}</label>
+                  <select className="ai-select" value={scheduleMode} onChange={(e) => setScheduleMode(e.target.value as any)}>
+                    <option value="manual">{t('crm.aiEmployees.create.scheduleModes.manual')}</option>
+                    <option value="always">{t('crm.aiEmployees.create.scheduleModes.always')}</option>
+                    <option value="business_hours">{t('crm.aiEmployees.create.scheduleModes.business_hours')}</option>
+                    <option value="custom">{t('crm.aiEmployees.create.scheduleModes.custom')}</option>
+                  </select>
+                </div>
+                <div className="ai-field" style={{ margin: 0 }}>
+                  <label className="ai-label">{t('crm.aiEmployees.create.fields.dailyReportTime')}</label>
+                  <input className="ai-input" type="time" value={dailyReportTime} onChange={(e) => setDailyReportTime(e.target.value)} />
                 </div>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
 
-        <div className="mt-6 flex flex-wrap justify-between gap-2">
-          <Button onClick={() => step === 0 ? navigate('/ai-employees/choose') : setStep((s) => Math.max(0, s - 1))}>
-            {t('crm.aiEmployees.create.back')}
-          </Button>
-          {step < stepIds.length - 1 ? (
-            <Button variant="primary" onClick={() => setStep((s) => Math.min(stepIds.length - 1, s + 1))}>
-              {t('crm.aiEmployees.create.continue')}
-            </Button>
-          ) : (
-            <Button variant="primary" loading={saving} onClick={save}>
-              {t('crm.aiEmployees.create.activate')}
-            </Button>
-          )}
-        </div>
-      </div>
-      </AiEmployeesPageShell>
-      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} plan={plan} />
-    </MainLayout>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <label className="form-group">
-      <span className="form-label">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function SummaryTile({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="rounded-2xl bg-slate-50 p-4">
-      <div className="text-xs text-slate-500">{label}</div>
-      <div className="mt-1 text-lg font-semibold text-slate-950">{value}</div>
-    </div>
-  );
-}
-
-function PermissionEditor({
-  permissions,
-  setPermissions,
-}: {
-  permissions: Record<string, boolean>;
-  setPermissions: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      {permissionGroups.map((group) => (
-        <div key={group.titleKey} className={cn('p-5 lg:p-6', CHROME_SURFACE)}>
-          <h3 className="mb-4 text-[13px] font-semibold tracking-tight text-slate-800">{t(group.titleKey)}</h3>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {group.keys.map((key) => (
-              <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white/80 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-900/[0.02] transition-colors hover:border-slate-200">
-                <input
-                  type="checkbox"
-                  checked={permissions[key] === true}
-                  onChange={(e) => setPermissions((prev) => ({ ...prev, [key]: e.target.checked }))}
-                />
-                {labelize(key)}
-              </label>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function ApprovalEditor({
-  approvalRules,
-  setApprovalRules,
-}: {
-  approvalRules: Record<string, boolean>;
-  setApprovalRules: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
-}) {
-  const { t } = useTranslation();
-  return (
-    <div className={cn('p-5 lg:p-6', CHROME_SURFACE)}>
-      <h3 className="mb-4 text-[13px] font-semibold tracking-tight text-slate-800">{t('crm.aiEmployees.create.approvalRulesTitle')}</h3>
-      <div className="grid gap-2 md:grid-cols-3">
-        {approvalKeys.map((key) => (
-          <label key={key} className="flex items-center gap-2 rounded-xl border border-slate-100 bg-white/80 px-3 py-2 text-xs text-slate-700 ring-1 ring-slate-900/[0.02] transition-colors hover:border-slate-200">
-            <input
-              type="checkbox"
-              checked={approvalRules[key] === true}
-              onChange={(e) => setApprovalRules((prev) => ({ ...prev, [key]: e.target.checked }))}
-            />
-            {t('crm.aiEmployees.create.approvalRequireBefore', {
-              action: t(`crm.aiEmployees.approvalAction.${key}`),
-            })}
-          </label>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ActivityList({ logs }: { logs: AiAgentLog[] }) {
-  const { t, i18n } = useTranslation();
-  if (!logs.length) {
-    return (
-      <div className={cn('rounded-3xl border border-slate-200/70 bg-slate-50/50 p-5 text-sm text-slate-500 ring-1 ring-slate-900/[0.03]')}>
-        {t('crm.aiEmployees.activity.none')}
-      </div>
-    );
-  }
-  return (
-    <div className="space-y-3">
-      {logs.slice(0, 8).map((log) => (
-        <div key={log.id} className={cn('group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/90 p-4 ring-1 ring-slate-900/[0.04] transition-colors hover:border-slate-300/90 hover:bg-white')}>
-          <div className={cn(CHROME_GRADIENT)} />
-          <div className="relative z-10 flex items-start justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium tracking-tight text-slate-900">{log.outputSummary || labelize(log.eventType)}</div>
-              <div className="mt-1 text-xs text-slate-500">
-                {log.agent?.name || t('crm.aiEmployees.fallbackEmployee')} · {labelize(log.eventType)}
+          {step === 5 && selectedRole ? (
+            <div className="ai-panel" style={{ overflow: 'hidden' }}>
+              <div className="ai-preview-hd">
+                <AiAvatar name={name || selectedRole.defaultName} accent={avatarAccent} avStyle={avatarStyle} size="xl" />
+                <div>
+                  <div style={{ fontFamily: 'var(--ff-display)', fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--ink)' }}>
+                    {name || selectedRole.defaultName}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: 'var(--ff-mono)',
+                      fontSize: 11,
+                      color: 'var(--fg-3)',
+                      marginTop: 4,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                    }}
+                  >
+                    {trRole(selectedRole.key, 'title', selectedRole.title, t, i18n)}
+                  </div>
+                </div>
+              </div>
+              <div className="ai-preview-rows">
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.create.fields.name')}</span>
+                  <span className="v">{trRole(selectedRole.key, 'title', selectedRole.title, t, i18n)}</span>
+                </div>
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.create.fields.department')}</span>
+                  <span className="v">
+                    {department} · {jobTitle}
+                  </span>
+                </div>
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.profile.autonomySection')}</span>
+                  <span className="v">{t(`crm.aiEmployees.autonomy.${autonomyMode}.title`)}</span>
+                </div>
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.create.fields.language')}</span>
+                  <span className="v">
+                    {language} · {tone}
+                  </span>
+                </div>
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.create.review.accesses')}</span>
+                  <span className="v">{Object.values(permissions).filter(Boolean).length}</span>
+                </div>
+                <div className="ai-info-row">
+                  <span className="k">{t('crm.aiEmployees.create.review.approvalRules')}</span>
+                  <span className="v">{Object.values(approvalRules).filter(Boolean).length}</span>
+                </div>
               </div>
             </div>
-            <div className="text-[11px] font-medium text-slate-400">{formatDate(log.createdAt, t, i18n.language)}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-const REAL_EXECUTABLE_ACTIONS = new Set(['send_email', 'send_telegram', 'update_lead_status', 'assign_lead']);
-
-function ApprovalCard({ action, onChanged, compact }: { action: AiAgentAction; onChanged: () => void; compact?: boolean }) {
-  const [busy, setBusy] = useState('');
-  const { t, i18n } = useTranslation();
-  const canRealExecute = REAL_EXECUTABLE_ACTIONS.has(action.actionType);
-
-  const run = async (kind: 'approve' | 'reject' | 'execute') => {
-    setBusy(kind);
-    try {
-      if (kind === 'approve') await approveAiAction(action.id);
-      if (kind === 'reject') await rejectAiAction(action.id);
-      if (kind === 'execute') await executeAiAction(action.id);
-      onChanged();
-    } finally {
-      setBusy('');
-    }
-  };
-  return (
-    <div className={cn('group relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/90 p-4 ring-1 ring-slate-900/[0.04] transition-colors hover:border-slate-300/90 hover:bg-white')}>
-      <div className={CHROME_GRADIENT} />
-      <div className="relative z-10 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold tracking-tight text-slate-900">{action.title}</h3>
-            <StatusBadge status={action.status} />
-          </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {action.agent?.name || t('crm.aiEmployees.fallbackEmployee')} · {labelize(action.actionType)} ·{' '}
-            {formatDate(action.createdAt, t, i18n.language)}
-          </div>
-          {!compact && action.reason ? <p className="mt-3 text-sm leading-relaxed text-slate-600">{action.reason}</p> : null}
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          {action.status === 'pending' ? (
-            <>
-              <Button size="sm" variant="primary" loading={busy === 'approve'} onClick={() => run('approve')}>
-                {t('crm.aiEmployees.approvalCard.approve')}
-              </Button>
-              <Button size="sm" variant="danger" loading={busy === 'reject'} onClick={() => run('reject')}>
-                {t('crm.aiEmployees.approvalCard.reject')}
-              </Button>
-            </>
           ) : null}
-          {action.status === 'approved' ? (
-            <Button size="sm" variant="primary" loading={busy === 'execute'} onClick={() => run('execute')}>
-              {canRealExecute
-                ? t('crm.aiEmployees.approvalCard.execute')
-                : t('crm.aiEmployees.approvalCard.markDone')}
-            </Button>
-          ) : null}
+
+          <div className="ai-create-foot">
+            <button className="aib ghost" onClick={back}>
+              {t('crm.aiEmployees.create.back')}
+            </button>
+            <div className="spacer" />
+            {step < stepIds.length - 1 ? (
+              <button className="aib" disabled={step === 0 && !roleKey} onClick={() => setStep((s) => Math.min(stepIds.length - 1, s + 1))}>
+                {t('crm.aiEmployees.create.continue')}
+                <I d={ICON.chevR} size={14} />
+              </button>
+            ) : (
+              <button className="aib" disabled={saving} onClick={save}>
+                <I d={ICON.check} size={15} />
+                {t('crm.aiEmployees.create.activate')}
+              </button>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} plan={plan} />
+    </MainLayout>
   );
 }
 
@@ -1050,20 +1405,29 @@ function ApprovalsView() {
       setLoading(false);
     }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
   return (
     <MainLayout>
-      <AiEmployeesPageShell>
-      <div className="w-full">
-        <PageHeader title={t('crm.aiEmployees.approvalsPage.title')} subtitle={t('crm.aiEmployees.approvalsPage.subtitle')} />
-        {loading ? <div className="text-sm text-slate-500">{t('crm.aiEmployees.approvalsPage.loading')}</div> : null}
-        <div className="space-y-3">
-          {actions.length ? actions.map((action) => <ApprovalCard key={action.id} action={action} onChanged={load} />) : (
-            <div className={cn('rounded-3xl border border-slate-200/70 bg-slate-50/80 p-8 text-center text-sm text-slate-500 ring-1 ring-slate-900/[0.03]')}>{t('crm.aiEmployees.approvalsPage.empty')}</div>
-          )}
+      <div className="ai-emp">
+        <div className="ai-hero" style={{ marginBottom: 20 }}>
+          <div>
+            <div className="kicker">
+              <span className="dot" />
+              {t('crm.aiEmployees.badge.workforce')}
+            </div>
+            <h1>{t('crm.aiEmployees.approvalsPage.title')}</h1>
+            <p className="sub">{t('crm.aiEmployees.approvalsPage.subtitle')}</p>
+          </div>
+        </div>
+        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.approvalsPage.loading')}</div> : null}
+        <div className="ai-panel">
+          <div className="ai-panel-body flush">
+            <ApprovalList actions={actions} onChanged={load} />
+          </div>
         </div>
       </div>
-      </AiEmployeesPageShell>
     </MainLayout>
   );
 }
@@ -1071,48 +1435,38 @@ function ApprovalsView() {
 function LogsView() {
   const [logs, setLogs] = useState<AiAgentLog[]>([]);
   const [loading, setLoading] = useState(true);
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   useEffect(() => {
     let alive = true;
-    fetchAiLogs({ limit: 120 }).then((res) => { if (alive) setLogs(res.items); }).finally(() => { if (alive) setLoading(false); });
-    return () => { alive = false; };
+    fetchAiLogs({ limit: 150 })
+      .then((res) => {
+        if (alive) setLogs(res.items);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
   return (
     <MainLayout>
-      <AiEmployeesPageShell>
-      <div className="w-full">
-        <PageHeader title={t('crm.aiEmployees.logsPage.title')} subtitle={t('crm.aiEmployees.logsPage.subtitle')} />
-        {loading ? <div className="text-sm text-slate-500">{t('crm.aiEmployees.logsPage.loading')}</div> : null}
-        <div className={cn('overflow-hidden rounded-3xl ring-1 ring-slate-900/[0.04]', CHROME_SURFACE)}>
-          <div className="overflow-x-auto">
-          <table className="w-full min-w-[820px] text-left">
-            <thead>
-              <tr>
-                <th className="table-header-cell">{t('crm.aiEmployees.logsPage.colTime')}</th>
-                <th className="table-header-cell">{t('crm.aiEmployees.logsPage.colEmployee')}</th>
-                <th className="table-header-cell">{t('crm.aiEmployees.logsPage.colAction')}</th>
-                <th className="table-header-cell">{t('crm.aiEmployees.logsPage.colObject')}</th>
-                <th className="table-header-cell">{t('crm.aiEmployees.logsPage.colStatus')}</th>
-                <th className="table-header-cell">{t('crm.aiEmployees.logsPage.colResult')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log) => (
-                <tr key={log.id} className="table-row">
-                  <td className="table-cell whitespace-nowrap">{formatDate(log.createdAt, t, i18n.language)}</td>
-                  <td className="table-cell">{log.agent?.name || t('crm.aiEmployees.fallbackEmployee')}</td>
-                  <td className="table-cell">{labelize(log.eventType)}</td>
-                  <td className="table-cell">{log.targetType || '-'}</td>
-                  <td className="table-cell"><StatusBadge status={log.status} /></td>
-                  <td className="table-cell">{log.outputSummary || log.errorMessage || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <div className="ai-emp">
+        <div className="ai-hero" style={{ marginBottom: 20 }}>
+          <div>
+            <div className="kicker">
+              <span className="dot" />
+              {t('crm.aiEmployees.badge.workforce')}
+            </div>
+            <h1>{t('crm.aiEmployees.logsPage.title')}</h1>
+            <p className="sub">{t('crm.aiEmployees.logsPage.subtitle')}</p>
           </div>
         </div>
+        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.logsPage.loading')}</div> : null}
+        <div className="ai-panel">
+          <LogList logs={logs} />
+        </div>
       </div>
-      </AiEmployeesPageShell>
     </MainLayout>
   );
 }
@@ -1130,77 +1484,207 @@ function ReportsView() {
       setLoading(false);
     }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    void load();
+  }, []);
   return (
     <MainLayout>
-      <AiEmployeesPageShell>
-      <div className="w-full">
-        <PageHeader title={t('crm.aiEmployees.reportsPage.title')} subtitle={t('crm.aiEmployees.reportsPage.subtitle')} />
-        {loading ? <div className="text-sm text-slate-500">{t('crm.aiEmployees.reportsPage.loading')}</div> : null}
-        <div className="space-y-4">
-          {reports.map((report) => (
-            <ReportCard key={report.id} report={report} onChanged={load} />
-          ))}
-          {!reports.length && !loading ? (
-            <div className={cn('rounded-3xl border border-slate-200/70 bg-slate-50/70 p-8 text-center text-sm text-slate-500 ring-1 ring-slate-900/[0.03]')}>{t('crm.aiEmployees.reportsPage.empty')}</div>
-          ) : null}
+      <div className="ai-emp">
+        <div className="ai-hero" style={{ marginBottom: 20 }}>
+          <div>
+            <div className="kicker">
+              <span className="dot" />
+              {t('crm.aiEmployees.badge.workforce')}
+            </div>
+            <h1>{t('crm.aiEmployees.reportsPage.title')}</h1>
+            <p className="sub">{t('crm.aiEmployees.reportsPage.subtitle')}</p>
+          </div>
+        </div>
+        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.reportsPage.loading')}</div> : null}
+        <div className="ai-panel">
+          <ReportBrowser reports={reports} onChanged={load} />
         </div>
       </div>
-      </AiEmployeesPageShell>
     </MainLayout>
   );
 }
 
-function ReportCard({ report, onChanged }: { report: AiAgentReport; onChanged: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const { t, i18n } = useTranslation();
+function EditIdentityView() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { t } = useTranslation();
+  const [agent, setAgent] = useState<AiAgent | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState('');
+  const [department, setDepartment] = useState('');
+  const [jobTitle, setJobTitle] = useState('');
+  const [language, setLanguage] = useState('English');
+  const [tone, setTone] = useState('');
+  const [avatarAccent, setAvatarAccent] = useState<AiAvatarAccent>('ink');
+  const [avatarStyle, setAvatarStyle] = useState<AiAvatarStyle>('mono');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    fetchAiEmployee(id)
+      .then((res) => {
+        if (!alive) return;
+        const a = res.agent;
+        setAgent(a);
+        setName(a.name);
+        setDepartment(a.department || '');
+        setJobTitle(a.jobTitle || '');
+        setLanguage(a.language || 'English');
+        setTone(a.tone || '');
+        const av = agentAvatarProps(a);
+        setAvatarAccent(av.accent);
+        setAvatarStyle(av.avStyle);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id]);
+
+  const save = async () => {
+    if (!id || !agent) return;
+    setSaving(true);
+    setError('');
+    try {
+      const settings = { ...(agent.settings || {}), avatarAccent, avatarStyle };
+      await updateAiEmployee(id, { name, department, jobTitle, language, tone, settings });
+      navigate(`/ai-employees/${id}`);
+    } catch (e) {
+      setError(extractError(e, t));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
-    <div className={cn('group relative overflow-hidden p-5 lg:p-6', CHROME_SURFACE, CHROME_SURFACE_HOVER)}>
-      <div className={CHROME_GRADIENT} />
-      <div className="relative z-10">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold tracking-tight text-slate-900">{report.title}</h3>
-            <StatusBadge status={report.status} />
+    <MainLayout>
+      <div className="ai-emp">
+        <button className="ai-back" onClick={() => navigate(id ? `/ai-employees/${id}` : '/ai-employees')}>
+          <I d={ICON.back} size={14} />
+          {agent ? agent.name : t('crm.aiEmployees.dashboard.title')}
+        </button>
+        <div className="ai-create">
+          <div style={{ marginBottom: 22 }}>
+            <h1 style={{ fontSize: 26 }}>
+              {agent ? `${t('crm.aiEmployees.create.editTitle')} · ${agent.name}` : t('crm.aiEmployees.create.editTitle')}
+            </h1>
           </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {report.agent?.name || t('crm.aiEmployees.fallbackEmployee')} · {formatDate(report.createdAt, t, i18n.language)}
-          </div>
-        </div>
-        {report.status !== 'sent' ? (
-          <Button
-            size="sm"
-            loading={busy}
-            onClick={async () => {
-              setBusy(true);
-              try {
-                await sendAiReport(report.id, ['dashboard']);
-                onChanged();
-              } finally {
-                setBusy(false);
-              }
-            }}
-          >
-            {t('crm.aiEmployees.reportsPage.markSent')}
-          </Button>
-        ) : null}
-        </div>
-        <div className="mt-4 max-h-80 overflow-auto rounded-2xl border border-slate-100 bg-slate-50/90 p-4 text-sm leading-relaxed text-slate-700 whitespace-pre-wrap ring-1 ring-slate-900/[0.03]">
-          {report.contentMd}
+          {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.profile.loading')}</div> : null}
+          {error ? (
+            <div className="ai-panel" style={{ padding: 14, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
+              {error}
+            </div>
+          ) : null}
+          {agent ? (
+            <>
+              <div className="ai-form-card">
+                <div className="fct">{t('crm.aiEmployees.create.steps.identity')}</div>
+                <div className="ai-av-picker">
+                  <div className="ai-av-preview">
+                    <AiAvatar name={name || agent.name} accent={avatarAccent} avStyle={avatarStyle} size="xl" />
+                    <span className="apl">{t('crm.aiEmployees.create.avatarPreviewLabel')}</span>
+                  </div>
+                  <div className="ai-av-controls">
+                    <div className="ai-field" style={{ margin: 0 }}>
+                      <label className="ai-label">{t('crm.aiEmployees.create.fields.name')}</label>
+                      <input className="ai-input" value={name} onChange={(e) => setName(e.target.value)} />
+                    </div>
+                    <div style={{ marginTop: 14 }}>
+                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarColor')}</label>
+                      <div className="ai-av-swatches">
+                        {AI_AVATAR_ACCENTS.map((a) => (
+                          <button
+                            key={a}
+                            type="button"
+                            className={cn('ai-av-sw', avatarAccent === a && 'on')}
+                            style={{ background: AVATAR_SWATCH_BG[a] }}
+                            onClick={() => setAvatarAccent(a)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{ marginTop: 14 }}>
+                      <label className="ai-label">{t('crm.aiEmployees.create.fields.avatarStyle')}</label>
+                      <div className="ai-av-styles">
+                        {AI_AVATAR_STYLES.map((s) => (
+                          <button key={s} type="button" className={cn('ai-av-style', avatarStyle === s && 'on')} onClick={() => setAvatarStyle(s)}>
+                            <AiAvatar name={name || 'AI'} accent={avatarAccent} avStyle={s} size="sm" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="ai-form-card">
+                <div className="fct">{t('crm.aiEmployees.create.fields.tone')}</div>
+                <div className="ai-field-row">
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.language')}</label>
+                    <select className="ai-select" value={language} onChange={(e) => setLanguage(e.target.value)}>
+                      {languageOptionValues().map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {t(item.labelKey)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.tone')}</label>
+                    <input className="ai-input" value={tone} onChange={(e) => setTone(e.target.value)} />
+                  </div>
+                </div>
+                <div className="ai-field-row" style={{ marginTop: 16 }}>
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.department')}</label>
+                    <input className="ai-input" value={department} onChange={(e) => setDepartment(e.target.value)} />
+                  </div>
+                  <div className="ai-field" style={{ margin: 0 }}>
+                    <label className="ai-label">{t('crm.aiEmployees.create.fields.jobTitle')}</label>
+                    <input className="ai-input" value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+
+              <div className="ai-create-foot">
+                <button className="aib ghost" onClick={() => navigate(`/ai-employees/${id}`)}>
+                  {t('crm.aiEmployees.create.back')}
+                </button>
+                <div className="spacer" />
+                <button className="aib" disabled={saving} onClick={save}>
+                  <I d={ICON.check} size={15} />
+                  {t('crm.aiEmployees.create.saveChanges')}
+                </button>
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
-    </div>
+    </MainLayout>
   );
 }
 
 export function AiEmployeeProfilePage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [detail, setDetail] = useState<AiAgentDetailResponse | null>(null);
   const [permissions, setPermissions] = useState<Record<string, boolean>>({});
   const [approvalRules, setApprovalRules] = useState<Record<string, boolean>>({});
+  const [autonomyMode, setAutonomyMode] = useState<AiAgentAutonomyMode>('suggest');
+  const [scheduleMode, setScheduleMode] = useState<'always' | 'business_hours' | 'custom' | 'manual'>('manual');
+  const [dailyReportTime, setDailyReportTime] = useState('18:00');
+  const [tab, setTab] = useState<'overview' | 'assign' | 'approvals' | 'journal' | 'reports'>('overview');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
@@ -1214,6 +1698,9 @@ export function AiEmployeeProfilePage() {
       setDetail(res);
       setPermissions(res.permissions);
       setApprovalRules(res.approvalRules);
+      setAutonomyMode(res.agent.autonomyMode);
+      setScheduleMode(res.agent.scheduleMode);
+      setDailyReportTime(res.agent.dailyReportTime);
     } catch (e) {
       setError(extractError(e, t));
     } finally {
@@ -1221,12 +1708,15 @@ export function AiEmployeeProfilePage() {
     }
   };
 
-  useEffect(() => { void load(); }, [id]);
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const agent = detail?.agent;
   const stats = detail?.stats || {};
 
-  const run = async (kind: 'pause' | 'resume' | 'run' | 'report' | 'save-perms' | 'save-rules' | 'delete') => {
+  const run = async (kind: 'pause' | 'resume' | 'run' | 'report' | 'save-perms' | 'save-rules' | 'save-assign' | 'delete') => {
     if (!agent) return;
     setBusy(kind);
     setError('');
@@ -1237,6 +1727,7 @@ export function AiEmployeeProfilePage() {
       if (kind === 'report') await generateAiEmployeeReport(agent.id);
       if (kind === 'save-perms') await updateAiEmployeePermissions(agent.id, permissions);
       if (kind === 'save-rules') await updateAiEmployeeApprovalRules(agent.id, approvalRules);
+      if (kind === 'save-assign') await updateAiEmployee(agent.id, { autonomyMode, scheduleMode, dailyReportTime });
       if (kind === 'delete') {
         await deleteAiEmployee(agent.id);
         navigate('/ai-employees');
@@ -1250,154 +1741,314 @@ export function AiEmployeeProfilePage() {
     }
   };
 
+  const avatar = agent ? agentAvatarProps(agent) : { accent: 'ink' as AiAvatarAccent, avStyle: 'mono' as AiAvatarStyle };
+
+  const tabs = agent
+    ? [
+        { key: 'overview' as const, label: t('crm.aiEmployees.profile.tabs.overview'), icon: ICON.eye, badge: 0 },
+        { key: 'assign' as const, label: t('crm.aiEmployees.profile.tabs.assign'), icon: ICON.shield, badge: 0 },
+        {
+          key: 'approvals' as const,
+          label: t('crm.aiEmployees.profile.tabs.approvals'),
+          icon: ICON.check,
+          badge: detail?.recentActions.filter((a) => a.status === 'pending').length || 0,
+        },
+        { key: 'journal' as const, label: t('crm.aiEmployees.profile.tabs.journal'), icon: ICON.book, badge: 0 },
+        { key: 'reports' as const, label: t('crm.aiEmployees.profile.tabs.reports'), icon: ICON.doc, badge: 0 },
+      ]
+    : [];
+
   return (
     <MainLayout>
-      <AiEmployeesPageShell>
-      <div className="w-full">
-        {loading ? <div className="text-sm text-slate-500">{t('crm.aiEmployees.profile.loading')}</div> : null}
-        {error ? <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div> : null}
+      <div className="ai-emp">
+        <button className="ai-back" onClick={() => navigate('/ai-employees')}>
+          <I d={ICON.back} size={14} />
+          {t('crm.aiEmployees.dashboard.title')}
+        </button>
+
+        {loading ? <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.aiEmployees.profile.loading')}</div> : null}
+        {error ? (
+          <div className="ai-panel" style={{ padding: 14, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
+            {error}
+          </div>
+        ) : null}
+
         {agent ? (
           <>
-            <div className={cn('group relative mb-6 overflow-hidden p-6 lg:p-7', CHROME_SURFACE, CHROME_SURFACE_HOVER)}>
-              <div className={CHROME_GRADIENT} />
-              <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-4">
-                  <AgentAvatar agent={agent} />
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h1
-                        
-                        className="text-2xl font-semibold leading-tight tracking-tight text-slate-900 md:text-[28px]"
-                      >
-                        {agent.name}
-                      </h1>
-                      <StatusBadge status={agent.status} />
-                    </div>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {agent.roleTitle} ·{' '}
-                      {t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`, { defaultValue: labelize(agent.autonomyMode) })} ·{' '}
-                      {agent.department || t('crm.aiEmployees.profile.fallbackDepartment')}
-                    </p>
-                  </div>
+            <div className="ai-detail-head">
+              <AiAvatar name={agent.name} accent={avatar.accent} avStyle={avatar.avStyle} size="xl" src={agent.avatarUrl} />
+              <div className="ai-detail-id">
+                <div className="nm">
+                  {agent.name}
+                  <StatusBadge status={agent.status} />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {agent.status === 'paused' ? (
-                    <Button variant="primary" loading={busy === 'resume'} onClick={() => run('resume')}>
-                      {t('crm.aiEmployees.profile.resume')}
-                    </Button>
-                  ) : (
-                    <Button loading={busy === 'pause'} onClick={() => run('pause')}>{t('crm.aiEmployees.profile.pause')}</Button>
-                  )}
-                  <Button variant="primary" loading={busy === 'run'} onClick={() => run('run')}>
-                    {t('crm.aiEmployees.profile.runNow')}
-                  </Button>
-                  <Button loading={busy === 'report'} onClick={() => run('report')}>
-                    {t('crm.aiEmployees.profile.generateReport')}
-                  </Button>
-                  <Button variant="danger" loading={busy === 'delete'} onClick={() => run('delete')}>
-                    {t('crm.aiEmployees.profile.remove')}
-                  </Button>
+                <div className="meta">
+                  <span>{trRole(agent.role, 'title', agent.roleTitle || '', t, i18n)}</span>
+                  <span className="sep">•</span>
+                  <span>{t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`)}</span>
+                  <span className="sep">•</span>
+                  <span>{agent.department ? trDepartment(agent.department, t) : t('crm.aiEmployees.profile.fallbackDepartment')}</span>
+                  <span className="sep">•</span>
+                  <span>{t('crm.aiEmployees.agentCard.lastActivity', { time: formatDate(stats.lastActivityAt, t, i18n.language) })}</span>
                 </div>
+              </div>
+              <div className="ai-detail-actions">
+                <button className="aib ghost sm" onClick={() => navigate(`/ai-employees/${agent.id}/edit`)}>
+                  <I d={ICON.edit} size={13} />
+                  {t('crm.aiEmployees.profile.edit')}
+                </button>
+                {agent.status === 'paused' ? (
+                  <button className="aib ghost sm" disabled={busy === 'resume'} onClick={() => run('resume')}>
+                    <I d={ICON.play} size={13} />
+                    {t('crm.aiEmployees.profile.resume')}
+                  </button>
+                ) : (
+                  <button className="aib ghost sm" disabled={busy === 'pause'} onClick={() => run('pause')}>
+                    <I d={ICON.pause} size={13} />
+                    {t('crm.aiEmployees.profile.pause')}
+                  </button>
+                )}
+                <button className="aib sm" disabled={busy === 'run'} onClick={() => run('run')}>
+                  <I d={ICON.bolt} size={14} />
+                  {t('crm.aiEmployees.profile.runNow')}
+                </button>
+                <button className="aib ghost sm" disabled={busy === 'report'} onClick={() => run('report')}>
+                  <I d={ICON.doc} size={13} />
+                  {t('crm.aiEmployees.profile.generateReport')}
+                </button>
+                <button className="aib danger sm" disabled={busy === 'delete'} onClick={() => run('delete')}>
+                  <I d={ICON.trash} size={13} />
+                  {t('crm.aiEmployees.profile.remove')}
+                </button>
               </div>
             </div>
 
-            <div className="mb-6 grid gap-4 sm:grid-cols-2 md:gap-5 lg:grid-cols-6">
-              <KpiCard label={t('crm.aiEmployees.profile.kpiActionsToday')} value={stats.actionsToday ?? 0} />
-              <KpiCard label={t('crm.aiEmployees.profile.kpiLeadsAnalyzed')} value={detail.recentLogs.filter((x) => x.eventType.includes('lead')).length} />
-              <KpiCard label={t('crm.aiEmployees.profile.kpiTasksCreated')} value={detail.recentActions.filter((x) => x.actionType === 'create_task').length} />
-              <KpiCard label={t('crm.aiEmployees.profile.kpiMessagesDrafted')} value={detail.recentActions.filter((x) => x.actionType.includes('email')).length} />
-              <KpiCard label={t('crm.aiEmployees.profile.kpiReportsGen')} value={stats.reportsGenerated ?? 0} />
-              <KpiCard label={t('crm.aiEmployees.profile.kpiPendingApprovals')} value={stats.pendingApprovals ?? 0} />
+            <div className="ai-tabs">
+              {tabs.map((tb) => (
+                <button key={tb.key} className={cn('ai-tab', tab === tb.key && 'active')} onClick={() => setTab(tb.key)}>
+                  <span className="ic">
+                    <I d={tb.icon} size={14} />
+                  </span>
+                  {tb.label}
+                  {tb.badge ? <span className="badge">{tb.badge}</span> : null}
+                </button>
+              ))}
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-              <div className="space-y-5">
-                <section>
-                  <div className="mb-3">
-                    <SectionHeading>{t('crm.aiEmployees.profile.currentWork')}</SectionHeading>
-                  </div>
-                  <div className={cn('group relative overflow-hidden p-5 lg:p-6', CHROME_SURFACE)}>
-                    <div className={CHROME_GRADIENT} />
-                    <p className="relative z-10 text-sm leading-relaxed text-slate-600">
-                      {stats.lastActivity || t('crm.aiEmployees.profile.readyManual', { name: agent.name })}
-                    </p>
-                  </div>
-                </section>
-
-                <section>
-                  <div className="mb-3">
-                    <SectionHeading>{t('crm.aiEmployees.profile.pendingSection')}</SectionHeading>
-                  </div>
-                  <div className="space-y-3">
-                    {detail.recentActions.filter((x) => x.status === 'pending').map((action) => (
-                      <ApprovalCard key={action.id} action={{ ...action, agent }} onChanged={load} />
-                    ))}
-                    {!detail.recentActions.some((x) => x.status === 'pending') ? (
-                      <div className={cn('rounded-3xl border border-slate-200/70 bg-slate-50/80 p-5 text-sm text-slate-500 ring-1 ring-slate-900/[0.03]')}>
-                        {t('crm.aiEmployees.profile.noPendingForEmployee')}
+            {tab === 'overview' ? (
+              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="flex flex-col gap-4">
+                  <div className="ai-panel">
+                    <div className="ai-panel-head">
+                      <div className="pt">
+                        <I d={ICON.sparkles} size={14} />
+                        {t('crm.aiEmployees.profile.aboutSection')}
                       </div>
-                    ) : null}
+                    </div>
+                    <div className="ai-panel-body">
+                      <p style={{ fontSize: 13.5, color: 'var(--fg-2)', lineHeight: 1.6, margin: '0 0 16px' }}>
+                        {trRole(agent.role, 'description', agent.roleDescription || '', t, i18n)}
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {trRoleFunctions(agent.role, agent.roleFunctions || [], t, i18n).map((f) => (
+                          <div
+                            key={f}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 9,
+                              padding: '10px 12px',
+                              border: '1px solid var(--line-3)',
+                              borderRadius: 9,
+                              fontSize: 12.5,
+                              color: 'var(--ink)',
+                            }}
+                          >
+                            <span style={{ color: 'var(--fg-3)' }}>
+                              <I d={ICON.check} size={14} />
+                            </span>
+                            {f}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
-                </section>
-
-                <section>
-                  <div className="mb-3">
-                    <SectionHeading>{t('crm.aiEmployees.profile.recentActions')}</SectionHeading>
+                  <div className="ai-panel">
+                    <div className="ai-panel-head">
+                      <div className="pt">
+                        <I d={ICON.book} size={14} />
+                        {t('crm.aiEmployees.profile.recentLogs')}
+                      </div>
+                      <button className="aib ghost sm" onClick={() => setTab('journal')}>
+                        {t('crm.aiEmployees.logsPage.title')}
+                      </button>
+                    </div>
+                    <div className="ai-panel-body flush">
+                      <LogList logs={detail!.recentLogs.slice(0, 4).map((l) => ({ ...l, agent }))} />
+                    </div>
                   </div>
-                  <div className="space-y-3">
-                    {detail.recentActions.map((action) => (
-                      <ApprovalCard key={action.id} action={{ ...action, agent }} onChanged={load} compact />
-                    ))}
+                </div>
+                <div className="flex flex-col gap-4">
+                  <div className="ai-panel">
+                    <div className="ai-panel-head">
+                      <div className="pt">{t('crm.aiEmployees.profile.todayStats')}</div>
+                    </div>
+                    <div className="ai-panel-body grid grid-cols-2 gap-2">
+                      {[
+                        [t('crm.aiEmployees.profile.kpiActionsToday'), stats.actionsToday ?? 0],
+                        [t('crm.aiEmployees.dashboard.kpiPendingApprovals'), stats.pendingApprovals ?? 0],
+                        [t('crm.aiEmployees.profile.kpiReportsGen'), stats.reportsGenerated ?? 0],
+                        [t('crm.aiEmployees.dashboard.kpiIssues'), stats.errors ?? 0],
+                      ].map(([l, v]) => (
+                        <div key={String(l)} style={{ border: '1px solid var(--line-3)', borderRadius: 10, padding: '13px 14px' }}>
+                          <div style={{ fontFamily: 'var(--ff-display)', fontSize: 24, fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--ink)' }}>{v}</div>
+                          <div
+                            style={{
+                              fontFamily: 'var(--ff-mono)',
+                              fontSize: 9,
+                              letterSpacing: '0.06em',
+                              textTransform: 'uppercase',
+                              color: 'var(--fg-3)',
+                              marginTop: 5,
+                            }}
+                          >
+                            {l}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </section>
+                  <div className="ai-panel">
+                    <div className="ai-panel-head">
+                      <div className="pt">{t('crm.aiEmployees.profile.configSection')}</div>
+                    </div>
+                    <div className="ai-panel-body" style={{ paddingTop: 4, paddingBottom: 4 }}>
+                      <div className="ai-info-row">
+                        <span className="k">{t('crm.aiEmployees.profile.autonomySection')}</span>
+                        <span className="v">{t(`crm.aiEmployees.autonomy.${agent.autonomyMode}.title`)}</span>
+                      </div>
+                      <div className="ai-info-row">
+                        <span className="k">{t('crm.aiEmployees.profile.scheduleSection')}</span>
+                        <span className="v">{t(`crm.aiEmployees.create.scheduleModes.${agent.scheduleMode}`)}</span>
+                      </div>
+                      <div className="ai-info-row">
+                        <span className="k">{t('crm.aiEmployees.create.fields.language')}</span>
+                        <span className="v">
+                          {agent.language} · {agent.tone}
+                        </span>
+                      </div>
+                      <div className="ai-info-row">
+                        <span className="k">{t('crm.aiEmployees.create.fields.dailyReportTime')}</span>
+                        <span className="v">{agent.dailyReportTime}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
+            ) : null}
 
-              <div className="space-y-5">
-                <section>
-                  <div className="mb-3">
-                    <SectionHeading>{t('crm.aiEmployees.profile.permissionsSummary')}</SectionHeading>
+            {tab === 'assign' ? (
+              <div className="grid gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+                <div className="flex flex-col gap-4">
+                  <div className="ai-panel">
+                    <div className="ai-panel-head">
+                      <div className="pt">
+                        <I d={ICON.wand} size={14} />
+                        {t('crm.aiEmployees.profile.autonomySection')}
+                      </div>
+                    </div>
+                    <div className="ai-panel-body">
+                      <AutonomySelector value={autonomyMode} onChange={setAutonomyMode} />
+                    </div>
                   </div>
                   <PermissionEditor permissions={permissions} setPermissions={setPermissions} />
-                  <div className="mt-3 flex justify-end">
-                    <Button variant="primary" loading={busy === 'save-perms'} onClick={() => run('save-perms')}>
+                  <div className="flex justify-end">
+                    <button className="aib" disabled={busy === 'save-perms'} onClick={() => run('save-perms')}>
                       {t('crm.aiEmployees.profile.savePermissions')}
-                    </Button>
+                    </button>
                   </div>
-                </section>
-
-                <section>
-                  <div className="mb-3">
-                    <SectionHeading>{t('crm.aiEmployees.profile.approvalRulesSection')}</SectionHeading>
-                  </div>
+                </div>
+                <div className="flex flex-col gap-4">
                   <ApprovalEditor approvalRules={approvalRules} setApprovalRules={setApprovalRules} />
-                  <div className="mt-3 flex justify-end">
-                    <Button variant="primary" loading={busy === 'save-rules'} onClick={() => run('save-rules')}>
+                  <div className="flex justify-end">
+                    <button className="aib" disabled={busy === 'save-rules'} onClick={() => run('save-rules')}>
                       {t('crm.aiEmployees.profile.saveApprovalRules')}
-                    </Button>
+                    </button>
                   </div>
-                </section>
-
-                <section>
-                  <div className="mb-3">
-                    <SectionHeading>{t('crm.aiEmployees.profile.dailyReportPreview')}</SectionHeading>
+                  <div className="ai-panel">
+                    <div className="ai-panel-head">
+                      <div className="pt">
+                        <I d={ICON.clock} size={14} />
+                        {t('crm.aiEmployees.profile.scheduleSection')}
+                      </div>
+                    </div>
+                    <div className="ai-panel-body flex flex-col gap-3.5">
+                      <div className="ai-field" style={{ margin: 0 }}>
+                        <label className="ai-label">{t('crm.aiEmployees.create.fields.schedule')}</label>
+                        <select className="ai-select" value={scheduleMode} onChange={(e) => setScheduleMode(e.target.value as any)}>
+                          <option value="always">{t('crm.aiEmployees.create.scheduleModes.always')}</option>
+                          <option value="business_hours">{t('crm.aiEmployees.create.scheduleModes.business_hours')}</option>
+                          <option value="custom">{t('crm.aiEmployees.create.scheduleModes.custom')}</option>
+                          <option value="manual">{t('crm.aiEmployees.create.scheduleModes.manual')}</option>
+                        </select>
+                      </div>
+                      <div className="ai-field" style={{ margin: 0 }}>
+                        <label className="ai-label">{t('crm.aiEmployees.create.fields.dailyReportTime')}</label>
+                        <input className="ai-input" type="time" value={dailyReportTime} onChange={(e) => setDailyReportTime(e.target.value)} />
+                      </div>
+                      <button className="aib" style={{ justifyContent: 'center' }} disabled={busy === 'save-assign'} onClick={() => run('save-assign')}>
+                        {t('crm.aiEmployees.profile.saveAssignments')}
+                      </button>
+                    </div>
                   </div>
-                  {detail.latestReport ? <ReportCard report={{ ...detail.latestReport, agent }} onChanged={load} /> : (
-                    <div className={cn('rounded-3xl border border-slate-200/70 bg-slate-50/80 p-5 text-sm text-slate-500 ring-1 ring-slate-900/[0.03]')}>{t('crm.aiEmployees.profile.noReportYet')}</div>
-                  )}
-                </section>
-
-                <section>
-                  <div className="mb-3">
-                    <SectionHeading>{t('crm.aiEmployees.profile.recentLogs')}</SectionHeading>
-                  </div>
-                  <ActivityList logs={detail.recentLogs.map((log) => ({ ...log, agent }))} />
-                </section>
+                </div>
               </div>
-            </div>
+            ) : null}
+
+            {tab === 'approvals' ? (
+              <div className="ai-panel">
+                <div className="ai-panel-head">
+                  <div className="pt">
+                    <I d={ICON.check} size={14} />
+                    {t('crm.aiEmployees.approvalsPage.title')}
+                  </div>
+                </div>
+                <div className="ai-panel-body flush">
+                  <ApprovalList actions={detail!.recentActions.map((a) => ({ ...a, agent }))} onChanged={load} />
+                </div>
+              </div>
+            ) : null}
+
+            {tab === 'journal' ? (
+              <div className="ai-panel">
+                <div className="ai-panel-head">
+                  <div className="pt">
+                    <I d={ICON.book} size={14} />
+                    {t('crm.aiEmployees.logsPage.title')}
+                  </div>
+                </div>
+                <LogList logs={detail!.recentLogs.map((l) => ({ ...l, agent }))} />
+              </div>
+            ) : null}
+
+            {tab === 'reports' ? (
+              <div className="ai-panel">
+                <div className="ai-panel-head">
+                  <div className="pt">
+                    <I d={ICON.doc} size={14} />
+                    {t('crm.aiEmployees.profile.tabs.reports')}
+                  </div>
+                  <button className="aib sm" disabled={busy === 'report'} onClick={() => run('report')}>
+                    <I d={ICON.sparkles} size={13} />
+                    {t('crm.aiEmployees.profile.generateReport')}
+                  </button>
+                </div>
+                <ReportBrowser reports={detail!.reports.map((r) => ({ ...r, agent }))} onChanged={load} />
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>
-      </AiEmployeesPageShell>
     </MainLayout>
   );
 }
@@ -1405,6 +2056,7 @@ export function AiEmployeeProfilePage() {
 export function AiEmployeesPage({ view = 'dashboard' }: { view?: AiEmployeesView }) {
   if (view === 'choose') return <ChooseView />;
   if (view === 'create') return <CreateView />;
+  if (view === 'edit') return <EditIdentityView />;
   if (view === 'approvals') return <ApprovalsView />;
   if (view === 'logs') return <LogsView />;
   if (view === 'reports') return <ReportsView />;

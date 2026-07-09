@@ -129,7 +129,7 @@
       "attachedSales": "Satış içe aktarma",
       "attachedWorkspaceCsv": "Çalışma alanı tablosu",
       "removeAttachment": "Kaldır",
-      "attachParseError": "Dosya çözülemedi. CRM satış içe aktarma CSV/XML veya başlıklı CSV kullanın.",
+      "attachParseError": "Dosya çözülemedi. CRM satış içe aktarma için CSV/XML kullanın; çalışma alanı tablosu için başlıklı bir CSV/Excel dosyası kullanın.",
       "cardsIntro": "Önerilen başlangıçlar",
       "presets": {
         "board": {
@@ -238,7 +238,9 @@
         "variablesJson": "Variables for subject (JSON)",
         "varsInvalid": "Invalid variables JSON."
       },
-      "openEmailComposer": "Email"
+      "openEmailComposer": "Email",
+      "workspaceImporting": "Tablo oluşturuluyor ve satırlar aktarılıyor…",
+      "rowsShort": "satır"
     },
     "account": {
       "kicker": "Hesap",
@@ -665,6 +667,12 @@
       "projectsArchive": "Proje arşivi",
       "projectsTrash": "Proje çöp kutusu",
       "sales": "Satışlar",
+      "products": "Ürünler",
+      "productsList": "Ürün listesi",
+      "productsStock": "Depo",
+      "productsAttributes": "Öznitelikler",
+      "productsFieldTypes": "Alan türleri",
+      "productsCategories": "Kategoriler",
       "salesAnalytics": "Satış analitiği",
       "salesChannels": "Satış kanalları",
       "salesIntegrations": "Entegrasyonlar",
@@ -707,7 +715,11 @@
       "aiEmployeesChoose": "Çalışan seç",
       "aiEmployeesApprovals": "Onaylar",
       "aiEmployeesLogs": "Günlükler",
-      "aiEmployeesReports": "Raporlar"
+      "aiEmployeesReports": "Raporlar",
+      "deduplication": "Tekilleştirme",
+      "sms": "SMS",
+      "smsMessages": "Mesajlar",
+      "smsSettings": "SMS Ayarları"
     },
     "aiEmployees": {
       "badge": {
@@ -765,7 +777,9 @@
         "openQueue": "Kuyruğu aç",
         "noApprovalsWaiting": "Bekleyen onay yok.",
         "recentActivity": "Son YZ aktivitesi",
-        "viewLogs": "Günlükleri gör"
+        "viewLogs": "Günlükleri gör",
+        "hireCardTitle": "Yeni bir YZ işe al",
+        "hireCardSubtitle": "10 rol: lead, satış, pazarlama, destek, raporlar"
       },
       "choose": {
         "title": "YZ çalışanı seç",
@@ -794,7 +808,10 @@
           "language": "Dil",
           "tone": "İletişim tonu",
           "schedule": "Zamanlama",
-          "dailyReportTime": "Günlük rapor saati"
+          "dailyReportTime": "Günlük rapor saati",
+          "avatarColor": "Renk",
+          "avatarStyle": "Avatar stili",
+          "aiProvider": "YZ sağlayıcı"
         },
         "scheduleModes": {
           "manual": "Yalnızca elle çalıştır",
@@ -812,10 +829,15 @@
         "activate": "YZ çalışanını etkinleştir",
         "permissionGroups": {
           "read": "Okuma erişimi",
-          "actions": "Eylemler"
+          "actions": "Eylemler",
+          "workspace": "Çalışma alanı ve veri"
         },
         "approvalRulesTitle": "Onay kuralları",
-        "approvalRequireBefore": "Şundan önce onay iste: {{action}}"
+        "approvalRequireBefore": "Şundan önce onay iste: {{action}}",
+        "avatarPreviewLabel": "önizleme",
+        "aiProviderPlatform": "Platform anahtarı (yönetici tarafından yönetilir)",
+        "editTitle": "Ayarlar",
+        "saveChanges": "Değişiklikleri kaydet"
       },
       "languageOptions": {
         "english": "English",
@@ -873,7 +895,8 @@
         "colAction": "Eylem",
         "colObject": "Nesne",
         "colStatus": "Durum",
-        "colResult": "Sonuç"
+        "colResult": "Sonuç",
+        "tokensLabel": "tok"
       },
       "reportsPage": {
         "title": "YZ raporları",
@@ -897,7 +920,8 @@
         "create_campaign": "kampanya oluşturma",
         "bulk_send_campaign": "toplu kampanya",
         "connect_integration": "entegrasyon bağlama",
-        "delete_data": "veri silme"
+        "delete_data": "veri silme",
+        "create_workspace_table": "çalışma alanı tablosu oluşturma"
       },
       "profile": {
         "loading": "YZ çalışanı yükleniyor…",
@@ -924,9 +948,180 @@
         "saveApprovalRules": "Onay kurallarını kaydet",
         "dailyReportPreview": "Günlük rapor önizlemesi",
         "noReportYet": "Henüz rapor oluşturulmadı.",
-        "recentLogs": "Son günlük kayıtları"
+        "recentLogs": "Son günlük kayıtları",
+        "tabs": {
+          "overview": "Genel bakış",
+          "assign": "Atamalar ve yetkiler",
+          "approvals": "Onaylar",
+          "journal": "Günlük",
+          "reports": "Raporlar"
+        },
+        "aboutSection": "Bu çalışan ne yapar",
+        "todayStats": "Bugünün sayıları",
+        "configSection": "Yapılandırma",
+        "autonomySection": "Otonomi seviyesi",
+        "scheduleSection": "Program",
+        "saveAssignments": "Atamaları kaydet",
+        "edit": "Düzenle"
       },
-      "fallbackEmployee": "YZ çalışanı"
+      "fallbackEmployee": "YZ çalışanı",
+      "roleCatalog": {
+        "lead_manager": {
+          "title": "YZ Lead Yöneticisi",
+          "shortTitle": "Lead Yöneticisi",
+          "department": "Satış",
+          "jobTitle": "YZ Lead Yöneticisi",
+          "description": "Yeni lead'leri analiz eder, önceliği sınıflandırır, spam'i tespit eder ve yöneticiler için sonraki adımları hazırlar.",
+          "functions": [
+            "Hot / Warm / Cold puanlama",
+            "Spam ve VIP tespiti",
+            "Lead özetleri",
+            "Yönetici görev önerileri",
+            "Günlük lead raporu"
+          ]
+        },
+        "sales_manager": {
+          "title": "YZ Satış Yöneticisi",
+          "shortTitle": "Satış Yöneticisi",
+          "department": "Satış",
+          "jobTitle": "YZ Satış Yöneticisi",
+          "description": "Satış ekibine takip, boru hattı riskleri, müşteri mesajları ve günlük satış raporlarında yardımcı olur.",
+          "functions": [
+            "Boru hattı analizi",
+            "Takip taslakları",
+            "Sıkışan fırsat tespiti",
+            "Görev oluşturma",
+            "Günlük satış raporu"
+          ]
+        },
+        "marketing_manager": {
+          "title": "YZ Pazarlama Yöneticisi",
+          "shortTitle": "Pazarlama Yöneticisi",
+          "department": "Pazarlama",
+          "jobTitle": "YZ Pazarlama Yöneticisi",
+          "description": "Pazarlama faaliyetlerini analiz eder, kampanya fikirleri, e-posta taslakları ve kanal önerileri hazırlar.",
+          "functions": [
+            "Kampanya fikirleri",
+            "UTM incelemesi",
+            "E-posta taslakları",
+            "Bütçe önerileri",
+            "Günlük pazarlama raporu"
+          ]
+        },
+        "support_manager": {
+          "title": "YZ Destek Yöneticisi",
+          "shortTitle": "Destek Yöneticisi",
+          "department": "Destek",
+          "jobTitle": "YZ Destek Yöneticisi",
+          "description": "Destek taleplerini sınıflandırır, yanıt taslakları hazırlar, talep oluşturur ve karmaşık sorunları kişilere yönlendirir.",
+          "functions": [
+            "Talep sınıflandırma",
+            "SSS yanıtları",
+            "Talep önerileri",
+            "Yanıt süresi izleme",
+            "Günlük destek raporu"
+          ]
+        },
+        "project_manager": {
+          "title": "YZ Proje Yöneticisi",
+          "shortTitle": "Proje Yöneticisi",
+          "department": "Projeler",
+          "jobTitle": "YZ Proje Yöneticisi",
+          "description": "Projeleri, gecikmiş görevleri, riskleri, sorumlulukları izler ve yöneticiler için proje özetleri hazırlar.",
+          "functions": [
+            "Teslim tarihi kontrolü",
+            "Gecikmiş görev tespiti",
+            "Proje özetleri",
+            "Sorumluluk kontrolleri",
+            "Günlük proje raporu"
+          ]
+        },
+        "marketing_analyst": {
+          "title": "YZ Pazarlama Analisti",
+          "shortTitle": "Pazarlama Analisti",
+          "department": "Pazarlama",
+          "jobTitle": "YZ Pazarlama Analisti",
+          "description": "Verinin bulunduğu yerlerde kanal verimliliğini, CPL, CPA, ROAS ve kaynak performansını inceler.",
+          "functions": [
+            "Kanal karşılaştırması",
+            "Kampanya tanılaması",
+            "Bütçe yeniden dağıtım fikirleri",
+            "Performans özetleri",
+            "Yönetici analitik raporu"
+          ]
+        },
+        "smm_manager": {
+          "title": "YZ SMM Yöneticisi",
+          "shortTitle": "SMM Yöneticisi",
+          "department": "Pazarlama",
+          "jobTitle": "YZ SMM Yöneticisi",
+          "description": "İçerik fikirleri, başlıklar, kısa video senaryoları, hashtag'ler ve içerik takvimleri oluşturur.",
+          "functions": [
+            "Gönderi fikirleri",
+            "Başlıklar",
+            "Reels/Shorts senaryoları",
+            "İçerik takvimleri",
+            "Hashtag önerileri"
+          ]
+        },
+        "email_assistant": {
+          "title": "YZ E-posta Asistanı",
+          "shortTitle": "E-posta Asistanı",
+          "department": "İletişim",
+          "jobTitle": "YZ E-posta Asistanı",
+          "description": "Gönderilmeden önce onay gerektiren e-posta yanıtları, takipler, konuşma özetleri ve taslak mesajlar hazırlar.",
+          "functions": [
+            "Yanıt taslakları",
+            "Takip e-postaları",
+            "Konu özetleri",
+            "Yanıtlanmamış e-posta kontrolleri",
+            "Şablon önerileri"
+          ]
+        },
+        "crm_analyst": {
+          "title": "YZ CRM Analisti",
+          "shortTitle": "CRM Analisti",
+          "department": "Yönetim",
+          "jobTitle": "YZ CRM Analisti",
+          "description": "Yönetim için CRM etkinliğini, satışları, lead'leri, görevleri ve süreç darboğazlarını analiz eder.",
+          "functions": [
+            "CRM sağlık incelemesi",
+            "Darboğaz tespiti",
+            "Yönetim raporları",
+            "Ekip etkinlik analizi",
+            "Süreç önerileri"
+          ]
+        },
+        "reservation_assistant": {
+          "title": "YZ Rezervasyon Asistanı",
+          "shortTitle": "Rezervasyon Asistanı",
+          "department": "Rezervasyonlar",
+          "jobTitle": "YZ Rezervasyon / Ağırlama Asistanı",
+          "description": "Ağırlama rezervasyon taleplerini, resmi RU/TR/EN yanıtlarını ve rezervasyon veri kontrollerini yönetir.",
+          "functions": [
+            "Rezervasyon talebi özetleri",
+            "Misafir yanıt taslakları",
+            "Tarih ve oda kontrolleri",
+            "Acente iletişimi",
+            "Günlük rezervasyon raporu"
+          ]
+        }
+      },
+      "departments": {
+        "sales": "Satış",
+        "marketing": "Pazarlama",
+        "support": "Destek",
+        "projects": "Projeler",
+        "communications": "İletişim",
+        "management": "Yönetim",
+        "reservations": "Rezervasyonlar"
+      },
+      "planBadge": {
+        "included": "Dahil",
+        "pro": "Pro'da mevcut",
+        "business": "Business'ta mevcut",
+        "enterprise": "Enterprise'da mevcut"
+      }
     },
     "settings": {
       "api": {
@@ -1391,7 +1586,8 @@
         "data": "Data table",
         "dataLayerTitle": "Data: imports and integrations",
         "dataShortOnly": "data",
-        "shortBoard": "Table"
+        "shortBoard": "Table",
+        "shortData": "Veri"
       },
       "pushToBoard": {
         "autoMapHint": "Matching field keys: {{count}}.",
@@ -1490,7 +1686,8 @@
         "pickFromDataPlaceholder": "Choose…",
         "pickFromDataTitle": "Value from data table",
         "presetCrmLead": "CRM lead",
-        "presetCrmProject": "CRM project"
+        "presetCrmProject": "CRM project",
+        "mondayBoardSubtitle": "Monday tarzı pano: satırlar statüye göre gruplanır. Sütunlar ve veri kaynakları yapılandırılabilir."
       },
       "kanban": {
         "title": "Kanban",
@@ -1974,6 +2171,7 @@
       "openAutomationsScenarios": "Senaryolara git",
       "openAutomationsIntegrationsHint": "Senaryolarda tetikleyicilerde ve eylemlerde burada yapılandırdığınız bağlantıları seçin.",
       "connectedCount": "Bağlı: {{count}}",
+      "notConnected": "Bağlı değil",
       "lifecycle": {
         "live": "Canlı",
         "beta": "Beta",
@@ -2016,6 +2214,7 @@
       "catalogFilterAll": "Tümü",
       "connectCatalog": "Bağlan",
       "viewConnectionsCount": "Bağlantılar ({{count}})",
+      "mailchimpSetupScenario": "Senaryo kur",
       "catalogEmptyFilter": "Bu filtreyle eşleşen kayıt yok — başka bir alan veya «Tümü» seçin.",
       "googleSheetsImportSettings": "Tablo içe aktarma: hedef, önizleme, satırlar",
       "googleSheetsSettingsTitle": "Google E-Tablolar — içe aktarma",
@@ -2024,7 +2223,214 @@
       "googleSheetsSettingsLoadError": "Bağlantı yüklenemedi.",
       "googleSheetsSettingsSave": "Kaydet",
       "googleSheetsTokenKeepPlaceholder": "Boş = jetonu değiştirme",
-      "editConnectionKeys": "Tüm bağlantılar ve anahtarlar: Satışlar → Entegrasyonlar"
+      "editConnectionKeys": "Tüm bağlantılar ve anahtarlar: Satışlar → Entegrasyonlar",
+      "shopify": {
+        "title": "Shopify",
+        "subtitle": "Shopify mağazanızdan siparişleri CRM'e içe aktarın",
+        "errors": {
+          "missing": "Lütfen mağaza alan adı ve Access Token girin"
+        },
+        "guide": {
+          "title": "Access Token nasıl alınır",
+          "step1": "Shopify yönetim panelinde Ayarlar → Uygulamalar ve satış kanalları'na gidin",
+          "step2": "«Uygulama geliştir» → «Uygulama oluştur»a tıklayın",
+          "step3": "«API yapılandırması»nda izinleri işaretleyin: read_orders, read_customers, read_products",
+          "step4": "«Yükle»ye tıklayın → «Admin API erişim jetonu»nu kopyalayın (shpat_ ile başlar)",
+          "permissions": "Minimum: read_orders, read_customers. Ürün bilgisi için read_products ekleyin.",
+          "next": "İleri: bağlantıyı yapılandır",
+          "back": "Geri"
+        },
+        "form": {
+          "name": "Bağlantı adı",
+          "namePlaceholder": "Shopify Mağazam",
+          "domain": "Mağaza alan adı",
+          "domainHint": "örn. my-store.myshopify.com veya özel alan adınız",
+          "token": "Admin API Access Token",
+          "tokenHint": "Jeton shpat_ ile başlar — Shopify yönetiminde Uygulamalar → Uygulama geliştir bölümünden alın"
+        }
+      },
+      "zapierMake": {
+        "title": "{{platform}} bağla",
+        "subtitle": "Çift yönlü entegrasyon: CRM ↔ {{platform}}",
+        "tabOutbound": "CRM → {{platform}}",
+        "tabInbound": "{{platform}} → CRM",
+        "outboundTitle": "CRM'den {{platform}}'e veri gönder",
+        "outboundDesc": "Catch Hook URL'nizi (Zapier) veya Custom Webhook URL'nizi (Make) girin. CRM otomasyon tetikleyicilerinden JSON olarak buraya POST yapacak.",
+        "zapier": {
+          "step1": "Zapier'da yeni bir Zap oluşturun",
+          "step2": "Tetikleyici olarak «Webhooks by Zapier → Catch Hook» seçin",
+          "step3": "Webhook URL'sini kopyalayıp aşağıya yapıştırın"
+        },
+        "make": {
+          "step1": "Make'te yeni bir senaryo oluşturun",
+          "step2": "«Webhooks → Custom webhook» modülü ekleyin",
+          "step3": "Webhook URL'sini kopyalayıp aşağıya yapıştırın"
+        },
+        "inboundTitle": "{{platform}}'den CRM'e veri al",
+        "inboundDesc": "CRM benzersiz bir URL oluşturur. {{platform}} senaryonuzda endpoint olarak ayarlayın — her JSON POST bir lead oluşturacak.",
+        "inboundFieldsHint": "name, email, phone, message alanları herhangi bir JSON'dan otomatik algılanır. Diğer tüm alanlar lead üzerinde not olarak kaydedilir.",
+        "done": {
+          "title": "Bağlantı oluşturuldu",
+          "desc": "{{platform}} entegrasyonunuz hazır. Inbound URL «Bağlantılar» sekmesindeki bağlantı kartında görünecek.",
+          "findUrl": "Bağlantılar'a gidin → kartı bulun → «Inbound webhook»u genişletin."
+        },
+        "form": {
+          "name": "Bağlantı adı",
+          "outboundUrl": "Catch Hook / Custom Webhook URL'si ({{platform}})",
+          "outboundUrlHint": "İsteğe bağlı. Yalnızca CRM'den {{platform}}'e «{{platform}}'e gönder» eylemiyle veri göndermek istiyorsanız gereklidir.",
+          "inboundToken": "Inbound webhook jetonu",
+          "inboundTokenHint": "URL'nin bir parçası olacak. {{platform}}'den gönderirken Authorization: Bearer … başlığı veya ?token= parametresi olarak iletin.",
+          "leadSource": "Lead kaynağı (varsayılan)",
+          "leadSourceHint": "Bu webhook üzerinden oluşturulan leadler için «Kaynak» alanının değeri.",
+          "regenerate": "Yeni"
+        }
+      },
+      "slack": {
+        "title": "Slack Bağla",
+        "subtitle": "Slack üzerinden otomatik bildirimler ve lead yakalama",
+        "tabOutbound": "CRM → Slack",
+        "tabInbound": "Slack → CRM",
+        "form": {
+          "name": "Bağlantı adı"
+        },
+        "outbound": {
+          "guideTitle": "Slack Incoming Webhook nasıl oluşturulur",
+          "step1": "api.slack.com/apps adresine gidin — yeni bir uygulama oluşturun veya mevcudu açın",
+          "step2": "Incoming Webhooks'u etkinleştirin ve \"Add New Webhook to Workspace\" düğmesine tıklayın",
+          "step3": "Bir kanal seçin ve oluşturulan Webhook URL'sini kopyalayın",
+          "webhookUrl": "Slack Incoming Webhook URL",
+          "webhookHint": "Biçim: https://hooks.slack.com/services/T.../B.../..."
+        },
+        "inbound": {
+          "guideTitle": "Slack'ten CRM'ye lead alın",
+          "guideDesc": "Kaydettikten sonra bir gelen webhook URL'si alacaksınız. Slack Workflow Builder veya botunuzu bu URL'ye POST yapacak şekilde yapılandırın; her istek Lumiva CRM'de lead oluşturur.",
+          "token": "Güvenlik tokeni",
+          "regenerate": "Yeniden oluştur",
+          "defaultSource": "Varsayılan lead kaynağı"
+        },
+        "done": {
+          "title": "Slack bağlandı!",
+          "inboundUrl": "Gelen webhook URL'si (Slack → CRM):",
+          "hint": "Bu URL'yi Slack Workflow Builder'a veya botunuza ekleyin. Tokeni ?token=... parametresi olarak iletin."
+        },
+        "errors": {
+          "create": "Slack bağlantısı oluşturulamadı"
+        }
+      },
+      "openai": {
+        "title": "OpenAI Bağla",
+        "subtitle": "AI otomasyonlarında ve çalışanlarda GPT-4o, o1 ve diğer modeller",
+        "guide": {
+          "title": "OpenAI API anahtarı nasıl alınır",
+          "step1": "platform.openai.com adresine gidin ve giriş yapın",
+          "step2": "API keys bölümüne gidin ve yeni bir gizli anahtar oluşturun",
+          "step3": "Anahtarı kopyalayın — sk- veya sk-proj- ile başlar"
+        },
+        "form": {
+          "apiKey": "OpenAI API Anahtarı",
+          "model": "Varsayılan model",
+          "baseUrl": "Temel URL",
+          "baseUrlHint": "Varsayılan OpenAI API için boş bırakın. Azure/proxy için doldurabilirsiniz.",
+          "name": "Bağlantı adı",
+          "testKey": "Anahtarı test et",
+          "testing": "Test ediliyor..."
+        },
+        "errors": {
+          "noKey": "Lütfen API anahtarı girin",
+          "create": "OpenAI bağlantısı oluşturulamadı"
+        }
+      },
+      "onec": {
+        "title": "1C:Enterprise Bağla",
+        "subtitle": "1C HTTP Servisi üzerinden siparişleri ve müşterileri senkronize edin",
+        "guide": {
+          "title": "1C HTTP Servisi nasıl kurulur",
+          "step1": "1C:Enterprise'i açın ve HTTP Servisi modülünü etkinleştirin",
+          "step2": "/hs/crm/ yolunda bir HTTP servisi yayımlayın",
+          "step3": "Servisin /orders uç noktasında JSON sipariş listesi döndürdüğünden emin olun",
+          "step4": "Servise erişim için ayrı bir kullanıcı oluşturun",
+          "step5": "Aşağıya temel URL, kullanıcı adı ve şifre girin",
+          "note": "1C sunucusunun Lumiva CRM sunucusundan erişilebilir olması gerekir. Yerel kurulumlar için güvenlik duvarı veya VPN yapılandırın.",
+          "next": "Ayarlara devam et"
+        },
+        "form": {
+          "baseUrl": "Temel URL",
+          "baseUrlHint": "Örnek: http://192.168.1.1/muhasebe — 1C web sunucusu adresi",
+          "login": "Kullanıcı adı",
+          "password": "Şifre",
+          "infobase": "Bilgi tabanı / servis adı",
+          "infobaseHint": "/hs/{ad}/ olarak kullanılır (varsayılan: crm)",
+          "servicePath": "Özel servis yolu",
+          "name": "Bağlantı adı"
+        },
+        "errors": {
+          "missing": "Lütfen URL, kullanıcı adı ve şifreyi doldurun",
+          "create": "1C bağlantısı oluşturulamadı"
+        }
+      },
+      "sap": {
+        "title": "SAP Bağla",
+        "subtitle": "SAP ERP / Business One olaylarını Lumiva CRM leadlerine alın",
+        "guide": {
+          "title": "SAP webhook nasıl yapılandırılır",
+          "step1": "Sonraki adımda bir Gelen Webhook URL'si alacaksınız",
+          "step2": "SAP'ta bu URL'ye POST yapacak bir giden webhook veya iDoc yapılandırın",
+          "step3": "Güvenlik tokenini ayarlayın (X-SAP-Token başlığı veya ?token= parametresi)",
+          "step4": "Her gelen olay Lumiva CRM'de lead oluşturur veya günceller",
+          "next": "Ayarlara devam et"
+        },
+        "form": {
+          "apiKey": "Güvenlik tokeni (X-SAP-Token)",
+          "regenerate": "Oluştur",
+          "apiKeyHint": "SAP bu tokeni X-SAP-Token başlığı veya ?token= parametresiyle iletmelidir",
+          "sapUrl": "SAP API URL",
+          "sapUrlHint": "İsteğe bağlı — bağlantı testi için kullanılır",
+          "defaultSource": "Varsayılan lead kaynağı",
+          "name": "Bağlantı adı"
+        },
+        "done": {
+          "title": "SAP bağlantısı oluşturuldu!",
+          "inboundUrl": "Gelen URL (SAP'ta yapılandırın):",
+          "tokenLabel": "Güvenlik tokeni:",
+          "hint": "Bu URL ve tokeni SAP giden kanal ayarlarına girin."
+        },
+        "errors": {
+          "noKey": "Lütfen güvenlik tokeni belirleyin",
+          "create": "SAP bağlantısı oluşturulamadı"
+        }
+      },
+      "jira": {
+        "title": "Jira Bağla",
+        "subtitle": "CRM görevlerinden Jira konuları oluşturun ve durum güncellemelerini alın",
+        "guide": {
+          "title": "Jira Cloud nasıl bağlanır",
+          "step1": "id.atlassian.com → Güvenlik → API tokenlari adresine gidin",
+          "step2": "Yeni bir API tokeni oluşturun ve kopyalayın",
+          "step3": "Jira URL'nizi girin (örn. https://sirket.atlassian.net)",
+          "step4": "Kaydettikten sonra, güncellemeler için Jira webhook'unu Gelen URL'ye yönlendirin",
+          "next": "Ayarlara devam et"
+        },
+        "form": {
+          "jiraUrl": "Jira URL",
+          "email": "Atlassian hesap e-postası",
+          "apiToken": "API tokeni",
+          "apiTokenHint": "id.atlassian.com → Güvenlik → API tokenlari bölümünde oluşturun",
+          "projectKey": "Varsayılan proje anahtarı",
+          "inboundToken": "Gelen webhook tokeni",
+          "inboundTokenHint": "Jira webhook URL'sine ekleyin: ?token=...",
+          "regenerate": "Oluştur",
+          "name": "Bağlantı adı"
+        },
+        "done": {
+          "title": "Jira bağlandı!",
+          "inboundUrl": "Gelen webhook URL'si (Jira → Proje Ayarları → Webhooklar):",
+          "hint": "Jira'da: Proje Ayarları → Webhooklar → Oluştur. Olaylar: Konu oluşturuldu/güncellendi."
+        },
+        "errors": {
+          "missing": "Lütfen Jira URL, e-posta ve API tokenini doldurun",
+          "create": "Jira bağlantısı oluşturulamadı"
+        }
+      }
     },
     "automations": {
       "list": {
@@ -2136,6 +2542,9 @@
           "amocrmInboundUrlTitle": "amoCRM webhook URL",
           "amocrmInboundUrlHint": "In amoMarket → Webhooks, set this address. We recommend ?secret= in the URL and the same secret below.",
           "amocrmInboundUrlMissingEnv": "Public webhook URL is not available yet — ask your administrator to verify API settings.",
+          "zapierMakeInboundTitle": "Inbound webhook ({{platform}} → CRM)",
+          "zapierMakeInboundHint": "Bu URL'yi {{platform}} senaryonuzdaki HTTP veya Webhooks modülüne ekleyin. POST isteği otomatik olarak CRM'de bir lead oluşturacak.",
+          "zapierMakeCopyUrl": "URL'yi kopyala",
           "siteFormInboundUrlTitle": "Website form URL (WordPress / CF7)",
           "siteFormInboundUrlHint": "Set this URL in your form plugin or “CF7 to Webhook” as the POST endpoint. If you configured a secret on the connection, append the same ?secret= value.",
           "siteFormInboundUrlMissingEnv": "Public form URL is not available yet — ask your administrator to verify API settings.",
@@ -2554,6 +2963,7 @@
           "pickPlaceholder": "— seçin —",
           "pickEmailAccount": "— hesap seçin —",
           "pickEmailTemplate": "— şablon yok —",
+          "createEmailTemplate": "Şablon oluştur",
           "subjectPlaceholder": "Konu",
           "emailBodyPlaceholder": "E-posta gövdesi…",
           "slackMessagePlaceholder": "Slack mesajı",
@@ -2714,7 +3124,8 @@
           "NOTE_CREATED": "Not oluşturuldu",
           "CUSTOM_OBJECT_RECORD_CREATED": "Kayıt oluşturuldu (özel nesne)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Kayıt güncellendi (özel nesne)",
-          "CUSTOM_OBJECT_STATUS_CHANGED": "Kayıt durumu değişti (özel nesne)"
+          "CUSTOM_OBJECT_STATUS_CHANGED": "Kayıt durumu değişti (özel nesne)",
+          "SHOPIFY_PAYMENT_RECEIVED": "Shopify Ödemesi Alındı"
         },
         "report": {
           "type": "Rapor türü",
@@ -3071,7 +3482,9 @@
           "assign_user": "Kullanıcı ata",
           "assign_task": "Görev ata",
           "remove_tag": "Etiketi kaldır",
-          "send_notification": "Anlık bildirim"
+          "send_notification": "Anlık bildirim",
+          "create_jira_issue": "Jira Görevi Oluştur",
+          "shopify_payment_received": "Shopify Ödemesi Alındı"
         },
         "openMarketingIntegrationsPage": "Pazarlama · entegrasyonlar",
         "errors": {
@@ -3112,6 +3525,12 @@
             "name": "WooCommerce",
             "description": "Siparişler ve ödemeler — CRM satışlarına içe aktarma ve bağlantı.",
             "linkLabel": "Satış · entegrasyonlar",
+            "nextStep": ""
+          },
+          "sms": {
+            "name": "SMS",
+            "description": "Otomasyon senaryolarından Twilio, SMSC veya SMS.RU üzerinden SMS bildirimleri gönderin.",
+            "linkLabel": "",
             "nextStep": ""
           },
           "marketing_api": {
@@ -3175,10 +3594,22 @@
             "nextStep": ""
           },
           "zapier": {
-            "name": "Zapier / Make",
-            "description": "Catch Hook’a JSON; mantık Zapier/Make tarafında.",
+            "name": "Zapier",
+            "description": "Çift yönlü entegrasyon: CRM Zapier Catch Hook’a veri gönderir ve Zapier inbound webhook üzerinden CRM’de lead oluşturabilir.",
             "linkLabel": "",
-            "nextStep": ""
+            "nextStep": "Bağlan → Outbound URL ve Inbound Token ayarla → URL’yi bağlantı kartından kopyala."
+          },
+          "make": {
+            "name": "Make (Integromat)",
+            "description": "Çift yönlü entegrasyon: CRM Make Custom Webhook’a veri gönderir ve Make inbound webhook üzerinden CRM’de lead oluşturabilir.",
+            "linkLabel": "",
+            "nextStep": "Bağlan → Outbound URL ve Inbound Token ayarla → URL’yi bağlantı kartından kopyala."
+          },
+          "shopify": {
+            "name": "Shopify",
+            "description": "Shopify siparişlerini CRM satış modülüne içe aktarın. Müşteri e-postalarından otomatik lead oluşturur.",
+            "linkLabel": "",
+            "nextStep": "Bağlan → mağaza alan adı ve Access Token girin → senkronize edin."
           },
           "google_ads": {
             "name": "Google Ads",
@@ -3500,7 +3931,7 @@
     "marketingSeo": {
       "kicker": "Pazarlama · SEO ve içerik",
       "title": "SEO ve site kalitesi",
-      "subtitle": "Bu sayfa sitenin büyümeye ne kadar hazır olduğunu gösterir: hız, dizinlenebilirlik, hatalar ve içerik yapısı. Bir kısmı analitikten; geri kalanı Search Console ve PageSpeed ile.",
+      "subtitle": "Site URL’sini girin, Google Search Console’u bağlayın ve tıklama, gösterim, CTR ve ortalama konum için SEO kontrolü çalıştırın.",
       "loading": "Veriler yükleniyor…",
       "status": {
         "saved": "Kaydedildi",
@@ -3524,8 +3955,8 @@
         "loadSettings": "SEO ayarları yüklenemedi."
       },
       "connections": {
-        "title": "Bağlantılar",
-        "subtitle": "Siteniz için Search Console ve PageSpeed kurun.",
+        "title": "Site SEO kontrolü",
+        "subtitle": "Tek akış: site URL’si, Search Console erişimi ve güncel metrikler.",
         "gscConnected": "GSC bağlı",
         "connectGsc": "GSC bağla",
         "refresh": "Metrikleri yenile",
@@ -3598,6 +4029,8 @@
         }
       },
       "fields": {
+        "siteUrl": "SEO kontrolü için site URL’si",
+        "siteUrlHint": "URL, Google Search Console property olarak kaydedilir. GSC’de domain property kullanılıyorsa sc-domain:example.com formatını girin.",
         "gscPropertyUrl": "GSC property URL",
         "pageSpeedUrl": "PageSpeed URL",
         "pageSpeedApiKey": "PageSpeed API Key",
@@ -3608,6 +4041,8 @@
         }
       },
       "actions": {
+        "analyze": "SEO kontrolü",
+        "analyzing": "Kontrol ediliyor…",
         "save": "Kaydet",
         "saving": "Kaydediliyor…"
       },
@@ -3619,8 +4054,8 @@
         "impressions": "Gösterimler",
         "ctr": "CTR",
         "position": "Konum",
-        "trendTitle": "Spend / Leads",
-        "trendSource": "Search",
+        "trendTitle": "Organik trend",
+        "trendSource": "Search Console",
         "legend": {
           "current": "Mevcut dönem",
           "previous": "Önceki dönem"
@@ -3634,9 +4069,9 @@
         "empty": "Veri yok. GSC bağlayın ve senkron çalıştırın."
       },
       "gscDonut": {
-        "title": "Kanala göre dönüşümler",
-        "subtitle": "Lead ve anlaşma hunisi",
-        "average": "ağ ortalaması",
+        "title": "SEO sinyalleri",
+        "subtitle": "CTR, konum ve görünürlük",
+        "average": "ortalama CTR",
         "labels": {
           "ctr": "CTR",
           "rank": "Rank",
@@ -3677,11 +4112,11 @@
         ]
       },
       "connect": {
-        "title": "Neyi bağlamalısınız",
+        "title": "Kontrol nasıl çalışır",
         "items": [
-          "Google Search Console — dizinleme, hatalar, CTR.",
-          "PageSpeed Insights — hız ve Core Web Vitals.",
-          "Analytics (GA4 / Yandex.Metrica) — davranış ve dönüşümler."
+          "Site URL’sini veya GSC property değerini yapıştırın.",
+          "Veri erişimi için Google Search Console’u bağlayın.",
+          "Kontrolü çalıştırın — CRM tıklama, gösterim, CTR ve konumları çeker."
         ]
       },
       "oauthCallback": {
@@ -3959,6 +4394,9 @@
       "saving": "Kaydediliyor…",
       "cancel": "İptal",
       "close": "Kapat",
+      "next": "İleri",
+      "back": "Geri",
+      "optional": "isteğe bağlı",
       "ok": "Tamam",
       "confirm": "Onayla",
       "modalNotice": "Bildirim",
@@ -4126,6 +4564,46 @@
         "presetApply": "Import into template",
         "presetLibraryTitle": "Preset library",
         "presetReplaceConfirm": "Replace current template content with this preset?"
+      },
+      "presets": {
+        "items": {
+          "lead_new": {
+            "name": "Yeni lead",
+            "description": "Yeni lead için ekip uyarısı"
+          },
+          "lead_status": {
+            "name": "Lead durumu değişti",
+            "description": "Huni aşaması güncelleme bildirimi"
+          },
+          "project_new": {
+            "name": "Yeni proje",
+            "description": "Tutar ve durumuyla yeni fırsat/proje kartı"
+          },
+          "sale_new": {
+            "name": "Yeni satış",
+            "description": "Satış tutarı ve durum özeti"
+          },
+          "meeting_reminder": {
+            "name": "Toplantı hatırlatıcısı",
+            "description": "Lead tabanlı hatırlatıcı; zaman ve bağlantı ekleyin"
+          },
+          "thank_you_post_sale": {
+            "name": "Satış sonrası teşekkür",
+            "description": "Proje ve tutar bloğuyla teşekkür"
+          },
+          "reactivation": {
+            "name": "Yeniden etkinleştirme",
+            "description": "Şirkete bağlı geri kazanma mesajı"
+          },
+          "funnel_nurture": {
+            "name": "Huni beslemesi",
+            "description": "CTA'lı yumuşak takip"
+          },
+          "client_broadcast": {
+            "name": "Müşteri bülteni",
+            "description": "Kişisel selamlama ile tarafsız duyuru"
+          }
+        }
       }
     },
     "sales": {
@@ -5162,8 +5640,24 @@
           "leads-analytics": "Lead analitiği",
           "sales-analytics": "Satış analitiği",
           "profile-completion": "Profilinizi tamamlayın",
-          "learn-inspire": "Öğrenin ve ilham alın"
+          "learn-inspire": "Öğrenin ve ilham alın",
+          "funnel_today": "Bugünün Hunisi",
+          "lead_sources_week": "Lead Kaynakları (7 gün)",
+          "recent_deals": "Son Anlaşmalar",
+          "birthdays": "Bu Haftaki Doğum Günleri"
         },
+        "funnelToday": "Bugünün Hunisi",
+        "funnelTodayEmpty": "Bugün lead yok",
+        "funnelTodayTotal": "Toplam: {{count}}",
+        "leadSourcesWeek": "Lead Kaynakları (7 gün)",
+        "leadSourcesWeekSub": "Son 7 gün",
+        "leadSourcesWeekEmpty": "Kaynak verisi yok",
+        "recentDeals": "Son Anlaşmalar",
+        "recentDealsEmpty": "Anlaşma yok",
+        "recentDealsFallbackName": "Satış",
+        "birthdays": "Bu Haftaki Doğum Günleri",
+        "birthdaysEmpty": "Bu hafta doğum günü yok",
+        "birthdaysUnknown": "Bilinmiyor",
         "addBlockHint": "metrikler, raporlar, diğer sayfalardan widget'lar"
       },
       "quickAccess": {
@@ -5231,14 +5725,36 @@
       "addToHomeFromAnalytics": "Ana sayfaya ekle",
       "projects": {
         "sub": "Öncelik ve görev ilerlemesine göre",
-        "tasksLabel": "görev"
+        "tasksLabel": "görev",
+        "title": "Proje dağılımım",
+        "subtitle": "Açık, kazanılan ve kaybedilen fırsatlar",
+        "total": "Toplam:",
+        "openPotential": "Açık potansiyel:",
+        "empty": "Henüz projeniz yok.",
+        "amountLabel": "Tutar:",
+        "countLabel": "Projeler:",
+        "tasksSummary": "Görev özeti:",
+        "chips": {
+          "open": "Açık",
+          "won": "Kazanıldı",
+          "lost": "Kaybedildi"
+        }
       },
       "channels": {
-        "allChannels": "CRM'deki tüm kanallar"
+        "allChannels": "CRM'deki tüm kanallar",
+        "title": "Kanalıma göre leadler",
+        "period": "tüm zamanlar",
+        "empty": "Henüz size atanmış lead yok."
       },
       "staff": {
         "subLabel": "kapanan ciro",
-        "leadsLabel": "lead"
+        "leadsLabel": "lead",
+        "headers": {
+          "name": "Ekip üyesi",
+          "leads": "Leadler",
+          "revenue": "Ciro"
+        },
+        "empty": "Henüz ekip verisi yok"
       },
       "calendar": {
         "hintSources": "Mor — lead kartlarındaki toplantılar (AI dahil). Mavi — bu cihazda oluşturduğunuz kayıtlar.",
@@ -5322,6 +5838,56 @@
         "templatesTitle": "Hazır şablonlar",
         "templatesDesc": "Süreçleri dakikalar içinde başlatın — huniler, projeler, kampanyalar.",
         "templatesBtn": "Şablonları aç"
+      },
+      "detailModal": {
+        "open": "Detaylar"
+      },
+      "leadsTimeline": {
+        "title": "Lead eğilimim (14 gün)",
+        "subtitle": "Her gün kaç talep geldiği",
+        "total": "Dönemdeki toplam:",
+        "empty": "Grafik için henüz veri yok."
+      },
+      "pipeline": {
+        "title": "Projelerime göre huni",
+        "subtitle": "statüye göre tutar",
+        "empty": "Henüz projeniz yok.",
+        "itemLabel": "{{count}} · {{value}} €"
+      },
+      "quickActions": {
+        "newLead": "Yeni lead",
+        "leadsCalendar": "Lead takvimi",
+        "leadsBoard": "Lead panosu",
+        "projects": "Projeler",
+        "workspaces": "Çalışma alanları"
+      },
+      "recentLeads": {
+        "title": "Son leadlerim",
+        "openAll": "Tümünü aç",
+        "empty": "Henüz lead yok.",
+        "headers": {
+          "name": "Ad",
+          "channel": "Kanal",
+          "status": "Durum",
+          "created": "Oluşturuldu"
+        }
+      },
+      "salesByChannel": {
+        "title": "Kanala göre satışlar (kazanılan projeler)"
+      },
+      "taskTypes": {
+        "call": "Arama",
+        "meeting": "Toplantı",
+        "todo": "Görev"
+      },
+      "tasks": {
+        "title": "Proje görevlerim",
+        "empty": "Size atanmış görev yok.",
+        "overdue": "Gecikmiş",
+        "today": "Bugün",
+        "upcoming": "Yaklaşan",
+        "titleWithProject": "{{title}} · {{project}}",
+        "fallbackTitle": "Görev"
       }
     },
     "leads": {
@@ -6539,6 +7105,7 @@
       "permissions": {
         "contacts": "Kişiler",
         "companies": "Şirketler",
+        "products": "Ürünler",
         "email": "E-posta",
         "marketing": "Pazarlama",
         "tools_automation": "Otomasyon",
@@ -6552,6 +7119,227 @@
         "hint": {
           "staff": "Personel yönetimi, davetler",
           "settings": "Şirket ayarları, API, entegrasyonlar"
+        }
+      }
+    },
+    "products": {
+      "list": {
+        "title": "Ürünler",
+        "subtitle": "Ürün kataloğu, stok ve alan ayarları.",
+        "searchPlaceholder": "Ada veya SKU'ya göre ara…",
+        "addButton": "Ürün ekle",
+        "importButton": "İçe aktar",
+        "exportButton": "Dışa aktar",
+        "exportCsv": "CSV olarak dışa aktar",
+        "exportXlsx": "XLSX olarak dışa aktar",
+        "filters": {
+          "allStatuses": "Tüm durumlar",
+          "allCategories": "Tüm kategoriler",
+          "variableOnly": "Yalnızca varyasyonlu"
+        },
+        "columns": {
+          "name": "Ad",
+          "sku": "SKU",
+          "category": "Kategori",
+          "status": "Durum",
+          "price": "Fiyat",
+          "quantity": "Stok",
+          "variable": "Varyasyonlu",
+          "actions": "İşlemler"
+        },
+        "empty": "Henüz ürün yok",
+        "lowStockBadge": "Az stok",
+        "deleteConfirm": "Bu ürün silinsin mi?",
+        "duplicateButton": "Kopyala",
+        "errors": {
+          "loadFailed": "Ürünler yüklenemedi",
+          "deleteFailed": "Ürün silinemedi",
+          "duplicateFailed": "Ürün kopyalanamadı"
+        }
+      },
+      "status": {
+        "active": "Aktif",
+        "draft": "Taslak",
+        "archived": "Arşivlendi",
+        "out_of_stock": "Stokta yok"
+      },
+      "form": {
+        "newTitle": "Yeni ürün",
+        "editTitle": "Ürünü düzenle",
+        "backToList": "Ürün listesine dön",
+        "fields": {
+          "name": "Ad",
+          "sku": "SKU",
+          "description": "Açıklama",
+          "category": "Kategori",
+          "categoryPlaceholder": "— Kategori yok",
+          "status": "Durum",
+          "price": "Fiyat",
+          "costPrice": "Maliyet fiyatı",
+          "currency": "Para birimi",
+          "unit": "Birim",
+          "lowStockThreshold": "Düşük stok eşiği",
+          "externalId": "Harici ID"
+        },
+        "variable": {
+          "label": "Varyasyonlu ürün",
+          "hint": "Ürünün varyasyonları var (ör. renk ve beden) — her birinin kendi stoğu ve isteğe bağlı olarak kendi fiyatı ve SKU'su var."
+        },
+        "variants": {
+          "title": "Varyasyonlar",
+          "attributesLabel": "Varyasyon öznitelikleri",
+          "attributesHint": "Öznitelikleri seçin (ör. Renk, Beden) — kombinasyonlar otomatik oluşturulur.",
+          "generateButton": "Varyasyonları oluştur",
+          "empty": "Henüz varyasyon yok",
+          "table": {
+            "combination": "Kombinasyon",
+            "sku": "SKU",
+            "quantity": "Stok",
+            "priceOverride": "Fiyat geçersiz kılma",
+            "active": "Aktif"
+          }
+        },
+        "customFields": {
+          "title": "Ek alanlar",
+          "empty": "Ek alan yapılandırılmadı — Alan Türleri sayfasından ekleyin."
+        },
+        "actions": {
+          "create": "Oluştur",
+          "save": "Kaydet",
+          "cancel": "İptal",
+          "delete": "Sil",
+          "duplicate": "Kopyala"
+        },
+        "errors": {
+          "nameRequired": "Ürün adı zorunludur",
+          "loadFailed": "Ürün yüklenemedi",
+          "saveFailed": "Ürün kaydedilemedi",
+          "deleteFailed": "Ürün silinemedi"
+        }
+      },
+      "attributes": {
+        "title": "Öznitelikler",
+        "subtitle": "Ürün varyasyon öznitelikleri — ör. Renk, Beden.",
+        "addButton": "Öznitelik ekle",
+        "nameLabel": "Öznitelik adı",
+        "namePlaceholder": "Örn. Renk",
+        "valuesTitle": "Değerler",
+        "addValueLabel": "Yeni değer",
+        "addValueButton": "Değer ekle",
+        "valueLabel": "Değer",
+        "colorLabel": "Renk (isteğe bağlı)",
+        "deleteConfirm": "Bu öznitelik silinsin mi?",
+        "deleteValueConfirm": "Bu değer silinsin mi?",
+        "empty": "Henüz öznitelik yok",
+        "errors": {
+          "loadFailed": "Öznitelikler yüklenemedi",
+          "saveFailed": "Öznitelik kaydedilemedi"
+        }
+      },
+      "fieldTypes": {
+        "title": "Alan türleri",
+        "subtitle": "Ek ürün kartı alanları — ACF benzeri oluşturucu.",
+        "addButton": "Alan ekle",
+        "table": {
+          "label": "Etiket",
+          "type": "Tür",
+          "required": "Zorunlu",
+          "width": "Genişlik",
+          "actions": "İşlemler"
+        },
+        "modal": {
+          "labelField": "Alan etiketi",
+          "typeField": "Alan türü",
+          "requiredField": "Zorunlu alan",
+          "widthField": "Genişlik",
+          "descriptionField": "Alan altında yardımcı metin",
+          "optionsField": "Seçenekler",
+          "addOption": "Seçenek ekle",
+          "optionValue": "Değer",
+          "optionLabel": "Etiket",
+          "showInList": "Ürün listesinde göster",
+          "showInQuickEdit": "Hızlı düzenlemede göster",
+          "save": "Kaydet",
+          "cancel": "İptal"
+        },
+        "types": {
+          "text": "Metin",
+          "textarea": "Çok satırlı metin",
+          "number": "Sayı",
+          "date": "Tarih",
+          "datetime": "Tarih ve saat",
+          "boolean": "Anahtar",
+          "select": "Liste (tek seçim)",
+          "multiselect": "Liste (çoklu seçim)",
+          "radio": "Radyo düğmeleri",
+          "url": "URL",
+          "media": "Görsel/dosya",
+          "gallery": "Galeri"
+        },
+        "deleteConfirm": "Bu alan silinsin mi?",
+        "empty": "Henüz ek alan yok",
+        "errors": {
+          "loadFailed": "Alanlar yüklenemedi",
+          "saveFailed": "Alan kaydedilemedi"
+        },
+        "editButton": "Düzenle"
+      },
+      "stock": {
+        "title": "Depo",
+        "subtitle": "Ürün ve varyasyon stok seviyeleri.",
+        "searchPlaceholder": "Ada veya SKU'ya göre ara…",
+        "lowStockOnly": "Yalnızca düşük stok",
+        "columns": {
+          "product": "Ürün",
+          "sku": "SKU",
+          "variant": "Varyasyon",
+          "quantity": "Stok",
+          "threshold": "Eşik",
+          "actions": "İşlemler"
+        },
+        "adjustButton": "Düzelt",
+        "adjustModal": {
+          "title": "Stoğu düzelt",
+          "deltaLabel": "Değişim (+/-)",
+          "deltaHint": "Giriş için pozitif, çıkış için negatif sayı.",
+          "reasonLabel": "Neden",
+          "save": "Kaydet",
+          "cancel": "İptal"
+        },
+        "empty": "Stokta ürün yok",
+        "errors": {
+          "loadFailed": "Depo yüklenemedi",
+          "adjustFailed": "Stok düzeltilemedi"
+        }
+      },
+      "categories": {
+        "title": "Kategoriler",
+        "addButton": "Kategori ekle",
+        "nameLabel": "Kategori adı",
+        "namePlaceholder": "Örn. Elektronik",
+        "deleteConfirm": "Bu kategori silinsin mi? Ürünler kategorisiz kalır.",
+        "empty": "Henüz kategori yok"
+      },
+      "import": {
+        "title": "Ürünleri içe aktar",
+        "subtitle": "Ürünleri içeren bir Excel veya CSV dosyası yükleyin.",
+        "dropHint": "Dosyayı buraya sürükleyin veya seçmek için tıklayın",
+        "chooseFile": "Dosya seç",
+        "back": "Geri",
+        "mappingTitle": "Sütun eşleme",
+        "columnHeader": "Dosya sütunu",
+        "fieldHeader": "Ürün alanı",
+        "updateExistingLabel": "Mevcut ürünleri güncelle (SKU'ya göre)",
+        "applyButton": "İçe aktar",
+        "applying": "İçe aktarılıyor…",
+        "resultTitle": "İçe aktarma tamamlandı",
+        "resultCreated": "Oluşturulan ürün: {{count}}",
+        "resultUpdated": "Güncellenen ürün: {{count}}",
+        "resultErrors": "Hatalar: {{count}}",
+        "close": "Kapat",
+        "errors": {
+          "previewFailed": "Dosya okunamadı",
+          "applyFailed": "İçe aktarma başarısız oldu"
         }
       }
     }

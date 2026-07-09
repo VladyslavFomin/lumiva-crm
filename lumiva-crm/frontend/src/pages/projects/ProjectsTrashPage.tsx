@@ -81,10 +81,10 @@ export const ProjectsTrashPage: React.FC = () => {
     <MainLayout>
       <div className="space-y-4">
         <div>
-          <h1 className="text-lg font-semibold text-slate-50">
+          <h1 className="page-title">
             {t('crm.projects.trash.title')}
           </h1>
-          <div className="text-[11px] text-slate-500">
+          <div className="page-subtitle">
             {t('crm.projects.trash.subtitle')}
           </div>
         </div>
@@ -93,27 +93,27 @@ export const ProjectsTrashPage: React.FC = () => {
             type="button"
             onClick={() => setConfirmState({ mode: 'all' })}
             disabled={!projects.length || actionLoading}
-            className="px-3 py-1.5 text-xs rounded-xl border border-rose-500/60 text-rose-300 hover:bg-rose-950/50 disabled:opacity-50"
+            className="btn-danger btn-secondary-sm disabled:opacity-50"
           >
             {t('crm.projects.trash.actions.emptyTrash')}
           </button>
         </div>
 
         {error && (
-          <div className="text-[12px] text-rose-400 bg-rose-950/40 border border-rose-900/60 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
-        <div className="bg-slate-900/70 border border-slate-800/80 rounded-3xl p-4">
+        <div className="card p-4">
           {loading ? (
-            <div className="text-xs text-slate-500">
+            <div className="text-xs text-text-tertiary">
               {t('crm.projects.loading')}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="min-w-[760px] w-full text-xs border-separate border-spacing-y-1 table-fixed">
-                <thead className="text-slate-500">
+                <thead className="text-text-tertiary">
                   <tr>
                     <th className="px-3 py-1 text-left">
                       {t('crm.projects.list.headers.name')}
@@ -137,29 +137,29 @@ export const ProjectsTrashPage: React.FC = () => {
                 </thead>
                 <tbody>
                   {projects.map((p) => (
-                    <tr key={p.id} className="bg-slate-950/80">
-                      <td className="px-3 py-1.5 text-slate-200">{p.name}</td>
-                      <td className="px-3 py-1.5 text-slate-300">{p.status}</td>
-                      <td className="px-3 py-1.5 text-slate-300">
+                    <tr key={p.id} className="bg-white hover:bg-surface-hover transition-colors">
+                      <td className="px-3 py-1.5 text-[#111827]">{p.name}</td>
+                      <td className="px-3 py-1.5 text-text-secondary">{p.status}</td>
+                      <td className="px-3 py-1.5 text-text-secondary">
                         {p.owner ?? t('crm.projects.common.emptyValue')}
                       </td>
-                      <td className="px-3 py-1.5 text-slate-300">
+                      <td className="px-3 py-1.5 text-text-secondary">
                         {p.amount} {p.currency}
                       </td>
-                      <td className="px-3 py-1.5 text-slate-400">{p.createdAt}</td>
+                      <td className="px-3 py-1.5 text-text-tertiary">{p.createdAt}</td>
                       <td className="px-3 py-1.5">
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2">
                           <button
                             type="button"
                             onClick={() => handleRestore(p.id)}
-                            className="text-[11px] text-sky-300 hover:text-sky-200"
+                            className="btn-secondary btn-secondary-sm"
                           >
                             {t('crm.projects.trash.actions.restore')}
                           </button>
                           <button
                             type="button"
                             onClick={() => setConfirmState({ mode: 'single', project: p })}
-                            className="text-[11px] text-rose-300 hover:text-rose-200"
+                            className="btn-danger btn-secondary-sm"
                           >
                             {t('crm.projects.trash.actions.deletePermanently')}
                           </button>
@@ -171,7 +171,7 @@ export const ProjectsTrashPage: React.FC = () => {
                     <tr>
                       <td
                         colSpan={6}
-                        className="px-3 py-3 text-center text-[12px] text-slate-500"
+                        className="px-3 py-3 text-center text-xs text-text-tertiary"
                       >
                         {t('crm.projects.trash.empty')}
                       </td>
@@ -184,16 +184,16 @@ export const ProjectsTrashPage: React.FC = () => {
         </div>
       </div>
       {confirmState && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 px-4">
-          <div className="relative w-full max-w-lg rounded-3xl bg-slate-900 border border-slate-700 shadow-2xl p-6">
+        <div className="modal-overlay">
+          <div className="modal-panel p-6 max-w-lg w-full">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-50">
+                <div className="text-sm font-semibold text-[#111827]">
                   {confirmState.mode === 'all'
                     ? t('crm.projects.trash.confirm.emptyTitle')
                     : t('crm.projects.trash.confirm.singleTitle')}
                 </div>
-                <div className="mt-1 text-xs text-slate-400">
+                <div className="mt-1 text-xs text-text-secondary">
                   {confirmState.mode === 'all'
                     ? t('crm.projects.trash.confirm.emptyDescription')
                     : t('crm.projects.trash.confirm.singleDescription', {
@@ -204,7 +204,7 @@ export const ProjectsTrashPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setConfirmState(null)}
-                className="text-slate-500 hover:text-slate-200 text-xl leading-none"
+                className="text-text-tertiary hover:text-[#111827] text-xl leading-none"
               >
                 ×
               </button>
@@ -214,7 +214,7 @@ export const ProjectsTrashPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setConfirmState(null)}
-                className="px-4 py-2 rounded-full border border-slate-700 text-slate-300 text-sm hover:bg-slate-800"
+                className="btn-secondary"
                 disabled={actionLoading}
               >
                 {t('crm.common.cancel')}
@@ -226,7 +226,7 @@ export const ProjectsTrashPage: React.FC = () => {
                     ? handleEmptyTrash()
                     : handlePermanentDelete(confirmState.project.id)
                 }
-                className="px-4 py-2 rounded-full bg-rose-500 text-white text-sm font-semibold hover:bg-rose-600 disabled:opacity-50"
+                className="btn-danger disabled:opacity-50"
                 disabled={actionLoading}
               >
                 {actionLoading

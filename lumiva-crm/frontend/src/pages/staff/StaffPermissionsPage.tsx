@@ -80,6 +80,7 @@ export const StaffPermissionsPage: React.FC = () => {
           { key: 'leads', label: t('crm.staff.permissions.leads') },
           { key: 'contacts', label: t('crm.staff.permissions.contacts') },
           { key: 'companies', label: t('crm.staff.permissions.companies') },
+          { key: 'products', label: t('crm.staff.permissions.products') },
           { key: 'projects', label: t('crm.staff.permissions.projects') },
           { key: 'analytics', label: t('crm.staff.permissions.analytics') },
           { key: 'finance', label: t('crm.staff.permissions.finance') },
@@ -287,13 +288,13 @@ export const StaffPermissionsPage: React.FC = () => {
         </div>
 
         {error && (
-          <div className="text-xs text-red-400 bg-red-950/40 border border-red-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-error bg-status-error-bg border border-red-200 rounded-xl px-3 py-2">
             {error}
           </div>
         )}
 
         {saved && !error && (
-          <div className="text-xs text-emerald-300 bg-emerald-950/40 border border-emerald-800/50 rounded-xl px-3 py-2">
+          <div className="text-xs text-status-success bg-status-success-bg border border-green-200 rounded-xl px-3 py-2">
             {t('crm.staff.permissions.saved')}
           </div>
         )}

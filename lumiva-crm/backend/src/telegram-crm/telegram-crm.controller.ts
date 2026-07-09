@@ -89,7 +89,7 @@ export class TelegramCrmController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    // TODO: удаление бота
+    await this.telegramCrmService.deleteBot(user.tenantId, id);
     return { success: true };
   }
 

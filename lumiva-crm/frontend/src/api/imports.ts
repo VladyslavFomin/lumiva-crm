@@ -68,6 +68,50 @@ export async function previewSalesImport(
   return data as ImportPreviewResponse;
 }
 
+/** Ответ предпросмотра файла для рабочей области (без привязки к таблице). */
+export interface WorkspaceFileImportPreview {
+  importId: string;
+  columns: string[];
+  sample: Record<string, unknown>[];
+  totalRows: number;
+}
+
+/**
+ * Предпросмотр файла (CSV/Excel) для рабочей области — без привязки к таблице.
+ * Используется вложением в ИИ-чате: ИИ сам создаёт таблицу и переносит строки через importId.
+ * Эндпоинт: POST /custom-objects/import/preview
+ */
+export async function previewWorkspaceFileImport(
+  file: File,
+): Promise<WorkspaceFileImportPreview> {
+  const token = getAccessToken();
+  const form = new FormData();
+  form.append('file', file);
+
+  const res = await fetch(`${API_BASE}/custom-objects/import/preview`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: form,
+  });
+
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error(`Ошибка предпросмотра файла: ${res.status}`);
+  }
+
+  if (!res.ok) {
+    const msg =
+      data?.message ||
+      data?.error ||
+      `Ошибка предпросмотра файла: ${res.status} ${res.statusText}`;
+    throw new Error(msg);
+  }
+
+  return data as WorkspaceFileImportPreview;
+}
+
 /**
  * Применение импорта: подтверждаем маппинг + канал.
  * Эндпоинт предполагаемый: POST /sales/import/apply

@@ -84,13 +84,15 @@ export const AI_EMPLOYEE_PERMISSION_KEYS = [
   'create_note',
   'update_lead_status',
   'assign_lead',
-  'create_campaign',
   'draft_email',
   'send_email',
   'draft_whatsapp',
   'send_whatsapp',
   'send_telegram',
   'create_report',
+  'create_project',
+  'create_workspace_table',
+  'manage_workspace_data',
 ] as const;
 
 /** Action types where the system can perform real execution (not just "mark done"). */
@@ -99,6 +101,12 @@ export const AI_REAL_EXECUTABLE_ACTIONS = [
   'send_telegram',
   'update_lead_status',
   'assign_lead',
+  'create_project',
+  'create_workspace_table',
+  'workspace_add_record',
+  'workspace_bulk_add_records',
+  'workspace_add_field',
+  'workspace_enable_views',
 ] as const;
 
 export const AI_EMPLOYEE_APPROVAL_ACTIONS = [
@@ -108,10 +116,9 @@ export const AI_EMPLOYEE_APPROVAL_ACTIONS = [
   'update_lead_status',
   'assign_lead',
   'edit_client_data',
-  'create_campaign',
-  'bulk_send_campaign',
   'connect_integration',
   'delete_data',
+  'create_workspace_table',
 ] as const;
 
 const DEFAULT_APPROVAL_RULES = [
@@ -121,8 +128,6 @@ const DEFAULT_APPROVAL_RULES = [
   'update_lead_status',
   'assign_lead',
   'edit_client_data',
-  'create_campaign',
-  'bulk_send_campaign',
   'connect_integration',
   'delete_data',
 ];
@@ -229,12 +234,11 @@ export const AI_EMPLOYEE_ROLES: AiEmployeeRoleConfig[] = [
       'read_analytics',
       'read_sales',
       'draft_email',
-      'create_campaign',
       'create_report',
     ],
     defaultApprovalRules: DEFAULT_APPROVAL_RULES,
     systemPrompt:
-      'You are an AI Marketing Manager inside Lumiva CRM. Analyze channels, create practical campaign ideas and route risky actions through approvals.',
+      'You are an AI Marketing Manager inside Lumiva CRM. Analyze channels, provide practical campaign recommendations and route risky actions through approvals.',
   },
   {
     key: 'support_manager',

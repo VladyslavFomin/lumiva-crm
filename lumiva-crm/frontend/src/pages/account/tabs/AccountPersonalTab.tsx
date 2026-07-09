@@ -147,7 +147,7 @@ export const AccountPersonalTab: React.FC = () => {
               type="button"
               disabled={uploading}
               onClick={() => fileRef.current?.click()}
-              className="rounded-xl border border-[#222222]/25 bg-[#222222] px-4 py-2 text-xs font-semibold text-white hover:bg-black disabled:opacity-50"
+              className="btn-primary"
             >
               {uploading ? t('crm.account.personal.uploading') : t('crm.account.personal.upload')}
             </button>
@@ -205,7 +205,7 @@ export const AccountPersonalTab: React.FC = () => {
         type="button"
         onClick={() => void handleSave()}
         disabled={saving}
-        className="rounded-xl bg-[#222222] px-5 py-2.5 text-sm font-semibold text-white hover:bg-black disabled:opacity-50"
+        className="btn-primary btn-primary-lg"
       >
         {saving ? t('crm.account.personal.saving') : t('crm.account.personal.save')}
       </button>

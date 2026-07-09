@@ -2331,42 +2331,42 @@ export const ProjectsListPage: React.FC = () => {
 
         {/* Bulk hint modal */}
         {showBulkHint && selectedProjectIds.length > 0 && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 px-4">
-            <div className="relative w-full max-w-xl rounded-[12px] bg-slate-900 border border-slate-700 shadow-2xl p-6">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
+            <div className="relative w-full max-w-xl modal-panel p-6">
               <button
                 type="button"
                 onClick={() => {
                   localStorage.setItem('projects_bulk_hint_hidden', '1');
                   setShowBulkHint(false);
                 }}
-                className="absolute right-4 top-4 text-slate-400 hover:text-white text-[18px] leading-none"
+                className="absolute right-4 top-4 text-text-tertiary hover:text-[#111827] text-[18px] leading-none"
                 aria-label="close"
               >
                 ×
               </button>
               <div className="flex items-start gap-4">
-                <div className="h-12 w-12 rounded-[10px] bg-slate-800 flex items-center justify-center text-lg flex-shrink-0">
+                <div className="h-12 w-12 rounded-[10px] bg-surface-subtle border border-border-default flex items-center justify-center text-lg flex-shrink-0">
                   ⚡
                 </div>
                 <div>
-                  <div className="text-[15px] font-semibold text-white">
+                  <div className="text-[15px] font-semibold text-[#111827]">
                     {t('crm.projects.list.bulkHint.title')}
                   </div>
-                  <div className="mt-1 text-[13px] text-slate-300">
+                  <div className="mt-1 text-[13px] text-text-secondary">
                     {t('crm.projects.list.bulkHint.subtitle')}
                   </div>
                 </div>
               </div>
-              <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 text-[12px] text-slate-300">
-                <div className="flex items-center gap-2 rounded-[8px] border border-slate-700/80 bg-slate-950/70 px-3 py-2">
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 text-[12px] text-text-secondary">
+                <div className="flex items-center gap-2 rounded-[8px] border border-border-default bg-surface-subtle px-3 py-2">
                   <span>🟢</span>
                   {t('crm.projects.list.bulkHint.status')}
                 </div>
-                <div className="flex items-center gap-2 rounded-[8px] border border-slate-700/80 bg-slate-950/70 px-3 py-2">
+                <div className="flex items-center gap-2 rounded-[8px] border border-border-default bg-surface-subtle px-3 py-2">
                   <span>🗄</span>
                   {t('crm.projects.list.bulkHint.archive')}
                 </div>
-                <div className="flex items-center gap-2 rounded-[8px] border border-rose-700/80 bg-rose-950/30 px-3 py-2 text-rose-200">
+                <div className="flex items-center gap-2 rounded-[8px] border border-red-200 bg-status-error-bg px-3 py-2 text-status-error">
                   <span>🗑</span>
                   {t('crm.projects.list.bulkHint.delete')}
                 </div>
@@ -2378,7 +2378,7 @@ export const ProjectsListPage: React.FC = () => {
                     localStorage.setItem('projects_bulk_hint_hidden', '1');
                     setShowBulkHint(false);
                   }}
-                  className="px-4 py-2 rounded-[8px] bg-slate-100 text-slate-900 text-[13px] font-semibold hover:bg-white cursor-pointer"
+                  className="btn-primary btn-secondary-sm"
                 >
                   {t('crm.projects.list.bulkHint.ok')}
                 </button>

@@ -5,57 +5,67 @@ export type MarketingChannelCardTheme = {
   headerBg: string;
   monoTint: string;
   pill: string;
+  /** Буква(ы) для логобейджа в шапке карточки и модалке. */
+  logo: string;
+  /** Hex-цвет бренда — используется как фон логобейджа. */
+  brandColor: string;
 };
 
 const DEFAULT_THEME: MarketingChannelCardTheme = {
   topBorder: 'border-t-[3px] border-t-slate-700',
-  cardShadow:
-    'shadow-[0_0_0_1px_rgba(15,23,42,0.06),0_22px_55px_-28px_rgba(15,23,42,0.22)]',
-  headerBg: 'bg-gradient-to-br from-slate-500/[0.07] via-white to-slate-50/40',
+  cardShadow: 'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
+  headerBg: 'bg-gradient-to-br from-slate-500/[0.07] via-white to-white',
   monoTint: 'text-slate-600/90',
   pill: 'bg-slate-100/90 text-slate-700 border-slate-200/90',
+  logo: '·',
+  brandColor: '#555',
 };
 
 const THEMES: Record<string, MarketingChannelCardTheme> = {
   ga4: {
     topBorder: 'border-t-[3px] border-t-[#0F9D58]',
-    cardShadow:
-      'shadow-[0_0_0_1px_rgba(15,157,88,0.12),0_24px_60px_-26px_rgba(15,157,88,0.2)]',
-    headerBg: 'bg-gradient-to-br from-[#0F9D58]/[0.1] via-white to-emerald-50/35',
+    cardShadow: 'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
+    headerBg: 'bg-gradient-to-br from-[#0F9D58]/[0.08] via-white to-white',
     monoTint: 'text-emerald-800/75',
     pill: 'bg-emerald-50/95 text-emerald-900 border-emerald-200/80',
+    logo: 'A',
+    brandColor: '#0F9D58',
   },
   meta_ads: {
     topBorder: 'border-t-[3px] border-t-[#0866FF]',
-    cardShadow:
-      'shadow-[0_0_0_1px_rgba(8,102,255,0.14),0_24px_60px_-26px_rgba(8,102,255,0.22)]',
-    headerBg: 'bg-gradient-to-br from-[#0866FF]/[0.09] via-white to-blue-50/40',
+    cardShadow: 'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
+    headerBg: 'bg-gradient-to-br from-[#0866FF]/[0.07] via-white to-white',
     monoTint: 'text-blue-900/70',
     pill: 'bg-blue-50/95 text-blue-900 border-blue-200/85',
+    logo: 'M',
+    brandColor: '#0866FF',
   },
   google_ads: {
     topBorder: 'border-t-[3px] border-t-[#EA4335]',
-    cardShadow:
-      'shadow-[0_0_0_1px_rgba(234,67,53,0.12),0_24px_60px_-26px_rgba(234,67,53,0.18)]',
-    headerBg: 'bg-gradient-to-br from-[#EA4335]/[0.08] via-white to-red-50/35',
+    cardShadow: 'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
+    headerBg: 'bg-gradient-to-br from-[#EA4335]/[0.07] via-white to-white',
     monoTint: 'text-red-900/70',
     pill: 'bg-red-50/95 text-red-900 border-red-200/80',
+    logo: 'G',
+    brandColor: '#EA4335',
   },
   yandex_metrika: {
     topBorder: 'border-t-[3px] border-t-[#FC3F1D]',
-    cardShadow:
-      'shadow-[0_0_0_1px_rgba(252,63,29,0.14),0_24px_60px_-26px_rgba(252,63,29,0.2)]',
-    headerBg: 'bg-gradient-to-br from-[#FC3F1D]/[0.09] via-white to-orange-50/40',
+    cardShadow: 'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
+    headerBg: 'bg-gradient-to-br from-[#FC3F1D]/[0.07] via-white to-white',
     monoTint: 'text-orange-900/70',
     pill: 'bg-orange-50/95 text-orange-950 border-orange-200/85',
+    logo: 'Я',
+    brandColor: '#FC3F1D',
   },
   unknown: {
     topBorder: 'border-t-[3px] border-t-amber-500',
-    cardShadow:
-      'shadow-[0_0_0_1px_rgba(245,158,11,0.18),0_24px_60px_-26px_rgba(180,83,9,0.14)]',
-    headerBg: 'bg-gradient-to-br from-amber-400/[0.11] via-white to-amber-50/45',
+    cardShadow: 'shadow-[0_4px_16px_rgba(0,0,0,0.06)]',
+    headerBg: 'bg-gradient-to-br from-amber-400/[0.09] via-white to-white',
     monoTint: 'text-amber-900/65',
     pill: 'bg-amber-50/95 text-amber-950 border-amber-200/90',
+    logo: '?',
+    brandColor: '#f59e0b',
   },
 };
 

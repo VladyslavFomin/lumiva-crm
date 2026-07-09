@@ -1,6 +1,7 @@
 // src/integrations/integration-registry.service.ts
 import { Injectable } from '@nestjs/common';
 import { WooCommerceAdapter } from './woocommerce/woocommerce.adapter';
+import { ShopifyAdapter } from './shopify/shopify.adapter';
 import { ThirdPartyLinkAdapter } from './third-party-link/third-party-link.adapter';
 import type { SalesIntegrationAdapter } from './sales-integration.adapter';
 import type { IntegrationKind } from './integration-kind.enum';
@@ -11,9 +12,11 @@ export class IntegrationRegistryService {
 
   constructor(
     private readonly wooAdapter: WooCommerceAdapter,
+    private readonly shopifyAdapter: ShopifyAdapter,
     private readonly thirdPartyAdapter: ThirdPartyLinkAdapter,
   ) {
     this.register(this.wooAdapter);
+    this.register(this.shopifyAdapter);
     this.register(this.thirdPartyAdapter);
   }
 

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { EmailBulkSendModal } from './EmailBulkSendModal';
 import { postAiEmailReplySuggest } from '../../api/ai';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
@@ -334,6 +335,7 @@ export const EmailInboxPage: React.FC = () => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const rangeAnchorRef = useRef<number | null>(null);
 
+  const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
   const [composeMode, setComposeMode] = useState<'new' | 'reply'>('new');
   const [composeResetKey, setComposeResetKey] = useState(0);
@@ -1206,6 +1208,19 @@ export const EmailInboxPage: React.FC = () => {
             <Link to="/email" className={`inline-flex min-w-0 items-center justify-center whitespace-nowrap px-3 py-1.5 ${BTN_SECONDARY_LIGHT}`}>
               {t('crm.email.accounts.title')}
             </Link>
+            <button
+              type="button"
+              onClick={() => setBulkSendOpen(true)}
+              disabled={accounts.length === 0}
+              className={`inline-flex min-w-0 items-center justify-center gap-1 whitespace-nowrap ${BTN_SECONDARY_LIGHT}`}
+              title="Send bulk email campaign"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+                <path d="M1 4l7 5 7-5" />
+                <rect x="1" y="4" width="14" height="10" rx="1.5" />
+              </svg>
+              Bulk Send
+            </button>
             <button type="button" onClick={() => void loadMessages()} className={`min-w-0 whitespace-nowrap ${BTN_PRIMARY}`}>
               {t('crm.email.inbox.refresh')}
             </button>
@@ -1469,7 +1484,7 @@ export const EmailInboxPage: React.FC = () => {
                       <div className="flex min-w-0 items-center gap-2">
                         <span
                           className={`h-2 w-2 shrink-0 rounded-full ${
-                            unread ? 'bg-slate-950' : 'bg-transparent'
+                            unread ? 'bg-lumiva-accent' : 'bg-transparent'
                           }`}
                           aria-hidden
                         />
@@ -1679,6 +1694,11 @@ export const EmailInboxPage: React.FC = () => {
           </div>
         </div>
       </div>
+
+      <EmailBulkSendModal
+        open={bulkSendOpen}
+        onClose={() => setBulkSendOpen(false)}
+      />
 
       <EmailComposeWindow
         open={composeOpen}

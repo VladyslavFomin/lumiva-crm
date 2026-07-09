@@ -314,7 +314,7 @@ export const WorkspaceTablesPage: React.FC = () => {
         </div>
 
         {renaming && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/30 p-4">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4">
             <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
               <div className="text-base font-semibold text-slate-900">{t('crm.workspace.tablesList.editTable')}</div>
               <div className="mt-3 space-y-3">
@@ -353,7 +353,7 @@ export const WorkspaceTablesPage: React.FC = () => {
         )}
 
         {duplicatingObject && (
-          <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/30 p-4">
+          <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/30 p-4">
             <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl">
               <div className="text-base font-semibold text-slate-900">{t('crm.workspace.tablesList.duplicateTable')}</div>
               <div className="mt-3 space-y-3">

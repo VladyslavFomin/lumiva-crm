@@ -965,10 +965,10 @@ export const SmmPage: React.FC = () => {
             <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500 mb-1">
               {t('crm.marketingSmm.kicker')}
             </div>
-            <h1 className="text-lg md:text-xl font-semibold text-slate-50">
+            <h1 className="page-title">
               {t('crm.marketingSmm.title')}
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-2xl">
+            <p className="text-xs text-text-tertiary mt-1 max-w-2xl">
               {t('crm.marketingSmm.subtitle')}
             </p>
           </div>
@@ -1583,7 +1583,7 @@ export const SmmPage: React.FC = () => {
       </div>
 
       {integrationsOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 px-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-[95vw] sm:max-w-[90vw] lg:max-w-[80vw] max-h-[90vh] overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl flex flex-col">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -1605,7 +1605,7 @@ export const SmmPage: React.FC = () => {
             <div className="mt-5 grid gap-4 md:grid-cols-2 max-h-[70vh] overflow-y-auto pr-1">
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-semibold">
+                  <div className="h-10 w-10 rounded-full bg-lumiva-accent text-white flex items-center justify-center text-sm font-semibold">
                     M
                   </div>
                   <div>
@@ -1634,7 +1634,7 @@ export const SmmPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => handleSyncMetaNow()}
-                    className="rounded-xl border border-slate-200 bg-black px-3 py-2 text-[11px] text-white hover:bg-slate-900 disabled:opacity-60"
+                    className="btn-primary btn-secondary-sm disabled:opacity-60"
                     disabled={metaSyncLoading}
                   >
                     {metaSyncLoading
@@ -1797,7 +1797,7 @@ export const SmmPage: React.FC = () => {
 
                 <div className="rounded-2xl border border-slate-200 bg-white p-4">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center text-sm font-semibold">
+                    <div className="h-10 w-10 rounded-full bg-lumiva-accent text-white flex items-center justify-center text-sm font-semibold">
                       TT
                     </div>
                     <div>

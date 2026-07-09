@@ -70,7 +70,7 @@
       "attachedSales": "Sales import",
       "attachedWorkspaceCsv": "Workspace table",
       "removeAttachment": "Remove",
-      "attachParseError": "Could not parse the file. Use CRM sales import CSV/XML, or a CSV with a header row for a workspace table.",
+      "attachParseError": "Could not parse the file. Use CRM sales import CSV/XML, or a CSV/Excel file with a header row for a workspace table.",
       "cardsIntro": "Suggested starting points",
       "emailComposer": {
         "title": "Email to client",
@@ -179,7 +179,9 @@
           "prompt": "Checklist to prepare importing sales into CRM.",
           "tag": "Import"
         }
-      ]
+      ],
+      "workspaceImporting": "Creating the table and importing rows…",
+      "rowsShort": "rows"
     },
     "account": {
       "kicker": "Account",
@@ -606,6 +608,12 @@
       "projectsArchive": "Project archive",
       "projectsTrash": "Project trash",
       "sales": "Sales",
+      "products": "Products",
+      "productsList": "Product list",
+      "productsStock": "Stock",
+      "productsAttributes": "Attributes",
+      "productsFieldTypes": "Field types",
+      "productsCategories": "Categories",
       "salesAnalytics": "Sales analytics",
       "salesChannels": "Sales channels",
       "salesIntegrations": "Integrations",
@@ -710,7 +718,9 @@
         "openQueue": "Open queue",
         "noApprovalsWaiting": "No approvals are waiting.",
         "recentActivity": "Recent AI activity",
-        "viewLogs": "View logs"
+        "viewLogs": "View logs",
+        "hireCardTitle": "Hire a new AI",
+        "hireCardSubtitle": "10 roles: leads, sales, marketing, support, reports"
       },
       "choose": {
         "title": "Choose AI Employee",
@@ -739,7 +749,10 @@
           "language": "Language",
           "tone": "Tone of voice",
           "schedule": "Schedule",
-          "dailyReportTime": "Daily report time"
+          "dailyReportTime": "Daily report time",
+          "avatarColor": "Color",
+          "avatarStyle": "Avatar style",
+          "aiProvider": "AI provider"
         },
         "scheduleModes": {
           "manual": "Manual run only",
@@ -757,10 +770,15 @@
         "activate": "Activate AI Employee",
         "permissionGroups": {
           "read": "Read access",
-          "actions": "Actions"
+          "actions": "Actions",
+          "workspace": "Workspace & data"
         },
         "approvalRulesTitle": "Approval rules",
-        "approvalRequireBefore": "Require approval before {{action}}"
+        "approvalRequireBefore": "Require approval before {{action}}",
+        "avatarPreviewLabel": "preview",
+        "aiProviderPlatform": "Platform key (managed by admin)",
+        "editTitle": "Settings",
+        "saveChanges": "Save changes"
       },
       "languageOptions": {
         "english": "English",
@@ -818,7 +836,8 @@
         "colAction": "Action",
         "colObject": "Object",
         "colStatus": "Status",
-        "colResult": "Result"
+        "colResult": "Result",
+        "tokensLabel": "tok"
       },
       "reportsPage": {
         "title": "AI Reports",
@@ -842,7 +861,8 @@
         "create_campaign": "creating campaigns",
         "bulk_send_campaign": "bulk campaigns",
         "connect_integration": "connecting integrations",
-        "delete_data": "deleting data"
+        "delete_data": "deleting data",
+        "create_workspace_table": "creating workspace tables"
       },
       "profile": {
         "loading": "Loading AI Employee…",
@@ -869,9 +889,180 @@
         "saveApprovalRules": "Save approval rules",
         "dailyReportPreview": "Daily Report Preview",
         "noReportYet": "No report generated yet.",
-        "recentLogs": "Recent Logs"
+        "recentLogs": "Recent Logs",
+        "tabs": {
+          "overview": "Overview",
+          "assign": "Assignments & access",
+          "approvals": "Approvals",
+          "journal": "Journal",
+          "reports": "Reports"
+        },
+        "aboutSection": "What this employee does",
+        "todayStats": "Today's numbers",
+        "configSection": "Configuration",
+        "autonomySection": "Autonomy level",
+        "scheduleSection": "Schedule",
+        "saveAssignments": "Save assignments",
+        "edit": "Edit"
       },
-      "fallbackEmployee": "AI Employee"
+      "fallbackEmployee": "AI Employee",
+      "roleCatalog": {
+        "lead_manager": {
+          "title": "AI Lead Manager",
+          "shortTitle": "Lead Manager",
+          "department": "Sales",
+          "jobTitle": "AI Lead Manager",
+          "description": "Analyzes new leads, classifies priority, detects spam and prepares next steps for managers.",
+          "functions": [
+            "Hot / Warm / Cold scoring",
+            "Spam and VIP detection",
+            "Lead summaries",
+            "Manager task suggestions",
+            "Daily lead report"
+          ]
+        },
+        "sales_manager": {
+          "title": "AI Sales Manager",
+          "shortTitle": "Sales Manager",
+          "department": "Sales",
+          "jobTitle": "AI Sales Manager",
+          "description": "Helps the sales team with follow-ups, pipeline risks, client messages and daily sales reports.",
+          "functions": [
+            "Pipeline analysis",
+            "Follow-up drafts",
+            "Stuck deal detection",
+            "Task creation",
+            "Daily sales report"
+          ]
+        },
+        "marketing_manager": {
+          "title": "AI Marketing Manager",
+          "shortTitle": "Marketing Manager",
+          "department": "Marketing",
+          "jobTitle": "AI Marketing Manager",
+          "description": "Analyzes marketing activity, prepares campaign ideas, email drafts and channel recommendations.",
+          "functions": [
+            "Campaign ideas",
+            "UTM review",
+            "Email drafts",
+            "Budget recommendations",
+            "Daily marketing report"
+          ]
+        },
+        "support_manager": {
+          "title": "AI Support Manager",
+          "shortTitle": "Support Manager",
+          "department": "Support",
+          "jobTitle": "AI Support Manager",
+          "description": "Classifies support requests, drafts answers, creates tickets and escalates complex issues to people.",
+          "functions": [
+            "Request classification",
+            "FAQ answers",
+            "Ticket suggestions",
+            "Response time monitoring",
+            "Daily support report"
+          ]
+        },
+        "project_manager": {
+          "title": "AI Project Manager",
+          "shortTitle": "Project Manager",
+          "department": "Projects",
+          "jobTitle": "AI Project Manager",
+          "description": "Monitors projects, overdue tasks, risks, responsibilities and project summaries for managers.",
+          "functions": [
+            "Deadline control",
+            "Overdue task detection",
+            "Project summaries",
+            "Responsibility checks",
+            "Daily project report"
+          ]
+        },
+        "marketing_analyst": {
+          "title": "AI Marketing Analyst",
+          "shortTitle": "Marketing Analyst",
+          "department": "Marketing",
+          "jobTitle": "AI Marketing Analyst",
+          "description": "Reviews channel efficiency, CPL, CPA, ROAS and source performance where data is available.",
+          "functions": [
+            "Channel comparison",
+            "Campaign diagnostics",
+            "Budget redistribution ideas",
+            "Performance summaries",
+            "Executive analytics report"
+          ]
+        },
+        "smm_manager": {
+          "title": "AI SMM Manager",
+          "shortTitle": "SMM Manager",
+          "department": "Marketing",
+          "jobTitle": "AI SMM Manager",
+          "description": "Creates content ideas, captions, short video scripts, hashtags and content calendars.",
+          "functions": [
+            "Post ideas",
+            "Captions",
+            "Reels / Shorts scripts",
+            "Content calendars",
+            "Hashtag suggestions"
+          ]
+        },
+        "email_assistant": {
+          "title": "AI Email Assistant",
+          "shortTitle": "Email Assistant",
+          "department": "Communications",
+          "jobTitle": "AI Email Assistant",
+          "description": "Prepares email replies, follow-ups, conversation summaries and draft messages that require approval before sending.",
+          "functions": [
+            "Reply drafts",
+            "Follow-up emails",
+            "Thread summaries",
+            "Unanswered email checks",
+            "Template suggestions"
+          ]
+        },
+        "crm_analyst": {
+          "title": "AI CRM Analyst",
+          "shortTitle": "CRM Analyst",
+          "department": "Management",
+          "jobTitle": "AI CRM Analyst",
+          "description": "Analyzes CRM activity, sales, leads, tasks and process bottlenecks for leadership.",
+          "functions": [
+            "CRM health review",
+            "Bottleneck detection",
+            "Management reports",
+            "Team activity analysis",
+            "Process recommendations"
+          ]
+        },
+        "reservation_assistant": {
+          "title": "AI Reservation Assistant",
+          "shortTitle": "Reservation Assistant",
+          "department": "Reservations",
+          "jobTitle": "AI Reservation / Hospitality Assistant",
+          "description": "Handles hospitality reservation requests, official RU/TR/EN replies and booking data checks.",
+          "functions": [
+            "Reservation request summaries",
+            "Guest reply drafts",
+            "Date and room checks",
+            "Agency communication",
+            "Daily reservation report"
+          ]
+        }
+      },
+      "departments": {
+        "sales": "Sales",
+        "marketing": "Marketing",
+        "support": "Support",
+        "projects": "Projects",
+        "communications": "Communications",
+        "management": "Management",
+        "reservations": "Reservations"
+      },
+      "planBadge": {
+        "included": "Included",
+        "pro": "Available on Pro",
+        "business": "Available on Business",
+        "enterprise": "Available on Enterprise"
+      }
     },
     "settings": {
       "api": {
@@ -1937,7 +2128,7 @@
     "marketingSeo": {
       "kicker": "Marketing · SEO & content",
       "title": "SEO and site quality",
-      "subtitle": "This page shows how ready the site is to grow: speed, indexability, errors, and content structure. Some data from analytics; the rest via Search Console and PageSpeed.",
+      "subtitle": "Enter a site URL, connect Google Search Console, and run an SEO check for clicks, impressions, CTR, and average position.",
       "loading": "Loading data…",
       "status": {
         "saved": "Saved",
@@ -1961,8 +2152,8 @@
         "loadSettings": "Could not load SEO settings."
       },
       "connections": {
-        "title": "Connections",
-        "subtitle": "Set up Search Console and PageSpeed for your site.",
+        "title": "Site SEO check",
+        "subtitle": "One flow: site URL, Search Console access, and refreshed metrics.",
         "gscConnected": "GSC connected",
         "connectGsc": "Connect GSC",
         "refresh": "Refresh metrics",
@@ -2035,6 +2226,8 @@
         }
       },
       "fields": {
+        "siteUrl": "Site URL for SEO check",
+        "siteUrlHint": "The URL is saved as the Google Search Console property. If GSC uses a domain property, use sc-domain:example.com.",
         "gscPropertyUrl": "GSC property URL",
         "pageSpeedUrl": "PageSpeed URL",
         "pageSpeedApiKey": "PageSpeed API Key",
@@ -2045,6 +2238,8 @@
         }
       },
       "actions": {
+        "analyze": "Check SEO",
+        "analyzing": "Checking…",
         "save": "Save",
         "saving": "Saving…"
       },
@@ -2056,8 +2251,8 @@
         "impressions": "Impressions",
         "ctr": "CTR",
         "position": "Position",
-        "trendTitle": "Spend / Leads",
-        "trendSource": "Search",
+        "trendTitle": "Organic trend",
+        "trendSource": "Search Console",
         "legend": {
           "current": "Current period",
           "previous": "Previous period"
@@ -2071,9 +2266,9 @@
         "empty": "No data. Connect GSC and run sync."
       },
       "gscDonut": {
-        "title": "Conversions by channel",
-        "subtitle": "Lead and deal funnel",
-        "average": "network average",
+        "title": "SEO signals",
+        "subtitle": "CTR, position, and visibility",
+        "average": "average CTR",
         "labels": {
           "ctr": "CTR",
           "rank": "Rank",
@@ -2114,11 +2309,11 @@
         ]
       },
       "connect": {
-        "title": "What to connect",
+        "title": "How the check works",
         "items": [
-          "Google Search Console — indexing, errors, CTR.",
-          "PageSpeed Insights — speed and Core Web Vitals.",
-          "Analytics (GA4 / Yandex.Metrica) — behavior and conversions."
+          "Paste the site URL or GSC property.",
+          "Connect Google Search Console for data access.",
+          "Run the check — CRM pulls clicks, impressions, CTR, and positions."
         ]
       },
       "oauthCallback": {
@@ -2396,6 +2591,9 @@
       "saving": "Saving…",
       "cancel": "Cancel",
       "close": "Close",
+      "next": "Next",
+      "back": "Back",
+      "optional": "optional",
       "ok": "OK",
       "confirm": "Confirm",
       "modalNotice": "Notice",
@@ -3558,6 +3756,7 @@
       "openAutomationsScenarios": "Scenarios",
       "openAutomationsIntegrationsHint": "In scenarios, pick the connections you configure here when building triggers and actions.",
       "connectedCount": "Connected: {{count}}",
+      "notConnected": "Not connected",
       "lifecycle": {
         "live": "Live",
         "beta": "Beta",
@@ -3600,6 +3799,7 @@
       "catalogFilterAll": "All",
       "connectCatalog": "Connect",
       "viewConnectionsCount": "Connections ({{count}})",
+      "mailchimpSetupScenario": "Set up scenario",
       "catalogEmptyFilter": "Nothing matches this filter — pick another area or “All”.",
       "googleSheetsImportSettings": "Sheet import: target, preview, rows",
       "googleSheetsSettingsTitle": "Google Sheets — import settings",
@@ -3608,7 +3808,214 @@
       "googleSheetsSettingsLoadError": "Could not load the connection.",
       "googleSheetsSettingsSave": "Save",
       "googleSheetsTokenKeepPlaceholder": "Empty = keep current token",
-      "editConnectionKeys": "All connections & keys: Sales → Integrations"
+      "editConnectionKeys": "All connections & keys: Sales → Integrations",
+      "shopify": {
+        "title": "Shopify",
+        "subtitle": "Import orders from your Shopify store into CRM",
+        "errors": {
+          "missing": "Please provide shop domain and Access Token"
+        },
+        "guide": {
+          "title": "How to get an Access Token",
+          "step1": "In your Shopify admin, go to Settings → Apps and sales channels",
+          "step2": "Click «Develop apps» → «Create an app»",
+          "step3": "In «API configuration» check permissions: read_orders, read_customers, read_products",
+          "step4": "Click «Install» → copy «Admin API access token» (starts with shpat_)",
+          "permissions": "Minimum required: read_orders, read_customers. Add read_products for product info.",
+          "next": "Next: configure connection",
+          "back": "Back"
+        },
+        "form": {
+          "name": "Connection name",
+          "namePlaceholder": "My Shopify Store",
+          "domain": "Shop domain",
+          "domainHint": "e.g. my-store.myshopify.com or your custom domain",
+          "token": "Admin API Access Token",
+          "tokenHint": "Token starts with shpat_... — find it under Apps → Develop apps in your Shopify admin"
+        }
+      },
+      "zapierMake": {
+        "title": "Connect {{platform}}",
+        "subtitle": "Two-way integration: CRM ↔ {{platform}}",
+        "tabOutbound": "CRM → {{platform}}",
+        "tabInbound": "{{platform}} → CRM",
+        "outboundTitle": "Send data from CRM to {{platform}}",
+        "outboundDesc": "Provide your Catch Hook URL (Zapier) or Custom Webhook URL (Make). CRM will POST JSON there from automation triggers.",
+        "zapier": {
+          "step1": "In Zapier, create a new Zap",
+          "step2": "Choose trigger «Webhooks by Zapier → Catch Hook»",
+          "step3": "Copy the webhook URL and paste it below"
+        },
+        "make": {
+          "step1": "In Make, create a new scenario",
+          "step2": "Add module «Webhooks → Custom webhook»",
+          "step3": "Copy the webhook URL and paste it below"
+        },
+        "inboundTitle": "Receive data from {{platform}} into CRM",
+        "inboundDesc": "CRM generates a unique URL. Set it as the endpoint in your {{platform}} scenario — any JSON POST will create a lead in CRM.",
+        "inboundFieldsHint": "Fields name, email, phone, message are auto-detected from any JSON. All other fields are saved as a note on the lead.",
+        "done": {
+          "title": "Connection created",
+          "desc": "Your {{platform}} integration is ready. The inbound URL will appear on the connection card in the «Connections» tab.",
+          "findUrl": "Go to Connections → find the card → expand «Inbound webhook»."
+        },
+        "form": {
+          "name": "Connection name",
+          "outboundUrl": "Catch Hook / Custom Webhook URL ({{platform}})",
+          "outboundUrlHint": "Optional. Required only if you want to send data from CRM to {{platform}} via the «Send to {{platform}}» action.",
+          "inboundToken": "Inbound webhook token",
+          "inboundTokenHint": "Will be part of the URL. Pass it via Authorization: Bearer … header or ?token= query param when sending from {{platform}}.",
+          "leadSource": "Lead source (default)",
+          "leadSourceHint": "Value of the «Source» field for leads created through this webhook.",
+          "regenerate": "New"
+        }
+      },
+      "slack": {
+        "title": "Connect Slack",
+        "subtitle": "Automate notifications and capture leads from Slack",
+        "tabOutbound": "CRM → Slack",
+        "tabInbound": "Slack → CRM",
+        "form": {
+          "name": "Connection name"
+        },
+        "outbound": {
+          "guideTitle": "How to create a Slack Incoming Webhook",
+          "step1": "Go to api.slack.com/apps and create a new App (or use an existing one)",
+          "step2": "Enable Incoming Webhooks and click “Add New Webhook to Workspace”",
+          "step3": "Select a channel and copy the generated Webhook URL",
+          "webhookUrl": "Slack Incoming Webhook URL",
+          "webhookHint": "URL looks like: https://hooks.slack.com/services/T.../B.../..."
+        },
+        "inbound": {
+          "guideTitle": "Receive leads from Slack",
+          "guideDesc": "After saving, you will get an inbound webhook URL. Configure Slack Workflow Builder or a bot to POST to that URL to create leads in Lumiva CRM.",
+          "token": "Inbound security token",
+          "regenerate": "Regenerate",
+          "defaultSource": "Default lead source"
+        },
+        "done": {
+          "title": "Slack connected!",
+          "inboundUrl": "Inbound webhook URL (Slack → CRM):",
+          "hint": "Add this URL in Slack Workflow Builder or your bot. Include the token as a query parameter ?token=..."
+        },
+        "errors": {
+          "create": "Failed to create Slack connection"
+        }
+      },
+      "openai": {
+        "title": "Connect OpenAI",
+        "subtitle": "Use GPT-4o, o1, and other models in AI automations and employees",
+        "guide": {
+          "title": "How to get an OpenAI API key",
+          "step1": "Go to platform.openai.com and sign in",
+          "step2": "Navigate to API keys and create a new secret key",
+          "step3": "Copy the key — it starts with sk- or sk-proj-"
+        },
+        "form": {
+          "apiKey": "OpenAI API Key",
+          "model": "Default model",
+          "baseUrl": "Base URL",
+          "baseUrlHint": "Leave empty for the default OpenAI API. Set to your Azure/proxy endpoint if needed.",
+          "name": "Connection name",
+          "testKey": "Test key",
+          "testing": "Testing…"
+        },
+        "errors": {
+          "noKey": "Please enter an API key",
+          "create": "Failed to create OpenAI connection"
+        }
+      },
+      "onec": {
+        "title": "Connect 1С:Enterprise",
+        "subtitle": "Sync orders and sales from 1C HTTP Service to Lumiva CRM",
+        "guide": {
+          "title": "How to set up 1C HTTP Service",
+          "step1": "Open 1C:Enterprise and enable the HTTP Service module",
+          "step2": "Create or publish an HTTP service (e.g. named “crm”) at /hs/crm/",
+          "step3": "Ensure the service exposes /orders endpoint returning order list as JSON",
+          "step4": "Create a dedicated user with basic authentication access to the service",
+          "step5": "Enter the base URL, login, and password below",
+          "note": "The 1C server must be accessible from the Lumiva CRM server. For self-hosted setups, configure your firewall or VPN accordingly.",
+          "next": "Continue to settings"
+        },
+        "form": {
+          "baseUrl": "Base URL",
+          "baseUrlHint": "Example: http://192.168.1.1/accounting — the URL of your 1C web server",
+          "login": "Username",
+          "password": "Password",
+          "infobase": "Infobase / service name",
+          "infobaseHint": "Used as /hs/{name}/ (default: crm)",
+          "servicePath": "Custom service path",
+          "name": "Connection name"
+        },
+        "errors": {
+          "missing": "Please fill in URL, username and password",
+          "create": "Failed to create 1C connection"
+        }
+      },
+      "sap": {
+        "title": "Connect SAP",
+        "subtitle": "Receive events from SAP ERP / Business One into Lumiva CRM leads",
+        "guide": {
+          "title": "How to configure SAP webhook",
+          "step1": "In the next step you will get an Inbound Webhook URL",
+          "step2": "In SAP, configure an outbound webhook or iDoc to POST to that URL",
+          "step3": "Set the security token (X-SAP-Token header or ?token= query param)",
+          "step4": "Each incoming event creates or updates a lead in Lumiva CRM",
+          "next": "Continue to settings"
+        },
+        "form": {
+          "apiKey": "Security token (X-SAP-Token)",
+          "regenerate": "Generate",
+          "apiKeyHint": "This token must be sent in the X-SAP-Token header or ?token= parameter by SAP",
+          "sapUrl": "SAP API URL",
+          "sapUrlHint": "Optional — used for connection test ping",
+          "defaultSource": "Default lead source",
+          "name": "Connection name"
+        },
+        "done": {
+          "title": "SAP connection created!",
+          "inboundUrl": "Inbound URL (configure in SAP):",
+          "tokenLabel": "Security token:",
+          "hint": "Set the inbound URL and security token in your SAP outbound channel settings."
+        },
+        "errors": {
+          "noKey": "Please set a security token",
+          "create": "Failed to create SAP connection"
+        }
+      },
+      "jira": {
+        "title": "Connect Jira",
+        "subtitle": "Create Jira issues from CRM tasks and receive status updates",
+        "guide": {
+          "title": "How to connect Jira Cloud",
+          "step1": "Go to id.atlassian.com → Security → API tokens",
+          "step2": "Create a new API token and copy it",
+          "step3": "Enter your Jira URL (e.g. https://company.atlassian.net)",
+          "step4": "Optionally, set up a Jira webhook pointing to the Inbound URL shown after saving",
+          "next": "Continue to settings"
+        },
+        "form": {
+          "jiraUrl": "Jira URL",
+          "email": "Atlassian account email",
+          "apiToken": "API token",
+          "apiTokenHint": "Create at id.atlassian.com → Security → API tokens",
+          "projectKey": "Default project key",
+          "inboundToken": "Inbound webhook token",
+          "inboundTokenHint": "Add to Jira webhook URL: ?token=...",
+          "regenerate": "Generate",
+          "name": "Connection name"
+        },
+        "done": {
+          "title": "Jira connected!",
+          "inboundUrl": "Inbound webhook URL (for Jira Project Settings → Webhooks):",
+          "hint": "In Jira: Project Settings → Webhooks → Create. Events: Issue created/updated."
+        },
+        "errors": {
+          "missing": "Please fill in Jira URL, email and API token",
+          "create": "Failed to create Jira connection"
+        }
+      }
     },
     "salesIntegrations": {
       "kicker": "Sales integrations",
@@ -3922,6 +4329,9 @@
           "amocrmInboundUrlTitle": "amoCRM webhook URL",
           "amocrmInboundUrlHint": "In amoMarket → Webhooks, set this address. We recommend ?secret= in the URL and the same secret below.",
           "amocrmInboundUrlMissingEnv": "Public webhook URL is not available yet — ask your administrator to verify API settings.",
+          "zapierMakeInboundTitle": "Inbound webhook ({{platform}} → CRM)",
+          "zapierMakeInboundHint": "Add this URL to the HTTP or Webhooks module in your {{platform}} scenario. A POST request will automatically create a lead in CRM.",
+          "zapierMakeCopyUrl": "Copy URL",
           "siteFormInboundUrlTitle": "Website form URL (WordPress / CF7)",
           "siteFormInboundUrlHint": "Set this URL in your form plugin or “CF7 to Webhook” as the POST endpoint. If you configured a secret on the connection, append the same ?secret= value.",
           "siteFormInboundUrlMissingEnv": "Public form URL is not available yet — ask your administrator to verify API settings.",
@@ -4340,6 +4750,7 @@
           "pickPlaceholder": "— select —",
           "pickEmailAccount": "— choose account —",
           "pickEmailTemplate": "— no template —",
+          "createEmailTemplate": "Create template",
           "subjectPlaceholder": "Subject",
           "emailBodyPlaceholder": "Email body…",
           "slackMessagePlaceholder": "Slack message",
@@ -4500,7 +4911,8 @@
           "NOTE_CREATED": "Note created",
           "CUSTOM_OBJECT_RECORD_CREATED": "Record created (custom object)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Record updated (custom object)",
-          "CUSTOM_OBJECT_STATUS_CHANGED": "Record status changed (custom object)"
+          "CUSTOM_OBJECT_STATUS_CHANGED": "Record status changed (custom object)",
+          "SHOPIFY_PAYMENT_RECEIVED": "Shopify Payment Received"
         },
         "report": {
           "type": "Report type",
@@ -4863,7 +5275,9 @@
           "assign_user": "Assign user",
           "assign_task": "Assign task",
           "remove_tag": "Remove tag",
-          "send_notification": "Push notification"
+          "send_notification": "Push notification",
+          "create_jira_issue": "Create Jira Issue",
+          "shopify_payment_received": "Shopify Payment Received"
         },
         "openMarketingIntegrationsPage": "Marketing · integrations",
         "errors": {
@@ -4898,6 +5312,12 @@
             "name": "WooCommerce",
             "description": "Orders and payments — import and link to CRM sales.",
             "linkLabel": "Sales · integrations",
+            "nextStep": ""
+          },
+          "sms": {
+            "name": "SMS",
+            "description": "Send SMS notifications from automation scenarios via Twilio, SMSC, or SMS.RU.",
+            "linkLabel": "",
             "nextStep": ""
           },
           "marketing_api": {
@@ -4961,10 +5381,22 @@
             "nextStep": "Scenario → “HubSpot (CRM API)”."
           },
           "zapier": {
-            "name": "Zapier / Make",
-            "description": "Send JSON to a Catch Hook; logic continues in Zapier or Make.",
+            "name": "Zapier",
+            "description": "Two-way integration: CRM sends data to Zapier Catch Hook, and Zapier can create leads in CRM via inbound webhook.",
             "linkLabel": "",
-            "nextStep": "Scenario → “Zapier / Catch Hook”."
+            "nextStep": "Connect → set Outbound URL and Inbound Token → copy URL from the connection card."
+          },
+          "make": {
+            "name": "Make (Integromat)",
+            "description": "Two-way integration: CRM sends data to Make Custom Webhook, and Make can create leads in CRM via inbound webhook.",
+            "linkLabel": "",
+            "nextStep": "Connect → set Outbound URL and Inbound Token → copy URL from the connection card."
+          },
+          "shopify": {
+            "name": "Shopify",
+            "description": "Import orders from Shopify into the CRM sales module. Automatically creates leads from customer emails.",
+            "linkLabel": "",
+            "nextStep": "Connect → enter shop domain and Access Token → sync."
           },
           "google_ads": {
             "name": "Google Ads",
@@ -5207,8 +5639,24 @@
           "leads-analytics": "Lead analytics",
           "sales-analytics": "Sales analytics",
           "profile-completion": "Complete your profile",
-          "learn-inspire": "Learn & get inspired"
+          "learn-inspire": "Learn & get inspired",
+          "funnel_today": "Today's Funnel",
+          "lead_sources_week": "Lead Sources (7 days)",
+          "recent_deals": "Recent Deals",
+          "birthdays": "Birthdays This Week"
         },
+        "funnelToday": "Today's Funnel",
+        "funnelTodayEmpty": "No leads today",
+        "funnelTodayTotal": "Total: {{count}}",
+        "leadSourcesWeek": "Lead Sources (7 days)",
+        "leadSourcesWeekSub": "Last 7 days",
+        "leadSourcesWeekEmpty": "No lead source data",
+        "recentDeals": "Recent Deals",
+        "recentDealsEmpty": "No deals yet",
+        "recentDealsFallbackName": "Sale",
+        "birthdays": "Birthdays This Week",
+        "birthdaysEmpty": "No birthdays this week",
+        "birthdaysUnknown": "Unknown",
         "addBlockHint": "metrics, reports, widgets from other pages"
       },
       "leadsTimeline": {
@@ -6656,6 +7104,7 @@
       "permissions": {
         "contacts": "Contacts",
         "companies": "Companies",
+        "products": "Products",
         "email": "Email",
         "marketing": "Marketing",
         "tools_automation": "Automation",
@@ -6669,6 +7118,227 @@
         "hint": {
           "staff": "Staff management, invites",
           "settings": "Company settings, API, integrations"
+        }
+      }
+    },
+    "products": {
+      "list": {
+        "title": "Products",
+        "subtitle": "Product catalog, stock, and field settings.",
+        "searchPlaceholder": "Search by name or SKU…",
+        "addButton": "Add product",
+        "importButton": "Import",
+        "exportButton": "Export",
+        "exportCsv": "Export CSV",
+        "exportXlsx": "Export XLSX",
+        "filters": {
+          "allStatuses": "All statuses",
+          "allCategories": "All categories",
+          "variableOnly": "Variable only"
+        },
+        "columns": {
+          "name": "Name",
+          "sku": "SKU",
+          "category": "Category",
+          "status": "Status",
+          "price": "Price",
+          "quantity": "Stock",
+          "variable": "Variable",
+          "actions": "Actions"
+        },
+        "empty": "No products yet",
+        "lowStockBadge": "Low stock",
+        "deleteConfirm": "Delete this product?",
+        "duplicateButton": "Duplicate",
+        "errors": {
+          "loadFailed": "Failed to load products",
+          "deleteFailed": "Failed to delete product",
+          "duplicateFailed": "Failed to duplicate product"
+        }
+      },
+      "status": {
+        "active": "Active",
+        "draft": "Draft",
+        "archived": "Archived",
+        "out_of_stock": "Out of stock"
+      },
+      "form": {
+        "newTitle": "New product",
+        "editTitle": "Edit product",
+        "backToList": "Back to products",
+        "fields": {
+          "name": "Name",
+          "sku": "SKU",
+          "description": "Description",
+          "category": "Category",
+          "categoryPlaceholder": "— No category",
+          "status": "Status",
+          "price": "Price",
+          "costPrice": "Cost price",
+          "currency": "Currency",
+          "unit": "Unit",
+          "lowStockThreshold": "Low stock threshold",
+          "externalId": "External ID"
+        },
+        "variable": {
+          "label": "Variable product",
+          "hint": "The product has variants (e.g. color and size) — each with its own stock and, optionally, its own price and SKU."
+        },
+        "variants": {
+          "title": "Variants",
+          "attributesLabel": "Variant attributes",
+          "attributesHint": "Choose attributes (e.g. Color, Size) — combinations are generated automatically.",
+          "generateButton": "Generate variants",
+          "empty": "No variants yet",
+          "table": {
+            "combination": "Combination",
+            "sku": "SKU",
+            "quantity": "Stock",
+            "priceOverride": "Price override",
+            "active": "Active"
+          }
+        },
+        "customFields": {
+          "title": "Additional fields",
+          "empty": "No additional fields configured — add them on the Field Types page."
+        },
+        "actions": {
+          "create": "Create",
+          "save": "Save",
+          "cancel": "Cancel",
+          "delete": "Delete",
+          "duplicate": "Duplicate"
+        },
+        "errors": {
+          "nameRequired": "Product name is required",
+          "loadFailed": "Failed to load product",
+          "saveFailed": "Failed to save product",
+          "deleteFailed": "Failed to delete product"
+        }
+      },
+      "attributes": {
+        "title": "Attributes",
+        "subtitle": "Product variant attributes — e.g. Color, Size.",
+        "addButton": "Add attribute",
+        "nameLabel": "Attribute name",
+        "namePlaceholder": "E.g. Color",
+        "valuesTitle": "Values",
+        "addValueLabel": "New value",
+        "addValueButton": "Add value",
+        "valueLabel": "Value",
+        "colorLabel": "Color (optional)",
+        "deleteConfirm": "Delete this attribute?",
+        "deleteValueConfirm": "Delete this value?",
+        "empty": "No attributes yet",
+        "errors": {
+          "loadFailed": "Failed to load attributes",
+          "saveFailed": "Failed to save attribute"
+        }
+      },
+      "fieldTypes": {
+        "title": "Field types",
+        "subtitle": "Additional product card fields — an ACF-like builder.",
+        "addButton": "Add field",
+        "table": {
+          "label": "Label",
+          "type": "Type",
+          "required": "Required",
+          "width": "Width",
+          "actions": "Actions"
+        },
+        "modal": {
+          "labelField": "Field label",
+          "typeField": "Field type",
+          "requiredField": "Required field",
+          "widthField": "Width",
+          "descriptionField": "Helper text under the field",
+          "optionsField": "Options",
+          "addOption": "Add option",
+          "optionValue": "Value",
+          "optionLabel": "Label",
+          "showInList": "Show in products list",
+          "showInQuickEdit": "Show in quick edit",
+          "save": "Save",
+          "cancel": "Cancel"
+        },
+        "types": {
+          "text": "Text",
+          "textarea": "Multiline text",
+          "number": "Number",
+          "date": "Date",
+          "datetime": "Date and time",
+          "boolean": "Switch",
+          "select": "Select (single)",
+          "multiselect": "Select (multiple)",
+          "radio": "Radio buttons",
+          "url": "URL",
+          "media": "Image/file",
+          "gallery": "Gallery"
+        },
+        "deleteConfirm": "Delete this field?",
+        "empty": "No additional fields yet",
+        "errors": {
+          "loadFailed": "Failed to load fields",
+          "saveFailed": "Failed to save field"
+        },
+        "editButton": "Edit"
+      },
+      "stock": {
+        "title": "Stock",
+        "subtitle": "Product and variant stock levels.",
+        "searchPlaceholder": "Search by name or SKU…",
+        "lowStockOnly": "Low stock only",
+        "columns": {
+          "product": "Product",
+          "sku": "SKU",
+          "variant": "Variant",
+          "quantity": "Stock",
+          "threshold": "Threshold",
+          "actions": "Actions"
+        },
+        "adjustButton": "Adjust",
+        "adjustModal": {
+          "title": "Adjust stock",
+          "deltaLabel": "Change (+/-)",
+          "deltaHint": "Positive number for stock in, negative for stock out.",
+          "reasonLabel": "Reason",
+          "save": "Save",
+          "cancel": "Cancel"
+        },
+        "empty": "No products in stock",
+        "errors": {
+          "loadFailed": "Failed to load stock",
+          "adjustFailed": "Failed to adjust stock"
+        }
+      },
+      "categories": {
+        "title": "Categories",
+        "addButton": "Add category",
+        "nameLabel": "Category name",
+        "namePlaceholder": "E.g. Electronics",
+        "deleteConfirm": "Delete this category? Products will remain uncategorized.",
+        "empty": "No categories yet"
+      },
+      "import": {
+        "title": "Import products",
+        "subtitle": "Upload an Excel or CSV file with products.",
+        "dropHint": "Drag a file here or click to choose",
+        "chooseFile": "Choose file",
+        "back": "Back",
+        "mappingTitle": "Column mapping",
+        "columnHeader": "File column",
+        "fieldHeader": "Product field",
+        "updateExistingLabel": "Update existing products (by SKU)",
+        "applyButton": "Import",
+        "applying": "Importing…",
+        "resultTitle": "Import complete",
+        "resultCreated": "Products created: {{count}}",
+        "resultUpdated": "Products updated: {{count}}",
+        "resultErrors": "Errors: {{count}}",
+        "close": "Close",
+        "errors": {
+          "previewFailed": "Failed to read file",
+          "applyFailed": "Import failed"
         }
       }
     }

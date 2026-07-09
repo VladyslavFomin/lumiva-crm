@@ -24,12 +24,17 @@ export class CustomObjectImportSession {
   @JoinColumn({ name: 'tenantId' })
   tenant: Tenant;
 
-  @Column({ type: 'uuid' })
-  objectId: string;
+  /**
+   * Nullable so a session can exist before a target table is chosen — the AI chat previews
+   * an attached spreadsheet first, then "adopts" the session into a table once one exists
+   * (either picked or just created via crm_workspace_create_table).
+   */
+  @Column({ type: 'uuid', nullable: true })
+  objectId: string | null;
 
-  @ManyToOne(() => CustomObject, { onDelete: 'CASCADE' })
+  @ManyToOne(() => CustomObject, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'objectId' })
-  object: CustomObject;
+  object: CustomObject | null;
 
   @Column({ type: 'varchar', length: 255, nullable: true })
   originalFileName: string | null;
