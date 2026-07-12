@@ -120,9 +120,15 @@ import { CompanyTasksBoardPage } from '../pages/companies/CompanyTasksBoardPage'
 import { ProductsListPage } from '../pages/products/ProductsListPage';
 import { ProductFormPage } from '../pages/products/ProductFormPage';
 import { ProductAttributesPage } from '../pages/products/ProductAttributesPage';
+import { ProductCategoriesPage } from '../pages/products/ProductCategoriesPage';
 import { ProductFieldTypesPage } from '../pages/products/ProductFieldTypesPage';
 import { ProductStockPage } from '../pages/products/ProductStockPage';
+import { ProductLocationsPage } from '../pages/products/ProductLocationsPage';
+import { ProductFeedsPage } from '../pages/products/ProductFeedsPage';
+import { ProductWebhooksPage } from '../pages/products/ProductWebhooksPage';
+import { ProductModerationQueuePage } from '../pages/products/ProductModerationQueuePage';
 import { ProductImportPage } from '../pages/products/ProductImportPage';
+import { ProductLabelsPrintPage } from '../pages/products/ProductLabelsPrintPage';
 import { AutomationsPage as AutomationsPageNew } from '../pages/automations/AutomationsPage';
 import { IntegrationsHubPage } from '../pages/integrations/IntegrationsHubPage';
 import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
@@ -813,6 +819,14 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/products/categories"
+          element={
+            <ProtectedRoute>
+              <ProductCategoriesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/products/attributes"
           element={
             <ProtectedRoute>
@@ -837,10 +851,50 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/products/locations"
+          element={
+            <ProtectedRoute>
+              <ProductLocationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/feeds"
+          element={
+            <ProtectedRoute>
+              <ProductFeedsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/webhooks"
+          element={
+            <ProtectedRoute>
+              <ProductWebhooksPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/moderation"
+          element={
+            <ProtectedRoute>
+              <ProductModerationQueuePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/products/import"
           element={
             <ProtectedRoute>
               <ProductImportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/print-labels"
+          element={
+            <ProtectedRoute>
+              <ProductLabelsPrintPage />
             </ProtectedRoute>
           }
         />

@@ -4,16 +4,27 @@ import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
-import { fetchProductStock, adjustProductStock, type ProductStockRow } from '../../api/products';
+import { ProductsSubnav } from './ProductsSubnav';
+import {
+  fetchProductStock,
+  adjustProductStock,
+  fetchProductLocations,
+  transferProductStock,
+  type ProductStockRow,
+  type ProductLocation,
+} from '../../api/products';
+import './products-design.css';
 
-const INK = '#222';
-const FG3 = '#888';
-const FG4 = '#b5b5b5';
-const LINE = '#e7e7e7';
-const BG_MUTED = '#fafafa';
+const I = {
+  search: <><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.5-4.5" /></>,
+  box: <><path d="M21 8l-9-5-9 5 9 5 9-5z" /><path d="M3 8v8l9 5 9-5V8" /><path d="M12 13v8" /></>,
+};
 
-const inpCls =
-  'px-3 py-2 text-[13px] rounded-[10px] border border-[#e7e7e7] bg-white outline-none focus:border-[#222] transition-colors placeholder:text-[#b5b5b5] text-[#222]';
+const Icon: React.FC<{ d: React.ReactNode; size?: number }> = ({ d, size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round">
+    {d}
+  </svg>
+);
 
 export const ProductStockPage: React.FC = () => {
   const { t } = useTranslation();
@@ -21,17 +32,35 @@ export const ProductStockPage: React.FC = () => {
   const { showAlert } = useAlertModal();
 
   const [rows, setRows] = useState<ProductStockRow[]>([]);
+  const [locations, setLocations] = useState<ProductLocation[]>([]);
+  const [locationFilter, setLocationFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [lowStockOnly, setLowStockOnly] = useState(false);
   const [adjustTarget, setAdjustTarget] = useState<ProductStockRow | null>(null);
   const [delta, setDelta] = useState('');
   const [reason, setReason] = useState('');
+  const [adjustLocationId, setAdjustLocationId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<ProductStockRow | null>(null);
+  const [transferFrom, setTransferFrom] = useState('');
+  const [transferTo, setTransferTo] = useState('');
+  const [transferQty, setTransferQty] = useState('');
+  const [transferReason, setTransferReason] = useState('');
+
+  useEffect(() => {
+    fetchProductLocations()
+      .then((locs) => {
+        setLocations(locs);
+        const def = locs.find((l) => l.isDefault);
+        if (def) setAdjustLocationId(def.id);
+      })
+      .catch(() => {});
+  }, []);
 
   const load = () => {
     setLoading(true);
-    fetchProductStock({ search: search || undefined, lowStockOnly })
+    fetchProductStock({ search: search || undefined, lowStockOnly, locationId: locationFilter || undefined })
       .then(setRows)
       .catch((e) => showAlert(e.message || t('crm.products.stock.errors.loadFailed'), { variant: 'error' }))
       .finally(() => setLoading(false));
@@ -40,12 +69,16 @@ export const ProductStockPage: React.FC = () => {
   useEffect(() => {
     const timer = setTimeout(load, 250);
     return () => clearTimeout(timer);
-  }, [search, lowStockOnly]);
+  }, [search, lowStockOnly, locationFilter]);
 
   const openAdjust = (row: ProductStockRow) => {
     setAdjustTarget(row);
     setDelta('');
     setReason('');
+    if (!adjustLocationId) {
+      const def = locations.find((l) => l.isDefault);
+      if (def) setAdjustLocationId(def.id);
+    }
   };
 
   const handleAdjustSave = async () => {
@@ -57,6 +90,7 @@ export const ProductStockPage: React.FC = () => {
       await adjustProductStock({
         productId: adjustTarget.productId,
         variantId: adjustTarget.variantId,
+        locationId: adjustLocationId || undefined,
         delta: d,
         reason: reason || undefined,
       });
@@ -69,80 +103,163 @@ export const ProductStockPage: React.FC = () => {
     }
   };
 
+  const openTransfer = (row: ProductStockRow) => {
+    setTransferTarget(row);
+    setTransferFrom(row.locations[0]?.locationId || '');
+    setTransferTo('');
+    setTransferQty('');
+    setTransferReason('');
+  };
+
+  const handleTransferSave = async () => {
+    if (!transferTarget) return;
+    const qty = Number(transferQty);
+    if (!transferFrom || !transferTo || transferFrom === transferTo || !Number.isFinite(qty) || qty <= 0) return;
+    setSaving(true);
+    try {
+      await transferProductStock({
+        productId: transferTarget.productId,
+        variantId: transferTarget.variantId,
+        fromLocationId: transferFrom,
+        toLocationId: transferTo,
+        quantity: qty,
+        reason: transferReason || undefined,
+      });
+      setTransferTarget(null);
+      load();
+    } catch (err: any) {
+      showAlert(err.message || t('crm.products.stock.errors.transferFailed'), { variant: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const totalQty = rows.reduce((s, r) => s + r.quantity, 0);
+  const lowCount = rows.filter((r) => r.isLow && r.quantity > 0).length;
+  const outCount = rows.filter((r) => r.quantity === 0).length;
+
   return (
     <MainLayout>
-      <div style={{ color: INK }}>
-        <div style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 20, marginBottom: 24 }}>
-          <button
-            type="button"
-            onClick={() => navigate('/products')}
-            style={{ fontSize: 11, color: FG3, letterSpacing: '0.06em', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            ← {t('crm.products.list.title')}
-          </button>
-          <h1 style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', marginTop: 10 }}>{t('crm.products.stock.title')}</h1>
-          <div style={{ fontSize: 13, color: FG3, marginTop: 6 }}>{t('crm.products.stock.subtitle')}</div>
+      <div className="px-scope">
+        <div className="px-head">
+          <div>
+            <div className="kicker"><span className="dot" />{t('crm.products.list.title')}</div>
+            <h1>{t('crm.products.stock.title')}</h1>
+            <p className="sub">{t('crm.products.stock.subtitle')}</p>
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginBottom: 18, flexWrap: 'wrap', alignItems: 'center' }}>
-          <input
-            className={inpCls}
-            style={{ flex: '1 1 240px', minWidth: 200 }}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t('crm.products.stock.searchPlaceholder') || ''}
-          />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: FG3 }}>
+        <ProductsSubnav active="stock" />
+
+        <div className="px-kpis">
+          <div className="px-kpi">
+            <div className="l">{t('crm.products.stock.kpis.positions')}</div>
+            <div className="v">{rows.length}</div>
+            <div className="d">{t('crm.products.stock.kpis.positionsHint')}</div>
+          </div>
+          <div className="px-kpi">
+            <div className="l">{t('crm.products.stock.kpis.totalQty')}</div>
+            <div className="v">{totalQty}</div>
+            <div className="d">{t('crm.products.stock.kpis.totalQtyHint')}</div>
+          </div>
+          <div className="px-kpi">
+            <div className="l">{t('crm.products.stock.kpis.low')}</div>
+            <div className="v" style={{ color: lowCount ? '#c08319' : undefined }}>{lowCount}</div>
+            <div className="d warn">{lowCount ? t('crm.products.stock.kpis.lowHintWarn') : t('crm.products.stock.kpis.lowHintOk')}</div>
+          </div>
+          <div className="px-kpi">
+            <div className="l">{t('crm.products.stock.kpis.out')}</div>
+            <div className="v" style={{ color: outCount ? '#cc2f47' : undefined }}>{outCount}</div>
+            <div className="d bad">{outCount ? t('crm.products.stock.kpis.outHintBad') : t('crm.products.stock.kpis.outHintOk')}</div>
+          </div>
+        </div>
+
+        <div className="px-toolbar">
+          <div className="tb-search" style={{ width: 240 }}>
+            <Icon d={I.search} size={13} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t('crm.products.stock.searchPlaceholder') || ''} />
+          </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--fg-3)' }}>
             <input type="checkbox" checked={lowStockOnly} onChange={(e) => setLowStockOnly(e.target.checked)} />
             {t('crm.products.stock.lowStockOnly')}
           </label>
+          {locations.length > 1 && (
+            <select
+              className="ai-select"
+              style={{ width: 'auto', fontSize: 12.5 }}
+              value={locationFilter}
+              onChange={(e) => setLocationFilter(e.target.value)}
+            >
+              <option value="">{t('crm.products.stock.allLocations')}</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          )}
         </div>
 
         {loading ? (
-          <div className="py-16 text-center text-[13px]" style={{ color: FG4 }}>{t('crm.common.loading')}</div>
+          <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.common.loading')}</div>
         ) : rows.length === 0 ? (
-          <div className="py-16 text-center text-[13px]" style={{ color: FG4 }}>{t('crm.products.stock.empty')}</div>
+          <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.stock.empty')}</div>
         ) : (
-          <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <div className="wh-table-wrap">
+            <table className="wh-table">
               <thead>
-                <tr style={{ background: BG_MUTED, borderBottom: `1px solid ${LINE}` }}>
-                  {['product', 'sku', 'variant', 'quantity', 'threshold', 'actions'].map((c) => (
-                    <th key={c} style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, letterSpacing: '0.1em', textTransform: 'uppercase', color: FG3 }}>
-                      {t(`crm.products.stock.columns.${c}`)}
-                    </th>
-                  ))}
+                <tr>
+                  <th>{t('crm.products.stock.columns.product')}</th>
+                  <th>{t('crm.products.stock.columns.variant')}</th>
+                  {locations.length > 1 && !locationFilter && <th>{t('crm.products.stock.columns.locations')}</th>}
+                  <th className="r">{t('crm.products.stock.columns.quantity')}</th>
+                  <th className="r">{t('crm.products.stock.columns.threshold')}</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={`${r.productId}-${r.variantId || 'base'}`} style={{ borderBottom: `1px solid ${LINE}` }}>
-                    <td style={{ padding: '10px 14px', fontWeight: 500 }}>
-                      <button
-                        type="button"
-                        onClick={() => navigate(`/products/${r.productId}`)}
-                        style={{ background: 'none', border: 'none', padding: 0, color: INK, cursor: 'pointer', fontWeight: 500, textDecoration: 'underline dotted' }}
-                      >
-                        {r.productName}
-                      </button>
+                  <tr key={`${r.productId}-${r.variantId || 'base'}`} className="row">
+                    <td>
+                      <div className="wh-cell-name">
+                        <div className="pr-thumb"><Icon d={I.box} size={15} /></div>
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/products/${r.productId}`)}
+                            style={{ background: 'none', border: 'none', padding: 0, color: 'var(--ink)', cursor: 'pointer', fontWeight: 500, textAlign: 'left' }}
+                          >
+                            {r.productName}
+                          </button>
+                          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--fg-3)', marginTop: 2 }}>{r.sku || '—'}</div>
+                        </div>
+                      </div>
                     </td>
-                    <td style={{ padding: '10px 14px', color: FG3, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}>{r.sku || '—'}</td>
-                    <td style={{ padding: '10px 14px', color: FG3 }}>{r.variantLabel || '—'}</td>
-                    <td style={{ padding: '10px 14px' }}>
-                      {r.quantity}
-                      {r.isLow && (
-                        <span style={{ marginLeft: 8, padding: '2px 8px', borderRadius: 999, fontSize: 10, background: '#fbecef', color: '#9a1f31' }}>
-                          {t('crm.products.list.lowStockBadge')}
-                        </span>
+                    <td>{r.variantLabel ? <span className="wh-loc">{r.variantLabel}</span> : '—'}</td>
+                    {locations.length > 1 && !locationFilter && (
+                      <td>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                          {r.locations.filter((l) => l.quantity > 0).map((l) => (
+                            <span
+                              key={l.locationId}
+                              style={{ fontSize: 10, padding: '2px 6px', borderRadius: 999, background: 'var(--bg-muted)', border: '1px solid var(--line-2)', color: 'var(--fg-3)' }}
+                            >
+                              {l.locationName}: {l.quantity}
+                            </span>
+                          ))}
+                          {!r.locations.some((l) => l.quantity > 0) && <span style={{ fontSize: 11, color: 'var(--fg-4)' }}>—</span>}
+                        </div>
+                      </td>
+                    )}
+                    <td className="r">
+                      <span style={{ color: r.quantity === 0 ? '#cc2f47' : r.isLow ? '#c08319' : 'var(--ink)', fontWeight: 600 }}>{r.quantity}</span>
+                    </td>
+                    <td className="r" style={{ color: 'var(--fg-3)' }}>{r.lowStockThreshold ?? '—'}</td>
+                    <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      {locations.length > 1 && (
+                        <button type="button" className="tb-icon-btn" onClick={() => openTransfer(r)} style={{ marginRight: 6 }}>
+                          {t('crm.products.stock.transferButton')}
+                        </button>
                       )}
-                    </td>
-                    <td style={{ padding: '10px 14px', color: FG3 }}>{r.lowStockThreshold ?? '—'}</td>
-                    <td style={{ padding: '10px 14px' }}>
-                      <button
-                        type="button"
-                        onClick={() => openAdjust(r)}
-                        style={{ padding: '6px 14px', fontSize: 12, borderRadius: 8, border: `1px solid ${LINE}`, background: '#fff', color: FG3, cursor: 'pointer' }}
-                      >
+                      <button type="button" className="tb-icon-btn" onClick={() => openAdjust(r)}>
                         {t('crm.products.stock.adjustButton')}
                       </button>
                     </td>
@@ -154,56 +271,90 @@ export const ProductStockPage: React.FC = () => {
         )}
 
         {adjustTarget && (
-          <div
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}
-            onClick={() => setAdjustTarget(null)}
-          >
-            <div
-              style={{ background: '#fff', borderRadius: 14, padding: 24, width: '92%', maxWidth: 420 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 4 }}>{t('crm.products.stock.adjustModal.title')}</div>
-              <div style={{ fontSize: 12, color: FG3, marginBottom: 16 }}>
+          <div className="pr-cat-modal-back" onClick={() => setAdjustTarget(null)}>
+            <div className="pr-cat-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+              <h3>{t('crm.products.stock.adjustModal.title')}</h3>
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: -8, marginBottom: 16 }}>
                 {adjustTarget.productName}{adjustTarget.variantLabel ? ` · ${adjustTarget.variantLabel}` : ''}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: FG3, marginBottom: 6 }}>
-                    {t('crm.products.stock.adjustModal.deltaLabel')}
-                  </label>
-                  <input
-                    type="number"
-                    className={inpCls}
-                    style={{ width: '100%' }}
-                    value={delta}
-                    onChange={(e) => setDelta(e.target.value)}
-                    autoFocus
-                  />
-                  <div style={{ fontSize: 11, color: FG4, marginTop: 4 }}>{t('crm.products.stock.adjustModal.deltaHint')}</div>
+              {locations.length > 1 && (
+                <div className="ai-field">
+                  <label className="ai-label">{t('crm.products.stock.adjustModal.locationLabel')}</label>
+                  <select className="ai-select" value={adjustLocationId} onChange={(e) => setAdjustLocationId(e.target.value)}>
+                    {locations.map((l) => (
+                      <option key={l.id} value={l.id}>{l.name}</option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: FG3, marginBottom: 6 }}>
-                    {t('crm.products.stock.adjustModal.reasonLabel')}
-                  </label>
-                  <input className={inpCls} style={{ width: '100%' }} value={reason} onChange={(e) => setReason(e.target.value)} />
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 6 }}>
-                  <button
-                    type="button"
-                    onClick={() => setAdjustTarget(null)}
-                    style={{ padding: '8px 16px', fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: '#fff', color: FG3, cursor: 'pointer' }}
-                  >
-                    {t('crm.products.stock.adjustModal.cancel')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleAdjustSave}
-                    disabled={saving || !delta || Number(delta) === 0}
-                    style={{ padding: '8px 20px', fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: '#fff', cursor: 'pointer', opacity: saving || !delta || Number(delta) === 0 ? 0.6 : 1 }}
-                  >
-                    {t('crm.products.stock.adjustModal.save')}
-                  </button>
-                </div>
+              )}
+              <div className="ai-field">
+                <label className="ai-label">{t('crm.products.stock.adjustModal.deltaLabel')}</label>
+                <input type="number" className="ai-input" value={delta} onChange={(e) => setDelta(e.target.value)} autoFocus />
+                <div className="ai-hint">{t('crm.products.stock.adjustModal.deltaHint')}</div>
+              </div>
+              <div className="ai-field" style={{ marginBottom: 0 }}>
+                <label className="ai-label">{t('crm.products.stock.adjustModal.reasonLabel')}</label>
+                <input className="ai-input" value={reason} onChange={(e) => setReason(e.target.value)} />
+              </div>
+              <div className="pr-cat-modal-foot">
+                <button type="button" className="aib ghost" onClick={() => setAdjustTarget(null)}>
+                  {t('crm.products.stock.adjustModal.cancel')}
+                </button>
+                <button type="button" className="aib" onClick={handleAdjustSave} disabled={saving || !delta || Number(delta) === 0}>
+                  {t('crm.products.stock.adjustModal.save')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {transferTarget && (
+          <div className="pr-cat-modal-back" onClick={() => setTransferTarget(null)}>
+            <div className="pr-cat-modal" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+              <h3>{t('crm.products.stock.transferModal.title')}</h3>
+              <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: -8, marginBottom: 16 }}>
+                {transferTarget.productName}{transferTarget.variantLabel ? ` · ${transferTarget.variantLabel}` : ''}
+              </div>
+              <div className="ai-field">
+                <label className="ai-label">{t('crm.products.stock.transferModal.fromLabel')}</label>
+                <select className="ai-select" value={transferFrom} onChange={(e) => setTransferFrom(e.target.value)}>
+                  <option value="">—</option>
+                  {locations.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} ({transferTarget.locations.find((s) => s.locationId === l.id)?.quantity || 0})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="ai-field">
+                <label className="ai-label">{t('crm.products.stock.transferModal.toLabel')}</label>
+                <select className="ai-select" value={transferTo} onChange={(e) => setTransferTo(e.target.value)}>
+                  <option value="">—</option>
+                  {locations.filter((l) => l.id !== transferFrom).map((l) => (
+                    <option key={l.id} value={l.id}>{l.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="ai-field">
+                <label className="ai-label">{t('crm.products.stock.transferModal.quantityLabel')}</label>
+                <input type="number" min={1} className="ai-input" value={transferQty} onChange={(e) => setTransferQty(e.target.value)} />
+              </div>
+              <div className="ai-field" style={{ marginBottom: 0 }}>
+                <label className="ai-label">{t('crm.products.stock.transferModal.reasonLabel')}</label>
+                <input className="ai-input" value={transferReason} onChange={(e) => setTransferReason(e.target.value)} />
+              </div>
+              <div className="pr-cat-modal-foot">
+                <button type="button" className="aib ghost" onClick={() => setTransferTarget(null)}>
+                  {t('crm.products.stock.adjustModal.cancel')}
+                </button>
+                <button
+                  type="button"
+                  className="aib"
+                  onClick={handleTransferSave}
+                  disabled={saving || !transferFrom || !transferTo || transferFrom === transferTo || !transferQty || Number(transferQty) <= 0}
+                >
+                  {t('crm.products.stock.transferModal.save')}
+                </button>
               </div>
             </div>
           </div>

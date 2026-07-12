@@ -1,5 +1,5 @@
 // src/pages/products/ProductImportPage.tsx
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
@@ -7,6 +7,7 @@ import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   previewProductImport,
   applyProductImport,
+  createProductFieldDef,
   type ProductImportPreview,
   type ProductImportResult,
 } from '../../api/products';
@@ -27,7 +28,12 @@ export const ProductImportPage: React.FC = () => {
 
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<ProductImportPreview | null>(null);
-  const [mapping, setMapping] = useState<Record<string, string | null>>({});
+  // По колонке файла — какое поле товара она заполняет (обратное направление от того, что
+  // хранит бэкенд: он ждёт fieldKey → column, здесь удобнее вести column → fieldKey, чтобы
+  // на одну строку таблицы приходилась одна колонка файла — см. обсуждение с клиентом).
+  const [columnToField, setColumnToField] = useState<Record<string, string>>({});
+  const [mappableFields, setMappableFields] = useState<Array<{ key: string; label: string }>>([]);
+  const [creatingForColumn, setCreatingForColumn] = useState<string | null>(null);
   const [updateExisting, setUpdateExisting] = useState(true);
   const [applying, setApplying] = useState(false);
   const [result, setResult] = useState<ProductImportResult | null>(null);
@@ -37,7 +43,12 @@ export const ProductImportPage: React.FC = () => {
     try {
       const res = await previewProductImport(file);
       setPreview(res);
-      setMapping(res.suggestedMapping || {});
+      setMappableFields(res.mappableFields);
+      const inverted: Record<string, string> = {};
+      for (const [fieldKey, column] of Object.entries(res.suggestedMapping || {})) {
+        if (column) inverted[column] = fieldKey;
+      }
+      setColumnToField(inverted);
     } catch (err: any) {
       showAlert(err.message || t('crm.products.import.errors.previewFailed'), { variant: 'error' });
     } finally {
@@ -51,10 +62,32 @@ export const ProductImportPage: React.FC = () => {
     if (file) handleFile(file);
   };
 
+  const handleCreateField = async (column: string) => {
+    setCreatingForColumn(column);
+    try {
+      const created = await createProductFieldDef({ label: column, type: 'text' });
+      setMappableFields((prev) => [...prev, { key: created.key, label: created.label }]);
+      setColumnToField((prev) => ({ ...prev, [column]: created.key }));
+    } catch (err: any) {
+      showAlert(err.message || t('crm.products.import.errors.createFieldFailed'), { variant: 'error' });
+    } finally {
+      setCreatingForColumn(null);
+    }
+  };
+
+  const mappedCount = useMemo(
+    () => (preview ? preview.columns.filter((c) => columnToField[c]).length : 0),
+    [preview, columnToField],
+  );
+
   const handleApply = async () => {
     if (!preview) return;
     setApplying(true);
     try {
+      const mapping: Record<string, string | null> = {};
+      for (const [column, fieldKey] of Object.entries(columnToField)) {
+        if (fieldKey) mapping[fieldKey] = column;
+      }
       const res = await applyProductImport({ importId: preview.importId, mapping, updateExisting });
       setResult(res);
     } catch (err: any) {
@@ -62,6 +95,12 @@ export const ProductImportPage: React.FC = () => {
     } finally {
       setApplying(false);
     }
+  };
+
+  const resetPreview = () => {
+    setPreview(null);
+    setColumnToField({});
+    setMappableFields([]);
   };
 
   return (
@@ -86,6 +125,9 @@ export const ProductImportPage: React.FC = () => {
               <div>{t('crm.products.import.resultCreated', { count: result.created })}</div>
               <div>{t('crm.products.import.resultUpdated', { count: result.updated })}</div>
               <div>{t('crm.products.import.resultErrors', { count: result.errors.length })}</div>
+              {!!result.createdFieldLabels?.length && (
+                <div>{t('crm.products.import.resultFieldsCreated', { count: result.createdFieldLabels.length })}: {result.createdFieldLabels.join(', ')}</div>
+              )}
             </div>
             {!!result.errors.length && (
               <div style={{ marginTop: 14, maxHeight: 200, overflowY: 'auto', border: `1px solid ${LINE}`, borderRadius: 8, padding: 10 }}>
@@ -134,36 +176,48 @@ export const ProductImportPage: React.FC = () => {
           </div>
         ) : (
           <div>
-            <div style={{ fontSize: 13, color: FG3, marginBottom: 12 }}>
-              {preview.totalRows} {t('crm.products.list.columns.name')}
+            <div style={{ fontSize: 13, color: FG3, marginBottom: 4 }}>
+              {t('crm.products.import.columnsRows', { columns: preview.columns.length, rows: preview.totalRows })}
             </div>
+            <div style={{ fontSize: 13, color: FG3, marginBottom: 16 }}>
+              {t('crm.products.import.mappedCount', { mapped: mappedCount, total: preview.columns.length })}
+            </div>
+
             <div style={{ fontSize: 14, fontWeight: 500, marginBottom: 12 }}>{t('crm.products.import.mappingTitle')}</div>
-            <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-                <thead>
-                  <tr style={{ background: BG_MUTED, borderBottom: `1px solid ${LINE}` }}>
-                    <th style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, textTransform: 'uppercase', color: FG3 }}>{t('crm.products.import.fieldHeader')}</th>
-                    <th style={{ textAlign: 'left', padding: '10px 14px', fontSize: 10, textTransform: 'uppercase', color: FG3 }}>{t('crm.products.import.columnHeader')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {preview.mappableFields.map((f) => (
-                    <tr key={f.key} style={{ borderBottom: `1px solid ${LINE}` }}>
-                      <td style={{ padding: '8px 14px' }}>{f.label}</td>
-                      <td style={{ padding: '8px 14px' }}>
-                        <select
-                          className={inpCls}
-                          value={mapping[f.key] || ''}
-                          onChange={(e) => setMapping((p) => ({ ...p, [f.key]: e.target.value || null }))}
-                        >
-                          <option value="">—</option>
-                          {preview.columns.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+              {preview.columns.map((column) => {
+                const mappedKey = columnToField[column] || '';
+                return (
+                  <div key={column} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: `1px solid ${LINE}` }}>
+                    <div style={{ flex: '1 1 140px', minWidth: 0, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={column}>
+                      {column}
+                    </div>
+                    <select
+                      className={inpCls}
+                      style={{ flex: '2 1 180px', minWidth: 0 }}
+                      value={mappedKey}
+                      onChange={(e) => setColumnToField((p) => ({ ...p, [column]: e.target.value }))}
+                    >
+                      <option value="">{t('crm.products.import.notMapped')}</option>
+                      {mappableFields.map((f) => (
+                        <option key={f.key} value={f.key}>{f.label}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => handleCreateField(column)}
+                      disabled={creatingForColumn === column}
+                      style={{
+                        flex: '0 0 auto', padding: '8px 14px', fontSize: 12, borderRadius: 8,
+                        border: `1px solid ${LINE}`, background: '#fff', color: FG3, cursor: 'pointer',
+                        opacity: creatingForColumn === column ? 0.6 : 1,
+                      }}
+                    >
+                      {creatingForColumn === column ? t('crm.products.import.creatingField') : t('crm.products.import.createField')}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 20 }}>
@@ -174,7 +228,7 @@ export const ProductImportPage: React.FC = () => {
             <div style={{ display: 'flex', gap: 10 }}>
               <button
                 type="button"
-                onClick={() => { setPreview(null); setMapping({}); }}
+                onClick={resetPreview}
                 style={{ padding: '8px 16px', fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: '#fff', color: FG3, cursor: 'pointer' }}
               >
                 {t('crm.products.import.back')}

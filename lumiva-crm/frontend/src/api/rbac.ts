@@ -16,7 +16,10 @@ export type PermissionKey =
   | 'custom_objects'
   | 'email'
   | 'marketing'
-  | 'products';
+  | 'products'
+  | 'products_manage_fields'
+  | 'products_manage_stock'
+  | 'products_publish';
 
 export type RolePermissionMatrix = Record<StaffRole, PermissionKey[]>;
 export type UserPermissionMatrix = Record<string, PermissionKey[]>;

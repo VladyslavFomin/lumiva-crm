@@ -1085,9 +1085,15 @@
         "usageBody": "Add header X-Api-Token with this secret on each protected request:",
         "usageBulletTraffic": "Marketing traffic import — POST …/marketing/traffic/import (channels & ads data in CRM).",
         "usageBulletWp": "WordPress / Lumiva Connector — lead and form submissions (e.g. POST …/marketing/leads/cf7) when the plugin docs reference this header.",
+        "usageBulletProducts": "Products catalog & stock sync — POST …/public/products/ingest (upsert by sku/externalId, including barcode, tags, weight, dimensions, SEO, variants) and PATCH …/public/products/stock (point stock updates after an order).",
         "usageBulletOther": "Any other API calls documented as tenant authentication via X-Api-Token — same key.",
         "exampleTitle": "Example: curl",
         "exampleIntro": "Paste the full token after revealing it. Base URL for your environment: {{baseUrl}}.",
+        "exampleTitleProducts": "Example: products (external site → CRM)",
+        "exampleIntroProducts": "Upsert a product with barcode, tags, weight/dimensions and a variant by sku/externalId. The X-Idempotency-Key header prevents duplicates on retry.",
+        "exampleIntroProductsStock": "Point stock update — e.g. a variant sold on the site:",
+        "exampleTitlePublicCatalog": "Example: public catalog (no token)",
+        "exampleIntroPublicCatalog": "Products with \"Show in the public catalog\" enabled are readable at this URL — no X-Api-Token needed, no cost price included. The path segment is your workspace ID (Settings → Company).",
         "tokenPlaceholder": "<YOUR_TOKEN>",
         "modalRevealTitle": "Show token",
         "modalRevealBody": "Enter your Lumiva CRM account password.",
@@ -7105,6 +7111,9 @@
         "contacts": "Contacts",
         "companies": "Companies",
         "products": "Products",
+        "products_manage_fields": "Product field builder",
+        "products_manage_stock": "Stock adjustments",
+        "products_publish": "Approve public catalog publication",
         "email": "Email",
         "marketing": "Marketing",
         "tools_automation": "Automation",
@@ -7117,7 +7126,10 @@
         },
         "hint": {
           "staff": "Staff management, invites",
-          "settings": "Company settings, API, integrations"
+          "settings": "Company settings, API, integrations",
+          "products_manage_fields": "Custom field types and variation attributes",
+          "products_manage_stock": "Stock corrections in the Stock section",
+          "products_publish": "Approve or reject requests to show a product in the public catalog"
         }
       }
     },
@@ -7144,7 +7156,8 @@
           "price": "Price",
           "quantity": "Stock",
           "variable": "Variable",
-          "actions": "Actions"
+          "actions": "Actions",
+          "margin": "Margin"
         },
         "empty": "No products yet",
         "lowStockBadge": "Low stock",
@@ -7154,7 +7167,46 @@
           "loadFailed": "Failed to load products",
           "deleteFailed": "Failed to delete product",
           "duplicateFailed": "Failed to duplicate product"
+        },
+        "kpis": {
+          "total": "Total products",
+          "totalHint": "{{count}} active",
+          "value": "Stock value",
+          "valueHint": "at sale price",
+          "categories": "Categories",
+          "categoriesHint": "{{count}} with subcategories",
+          "lowStock": "Low stock",
+          "lowStockHintWarn": "≤ 15% of max",
+          "lowStockHintOk": "all fine",
+          "outOfStock": "Out of stock",
+          "outOfStockHintBad": "need restocking",
+          "outOfStockHintOk": "—"
+        },
+        "rail": {
+          "title": "Categories",
+          "all": "All products",
+          "totalLabel": "Total products",
+          "categoriesLabel": "Categories"
+        },
+        "viewTable": "Table",
+        "viewGrid": "Grid",
+        "exportPdf": "Export PDF (price list)",
+        "bulk": {
+          "selected": "selected",
+          "setStatus": "Change status",
+          "setCategory": "Change category",
+          "printLabels": "Print labels"
         }
+      },
+      "labels": {
+        "title": "Print labels",
+        "subtitle": "Barcode and QR labels for the selected products — ready to print on a label sheet.",
+        "back": "Back to products",
+        "empty": "No products selected. Go back to the product list, select products and choose \"Print labels\".",
+        "copies": "Copies",
+        "print": "Print",
+        "columns": "Columns",
+        "noBarcode": "No barcode or SKU — the label shows the product name only."
       },
       "status": {
         "active": "Active",
@@ -7178,7 +7230,19 @@
           "currency": "Currency",
           "unit": "Unit",
           "lowStockThreshold": "Low stock threshold",
-          "externalId": "External ID"
+          "externalId": "External ID",
+          "mainImage": "Main image",
+          "uploadImage": "Upload photo",
+          "videoUrlHint": "Video link (e.g. YouTube)",
+          "barcode": "Barcode",
+          "barcodeInvalid": "Could not render a barcode for this value",
+          "margin": "Margin",
+          "tags": "Tags",
+          "tagsPlaceholder": "Type a tag and press Enter",
+          "weight": "Weight, kg",
+          "length": "Length, cm",
+          "width": "Width, cm",
+          "height": "Height, cm"
         },
         "variable": {
           "label": "Variable product",
@@ -7195,8 +7259,11 @@
             "sku": "SKU",
             "quantity": "Stock",
             "priceOverride": "Price override",
-            "active": "Active"
-          }
+            "active": "Active",
+            "images": "Photos"
+          },
+          "imagesHint": "If empty, the product's own photos are shown for this variant.",
+          "imagesClose": "Collapse"
         },
         "customFields": {
           "title": "Additional fields",
@@ -7214,6 +7281,67 @@
           "loadFailed": "Failed to load product",
           "saveFailed": "Failed to save product",
           "deleteFailed": "Failed to delete product"
+        },
+        "seo": {
+          "title": "SEO",
+          "slug": "URL (slug)",
+          "metaTitle": "Meta title",
+          "metaDescription": "Meta description"
+        },
+        "publicCatalog": {
+          "title": "Public catalog",
+          "hint": "Exposes this product at /public/catalog/:clientKey/products (and in feeds) for external sites — no API token needed. Cost price is never included. Publishing requires approval — see below.",
+          "statusPublished": "Published",
+          "statusPending": "Awaiting approval",
+          "requestButton": "Request publication",
+          "approveButton": "Approve",
+          "rejectButton": "Reject",
+          "rejectConfirm": "Confirm rejection",
+          "rejectReasonPlaceholder": "Reason (optional)",
+          "rejectedNote": "Last request was rejected",
+          "unpublishButton": "Unpublish",
+          "sitesLabel": "Visible on sites",
+          "sitesHint": "All sites checked = visible everywhere (default). Uncheck a site to hide this product there specifically."
+        },
+        "prices": {
+          "title": "Prices in other currencies",
+          "hint": "Optional overrides in addition to the base price/currency above.",
+          "currencyPlaceholder": "USD",
+          "addButton": "Add currency"
+        },
+        "sale": {
+          "title": "Sale",
+          "price": "Sale price",
+          "startAt": "Sale start",
+          "endAt": "Sale end"
+        },
+        "priceTiers": {
+          "title": "Wholesale price tiers",
+          "minQty": "Min qty",
+          "price": "Price",
+          "add": "Add tier"
+        },
+        "related": {
+          "title": "Related products",
+          "hint": "Hold Ctrl/Cmd to select multiple"
+        },
+        "bundle": {
+          "label": "Bundle (kit of products)",
+          "hint": "This product consists of several other products",
+          "addItem": "Add product to bundle"
+        },
+        "translations": {
+          "title": "Translations"
+        },
+        "changeLog": {
+          "title": "Change log",
+          "fields": {
+            "price": "Price",
+            "costPrice": "Cost price",
+            "status": "Status",
+            "sku": "SKU",
+            "barcode": "Barcode"
+          }
         }
       },
       "attributes": {
@@ -7273,7 +7401,11 @@
           "radio": "Radio buttons",
           "url": "URL",
           "media": "Image/file",
-          "gallery": "Gallery"
+          "gallery": "Gallery",
+          "wysiwyg": "Rich text",
+          "colorpicker": "Color picker",
+          "relation": "Product relation",
+          "repeater": "Repeater"
         },
         "deleteConfirm": "Delete this field?",
         "empty": "No additional fields yet",
@@ -7281,34 +7413,87 @@
           "loadFailed": "Failed to load fields",
           "saveFailed": "Failed to save field"
         },
-        "editButton": "Edit"
+        "editButton": "Edit",
+        "groupLabel": "Field group",
+        "newGroupOption": "— new group —",
+        "newGroupPlaceholder": "New group name",
+        "ungroupedLabel": "Ungrouped",
+        "ungroupedGroupName": "General fields",
+        "showInFiltersField": "Show in catalog filters",
+        "showInFiltersHint": "Buyers will be able to filter by this value",
+        "previewTitle": "Product card preview",
+        "previewSubtitle": "How a manager sees these fields when filling in a product",
+        "previewEmpty": "Add a field to see the preview",
+        "addFieldToGroup": "Add field to “{{name}}”",
+        "newGroupButton": "New field group",
+        "typePickerTitle": "Field type",
+        "kpis": {
+          "groups": "Field groups",
+          "groupsHint": "general, logistics, storefront",
+          "total": "Fields total",
+          "totalHint": "across all groups",
+          "required": "Required",
+          "requiredHint": "block saving",
+          "types": "Data types",
+          "typesHint": "text, number, select, etc."
+        },
+        "relationMultiple": "Allow multiple",
+        "colorPalette": "Palette",
+        "repeaterColumns": "Repeater columns",
+        "repeaterAddRow": "Add row",
+        "repeaterNoSubFields": "Configure repeater columns first"
       },
       "stock": {
         "title": "Stock",
         "subtitle": "Product and variant stock levels.",
         "searchPlaceholder": "Search by name or SKU…",
         "lowStockOnly": "Low stock only",
+        "allLocations": "All warehouses",
         "columns": {
           "product": "Product",
           "sku": "SKU",
           "variant": "Variant",
+          "locations": "Warehouses",
           "quantity": "Stock",
           "threshold": "Threshold",
           "actions": "Actions"
         },
         "adjustButton": "Adjust",
+        "transferButton": "Transfer",
         "adjustModal": {
           "title": "Adjust stock",
+          "locationLabel": "Warehouse",
           "deltaLabel": "Change (+/-)",
           "deltaHint": "Positive number for stock in, negative for stock out.",
           "reasonLabel": "Reason",
           "save": "Save",
           "cancel": "Cancel"
         },
+        "transferModal": {
+          "title": "Transfer between warehouses",
+          "fromLabel": "From warehouse",
+          "toLabel": "To warehouse",
+          "quantityLabel": "Quantity",
+          "reasonLabel": "Reason",
+          "save": "Transfer"
+        },
         "empty": "No products in stock",
         "errors": {
           "loadFailed": "Failed to load stock",
-          "adjustFailed": "Failed to adjust stock"
+          "adjustFailed": "Failed to adjust stock",
+          "transferFailed": "Failed to transfer stock"
+        },
+        "kpis": {
+          "positions": "Stock positions",
+          "positionsHint": "products and variants",
+          "totalQty": "Total units",
+          "totalQtyHint": "combined stock",
+          "low": "Low stock",
+          "lowHintWarn": "≤ threshold",
+          "lowHintOk": "all fine",
+          "out": "Out of stock",
+          "outHintBad": "need restocking",
+          "outHintOk": "—"
         }
       },
       "categories": {
@@ -7317,7 +7502,34 @@
         "nameLabel": "Category name",
         "namePlaceholder": "E.g. Electronics",
         "deleteConfirm": "Delete this category? Products will remain uncategorized.",
-        "empty": "No categories yet"
+        "empty": "No categories yet",
+        "subtitle": "Catalog structure. Categories can be nested and given a color label.",
+        "newTitle": "New category",
+        "editTitle": "Edit category",
+        "parentLabel": "Parent category",
+        "rootOption": "— none (root) —",
+        "colorLabel": "Label color",
+        "slugLabel": "URL (slug)",
+        "editButton": "Edit",
+        "duplicateButton": "Duplicate",
+        "statusActive": "Active",
+        "kpis": {
+          "total": "Categories",
+          "totalHint": "with subcategories: {{count}}",
+          "products": "Total products",
+          "productsHint": "distributed across categories",
+          "uncategorized": "Uncategorized",
+          "uncategorizedHint": "need classification",
+          "depth": "Tree depth",
+          "depthHint": "nesting levels"
+        },
+        "columns": {
+          "category": "Category",
+          "slug": "Slug",
+          "products": "Products",
+          "status": "Status",
+          "actions": ""
+        }
       },
       "import": {
         "title": "Import products",
@@ -7326,8 +7538,11 @@
         "chooseFile": "Choose file",
         "back": "Back",
         "mappingTitle": "Column mapping",
-        "columnHeader": "File column",
-        "fieldHeader": "Product field",
+        "columnsRows": "{{columns}} columns, {{rows}} rows",
+        "mappedCount": "Mapped: {{mapped}} of {{total}}",
+        "notMapped": "Not mapped",
+        "createField": "Create field",
+        "creatingField": "Creating…",
         "updateExistingLabel": "Update existing products (by SKU)",
         "applyButton": "Import",
         "applying": "Importing…",
@@ -7335,10 +7550,103 @@
         "resultCreated": "Products created: {{count}}",
         "resultUpdated": "Products updated: {{count}}",
         "resultErrors": "Errors: {{count}}",
+        "resultFieldsCreated": "New fields created: {{count}}",
         "close": "Close",
         "errors": {
           "previewFailed": "Failed to read file",
-          "applyFailed": "Import failed"
+          "applyFailed": "Import failed",
+          "createFieldFailed": "Failed to create field"
+        }
+      },
+      "subnav": {
+        "catalog": "Catalog",
+        "categories": "Categories",
+        "fields": "Field types",
+        "stock": "Stock",
+        "locations": "Warehouses",
+        "feeds": "Feeds",
+        "webhooks": "Webhooks",
+        "moderation": "Publication requests"
+      },
+      "locations": {
+        "title": "Warehouses",
+        "subtitle": "Multiple stock locations — every product/variant can have a different quantity per warehouse.",
+        "namePlaceholder": "Warehouse name",
+        "codePlaceholder": "Code (optional)",
+        "addButton": "Add warehouse",
+        "defaultBadge": "Default",
+        "makeDefault": "Make default",
+        "deleteConfirm": "Delete this warehouse?",
+        "empty": "No warehouses yet",
+        "columns": {
+          "name": "Name",
+          "code": "Code",
+          "default": "Default",
+          "active": "Active"
+        },
+        "errors": {
+          "loadFailed": "Failed to load warehouses",
+          "saveFailed": "Failed to save warehouse",
+          "deleteFailed": "Failed to delete warehouse"
+        }
+      },
+      "feeds": {
+        "title": "Feeds",
+        "subtitle": "Ready-made product feeds per site — for Google Merchant Center, WooCommerce import, and headless integrations.",
+        "empty": "No sites yet — add one first to get feed URLs.",
+        "google": "Google XML",
+        "woocommerce": "WooCommerce CSV",
+        "json": "JSON",
+        "hint": "Only products marked \"Show in the public catalog\" and approved for publication appear in these feeds.",
+        "errors": {
+          "loadFailed": "Failed to load sites"
+        }
+      },
+      "webhooks": {
+        "title": "Webhooks",
+        "subtitle": "Push product changes to external sites instead of relying on them to poll the catalog.",
+        "addButton": "Add webhook",
+        "empty": "No webhooks yet",
+        "namePlaceholder": "Webhook name",
+        "urlPlaceholder": "https://example.com/webhooks/lumiva",
+        "siteLabel": "Site (optional — all sites if empty)",
+        "allSites": "All sites",
+        "eventsLabel": "Events",
+        "events": {
+          "product.created": "Product created",
+          "product.updated": "Product updated",
+          "product.deleted": "Product deleted",
+          "product.stock_changed": "Stock changed",
+          "product.published": "Product published"
+        },
+        "columns": {
+          "name": "Name",
+          "url": "URL",
+          "events": "Events",
+          "status": "Last delivery",
+          "active": "Active"
+        },
+        "regenerateSecret": "Regenerate secret",
+        "secretLabel": "Signing secret (X-Lumiva-Signature header, HMAC-SHA256)",
+        "neverTriggered": "Never triggered",
+        "errors": {
+          "loadFailed": "Failed to load webhooks",
+          "saveFailed": "Failed to save webhook",
+          "deleteFailed": "Failed to delete webhook"
+        }
+      },
+      "moderation": {
+        "title": "Publication requests",
+        "subtitle": "Products awaiting approval to appear in the public catalog and feeds.",
+        "empty": "No pending requests",
+        "requestedAt": "Requested",
+        "approveButton": "Approve",
+        "rejectButton": "Reject",
+        "rejectReasonPlaceholder": "Reason (optional)",
+        "rejectConfirm": "Confirm rejection",
+        "errors": {
+          "loadFailed": "Failed to load the queue",
+          "saveFailed": "Action failed"
         }
       }
     }

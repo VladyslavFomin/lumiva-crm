@@ -20,20 +20,24 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
     'leads', 'projects', 'staff', 'finance', 'analytics',
     'settings', 'chat', 'contacts', 'companies',
     'tools_automation', 'custom_objects', 'email', 'marketing', 'products',
+    'products_manage_fields', 'products_manage_stock', 'products_publish',
   ],
   manager: [
     'leads', 'projects', 'analytics', 'chat', 'marketing',
     'contacts', 'companies', 'email', 'products',
+    'products_manage_fields', 'products_manage_stock', 'products_publish',
   ],
   viewer: [
     'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies',
   ],
   finance: [
     'leads', 'projects', 'finance', 'analytics', 'chat', 'contacts', 'companies', 'products',
+    'products_manage_stock',
   ],
   sales: [
     'leads', 'projects', 'analytics', 'marketing', 'chat',
     'contacts', 'companies', 'email', 'products',
+    'products_manage_stock',
   ],
   developer: [
     'projects', 'analytics', 'chat', 'settings',

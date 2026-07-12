@@ -5,11 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, Not, Repository } from 'typeorm';
 import ExcelJS from 'exceljs';
-import { Product, type ProductImage, type ProductStatus } from './product.entity';
+import PDFDocument from 'pdfkit';
+import {
+  Product,
+  type ProductBundleItem,
+  type ProductDimensions,
+  type ProductImage,
+  type ProductPriceInCurrency,
+  type ProductPriceTier,
+  type ProductStatus,
+  type ProductTranslation,
+} from './product.entity';
 import { ProductCategory } from './product-category.entity';
-import { ProductFieldDef, type ProductFieldType } from './product-field-def.entity';
+import { ProductFieldDef, type ProductFieldType, type ProductRepeaterRow } from './product-field-def.entity';
 import { ProductAttribute, type ProductAttributeValue } from './product-attribute.entity';
 import { ProductVariant, type ProductVariantAttributeValues } from './product-variant.entity';
 import {
@@ -18,11 +28,40 @@ import {
   type ProductStockMovementType,
 } from './product-stock-movement.entity';
 import { ProductImportSession } from './product-import-session.entity';
+import { ProductChangeLog } from './product-change-log.entity';
+import { ProductLocation } from './product-location.entity';
+import { ProductLocationStock } from './product-location-stock.entity';
+import { ProductWebhooksService } from './product-webhooks.service';
+import { StaffUser } from '../staff/staff-user.entity';
+import { User } from '../users/user.entity';
+import { Tenant } from '../tenants/tenant.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { SitesService } from '../sites/sites.service';
+import type { Site } from '../sites/site.entity';
 import {
   buildSuggestedCustomObjectFieldMapping,
   parseCsvRobust,
   parseXlsxRobust,
 } from '../lib/import-spreadsheet.util';
+import { existsSync } from 'fs';
+
+/** TTF с кириллицей: Alpine (font-dejavu), Debian/Ubuntu. Тот же список, что в automations/reports.service.ts. */
+function resolveUnicodePdfFont(): string | null {
+  const candidates = [
+    '/usr/share/fonts/TTF/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/dejavu/ttf/DejaVuSans.ttf',
+  ];
+  for (const p of candidates) {
+    try {
+      if (existsSync(p)) return p;
+    } catch {
+      /* ignore */
+    }
+  }
+  return null;
+}
 
 /** Структурные колонки товара, доступные для маппинга при импорте (наравне с product_field_defs). */
 const IMPORT_STRUCTURAL_FIELDS: Array<{ key: string; label: string }> = [
@@ -37,6 +76,16 @@ const IMPORT_STRUCTURAL_FIELDS: Array<{ key: string; label: string }> = [
   { key: 'quantity', label: 'Количество' },
   { key: 'unit', label: 'Единица измерения' },
   { key: 'externalId', label: 'Внешний ID' },
+  { key: 'barcode', label: 'Штрихкод' },
+  { key: 'tags', label: 'Теги' },
+  { key: 'weight', label: 'Вес' },
+  { key: 'dimensionsLength', label: 'Длина' },
+  { key: 'dimensionsWidth', label: 'Ширина' },
+  { key: 'dimensionsHeight', label: 'Высота' },
+  { key: 'slug', label: 'Slug (URL)' },
+  { key: 'metaTitle', label: 'SEO: заголовок' },
+  { key: 'metaDescription', label: 'SEO: описание' },
+  { key: 'prices', label: 'Цены в валютах' },
 ];
 
 const PRODUCT_FIELD_TYPES: ProductFieldType[] = [
@@ -52,6 +101,10 @@ const PRODUCT_FIELD_TYPES: ProductFieldType[] = [
   'url',
   'media',
   'gallery',
+  'wysiwyg',
+  'colorpicker',
+  'relation',
+  'repeater',
 ];
 
 const PRODUCT_STATUSES: ProductStatus[] = ['active', 'draft', 'archived', 'out_of_stock'];
@@ -81,6 +134,21 @@ export class ProductsService {
     private readonly movements: Repository<ProductStockMovement>,
     @InjectRepository(ProductImportSession)
     private readonly importSessions: Repository<ProductImportSession>,
+    @InjectRepository(ProductChangeLog)
+    private readonly changeLogs: Repository<ProductChangeLog>,
+    @InjectRepository(ProductLocation)
+    private readonly locations: Repository<ProductLocation>,
+    @InjectRepository(ProductLocationStock)
+    private readonly locationStock: Repository<ProductLocationStock>,
+    @InjectRepository(StaffUser)
+    private readonly staffUsers: Repository<StaffUser>,
+    @InjectRepository(User)
+    private readonly users: Repository<User>,
+    @InjectRepository(Tenant)
+    private readonly tenants: Repository<Tenant>,
+    private readonly notifications: NotificationsService,
+    private readonly sites: SitesService,
+    private readonly webhooksDispatcher: ProductWebhooksService,
   ) {}
 
   /* ------------------------------------------------------------------ utils */
@@ -141,17 +209,51 @@ export class ProductsService {
     return this.categories.find({ where: { tenantId }, order: { order: 'ASC', name: 'ASC' } });
   }
 
+  /** Категории с подсчётом активных товаров — для дерева категорий и KPI. */
+  async listCategoriesWithCounts(tenantId: string) {
+    const [categories, counts] = await Promise.all([
+      this.listCategories(tenantId),
+      this.products
+        .createQueryBuilder('p')
+        .select('p.categoryId', 'categoryId')
+        .addSelect('COUNT(*)', 'count')
+        .where('p.tenantId = :tenantId', { tenantId })
+        .andWhere('p.isDeleted = false')
+        .groupBy('p.categoryId')
+        .getRawMany<{ categoryId: string | null; count: string }>(),
+    ]);
+    const countByCategory = new Map(counts.map((c) => [c.categoryId, Number(c.count)]));
+    const uncategorizedCount = countByCategory.get(null as unknown as string) || 0;
+    return {
+      categories: categories.map((c) => ({ ...c, productCount: countByCategory.get(c.id) || 0 })),
+      uncategorizedCount,
+    };
+  }
+
+  private normalizeColor(value: unknown, fallback = '#222222'): string {
+    const raw = this.cleanString(value, '', 20);
+    return /^#[0-9a-fA-F]{3,8}$/.test(raw) ? raw : fallback;
+  }
+
   async createCategory(
     tenantId: string,
-    dto: { name: string; slug?: string; order?: number },
+    dto: { name: string; slug?: string; order?: number; parentId?: string | null; color?: string },
   ) {
     const name = this.cleanString(dto.name, '', 160);
     if (!name) throw new BadRequestException('Название категории обязательно');
     const slug = await this.uniqueCategorySlug(tenantId, dto.slug || name);
+    let parentId: string | null = null;
+    if (dto.parentId) {
+      const parent = await this.categories.findOne({ where: { tenantId, id: dto.parentId } });
+      if (!parent) throw new BadRequestException('Родительская категория не найдена');
+      parentId = parent.id;
+    }
     const category = this.categories.create({
       tenantId,
       name,
       slug,
+      parentId,
+      color: this.normalizeColor(dto.color),
       order: Number.isFinite(Number(dto.order)) ? Number(dto.order) : 0,
     });
     return this.categories.save(category);
@@ -160,7 +262,14 @@ export class ProductsService {
   async updateCategory(
     tenantId: string,
     id: string,
-    dto: { name?: string; slug?: string; order?: number; isActive?: boolean },
+    dto: {
+      name?: string;
+      slug?: string;
+      order?: number;
+      isActive?: boolean;
+      parentId?: string | null;
+      color?: string;
+    },
   ) {
     const category = await this.categories.findOne({ where: { tenantId, id } });
     if (!category) throw new NotFoundException('Категория не найдена');
@@ -168,6 +277,19 @@ export class ProductsService {
     if (dto.slug !== undefined) {
       category.slug = await this.uniqueCategorySlug(tenantId, dto.slug, category.id);
     }
+    if (dto.parentId !== undefined) {
+      if (!dto.parentId) {
+        category.parentId = null;
+      } else {
+        if (dto.parentId === id) {
+          throw new BadRequestException('Категория не может быть родителем самой себя');
+        }
+        const parent = await this.categories.findOne({ where: { tenantId, id: dto.parentId } });
+        if (!parent) throw new BadRequestException('Родительская категория не найдена');
+        category.parentId = parent.id;
+      }
+    }
+    if (dto.color !== undefined) category.color = this.normalizeColor(dto.color, category.color);
     if (dto.order !== undefined) category.order = Number(dto.order) || 0;
     if (dto.isActive !== undefined) category.isActive = Boolean(dto.isActive);
     return this.categories.save(category);
@@ -177,6 +299,7 @@ export class ProductsService {
     const category = await this.categories.findOne({ where: { tenantId, id } });
     if (!category) throw new NotFoundException('Категория не найдена');
     await this.products.update({ tenantId, categoryId: id }, { categoryId: null });
+    await this.categories.update({ tenantId, parentId: id }, { parentId: null });
     await this.categories.remove(category);
     return { ok: true };
   }
@@ -193,6 +316,7 @@ export class ProductsService {
       key?: string;
       label: string;
       type: string;
+      group?: string;
       required?: boolean;
       options?: Array<{ value: string; label: string }>;
       settings?: Record<string, unknown>;
@@ -200,6 +324,7 @@ export class ProductsService {
       description?: string;
       showInList?: boolean;
       showInQuickEdit?: boolean;
+      showInFilters?: boolean;
     },
   ) {
     const label = this.cleanString(dto.label, '', 200);
@@ -215,6 +340,7 @@ export class ProductsService {
       key,
       label,
       type,
+      group: dto.group ? this.cleanString(dto.group, '', 120) : null,
       required: Boolean(dto.required),
       options: this.normalizeOptions(dto.options, type),
       settings: dto.settings && typeof dto.settings === 'object' ? dto.settings : null,
@@ -223,8 +349,15 @@ export class ProductsService {
       order: count,
       showInList: dto.showInList !== false,
       showInQuickEdit: Boolean(dto.showInQuickEdit),
+      showInFilters: Boolean(dto.showInFilters),
     });
     return this.fieldDefs.save(field);
+  }
+
+  /** Список уникальных названий групп полей (для UI-подсказок при создании новой группы). */
+  async listFieldGroups(tenantId: string): Promise<string[]> {
+    const fields = await this.listFieldDefs(tenantId);
+    return [...new Set(fields.map((f) => f.group).filter((g): g is string => !!g))];
   }
 
   private normalizeOptions(
@@ -247,6 +380,8 @@ export class ProductsService {
     id: string,
     dto: {
       label?: string;
+      type?: string;
+      group?: string | null;
       required?: boolean;
       options?: Array<{ value: string; label: string }>;
       settings?: Record<string, unknown>;
@@ -254,12 +389,17 @@ export class ProductsService {
       description?: string;
       showInList?: boolean;
       showInQuickEdit?: boolean;
+      showInFilters?: boolean;
       isActive?: boolean;
     },
   ) {
     const field = await this.fieldDefs.findOne({ where: { tenantId, id } });
     if (!field) throw new NotFoundException('Поле не найдено');
     if (dto.label !== undefined) field.label = this.cleanString(dto.label, field.label, 200);
+    if (dto.type !== undefined && PRODUCT_FIELD_TYPES.includes(dto.type as ProductFieldType)) {
+      field.type = dto.type as ProductFieldType;
+    }
+    if (dto.group !== undefined) field.group = dto.group ? this.cleanString(dto.group, '', 120) : null;
     if (dto.required !== undefined) field.required = Boolean(dto.required);
     if (dto.options !== undefined) field.options = this.normalizeOptions(dto.options, field.type);
     if (dto.settings !== undefined) {
@@ -273,6 +413,7 @@ export class ProductsService {
     }
     if (dto.showInList !== undefined) field.showInList = Boolean(dto.showInList);
     if (dto.showInQuickEdit !== undefined) field.showInQuickEdit = Boolean(dto.showInQuickEdit);
+    if (dto.showInFilters !== undefined) field.showInFilters = Boolean(dto.showInFilters);
     if (dto.isActive !== undefined) field.isActive = Boolean(dto.isActive);
     return this.fieldDefs.save(field);
   }
@@ -345,14 +486,77 @@ export class ProductsService {
           out[field.key] = v;
           break;
         }
-        case 'gallery':
-          out[field.key] = Array.isArray(value) ? value : [value];
+        case 'media': {
+          const img = this.normalizeImageValue(value);
+          if (!img && field.required) {
+            throw new BadRequestException(`Поле «${field.label}» обязательно`);
+          }
+          if (img) out[field.key] = img;
           break;
+        }
+        case 'gallery': {
+          const arr = (Array.isArray(value) ? value : [value])
+            .map((v) => this.normalizeImageValue(v))
+            .filter((v): v is ProductImage => !!v);
+          out[field.key] = arr;
+          break;
+        }
+        case 'wysiwyg':
+          out[field.key] = String(value);
+          break;
+        case 'colorpicker': {
+          const hex = this.cleanString(value, '', 20);
+          if (!/^#[0-9a-fA-F]{3,8}$/.test(hex)) {
+            throw new BadRequestException(`Поле «${field.label}»: ожидался цвет в формате HEX`);
+          }
+          out[field.key] = hex;
+          break;
+        }
+        case 'relation': {
+          const multiple = Boolean((field.settings as any)?.multiple);
+          const ids = (Array.isArray(value) ? value : [value]).map((v) => this.cleanString(v, '', 64)).filter(Boolean);
+          out[field.key] = multiple ? ids : ids[0] || null;
+          break;
+        }
+        case 'repeater': {
+          const subFields = Array.isArray((field.settings as any)?.subFields)
+            ? ((field.settings as any).subFields as Array<{ key: string; type?: string }>)
+            : [];
+          const subKeys = new Set(subFields.map((s) => s.key));
+          const rows = Array.isArray(value) ? value : [];
+          out[field.key] = rows
+            .filter((row) => row && typeof row === 'object')
+            .map((row) => {
+              const clean: ProductRepeaterRow = {};
+              for (const [k, v] of Object.entries(row as Record<string, unknown>)) {
+                if (subKeys.size && !subKeys.has(k)) continue;
+                if (v == null || v === '') continue;
+                const subField = subFields.find((s) => s.key === k);
+                clean[k] = subField?.type === 'number' ? Number(v) : String(v);
+              }
+              return clean;
+            });
+          break;
+        }
         default:
           out[field.key] = value;
       }
     }
     return out;
+  }
+
+  /** Приводит значение поля типа media/gallery к { url } — принимает объект {url}, строку-URL или null. */
+  private normalizeImageValue(value: unknown): ProductImage | null {
+    if (!value) return null;
+    if (typeof value === 'string') {
+      const url = value.trim();
+      return url ? { url } : null;
+    }
+    if (typeof value === 'object' && typeof (value as any).url === 'string') {
+      const url = String((value as any).url).trim();
+      return url ? { url } : null;
+    }
+    return null;
   }
 
   /* ------------------------------------------------------------------ attributes */
@@ -463,6 +667,128 @@ export class ProductsService {
     }
   }
 
+  private async assertUniqueBarcode(tenantId: string, barcode: string | null, excludeId?: string) {
+    if (!barcode) return;
+    const existing = await this.products.findOne({ where: { tenantId, barcode } });
+    if (existing && existing.id !== excludeId) {
+      throw new BadRequestException(`Товар со штрихкодом «${barcode}» уже существует`);
+    }
+  }
+
+  private async uniqueProductSlug(tenantId: string, base: string, excludeId?: string): Promise<string> {
+    let candidate = this.slugify(base);
+    let i = 1;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const found = await this.products.findOne({ where: { tenantId, slug: candidate } });
+      if (!found || found.id === excludeId) return candidate;
+      candidate = `${this.slugify(base)}-${i++}`;
+    }
+  }
+
+  private normalizeDimensions(value: unknown): ProductDimensions | null {
+    if (!value || typeof value !== 'object') return null;
+    const v = value as Record<string, unknown>;
+    const num = (x: unknown) => (x != null && Number.isFinite(Number(x)) ? Number(x) : undefined);
+    const dims: ProductDimensions = {
+      length: num(v.length),
+      width: num(v.width),
+      height: num(v.height),
+      unit: v.unit === 'in' ? 'in' : 'cm',
+    };
+    if (dims.length == null && dims.width == null && dims.height == null) return null;
+    return dims;
+  }
+
+  private normalizePriceTiers(value: unknown): ProductPriceTier[] | null {
+    if (!Array.isArray(value)) return null;
+    const tiers = value
+      .map((t) => {
+        const minQty = Number((t as any)?.minQty);
+        const price = Number((t as any)?.price);
+        if (!Number.isFinite(minQty) || minQty <= 0 || !Number.isFinite(price) || price < 0) return null;
+        return { minQty, price };
+      })
+      .filter((t): t is ProductPriceTier => !!t)
+      .sort((a, b) => a.minQty - b.minQty);
+    return tiers.length ? tiers : null;
+  }
+
+  /** Мультивалютные override-цены — `{currency, price}[]`, уникальные валюты, только >=0. */
+  private normalizePrices(value: unknown): ProductPriceInCurrency[] | null {
+    if (!Array.isArray(value)) return null;
+    const byCurrency = new Map<string, number>();
+    for (const p of value) {
+      const currency = this.cleanString((p as any)?.currency, '', 3).toUpperCase();
+      const price = Number((p as any)?.price);
+      if (!currency || currency.length !== 3 || !Number.isFinite(price) || price < 0) continue;
+      byCurrency.set(currency, price);
+    }
+    if (!byCurrency.size) return null;
+    return [...byCurrency.entries()].map(([currency, price]) => ({ currency, price }));
+  }
+
+  /** `null` — товар виден на всех сайтах тенанта; иначе — только на перечисленных `Site.id`. */
+  private async normalizeSiteIds(tenantId: string, value: unknown): Promise<string[] | null> {
+    if (!Array.isArray(value) || !value.length) return null;
+    const requested = new Set(value.filter((v): v is string => typeof v === 'string' && !!v));
+    if (!requested.size) return null;
+    const tenantSites = await this.sites.findAllForTenant(tenantId);
+    const validIds = new Set(tenantSites.map((s) => s.id));
+    const filtered = [...requested].filter((id) => validIds.has(id));
+    return filtered.length ? filtered : null;
+  }
+
+  private normalizeBundleItems(value: unknown): ProductBundleItem[] | null {
+    if (!Array.isArray(value)) return null;
+    const items = value
+      .map((b) => {
+        const productId = this.cleanString((b as any)?.productId, '', 64);
+        const quantity = Number((b as any)?.quantity);
+        if (!productId || !Number.isFinite(quantity) || quantity <= 0) return null;
+        return { productId, quantity };
+      })
+      .filter((b): b is ProductBundleItem => !!b);
+    return items.length ? items : null;
+  }
+
+  private normalizeTranslations(value: unknown): Record<string, ProductTranslation> | null {
+    if (!value || typeof value !== 'object') return null;
+    const out: Record<string, ProductTranslation> = {};
+    for (const [locale, t] of Object.entries(value as Record<string, unknown>)) {
+      if (!t || typeof t !== 'object') continue;
+      const tt = t as Record<string, unknown>;
+      const entry: ProductTranslation = {};
+      if (tt.name) entry.name = this.cleanString(tt.name, '', 255);
+      if (tt.description) entry.description = this.cleanString(tt.description, '', 8000);
+      if (tt.metaTitle) entry.metaTitle = this.cleanString(tt.metaTitle, '', 255);
+      if (tt.metaDescription) entry.metaDescription = this.cleanString(tt.metaDescription, '', 500);
+      if (Object.keys(entry).length) out[locale.slice(0, 8)] = entry;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  private async writeChangeLog(
+    tenantId: string,
+    productId: string,
+    userId: string | null,
+    changes: Array<{ field: string; oldValue: unknown; newValue: unknown }>,
+  ) {
+    const rows = changes
+      .filter((c) => String(c.oldValue ?? '') !== String(c.newValue ?? ''))
+      .map((c) =>
+        this.changeLogs.create({
+          tenantId,
+          productId,
+          field: c.field,
+          oldValue: c.oldValue == null ? null : String(c.oldValue),
+          newValue: c.newValue == null ? null : String(c.newValue),
+          userId,
+        }),
+      );
+    if (rows.length) await this.changeLogs.save(rows);
+  }
+
   async createProduct(
     tenantId: string,
     dto: {
@@ -482,12 +808,32 @@ export class ProductsService {
       variantAttributeIds?: string[];
       customFields?: Record<string, unknown>;
       externalId?: string | null;
+      slug?: string | null;
+      metaTitle?: string | null;
+      metaDescription?: string | null;
+      weight?: number | null;
+      dimensions?: unknown;
+      barcode?: string | null;
+      tags?: string[];
+      relatedProductIds?: string[];
+      translations?: unknown;
+      salePrice?: number | null;
+      saleStartAt?: string | null;
+      saleEndAt?: string | null;
+      priceTiers?: unknown;
+      isBundle?: boolean;
+      bundleItems?: unknown;
+      prices?: unknown;
+      siteIds?: string[];
     },
   ) {
     const name = this.cleanString(dto.name, '', 255);
     if (!name) throw new BadRequestException('Название товара обязательно');
     const sku = dto.sku ? this.cleanString(dto.sku, '', 64) : null;
     await this.assertUniqueSku(tenantId, sku);
+    const barcode = dto.barcode ? this.cleanString(dto.barcode, '', 64) : null;
+    await this.assertUniqueBarcode(tenantId, barcode);
+    const slug = await this.uniqueProductSlug(tenantId, dto.slug || name);
     const customFields = await this.normalizeCustomFieldValues(tenantId, dto.customFields);
     const product = this.products.create({
       tenantId,
@@ -509,8 +855,26 @@ export class ProductsService {
       quantity: Boolean(dto.isVariable) ? 0 : Math.max(0, Number(dto.quantity) || 0),
       customFields,
       externalId: dto.externalId ? this.cleanString(dto.externalId, '', 255) : null,
+      slug,
+      metaTitle: dto.metaTitle ? this.cleanString(dto.metaTitle, '', 255) : null,
+      metaDescription: dto.metaDescription ? this.cleanString(dto.metaDescription, '', 500) : null,
+      weight: dto.weight != null ? String(Number(dto.weight)) : null,
+      dimensions: this.normalizeDimensions(dto.dimensions),
+      barcode,
+      tags: Array.isArray(dto.tags) ? dto.tags.map((t) => this.cleanString(t, '', 60)).filter(Boolean) : [],
+      relatedProductIds: Array.isArray(dto.relatedProductIds) ? dto.relatedProductIds.filter(Boolean) : null,
+      translations: this.normalizeTranslations(dto.translations),
+      salePrice: dto.salePrice != null ? String(Number(dto.salePrice)) : null,
+      saleStartAt: dto.saleStartAt ? new Date(dto.saleStartAt) : null,
+      saleEndAt: dto.saleEndAt ? new Date(dto.saleEndAt) : null,
+      priceTiers: this.normalizePriceTiers(dto.priceTiers),
+      isBundle: Boolean(dto.isBundle),
+      bundleItems: Boolean(dto.isBundle) ? this.normalizeBundleItems(dto.bundleItems) : null,
+      prices: this.normalizePrices(dto.prices),
+      siteIds: await this.normalizeSiteIds(tenantId, dto.siteIds),
     });
     const saved = await this.products.save(product);
+    this.webhooksDispatcher.dispatch(tenantId, 'product.created', { productId: saved.id, sku: saved.sku, name: saved.name }).catch(() => {});
     if (!saved.isVariable && saved.quantity > 0) {
       await this.recordStockMovement(tenantId, {
         productId: saved.id,
@@ -544,10 +908,37 @@ export class ProductsService {
       variantAttributeIds: string[];
       customFields: Record<string, unknown>;
       externalId: string | null;
+      slug: string | null;
+      metaTitle: string | null;
+      metaDescription: string | null;
+      weight: number | null;
+      dimensions: unknown;
+      barcode: string | null;
+      tags: string[];
+      relatedProductIds: string[];
+      translations: unknown;
+      salePrice: number | null;
+      saleStartAt: string | null;
+      saleEndAt: string | null;
+      priceTiers: unknown;
+      isBundle: boolean;
+      bundleItems: unknown;
+      prices: unknown;
+      siteIds: string[];
     }>,
+    userId: string | null = null,
   ) {
     const product = await this.products.findOne({ where: { tenantId, id, isDeleted: false } });
     if (!product) throw new NotFoundException('Товар не найден');
+
+    const before = {
+      price: product.price,
+      costPrice: product.costPrice,
+      status: product.status,
+      sku: product.sku,
+      barcode: product.barcode,
+    };
+
     if (dto.name !== undefined) product.name = this.cleanString(dto.name, product.name, 255);
     if (dto.sku !== undefined) {
       const sku = dto.sku ? this.cleanString(dto.sku, '', 64) : null;
@@ -583,7 +974,187 @@ export class ProductsService {
     if (dto.externalId !== undefined) {
       product.externalId = dto.externalId ? this.cleanString(dto.externalId, '', 255) : null;
     }
+    if (dto.slug !== undefined) {
+      product.slug = await this.uniqueProductSlug(tenantId, dto.slug || product.name, id);
+    }
+    if (dto.metaTitle !== undefined) {
+      product.metaTitle = dto.metaTitle ? this.cleanString(dto.metaTitle, '', 255) : null;
+    }
+    if (dto.metaDescription !== undefined) {
+      product.metaDescription = dto.metaDescription ? this.cleanString(dto.metaDescription, '', 500) : null;
+    }
+    if (dto.weight !== undefined) {
+      product.weight = dto.weight != null ? String(Number(dto.weight)) : null;
+    }
+    if (dto.dimensions !== undefined) product.dimensions = this.normalizeDimensions(dto.dimensions);
+    if (dto.barcode !== undefined) {
+      const barcode = dto.barcode ? this.cleanString(dto.barcode, '', 64) : null;
+      await this.assertUniqueBarcode(tenantId, barcode, id);
+      product.barcode = barcode;
+    }
+    if (dto.tags !== undefined) {
+      product.tags = Array.isArray(dto.tags) ? dto.tags.map((t) => this.cleanString(t, '', 60)).filter(Boolean) : [];
+    }
+    if (dto.relatedProductIds !== undefined) {
+      product.relatedProductIds = Array.isArray(dto.relatedProductIds)
+        ? dto.relatedProductIds.filter(Boolean)
+        : null;
+    }
+    if (dto.translations !== undefined) product.translations = this.normalizeTranslations(dto.translations);
+    if (dto.salePrice !== undefined) {
+      product.salePrice = dto.salePrice != null ? String(Number(dto.salePrice)) : null;
+    }
+    if (dto.saleStartAt !== undefined) product.saleStartAt = dto.saleStartAt ? new Date(dto.saleStartAt) : null;
+    if (dto.saleEndAt !== undefined) product.saleEndAt = dto.saleEndAt ? new Date(dto.saleEndAt) : null;
+    if (dto.priceTiers !== undefined) product.priceTiers = this.normalizePriceTiers(dto.priceTiers);
+    if (dto.isBundle !== undefined) product.isBundle = Boolean(dto.isBundle);
+    if (dto.bundleItems !== undefined) {
+      product.bundleItems = product.isBundle ? this.normalizeBundleItems(dto.bundleItems) : null;
+    }
+    if (dto.prices !== undefined) product.prices = this.normalizePrices(dto.prices);
+    if (dto.siteIds !== undefined) product.siteIds = await this.normalizeSiteIds(tenantId, dto.siteIds);
+
+    const saved = await this.products.save(product);
+
+    await this.writeChangeLog(tenantId, id, userId, [
+      { field: 'price', oldValue: before.price, newValue: saved.price },
+      { field: 'costPrice', oldValue: before.costPrice, newValue: saved.costPrice },
+      { field: 'status', oldValue: before.status, newValue: saved.status },
+      { field: 'sku', oldValue: before.sku, newValue: saved.sku },
+      { field: 'barcode', oldValue: before.barcode, newValue: saved.barcode },
+    ]);
+
+    this.webhooksDispatcher
+      .dispatch(tenantId, 'product.updated', { productId: saved.id, sku: saved.sku, name: saved.name })
+      .catch(() => {});
+
+    return saved;
+  }
+
+  /* ------------------------------------------------------------------ publication moderation */
+
+  /** Очередь модерации: запросы на публикацию, которые ещё не одобрены. */
+  async listPublicationQueue(tenantId: string) {
+    return this.products.find({
+      where: { tenantId, isDeleted: false, isPubliclyVisible: false, publicationRequestedAt: Not(IsNull()) },
+      order: { publicationRequestedAt: 'ASC' },
+    });
+  }
+
+  /**
+   * Обычный редактор не может напрямую включить `isPubliclyVisible` (см.
+   * lumiva_products_module_roadmap.md §15, пункт 4) — только запросить публикацию. Подтверждает
+   * её отдельно тот, у кого есть `products_publish`.
+   */
+  async requestPublication(tenantId: string, productId: string, userId: string | null) {
+    const product = await this.products.findOne({ where: { tenantId, id: productId, isDeleted: false } });
+    if (!product) throw new NotFoundException('Товар не найден');
+    if (product.isPubliclyVisible) {
+      throw new BadRequestException('Товар уже опубликован в каталоге');
+    }
+    product.publicationRequestedAt = new Date();
+    product.publicationRequestedBy = userId;
+    product.publicationRejectedAt = null;
+    product.publicationRejectionReason = null;
+    const saved = await this.products.save(product);
+
+    const reviewers = await this.staffUsers.find({
+      where: { tenantId, isActive: true, role: In(['owner', 'manager']) },
+    });
+    const emails = new Set(
+      reviewers.map((s) => s.email?.trim().toLowerCase()).filter((e): e is string => !!e),
+    );
+    if (emails.size) {
+      const tenantUsers = await this.users.find({ where: { tenantId } });
+      const userIds = tenantUsers.filter((u) => emails.has(u.email?.trim().toLowerCase())).map((u) => u.id);
+      if (userIds.length) {
+        await this.notifications.create(
+          tenantId,
+          userIds,
+          'Запрос на публикацию товара',
+          `${saved.name}${saved.sku ? ` (${saved.sku})` : ''} — запрошена публикация в публичный каталог`,
+          { type: 'product.publication_requested', productId: saved.id, link: `/products/${saved.id}` },
+        );
+      }
+    }
+    return saved;
+  }
+
+  async approvePublication(tenantId: string, productId: string, userId: string | null) {
+    const product = await this.products.findOne({ where: { tenantId, id: productId, isDeleted: false } });
+    if (!product) throw new NotFoundException('Товар не найден');
+    product.isPubliclyVisible = true;
+    product.publicationApprovedAt = new Date();
+    product.publicationApprovedBy = userId;
+    product.publicationRequestedAt = null;
+    product.publicationRequestedBy = null;
+    product.publicationRejectedAt = null;
+    product.publicationRejectionReason = null;
+    const saved = await this.products.save(product);
+    this.webhooksDispatcher
+      .dispatch(tenantId, 'product.published', { productId: saved.id, sku: saved.sku, name: saved.name })
+      .catch(() => {});
+    return saved;
+  }
+
+  async rejectPublication(tenantId: string, productId: string, reason: string | null) {
+    const product = await this.products.findOne({ where: { tenantId, id: productId, isDeleted: false } });
+    if (!product) throw new NotFoundException('Товар не найден');
+    product.publicationRejectedAt = new Date();
+    product.publicationRejectionReason = reason ? this.cleanString(reason, '', 500) : null;
+    product.publicationRequestedAt = null;
+    product.publicationRequestedBy = null;
     return this.products.save(product);
+  }
+
+  /** Прямое снятие с публикации — не требует запроса, только `products_publish`. */
+  async unpublish(tenantId: string, productId: string) {
+    const product = await this.products.findOne({ where: { tenantId, id: productId, isDeleted: false } });
+    if (!product) throw new NotFoundException('Товар не найден');
+    product.isPubliclyVisible = false;
+    product.publicationApprovedAt = null;
+    product.publicationApprovedBy = null;
+    return this.products.save(product);
+  }
+
+  async listChangeLogs(tenantId: string, productId: string, limit = 50) {
+    return this.changeLogs.find({
+      where: { tenantId, productId },
+      order: { createdAt: 'DESC' },
+      take: Math.min(200, Math.max(1, limit)),
+    });
+  }
+
+  /** Массовое обновление категории/статуса/тегов у выбранных товаров. */
+  async bulkUpdateProducts(
+    tenantId: string,
+    dto: {
+      productIds: string[];
+      categoryId?: string | null;
+      status?: string;
+      tagsToAdd?: string[];
+      tagsToRemove?: string[];
+    },
+  ) {
+    const ids = Array.isArray(dto.productIds) ? dto.productIds.filter(Boolean) : [];
+    if (!ids.length) throw new BadRequestException('Нужно выбрать хотя бы один товар');
+    const products = await this.products.find({ where: { tenantId, id: In(ids), isDeleted: false } });
+    const toAdd = (dto.tagsToAdd || []).map((t) => this.cleanString(t, '', 60)).filter(Boolean);
+    const toRemove = new Set((dto.tagsToRemove || []).map((t) => this.cleanString(t, '', 60)).filter(Boolean));
+    for (const p of products) {
+      if (dto.categoryId !== undefined) p.categoryId = dto.categoryId || null;
+      if (dto.status !== undefined && PRODUCT_STATUSES.includes(dto.status as ProductStatus)) {
+        p.status = dto.status as ProductStatus;
+      }
+      if (toAdd.length || toRemove.size) {
+        const set = new Set(p.tags || []);
+        for (const t of toAdd) set.add(t);
+        for (const t of toRemove) set.delete(t);
+        p.tags = [...set];
+      }
+    }
+    await this.products.save(products);
+    return { updated: products.length };
   }
 
   async deleteProduct(tenantId: string, id: string) {
@@ -591,6 +1162,9 @@ export class ProductsService {
     if (!product) throw new NotFoundException('Товар не найден');
     product.isDeleted = true;
     await this.products.save(product);
+    this.webhooksDispatcher
+      .dispatch(tenantId, 'product.deleted', { productId: product.id, sku: product.sku, name: product.name })
+      .catch(() => {});
     return { ok: true };
   }
 
@@ -720,54 +1294,288 @@ export class ProductsService {
     const variant = await this.variants.findOne({ where: { tenantId, productId, id: variantId } });
     if (!variant) throw new NotFoundException('Вариант не найден');
     await this.variants.remove(variant);
+    await this.locationStock.delete({ tenantId, variantId });
     await this.recalcProductQuantity(tenantId, productId);
     return { ok: true };
   }
 
   /* ------------------------------------------------------------------ stock */
 
+  /** Уведомляет владельца/менеджеров, когда остаток пересекает порог «мало на складе» сверху вниз. */
+  private async notifyLowStock(
+    tenantId: string,
+    product: Product,
+    previousQuantity: number,
+    newQuantity: number,
+  ): Promise<void> {
+    const threshold = product.lowStockThreshold;
+    if (threshold == null) return;
+    if (!(previousQuantity > threshold && newQuantity <= threshold)) return;
+
+    const staff = await this.staffUsers.find({ where: { tenantId, isActive: true, role: In(['owner', 'manager']) } });
+    const emails = new Set(
+      staff.map((s) => s.email?.trim().toLowerCase()).filter((e): e is string => !!e),
+    );
+    if (!emails.size) return;
+    const tenantUsers = await this.users.find({ where: { tenantId } });
+    const userIds = tenantUsers.filter((u) => emails.has(u.email?.trim().toLowerCase())).map((u) => u.id);
+    if (!userIds.length) return;
+
+    const isOut = newQuantity === 0;
+    const title = isOut ? 'Товар закончился' : 'Низкий остаток товара';
+    const body = `${product.name}${product.sku ? ` (${product.sku})` : ''}: остаток ${newQuantity} (порог ${threshold})`;
+    await this.notifications.create(tenantId, userIds, title, body, {
+      type: isOut ? 'product.out_of_stock' : 'product.low_stock',
+      productId: product.id,
+      link: `/products/${product.id}`,
+    });
+  }
+
+  /** Находит дефолтный склад тенанта, создаёт при отсутствии (тенанты, заведённые до §12.2). */
+  private async getOrCreateDefaultLocation(tenantId: string): Promise<ProductLocation> {
+    const existing = await this.locations.findOne({ where: { tenantId, isDefault: true } });
+    if (existing) return existing;
+    return this.locations.save(
+      this.locations.create({
+        tenantId,
+        name: 'Основной склад',
+        code: 'MAIN',
+        isDefault: true,
+        isActive: true,
+      }),
+    );
+  }
+
+  /**
+   * Любое изменение остатка идёт через этот метод: пишет строку в product_location_stock
+   * (источник истины ПО СКЛАДУ), пересчитывает денормализованную сумму на Product/ProductVariant
+   * и журналирует движение. `resultingQuantity` в самом движении — остаток НА ЭТОМ СКЛАДЕ после
+   * операции (не общий по товару) — так движение остаётся осмысленным при нескольких складах;
+   * при единственном (дефолтном) складе оба числа совпадают.
+   */
   private async recordStockMovement(
     tenantId: string,
     input: {
       productId: string;
       variantId: string | null;
+      locationId?: string | null;
       type: ProductStockMovementType;
       quantityDelta: number;
       reason?: string | null;
       userId?: string | null;
       source?: ProductStockMovementSource;
+      relatedMovementId?: string | null;
     },
   ) {
-    let resultingQuantity: number;
+    const location = input.locationId
+      ? await this.locations.findOne({ where: { tenantId, id: input.locationId } })
+      : await this.getOrCreateDefaultLocation(tenantId);
+    if (!location) throw new NotFoundException('Склад не найден');
+
+    const rows = await this.locationStock.find({
+      where: {
+        tenantId,
+        productId: input.productId,
+        variantId: input.variantId === null ? IsNull() : input.variantId,
+      },
+    });
+    const previousTotal = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
+    let row = rows.find((r) => r.locationId === location.id) || null;
+    const previousAtLocation = row?.quantity || 0;
+    const resultingAtLocation = Math.max(0, previousAtLocation + input.quantityDelta);
+    if (row) {
+      row.quantity = resultingAtLocation;
+      await this.locationStock.save(row);
+    } else {
+      row = await this.locationStock.save(
+        this.locationStock.create({
+          tenantId,
+          productId: input.productId,
+          variantId: input.variantId,
+          locationId: location.id,
+          quantity: resultingAtLocation,
+        }),
+      );
+    }
+    const resultingTotal = previousTotal - previousAtLocation + resultingAtLocation;
+
+    let productForNotify: Product | null = null;
     if (input.variantId) {
       const variant = await this.variants.findOne({ where: { tenantId, id: input.variantId } });
       if (!variant) throw new NotFoundException('Вариант не найден');
-      resultingQuantity = Math.max(0, (variant.quantity || 0) + input.quantityDelta);
-      variant.quantity = resultingQuantity;
-      await this.variants.save(variant);
+      await this.variants.update({ tenantId, id: input.variantId }, { quantity: resultingTotal });
       await this.recalcProductQuantity(tenantId, input.productId);
+      productForNotify = await this.products.findOne({ where: { tenantId, id: input.productId } });
     } else {
       const product = await this.products.findOne({ where: { tenantId, id: input.productId } });
       if (!product) throw new NotFoundException('Товар не найден');
       if (product.isVariable) {
         throw new BadRequestException('У вариативного товара остаток редактируется на уровне варианта');
       }
-      resultingQuantity = Math.max(0, (product.quantity || 0) + input.quantityDelta);
-      product.quantity = resultingQuantity;
+      product.quantity = resultingTotal;
       await this.products.save(product);
+      productForNotify = product;
+    }
+    if (productForNotify && input.quantityDelta < 0) {
+      this.notifyLowStock(tenantId, productForNotify, previousTotal, resultingTotal).catch(() => {});
     }
     const movement = this.movements.create({
       tenantId,
       productId: input.productId,
       variantId: input.variantId,
+      locationId: location.id,
+      relatedMovementId: input.relatedMovementId || null,
       type: input.type,
       quantityDelta: input.quantityDelta,
-      resultingQuantity,
+      resultingQuantity: resultingAtLocation,
       reason: input.reason ? this.cleanString(input.reason, '', 2000) : null,
       userId: input.userId || null,
       source: input.source || 'manual',
     });
-    return this.movements.save(movement);
+    const savedMovement = await this.movements.save(movement);
+    if (productForNotify) {
+      this.webhooksDispatcher
+        .dispatch(tenantId, 'product.stock_changed', {
+          productId: input.productId,
+          variantId: input.variantId,
+          sku: productForNotify.sku,
+          name: productForNotify.name,
+          quantityDelta: input.quantityDelta,
+          resultingQuantity: resultingAtLocation,
+        })
+        .catch(() => {});
+    }
+    return savedMovement;
+  }
+
+  /** Перемещение остатка между двумя складами — пара движений transfer_out/transfer_in. */
+  async transferStock(
+    tenantId: string,
+    userId: string | null,
+    input: {
+      productId: string;
+      variantId?: string | null;
+      fromLocationId: string;
+      toLocationId: string;
+      quantity: number;
+      reason?: string;
+    },
+  ) {
+    const quantity = Number(input.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new BadRequestException('Количество для перемещения должно быть положительным');
+    }
+    if (input.fromLocationId === input.toLocationId) {
+      throw new BadRequestException('Склад отправления и назначения совпадают');
+    }
+    const [fromLocation, toLocation] = await Promise.all([
+      this.locations.findOne({ where: { tenantId, id: input.fromLocationId } }),
+      this.locations.findOne({ where: { tenantId, id: input.toLocationId } }),
+    ]);
+    if (!fromLocation || !toLocation) throw new NotFoundException('Склад не найден');
+
+    const variantId = input.variantId || null;
+    const availableAtSource = await this.locationStock.findOne({
+      where: {
+        tenantId,
+        productId: input.productId,
+        variantId: variantId === null ? IsNull() : variantId,
+        locationId: fromLocation.id,
+      },
+    });
+    if ((availableAtSource?.quantity || 0) < quantity) {
+      throw new BadRequestException('Недостаточно остатка на складе отправления для перемещения');
+    }
+
+    const reason = input.reason
+      ? this.cleanString(input.reason, '', 2000)
+      : `Перемещение: ${fromLocation.name} → ${toLocation.name}`;
+
+    const outMovement = await this.recordStockMovement(tenantId, {
+      productId: input.productId,
+      variantId,
+      locationId: fromLocation.id,
+      type: 'transfer_out',
+      quantityDelta: -quantity,
+      reason,
+      userId,
+      source: 'manual',
+    });
+    const inMovement = await this.recordStockMovement(tenantId, {
+      productId: input.productId,
+      variantId,
+      locationId: toLocation.id,
+      type: 'transfer_in',
+      quantityDelta: quantity,
+      reason,
+      userId,
+      source: 'manual',
+      relatedMovementId: outMovement.id,
+    });
+    await this.movements.update({ id: outMovement.id }, { relatedMovementId: inMovement.id });
+    return { ok: true, outMovementId: outMovement.id, inMovementId: inMovement.id };
+  }
+
+  /* ------------------------------------------------------------------ locations */
+
+  async listLocations(tenantId: string) {
+    await this.getOrCreateDefaultLocation(tenantId);
+    return this.locations.find({ where: { tenantId }, order: { isDefault: 'DESC', name: 'ASC' } });
+  }
+
+  async createLocation(tenantId: string, dto: { name: string; code?: string | null }) {
+    const name = this.cleanString(dto.name, '', 255);
+    if (!name) throw new BadRequestException('Название склада обязательно');
+    const loc = this.locations.create({
+      tenantId,
+      name,
+      code: dto.code ? this.cleanString(dto.code, '', 32) : null,
+      isDefault: false,
+      isActive: true,
+    });
+    return this.locations.save(loc);
+  }
+
+  async updateLocation(
+    tenantId: string,
+    id: string,
+    dto: { name?: string; code?: string | null; isActive?: boolean; isDefault?: boolean },
+  ) {
+    const loc = await this.locations.findOne({ where: { tenantId, id } });
+    if (!loc) throw new NotFoundException('Склад не найден');
+    if (dto.name !== undefined) {
+      const name = this.cleanString(dto.name, '', 255);
+      if (!name) throw new BadRequestException('Название склада обязательно');
+      loc.name = name;
+    }
+    if (dto.code !== undefined) loc.code = dto.code ? this.cleanString(dto.code, '', 32) : null;
+    if (dto.isActive !== undefined) {
+      if (loc.isDefault && !dto.isActive) {
+        throw new BadRequestException('Нельзя деактивировать склад по умолчанию');
+      }
+      loc.isActive = Boolean(dto.isActive);
+    }
+    if (dto.isDefault === true && !loc.isDefault) {
+      await this.locations.update({ tenantId, isDefault: true }, { isDefault: false });
+      loc.isDefault = true;
+      loc.isActive = true;
+    }
+    return this.locations.save(loc);
+  }
+
+  async deleteLocation(tenantId: string, id: string) {
+    const loc = await this.locations.findOne({ where: { tenantId, id } });
+    if (!loc) throw new NotFoundException('Склад не найден');
+    if (loc.isDefault) throw new BadRequestException('Нельзя удалить склад по умолчанию');
+    const stockRows = await this.locationStock.find({ where: { tenantId, locationId: id } });
+    if (stockRows.some((r) => r.quantity !== 0)) {
+      throw new BadRequestException(
+        'На складе есть остаток — перенесите его на другой склад перед удалением',
+      );
+    }
+    if (stockRows.length) await this.locationStock.remove(stockRows);
+    await this.locations.remove(loc);
+    return { ok: true };
   }
 
   async adjustStock(
@@ -776,6 +1584,7 @@ export class ProductsService {
     input: {
       productId: string;
       variantId?: string | null;
+      locationId?: string | null;
       delta: number;
       reason?: string;
       source?: ProductStockMovementSource;
@@ -788,6 +1597,7 @@ export class ProductsService {
     return this.recordStockMovement(tenantId, {
       productId: input.productId,
       variantId: input.variantId || null,
+      locationId: input.locationId || null,
       type: delta > 0 ? 'in' : 'adjustment',
       quantityDelta: delta,
       reason: input.reason,
@@ -799,7 +1609,7 @@ export class ProductsService {
   /** Плоский список товар×вариант с остатками — данные для раздела «Склад». */
   async listStock(
     tenantId: string,
-    query: { search?: string; categoryId?: string; lowStockOnly?: boolean },
+    query: { search?: string; categoryId?: string; lowStockOnly?: boolean; locationId?: string },
   ) {
     const products = await this.products.find({
       where: { tenantId, isDeleted: false, ...(query.categoryId ? { categoryId: query.categoryId } : {}) },
@@ -837,6 +1647,31 @@ export class ProductsService {
       return parts.join(' / ') || '—';
     };
 
+    // Разбивка остатка по складам — нужна и для фильтра по конкретному складу, и для
+    // бейджа «на N складах» при просмотре «по всем».
+    const locations = await this.locations.find({ where: { tenantId } });
+    const locationById = new Map(locations.map((l) => [l.id, l]));
+    const productIds = filtered.map((p) => p.id);
+    const stockRows = productIds.length
+      ? await this.locationStock.find({ where: { tenantId, productId: In(productIds) } })
+      : [];
+    const stockByKey = new Map<string, Array<{ locationId: string; locationName: string; quantity: number }>>();
+    for (const r of stockRows) {
+      const key = `${r.productId}:${r.variantId || ''}`;
+      const arr = stockByKey.get(key) || [];
+      arr.push({
+        locationId: r.locationId,
+        locationName: locationById.get(r.locationId)?.name || '—',
+        quantity: r.quantity,
+      });
+      stockByKey.set(key, arr);
+    }
+    const quantityAt = (productId: string, variantId: string | null, fallback: number): number => {
+      if (!query.locationId) return fallback;
+      const arr = stockByKey.get(`${productId}:${variantId || ''}`) || [];
+      return arr.find((r) => r.locationId === query.locationId)?.quantity || 0;
+    };
+
     const rows: Array<{
       productId: string;
       productName: string;
@@ -846,32 +1681,37 @@ export class ProductsService {
       quantity: number;
       lowStockThreshold: number | null;
       isLow: boolean;
+      locations: Array<{ locationId: string; locationName: string; quantity: number }>;
     }> = [];
     for (const p of filtered) {
       const productVariants = variantsByProduct.get(p.id) || [];
       if (p.isVariable && productVariants.length) {
         for (const v of productVariants) {
+          const quantity = quantityAt(p.id, v.id, v.quantity);
           rows.push({
             productId: p.id,
             productName: p.name,
             sku: v.sku,
             variantId: v.id,
             variantLabel: describeVariant(v),
-            quantity: v.quantity,
+            quantity,
             lowStockThreshold: p.lowStockThreshold,
-            isLow: p.lowStockThreshold != null && v.quantity <= p.lowStockThreshold,
+            isLow: p.lowStockThreshold != null && quantity <= p.lowStockThreshold,
+            locations: stockByKey.get(`${p.id}:${v.id}`) || [],
           });
         }
       } else {
+        const quantity = quantityAt(p.id, null, p.quantity);
         rows.push({
           productId: p.id,
           productName: p.name,
           sku: p.sku,
           variantId: null,
           variantLabel: null,
-          quantity: p.quantity,
+          quantity,
           lowStockThreshold: p.lowStockThreshold,
-          isLow: p.lowStockThreshold != null && p.quantity <= p.lowStockThreshold,
+          isLow: p.lowStockThreshold != null && quantity <= p.lowStockThreshold,
+          locations: stockByKey.get(`${p.id}:`) || [],
         });
       }
     }
@@ -917,6 +1757,8 @@ export class ProductsService {
       ...fieldDefs.filter((f) => f.isActive).map((f) => ({ key: f.key, label: f.label })),
     ];
     const suggestedMapping = buildSuggestedCustomObjectFieldMapping(parsed.columns, mappableFields);
+    const mappedColumns = new Set(Object.values(suggestedMapping).filter((v): v is string => !!v));
+    const unmatchedColumns = parsed.columns.filter((c) => !mappedColumns.has(c));
     const session = await this.importSessions.save(
       this.importSessions.create({
         tenantId,
@@ -936,6 +1778,9 @@ export class ProductsService {
       totalRows: session.totalRows,
       suggestedMapping,
       mappableFields,
+      // Колонки без пары — при применении импорта на них автоматически заведутся новые
+      // кастомные текстовые поля (см. applyImport), чтобы данные не терялись.
+      unmatchedColumns,
     };
   }
 
@@ -950,6 +1795,13 @@ export class ProductsService {
       importId: string;
       mapping: Record<string, string | null>;
       updateExisting?: boolean;
+      /**
+       * Явный список «колонка файла → новое кастомное поле», подтверждённый пользователем на
+       * экране маппинга (см. ProductImportPage.tsx — строки «Новое поле» с чекбоксом и
+       * редактируемым названием). Если не передан — старое поведение: автоматически заводим
+       * поле для каждой несопоставленной колонки файла, взяв название колонки как есть.
+       */
+      newFields?: Array<{ column: string; label: string }>;
     },
   ) {
     const session = await this.importSessions.findOne({ where: { id: dto.importId, tenantId } });
@@ -957,11 +1809,28 @@ export class ProductsService {
     if (session.status === 'applied') {
       throw new BadRequestException('Этот файл уже был импортирован');
     }
-    const mapping = dto.mapping || {};
+    const mapping = { ...(dto.mapping || {}) };
     const fieldDefs = await this.listFieldDefs(tenantId);
     const categories = await this.listCategories(tenantId);
     const categoryByName = new Map(categories.map((c) => [c.name.trim().toLowerCase(), c]));
     const updateExisting = dto.updateExisting !== false;
+
+    // Колонки файла, на которые не сослалось ни одно поле в маппинге (ни структурное, ни
+    // существующее кастомное) — заводим как новые текстовые кастомные поля, чтобы их данные не
+    // терялись при импорте (см. lumiva_products_module_roadmap.md §8). Если пользователь явно
+    // подтвердил список на экране маппинга (`dto.newFields`) — используем его (с его же
+    // названиями, можно было переименовать/исключить лишние); иначе — старое поведение.
+    const mappedColumns = new Set(Object.values(mapping).filter((v): v is string => !!v));
+    const toCreate = dto.newFields
+      ? dto.newFields.filter((f) => f.column && f.label?.trim())
+      : session.columns.filter((c) => !mappedColumns.has(c)).map((c) => ({ column: c, label: c }));
+    const createdFieldLabels: string[] = [];
+    for (const { column, label } of toCreate) {
+      const newField = await this.createFieldDef(tenantId, { label, type: 'text' });
+      fieldDefs.push(newField);
+      mapping[newField.key] = column;
+      createdFieldLabels.push(newField.label);
+    }
 
     let created = 0;
     let updatedCount = 0;
@@ -1014,6 +1883,38 @@ export class ProductsService {
         const currency = get('currency');
         const unit = get('unit');
         const description = get('description');
+        const barcode = get('barcode');
+        const tagsRaw = get('tags');
+        const tags = tagsRaw
+          ? tagsRaw.split(/[,;]/).map((v) => v.trim()).filter(Boolean)
+          : undefined;
+        const weightRaw = get('weight');
+        const weight = weightRaw ? Number(weightRaw.replace(',', '.')) : undefined;
+        const dimLengthRaw = get('dimensionsLength');
+        const dimWidthRaw = get('dimensionsWidth');
+        const dimHeightRaw = get('dimensionsHeight');
+        const dimensions =
+          dimLengthRaw || dimWidthRaw || dimHeightRaw
+            ? {
+                length: dimLengthRaw ? Number(dimLengthRaw.replace(',', '.')) : undefined,
+                width: dimWidthRaw ? Number(dimWidthRaw.replace(',', '.')) : undefined,
+                height: dimHeightRaw ? Number(dimHeightRaw.replace(',', '.')) : undefined,
+              }
+            : undefined;
+        const slug = get('slug');
+        const metaTitle = get('metaTitle');
+        const metaDescription = get('metaDescription');
+        const pricesRaw = get('prices');
+        const prices = pricesRaw
+          ? pricesRaw
+              .split(',')
+              .map((pair) => {
+                const [currency, priceStr] = pair.split(':').map((s) => s.trim());
+                const priceVal = Number((priceStr || '').replace(',', '.'));
+                return currency && Number.isFinite(priceVal) ? { currency, price: priceVal } : null;
+              })
+              .filter((p): p is { currency: string; price: number } => !!p)
+          : undefined;
 
         let existing: Product | null = null;
         if (sku) existing = await this.products.findOne({ where: { tenantId, sku, isDeleted: false } });
@@ -1034,6 +1935,14 @@ export class ProductsService {
             unit: unit || undefined,
             customFields: Object.keys(customFields).length ? customFields : undefined,
             externalId: externalId ?? undefined,
+            barcode: barcode || undefined,
+            tags,
+            weight,
+            dimensions,
+            slug: slug || undefined,
+            metaTitle: metaTitle || undefined,
+            metaDescription: metaDescription || undefined,
+            prices,
           });
           if (quantityRaw && !existing.isVariable) {
             const delta = Number(quantityRaw) - existing.quantity;
@@ -1064,6 +1973,14 @@ export class ProductsService {
             quantity: quantityRaw ? Number(quantityRaw) : 0,
             customFields,
             externalId,
+            barcode: barcode || null,
+            tags,
+            weight,
+            dimensions,
+            slug: slug || undefined,
+            metaTitle: metaTitle || null,
+            metaDescription: metaDescription || null,
+            prices,
           });
           created++;
         }
@@ -1075,7 +1992,7 @@ export class ProductsService {
     session.status = 'applied';
     await this.importSessions.save(session);
 
-    return { created, updated: updatedCount, errors, total: session.rows.length };
+    return { created, updated: updatedCount, errors, total: session.rows.length, createdFieldLabels };
   }
 
   /**
@@ -1084,9 +2001,9 @@ export class ProductsService {
    */
   async exportProducts(
     tenantId: string,
-    query: { format?: 'xlsx' | 'csv'; status?: string; categoryId?: string },
+    query: { format?: 'xlsx' | 'csv' | 'pdf'; status?: string; categoryId?: string },
   ): Promise<{ buffer: Buffer; filename: string; contentType: string }> {
-    const format = query.format === 'csv' ? 'csv' : 'xlsx';
+    const format = query.format === 'csv' ? 'csv' : query.format === 'pdf' ? 'pdf' : 'xlsx';
     const { items } = await this.listProducts(tenantId, {
       status: query.status,
       categoryId: query.categoryId,
@@ -1134,6 +2051,16 @@ export class ProductsService {
       'Единица измерения',
       'Вариант',
       'Внешний ID',
+      'Штрихкод',
+      'Теги',
+      'Вес',
+      'Длина',
+      'Ширина',
+      'Высота',
+      'Slug (URL)',
+      'SEO: заголовок',
+      'SEO: описание',
+      'Цены в валютах',
       ...fieldDefs.map((f) => f.label),
     ];
 
@@ -1160,6 +2087,16 @@ export class ProductsService {
             p.unit || '',
             describeVariant(v),
             p.externalId || '',
+            p.barcode || '',
+            (p.tags || []).join(', '),
+            p.weight != null ? String(p.weight) : '',
+            p.dimensions?.length != null ? String(p.dimensions.length) : '',
+            p.dimensions?.width != null ? String(p.dimensions.width) : '',
+            p.dimensions?.height != null ? String(p.dimensions.height) : '',
+            p.slug || '',
+            p.metaTitle || '',
+            p.metaDescription || '',
+            (p.prices || []).map((pr) => `${pr.currency}:${pr.price}`).join(', '),
             ...customCells,
           ]);
         }
@@ -1177,6 +2114,16 @@ export class ProductsService {
           p.unit || '',
           '',
           p.externalId || '',
+          p.barcode || '',
+          (p.tags || []).join(', '),
+          p.weight != null ? String(p.weight) : '',
+          p.dimensions?.length != null ? String(p.dimensions.length) : '',
+          p.dimensions?.width != null ? String(p.dimensions.width) : '',
+          p.dimensions?.height != null ? String(p.dimensions.height) : '',
+          p.slug || '',
+          p.metaTitle || '',
+          p.metaDescription || '',
+          (p.prices || []).map((pr) => `${pr.currency}:${pr.price}`).join(', '),
           ...customCells,
         ]);
       }
@@ -1195,6 +2142,15 @@ export class ProductsService {
       };
     }
 
+    if (format === 'pdf') {
+      const buffer = await this.renderPriceListPdf(tenantId, items, categoryById);
+      return {
+        buffer,
+        filename: `price-list-${Date.now()}.pdf`,
+        contentType: 'application/pdf',
+      };
+    }
+
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Товары');
     sheet.addRow(headers);
@@ -1209,6 +2165,62 @@ export class ProductsService {
       filename: `products-${Date.now()}.xlsx`,
       contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     };
+  }
+
+  /** Прайс-лист PDF: Название / Артикул / Категория / Цена / Остаток, постранично. */
+  private async renderPriceListPdf(
+    tenantId: string,
+    items: Product[],
+    categoryById: Map<string, string>,
+  ): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 40, size: 'A4', autoFirstPage: true });
+      const chunks: Buffer[] = [];
+      doc.on('data', (c: Buffer) => chunks.push(c));
+      doc.on('end', () => resolve(Buffer.concat(chunks)));
+      doc.on('error', reject);
+
+      const fontPath = resolveUnicodePdfFont();
+      if (fontPath) {
+        doc.font(fontPath);
+      }
+
+      doc.fontSize(18).text('Прайс-лист', { align: 'left' });
+      doc.fontSize(9).fillColor('#888').text(new Date().toLocaleDateString('ru-RU'));
+      doc.moveDown(1);
+      doc.fillColor('#000');
+
+      const colX = { name: 40, sku: 280, cat: 360, price: 470, qty: 530 };
+      const rowHeader = () => {
+        doc.fontSize(9).fillColor('#888');
+        doc.text('Название', colX.name, doc.y, { continued: false });
+        doc.text('Артикул', colX.sku, doc.y - doc.currentLineHeight());
+        doc.text('Категория', colX.cat, doc.y - doc.currentLineHeight());
+        doc.text('Цена', colX.price, doc.y - doc.currentLineHeight());
+        doc.text('Остаток', colX.qty, doc.y - doc.currentLineHeight());
+        doc.moveDown(0.5);
+        doc.fillColor('#000');
+        doc.moveTo(40, doc.y).lineTo(555, doc.y).strokeColor('#ddd').stroke();
+        doc.moveDown(0.3);
+      };
+      rowHeader();
+
+      doc.fontSize(9);
+      for (const p of items) {
+        if (doc.y > 780) {
+          doc.addPage();
+          rowHeader();
+        }
+        const y = doc.y;
+        doc.text(p.name, colX.name, y, { width: 230 });
+        doc.text(p.sku || '—', colX.sku, y, { width: 70 });
+        doc.text(p.categoryId ? categoryById.get(p.categoryId) || '—' : '—', colX.cat, y, { width: 100 });
+        doc.text(`${p.price} ${p.currency}`, colX.price, y, { width: 55 });
+        doc.text(String(p.quantity), colX.qty, y, { width: 40 });
+        doc.moveDown(0.6);
+      }
+      doc.end();
+    });
   }
 
   /* ------------------------------------------------------------------ public API */
@@ -1241,6 +2253,215 @@ export class ProductsService {
       }));
     if (!product) throw new NotFoundException('Товар не найден');
     return this.getProduct(tenantId, product.id);
+  }
+
+  /* ------------------------------------------------------------ public catalog (без токена) */
+
+  /** Резолвит tenantId по публичному `Tenant.clientKey` — как на странице логина. */
+  private async resolveTenantByClientKey(clientKey: string): Promise<string> {
+    const tenant = await this.tenants.findOne({ where: { clientKey } });
+    if (!tenant) throw new NotFoundException('Каталог не найден');
+    return tenant.id;
+  }
+
+  /**
+   * Убирает поля, которые не должны утекать в анонимную витрину без токена. `customFields`
+   * намеренно оставлены — это как раз то, что клиент показывает на карточке товара на внешнем
+   * сайте (см. раздел 1 ТЗ, «Функции» и т.п.); `costPrice` (закупочная цена/маржа) — никогда.
+   */
+  private stripForPublicCatalog(product: Product) {
+    const { costPrice, ...rest } = product;
+    return rest;
+  }
+
+  /** Товар виден на сайте `siteId`, если `siteIds` не задан (все сайты) либо содержит его. */
+  private matchesSite(product: Product, siteId?: string | null): boolean {
+    if (!siteId) return true;
+    return !product.siteIds || product.siteIds.includes(siteId);
+  }
+
+  async listPublicCatalog(clientKey: string, siteId?: string) {
+    const tenantId = await this.resolveTenantByClientKey(clientKey);
+    const items = (
+      await this.products.find({
+        where: { tenantId, isDeleted: false, status: 'active', isPubliclyVisible: true },
+        order: { name: 'ASC' },
+      })
+    ).filter((p) => this.matchesSite(p, siteId));
+    const productIds = items.map((p) => p.id);
+    const allVariants = productIds.length
+      ? await this.variants.find({ where: { tenantId, productId: In(productIds), isActive: true } })
+      : [];
+    const variantsByProduct = new Map<string, ProductVariant[]>();
+    for (const v of allVariants) {
+      const arr = variantsByProduct.get(v.productId) || [];
+      arr.push(v);
+      variantsByProduct.set(v.productId, arr);
+    }
+    return items.map((p) => ({
+      ...this.stripForPublicCatalog(p),
+      variants: p.isVariable ? variantsByProduct.get(p.id) || [] : undefined,
+    }));
+  }
+
+  async getPublicCatalogProduct(clientKey: string, externalIdOrSku: string, siteId?: string) {
+    const tenantId = await this.resolveTenantByClientKey(clientKey);
+    const product =
+      (await this.products.findOne({
+        where: { tenantId, sku: externalIdOrSku, isDeleted: false, status: 'active', isPubliclyVisible: true },
+      })) ||
+      (await this.products.findOne({
+        where: { tenantId, externalId: externalIdOrSku, isDeleted: false, status: 'active', isPubliclyVisible: true },
+      }));
+    if (!product || !this.matchesSite(product, siteId)) throw new NotFoundException('Товар не найден');
+    const productVariants = product.isVariable
+      ? await this.variants.find({ where: { tenantId, productId: product.id, isActive: true } })
+      : [];
+    return { product: this.stripForPublicCatalog(product), variants: productVariants };
+  }
+
+  /* ------------------------------------------------------------------------------ feeds */
+
+  private async resolveSiteByToken(siteToken: string): Promise<Site> {
+    const site = await this.sites.findByApiToken(siteToken);
+    if (!site) throw new NotFoundException('Сайт не найден');
+    return site;
+  }
+
+  private async listFeedProducts(site: Site): Promise<Product[]> {
+    return (
+      await this.products.find({
+        where: { tenantId: site.tenantId, isDeleted: false, status: 'active', isPubliclyVisible: true },
+        order: { name: 'ASC' },
+      })
+    ).filter((p) => this.matchesSite(p, site.id));
+  }
+
+  private feedProductUrl(site: Site, product: Product): string {
+    const base = /^https?:\/\//.test(site.domain) ? site.domain.replace(/\/$/, '') : `https://${site.domain}`;
+    return `${base}/product/${product.slug || product.id}`;
+  }
+
+  private xmlEscape(value: string): string {
+    return String(value ?? '').replace(/[<>&'"]/g, (c) => {
+      switch (c) {
+        case '<':
+          return '&lt;';
+        case '>':
+          return '&gt;';
+        case '&':
+          return '&amp;';
+        case "'":
+          return '&apos;';
+        default:
+          return '&quot;';
+      }
+    });
+  }
+
+  private csvEscape(value: string): string {
+    if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+    return value;
+  }
+
+  private feedPrice(product: Product): { currency: string; price: number } {
+    return { currency: product.currency, price: Number(product.price) };
+  }
+
+  /** Google Merchant Center product feed (RSS 2.0 + g: namespace). */
+  async generateGoogleMerchantFeed(siteToken: string): Promise<string> {
+    const site = await this.resolveSiteByToken(siteToken);
+    const items = await this.listFeedProducts(site);
+    const rows = items
+      .map((p) => {
+        const { currency, price } = this.feedPrice(p);
+        const cover = p.images?.find((i) => i.isCover) || p.images?.[0];
+        const availability = p.quantity > 0 ? 'in_stock' : 'out_of_stock';
+        return `    <item>
+      <g:id>${this.xmlEscape(p.sku || p.id)}</g:id>
+      <title>${this.xmlEscape(p.name)}</title>
+      <description>${this.xmlEscape(p.description || p.name)}</description>
+      <link>${this.xmlEscape(this.feedProductUrl(site, p))}</link>
+      ${cover ? `<g:image_link>${this.xmlEscape(cover.url)}</g:image_link>` : ''}
+      <g:availability>${availability}</g:availability>
+      <g:price>${price.toFixed(2)} ${currency}</g:price>
+      <g:condition>new</g:condition>
+      ${p.barcode ? `<g:gtin>${this.xmlEscape(p.barcode)}</g:gtin>` : ''}
+    </item>`;
+      })
+      .join('\n');
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:g="http://base.google.com/ns/1.0">
+  <channel>
+    <title>${this.xmlEscape(site.name || site.domain)}</title>
+    <link>${this.xmlEscape(site.domain)}</link>
+    <description>Lumiva CRM product feed</description>
+${rows}
+  </channel>
+</rss>`;
+  }
+
+  /** CSV в формате, совместимом с импортёром товаров WooCommerce. */
+  async generateWooCommerceFeed(siteToken: string): Promise<string> {
+    const site = await this.resolveSiteByToken(siteToken);
+    const items = await this.listFeedProducts(site);
+    const categories = await this.listCategories(site.tenantId);
+    const categoryById = new Map(categories.map((c) => [c.id, c.name]));
+    const headers = [
+      'Type',
+      'SKU',
+      'Name',
+      'Published',
+      'Short description',
+      'Description',
+      'Regular price',
+      'Sale price',
+      'Categories',
+      'Images',
+      'In stock?',
+      'Stock',
+    ];
+    const rows = items.map((p) => [
+      p.isVariable ? 'variable' : 'simple',
+      p.sku || '',
+      p.name,
+      '1',
+      p.description ? p.description.slice(0, 160) : '',
+      p.description || '',
+      String(p.price),
+      p.salePrice || '',
+      p.categoryId ? categoryById.get(p.categoryId) || '' : '',
+      (p.images || []).map((i) => i.url).join(', '),
+      p.quantity > 0 ? '1' : '0',
+      String(p.quantity),
+    ]);
+    const lines = [headers, ...rows].map((r) => r.map((c) => this.csvEscape(String(c))).join(','));
+    return lines.join('\n');
+  }
+
+  /** Простой JSON-фид для headless-витрин/собственных интеграций. */
+  async generateJsonFeed(siteToken: string) {
+    const site = await this.resolveSiteByToken(siteToken);
+    const items = await this.listFeedProducts(site);
+    return {
+      site: { domain: site.domain, name: site.name || site.domain },
+      generatedAt: new Date().toISOString(),
+      products: items.map((p) => ({
+        id: p.id,
+        sku: p.sku,
+        name: p.name,
+        description: p.description,
+        price: Number(p.price),
+        currency: p.currency,
+        prices: p.prices || [],
+        salePrice: p.salePrice != null ? Number(p.salePrice) : null,
+        quantity: p.quantity,
+        images: p.images || [],
+        barcode: p.barcode,
+        tags: p.tags || [],
+        url: this.feedProductUrl(site, p),
+      })),
+    };
   }
 
   /**
@@ -1277,6 +2498,20 @@ export class ProductsService {
       images: body?.images,
       customFields: body?.customFields,
       externalId: externalId ?? undefined,
+      barcode: body?.barcode,
+      tags: body?.tags,
+      weight: body?.weight,
+      dimensions: body?.dimensions,
+      slug: body?.slug,
+      metaTitle: body?.metaTitle,
+      metaDescription: body?.metaDescription,
+      translations: body?.translations,
+      salePrice: body?.salePrice,
+      saleStartAt: body?.saleStartAt,
+      saleEndAt: body?.saleEndAt,
+      priceTiers: body?.priceTiers,
+      relatedProductIds: body?.relatedProductIds,
+      prices: body?.prices,
     };
 
     let product: Product;
@@ -1302,9 +2537,17 @@ export class ProductsService {
           where: { tenantId, sku: variantSku },
         });
         if (existingVariant) {
+          let variantChanged = false;
           if (v.priceOverride !== undefined) {
             existingVariant.priceOverride =
               v.priceOverride != null ? String(Number(v.priceOverride)) : null;
+            variantChanged = true;
+          }
+          if (v.images !== undefined) {
+            existingVariant.images = Array.isArray(v.images) ? v.images : null;
+            variantChanged = true;
+          }
+          if (variantChanged) {
             await this.variants.save(existingVariant);
           }
           if (v.quantity !== undefined) {

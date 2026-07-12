@@ -6742,6 +6742,9 @@
         "contacts": "Контакты",
         "companies": "Компании",
         "products": "Товары",
+        "products_manage_fields": "Конструктор полей товаров",
+        "products_manage_stock": "Корректировка остатков",
+        "products_publish": "Подтверждение публикации в каталог",
         "email": "Email",
         "marketing": "Маркетинг",
         "tools_automation": "Автоматизация",
@@ -6754,7 +6757,10 @@
         },
         "hint": {
           "staff": "Управление сотрудниками, приглашения",
-          "settings": "Настройки компании, API, интеграции"
+          "settings": "Настройки компании, API, интеграции",
+          "products_manage_fields": "Типы кастомных полей и атрибуты вариаций",
+          "products_manage_stock": "Корректировки остатков в разделе «Склад»",
+          "products_publish": "Подтверждать или отклонять запросы на показ товара в публичном каталоге"
         }
       },
       "profile": {
@@ -7123,9 +7129,15 @@
         "usageBody": "Во всех таких запросах передавайте заголовок X-Api-Token с этим секретом.",
         "usageBulletTraffic": "Импорт маркетингового трафика — POST …/marketing/traffic/import (таблица каналов и рекламы в CRM).",
         "usageBulletWp": "WordPress / Lumiva Connector — отправка лидов и форм (например POST …/marketing/leads/cf7), если в документации плагина указан этот же заголовок.",
+        "usageBulletProducts": "Каталог товаров и синхронизация остатков — POST …/public/products/ingest (апсерт по sku/externalId, включая штрихкод, теги, вес, габариты, SEO, варианты) и PATCH …/public/products/stock (точечное обновление остатка после заказа).",
         "usageBulletOther": "Любые другие методы API, где в документации указано «Bearer / X-Api-Token для тенанта» — один и тот же ключ.",
         "exampleTitle": "Пример: curl",
         "exampleIntro": "Подставьте полный токен после раскрытия. Ниже — тот же базовый URL, что использует ваше приложение ({{baseUrl}}).",
+        "exampleTitleProducts": "Пример: товары (внешний сайт → CRM)",
+        "exampleIntroProducts": "Апсерт товара со штрихкодом, тегами, весом/габаритами и вариантом по sku/externalId. Заголовок X-Idempotency-Key защищает от дублей при повторной отправке.",
+        "exampleIntroProductsStock": "Точечное обновление остатка — например, вариант продан на сайте:",
+        "exampleTitlePublicCatalog": "Пример: публичный каталог (без токена)",
+        "exampleIntroPublicCatalog": "Товары с включённым «Показывать в публичном каталоге» доступны по этому URL — без X-Api-Token, без закупочной цены. Сегмент пути — это ID вашего рабочего пространства (Настройки → Компания).",
         "tokenPlaceholder": "<ВАШ_ТОКЕН>",
         "modalRevealTitle": "Показать токен",
         "modalRevealBody": "Введите пароль от вашего аккаунта Lumiva CRM.",
@@ -9433,7 +9445,8 @@
           "price": "Цена",
           "quantity": "Остаток",
           "variable": "Вариативный",
-          "actions": "Действия"
+          "actions": "Действия",
+          "margin": "Маржа"
         },
         "empty": "Товаров пока нет",
         "lowStockBadge": "Мало на складе",
@@ -9443,7 +9456,46 @@
           "loadFailed": "Не удалось загрузить товары",
           "deleteFailed": "Не удалось удалить товар",
           "duplicateFailed": "Не удалось дублировать товар"
+        },
+        "kpis": {
+          "total": "Всего товаров",
+          "totalHint": "{{count}} в продаже",
+          "value": "Стоимость склада",
+          "valueHint": "по цене продажи",
+          "categories": "Категорий",
+          "categoriesHint": "{{count}} с подкатегориями",
+          "lowStock": "Мало на складе",
+          "lowStockHintWarn": "≤ 15% от макс.",
+          "lowStockHintOk": "всё в норме",
+          "outOfStock": "Нет в наличии",
+          "outOfStockHintBad": "требуют пополнения",
+          "outOfStockHintOk": "—"
+        },
+        "rail": {
+          "title": "Категории",
+          "all": "Все товары",
+          "totalLabel": "Всего товаров",
+          "categoriesLabel": "Категорий"
+        },
+        "viewTable": "Таблица",
+        "viewGrid": "Плитка",
+        "exportPdf": "Экспорт PDF (прайс-лист)",
+        "bulk": {
+          "selected": "выбрано",
+          "setStatus": "Изменить статус",
+          "setCategory": "Изменить категорию",
+          "printLabels": "Печать этикеток"
         }
+      },
+      "labels": {
+        "title": "Печать этикеток",
+        "subtitle": "Штрихкоды и QR-коды выбранных товаров — готово для печати на листе наклеек.",
+        "back": "Назад к товарам",
+        "empty": "Товары не выбраны. Вернитесь к списку товаров, выберите нужные и нажмите «Печать этикеток».",
+        "copies": "Копий",
+        "print": "Печать",
+        "columns": "Колонок",
+        "noBarcode": "Нет штрихкода или артикула — на этикетке будет только название товара."
       },
       "status": {
         "active": "Активен",
@@ -9467,7 +9519,19 @@
           "currency": "Валюта",
           "unit": "Единица измерения",
           "lowStockThreshold": "Порог «мало на складе»",
-          "externalId": "Внешний ID"
+          "externalId": "Внешний ID",
+          "mainImage": "Главное изображение",
+          "uploadImage": "Загрузить фото",
+          "videoUrlHint": "Ссылка на видео (например, YouTube)",
+          "barcode": "Штрихкод",
+          "barcodeInvalid": "Не удалось построить штрихкод для этого значения",
+          "margin": "Маржа",
+          "tags": "Теги",
+          "tagsPlaceholder": "Введите тег и нажмите Enter",
+          "weight": "Вес, кг",
+          "length": "Длина, см",
+          "width": "Ширина, см",
+          "height": "Высота, см"
         },
         "variable": {
           "label": "Вариативный товар",
@@ -9484,8 +9548,11 @@
             "sku": "Артикул",
             "quantity": "Остаток",
             "priceOverride": "Цена (переопределение)",
-            "active": "Активен"
-          }
+            "active": "Активен",
+            "images": "Фото"
+          },
+          "imagesHint": "Если пусто — для этого варианта показываются общие фото товара.",
+          "imagesClose": "Свернуть"
         },
         "customFields": {
           "title": "Дополнительные поля",
@@ -9503,6 +9570,67 @@
           "loadFailed": "Не удалось загрузить товар",
           "saveFailed": "Не удалось сохранить товар",
           "deleteFailed": "Не удалось удалить товар"
+        },
+        "seo": {
+          "title": "SEO",
+          "slug": "URL (slug)",
+          "metaTitle": "Meta-заголовок",
+          "metaDescription": "Meta-описание"
+        },
+        "publicCatalog": {
+          "title": "Публичный каталог",
+          "hint": "Товар станет доступен по /public/catalog/:clientKey/products (и в фидах) для внешних сайтов — без API-токена. Закупочная цена никогда не попадает туда. Публикация требует подтверждения — см. ниже.",
+          "statusPublished": "Опубликован",
+          "statusPending": "Ожидает подтверждения",
+          "requestButton": "Запросить публикацию",
+          "approveButton": "Одобрить",
+          "rejectButton": "Отклонить",
+          "rejectConfirm": "Подтвердить отклонение",
+          "rejectReasonPlaceholder": "Причина (необязательно)",
+          "rejectedNote": "Последний запрос был отклонён",
+          "unpublishButton": "Снять с публикации",
+          "sitesLabel": "Виден на сайтах",
+          "sitesHint": "Все сайты отмечены = виден везде (по умолчанию). Снимите галочку с сайта, чтобы скрыть товар именно там."
+        },
+        "prices": {
+          "title": "Цены в других валютах",
+          "hint": "Необязательные override-цены в дополнение к основной цене/валюте выше.",
+          "currencyPlaceholder": "USD",
+          "addButton": "Добавить валюту"
+        },
+        "sale": {
+          "title": "Скидка",
+          "price": "Цена по скидке",
+          "startAt": "Начало акции",
+          "endAt": "Окончание акции"
+        },
+        "priceTiers": {
+          "title": "Оптовые пороги цены",
+          "minQty": "От кол-ва",
+          "price": "Цена",
+          "add": "Добавить порог"
+        },
+        "related": {
+          "title": "Похожие товары",
+          "hint": "Зажмите Ctrl/Cmd, чтобы выбрать несколько"
+        },
+        "bundle": {
+          "label": "Комплект (набор товаров)",
+          "hint": "Товар состоит из нескольких других товаров",
+          "addItem": "Добавить товар в комплект"
+        },
+        "translations": {
+          "title": "Переводы"
+        },
+        "changeLog": {
+          "title": "Журнал изменений",
+          "fields": {
+            "price": "Цена",
+            "costPrice": "Себестоимость",
+            "status": "Статус",
+            "sku": "Артикул",
+            "barcode": "Штрихкод"
+          }
         }
       },
       "attributes": {
@@ -9562,7 +9690,11 @@
           "radio": "Радиокнопки",
           "url": "Ссылка",
           "media": "Изображение/файл",
-          "gallery": "Галерея"
+          "gallery": "Галерея",
+          "wysiwyg": "Форматированный текст",
+          "colorpicker": "Выбор цвета",
+          "relation": "Связь с товаром",
+          "repeater": "Повторитель"
         },
         "deleteConfirm": "Удалить это поле?",
         "empty": "Дополнительные поля ещё не созданы",
@@ -9570,34 +9702,87 @@
           "loadFailed": "Не удалось загрузить поля",
           "saveFailed": "Не удалось сохранить поле"
         },
-        "editButton": "Изменить"
+        "editButton": "Изменить",
+        "groupLabel": "Группа полей",
+        "newGroupOption": "— новая группа —",
+        "newGroupPlaceholder": "Название новой группы",
+        "ungroupedLabel": "Без группы",
+        "ungroupedGroupName": "Общие поля",
+        "showInFiltersField": "Показывать в фильтрах каталога",
+        "showInFiltersHint": "Покупатели смогут фильтровать по значению",
+        "previewTitle": "Превью карточки товара",
+        "previewSubtitle": "Так поля увидит менеджер при заполнении",
+        "previewEmpty": "Добавьте поле, чтобы увидеть превью",
+        "addFieldToGroup": "Добавить поле в «{{name}}»",
+        "newGroupButton": "Новая группа полей",
+        "typePickerTitle": "Тип поля",
+        "kpis": {
+          "groups": "Групп полей",
+          "groupsHint": "основные, логистика, витрина",
+          "total": "Полей всего",
+          "totalHint": "по всем группам",
+          "required": "Обязательных",
+          "requiredHint": "блокируют сохранение",
+          "types": "Типов данных",
+          "typesHint": "текст, число, список и др."
+        },
+        "relationMultiple": "Множественный выбор",
+        "colorPalette": "Палитра",
+        "repeaterColumns": "Колонки повторителя",
+        "repeaterAddRow": "Добавить строку",
+        "repeaterNoSubFields": "Сначала настройте колонки повторителя"
       },
       "stock": {
         "title": "Склад",
         "subtitle": "Остатки товаров и вариантов.",
         "searchPlaceholder": "Поиск по названию или артикулу…",
         "lowStockOnly": "Только с низким остатком",
+        "allLocations": "Все склады",
         "columns": {
           "product": "Товар",
           "sku": "Артикул",
           "variant": "Вариант",
+          "locations": "Склады",
           "quantity": "Остаток",
           "threshold": "Порог",
           "actions": "Действия"
         },
         "adjustButton": "Корректировка",
+        "transferButton": "Перемещение",
         "adjustModal": {
           "title": "Корректировка остатка",
+          "locationLabel": "Склад",
           "deltaLabel": "Изменение (+/-)",
           "deltaHint": "Положительное число — приход, отрицательное — списание.",
           "reasonLabel": "Причина",
           "save": "Сохранить",
           "cancel": "Отмена"
         },
+        "transferModal": {
+          "title": "Перемещение между складами",
+          "fromLabel": "Со склада",
+          "toLabel": "На склад",
+          "quantityLabel": "Количество",
+          "reasonLabel": "Причина",
+          "save": "Переместить"
+        },
         "empty": "Нет товаров с остатками",
         "errors": {
           "loadFailed": "Не удалось загрузить склад",
-          "adjustFailed": "Не удалось скорректировать остаток"
+          "adjustFailed": "Не удалось скорректировать остаток",
+          "transferFailed": "Не удалось выполнить перемещение"
+        },
+        "kpis": {
+          "positions": "Позиций на складе",
+          "positionsHint": "товаров и вариантов",
+          "totalQty": "Всего единиц",
+          "totalQtyHint": "суммарный остаток",
+          "low": "Мало на складе",
+          "lowHintWarn": "≤ порога",
+          "lowHintOk": "всё в норме",
+          "out": "Нет в наличии",
+          "outHintBad": "требуют пополнения",
+          "outHintOk": "—"
         }
       },
       "categories": {
@@ -9606,7 +9791,34 @@
         "nameLabel": "Название категории",
         "namePlaceholder": "Например, Электроника",
         "deleteConfirm": "Удалить эту категорию? Товары останутся без категории.",
-        "empty": "Категории ещё не созданы"
+        "empty": "Категории ещё не созданы",
+        "subtitle": "Структура каталога. Категории можно вкладывать друг в друга и назначать цветовую метку.",
+        "newTitle": "Новая категория",
+        "editTitle": "Изменить категорию",
+        "parentLabel": "Родительская категория",
+        "rootOption": "— нет (корневая) —",
+        "colorLabel": "Цвет метки",
+        "slugLabel": "URL (slug)",
+        "editButton": "Изменить",
+        "duplicateButton": "Дублировать",
+        "statusActive": "Активна",
+        "kpis": {
+          "total": "Категорий",
+          "totalHint": "с подкатегориями: {{count}}",
+          "products": "Товаров всего",
+          "productsHint": "распределено по категориям",
+          "uncategorized": "Без категории",
+          "uncategorizedHint": "требуют классификации",
+          "depth": "Глубина дерева",
+          "depthHint": "уровня вложенности"
+        },
+        "columns": {
+          "category": "Категория",
+          "slug": "Slug",
+          "products": "Товаров",
+          "status": "Статус",
+          "actions": ""
+        }
       },
       "import": {
         "title": "Импорт товаров",
@@ -9615,8 +9827,11 @@
         "chooseFile": "Выбрать файл",
         "back": "Назад",
         "mappingTitle": "Сопоставление колонок",
-        "columnHeader": "Колонка в файле",
-        "fieldHeader": "Поле товара",
+        "columnsRows": "Колонок: {{columns}}, строк: {{rows}}",
+        "mappedCount": "Сопоставлено: {{mapped}} из {{total}}",
+        "notMapped": "Не сопоставлено",
+        "createField": "Создать поле",
+        "creatingField": "Создаём…",
         "updateExistingLabel": "Обновлять существующие товары (по артикулу)",
         "applyButton": "Импортировать",
         "applying": "Импортируем…",
@@ -9624,10 +9839,103 @@
         "resultCreated": "Создано товаров: {{count}}",
         "resultUpdated": "Обновлено товаров: {{count}}",
         "resultErrors": "Ошибок: {{count}}",
+        "resultFieldsCreated": "Создано новых полей: {{count}}",
         "close": "Закрыть",
         "errors": {
           "previewFailed": "Не удалось прочитать файл",
-          "applyFailed": "Не удалось выполнить импорт"
+          "applyFailed": "Не удалось выполнить импорт",
+          "createFieldFailed": "Не удалось создать поле"
+        }
+      },
+      "subnav": {
+        "catalog": "Каталог",
+        "categories": "Категории",
+        "fields": "Типы полей",
+        "stock": "Склад",
+        "locations": "Склады",
+        "feeds": "Фиды",
+        "webhooks": "Вебхуки",
+        "moderation": "Заявки на публикацию"
+      },
+      "locations": {
+        "title": "Склады",
+        "subtitle": "Несколько складов/точек — у каждого товара и варианта может быть свой остаток на каждом складе.",
+        "namePlaceholder": "Название склада",
+        "codePlaceholder": "Код (опционально)",
+        "addButton": "Добавить склад",
+        "defaultBadge": "По умолчанию",
+        "makeDefault": "Сделать основным",
+        "deleteConfirm": "Удалить этот склад?",
+        "empty": "Складов пока нет",
+        "columns": {
+          "name": "Название",
+          "code": "Код",
+          "default": "По умолчанию",
+          "active": "Активен"
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить склады",
+          "saveFailed": "Не удалось сохранить склад",
+          "deleteFailed": "Не удалось удалить склад"
+        }
+      },
+      "feeds": {
+        "title": "Фиды",
+        "subtitle": "Готовые товарные фиды по каждому сайту — для Google Merchant Center, импорта в WooCommerce и headless-интеграций.",
+        "empty": "Пока нет ни одного сайта — сначала добавьте его, чтобы получить ссылки на фиды.",
+        "google": "Google XML",
+        "woocommerce": "WooCommerce CSV",
+        "json": "JSON",
+        "hint": "В фиды попадают только товары с включённым «Показывать в публичном каталоге» и подтверждённой публикацией.",
+        "errors": {
+          "loadFailed": "Не удалось загрузить сайты"
+        }
+      },
+      "webhooks": {
+        "title": "Вебхуки",
+        "subtitle": "Отправка изменений товара на внешние сайты — вместо того, чтобы сайт сам опрашивал каталог.",
+        "addButton": "Добавить вебхук",
+        "empty": "Вебхуков пока нет",
+        "namePlaceholder": "Название вебхука",
+        "urlPlaceholder": "https://example.com/webhooks/lumiva",
+        "siteLabel": "Сайт (необязательно — все сайты, если не выбран)",
+        "allSites": "Все сайты",
+        "eventsLabel": "События",
+        "events": {
+          "product.created": "Товар создан",
+          "product.updated": "Товар обновлён",
+          "product.deleted": "Товар удалён",
+          "product.stock_changed": "Изменился остаток",
+          "product.published": "Товар опубликован"
+        },
+        "columns": {
+          "name": "Название",
+          "url": "URL",
+          "events": "События",
+          "status": "Последняя отправка",
+          "active": "Активен"
+        },
+        "regenerateSecret": "Перевыпустить секрет",
+        "secretLabel": "Секрет подписи (заголовок X-Lumiva-Signature, HMAC-SHA256)",
+        "neverTriggered": "Ещё не срабатывал",
+        "errors": {
+          "loadFailed": "Не удалось загрузить вебхуки",
+          "saveFailed": "Не удалось сохранить вебхук",
+          "deleteFailed": "Не удалось удалить вебхук"
+        }
+      },
+      "moderation": {
+        "title": "Заявки на публикацию",
+        "subtitle": "Товары, ожидающие подтверждения для показа в публичном каталоге и фидах.",
+        "empty": "Нет заявок на рассмотрении",
+        "requestedAt": "Запрошено",
+        "approveButton": "Одобрить",
+        "rejectButton": "Отклонить",
+        "rejectReasonPlaceholder": "Причина (необязательно)",
+        "rejectConfirm": "Подтвердить отклонение",
+        "errors": {
+          "loadFailed": "Не удалось загрузить очередь",
+          "saveFailed": "Не удалось выполнить действие"
         }
       }
     }

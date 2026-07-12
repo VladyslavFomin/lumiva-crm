@@ -81,6 +81,21 @@ export const StaffPermissionsPage: React.FC = () => {
           { key: 'contacts', label: t('crm.staff.permissions.contacts') },
           { key: 'companies', label: t('crm.staff.permissions.companies') },
           { key: 'products', label: t('crm.staff.permissions.products') },
+          {
+            key: 'products_manage_fields',
+            label: t('crm.staff.permissions.products_manage_fields'),
+            hint: t('crm.staff.permissions.hint.products_manage_fields'),
+          },
+          {
+            key: 'products_manage_stock',
+            label: t('crm.staff.permissions.products_manage_stock'),
+            hint: t('crm.staff.permissions.hint.products_manage_stock'),
+          },
+          {
+            key: 'products_publish',
+            label: t('crm.staff.permissions.products_publish'),
+            hint: t('crm.staff.permissions.hint.products_publish'),
+          },
           { key: 'projects', label: t('crm.staff.permissions.projects') },
           { key: 'analytics', label: t('crm.staff.permissions.analytics') },
           { key: 'finance', label: t('crm.staff.permissions.finance') },

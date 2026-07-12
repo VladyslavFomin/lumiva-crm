@@ -6,7 +6,14 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
-export type ProductStockMovementType = 'in' | 'out' | 'adjustment' | 'sale' | 'return';
+export type ProductStockMovementType =
+  | 'in'
+  | 'out'
+  | 'adjustment'
+  | 'sale'
+  | 'return'
+  | 'transfer_out'
+  | 'transfer_in';
 export type ProductStockMovementSource = 'manual' | 'import' | 'public_api' | 'sale';
 
 /**
@@ -29,6 +36,17 @@ export class ProductStockMovement {
 
   @Column({ type: 'uuid', nullable: true })
   variantId: string | null;
+
+  /** Локация (склад/точка), к которой относится движение — см. ProductLocation. */
+  @Column({ type: 'uuid', nullable: true })
+  locationId: string | null;
+
+  /**
+   * Для перемещений между складами — id парного движения (out↔in одного transferStock()),
+   * чтобы можно было показать «откуда → куда» одной строкой в истории.
+   */
+  @Column({ type: 'uuid', nullable: true })
+  relatedMovementId: string | null;
 
   @Column({ type: 'varchar', length: 20 })
   type: ProductStockMovementType;

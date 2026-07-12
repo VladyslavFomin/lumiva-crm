@@ -103,7 +103,7 @@ export const ProductAttributesPage: React.FC = () => {
           <div style={{ fontSize: 13, color: FG3, marginTop: 6 }}>{t('crm.products.attributes.subtitle')}</div>
         </div>
 
-        <form onSubmit={handleAddAttribute} style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
+        <form onSubmit={handleAddAttribute} style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
           <input
             className={inpCls}
             style={{ flex: '0 1 320px' }}

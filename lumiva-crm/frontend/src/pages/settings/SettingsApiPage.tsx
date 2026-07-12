@@ -8,6 +8,7 @@ import {
   regenerateMarketingApiToken,
   type MarketingApiTokenMasked,
 } from '../../api/marketing';
+import { fetchCompanySettings } from '../../api/settings';
 import { API_BASE } from '../../api/client';
 import '../projects/ProjectsListPage.css';
 
@@ -32,6 +33,13 @@ export const SettingsApiPage: React.FC = () => {
   const [modalBusy, setModalBusy] = useState(false);
 
   const apiBaseUrl = useMemo(() => resolvePublicApiBase(), []);
+  const [clientKey, setClientKey] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCompanySettings()
+      .then((s) => setClientKey(s.clientKey))
+      .catch(() => {});
+  }, []);
 
   const loadMasked = useCallback(() => {
     setLoading(true);
@@ -125,6 +133,20 @@ export const SettingsApiPage: React.FC = () => {
   -H "Content-Type: application/json" \\
   -H "X-Api-Token: ${tokenForDocs}" \\
   -d '{"items":[{"date":"2025-11-01","source":"google","medium":"cpc","campaign":"brand","sessions":120,"clicks":95,"leads":8,"cost":57.3,"revenue":1350,"currency":"EUR"}]}'`;
+
+  const curlExampleProductsIngest = `curl -sS -X POST "${apiBaseUrl}/public/products/ingest" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Api-Token: ${tokenForDocs}" \\
+  -H "X-Idempotency-Key: order-48213" \\
+  -d '{"sku":"TSHIRT-001","name":"T-Shirt","price":29.9,"currency":"EUR","barcode":"4820000123456","tags":["summer","cotton"],"weight":0.2,"dimensions":{"length":30,"width":20,"height":2,"unit":"cm"},"variants":[{"sku":"TSHIRT-001-RED-M","quantity":12,"priceOverride":32.9}]}'`;
+
+  const curlExampleProductsStock = `curl -sS -X PATCH "${apiBaseUrl}/public/products/stock" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Api-Token: ${tokenForDocs}" \\
+  -d '{"variantSku":"TSHIRT-001-RED-M","delta":-1}'`;
+
+  const publicCatalogClientKey = clientKey || t('crm.settings.api.tokenPlaceholder');
+  const curlExamplePublicCatalog = `curl -sS "${apiBaseUrl}/public/catalog/${publicCatalogClientKey}/products"`;
 
   return (
     <MainLayout>
@@ -251,6 +273,7 @@ export const SettingsApiPage: React.FC = () => {
                 <ul className="list-disc pl-5 space-y-1 text-[11px] text-[var(--fg-2)]">
                   <li>{t('crm.settings.api.usageBulletTraffic')}</li>
                   <li>{t('crm.settings.api.usageBulletWp')}</li>
+                  <li>{t('crm.settings.api.usageBulletProducts')}</li>
                   <li>{t('crm.settings.api.usageBulletOther')}</li>
                 </ul>
               </div>
@@ -262,6 +285,32 @@ export const SettingsApiPage: React.FC = () => {
                 </p>
                 <pre className="text-[10px] leading-snug text-[var(--ink)] overflow-auto max-h-[280px] rounded-lg bg-white border border-[var(--line-2)] p-3 font-mono">
                   {curlExample}
+                </pre>
+              </div>
+
+              <div className="rounded-[10px] border border-[var(--line-2)] bg-[var(--bg-muted)] px-3 py-3 space-y-2">
+                <div className="text-[12px] font-semibold text-[var(--ink)]">{t('crm.settings.api.exampleTitleProducts')}</div>
+                <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">
+                  {t('crm.settings.api.exampleIntroProducts')}
+                </p>
+                <pre className="text-[10px] leading-snug text-[var(--ink)] overflow-auto max-h-[280px] rounded-lg bg-white border border-[var(--line-2)] p-3 font-mono">
+                  {curlExampleProductsIngest}
+                </pre>
+                <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">
+                  {t('crm.settings.api.exampleIntroProductsStock')}
+                </p>
+                <pre className="text-[10px] leading-snug text-[var(--ink)] overflow-auto max-h-[280px] rounded-lg bg-white border border-[var(--line-2)] p-3 font-mono">
+                  {curlExampleProductsStock}
+                </pre>
+              </div>
+
+              <div className="rounded-[10px] border border-[var(--line-2)] bg-[var(--bg-muted)] px-3 py-3 space-y-2">
+                <div className="text-[12px] font-semibold text-[var(--ink)]">{t('crm.settings.api.exampleTitlePublicCatalog')}</div>
+                <p className="text-[11px] leading-relaxed text-[var(--fg-3)]">
+                  {t('crm.settings.api.exampleIntroPublicCatalog')}
+                </p>
+                <pre className="text-[10px] leading-snug text-[var(--ink)] overflow-auto max-h-[280px] rounded-lg bg-white border border-[var(--line-2)] p-3 font-mono">
+                  {curlExamplePublicCatalog}
                 </pre>
               </div>
             </>

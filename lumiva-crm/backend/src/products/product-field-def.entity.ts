@@ -19,7 +19,14 @@ export type ProductFieldType =
   | 'radio'
   | 'url'
   | 'media'
-  | 'gallery';
+  | 'gallery'
+  | 'wysiwyg'
+  | 'colorpicker'
+  | 'relation'
+  | 'repeater';
+
+/** Значение поля-повторителя (repeater) — subFields из settings.subFields, значения — строки/числа. */
+export type ProductRepeaterRow = Record<string, string | number>;
 
 export type ProductFieldWidth = '25' | '50' | '75' | '100';
 
@@ -42,8 +49,16 @@ export class ProductFieldDef {
   @Column({ type: 'varchar', length: 40 })
   type: ProductFieldType;
 
+  /** Группа полей в конструкторе (напр. «Основные атрибуты», «Логистика и склад»). */
+  @Column({ type: 'varchar', length: 120, nullable: true })
+  group: string | null;
+
   @Column({ type: 'boolean', default: false })
   required: boolean;
+
+  /** Показывать значение поля как фильтр в каталоге (для select/multiselect/radio). */
+  @Column({ type: 'boolean', default: false })
+  showInFilters: boolean;
 
   @Column({ type: 'jsonb', nullable: true })
   options: Array<{ value: string; label: string }> | null;

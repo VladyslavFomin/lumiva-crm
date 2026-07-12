@@ -1144,9 +1144,15 @@
         "usageBody": "Korumalı her istekte bu gizli anahtarı X-Api-Token başlığında gönderin:",
         "usageBulletTraffic": "Pazarlama trafiği içe aktarma — POST …/marketing/traffic/import.",
         "usageBulletWp": "WordPress / Lumiva bağlayıcı — formlar ve leadler (ör. POST …/marketing/leads/cf7).",
+        "usageBulletProducts": "Ürün kataloğu ve stok senkronizasyonu — POST …/public/products/ingest (sku/externalId ile upsert; barkod, etiketler, ağırlık, boyutlar, SEO, varyasyonlar dahil) ve PATCH …/public/products/stock (sipariş sonrası tekil stok güncellemesi).",
         "usageBulletOther": "Belgede kiracı kimliği için X-Api-Token yazılan diğer tüm API çağrıları.",
         "exampleTitle": "Örnek: curl",
         "exampleIntro": "Tam jetonu gösterdikten sonra yapıştırın. Ortamınız için taban URL: {{baseUrl}}.",
+        "exampleTitleProducts": "Örnek: ürünler (harici site → CRM)",
+        "exampleIntroProducts": "Barkod, etiketler, ağırlık/boyutlar ve bir varyasyonla sku/externalId üzerinden ürün upsert. X-Idempotency-Key başlığı yeniden denemelerde tekrarları önler.",
+        "exampleIntroProductsStock": "Tekil stok güncellemesi — örn. sitede satılan bir varyasyon:",
+        "exampleTitlePublicCatalog": "Örnek: genel katalog (token olmadan)",
+        "exampleIntroPublicCatalog": "\"Genel katalogda göster\" açık olan ürünler bu URL'de okunabilir — X-Api-Token gerekmez, maliyet fiyatı dahil edilmez. Yol segmenti çalışma alanı kimliğinizdir (Ayarlar → Şirket).",
         "tokenPlaceholder": "<JETON>",
         "modalRevealTitle": "Jetonu göster",
         "modalRevealBody": "Lumiva CRM hesap şifrenizi girin.",
@@ -7106,6 +7112,9 @@
         "contacts": "Kişiler",
         "companies": "Şirketler",
         "products": "Ürünler",
+        "products_manage_fields": "Ürün alan oluşturucu",
+        "products_manage_stock": "Stok düzeltmeleri",
+        "products_publish": "Genel katalog yayınını onaylama",
         "email": "E-posta",
         "marketing": "Pazarlama",
         "tools_automation": "Otomasyon",
@@ -7118,7 +7127,10 @@
         },
         "hint": {
           "staff": "Personel yönetimi, davetler",
-          "settings": "Şirket ayarları, API, entegrasyonlar"
+          "settings": "Şirket ayarları, API, entegrasyonlar",
+          "products_manage_fields": "Özel alan tipleri ve varyasyon öznitelikleri",
+          "products_manage_stock": "Stok bölümünde stok düzeltmeleri",
+          "products_publish": "Ürünün genel katalogda gösterilme taleplerini onaylama veya reddetme"
         }
       }
     },
@@ -7145,7 +7157,8 @@
           "price": "Fiyat",
           "quantity": "Stok",
           "variable": "Varyasyonlu",
-          "actions": "İşlemler"
+          "actions": "İşlemler",
+          "margin": "Marj"
         },
         "empty": "Henüz ürün yok",
         "lowStockBadge": "Az stok",
@@ -7155,7 +7168,46 @@
           "loadFailed": "Ürünler yüklenemedi",
           "deleteFailed": "Ürün silinemedi",
           "duplicateFailed": "Ürün kopyalanamadı"
+        },
+        "kpis": {
+          "total": "Toplam ürün",
+          "totalHint": "{{count}} aktif",
+          "value": "Depo değeri",
+          "valueHint": "satış fiyatına göre",
+          "categories": "Kategoriler",
+          "categoriesHint": "{{count}} alt kategorili",
+          "lowStock": "Az stok",
+          "lowStockHintWarn": "maks. ≤ %15",
+          "lowStockHintOk": "sorun yok",
+          "outOfStock": "Stokta yok",
+          "outOfStockHintBad": "yenilenmesi gerekiyor",
+          "outOfStockHintOk": "—"
+        },
+        "rail": {
+          "title": "Kategoriler",
+          "all": "Tüm ürünler",
+          "totalLabel": "Toplam ürün",
+          "categoriesLabel": "Kategoriler"
+        },
+        "viewTable": "Tablo",
+        "viewGrid": "Izgara",
+        "exportPdf": "PDF dışa aktar (fiyat listesi)",
+        "bulk": {
+          "selected": "seçildi",
+          "setStatus": "Durumu değiştir",
+          "setCategory": "Kategoriyi değiştir",
+          "printLabels": "Etiketleri yazdır"
         }
+      },
+      "labels": {
+        "title": "Etiketleri yazdır",
+        "subtitle": "Seçilen ürünler için barkod ve QR etiketleri — etiket sayfasında yazdırmaya hazır.",
+        "back": "Ürünlere dön",
+        "empty": "Ürün seçilmedi. Ürün listesine dönün, ürünleri seçin ve \"Etiketleri yazdır\"ı seçin.",
+        "copies": "Kopya",
+        "print": "Yazdır",
+        "columns": "Sütun",
+        "noBarcode": "Barkod veya SKU yok — etikette yalnızca ürün adı gösterilir."
       },
       "status": {
         "active": "Aktif",
@@ -7179,7 +7231,19 @@
           "currency": "Para birimi",
           "unit": "Birim",
           "lowStockThreshold": "Düşük stok eşiği",
-          "externalId": "Harici ID"
+          "externalId": "Harici ID",
+          "mainImage": "Ana görsel",
+          "uploadImage": "Fotoğraf yükle",
+          "videoUrlHint": "Video bağlantısı (ör. YouTube)",
+          "barcode": "Barkod",
+          "barcodeInvalid": "Bu değer için barkod oluşturulamadı",
+          "margin": "Marj",
+          "tags": "Etiketler",
+          "tagsPlaceholder": "Etiket yazın ve Enter'a basın",
+          "weight": "Ağırlık, kg",
+          "length": "Uzunluk, cm",
+          "width": "Genişlik, cm",
+          "height": "Yükseklik, cm"
         },
         "variable": {
           "label": "Varyasyonlu ürün",
@@ -7196,8 +7260,11 @@
             "sku": "SKU",
             "quantity": "Stok",
             "priceOverride": "Fiyat geçersiz kılma",
-            "active": "Aktif"
-          }
+            "active": "Aktif",
+            "images": "Fotoğraflar"
+          },
+          "imagesHint": "Boşsa bu varyasyon için ürünün genel fotoğrafları gösterilir.",
+          "imagesClose": "Daralt"
         },
         "customFields": {
           "title": "Ek alanlar",
@@ -7215,6 +7282,67 @@
           "loadFailed": "Ürün yüklenemedi",
           "saveFailed": "Ürün kaydedilemedi",
           "deleteFailed": "Ürün silinemedi"
+        },
+        "seo": {
+          "title": "SEO",
+          "slug": "URL (slug)",
+          "metaTitle": "Meta başlık",
+          "metaDescription": "Meta açıklama"
+        },
+        "publicCatalog": {
+          "title": "Genel katalog",
+          "hint": "Bu ürün /public/catalog/:clientKey/products adresinde (ve fidlerde) harici siteler için token olmadan erişilebilir olur. Maliyet fiyatı asla dahil edilmez. Yayınlama onay gerektirir — aşağıya bakın.",
+          "statusPublished": "Yayınlandı",
+          "statusPending": "Onay bekliyor",
+          "requestButton": "Yayın talep et",
+          "approveButton": "Onayla",
+          "rejectButton": "Reddet",
+          "rejectConfirm": "Reddi onayla",
+          "rejectReasonPlaceholder": "Neden (opsiyonel)",
+          "rejectedNote": "Son talep reddedildi",
+          "unpublishButton": "Yayından kaldır",
+          "sitesLabel": "Şu sitelerde görünür",
+          "sitesHint": "Tüm siteler işaretliyse = her yerde görünür (varsayılan). Bir siteyi işaretsiz bırakarak ürünü orada gizleyin."
+        },
+        "prices": {
+          "title": "Diğer para birimlerinde fiyatlar",
+          "hint": "Yukarıdaki temel fiyat/para birimine ek isteğe bağlı geçersiz kılmalar.",
+          "currencyPlaceholder": "USD",
+          "addButton": "Para birimi ekle"
+        },
+        "sale": {
+          "title": "İndirim",
+          "price": "İndirimli fiyat",
+          "startAt": "Başlangıç",
+          "endAt": "Bitiş"
+        },
+        "priceTiers": {
+          "title": "Toptan fiyat kademeleri",
+          "minQty": "Min. adet",
+          "price": "Fiyat",
+          "add": "Kademe ekle"
+        },
+        "related": {
+          "title": "Benzer ürünler",
+          "hint": "Birden çok seçmek için Ctrl/Cmd tuşunu basılı tutun"
+        },
+        "bundle": {
+          "label": "Set (birden çok üründen oluşan paket)",
+          "hint": "Bu ürün birkaç başka üründen oluşur",
+          "addItem": "Sete ürün ekle"
+        },
+        "translations": {
+          "title": "Çeviriler"
+        },
+        "changeLog": {
+          "title": "Değişiklik günlüğü",
+          "fields": {
+            "price": "Fiyat",
+            "costPrice": "Maliyet fiyatı",
+            "status": "Durum",
+            "sku": "SKU",
+            "barcode": "Barkod"
+          }
         }
       },
       "attributes": {
@@ -7274,7 +7402,11 @@
           "radio": "Radyo düğmeleri",
           "url": "URL",
           "media": "Görsel/dosya",
-          "gallery": "Galeri"
+          "gallery": "Galeri",
+          "wysiwyg": "Zengin metin",
+          "colorpicker": "Renk seçici",
+          "relation": "Ürün ilişkisi",
+          "repeater": "Tekrarlayıcı"
         },
         "deleteConfirm": "Bu alan silinsin mi?",
         "empty": "Henüz ek alan yok",
@@ -7282,34 +7414,87 @@
           "loadFailed": "Alanlar yüklenemedi",
           "saveFailed": "Alan kaydedilemedi"
         },
-        "editButton": "Düzenle"
+        "editButton": "Düzenle",
+        "groupLabel": "Alan grubu",
+        "newGroupOption": "— yeni grup —",
+        "newGroupPlaceholder": "Yeni grup adı",
+        "ungroupedLabel": "Gruplanmamış",
+        "ungroupedGroupName": "Genel alanlar",
+        "showInFiltersField": "Katalog filtrelerinde göster",
+        "showInFiltersHint": "Alıcılar bu değere göre filtreleyebilecek",
+        "previewTitle": "Ürün kartı önizlemesi",
+        "previewSubtitle": "Bir yönetici ürünü doldururken bu alanları böyle görür",
+        "previewEmpty": "Önizlemeyi görmek için bir alan ekleyin",
+        "addFieldToGroup": "“{{name}}” grubuna alan ekle",
+        "newGroupButton": "Yeni alan grubu",
+        "typePickerTitle": "Alan türü",
+        "kpis": {
+          "groups": "Alan grupları",
+          "groupsHint": "genel, lojistik, vitrin",
+          "total": "Toplam alan",
+          "totalHint": "tüm gruplarda",
+          "required": "Zorunlu",
+          "requiredHint": "kaydetmeyi engeller",
+          "types": "Veri türleri",
+          "typesHint": "metin, sayı, liste vb."
+        },
+        "relationMultiple": "Çoklu seçim",
+        "colorPalette": "Palet",
+        "repeaterColumns": "Tekrarlayıcı sütunları",
+        "repeaterAddRow": "Satır ekle",
+        "repeaterNoSubFields": "Önce tekrarlayıcı sütunlarını yapılandırın"
       },
       "stock": {
         "title": "Depo",
         "subtitle": "Ürün ve varyasyon stok seviyeleri.",
         "searchPlaceholder": "Ada veya SKU'ya göre ara…",
         "lowStockOnly": "Yalnızca düşük stok",
+        "allLocations": "Tüm depolar",
         "columns": {
           "product": "Ürün",
           "sku": "SKU",
           "variant": "Varyasyon",
+          "locations": "Depolar",
           "quantity": "Stok",
           "threshold": "Eşik",
           "actions": "İşlemler"
         },
         "adjustButton": "Düzelt",
+        "transferButton": "Transfer",
         "adjustModal": {
           "title": "Stoğu düzelt",
+          "locationLabel": "Depo",
           "deltaLabel": "Değişim (+/-)",
           "deltaHint": "Giriş için pozitif, çıkış için negatif sayı.",
           "reasonLabel": "Neden",
           "save": "Kaydet",
           "cancel": "İptal"
         },
+        "transferModal": {
+          "title": "Depolar arası transfer",
+          "fromLabel": "Kaynak depo",
+          "toLabel": "Hedef depo",
+          "quantityLabel": "Miktar",
+          "reasonLabel": "Neden",
+          "save": "Transfer et"
+        },
         "empty": "Stokta ürün yok",
         "errors": {
           "loadFailed": "Depo yüklenemedi",
-          "adjustFailed": "Stok düzeltilemedi"
+          "adjustFailed": "Stok düzeltilemedi",
+          "transferFailed": "Transfer yapılamadı"
+        },
+        "kpis": {
+          "positions": "Depo kalemleri",
+          "positionsHint": "ürün ve varyasyonlar",
+          "totalQty": "Toplam adet",
+          "totalQtyHint": "birleşik stok",
+          "low": "Az stok",
+          "lowHintWarn": "≤ eşik",
+          "lowHintOk": "sorun yok",
+          "out": "Stokta yok",
+          "outHintBad": "yenilenmesi gerekiyor",
+          "outHintOk": "—"
         }
       },
       "categories": {
@@ -7318,7 +7503,34 @@
         "nameLabel": "Kategori adı",
         "namePlaceholder": "Örn. Elektronik",
         "deleteConfirm": "Bu kategori silinsin mi? Ürünler kategorisiz kalır.",
-        "empty": "Henüz kategori yok"
+        "empty": "Henüz kategori yok",
+        "subtitle": "Katalog yapısı. Kategoriler iç içe yerleştirilebilir ve bir renk etiketi alabilir.",
+        "newTitle": "Yeni kategori",
+        "editTitle": "Kategoriyi düzenle",
+        "parentLabel": "Üst kategori",
+        "rootOption": "— yok (kök) —",
+        "colorLabel": "Etiket rengi",
+        "slugLabel": "URL (slug)",
+        "editButton": "Düzenle",
+        "duplicateButton": "Kopyala",
+        "statusActive": "Aktif",
+        "kpis": {
+          "total": "Kategoriler",
+          "totalHint": "alt kategorili: {{count}}",
+          "products": "Toplam ürün",
+          "productsHint": "kategorilere dağıtılmış",
+          "uncategorized": "Kategorisiz",
+          "uncategorizedHint": "sınıflandırma gerekiyor",
+          "depth": "Ağaç derinliği",
+          "depthHint": "iç içe geçme seviyesi"
+        },
+        "columns": {
+          "category": "Kategori",
+          "slug": "Slug",
+          "products": "Ürünler",
+          "status": "Durum",
+          "actions": ""
+        }
       },
       "import": {
         "title": "Ürünleri içe aktar",
@@ -7327,8 +7539,11 @@
         "chooseFile": "Dosya seç",
         "back": "Geri",
         "mappingTitle": "Sütun eşleme",
-        "columnHeader": "Dosya sütunu",
-        "fieldHeader": "Ürün alanı",
+        "columnsRows": "{{columns}} sütun, {{rows}} satır",
+        "mappedCount": "Eşlenen: {{mapped}} / {{total}}",
+        "notMapped": "Eşlenmedi",
+        "createField": "Alan oluştur",
+        "creatingField": "Oluşturuluyor…",
         "updateExistingLabel": "Mevcut ürünleri güncelle (SKU'ya göre)",
         "applyButton": "İçe aktar",
         "applying": "İçe aktarılıyor…",
@@ -7336,10 +7551,103 @@
         "resultCreated": "Oluşturulan ürün: {{count}}",
         "resultUpdated": "Güncellenen ürün: {{count}}",
         "resultErrors": "Hatalar: {{count}}",
+        "resultFieldsCreated": "Oluşturulan yeni alan: {{count}}",
         "close": "Kapat",
         "errors": {
           "previewFailed": "Dosya okunamadı",
-          "applyFailed": "İçe aktarma başarısız oldu"
+          "applyFailed": "İçe aktarma başarısız oldu",
+          "createFieldFailed": "Alan oluşturulamadı"
+        }
+      },
+      "subnav": {
+        "catalog": "Katalog",
+        "categories": "Kategoriler",
+        "fields": "Alan türleri",
+        "stock": "Depo",
+        "locations": "Depolar",
+        "feeds": "Beslemeler",
+        "webhooks": "Webhooklar",
+        "moderation": "Yayın talepleri"
+      },
+      "locations": {
+        "title": "Depolar",
+        "subtitle": "Birden fazla depo/lokasyon — her ürün/varyasyonun her depoda farklı bir stoğu olabilir.",
+        "namePlaceholder": "Depo adı",
+        "codePlaceholder": "Kod (opsiyonel)",
+        "addButton": "Depo ekle",
+        "defaultBadge": "Varsayılan",
+        "makeDefault": "Varsayılan yap",
+        "deleteConfirm": "Bu depo silinsin mi?",
+        "empty": "Henüz depo yok",
+        "columns": {
+          "name": "Ad",
+          "code": "Kod",
+          "default": "Varsayılan",
+          "active": "Aktif"
+        },
+        "errors": {
+          "loadFailed": "Depolar yüklenemedi",
+          "saveFailed": "Depo kaydedilemedi",
+          "deleteFailed": "Depo silinemedi"
+        }
+      },
+      "feeds": {
+        "title": "Beslemeler",
+        "subtitle": "Her site için hazır ürün beslemeleri — Google Merchant Center, WooCommerce içe aktarma ve headless entegrasyonlar için.",
+        "empty": "Henüz site yok — besleme URL'leri için önce bir site ekleyin.",
+        "google": "Google XML",
+        "woocommerce": "WooCommerce CSV",
+        "json": "JSON",
+        "hint": "Bu beslemelerde yalnızca \"Genel katalogda göster\" işaretli ve yayını onaylanmış ürünler görünür.",
+        "errors": {
+          "loadFailed": "Siteler yüklenemedi"
+        }
+      },
+      "webhooks": {
+        "title": "Webhooklar",
+        "subtitle": "Ürün değişikliklerini harici sitelere anında gönder — sitenin katalogu sürekli sorgulamasına gerek kalmadan.",
+        "addButton": "Webhook ekle",
+        "empty": "Henüz webhook yok",
+        "namePlaceholder": "Webhook adı",
+        "urlPlaceholder": "https://example.com/webhooks/lumiva",
+        "siteLabel": "Site (opsiyonel — boşsa tüm siteler)",
+        "allSites": "Tüm siteler",
+        "eventsLabel": "Olaylar",
+        "events": {
+          "product.created": "Ürün oluşturuldu",
+          "product.updated": "Ürün güncellendi",
+          "product.deleted": "Ürün silindi",
+          "product.stock_changed": "Stok değişti",
+          "product.published": "Ürün yayınlandı"
+        },
+        "columns": {
+          "name": "Ad",
+          "url": "URL",
+          "events": "Olaylar",
+          "status": "Son gönderim",
+          "active": "Aktif"
+        },
+        "regenerateSecret": "Sırrı yenile",
+        "secretLabel": "İmza sırrı (X-Lumiva-Signature başlığı, HMAC-SHA256)",
+        "neverTriggered": "Hiç tetiklenmedi",
+        "errors": {
+          "loadFailed": "Webhooklar yüklenemedi",
+          "saveFailed": "Webhook kaydedilemedi",
+          "deleteFailed": "Webhook silinemedi"
+        }
+      },
+      "moderation": {
+        "title": "Yayın talepleri",
+        "subtitle": "Genel katalogda ve beslemelerde görünmek için onay bekleyen ürünler.",
+        "empty": "Bekleyen talep yok",
+        "requestedAt": "Talep edildi",
+        "approveButton": "Onayla",
+        "rejectButton": "Reddet",
+        "rejectReasonPlaceholder": "Neden (opsiyonel)",
+        "rejectConfirm": "Reddi onayla",
+        "errors": {
+          "loadFailed": "Kuyruk yüklenemedi",
+          "saveFailed": "İşlem başarısız"
         }
       }
     }
