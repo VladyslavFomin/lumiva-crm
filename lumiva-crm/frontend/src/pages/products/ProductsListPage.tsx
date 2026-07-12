@@ -365,7 +365,7 @@ export const ProductsListPage: React.FC = () => {
             </div>
           </div>
 
-          <div>
+          <div className="pr-main">
             <div className="px-toolbar">
               <div className="tb-search" style={{ width: 230 }}>
                 <Icon d={I.search} size={13} />

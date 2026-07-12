@@ -608,7 +608,7 @@ export const ProductFieldTypesPage: React.FC = () => {
           <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.common.loading')}</div>
         ) : (
           <div className="px-fields-wrap">
-            <div>
+            <div className="px-fields-main">
               {!buckets.length && (
                 <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.fieldTypes.empty')}</div>
               )}

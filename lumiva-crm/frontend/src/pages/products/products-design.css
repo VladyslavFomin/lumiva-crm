@@ -144,6 +144,7 @@
    ============================================ */
 .px-scope .px-fields-wrap{display:grid;grid-template-columns:1fr 380px;gap:18px;align-items:start}
 @media (max-width:980px){.px-scope .px-fields-wrap{grid-template-columns:1fr}}
+.px-scope .px-fields-wrap > .px-fields-main{min-width:0}
 
 .px-scope .px-fgroup{border:1px solid var(--line-2);border-radius:12px;background:#fff;overflow:hidden;margin-bottom:14px}
 .px-scope .px-fgroup-head{padding:13px 16px;display:flex;align-items:center;gap:10px;background:var(--bg-muted);border-bottom:1px solid var(--line-2);cursor:pointer}
@@ -240,6 +241,10 @@
 
 .px-scope .pr-body{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}
 @media (max-width:960px){.px-scope .pr-body{grid-template-columns:1fr}}
+/* Grid-элементы по умолчанию не сжимаются уже min-content своих потомков (min-width:auto) —
+   даже сквозь overflow-x:auto на вложенной обёртке таблицы. Без явного min-width:0 здесь
+   min-width:640px у .pr-table (см. ниже) распирал бы всю страницу на мобильном. */
+.px-scope .pr-body > .pr-main{min-width:0}
 
 .px-scope .pr-rail{border:1px solid var(--line-2);border-radius:12px;background:#fff;overflow:hidden;position:sticky;top:16px}
 @media (max-width:960px){.px-scope .pr-rail{position:static}}
