@@ -46,6 +46,6 @@ jobs:
             npm run build
 
             echo "==> Frontend: publish build to nginx webroot"
-            rsync -a --delete dist/ /var/www/crm.lumiva.agency/
+            rsync -av --delete dist/ /var/www/crm.lumiva.agency/
 
             echo "==> CRM backend + frontend обновлены"
