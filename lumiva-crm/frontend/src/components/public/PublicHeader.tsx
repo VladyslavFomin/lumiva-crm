@@ -19,7 +19,7 @@ import { ApiError, resolvePublicAssetUrl } from '../../api/client';
 
 type PageKey =
   | 'development' | 'scenarios' | 'api' | 'integrations'
-  | 'solutions' | 'analytics' | 'marketing' | 'sales' | 'warehouse'
+  | 'solutions' | 'analytics' | 'marketing' | 'sales' | 'warehouse' | 'client-accounts' | 'inventory'
   | 'blog' | 'privacy' | 'pricing' | 'features'
   | 'about' | 'contact' | 'faq' | 'terms' | 'changelog' | 'home';
 
@@ -129,7 +129,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
   }, [refreshTenantSession]);
 
   const isActive = (key: PageKey) => activeKey === key;
-  const isSolutionActive = ['solutions', 'analytics', 'marketing', 'sales', 'warehouse'].includes(activeKey ?? '');
+  const isSolutionActive = ['solutions', 'analytics', 'marketing', 'sales', 'warehouse', 'client-accounts', 'inventory'].includes(activeKey ?? '');
 
   const primaryItems = [
     { key: 'features' as PageKey, to: '/features' },
@@ -140,6 +140,8 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
     { key: 'analytics' as PageKey, to: '/solutions/analytics' },
     { key: 'marketing' as PageKey, to: '/solutions/marketing' },
     { key: 'sales' as PageKey, to: '/solutions/sales' },
+    { key: 'client-accounts' as PageKey, to: '/solutions/client-accounts' },
+    { key: 'inventory' as PageKey, to: '/solutions/inventory' },
     { key: 'warehouse' as PageKey, to: '/solutions/warehouse' },
   ];
   const tailItems = [

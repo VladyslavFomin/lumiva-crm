@@ -21,6 +21,8 @@ import AnalyticsPage from '../pages/public/AnalyticsPage';
 import MarketingPage from '../pages/public/MarketingPage';
 import SalesSolutionsPage from '../pages/public/SalesSolutionsPage';
 import WarehouseSolutionsPage from '../pages/public/WarehouseSolutionsPage';
+import ClientAccountsSolutionsPage from '../pages/public/ClientAccountsSolutionsPage';
+import InventorySolutionsPage from '../pages/public/InventorySolutionsPage';
 import PrivacyPage from '../pages/public/PrivacyPage';
 import BlogPage from '../pages/public/BlogPage';
 import PricingPage from '../pages/public/PricingPage';
@@ -198,6 +200,8 @@ export const AppRouter: React.FC = () => {
         <Route path="/solutions/marketing" element={<MarketingPage />} />
         <Route path="/solutions/sales" element={<SalesSolutionsPage />} />
         <Route path="/solutions/warehouse" element={<WarehouseSolutionsPage />} />
+        <Route path="/solutions/client-accounts" element={<ClientAccountsSolutionsPage />} />
+        <Route path="/solutions/inventory" element={<InventorySolutionsPage />} />
         <Route path="/analytics" element={<Navigate to="/solutions/analytics" replace />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/privacy"   element={<PrivacyPage />} />
