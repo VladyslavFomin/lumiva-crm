@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 
-type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'pricing' | 'calendar';
+type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'pricing' | 'calendar' | 'analytics';
 
 const ICONS: Record<SubnavKey, React.ReactNode> = {
   overview: (
@@ -31,6 +31,11 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
       <path d="M8 15h.01" /><path d="M12 15h.01" /><path d="M16 15h.01" />
     </svg>
   ),
+  analytics: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" />
+    </svg>
+  ),
 };
 
 export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
@@ -42,6 +47,7 @@ export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
     { key: 'reservations', label: 'Брони', path: '/hotels/reservations' },
     { key: 'pricing', label: 'Цены и рынки', path: '/hotels/pricing' },
     { key: 'calendar', label: 'Календарь номеров', path: '/hotels/calendar' },
+    { key: 'analytics', label: 'Аналитика', path: '/hotels/analytics' },
   ];
 
   return (

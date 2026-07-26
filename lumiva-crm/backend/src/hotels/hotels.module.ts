@@ -11,6 +11,7 @@ import { HotelPricingPeriod } from './hotel-pricing-period.entity';
 import { HotelDailyMarketRate } from './hotel-daily-market-rate.entity';
 import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
 import { HotelRoomStopSaleDate } from './hotel-room-stop-sale-date.entity';
+import { HotelSeasonPacingTarget } from './hotel-season-pacing-target.entity';
 import { HotelAgency } from './hotel-agency.entity';
 import { HotelReservation } from './hotel-reservation.entity';
 import { HotelReservationImportSession } from './hotel-reservation-import-session.entity';
@@ -21,12 +22,14 @@ import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsPricingService } from './hotels-pricing.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
+import { HotelAnalyticsService } from './hotel-analytics.service';
 import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelsReservationsImportService } from './hotels-reservations-import.service';
 import { HotelsPricingImportService } from './hotels-pricing-import.service';
 import { HotelsRoomPricingImportService } from './hotels-room-pricing-import.service';
 
 import { HotelsController } from './hotels.controller';
+import { HotelAnalyticsController } from './hotel-analytics.controller';
 import { HotelReservationsController } from './hotel-reservations.controller';
 import { HotelsReservationsImportController } from './hotels-reservations-import.controller';
 import { HotelsPricingImportController } from './hotels-pricing-import.controller';
@@ -47,6 +50,7 @@ import { RbacModule } from '../rbac/rbac.module';
       HotelDailyMarketRate,
       HotelRoomOccupancyType,
       HotelRoomStopSaleDate,
+      HotelSeasonPacingTarget,
       HotelAgency,
       HotelReservation,
       HotelReservationImportSession,
@@ -61,6 +65,7 @@ import { RbacModule } from '../rbac/rbac.module';
     // match "reservations" as the :id param first (same gotcha as within a single controller,
     // but here it spans two controllers under the same 'hotels' prefix).
     HotelReservationsController,
+    HotelAnalyticsController,
     HotelsReservationsImportController,
     HotelsPricingImportController,
     HotelsRoomPricingImportController,
@@ -71,6 +76,7 @@ import { RbacModule } from '../rbac/rbac.module';
     HotelRoomTypesService,
     HotelsPricingService,
     HotelsAgenciesService,
+    HotelAnalyticsService,
     HotelReservationsService,
     HotelsReservationsImportService,
     HotelsPricingImportService,

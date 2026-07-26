@@ -295,3 +295,66 @@
 .bool-toggle{width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);background:#fff;cursor:pointer;font-size:13px;color:var(--fg-3)}
 .bool-toggle.on{background:#eaf6ec;color:#1f8a5e;border-color:#c9e6cf}
 .info-table td{vertical-align:middle}
+
+/* ============= HOTEL ANALYTICS ============= */
+.ha-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+.ha-kpi{border:1px solid var(--line-2);border-radius:12px;background:#fff;padding:14px 16px;position:relative;overflow:hidden}
+.ha-kpi .l{font-size:11px;color:var(--fg-3);display:flex;align-items:center;justify-content:space-between}
+.ha-kpi .v{font-family:var(--ff-display);font-size:22px;font-weight:600;color:var(--ink);margin-top:6px;letter-spacing:-0.01em}
+.ha-kpi .v small{font-size:12px;color:var(--fg-3);font-weight:500;margin-left:2px}
+.ha-kpi .d{font-size:11px;margin-top:4px}
+.ha-kpi .d.up{color:#1f8a5e}
+.ha-kpi .d.down{color:#cc2f47}
+.ha-kpi .d.warn{color:#a06b1a}
+.ha-risk-pill{font-size:9.5px;padding:2px 7px;border-radius:6px;font-weight:600}
+.ha-risk-pill.ok{background:#eaf6ec;color:#1f8a5e}
+.ha-risk-pill.warn{background:#fdf3d7;color:#a06b1a}
+.ha-risk-pill.bad{background:#fdecea;color:#c0392b}
+
+.ha-section{border:1px solid var(--line-2);border-radius:14px;background:#fff;padding:18px 20px;margin-bottom:16px}
+.ha-section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.ha-section-head h3{font-size:14.5px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px}
+.ha-section-head .sub{font-size:11.5px;color:var(--fg-3);margin-top:3px}
+
+/* Pacing chart: cumulative booking curve vs target curve */
+.pace-chart-wrap{position:relative}
+.pace-legend{display:flex;gap:16px;font-size:11px;color:var(--fg-3);margin-top:10px;flex-wrap:wrap}
+.pace-legend span{display:flex;align-items:center;gap:6px}
+.pace-legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+
+/* Pickup / pacing table by lead-time bucket */
+.pace-table-wrap{border:1px solid var(--line-2);border-radius:12px;overflow:auto}
+.pace-table{width:100%;border-collapse:collapse;font-size:12px;min-width:640px}
+.pace-table th{padding:9px 12px;background:var(--bg-muted);font-weight:600;color:var(--fg-2);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;text-align:right;border-bottom:1px solid var(--line-2);white-space:nowrap}
+.pace-table th:first-child{text-align:left}
+.pace-table td{padding:9px 12px;border-bottom:1px solid var(--line-3);text-align:right;color:var(--ink)}
+.pace-table td:first-child{text-align:left;font-weight:600}
+.pace-table tr:last-child td{border-bottom:none}
+.pace-table td.need{font-family:var(--ff-mono);font-weight:700}
+.pace-table td.need.high{color:#c0392b}
+.pace-table td.need.mid{color:#a06b1a}
+.pace-table td.need.low{color:#1f8a5e}
+.pace-table td.target-cell{cursor:pointer}
+.pace-table td.target-cell:hover{background:#f7f9fc}
+.pace-table td.target-cell input{width:56px;padding:3px 5px;border:1px solid var(--line-2);border-radius:5px;font-family:var(--ff-mono);font-size:11.5px;text-align:right}
+
+/* Calendar heatmap by arrival date */
+.heat-legend{display:flex;align-items:center;gap:6px;font-size:10.5px;color:var(--fg-3)}
+.heat-legend i{width:16px;height:10px;border-radius:2px;display:inline-block}
+.heat-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:10px}
+.heat-dow{font-size:10px;color:var(--fg-3);text-align:center;text-transform:uppercase;letter-spacing:.03em}
+.heat-cell{border-radius:8px;padding:7px 6px;min-height:56px;position:relative;cursor:pointer;border:1px solid var(--line-3)}
+.heat-cell.empty{border:none;background:transparent;cursor:default}
+.heat-cell .d{font-size:10.5px;color:var(--fg-3);font-weight:600}
+.heat-cell .p{font-family:var(--ff-mono);font-size:12px;font-weight:700;margin-top:5px;color:var(--ink)}
+.heat-cell .risk-dot{position:absolute;top:6px;right:6px;width:6px;height:6px;border-radius:50%}
+
+/* revenue funnel bars */
+.rev-bar-row{display:grid;grid-template-columns:120px 1fr 90px;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
+.rev-bar-track{height:20px;border-radius:6px;background:var(--bg-muted);overflow:hidden;position:relative}
+.rev-bar-fill{height:100%;border-radius:6px}
+.rev-bar-val{font-family:var(--ff-mono);text-align:right;font-weight:600}
+
+.hotel-select-tabs{display:flex;gap:6px;flex-wrap:wrap}
+.hotel-select-tab{padding:7px 13px;border:1px solid var(--line-2);border-radius:9px;font-size:12.5px;cursor:pointer;background:#fff;color:var(--fg-3);font-weight:500}
+.hotel-select-tab.active{background:var(--ink);color:#fff;border-color:var(--ink)}

@@ -53,6 +53,18 @@ export class Hotel {
   @Column({ type: 'uuid', nullable: true })
   referenceMarketGroupId: string | null;
 
+  /** Плановая выручка на сезон/период — используется в воронке выручки в аналитике. */
+  @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
+  seasonRevenueTarget: string;
+
+  /** Пороги риска для теплокарты дат заезда в аналитике (загрузка ниже bad% — красный, ниже
+   * warn% — жёлтый). null означает "использовать значения по умолчанию (45/65)". */
+  @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true })
+  riskThresholdBadPct: string | null;
+
+  @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true })
+  riskThresholdWarnPct: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

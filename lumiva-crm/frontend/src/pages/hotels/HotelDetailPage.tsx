@@ -413,6 +413,9 @@ export const HotelDetailPage: React.FC = () => {
   const [settingsName, setSettingsName] = useState('');
   const [settingsCheckIn, setSettingsCheckIn] = useState('');
   const [settingsCheckOut, setSettingsCheckOut] = useState('');
+  const [settingsRevenueTarget, setSettingsRevenueTarget] = useState('');
+  const [settingsRiskBad, setSettingsRiskBad] = useState('');
+  const [settingsRiskWarn, setSettingsRiskWarn] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
 
   const load = () => {
@@ -423,6 +426,9 @@ export const HotelDetailPage: React.FC = () => {
         setSettingsName(h.name);
         setSettingsCheckIn(h.checkInTime);
         setSettingsCheckOut(h.checkOutTime);
+        setSettingsRevenueTarget(h.seasonRevenueTarget);
+        setSettingsRiskBad(h.riskThresholdBadPct ?? '');
+        setSettingsRiskWarn(h.riskThresholdWarnPct ?? '');
       })
       .catch((e) => showAlert(e.message || 'Не удалось загрузить отель', { variant: 'error' }));
     fetchRoomTypes(id)
@@ -440,7 +446,14 @@ export const HotelDetailPage: React.FC = () => {
   const saveSettings = () => {
     if (!id) return;
     setSavingSettings(true);
-    updateHotel(id, { name: settingsName, checkInTime: settingsCheckIn, checkOutTime: settingsCheckOut })
+    updateHotel(id, {
+      name: settingsName,
+      checkInTime: settingsCheckIn,
+      checkOutTime: settingsCheckOut,
+      seasonRevenueTarget: settingsRevenueTarget || '0',
+      riskThresholdBadPct: settingsRiskBad || null,
+      riskThresholdWarnPct: settingsRiskWarn || null,
+    })
       .then(() => load())
       .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
       .finally(() => setSavingSettings(false));
@@ -500,6 +513,38 @@ export const HotelDetailPage: React.FC = () => {
                 <input
                   value={settingsCheckOut}
                   onChange={(e) => setSettingsCheckOut(e.target.value)}
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
+                />
+              </div>
+            </div>
+            <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4, marginTop: 12 }}>
+              Плановая выручка на сезон ({hotel.currency})
+            </label>
+            <input
+              value={settingsRevenueTarget}
+              onChange={(e) => setSettingsRevenueTarget(e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8, marginBottom: 12 }}
+            />
+            <div className="bk-row2">
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
+                  Риск: низкая загрузка ниже, %
+                </label>
+                <input
+                  value={settingsRiskBad}
+                  onChange={(e) => setSettingsRiskBad(e.target.value)}
+                  placeholder="45 (по умолчанию)"
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
+                  Риск: внимание ниже, %
+                </label>
+                <input
+                  value={settingsRiskWarn}
+                  onChange={(e) => setSettingsRiskWarn(e.target.value)}
+                  placeholder="65 (по умолчанию)"
                   style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
                 />
               </div>

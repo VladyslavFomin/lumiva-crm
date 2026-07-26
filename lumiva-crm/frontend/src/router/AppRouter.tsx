@@ -154,6 +154,7 @@ import { HotelReservationsPage } from '../pages/hotels/HotelReservationsPage';
 import { HotelPricingPage } from '../pages/hotels/HotelPricingPage';
 import { HotelCalendarPage } from '../pages/hotels/HotelCalendarPage';
 import { HotelRoomPricingPage } from '../pages/hotels/HotelRoomPricingPage';
+import { HotelAnalyticsPage } from '../pages/hotels/HotelAnalyticsPage';
 import { AutomationsPage as AutomationsPageNew } from '../pages/automations/AutomationsPage';
 import { IntegrationsHubPage } from '../pages/integrations/IntegrationsHubPage';
 import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
@@ -1103,6 +1104,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <HotelRoomPricingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/analytics"
+          element={
+            <ProtectedRoute>
+              <HotelAnalyticsPage />
             </ProtectedRoute>
           }
         />

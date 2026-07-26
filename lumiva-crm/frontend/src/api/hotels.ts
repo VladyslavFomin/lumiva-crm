@@ -17,6 +17,9 @@ export interface Hotel {
   checkInTime: string;
   checkOutTime: string;
   referenceMarketGroupId: string | null;
+  seasonRevenueTarget: string;
+  riskThresholdBadPct: string | null;
+  riskThresholdWarnPct: string | null;
   createdAt: string;
   updatedAt: string;
   roomsCount: number;
@@ -546,4 +549,116 @@ export function applyRoomPricingImport(dto: { importId: string; hotelId: string;
     total: number;
     occupancyRowsCreated: string[];
   }>('/hotels/room-pricing-import/apply', dto);
+}
+
+/* ---------- analytics ---------- */
+
+export interface HotelAnalyticsFilters {
+  hotelIds?: string;
+  roomTypeId?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  marketId?: string;
+  agencyId?: string;
+}
+
+export interface HotelAnalyticsKpis {
+  occupancyNowPct: number;
+  roomsAvailable: number;
+  roomsTotal: number;
+  revenueSold: number;
+  roomsNeededPerDay: number;
+  currency: string;
+}
+
+export interface PacingBucket {
+  daysBeforeArrival: number;
+  targetPct: number;
+  actualPct: number;
+  gapPct: number;
+  roomsNeededPerDay: number | null;
+}
+
+export interface RevenueFunnel {
+  planRevenue: number;
+  actualRevenue: number;
+  pendingRevenue: number;
+  remainingRevenue: number;
+  maxPossibleRevenue: number;
+  currency: string;
+}
+
+export interface RoomTypeBreakdownRow {
+  roomTypeId: string;
+  name: string;
+  qtyTotal: number;
+  qtySold: number;
+  occupancyPct: number;
+  adr: number;
+  avgGuestsPerBooking: number;
+  revenue: number;
+}
+
+export interface MarketRevenueRow {
+  market: string;
+  revenueActual: number;
+  revenueTarget: number | null;
+  roomsSold: number;
+}
+
+export interface AgencyAnalyticsRow {
+  agencyId: string | null;
+  name: string;
+  bookingsCount: number;
+  revenue: number;
+  avgRate: number;
+  sharePct: number;
+}
+
+export interface GuestDemographics {
+  adultsCount: number;
+  childrenCount: number;
+  infantsCount: number;
+  avgGuestsPerBooking: number;
+  ageBuckets: Record<'0-2' | '3-6' | '7-11' | '12-17', number>;
+  dataAvailable: boolean;
+}
+
+export interface HotelAnalyticsSummary {
+  kpis: HotelAnalyticsKpis;
+  pacing: { buckets: PacingBucket[] };
+  funnel: RevenueFunnel;
+  roomTypes: RoomTypeBreakdownRow[];
+  markets: MarketRevenueRow[];
+  agencies: AgencyAnalyticsRow[];
+  guests: GuestDemographics;
+}
+
+export interface ArrivalDayRow {
+  date: string;
+  occupancyPct: number;
+  riskLevel: 'bad' | 'warn' | 'ok';
+}
+
+export interface PacingTargetRow {
+  id: string;
+  hotelId: string;
+  daysBeforeArrival: number;
+  targetPct: string;
+}
+
+export function fetchHotelAnalyticsSummary(filters: HotelAnalyticsFilters) {
+  return api.get<HotelAnalyticsSummary>('/hotels/analytics', { params: filters });
+}
+
+export function fetchHotelAnalyticsArrivals(filters: HotelAnalyticsFilters) {
+  return api.get<ArrivalDayRow[]>('/hotels/analytics/arrivals', { params: filters });
+}
+
+export function fetchPacingTargets(hotelId: string) {
+  return api.get<PacingTargetRow[]>('/hotels/analytics/pacing-targets', { params: { hotelId } });
+}
+
+export function updatePacingTargets(hotelId: string, rows: Array<{ daysBeforeArrival: number; targetPct: number }>) {
+  return api.patch<PacingTargetRow[]>(`/hotels/analytics/pacing-targets/${hotelId}`, rows);
 }
