@@ -1,11 +1,12 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { HotelMarketGroup } from './hotel-market-group.entity';
 import { HotelPricingPeriod } from './hotel-pricing-period.entity';
 import { HotelDailyMarketRate } from './hotel-daily-market-rate.entity';
 import { HotelRoomType } from './hotel-room-type.entity';
 import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
+import { HotelRoomStopSaleDate } from './hotel-room-stop-sale-date.entity';
 import { Hotel } from './hotel.entity';
 import { normalizeNumericInput } from './hotel-number.util';
 
@@ -33,7 +34,33 @@ export class HotelsPricingService {
     private readonly roomTypesRepo: Repository<HotelRoomType>,
     @InjectRepository(HotelRoomOccupancyType)
     private readonly occupancyTypesRepo: Repository<HotelRoomOccupancyType>,
+    @InjectRepository(HotelRoomStopSaleDate)
+    private readonly stopSaleDatesRepo: Repository<HotelRoomStopSaleDate>,
   ) {}
+
+  /* ---------- stop-sale dates (Цены и рынки — точечный стоп на дату) ---------- */
+
+  async listStopSaleDates(tenantId: string, roomTypeId: string, dates: string[]): Promise<string[]> {
+    if (!dates.length) return [];
+    const rows = await this.stopSaleDatesRepo.find({
+      where: { tenantId, roomTypeId, date: In(dates) },
+    });
+    return rows.map((r) => r.date);
+  }
+
+  async setStopSaleDate(tenantId: string, roomTypeId: string, date: string, stopped: boolean) {
+    if (stopped) {
+      const existing = await this.stopSaleDatesRepo.findOne({ where: { tenantId, roomTypeId, date } });
+      if (!existing) {
+        await this.stopSaleDatesRepo.save(
+          this.stopSaleDatesRepo.create({ tenantId, roomTypeId, date }),
+        );
+      }
+    } else {
+      await this.stopSaleDatesRepo.delete({ tenantId, roomTypeId, date });
+    }
+    return { date, stopped };
+  }
 
   /* ---------- market groups ---------- */
 

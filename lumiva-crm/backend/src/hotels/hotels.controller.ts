@@ -205,6 +205,27 @@ export class HotelsController {
     return this.pricing.upsertDailyRate(user.tenantId, roomTypeId, marketGroupId, date, dto);
   }
 
+  @Get('room-types/:roomTypeId/stop-sale-dates')
+  listStopSaleDates(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('roomTypeId', new ParseUUIDPipe()) roomTypeId: string,
+    @Query('dates') dates: string,
+  ) {
+    const list = (dates || '').split(',').filter(Boolean);
+    return this.pricing.listStopSaleDates(user.tenantId, roomTypeId, list);
+  }
+
+  @Post('room-types/:roomTypeId/stop-sale-dates/:date')
+  @RequirePermission('hotels_manage_pricing', 'write')
+  setStopSaleDate(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('roomTypeId', new ParseUUIDPipe()) roomTypeId: string,
+    @Param('date') date: string,
+    @Body() dto: { stopped: boolean },
+  ) {
+    return this.pricing.setStopSaleDate(user.tenantId, roomTypeId, date, dto.stopped);
+  }
+
   /* ---------- markets (flat, global by id) ---------- */
 
   @Patch('markets/:id')

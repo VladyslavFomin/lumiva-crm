@@ -151,6 +151,7 @@
 /* Room type cards */
 .rm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
 .rm-card{border:1px solid var(--line-2);border-radius:12px;padding:14px 16px;background:#fff}
+.rm-card-stopped{border-color:#e3a3a3;background:#fef7f7}
 .rm-card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
 .rm-card-name{font-weight:600;font-size:13.5px;color:var(--ink)}
 .rm-card-meta{font-size:11px;color:var(--fg-3);margin-top:2px}
@@ -253,6 +254,10 @@
 .ppt-table tbody tr:hover td.brut-cell{background:#e2f0dd}
 .ppt-table td.ppt-selected{background:#cfe3fc !important;user-select:none}
 .ppt-table td.ppt-selected input{background:rgba(255,255,255,.7)}
+.ppt-table tr.ppt-stopped td{background:#fdeaea}
+.ppt-table tr.ppt-stopped td.periyot{background:#fbdada}
+.ppt-table tr.ppt-stopped:hover td{background:#fadcdc}
+.ppt-stop-badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:4px;background:#d64545;color:#fff;font-size:9.5px;font-weight:700;letter-spacing:.02em;vertical-align:middle}
 .ppt-wrap{max-height:70vh;overflow:auto}
 
 /* Period manager */

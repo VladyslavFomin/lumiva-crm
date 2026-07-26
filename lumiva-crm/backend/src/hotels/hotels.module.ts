@@ -10,6 +10,7 @@ import { HotelMarketGroup } from './hotel-market-group.entity';
 import { HotelPricingPeriod } from './hotel-pricing-period.entity';
 import { HotelDailyMarketRate } from './hotel-daily-market-rate.entity';
 import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
+import { HotelRoomStopSaleDate } from './hotel-room-stop-sale-date.entity';
 import { HotelAgency } from './hotel-agency.entity';
 import { HotelReservation } from './hotel-reservation.entity';
 import { HotelReservationImportSession } from './hotel-reservation-import-session.entity';
@@ -45,6 +46,7 @@ import { RbacModule } from '../rbac/rbac.module';
       HotelPricingPeriod,
       HotelDailyMarketRate,
       HotelRoomOccupancyType,
+      HotelRoomStopSaleDate,
       HotelAgency,
       HotelReservation,
       HotelReservationImportSession,

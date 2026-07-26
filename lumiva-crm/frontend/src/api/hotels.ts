@@ -43,6 +43,7 @@ export interface HotelRoomType {
   ppNetOffset: string;
   isBaseRoomType: boolean;
   infoFields: Record<string, string | boolean>;
+  stopSale: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -400,6 +401,21 @@ export function upsertDailyRate(
   return api.post(
     `/hotels/room-types/${roomTypeId}/daily-rates/${marketGroupId}/${date}`,
     dto,
+  );
+}
+
+/* ---------- stop-sale (Цены и рынки — точечный стоп на дату) ---------- */
+
+export function fetchStopSaleDates(roomTypeId: string, dates: string[]) {
+  return api.get<string[]>(`/hotels/room-types/${roomTypeId}/stop-sale-dates`, {
+    params: { dates: dates.join(',') },
+  });
+}
+
+export function setStopSaleDate(roomTypeId: string, date: string, stopped: boolean) {
+  return api.post<{ date: string; stopped: boolean }>(
+    `/hotels/room-types/${roomTypeId}/stop-sale-dates/${date}`,
+    { stopped },
   );
 }
 

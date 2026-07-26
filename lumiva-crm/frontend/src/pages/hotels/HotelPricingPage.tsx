@@ -16,6 +16,8 @@ import {
   deletePricingPeriod,
   fetchDailyRates,
   upsertDailyRate,
+  fetchStopSaleDates,
+  setStopSaleDate,
   previewPricingImport,
   applyPricingImport,
   type Hotel,
@@ -88,6 +90,7 @@ export const HotelPricingPage: React.FC = () => {
   const [selectedPeriods, setSelectedPeriods] = useState<string[]>([]);
   const [editing, setEditing] = useState<'new' | string | null>(null);
   const [rows, setRows] = useState<HotelDailyMarketRateRow[]>([]);
+  const [stoppedDates, setStoppedDates] = useState<string[]>([]);
   const [showImport, setShowImport] = useState(false);
   const [selAnchor, setSelAnchor] = useState<CellPos | null>(null);
   const [selFocus, setSelFocus] = useState<CellPos | null>(null);
@@ -184,13 +187,25 @@ export const HotelPricingPage: React.FC = () => {
   useEffect(() => {
     if (!roomTypeId || !visibleDays.length) {
       setRows([]);
+      setStoppedDates([]);
       return;
     }
     fetchDailyRates(roomTypeId, visibleDays)
       .then(setRows)
       .catch((e) => showAlert(e.message || 'Не удалось загрузить цены', { variant: 'error' }));
+    fetchStopSaleDates(roomTypeId, visibleDays)
+      .then(setStoppedDates)
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить стоп-даты', { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomTypeId, visibleDays.join(',')]);
+
+  const toggleStopSaleDate = (date: string) => {
+    if (!roomTypeId) return;
+    const stopped = !stoppedDates.includes(date);
+    setStopSaleDate(roomTypeId, date, stopped)
+      .then(() => setStoppedDates((prev) => (stopped ? [...prev, date] : prev.filter((d) => d !== date))))
+      .catch((e) => showAlert(e.message || 'Не удалось изменить стоп-продажу', { variant: 'error' }));
+  };
 
   const addPeriod = (startDate: string, endDate: string) => {
     createPricingPeriod(hotelId, { startDate, endDate })
@@ -368,6 +383,7 @@ export const HotelPricingPage: React.FC = () => {
                     <Ic d={HTL_ICON.plus} size={11} />Рынок
                   </button>
                 </th>
+                <th rowSpan={2} style={{ width: 54 }}>Стоп</th>
                 {marketGroups.map((g) => (
                   <th key={g.id} colSpan={5}>
                     {editingGroupId === g.id ? (
@@ -406,11 +422,24 @@ export const HotelPricingPage: React.FC = () => {
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={1 + marketGroups.length * 5} style={{ padding: 24, color: 'var(--fg-3)' }}>Нет выбранных диапазонов — отметьте один выше или добавьте новый.</td></tr>
+                <tr><td colSpan={2 + marketGroups.length * 5} style={{ padding: 24, color: 'var(--fg-3)' }}>Нет выбранных диапазонов — отметьте один выше или добавьте новый.</td></tr>
               )}
-              {rows.map((row, rowIdx) => (
-                <tr key={row.date}>
-                  <td className="periyot">{fmtDate(row.date)}</td>
+              {rows.map((row, rowIdx) => {
+                const isStopped = stoppedDates.includes(row.date);
+                return (
+                <tr key={row.date} className={isStopped ? 'ppt-stopped' : undefined}>
+                  <td className="periyot">
+                    {fmtDate(row.date)}
+                    {isStopped && <span className="ppt-stop-badge">СТОП</span>}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isStopped}
+                      onChange={() => toggleStopSaleDate(row.date)}
+                      title="Стоп-продажа на эту дату (все рынки)"
+                    />
+                  </td>
                   {marketGroups.map((group, groupIdx) => {
                     const g = row.groups.find((x) => x.marketGroupId === group.id);
                     if (!g) return null;
@@ -442,7 +471,8 @@ export const HotelPricingPage: React.FC = () => {
                     );
                   })}
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

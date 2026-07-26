@@ -60,6 +60,13 @@ export class HotelRoomType {
   @Column({ type: 'jsonb', default: {} })
   infoFields: Record<string, string | boolean>;
 
+  /** Полная стоп-продажа этого типа номера (независимо от дат) — например, номер выведен из
+   * эксплуатации или полностью распродан по другому каналу. Отдельно от точечных стоп-дат
+   * (см. HotelRoomStopSaleDate) и от блокировок в розничном календаре (HotelRoomDateOverride,
+   * другая, независимая система цен по решению из plan mode). */
+  @Column({ type: 'boolean', default: false })
+  stopSale: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

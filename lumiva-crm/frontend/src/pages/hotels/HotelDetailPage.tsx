@@ -133,6 +133,12 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
       .catch((e) => showAlert(e.message || 'Не удалось удалить тип номера', { variant: 'error' }));
   };
 
+  const toggleStopSale = (r: HotelRoomType) => {
+    updateRoomType(r.id, { stopSale: !r.stopSale })
+      .then(() => onChanged())
+      .catch((e) => showAlert(e.message || 'Не удалось изменить стоп-продажу', { variant: 'error' }));
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -146,13 +152,23 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
 
       <div className="rm-grid">
         {roomTypes.map((r) => (
-          <div key={r.id} className="rm-card">
+          <div key={r.id} className={r.stopSale ? 'rm-card rm-card-stopped' : 'rm-card'}>
             <div className="rm-card-top">
               <div>
-                <div className="rm-card-name">{r.name}</div>
+                <div className="rm-card-name">
+                  {r.name}
+                  {r.stopSale && <span className="ppt-stop-badge" style={{ marginLeft: 8 }}>СТОП-ПРОДАЖА</span>}
+                </div>
                 <div className="rm-card-meta">{r.sizeM2 ? `${r.sizeM2} м² · ` : ''}{r.capacityLabel}</div>
               </div>
               <div style={{ display: 'flex', gap: 4 }}>
+                <button
+                  style={{ background: 'none', border: 'none', color: r.stopSale ? '#d64545' : 'var(--fg-3)', cursor: 'pointer' }}
+                  title={r.stopSale ? 'Снять стоп-продажу' : 'Поставить стоп-продажу на весь тип номера'}
+                  onClick={() => toggleStopSale(r)}
+                >
+                  <Ic d={HTL_ICON.ban} size={14} />
+                </button>
                 <button
                   style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer' }}
                   title="Изменить"
