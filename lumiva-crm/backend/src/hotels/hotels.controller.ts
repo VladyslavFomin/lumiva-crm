@@ -29,6 +29,7 @@ import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsPricingService } from './hotels-pricing.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
 import { HotelsGalleryService } from './hotels-gallery.service';
+import { HotelsFactsheetService } from './hotels-factsheet.service';
 
 const IMAGE_ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
 const imageFileFilter = (_req: any, file: any, cb: any) => {
@@ -49,6 +50,7 @@ export class HotelsController {
     private readonly pricing: HotelsPricingService,
     private readonly agencies: HotelsAgenciesService,
     private readonly gallery: HotelsGalleryService,
+    private readonly factsheet: HotelsFactsheetService,
   ) {}
 
   /* ---------- fixed literal routes — must come before hotels/:id ---------- */
@@ -359,6 +361,24 @@ export class HotelsController {
     return this.gallery.removePhoto(user.tenantId, id);
   }
 
+  /* ---------- factsheet items — restaurants/bars/pools/mini-club/services (global by id) ---------- */
+
+  @Patch('factsheet-items/:id')
+  @RequirePermission('hotels', 'write')
+  updateFactsheetItem(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: any,
+  ) {
+    return this.factsheet.updateItem(user.tenantId, id, dto);
+  }
+
+  @Delete('factsheet-items/:id')
+  @RequirePermission('hotels', 'delete')
+  removeFactsheetItem(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.factsheet.removeItem(user.tenantId, id);
+  }
+
   /* ---------- per-hotel nested resources ---------- */
 
   @Get(':hotelId/room-types')
@@ -503,6 +523,25 @@ export class HotelsController {
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
     return this.gallery.createPhotoFromUpload(user.tenantId, hotelId, categoryId || null, file.filename);
+  }
+
+  @Get(':hotelId/factsheet-items')
+  listFactsheetItems(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+    @Query('kind') kind?: string,
+  ) {
+    return this.factsheet.listItems(user.tenantId, hotelId, kind as any);
+  }
+
+  @Post(':hotelId/factsheet-items')
+  @RequirePermission('hotels', 'write')
+  createFactsheetItem(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+    @Body() dto: any,
+  ) {
+    return this.factsheet.createItem(user.tenantId, hotelId, dto);
   }
 
   /* ---------- hotel CRUD (catch-all :id — must stay last) ---------- */

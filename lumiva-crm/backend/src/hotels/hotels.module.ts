@@ -19,12 +19,16 @@ import { HotelPricingImportSession } from './hotel-pricing-import-session.entity
 import { HotelRoomPricingImportSession } from './hotel-room-pricing-import-session.entity';
 import { HotelGalleryCategory } from './hotel-gallery-category.entity';
 import { HotelPhoto } from './hotel-photo.entity';
+import { HotelFactsheetItem } from './hotel-factsheet-item.entity';
+import { HotelInfoImportSession } from './hotel-info-import-session.entity';
 
 import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsPricingService } from './hotels-pricing.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
 import { HotelsGalleryService } from './hotels-gallery.service';
+import { HotelsFactsheetService } from './hotels-factsheet.service';
+import { HotelsInfoImportService } from './hotels-info-import.service';
 import { HotelAnalyticsService } from './hotel-analytics.service';
 import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelsReservationsImportService } from './hotels-reservations-import.service';
@@ -37,6 +41,7 @@ import { HotelReservationsController } from './hotel-reservations.controller';
 import { HotelsReservationsImportController } from './hotels-reservations-import.controller';
 import { HotelsPricingImportController } from './hotels-pricing-import.controller';
 import { HotelsRoomPricingImportController } from './hotels-room-pricing-import.controller';
+import { HotelsInfoImportController } from './hotels-info-import.controller';
 
 import { RbacModule } from '../rbac/rbac.module';
 
@@ -61,6 +66,8 @@ import { RbacModule } from '../rbac/rbac.module';
       HotelRoomPricingImportSession,
       HotelGalleryCategory,
       HotelPhoto,
+      HotelFactsheetItem,
+      HotelInfoImportSession,
     ]),
     RbacModule,
   ],
@@ -74,6 +81,7 @@ import { RbacModule } from '../rbac/rbac.module';
     HotelsReservationsImportController,
     HotelsPricingImportController,
     HotelsRoomPricingImportController,
+    HotelsInfoImportController,
     HotelsController,
   ],
   providers: [
@@ -82,6 +90,8 @@ import { RbacModule } from '../rbac/rbac.module';
     HotelsPricingService,
     HotelsAgenciesService,
     HotelsGalleryService,
+    HotelsFactsheetService,
+    HotelsInfoImportService,
     HotelAnalyticsService,
     HotelReservationsService,
     HotelsReservationsImportService,

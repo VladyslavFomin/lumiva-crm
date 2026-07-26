@@ -29,12 +29,23 @@ import {
   fetchGalleryPhotos,
   uploadGalleryPhoto,
   removeGalleryPhoto,
+  fetchFactsheetItems,
+  createFactsheetItem,
+  updateFactsheetItem,
+  removeFactsheetItem,
+  previewHotelInfoImport,
+  applyHotelInfoImport,
+  exportHotelInfo,
   type Hotel,
   type HotelRoomType,
   type HotelMarket,
   type HotelRoomMarketPrice,
   type HotelGalleryCategory,
   type HotelPhoto,
+  type HotelFactsheetItem,
+  type HotelFactsheetItemKind,
+  type HotelFactsheetItemInput,
+  type HotelInfoImportPreview,
 } from '../../api/hotels';
 import './hotels-design.css';
 
@@ -484,9 +495,302 @@ const HOTEL_INFO_FIELDS: Array<{ key: string; label: string; type: 'text' | 'boo
   { key: 'disabledAccessGeneral', label: 'Подходит для гостей с ОВ', type: 'bool' },
 ];
 
+interface BlockColumnDef {
+  key: 'name' | 'description' | 'hours' | 'paid' | `extra.${string}`;
+  label: string;
+}
+
+const FACTSHEET_BLOCK_DEFS: Array<{ kind: HotelFactsheetItemKind; title: string; columns: BlockColumnDef[] }> = [
+  {
+    kind: 'restaurant',
+    title: 'Рестораны',
+    columns: [
+      { key: 'name', label: 'Название' },
+      { key: 'extra.mealType', label: 'Питание' },
+      { key: 'description', label: 'Описание' },
+      { key: 'hours', label: 'Часы работы' },
+    ],
+  },
+  {
+    kind: 'bar',
+    title: 'Бары',
+    columns: [
+      { key: 'name', label: 'Название' },
+      { key: 'description', label: 'Описание' },
+      { key: 'hours', label: 'Часы работы' },
+    ],
+  },
+  {
+    kind: 'pool',
+    title: 'Бассейны',
+    columns: [
+      { key: 'name', label: 'Название' },
+      { key: 'extra.areaM2', label: 'Площадь' },
+      { key: 'extra.depth', label: 'Глубина' },
+      { key: 'description', label: 'Описание' },
+      { key: 'hours', label: 'Часы работы' },
+    ],
+  },
+  {
+    kind: 'miniclub',
+    title: 'Мини-клуб',
+    columns: [
+      { key: 'name', label: 'Возрастная группа' },
+      { key: 'description', label: 'Активности' },
+      { key: 'hours', label: 'Часы работы' },
+    ],
+  },
+  {
+    kind: 'service',
+    title: 'Услуги',
+    columns: [
+      { key: 'name', label: 'Название' },
+      { key: 'description', label: 'Описание' },
+      { key: 'paid', label: 'Платно' },
+    ],
+  },
+];
+
+function getColVal(item: HotelFactsheetItem, col: BlockColumnDef): string {
+  if (col.key === 'name') return item.name;
+  if (col.key === 'description') return item.description || '';
+  if (col.key === 'hours') return item.hours || '';
+  if (col.key === 'paid') return '';
+  return item.extra?.[col.key.slice('extra.'.length)] || '';
+}
+
+function buildItemInput(kind: HotelFactsheetItemKind, draft: Record<string, string>, columns: BlockColumnDef[]): HotelFactsheetItemInput {
+  const dto: HotelFactsheetItemInput = { kind, name: draft.name || '', extra: {} };
+  for (const col of columns) {
+    if (col.key === 'name') continue;
+    const val = (draft[col.key] || '').trim();
+    if (col.key === 'description') dto.description = val || null;
+    else if (col.key === 'hours') dto.hours = val || null;
+    else if (col.key === 'paid') dto.paid = !!draft[col.key];
+    else dto.extra![col.key.slice('extra.'.length)] = val;
+  }
+  return dto;
+}
+
+const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetItemKind; title: string; columns: BlockColumnDef[] }> = ({
+  hotelId,
+  kind,
+  title,
+  columns,
+}) => {
+  const { showAlert, showConfirm } = useAlertModal();
+  const [items, setItems] = useState<HotelFactsheetItem[]>([]);
+  const [draft, setDraft] = useState<Record<string, string>>({});
+  const [adding, setAdding] = useState(false);
+
+  const load = () => {
+    fetchFactsheetItems(hotelId, kind)
+      .then(setItems)
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить данные', { variant: 'error' }));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelId]);
+
+  const saveCell = (item: HotelFactsheetItem, col: BlockColumnDef, val: string) => {
+    const patch: Partial<HotelFactsheetItemInput> =
+      col.key === 'name' ? { name: val }
+      : col.key === 'description' ? { description: val || null }
+      : col.key === 'hours' ? { hours: val || null }
+      : { extra: { ...item.extra, [col.key.slice('extra.'.length)]: val } };
+    updateFactsheetItem(item.id, patch)
+      .then(load)
+      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+  };
+
+  const togglePaid = (item: HotelFactsheetItem) => {
+    updateFactsheetItem(item.id, { paid: !item.paid })
+      .then(load)
+      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+  };
+
+  const removeRow = async (item: HotelFactsheetItem) => {
+    const ok = await showConfirm(`Удалить «${item.name}»?`, { title: 'Удалить запись', confirmLabel: 'Удалить', danger: true });
+    if (!ok) return;
+    removeFactsheetItem(item.id).then(load).catch((e) => showAlert(e.message || 'Не удалось удалить', { variant: 'error' }));
+  };
+
+  const addRow = () => {
+    if (!draft.name?.trim()) {
+      showAlert('Укажите название', { variant: 'error' });
+      return;
+    }
+    createFactsheetItem(hotelId, buildItemInput(kind, draft, columns))
+      .then(() => {
+        setDraft({});
+        setAdding(false);
+        load();
+      })
+      .catch((e) => showAlert(e.message || 'Не удалось добавить', { variant: 'error' }));
+  };
+
+  return (
+    <div style={{ marginTop: 20 }}>
+      <div className="ha-section-head" style={{ marginBottom: 8 }}>
+        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{title}</div>
+      </div>
+      <div className="occ-wrap" style={{ marginTop: 0 }}>
+        <table className="occ-table">
+          <thead>
+            <tr>
+              {columns.map((c) => <th key={c.key} className={c.key === 'name' ? 'occ-h' : undefined}>{c.label}</th>)}
+              <th style={{ width: 36 }} />
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((item) => (
+              <tr key={item.id}>
+                {columns.map((col) => (
+                  <td key={col.key} className={col.key === 'name' ? 'occ-name' : 'price-cell'} style={{ textAlign: 'left' }}>
+                    {col.key === 'paid' ? (
+                      <button className={`bool-toggle${item.paid ? ' on' : ''}`} onClick={() => togglePaid(item)}>
+                        {item.paid ? '✓' : '✕'}
+                      </button>
+                    ) : (
+                      <input
+                        key={`${item.id}-${col.key}-${getColVal(item, col)}`}
+                        className="info-input"
+                        defaultValue={getColVal(item, col)}
+                        onBlur={(e) => saveCell(item, col, e.target.value)}
+                      />
+                    )}
+                  </td>
+                ))}
+                <td>
+                  <button
+                    style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer' }}
+                    title="Удалить"
+                    onClick={() => removeRow(item)}
+                  >
+                    <Ic d={HTL_ICON.x} size={13} />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {adding && (
+              <tr>
+                {columns.map((col) => (
+                  <td key={col.key} style={{ textAlign: 'left' }}>
+                    {col.key === 'paid' ? (
+                      <button
+                        className={`bool-toggle${draft[col.key] ? ' on' : ''}`}
+                        onClick={() => setDraft((d) => ({ ...d, [col.key]: d[col.key] ? '' : '1' }))}
+                      >
+                        {draft[col.key] ? '✓' : '✕'}
+                      </button>
+                    ) : (
+                      <input
+                        autoFocus={col.key === 'name'}
+                        className="info-input"
+                        value={draft[col.key] || ''}
+                        onChange={(e) => setDraft((d) => ({ ...d, [col.key]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === 'Enter') addRow(); }}
+                      />
+                    )}
+                  </td>
+                ))}
+                <td>
+                  <button style={{ background: 'none', border: 'none', color: '#1f8a5e', cursor: 'pointer' }} onClick={addRow} title="Добавить">
+                    <Ic d={HTL_ICON.check} size={14} />
+                  </button>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {!adding && (
+        <div className="occ-add-row">
+          <button className="btn btn-sm" onClick={() => setAdding(true)}><Ic d={HTL_ICON.plus} size={12} />Добавить</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const HotelInfoImportModal: React.FC<{ hotelId: string; onClose: () => void; onApplied: () => void }> = ({ hotelId, onClose, onApplied }) => {
+  const { showAlert } = useAlertModal();
+  const [preview, setPreview] = useState<HotelInfoImportPreview | null>(null);
+  const [applying, setApplying] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (file: File) => {
+    previewHotelInfoImport(file)
+      .then(setPreview)
+      .catch((e) => showAlert(e.message || 'Не удалось прочитать файл', { variant: 'error' }));
+  };
+
+  const apply = () => {
+    if (!preview) return;
+    setApplying(true);
+    applyHotelInfoImport({ importId: preview.importId, hotelId })
+      .then(() => { onApplied(); onClose(); })
+      .catch((e) => showAlert(e.message || 'Не удалось применить импорт', { variant: 'error' }))
+      .finally(() => setApplying(false));
+  };
+
+  return (
+    <div className="px-scope">
+      <div className="bk-modal-back" onClick={onClose} />
+      <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="bk-modal-head">
+          <h3>Импорт данных отеля из Excel</h3>
+          <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
+        </div>
+        <div className="bk-modal-body">
+          {!preview ? (
+            <div
+              onClick={() => inputRef.current?.click()}
+              style={{ border: '1.5px dashed var(--line-2)', borderRadius: 10, padding: 24, textAlign: 'center', cursor: 'pointer', color: 'var(--fg-3)', fontSize: 12.5 }}
+            >
+              Выберите файл .xlsx (скачайте шаблон через «Скачать Excel», заполните и загрузите обратно)
+              <input
+                ref={inputRef}
+                type="file"
+                accept=".xlsx"
+                style={{ display: 'none' }}
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ''; }}
+              />
+            </div>
+          ) : (
+            <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
+              <div>Общих полей найдено: <b>{preview.infoFieldsCount}</b></div>
+              {FACTSHEET_BLOCK_DEFS.map((b) => (
+                <div key={b.kind}>{b.title}: <b>{preview.itemCounts[b.kind] || 0}</b></div>
+              ))}
+              {preview.unmatchedLabels.length > 0 && (
+                <div style={{ marginTop: 8, color: '#a06b1a' }}>
+                  Не распознаны подписи: {preview.unmatchedLabels.join(', ')}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="bk-modal-foot">
+          <button className="btn" onClick={onClose}>Отмена</button>
+          {preview && (
+            <button className="btn btn-primary" disabled={applying} onClick={apply}>
+              <Ic d={HTL_ICON.check} size={14} />Применить
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, onSaved }) => {
   const { showAlert } = useAlertModal();
   const [data, setData] = useState<Record<string, string | boolean>>(hotel.infoFields || {});
+  const [showImport, setShowImport] = useState(false);
+  const [blocksKey, setBlocksKey] = useState(0);
 
   useEffect(() => setData(hotel.infoFields || {}), [hotel]);
 
@@ -497,29 +801,51 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
   };
 
   return (
-    <div className="occ-wrap">
-      <table className="occ-table info-table">
-        <tbody>
-          {HOTEL_INFO_FIELDS.map((f) => (
-            <tr key={f.key}>
-              <td className="occ-name" style={{ width: 280 }}>{f.label}</td>
-              <td className="price-cell" style={{ textAlign: 'left' }}>
-                {f.type === 'bool' ? (
-                  <button className={`bool-toggle${data[f.key] ? ' on' : ''}`} onClick={() => update(f.key, !data[f.key])}>
-                    {data[f.key] ? '✓' : '✕'}
-                  </button>
-                ) : (
-                  <input
-                    className="info-input"
-                    defaultValue={(data[f.key] as string) || ''}
-                    onBlur={(e) => update(f.key, e.target.value)}
-                  />
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
+        <button className="btn btn-sm" onClick={() => exportHotelInfo(hotel.id, hotel.name).catch((e) => showAlert(e.message || 'Не удалось экспортировать', { variant: 'error' }))}>
+          <Ic d={HTL_ICON.download} size={13} />Скачать Excel
+        </button>
+        <button className="btn btn-sm" onClick={() => setShowImport(true)}>
+          <Ic d={HTL_ICON.plus} size={13} />Загрузить Excel
+        </button>
+      </div>
+      <div className="occ-wrap">
+        <table className="occ-table info-table">
+          <tbody>
+            {HOTEL_INFO_FIELDS.map((f) => (
+              <tr key={f.key}>
+                <td className="occ-name" style={{ width: 280 }}>{f.label}</td>
+                <td className="price-cell" style={{ textAlign: 'left' }}>
+                  {f.type === 'bool' ? (
+                    <button className={`bool-toggle${data[f.key] ? ' on' : ''}`} onClick={() => update(f.key, !data[f.key])}>
+                      {data[f.key] ? '✓' : '✕'}
+                    </button>
+                  ) : (
+                    <input
+                      className="info-input"
+                      defaultValue={(data[f.key] as string) || ''}
+                      onBlur={(e) => update(f.key, e.target.value)}
+                    />
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {FACTSHEET_BLOCK_DEFS.map((b) => (
+        <FactsheetBlockSection key={`${b.kind}-${blocksKey}`} hotelId={hotel.id} kind={b.kind} title={b.title} columns={b.columns} />
+      ))}
+
+      {showImport && (
+        <HotelInfoImportModal
+          hotelId={hotel.id}
+          onClose={() => setShowImport(false)}
+          onApplied={() => { onSaved(); setBlocksKey((k) => k + 1); }}
+        />
+      )}
     </div>
   );
 };

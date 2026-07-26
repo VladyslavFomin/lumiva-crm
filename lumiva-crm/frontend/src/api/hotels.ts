@@ -1,5 +1,6 @@
 // src/api/hotels.ts
-import { api } from './client';
+import { api, API_BASE } from './client';
+import { getAccessToken } from '../auth/session';
 
 export type HotelStatus = 'active' | 'draft';
 
@@ -738,4 +739,90 @@ export function uploadGalleryPhoto(hotelId: string, file: File, categoryId?: str
 
 export function removeGalleryPhoto(id: string) {
   return api.delete<{ ok: boolean }>(`/hotels/gallery-photos/${id}`);
+}
+
+/* ---------- factsheet items (рестораны/бары/бассейны/мини-клуб/услуги) ---------- */
+
+export type HotelFactsheetItemKind = 'restaurant' | 'bar' | 'pool' | 'miniclub' | 'service';
+
+export interface HotelFactsheetItem {
+  id: string;
+  tenantId: string;
+  hotelId: string;
+  kind: HotelFactsheetItemKind;
+  name: string;
+  description: string | null;
+  hours: string | null;
+  paid: boolean | null;
+  extra: Record<string, string>;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface HotelFactsheetItemInput {
+  kind: HotelFactsheetItemKind;
+  name: string;
+  description?: string | null;
+  hours?: string | null;
+  paid?: boolean | null;
+  extra?: Record<string, string>;
+}
+
+export function fetchFactsheetItems(hotelId: string, kind?: HotelFactsheetItemKind) {
+  return api.get<HotelFactsheetItem[]>(`/hotels/${hotelId}/factsheet-items`, {
+    params: kind ? { kind } : undefined,
+  });
+}
+
+export function createFactsheetItem(hotelId: string, dto: HotelFactsheetItemInput) {
+  return api.post<HotelFactsheetItem>(`/hotels/${hotelId}/factsheet-items`, dto);
+}
+
+export function updateFactsheetItem(id: string, dto: Partial<HotelFactsheetItemInput>) {
+  return api.patch<HotelFactsheetItem>(`/hotels/factsheet-items/${id}`, dto);
+}
+
+export function removeFactsheetItem(id: string) {
+  return api.delete<{ ok: boolean }>(`/hotels/factsheet-items/${id}`);
+}
+
+/* ---------- info import/export (Excel) ---------- */
+
+export interface HotelInfoImportPreview {
+  importId: string;
+  infoFieldsCount: number;
+  itemCounts: Record<string, number>;
+  unmatchedLabels: string[];
+  totalItems: number;
+}
+
+export function previewHotelInfoImport(file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.postForm<HotelInfoImportPreview>('/hotels/info-import/preview', fd);
+}
+
+export function applyHotelInfoImport(dto: { importId: string; hotelId: string }) {
+  return api.post<{ infoFieldsUpdated: number; itemsCreated: number }>('/hotels/info-import/apply', dto);
+}
+
+export async function exportHotelInfo(hotelId: string, hotelName: string): Promise<void> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}/hotels/info-import/export/${hotelId}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw new Error(`Не удалось экспортировать данные отеля: ${res.status}`);
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : `${hotelName || 'hotel'}-info.xlsx`;
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
 }
