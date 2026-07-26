@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -8,8 +9,16 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname, join } from 'path';
+import { mkdirSync } from 'fs';
+import { randomUUID } from 'crypto';
+import { getUploadsRoot } from '../common/uploads-root.util';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
@@ -19,6 +28,16 @@ import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsPricingService } from './hotels-pricing.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
+import { HotelsGalleryService } from './hotels-gallery.service';
+
+const IMAGE_ALLOWED_EXT = ['.png', '.jpg', '.jpeg', '.gif', '.webp'];
+const imageFileFilter = (_req: any, file: any, cb: any) => {
+  if (/^image\/(png|jpeg|gif|webp)$/.test(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new BadRequestException('Разрешены только изображения PNG, JPEG, GIF или WebP'), false);
+  }
+};
 
 @Controller('hotels')
 @UseGuards(JwtAuthGuard, RbacGuard)
@@ -29,6 +48,7 @@ export class HotelsController {
     private readonly roomTypes: HotelRoomTypesService,
     private readonly pricing: HotelsPricingService,
     private readonly agencies: HotelsAgenciesService,
+    private readonly gallery: HotelsGalleryService,
   ) {}
 
   /* ---------- fixed literal routes — must come before hotels/:id ---------- */
@@ -86,6 +106,41 @@ export class HotelsController {
     @Body() dto: Record<string, string | boolean>,
   ) {
     return this.roomTypes.updateInfoFields(user.tenantId, id, dto);
+  }
+
+  @Post('room-types/:id/cover')
+  @RequirePermission('hotels', 'write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, _file, cb) => {
+          const tenantId = (req as any).user?.tenantId as string | undefined;
+          const roomTypeId = (req.params as any)?.id as string | undefined;
+          if (!tenantId || !roomTypeId) {
+            cb(new BadRequestException('Missing tenant or room type'), '');
+            return;
+          }
+          const dir = join(getUploadsRoot(), 'hotels', tenantId, 'room-types', roomTypeId);
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname || '').toLowerCase();
+          const e = IMAGE_ALLOWED_EXT.includes(ext) ? ext : '.jpg';
+          cb(null, `cover-${Date.now()}${e}`);
+        },
+      }),
+      limits: { fileSize: 4 * 1024 * 1024 },
+      fileFilter: imageFileFilter,
+    }),
+  )
+  uploadRoomTypeCover(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: { filename: string } | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Нужен файл');
+    return this.roomTypes.setCoverFromUpload(user.tenantId, id, file.filename);
   }
 
   @Get('room-types/:roomTypeId/market-prices')
@@ -280,6 +335,30 @@ export class HotelsController {
     return this.pricing.removePeriod(user.tenantId, id);
   }
 
+  /* ---------- gallery categories/photos (global by id) ---------- */
+
+  @Patch('gallery-categories/:id')
+  @RequirePermission('hotels', 'write')
+  renameGalleryCategory(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: { name: string },
+  ) {
+    return this.gallery.renameCategory(user.tenantId, id, dto.name);
+  }
+
+  @Delete('gallery-categories/:id')
+  @RequirePermission('hotels', 'delete')
+  removeGalleryCategory(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.gallery.removeCategory(user.tenantId, id);
+  }
+
+  @Delete('gallery-photos/:id')
+  @RequirePermission('hotels', 'delete')
+  removeGalleryPhoto(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.gallery.removePhoto(user.tenantId, id);
+  }
+
   /* ---------- per-hotel nested resources ---------- */
 
   @Get(':hotelId/room-types')
@@ -363,6 +442,69 @@ export class HotelsController {
     return this.pricing.createPeriod(user.tenantId, hotelId, dto);
   }
 
+  @Get(':hotelId/gallery/categories')
+  listGalleryCategories(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+  ) {
+    return this.gallery.listCategories(user.tenantId, hotelId);
+  }
+
+  @Post(':hotelId/gallery/categories')
+  @RequirePermission('hotels', 'write')
+  createGalleryCategory(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+    @Body() dto: { name: string },
+  ) {
+    return this.gallery.createCategory(user.tenantId, hotelId, dto.name);
+  }
+
+  @Get(':hotelId/gallery/photos')
+  listGalleryPhotos(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+    @Query('categoryId') categoryId?: string,
+  ) {
+    return this.gallery.listPhotos(user.tenantId, hotelId, categoryId);
+  }
+
+  @Post(':hotelId/gallery/photos/upload')
+  @RequirePermission('hotels', 'write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, _file, cb) => {
+          const tenantId = (req as any).user?.tenantId as string | undefined;
+          const hotelId = (req.params as any)?.hotelId as string | undefined;
+          if (!tenantId || !hotelId) {
+            cb(new BadRequestException('Missing tenant or hotel'), '');
+            return;
+          }
+          const dir = join(getUploadsRoot(), 'hotels', tenantId, hotelId, 'gallery');
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname || '').toLowerCase();
+          const e = IMAGE_ALLOWED_EXT.includes(ext) ? ext : '.jpg';
+          cb(null, `${randomUUID()}${e}`);
+        },
+      }),
+      limits: { fileSize: 8 * 1024 * 1024 },
+      fileFilter: imageFileFilter,
+    }),
+  )
+  uploadGalleryPhoto(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+    @Query('categoryId') categoryId: string | undefined,
+    @UploadedFile() file: { filename: string } | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Нужен файл');
+    return this.gallery.createPhotoFromUpload(user.tenantId, hotelId, categoryId || null, file.filename);
+  }
+
   /* ---------- hotel CRUD (catch-all :id — must stay last) ---------- */
 
   @Get()
@@ -395,5 +537,50 @@ export class HotelsController {
   @RequirePermission('hotels', 'delete')
   remove(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
     return this.hotels.remove(user.tenantId, id);
+  }
+
+  @Patch(':id/info')
+  @RequirePermission('hotels', 'write')
+  updateHotelInfo(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: Record<string, string | boolean>,
+  ) {
+    return this.hotels.updateInfoFields(user.tenantId, id, dto);
+  }
+
+  @Post(':id/cover')
+  @RequirePermission('hotels', 'write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, _file, cb) => {
+          const tenantId = (req as any).user?.tenantId as string | undefined;
+          const hotelId = (req.params as any)?.id as string | undefined;
+          if (!tenantId || !hotelId) {
+            cb(new BadRequestException('Missing tenant or hotel'), '');
+            return;
+          }
+          const dir = join(getUploadsRoot(), 'hotels', tenantId, hotelId);
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname || '').toLowerCase();
+          const e = IMAGE_ALLOWED_EXT.includes(ext) ? ext : '.jpg';
+          cb(null, `cover-${Date.now()}${e}`);
+        },
+      }),
+      limits: { fileSize: 4 * 1024 * 1024 },
+      fileFilter: imageFileFilter,
+    }),
+  )
+  uploadHotelCover(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: { filename: string } | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Нужен файл');
+    return this.hotels.setCoverFromUpload(user.tenantId, id, file.filename);
   }
 }

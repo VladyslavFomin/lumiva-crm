@@ -67,6 +67,9 @@ export class HotelRoomType {
   @Column({ type: 'boolean', default: false })
   stopSale: boolean;
 
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  coverPhotoUrl: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

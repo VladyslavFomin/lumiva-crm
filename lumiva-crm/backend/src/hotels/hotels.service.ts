@@ -94,6 +94,22 @@ export class HotelsService {
     return this.enrich(tenantId, hotel);
   }
 
+  async updateInfoFields(tenantId: string, id: string, infoFields: Record<string, string | boolean>) {
+    const hotel = await this.repo.findOne({ where: { id, tenantId } });
+    if (!hotel) throw new NotFoundException('Отель не найден');
+    hotel.infoFields = { ...hotel.infoFields, ...infoFields };
+    await this.repo.save(hotel);
+    return this.enrich(tenantId, hotel);
+  }
+
+  async setCoverFromUpload(tenantId: string, id: string, filename: string) {
+    const hotel = await this.repo.findOne({ where: { id, tenantId } });
+    if (!hotel) throw new NotFoundException('Отель не найден');
+    hotel.coverPhotoUrl = `/v1/uploads/hotels/${tenantId}/${id}/${filename}`;
+    await this.repo.save(hotel);
+    return this.enrich(tenantId, hotel);
+  }
+
   async remove(tenantId: string, id: string) {
     const hotel = await this.repo.findOne({ where: { id, tenantId } });
     if (!hotel) throw new NotFoundException('Отель не найден');

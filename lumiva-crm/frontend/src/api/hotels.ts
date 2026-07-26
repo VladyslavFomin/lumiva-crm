@@ -20,6 +20,8 @@ export interface Hotel {
   seasonRevenueTarget: string;
   riskThresholdBadPct: string | null;
   riskThresholdWarnPct: string | null;
+  infoFields: Record<string, string | boolean>;
+  coverPhotoUrl: string | null;
   createdAt: string;
   updatedAt: string;
   roomsCount: number;
@@ -47,6 +49,7 @@ export interface HotelRoomType {
   isBaseRoomType: boolean;
   infoFields: Record<string, string | boolean>;
   stopSale: boolean;
+  coverPhotoUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -661,4 +664,78 @@ export function fetchPacingTargets(hotelId: string) {
 
 export function updatePacingTargets(hotelId: string, rows: Array<{ daysBeforeArrival: number; targetPct: number }>) {
   return api.patch<PacingTargetRow[]>(`/hotels/analytics/pacing-targets/${hotelId}`, rows);
+}
+
+/* ---------- hotel info fields (Информация об отеле — factsheet) ---------- */
+
+export function updateHotelInfo(id: string, fields: Record<string, string | boolean>) {
+  return api.patch<Hotel>(`/hotels/${id}/info`, fields);
+}
+
+/* ---------- cover photos ---------- */
+
+export function uploadHotelCover(id: string, file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.postForm<Hotel>(`/hotels/${id}/cover`, fd);
+}
+
+export function uploadRoomTypeCover(id: string, file: File) {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.postForm<HotelRoomType>(`/hotels/room-types/${id}/cover`, fd);
+}
+
+/* ---------- gallery (категории + фото) ---------- */
+
+export interface HotelGalleryCategory {
+  id: string;
+  tenantId: string;
+  hotelId: string;
+  name: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export interface HotelPhoto {
+  id: string;
+  tenantId: string;
+  hotelId: string;
+  categoryId: string | null;
+  url: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
+export function fetchGalleryCategories(hotelId: string) {
+  return api.get<HotelGalleryCategory[]>(`/hotels/${hotelId}/gallery/categories`);
+}
+
+export function createGalleryCategory(hotelId: string, name: string) {
+  return api.post<HotelGalleryCategory>(`/hotels/${hotelId}/gallery/categories`, { name });
+}
+
+export function renameGalleryCategory(id: string, name: string) {
+  return api.patch<HotelGalleryCategory>(`/hotels/gallery-categories/${id}`, { name });
+}
+
+export function removeGalleryCategory(id: string) {
+  return api.delete<{ ok: boolean }>(`/hotels/gallery-categories/${id}`);
+}
+
+export function fetchGalleryPhotos(hotelId: string, categoryId?: string) {
+  return api.get<HotelPhoto[]>(`/hotels/${hotelId}/gallery/photos`, {
+    params: categoryId ? { categoryId } : undefined,
+  });
+}
+
+export function uploadGalleryPhoto(hotelId: string, file: File, categoryId?: string | null) {
+  const fd = new FormData();
+  fd.append('file', file);
+  const qs = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : '';
+  return api.postForm<HotelPhoto>(`/hotels/${hotelId}/gallery/photos/upload${qs}`, fd);
+}
+
+export function removeGalleryPhoto(id: string) {
+  return api.delete<{ ok: boolean }>(`/hotels/gallery-photos/${id}`);
 }

@@ -126,6 +126,12 @@ export class HotelRoomTypesService {
     return this.repo.save(rt);
   }
 
+  async setCoverFromUpload(tenantId: string, id: string, filename: string) {
+    const rt = await this.get(tenantId, id);
+    rt.coverPhotoUrl = `/v1/uploads/hotels/${tenantId}/room-types/${id}/${filename}`;
+    return this.repo.save(rt);
+  }
+
   /* ---------- flat markets (Рынки и цены) ---------- */
 
   listMarkets(tenantId: string, hotelId: string) {

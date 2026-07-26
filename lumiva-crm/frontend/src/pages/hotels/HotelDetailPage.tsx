@@ -1,13 +1,17 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
+import { resolvePublicAssetUrl } from '../../api/client';
 import { HotelsSubnav } from './HotelsSubnav';
 import { HotelPricingCalendar } from './HotelPricingCalendar';
 import { Ic, HTL_ICON } from './HotelIcons';
 import {
   fetchHotel,
   updateHotel,
+  updateHotelInfo,
+  uploadHotelCover,
+  uploadRoomTypeCover,
   fetchRoomTypes,
   createRoomType,
   updateRoomType,
@@ -18,14 +22,23 @@ import {
   deleteMarket,
   fetchMarketPrices,
   upsertMarketPrice,
+  fetchGalleryCategories,
+  createGalleryCategory,
+  renameGalleryCategory,
+  removeGalleryCategory,
+  fetchGalleryPhotos,
+  uploadGalleryPhoto,
+  removeGalleryPhoto,
   type Hotel,
   type HotelRoomType,
   type HotelMarket,
   type HotelRoomMarketPrice,
+  type HotelGalleryCategory,
+  type HotelPhoto,
 } from '../../api/hotels';
 import './hotels-design.css';
 
-type Tab = 'rooms' | 'calendar' | 'markets' | 'settings';
+type Tab = 'rooms' | 'calendar' | 'markets' | 'info' | 'gallery' | 'settings';
 
 function pctDiff(base: number, val: number) {
   if (!base) return 0;
@@ -139,6 +152,13 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
       .catch((e) => showAlert(e.message || 'Не удалось изменить стоп-продажу', { variant: 'error' }));
   };
 
+  const coverInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const handleCoverFile = (r: HotelRoomType, file: File) => {
+    uploadRoomTypeCover(r.id, file)
+      .then(() => onChanged())
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }));
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
@@ -153,6 +173,32 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
       <div className="rm-grid">
         {roomTypes.map((r) => (
           <div key={r.id} className={r.stopSale ? 'rm-card rm-card-stopped' : 'rm-card'}>
+            <div
+              className="rm-card-photo"
+              style={r.coverPhotoUrl ? { backgroundImage: `url(${resolvePublicAssetUrl(r.coverPhotoUrl)})` } : undefined}
+              onClick={() => coverInputRefs.current[r.id]?.click()}
+            >
+              {!r.coverPhotoUrl && <span className="rm-card-photo-placeholder"><Ic d={HTL_ICON.plus} size={16} />Добавить фото</span>}
+              <button
+                type="button"
+                className="rm-card-photo-btn"
+                title="Изменить фото"
+                onClick={(e) => { e.stopPropagation(); coverInputRefs.current[r.id]?.click(); }}
+              >
+                <Ic d={HTL_ICON.pencil} size={12} />
+              </button>
+              <input
+                ref={(el) => { coverInputRefs.current[r.id] = el; }}
+                type="file"
+                accept="image/png,image/jpeg,image/gif,image/webp"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleCoverFile(r, file);
+                  e.target.value = '';
+                }}
+              />
+            </div>
             <div className="rm-card-top">
               <div>
                 <div className="rm-card-name">
@@ -404,6 +450,236 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
   );
 };
 
+const HOTEL_INFO_FIELDS: Array<{ key: string; label: string; type: 'text' | 'bool' }> = [
+  { key: 'yearOpened', label: 'Год открытия', type: 'text' },
+  { key: 'lastRenovation', label: 'Последняя реновация', type: 'text' },
+  { key: 'concept', label: 'Концепция', type: 'text' },
+  { key: 'heatingCooling', label: 'Отопление и охлаждение', type: 'text' },
+  { key: 'totalAreaM2', label: 'Общая площадь, м²', type: 'text' },
+  { key: 'buildingsCount', label: 'Количество зданий', type: 'text' },
+  { key: 'floorsCount', label: 'Количество этажей', type: 'text' },
+  { key: 'elevatorsCount', label: 'Количество лифтов', type: 'text' },
+  { key: 'investor', label: 'Инвестор', type: 'text' },
+  { key: 'phone1', label: 'Телефон 1', type: 'text' },
+  { key: 'phone2', label: 'Телефон 2', type: 'text' },
+  { key: 'email1', label: 'Эл. почта 1', type: 'text' },
+  { key: 'email2', label: 'Эл. почта 2', type: 'text' },
+  { key: 'website', label: 'Веб-сайт', type: 'text' },
+  { key: 'airportDistance', label: 'Расстояние до аэропорта', type: 'text' },
+  { key: 'cityCenterDistance', label: 'Расстояние до центра города', type: 'text' },
+  { key: 'nearestTown', label: 'Ближайший населённый пункт', type: 'text' },
+  { key: 'transport', label: 'Транспорт', type: 'text' },
+  { key: 'roomsBreakdown', label: 'Количество номеров (по корпусам)', type: 'text' },
+  { key: 'bedsBreakdown', label: 'Количество кроватей (по корпусам)', type: 'text' },
+  { key: 'disabledAccessRooms', label: 'Номера для гостей с ОВ', type: 'text' },
+  { key: 'beachDescription', label: 'Описание пляжа', type: 'text' },
+  { key: 'beachLength', label: 'Протяжённость пляжа', type: 'text' },
+  { key: 'pier', label: 'Собственный пирс', type: 'bool' },
+  { key: 'poolsDescription', label: 'Бассейны (названия, площадь)', type: 'text' },
+  { key: 'parking', label: 'Парковка', type: 'text' },
+  { key: 'creditCards', label: 'Кредитные карты', type: 'text' },
+  { key: 'petsAllowed', label: 'Домашние животные разрешены', type: 'bool' },
+  { key: 'hookahAllowed', label: 'Кальян разрешён', type: 'bool' },
+  { key: 'conferenceHalls', label: 'Конференц-залы', type: 'bool' },
+  { key: 'disabledAccessGeneral', label: 'Подходит для гостей с ОВ', type: 'bool' },
+];
+
+const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, onSaved }) => {
+  const { showAlert } = useAlertModal();
+  const [data, setData] = useState<Record<string, string | boolean>>(hotel.infoFields || {});
+
+  useEffect(() => setData(hotel.infoFields || {}), [hotel]);
+
+  const update = (key: string, val: string | boolean) => {
+    const next = { ...data, [key]: val };
+    setData(next);
+    updateHotelInfo(hotel.id, { [key]: val }).then(onSaved).catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+  };
+
+  return (
+    <div className="occ-wrap">
+      <table className="occ-table info-table">
+        <tbody>
+          {HOTEL_INFO_FIELDS.map((f) => (
+            <tr key={f.key}>
+              <td className="occ-name" style={{ width: 280 }}>{f.label}</td>
+              <td className="price-cell" style={{ textAlign: 'left' }}>
+                {f.type === 'bool' ? (
+                  <button className={`bool-toggle${data[f.key] ? ' on' : ''}`} onClick={() => update(f.key, !data[f.key])}>
+                    {data[f.key] ? '✓' : '✕'}
+                  </button>
+                ) : (
+                  <input
+                    className="info-input"
+                    defaultValue={(data[f.key] as string) || ''}
+                    onBlur={(e) => update(f.key, e.target.value)}
+                  />
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
+  const { showAlert, showConfirm } = useAlertModal();
+  const [categories, setCategories] = useState<HotelGalleryCategory[]>([]);
+  const [activeCategoryId, setActiveCategoryId] = useState<string | 'all' | 'none'>('all');
+  const [photos, setPhotos] = useState<HotelPhoto[]>([]);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const addInputRef = useRef<HTMLInputElement>(null);
+  const newCatNameRef = useRef<HTMLInputElement>(null);
+  const [showAddCat, setShowAddCat] = useState(false);
+
+  const loadCategories = () => {
+    fetchGalleryCategories(hotelId)
+      .then(setCategories)
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить категории', { variant: 'error' }));
+  };
+  const loadPhotos = () => {
+    fetchGalleryPhotos(hotelId)
+      .then(setPhotos)
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }));
+  };
+
+  useEffect(() => {
+    loadCategories();
+    loadPhotos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelId]);
+
+  const visiblePhotos = useMemo(() => {
+    if (activeCategoryId === 'all') return photos;
+    if (activeCategoryId === 'none') return photos.filter((p) => !p.categoryId);
+    return photos.filter((p) => p.categoryId === activeCategoryId);
+  }, [photos, activeCategoryId]);
+
+  const addCategory = () => {
+    const name = newCatNameRef.current?.value.trim();
+    if (!name) return;
+    createGalleryCategory(hotelId, name)
+      .then((c) => {
+        setShowAddCat(false);
+        loadCategories();
+        setActiveCategoryId(c.id);
+      })
+      .catch((e) => showAlert(e.message || 'Не удалось добавить категорию', { variant: 'error' }));
+  };
+
+  const renameCategory = (id: string, name: string) => {
+    if (!name.trim()) { setEditingCatId(null); return; }
+    renameGalleryCategory(id, name)
+      .then(() => loadCategories())
+      .catch((e) => showAlert(e.message || 'Не удалось переименовать категорию', { variant: 'error' }))
+      .finally(() => setEditingCatId(null));
+  };
+
+  const removeCat = async (c: HotelGalleryCategory) => {
+    const ok = await showConfirm(`Удалить категорию «${c.name}»? Фото останутся, но станут без категории.`, {
+      title: 'Удалить категорию',
+      confirmLabel: 'Удалить',
+      danger: true,
+    });
+    if (!ok) return;
+    removeGalleryCategory(c.id)
+      .then(() => {
+        if (activeCategoryId === c.id) setActiveCategoryId('all');
+        loadCategories();
+        loadPhotos();
+      })
+      .catch((e) => showAlert(e.message || 'Не удалось удалить категорию', { variant: 'error' }));
+  };
+
+  const handleUpload = (files: FileList) => {
+    const categoryId = activeCategoryId === 'all' || activeCategoryId === 'none' ? undefined : activeCategoryId;
+    setUploading(true);
+    Promise.all(Array.from(files).map((file) => uploadGalleryPhoto(hotelId, file, categoryId)))
+      .then(() => loadPhotos())
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }))
+      .finally(() => setUploading(false));
+  };
+
+  const handleRemovePhoto = (p: HotelPhoto) => {
+    removeGalleryPhoto(p.id)
+      .then(() => loadPhotos())
+      .catch((e) => showAlert(e.message || 'Не удалось удалить фото', { variant: 'error' }));
+  };
+
+  return (
+    <div>
+      <div className="htl-gallery-cats">
+        <div className={`htl-gallery-cat${activeCategoryId === 'all' ? ' active' : ''}`} onClick={() => setActiveCategoryId('all')}>Все фото</div>
+        <div className={`htl-gallery-cat${activeCategoryId === 'none' ? ' active' : ''}`} onClick={() => setActiveCategoryId('none')}>Без категории</div>
+        {categories.map((c) => (
+          <div
+            key={c.id}
+            className={`htl-gallery-cat${activeCategoryId === c.id ? ' active' : ''}`}
+            onClick={() => setActiveCategoryId(c.id)}
+          >
+            {editingCatId === c.id ? (
+              <input
+                autoFocus
+                defaultValue={c.name}
+                style={{ width: 100, padding: '2px 4px', fontSize: 12.5, border: '1px solid var(--line-2)', borderRadius: 5 }}
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') renameCategory(c.id, (e.target as HTMLInputElement).value);
+                  if (e.key === 'Escape') setEditingCatId(null);
+                }}
+                onBlur={(e) => renameCategory(c.id, e.target.value)}
+              />
+            ) : (
+              <span onDoubleClick={(e) => { e.stopPropagation(); setEditingCatId(c.id); }} title="Двойной клик — переименовать">{c.name}</span>
+            )}
+            <button onClick={(e) => { e.stopPropagation(); removeCat(c); }} title="Удалить категорию">×</button>
+          </div>
+        ))}
+        {showAddCat ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <input
+              ref={newCatNameRef}
+              autoFocus
+              placeholder="Название категории"
+              style={{ padding: '6px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+              onKeyDown={(e) => { if (e.key === 'Enter') addCategory(); if (e.key === 'Escape') setShowAddCat(false); }}
+            />
+            <button className="btn btn-sm" onClick={addCategory}>Добавить</button>
+          </span>
+        ) : (
+          <button className="htl-gallery-add" onClick={() => setShowAddCat(true)}><Ic d={HTL_ICON.plus} size={12} />Категория</button>
+        )}
+      </div>
+
+      <div
+        className="htl-gallery-grid"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) handleUpload(e.dataTransfer.files); }}
+      >
+        {visiblePhotos.map((p) => (
+          <div key={p.id} className="htl-gallery-thumb" style={{ backgroundImage: `url(${resolvePublicAssetUrl(p.url)})` }}>
+            <button onClick={() => handleRemovePhoto(p)} title="Удалить">×</button>
+          </div>
+        ))}
+        <div className="htl-gallery-dropzone" onClick={() => addInputRef.current?.click()}>
+          {uploading ? <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Загрузка…</span> : '+'}
+          <input
+            ref={addInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ''; }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const HotelDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { showAlert } = useAlertModal();
@@ -417,6 +693,7 @@ export const HotelDetailPage: React.FC = () => {
   const [settingsRiskBad, setSettingsRiskBad] = useState('');
   const [settingsRiskWarn, setSettingsRiskWarn] = useState('');
   const [savingSettings, setSavingSettings] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     if (!id) return;
@@ -465,13 +742,34 @@ export const HotelDetailPage: React.FC = () => {
     <MainLayout>
       <div className="px-scope">
         <HotelsSubnav active="hotels" />
-        <div className="htl-detail-cover">
+        <div
+          className="htl-detail-cover"
+          style={hotel.coverPhotoUrl ? { backgroundImage: `url(${resolvePublicAssetUrl(hotel.coverPhotoUrl)})` } : undefined}
+        >
           <div style={{ background: 'rgba(255,255,255,.92)', borderRadius: 10, padding: '8px 14px' }}>
             <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 16 }}>{hotel.name}</div>
             <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
               {[hotel.city, hotel.country].filter(Boolean).join(', ')} · {hotel.stars}★ · {totalRooms} номеров
             </div>
           </div>
+          <button className="htl-cover-upload-btn" onClick={() => coverInputRef.current?.click()}>
+            <Ic d={HTL_ICON.pencil} size={12} />Фото
+          </button>
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                uploadHotelCover(hotel.id, file)
+                  .then(() => load())
+                  .catch((e2) => showAlert(e2.message || 'Не удалось загрузить фото', { variant: 'error' }));
+              }
+              e.target.value = '';
+            }}
+          />
         </div>
 
         <div className="htl-info-grid">
@@ -485,12 +783,16 @@ export const HotelDetailPage: React.FC = () => {
           <div className={`htl-detail-tab${tab === 'rooms' ? ' active' : ''}`} onClick={() => setTab('rooms')}>Номера</div>
           <div className={`htl-detail-tab${tab === 'calendar' ? ' active' : ''}`} onClick={() => setTab('calendar')}>Календарь цен</div>
           <div className={`htl-detail-tab${tab === 'markets' ? ' active' : ''}`} onClick={() => setTab('markets')}>Рынки и цены</div>
+          <div className={`htl-detail-tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>Информация об отеле</div>
+          <div className={`htl-detail-tab${tab === 'gallery' ? ' active' : ''}`} onClick={() => setTab('gallery')}>Галерея</div>
           <div className={`htl-detail-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>Настройки отеля</div>
         </div>
 
         {tab === 'rooms' && <RoomsTab hotelId={hotel.id} roomTypes={roomTypes} onChanged={load} />}
         {tab === 'calendar' && <HotelPricingCalendar roomTypes={roomTypes} />}
         {tab === 'markets' && <MarketsTab hotelId={hotel.id} roomTypes={roomTypes} />}
+        {tab === 'info' && <HotelInfoTab hotel={hotel} onSaved={load} />}
+        {tab === 'gallery' && <HotelGalleryTab hotelId={hotel.id} />}
         {tab === 'settings' && (
           <div style={{ maxWidth: 520 }}>
             <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Название отеля</label>

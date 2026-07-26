@@ -65,6 +65,15 @@ export class Hotel {
   @Column({ type: 'numeric', precision: 5, scale: 2, nullable: true })
   riskThresholdWarnPct: string | null;
 
+  /** "Информация об отеле" (factsheet) — гибкая карта полей (год открытия, реновация, лифты,
+   * пляж, бассейны и т.д.), т.к. список полей специфичен для отельного бизнеса и не должен быть
+   * жёстко зашит в схему. Тот же паттерн, что и HotelRoomType.infoFields. */
+  @Column({ type: 'jsonb', default: {} })
+  infoFields: Record<string, string | boolean>;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  coverPhotoUrl: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

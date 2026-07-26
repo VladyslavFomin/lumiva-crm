@@ -17,11 +17,14 @@ import { HotelReservation } from './hotel-reservation.entity';
 import { HotelReservationImportSession } from './hotel-reservation-import-session.entity';
 import { HotelPricingImportSession } from './hotel-pricing-import-session.entity';
 import { HotelRoomPricingImportSession } from './hotel-room-pricing-import-session.entity';
+import { HotelGalleryCategory } from './hotel-gallery-category.entity';
+import { HotelPhoto } from './hotel-photo.entity';
 
 import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { HotelsPricingService } from './hotels-pricing.service';
 import { HotelsAgenciesService } from './hotels-agencies.service';
+import { HotelsGalleryService } from './hotels-gallery.service';
 import { HotelAnalyticsService } from './hotel-analytics.service';
 import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelsReservationsImportService } from './hotels-reservations-import.service';
@@ -56,6 +59,8 @@ import { RbacModule } from '../rbac/rbac.module';
       HotelReservationImportSession,
       HotelPricingImportSession,
       HotelRoomPricingImportSession,
+      HotelGalleryCategory,
+      HotelPhoto,
     ]),
     RbacModule,
   ],
@@ -76,6 +81,7 @@ import { RbacModule } from '../rbac/rbac.module';
     HotelRoomTypesService,
     HotelsPricingService,
     HotelsAgenciesService,
+    HotelsGalleryService,
     HotelAnalyticsService,
     HotelReservationsService,
     HotelsReservationsImportService,
