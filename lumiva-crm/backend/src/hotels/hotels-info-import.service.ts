@@ -10,41 +10,66 @@ import { HotelsFactsheetService } from './hotels-factsheet.service';
 import { HotelInfoImportSession, HotelInfoImportItemRow } from './hotel-info-import-session.entity';
 
 /** Тот же список полей и подписей, что и HOTEL_INFO_FIELDS на фронтенде (HotelDetailPage.tsx) —
- * держим в синхроне вручную, т.к. подписи используются как заголовки при экспорте и должны
- * совпадать буква-в-букву для надёжного обратного импорта того же файла. */
-export const HOTEL_INFO_FIELD_DEFS: Array<{ key: string; label: string; type: 'text' | 'bool' }> = [
+ * держим в синхроне вручную, т.к. подписи используются как заголовки при экспорте. Подписи и
+ * синонимы подобраны по реальному фактшиту отеля (не выдуманы) — все поля текстовые, т.к.
+ * реальные факты почти всегда описаны свободным текстом ("Домашние животные не принимаются...",
+ * "7 лифтов в главном корпусе"), а не чистым да/нет. */
+export const HOTEL_INFO_FIELD_DEFS: Array<{ key: string; label: string; type: 'text'; synonyms?: string[] }> = [
   { key: 'yearOpened', label: 'Год открытия', type: 'text' },
   { key: 'lastRenovation', label: 'Последняя реновация', type: 'text' },
+  { key: 'category', label: 'Категория', type: 'text' },
   { key: 'concept', label: 'Концепция', type: 'text' },
   { key: 'heatingCooling', label: 'Отопление и охлаждение', type: 'text' },
-  { key: 'totalAreaM2', label: 'Общая площадь, м²', type: 'text' },
-  { key: 'buildingsCount', label: 'Количество зданий', type: 'text' },
-  { key: 'floorsCount', label: 'Количество этажей', type: 'text' },
-  { key: 'elevatorsCount', label: 'Количество лифтов', type: 'text' },
+  { key: 'totalAreaM2', label: 'Общая площадь', type: 'text', synonyms: ['Общая площадь, м²', 'Общая площадь m2'] },
   { key: 'investor', label: 'Инвестор', type: 'text' },
-  { key: 'phone1', label: 'Телефон 1', type: 'text' },
-  { key: 'phone2', label: 'Телефон 2', type: 'text' },
-  { key: 'email1', label: 'Эл. почта 1', type: 'text' },
-  { key: 'email2', label: 'Эл. почта 2', type: 'text' },
-  { key: 'website', label: 'Веб-сайт', type: 'text' },
-  { key: 'airportDistance', label: 'Расстояние до аэропорта', type: 'text' },
-  { key: 'cityCenterDistance', label: 'Расстояние до центра города', type: 'text' },
-  { key: 'nearestTown', label: 'Ближайший населённый пункт', type: 'text' },
-  { key: 'transport', label: 'Транспорт', type: 'text' },
-  { key: 'roomsBreakdown', label: 'Количество номеров (по корпусам)', type: 'text' },
-  { key: 'bedsBreakdown', label: 'Количество кроватей (по корпусам)', type: 'text' },
-  { key: 'disabledAccessRooms', label: 'Номера для гостей с ОВ', type: 'text' },
-  { key: 'beachDescription', label: 'Описание пляжа', type: 'text' },
-  { key: 'beachLength', label: 'Протяжённость пляжа', type: 'text' },
-  { key: 'pier', label: 'Собственный пирс', type: 'bool' },
-  { key: 'poolsDescription', label: 'Бассейны (названия, площадь)', type: 'text' },
+  { key: 'accessibility', label: 'Для гостей с ограниченными возможностями', type: 'text', synonyms: ['Подходит для гостей с ОВ'] },
+  { key: 'conferenceHalls', label: 'Конференц-залы', type: 'text' },
   { key: 'parking', label: 'Парковка', type: 'text' },
   { key: 'creditCards', label: 'Кредитные карты', type: 'text' },
-  { key: 'petsAllowed', label: 'Домашние животные разрешены', type: 'bool' },
-  { key: 'hookahAllowed', label: 'Кальян разрешён', type: 'bool' },
-  { key: 'conferenceHalls', label: 'Конференц-залы', type: 'bool' },
-  { key: 'disabledAccessGeneral', label: 'Подходит для гостей с ОВ', type: 'bool' },
+  { key: 'elevators', label: 'Лифт', type: 'text', synonyms: ['Количество лифтов'] },
+  { key: 'petsHookahPolicy', label: 'Домашние животные/Кальян', type: 'text', synonyms: ['Домашние животные', 'Кальян'] },
+  { key: 'phone1', label: 'Телефон', type: 'text', synonyms: ['Телефон 1'] },
+  { key: 'phone2', label: 'Телефон 2', type: 'text' },
+  { key: 'email1', label: 'Эл. Почта 1', type: 'text' },
+  { key: 'email2', label: 'Эл. Почта 2', type: 'text' },
+  { key: 'website', label: 'Веб сайт', type: 'text', synonyms: ['Веб-сайт'] },
+  { key: 'airportDistance', label: 'Аэропорт', type: 'text', synonyms: ['Расстояние до аэропорта'] },
+  { key: 'cityCenterDistance', label: 'Центр города', type: 'text', synonyms: ['Расстояние до центра города'] },
+  { key: 'nearestTown', label: 'Ближайший населённый пункт', type: 'text' },
+  { key: 'transport', label: 'Транспорт', type: 'text' },
+  { key: 'buildingsCount', label: 'Количество зданий', type: 'text' },
+  { key: 'floorsCount', label: 'Количество этажей', type: 'text' },
+  { key: 'roomsBreakdown', label: 'Количество номеров', type: 'text', synonyms: ['Количество номеров (по корпусам)'] },
+  { key: 'bedsBreakdown', label: 'Количество кроватей', type: 'text', synonyms: ['Количество кроватей (по корпусам)'] },
+  { key: 'disabledAccessRooms', label: 'Номера для гостей с ОВ', type: 'text' },
+  { key: 'beachDescription', label: 'Расположение пляжа', type: 'text', synonyms: ['Описание пляжа'] },
+  { key: 'beachLength', label: 'Протяжённость пляжа', type: 'text' },
+  { key: 'poolsDescription', label: 'Бассейны (названия, площадь)', type: 'text' },
 ];
+
+/** Более терпимая нормализация, чем normHeaderKey из общей утилиты (та не трогает дефисы/ё) —
+ * нужна отдельно, т.к. реальные фактшиты пишут одно и то же по-разному ("Веб-сайт" / "Веб сайт",
+ * "населённый" / "населенный"). */
+function normLabel(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function matchFieldDef(rawLabel: string): (typeof HOTEL_INFO_FIELD_DEFS)[number] | undefined {
+  const norm = normLabel(rawLabel);
+  const exact = HOTEL_INFO_FIELD_DEFS.find((f) => [f.label, ...(f.synonyms || [])].some((l) => normLabel(l) === norm));
+  if (exact) return exact;
+  // Многие фактшиты вписывают название города прямо в подпись ("Аэропорт Анталья",
+  // "Центр города Анталья") — точное совпадение подписи невозможно, ловим по началу строки.
+  if (norm.startsWith('аэропорт')) return HOTEL_INFO_FIELD_DEFS.find((f) => f.key === 'airportDistance');
+  if (norm.startsWith('центр города')) return HOTEL_INFO_FIELD_DEFS.find((f) => f.key === 'cityCenterDistance');
+  return undefined;
+}
 
 const GENERAL_SHEET = 'Общая информация';
 
@@ -154,6 +179,23 @@ function findSheet(workbook: ExcelJS.Workbook, name: string): ExcelJS.Worksheet 
   return workbook.worksheets.find((s) => normHeaderKey(s.name) === target);
 }
 
+/** Читает весь лист построчно и берёт пары (подпись, значение) на каждой паре соседних колонок
+ * (1&2, 3&4, 5&6, ...) — реальные фактшиты кладут по 2 (иногда больше) пары "поле/значение" в
+ * одну строку рядом друг с другом, а не одну пару на строку с отдельной строкой-заголовком. */
+function scanLabelValuePairs(sheet: ExcelJS.Worksheet): Array<{ label: string; value: string }> {
+  const pairs: Array<{ label: string; value: string }> = [];
+  for (let rowNum = 1; rowNum <= sheet.rowCount; rowNum++) {
+    const row = sheet.getRow(rowNum);
+    const n = row.cellCount;
+    for (let c = 1; c + 1 <= n; c += 2) {
+      const label = cellToString(row.getCell(c).value);
+      const value = cellToString(row.getCell(c + 1).value);
+      if (label && value) pairs.push({ label, value });
+    }
+  }
+  return pairs;
+}
+
 @Injectable()
 export class HotelsInfoImportService {
   constructor(
@@ -178,9 +220,7 @@ export class HotelsInfoImportService {
     const general = workbook.addWorksheet(GENERAL_SHEET);
     general.addRow(['Поле', 'Значение']);
     for (const f of HOTEL_INFO_FIELD_DEFS) {
-      const raw = hotel.infoFields?.[f.key];
-      const val = f.type === 'bool' ? (raw ? 'Да' : raw === false ? 'Нет' : '') : (raw ?? '');
-      general.addRow([f.label, val]);
+      general.addRow([f.label, hotel.infoFields?.[f.key] ?? '']);
     }
 
     for (const block of BLOCK_SHEETS) {
@@ -222,24 +262,21 @@ export class HotelsInfoImportService {
     }
 
     const infoFields: Record<string, string> = {};
-    const unmatchedLabels: string[] = [];
-    const generalSheet = findSheet(workbook, GENERAL_SHEET);
+    const unmatchedLabelSet = new Set<string>();
+    // Пробуем лист "Общая информация" (наш собственный экспорт), иначе — первый лист файла
+    // (реальные фактшиты обычно кладут всё на один лист без такого явного названия).
+    const generalSheet = findSheet(workbook, GENERAL_SHEET) || workbook.worksheets[0];
     if (generalSheet) {
-      const { rows } = parseSheetTable(generalSheet);
-      const defByLabel = new Map(HOTEL_INFO_FIELD_DEFS.map((f) => [normHeaderKey(f.label), f]));
-      for (const row of rows) {
-        const [labelCol, valueCol] = Object.keys(row);
-        const label = (row[labelCol] || '').trim();
-        const value = (row[valueCol] || '').trim();
-        if (!label || !value) continue;
-        const def = defByLabel.get(normHeaderKey(label));
+      for (const { label, value } of scanLabelValuePairs(generalSheet)) {
+        const def = matchFieldDef(label);
         if (!def) {
-          unmatchedLabels.push(label);
+          unmatchedLabelSet.add(label);
           continue;
         }
-        infoFields[def.key] = def.type === 'bool' ? String(parseBool(value)) : value;
+        infoFields[def.key] = value;
       }
     }
+    const unmatchedLabels = Array.from(unmatchedLabelSet);
 
     const items: HotelInfoImportItemRow[] = [];
     for (const block of BLOCK_SHEETS) {
