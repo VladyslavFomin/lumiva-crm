@@ -130,7 +130,15 @@ export interface HotelRoomPricing {
     ppNetOffset: string;
     isBaseRoomType: boolean;
   };
-  periods: Array<{ id: string; startDate: string; endDate: string; referenceNetPP: number }>;
+  periods: Array<{
+    id: string;
+    startDate: string;
+    endDate: string;
+    referenceNetPP: number;
+    /** The value actually multiplied by each occupancy coefficient — referenceNetPP + offset
+     * for 'offset' room types ("PP Net + разница"), or just referenceNetPP for 'fixed_rate'. */
+    effectiveBasePP: number;
+  }>;
   occupancyRows: HotelRoomPricingOccupancyRow[];
 }
 

@@ -280,6 +280,12 @@ export const HotelRoomPricingPage: React.FC = () => {
                 <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Разница цены относительно базы:</span>
                 <input value={offset} onChange={(e) => setOffset(e.target.value)} onBlur={saveOffset} />
                 <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>€ / ночь</span>
+                <span style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 'auto' }}>
+                  Итоговый PP Net для {roomType.name}:{' '}
+                  <b style={{ color: 'var(--ink)', fontFamily: 'var(--ff-mono)' }}>
+                    {pricing.periods.length ? `${Math.min(...pricing.periods.map((p) => p.effectiveBasePP))}–${Math.max(...pricing.periods.map((p) => p.effectiveBasePP))} €` : '—'}
+                  </b>
+                </span>
               </div>
             )}
 
@@ -307,9 +313,9 @@ export const HotelRoomPricingPage: React.FC = () => {
                 <tbody>
                   <tr className="pp-row">
                     <td></td>
-                    <td className="occ-name">PP Net (база)</td>
+                    <td className="occ-name">{!isFixedRate && Number(offset) !== 0 ? 'PP Net (база + разница)' : 'PP Net (база)'}</td>
                     <td></td><td></td>
-                    {pricing.periods.map((p) => <td key={p.id}>{fmtEUR(p.referenceNetPP)}</td>)}
+                    {pricing.periods.map((p) => <td key={p.id}>{fmtEUR(p.effectiveBasePP)}</td>)}
                   </tr>
                   {pricing.occupancyRows.map((row) => (
                     <tr key={row.id} className={selectedRows.includes(row.id) ? 'occ-row-selected' : undefined}>

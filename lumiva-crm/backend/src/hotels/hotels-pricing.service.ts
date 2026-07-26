@@ -204,21 +204,39 @@ export class HotelsPricingService {
       order: { sortOrder: 'ASC' },
     });
 
+    // Rounded once here and reused everywhere below (both the displayed base and every
+    // occupancy-row price derive from this same rounded number) — averaging raw daily netPP
+    // values and only rounding for *display* while multiplying with the unrounded average
+    // internally made the shown numbers un-reproducible by hand (e.g. a displayed "105.57"
+    // base + a displayed "+5.00" offset wouldn't multiply out to the displayed row price to
+    // the cent, because the real base secretly wasn't exactly 105.57).
     const referenceNetPPByPeriod: Record<string, number> = {};
     for (const p of periods) {
       referenceNetPPByPeriod[p.id] =
         baseRoomType && referenceMarketGroupId
-          ? await this.averageNetPP(
-              tenantId,
-              baseRoomType.id,
-              referenceMarketGroupId,
-              p.startDate,
-              p.endDate,
+          ? round2(
+              await this.averageNetPP(
+                tenantId,
+                baseRoomType.id,
+                referenceMarketGroupId,
+                p.startDate,
+                p.endDate,
+              ),
             )
           : 0;
     }
 
     const offset = toNum(roomType.ppNetOffset);
+    // The base actually multiplied by each occupancy coefficient — referenceNetPP + offset for
+    // 'offset' rooms (this IS "PP Net + разница"), or just referenceNetPP for 'fixed_rate' rooms
+    // (offset doesn't apply there, the coefficient itself is the rate).
+    const effectiveBasePPByPeriod: Record<string, number> = {};
+    for (const p of periods) {
+      const referenceNetPP = referenceNetPPByPeriod[p.id];
+      effectiveBasePPByPeriod[p.id] =
+        roomType.pricingMode === 'fixed_rate' ? referenceNetPP : round2(referenceNetPP + offset);
+    }
+
     const rows = occupancyTypes.map((occ) => {
       const coef = toNum(occ.coefficient);
       const pricesByPeriod: Record<string, number> = {};
@@ -230,11 +248,7 @@ export class HotelsPricingService {
           overriddenPeriods.push(p.id);
           continue;
         }
-        const referenceNetPP = referenceNetPPByPeriod[p.id];
-        pricesByPeriod[p.id] =
-          roomType.pricingMode === 'fixed_rate'
-            ? round2(coef * referenceNetPP)
-            : round2((referenceNetPP + offset) * coef);
+        pricesByPeriod[p.id] = round2(effectiveBasePPByPeriod[p.id] * coef);
       }
       return {
         id: occ.id,
@@ -258,7 +272,8 @@ export class HotelsPricingService {
         id: p.id,
         startDate: p.startDate,
         endDate: p.endDate,
-        referenceNetPP: round2(referenceNetPPByPeriod[p.id]),
+        referenceNetPP: referenceNetPPByPeriod[p.id],
+        effectiveBasePP: effectiveBasePPByPeriod[p.id],
       })),
       occupancyRows: rows,
     };
