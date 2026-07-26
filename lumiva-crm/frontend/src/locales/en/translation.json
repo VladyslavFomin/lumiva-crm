@@ -614,6 +614,25 @@
       "productsAttributes": "Attributes",
       "productsFieldTypes": "Field types",
       "productsCategories": "Categories",
+      "productsAnalytics": "Analytics",
+      "booking": "Booking",
+      "bookingOverview": "Overview",
+      "bookingReservations": "Reservations",
+      "bookingWaitlist": "Waitlist",
+      "bookingLocations": "Locations",
+      "bookingServices": "Services",
+      "bookingResources": "Resources",
+      "bookingAvailability": "Availability",
+      "bookingAnalytics": "Analytics",
+      "bookingTemplates": "Templates",
+      "bookingLogs": "Logs",
+      "bookingSettings": "Settings",
+      "hotels": "Hotel reservations",
+      "hotelsOverview": "Overview",
+      "hotelsList": "Hotels",
+      "hotelsReservations": "Reservations",
+      "hotelsPricing": "Pricing & markets",
+      "hotelsCalendar": "Room calendar",
       "salesAnalytics": "Sales analytics",
       "salesChannels": "Sales channels",
       "salesIntegrations": "Integrations",
@@ -7114,6 +7133,10 @@
         "products_manage_fields": "Product field builder",
         "products_manage_stock": "Stock adjustments",
         "products_publish": "Approve public catalog publication",
+        "bookings": "Bookings",
+        "bookings_manage_settings": "Booking settings (services, locations, resources, availability)",
+        "hotels": "Hotel reservation system",
+        "hotels_manage_pricing": "Manage hotel pricing and markets",
         "email": "Email",
         "marketing": "Marketing",
         "tools_automation": "Automation",
@@ -7129,7 +7152,9 @@
           "settings": "Company settings, API, integrations",
           "products_manage_fields": "Custom field types and variation attributes",
           "products_manage_stock": "Stock corrections in the Stock section",
-          "products_publish": "Approve or reject requests to show a product in the public catalog"
+          "products_publish": "Approve or reject requests to show a product in the public catalog",
+          "bookings_manage_settings": "Manage services, locations, resources and staff availability",
+          "hotels_manage_pricing": "Manage market pricing, calendar and occupancy rates for hotels"
         }
       }
     },
@@ -7252,6 +7277,7 @@
           "title": "Variants",
           "attributesLabel": "Variant attributes",
           "attributesHint": "Choose attributes (e.g. Color, Size) — combinations are generated automatically.",
+          "noValuesHint": "This attribute has no values yet — add at least one below, otherwise there's nothing to generate.",
           "generateButton": "Generate variants",
           "empty": "No variants yet",
           "table": {
@@ -7541,6 +7567,10 @@
         "columnsRows": "{{columns}} columns, {{rows}} rows",
         "mappedCount": "Mapped: {{mapped}} of {{total}}",
         "notMapped": "Not mapped",
+        "columnHeader": "File column",
+        "fieldHeader": "Product field",
+        "extraPriceOption": "➕ Extra price in currency…",
+        "extraPriceCodePlaceholder": "USD",
         "createField": "Create field",
         "creatingField": "Creating…",
         "updateExistingLabel": "Update existing products (by SKU)",
@@ -7558,15 +7588,66 @@
           "createFieldFailed": "Failed to create field"
         }
       },
+      "detail": {
+        "backToList": "All products",
+        "edit": "Edit",
+        "noCategory": "No category",
+        "variantsCount": "{{count}} variants",
+        "infoTitle": "Details",
+        "created": "Created",
+        "updated": "Updated",
+        "tabs": {
+          "overview": "Overview",
+          "attrs": "Attributes",
+          "variants": "Variants",
+          "codes": "Barcode & QR",
+          "activity": "History"
+        },
+        "description": {
+          "title": "Description",
+          "empty": "No description yet"
+        },
+        "gallery": {
+          "title": "Product photos",
+          "hint": "Drag files here or click “+”",
+          "empty": "No photos yet",
+          "add": "Add photo"
+        },
+        "stock": {
+          "threshold": "min. stock {{count}}"
+        },
+        "attrs": {
+          "title": "Product attributes",
+          "empty": "No fields configured yet",
+          "ungrouped": "Ungrouped",
+          "yes": "Yes",
+          "no": "No",
+          "complexValue": "Filled in"
+        },
+        "variants": {
+          "manage": "Manage variants"
+        },
+        "codes": {
+          "qr": "Product QR code",
+          "barcode": "Barcode",
+          "none": "No barcode",
+          "print": "Print"
+        },
+        "activity": {
+          "empty": "No changes yet"
+        }
+      },
       "subnav": {
         "catalog": "Catalog",
         "categories": "Categories",
+        "attributes": "Attributes",
         "fields": "Field types",
         "stock": "Stock",
         "locations": "Warehouses",
         "feeds": "Feeds",
         "webhooks": "Webhooks",
-        "moderation": "Publication requests"
+        "moderation": "Publication requests",
+        "analytics": "Analytics"
       },
       "locations": {
         "title": "Warehouses",
@@ -7629,6 +7710,18 @@
         "regenerateSecret": "Regenerate secret",
         "secretLabel": "Signing secret (X-Lumiva-Signature header, HMAC-SHA256)",
         "neverTriggered": "Never triggered",
+        "deliveries": {
+          "button": "Delivery history",
+          "title": "Delivery history — {{name}}",
+          "empty": "No deliveries yet",
+          "attempt": "attempt",
+          "nextAttempt": "Next attempt",
+          "status": {
+            "success": "Delivered",
+            "pending": "Retry pending",
+            "failed": "Not delivered"
+          }
+        },
         "errors": {
           "loadFailed": "Failed to load webhooks",
           "saveFailed": "Failed to save webhook",
@@ -7647,6 +7740,140 @@
         "errors": {
           "loadFailed": "Failed to load the queue",
           "saveFailed": "Action failed"
+        }
+      },
+      "analytics": {
+        "title": "Products analytics",
+        "subtitle": "Catalog, warehouses, currencies and categories in one dashboard — same approach as Sales.",
+        "exportButton": "Export",
+        "modeOverview": "Overview",
+        "modeBuilder": "Builder",
+        "empty": "No data for the selected filters",
+        "noneLowStock": "No low-stock products",
+        "units": "pcs",
+        "movementIn": "Inbound",
+        "movementOut": "Outbound",
+        "filters": {
+          "from": "From",
+          "to": "To",
+          "status": "Status",
+          "statusAll": "All statuses",
+          "category": "Category",
+          "categoryAll": "All categories",
+          "location": "Warehouse",
+          "locationAll": "All warehouses",
+          "search": "Search",
+          "searchPlaceholder": "Name or SKU",
+          "currency": "Report currency"
+        },
+        "kpis": {
+          "totalProducts": "Products",
+          "catalogValue": "Catalog value",
+          "costValue": "Cost value",
+          "avgMargin": "Avg margin",
+          "stockUnits": "Stock, pcs",
+          "attention": "Needs attention"
+        },
+        "panels": {
+          "byCategory": "By category",
+          "byStatus": "By status",
+          "byCurrency": "By currency",
+          "byLocation": "By warehouse",
+          "movementTimeline": "Stock movement",
+          "margin": "Margin distribution",
+          "tags": "Popular tags",
+          "topProducts": "Top products by value",
+          "lowStock": "Running low",
+          "outOfStock": "Out of stock"
+        },
+        "errors": {
+          "loadFailed": "Failed to load analytics",
+          "exportFailed": "Failed to export analytics"
+        }
+      },
+      "analyticsBuilder": {
+        "addBlock": "Add widget",
+        "edit": "Edit",
+        "done": "Done",
+        "save": "Save",
+        "saving": "Saving…",
+        "reset": "Reset",
+        "configure": "Configure",
+        "empty": "No data",
+        "dash": "—",
+        "noCategory": "No category",
+        "asOfNow": "as of now",
+        "column": "Value",
+        "value": "Number",
+        "sumOf": "Sum:",
+        "avgOf": "Average:",
+        "notePlaceholder": "Click \"Configure\" to add a note",
+        "fields": {
+          "status": "Status",
+          "categoryName": "Category",
+          "currency": "Currency",
+          "tags": "Tags",
+          "price": "Price",
+          "costPrice": "Cost price",
+          "quantity": "Stock",
+          "stockValue": "Stock value",
+          "marginPct": "Margin, %"
+        },
+        "marginBuckets": {
+          "none": "No cost data",
+          "neg": "<0%"
+        },
+        "metrics": {
+          "totalProducts": "Products",
+          "activeProducts": "Active products",
+          "catalogValue": "Catalog value",
+          "costValue": "Catalog cost value",
+          "avgMargin": "Average margin",
+          "stockUnits": "Stock, pcs",
+          "lowStockCount": "Running low",
+          "outOfStockCount": "Out of stock",
+          "categoriesCount": "Categories"
+        },
+        "catalog": {
+          "title": "Add widget",
+          "tabs": {
+            "all": "All",
+            "kpi": "KPIs",
+            "charts": "Charts",
+            "tables": "Tables",
+            "presets": "Other"
+          },
+          "items": {
+            "metric_total": { "title": "Products", "subtitle": "Total products in the catalog" },
+            "metric_active": { "title": "Active products", "subtitle": "Products with status \"Active\"" },
+            "metric_value": { "title": "Catalog value", "subtitle": "Sum of price × stock across all products" },
+            "metric_margin": { "title": "Average margin", "subtitle": "Average margin percent across products with cost price" },
+            "metric_stock": { "title": "Stock, pcs", "subtitle": "Total stock across all products" },
+            "metric_low": { "title": "Running low", "subtitle": "Products near the low-stock threshold" },
+            "line_growth": { "title": "Catalog growth", "subtitle": "New products per month" },
+            "donut_status": { "title": "By status", "subtitle": "Share of products by status" },
+            "bar_category": { "title": "Value by category", "subtitle": "Sum of stock value per category" },
+            "bar_currency": { "title": "By currency", "subtitle": "Product count by price currency" },
+            "leaderboard_category": { "title": "Category leaderboard", "subtitle": "Categories ranked by total value" },
+            "table_status": { "title": "Table by status", "subtitle": "Product count by status" },
+            "warehouse_breakdown": { "title": "By warehouse", "subtitle": "Stock and value per warehouse" },
+            "margin_distribution": { "title": "Margin distribution", "subtitle": "Products by margin range" },
+            "note": { "title": "Note", "subtitle": "Free text on the dashboard" }
+          }
+        },
+        "drawer": {
+          "title": "Widget settings",
+          "blockTitle": "Title",
+          "metric": "Metric",
+          "dimension": "Group by",
+          "valueMode": "Value",
+          "valueModeCount": "Count",
+          "valueModeSum": "Sum of field",
+          "valueField": "Field to sum",
+          "noteText": "Note text",
+          "color": "Color",
+          "width": "Width",
+          "height": "Height"
         }
       }
     }

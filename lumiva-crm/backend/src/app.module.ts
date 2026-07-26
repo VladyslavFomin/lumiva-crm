@@ -46,6 +46,8 @@ import { SmmModule } from './smm/smm.module';
 import { CustomObjectsModule } from './custom-objects/custom-objects.module';
 import { WorkspaceAreasModule } from './workspace-areas/workspace-areas.module';
 import { ProductsModule } from './products/products.module';
+import { BookingsModule } from './bookings/bookings.module';
+import { HotelsModule } from './hotels/hotels.module';
 import { PublicModule } from './public/public.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
@@ -285,6 +287,8 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     WooCommerceInboundModule,
     CustomObjectsModule,
     ProductsModule,
+    BookingsModule,
+    HotelsModule,
     WorkspaceAreasModule,
     MarketingModule,
     ApiTokensModule,

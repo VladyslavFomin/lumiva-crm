@@ -18,7 +18,11 @@ export type PermissionKey =
   | 'products'
   | 'products_manage_fields'
   | 'products_manage_stock'
-  | 'products_publish';
+  | 'products_publish'
+  | 'bookings'
+  | 'bookings_manage_settings'
+  | 'hotels'
+  | 'hotels_manage_pricing';
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
 

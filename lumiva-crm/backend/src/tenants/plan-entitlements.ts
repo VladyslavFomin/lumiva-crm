@@ -51,6 +51,8 @@ export const COMPONENT_KEYS = [
   'client_accounts',
   'sms',
   'deduplication',
+  'bookings',
+  'hotels',
 ] as const;
 
 const PLAN_RANK: Record<NormalizedTenantPlan, number> = {
@@ -107,6 +109,8 @@ const COMPONENT_MIN_PLAN: Record<string, NormalizedTenantPlan> = {
   client_accounts: 'enterprise',
   sms: 'standard',
   deduplication: 'standard',
+  bookings: 'standard',
+  hotels: 'standard',
 };
 
 export function normalizeTenantPlan(plan?: string | null): NormalizedTenantPlan {

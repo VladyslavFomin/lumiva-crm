@@ -644,6 +644,25 @@
       "productsAttributes": "Атрибуты",
       "productsFieldTypes": "Типы полей",
       "productsCategories": "Категории",
+      "productsAnalytics": "Аналитика",
+      "booking": "Бронирования",
+      "bookingOverview": "Обзор",
+      "bookingReservations": "Брони",
+      "bookingWaitlist": "Лист ожидания",
+      "bookingLocations": "Локации",
+      "bookingServices": "Услуги",
+      "bookingResources": "Кабинеты",
+      "bookingAvailability": "Расписание",
+      "bookingAnalytics": "Аналитика",
+      "bookingTemplates": "Шаблоны",
+      "bookingLogs": "Логи",
+      "bookingSettings": "Настройки",
+      "hotels": "Система резервации",
+      "hotelsOverview": "Обзор",
+      "hotelsList": "Отели",
+      "hotelsReservations": "Брони",
+      "hotelsPricing": "Цены и рынки",
+      "hotelsCalendar": "Календарь номеров",
       "salesAnalytics": "Аналитика продаж",
       "salesChannels": "Каналы продаж",
       "salesIntegrations": "Интеграции",
@@ -6745,6 +6764,10 @@
         "products_manage_fields": "Конструктор полей товаров",
         "products_manage_stock": "Корректировка остатков",
         "products_publish": "Подтверждение публикации в каталог",
+        "bookings": "Бронирования",
+        "bookings_manage_settings": "Настройки бронирований (услуги, локации, ресурсы, расписание)",
+        "hotels": "Система резервации отелей",
+        "hotels_manage_pricing": "Управление ценами и рынками отелей",
         "email": "Email",
         "marketing": "Маркетинг",
         "tools_automation": "Автоматизация",
@@ -6760,7 +6783,9 @@
           "settings": "Настройки компании, API, интеграции",
           "products_manage_fields": "Типы кастомных полей и атрибуты вариаций",
           "products_manage_stock": "Корректировки остатков в разделе «Склад»",
-          "products_publish": "Подтверждать или отклонять запросы на показ товара в публичном каталоге"
+          "products_publish": "Подтверждать или отклонять запросы на показ товара в публичном каталоге",
+          "bookings_manage_settings": "Управление услугами, локациями, ресурсами и расписанием мастеров",
+          "hotels_manage_pricing": "Управление ценами по рынкам, календарём и размещениями отелей"
         }
       },
       "profile": {
@@ -7002,8 +7027,7 @@
         "billing": {
           "activeUntil": "Подписка активна до",
           "unlimited": "Без ограничения по дате",
-          "hint": "Смена тарифа и продление — через раздел оплаты (Stripe).",
-          "manage": "Управление тарифом и оплатой"
+          "hint": "Сравните тарифы и оплатите нужный ниже — через Stripe, без ухода со страницы."
         },
         "sessions": {
           "hint": "Сотрудники и последний вход. Отключение доступа действует для учётной записи в CRM.",
@@ -9541,6 +9565,7 @@
           "title": "Варианты",
           "attributesLabel": "Атрибуты вариаций",
           "attributesHint": "Выберите атрибуты (например, Цвет, Размер) — комбинации будут сгенерированы автоматически.",
+          "noValuesHint": "У атрибута нет значений — добавьте хотя бы одно ниже, иначе генерировать нечего.",
           "generateButton": "Сгенерировать варианты",
           "empty": "Варианты ещё не созданы",
           "table": {
@@ -9830,6 +9855,10 @@
         "columnsRows": "Колонок: {{columns}}, строк: {{rows}}",
         "mappedCount": "Сопоставлено: {{mapped}} из {{total}}",
         "notMapped": "Не сопоставлено",
+        "columnHeader": "Колонка файла",
+        "fieldHeader": "Поле товара",
+        "extraPriceOption": "➕ Доп. цена в валюте…",
+        "extraPriceCodePlaceholder": "USD",
         "createField": "Создать поле",
         "creatingField": "Создаём…",
         "updateExistingLabel": "Обновлять существующие товары (по артикулу)",
@@ -9847,15 +9876,66 @@
           "createFieldFailed": "Не удалось создать поле"
         }
       },
+      "detail": {
+        "backToList": "Все товары",
+        "edit": "Редактировать",
+        "noCategory": "Без категории",
+        "variantsCount": "{{count}} вариантов",
+        "infoTitle": "Сведения",
+        "created": "Создан",
+        "updated": "Обновлён",
+        "tabs": {
+          "overview": "Обзор",
+          "attrs": "Атрибуты",
+          "variants": "Варианты",
+          "codes": "Штрихкод и QR",
+          "activity": "История"
+        },
+        "description": {
+          "title": "Описание",
+          "empty": "Описание не заполнено"
+        },
+        "gallery": {
+          "title": "Фото товара",
+          "hint": "Перетащите файлы или нажмите «+»",
+          "empty": "Фото пока не добавлены",
+          "add": "Добавить фото"
+        },
+        "stock": {
+          "threshold": "мин. остаток {{count}}"
+        },
+        "attrs": {
+          "title": "Атрибуты товара",
+          "empty": "Поля ещё не настроены",
+          "ungrouped": "Без группы",
+          "yes": "Да",
+          "no": "Нет",
+          "complexValue": "Заполнено"
+        },
+        "variants": {
+          "manage": "Управление вариантами"
+        },
+        "codes": {
+          "qr": "QR-код товара",
+          "barcode": "Штрихкод",
+          "none": "Нет штрихкода",
+          "print": "Печать"
+        },
+        "activity": {
+          "empty": "Изменений пока нет"
+        }
+      },
       "subnav": {
         "catalog": "Каталог",
         "categories": "Категории",
+        "attributes": "Атрибуты",
         "fields": "Типы полей",
         "stock": "Склад",
         "locations": "Склады",
         "feeds": "Фиды",
         "webhooks": "Вебхуки",
-        "moderation": "Заявки на публикацию"
+        "moderation": "Заявки на публикацию",
+        "analytics": "Аналитика"
       },
       "locations": {
         "title": "Склады",
@@ -9918,6 +9998,18 @@
         "regenerateSecret": "Перевыпустить секрет",
         "secretLabel": "Секрет подписи (заголовок X-Lumiva-Signature, HMAC-SHA256)",
         "neverTriggered": "Ещё не срабатывал",
+        "deliveries": {
+          "button": "История доставки",
+          "title": "История доставки — {{name}}",
+          "empty": "Доставок пока не было",
+          "attempt": "попытка",
+          "nextAttempt": "Следующая попытка",
+          "status": {
+            "success": "Доставлено",
+            "pending": "Ожидает повтора",
+            "failed": "Не доставлено"
+          }
+        },
         "errors": {
           "loadFailed": "Не удалось загрузить вебхуки",
           "saveFailed": "Не удалось сохранить вебхук",
@@ -9936,6 +10028,140 @@
         "errors": {
           "loadFailed": "Не удалось загрузить очередь",
           "saveFailed": "Не удалось выполнить действие"
+        }
+      },
+      "analytics": {
+        "title": "Аналитика товаров",
+        "subtitle": "Каталог, склады, валюты и категории в одной сводке — как в разделе «Продажи».",
+        "exportButton": "Экспорт",
+        "modeOverview": "Обзор",
+        "modeBuilder": "Конструктор",
+        "empty": "Нет данных для выбранных фильтров",
+        "noneLowStock": "Нет товаров с низким остатком",
+        "units": "шт.",
+        "movementIn": "Приход",
+        "movementOut": "Расход",
+        "filters": {
+          "from": "С",
+          "to": "По",
+          "status": "Статус",
+          "statusAll": "Все статусы",
+          "category": "Категория",
+          "categoryAll": "Все категории",
+          "location": "Склад",
+          "locationAll": "Все склады",
+          "search": "Поиск",
+          "searchPlaceholder": "Название или артикул",
+          "currency": "Валюта отчёта"
+        },
+        "kpis": {
+          "totalProducts": "Товаров",
+          "catalogValue": "Стоимость каталога",
+          "costValue": "Себестоимость",
+          "avgMargin": "Средняя маржа",
+          "stockUnits": "Остаток, шт.",
+          "attention": "Требуют внимания"
+        },
+        "panels": {
+          "byCategory": "По категориям",
+          "byStatus": "По статусам",
+          "byCurrency": "По валютам",
+          "byLocation": "По складам",
+          "movementTimeline": "Движение остатков",
+          "margin": "Распределение маржи",
+          "tags": "Популярные теги",
+          "topProducts": "Топ товаров по стоимости",
+          "lowStock": "Заканчиваются",
+          "outOfStock": "Нет в наличии"
+        },
+        "errors": {
+          "loadFailed": "Не удалось загрузить аналитику",
+          "exportFailed": "Не удалось экспортировать аналитику"
+        }
+      },
+      "analyticsBuilder": {
+        "addBlock": "Добавить виджет",
+        "edit": "Редактировать",
+        "done": "Готово",
+        "save": "Сохранить",
+        "saving": "Сохраняем…",
+        "reset": "Сбросить",
+        "configure": "Настроить",
+        "empty": "Нет данных",
+        "dash": "—",
+        "noCategory": "Без категории",
+        "asOfNow": "на сейчас",
+        "column": "Значение",
+        "value": "Число",
+        "sumOf": "Сумма:",
+        "avgOf": "Среднее:",
+        "notePlaceholder": "Нажмите «Настроить», чтобы добавить текст заметки",
+        "fields": {
+          "status": "Статус",
+          "categoryName": "Категория",
+          "currency": "Валюта",
+          "tags": "Теги",
+          "price": "Цена",
+          "costPrice": "Себестоимость",
+          "quantity": "Остаток",
+          "stockValue": "Стоимость остатка",
+          "marginPct": "Маржа, %"
+        },
+        "marginBuckets": {
+          "none": "Без себестоимости",
+          "neg": "<0%"
+        },
+        "metrics": {
+          "totalProducts": "Товаров",
+          "activeProducts": "Активных товаров",
+          "catalogValue": "Стоимость каталога",
+          "costValue": "Себестоимость каталога",
+          "avgMargin": "Средняя маржа",
+          "stockUnits": "Остаток, шт.",
+          "lowStockCount": "Заканчиваются",
+          "outOfStockCount": "Нет в наличии",
+          "categoriesCount": "Категорий"
+        },
+        "catalog": {
+          "title": "Добавить виджет",
+          "tabs": {
+            "all": "Все",
+            "kpi": "Показатели",
+            "charts": "Графики",
+            "tables": "Таблицы",
+            "presets": "Прочее"
+          },
+          "items": {
+            "metric_total": { "title": "Товаров", "subtitle": "Всего товаров в каталоге" },
+            "metric_active": { "title": "Активных товаров", "subtitle": "Товары со статусом «Активен»" },
+            "metric_value": { "title": "Стоимость каталога", "subtitle": "Сумма цена × остаток по всем товарам" },
+            "metric_margin": { "title": "Средняя маржа", "subtitle": "Средний процент маржи по товарам с себестоимостью" },
+            "metric_stock": { "title": "Остаток, шт.", "subtitle": "Суммарный остаток по всем товарам" },
+            "metric_low": { "title": "Заканчиваются", "subtitle": "Товары на пороге низкого остатка" },
+            "line_growth": { "title": "Рост каталога", "subtitle": "Новые товары по месяцам" },
+            "donut_status": { "title": "По статусам", "subtitle": "Доля товаров по статусу" },
+            "bar_category": { "title": "Стоимость по категориям", "subtitle": "Сумма стоимости остатка по категориям" },
+            "bar_currency": { "title": "По валютам", "subtitle": "Количество товаров по валюте цены" },
+            "leaderboard_category": { "title": "Рейтинг категорий", "subtitle": "Категории по суммарной стоимости" },
+            "table_status": { "title": "Таблица по статусам", "subtitle": "Количество товаров по статусу" },
+            "warehouse_breakdown": { "title": "По складам", "subtitle": "Остаток и стоимость по каждому складу" },
+            "margin_distribution": { "title": "Распределение маржи", "subtitle": "Товары по диапазонам маржи" },
+            "note": { "title": "Заметка", "subtitle": "Произвольный текст на дашборде" }
+          }
+        },
+        "drawer": {
+          "title": "Настройки виджета",
+          "blockTitle": "Название",
+          "metric": "Показатель",
+          "dimension": "Группировка",
+          "valueMode": "Значение",
+          "valueModeCount": "Количество",
+          "valueModeSum": "Сумма поля",
+          "valueField": "Поле для суммы",
+          "noteText": "Текст заметки",
+          "color": "Цвет",
+          "width": "Ширина",
+          "height": "Высота"
         }
       }
     }

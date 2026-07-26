@@ -673,6 +673,25 @@
       "productsAttributes": "Öznitelikler",
       "productsFieldTypes": "Alan türleri",
       "productsCategories": "Kategoriler",
+      "productsAnalytics": "Analitik",
+      "booking": "Rezervasyonlar",
+      "bookingOverview": "Genel Bakış",
+      "bookingReservations": "Rezervasyonlar",
+      "bookingWaitlist": "Bekleme Listesi",
+      "bookingLocations": "Lokasyonlar",
+      "bookingServices": "Hizmetler",
+      "bookingResources": "Kaynaklar",
+      "bookingAvailability": "Uygunluk",
+      "bookingAnalytics": "Analitik",
+      "bookingTemplates": "Şablonlar",
+      "bookingLogs": "Günlükler",
+      "bookingSettings": "Ayarlar",
+      "hotels": "Otel Rezervasyon Sistemi",
+      "hotelsOverview": "Genel Bakış",
+      "hotelsList": "Oteller",
+      "hotelsReservations": "Rezervasyonlar",
+      "hotelsPricing": "Fiyatlar ve Pazarlar",
+      "hotelsCalendar": "Oda Takvimi",
       "salesAnalytics": "Satış analitiği",
       "salesChannels": "Satış kanalları",
       "salesIntegrations": "Entegrasyonlar",
@@ -7115,6 +7134,10 @@
         "products_manage_fields": "Ürün alan oluşturucu",
         "products_manage_stock": "Stok düzeltmeleri",
         "products_publish": "Genel katalog yayınını onaylama",
+        "bookings": "Rezervasyonlar",
+        "bookings_manage_settings": "Rezervasyon ayarları (hizmetler, lokasyonlar, kaynaklar, uygunluk)",
+        "hotels": "Otel rezervasyon sistemi",
+        "hotels_manage_pricing": "Otel fiyat ve pazar yönetimi",
         "email": "E-posta",
         "marketing": "Pazarlama",
         "tools_automation": "Otomasyon",
@@ -7130,7 +7153,9 @@
           "settings": "Şirket ayarları, API, entegrasyonlar",
           "products_manage_fields": "Özel alan tipleri ve varyasyon öznitelikleri",
           "products_manage_stock": "Stok bölümünde stok düzeltmeleri",
-          "products_publish": "Ürünün genel katalogda gösterilme taleplerini onaylama veya reddetme"
+          "products_publish": "Ürünün genel katalogda gösterilme taleplerini onaylama veya reddetme",
+          "bookings_manage_settings": "Hizmetleri, lokasyonları, kaynakları ve personel uygunluğunu yönetme",
+          "hotels_manage_pricing": "Otel pazar fiyatlarını, takvimi ve oda fiyatlandırmasını yönetme"
         }
       }
     },
@@ -7253,6 +7278,7 @@
           "title": "Varyasyonlar",
           "attributesLabel": "Varyasyon öznitelikleri",
           "attributesHint": "Öznitelikleri seçin (ör. Renk, Beden) — kombinasyonlar otomatik oluşturulur.",
+          "noValuesHint": "Bu özniteliğin henüz değeri yok — aşağıdan en az bir tane ekleyin, yoksa oluşturulacak bir şey olmaz.",
           "generateButton": "Varyasyonları oluştur",
           "empty": "Henüz varyasyon yok",
           "table": {
@@ -7542,6 +7568,10 @@
         "columnsRows": "{{columns}} sütun, {{rows}} satır",
         "mappedCount": "Eşlenen: {{mapped}} / {{total}}",
         "notMapped": "Eşlenmedi",
+        "columnHeader": "Dosya sütunu",
+        "fieldHeader": "Ürün alanı",
+        "extraPriceOption": "➕ Ek para birimi fiyatı…",
+        "extraPriceCodePlaceholder": "USD",
         "createField": "Alan oluştur",
         "creatingField": "Oluşturuluyor…",
         "updateExistingLabel": "Mevcut ürünleri güncelle (SKU'ya göre)",
@@ -7559,15 +7589,66 @@
           "createFieldFailed": "Alan oluşturulamadı"
         }
       },
+      "detail": {
+        "backToList": "Tüm ürünler",
+        "edit": "Düzenle",
+        "noCategory": "Kategori yok",
+        "variantsCount": "{{count}} varyasyon",
+        "infoTitle": "Detaylar",
+        "created": "Oluşturuldu",
+        "updated": "Güncellendi",
+        "tabs": {
+          "overview": "Genel Bakış",
+          "attrs": "Özellikler",
+          "variants": "Varyasyonlar",
+          "codes": "Barkod ve QR",
+          "activity": "Geçmiş"
+        },
+        "description": {
+          "title": "Açıklama",
+          "empty": "Henüz açıklama yok"
+        },
+        "gallery": {
+          "title": "Ürün fotoğrafları",
+          "hint": "Dosyaları sürükleyin veya “+” tıklayın",
+          "empty": "Henüz fotoğraf yok",
+          "add": "Fotoğraf ekle"
+        },
+        "stock": {
+          "threshold": "min. stok {{count}}"
+        },
+        "attrs": {
+          "title": "Ürün özellikleri",
+          "empty": "Henüz alan tanımlanmadı",
+          "ungrouped": "Gruplanmamış",
+          "yes": "Evet",
+          "no": "Hayır",
+          "complexValue": "Dolduruldu"
+        },
+        "variants": {
+          "manage": "Varyasyonları yönet"
+        },
+        "codes": {
+          "qr": "Ürün QR kodu",
+          "barcode": "Barkod",
+          "none": "Barkod yok",
+          "print": "Yazdır"
+        },
+        "activity": {
+          "empty": "Henüz değişiklik yok"
+        }
+      },
       "subnav": {
         "catalog": "Katalog",
         "categories": "Kategoriler",
+        "attributes": "Öznitelikler",
         "fields": "Alan türleri",
         "stock": "Depo",
         "locations": "Depolar",
         "feeds": "Beslemeler",
         "webhooks": "Webhooklar",
-        "moderation": "Yayın talepleri"
+        "moderation": "Yayın talepleri",
+        "analytics": "Analitik"
       },
       "locations": {
         "title": "Depolar",
@@ -7630,6 +7711,18 @@
         "regenerateSecret": "Sırrı yenile",
         "secretLabel": "İmza sırrı (X-Lumiva-Signature başlığı, HMAC-SHA256)",
         "neverTriggered": "Hiç tetiklenmedi",
+        "deliveries": {
+          "button": "Gönderim geçmişi",
+          "title": "Gönderim geçmişi — {{name}}",
+          "empty": "Henüz gönderim yok",
+          "attempt": "deneme",
+          "nextAttempt": "Sonraki deneme",
+          "status": {
+            "success": "Teslim edildi",
+            "pending": "Tekrar bekleniyor",
+            "failed": "Teslim edilemedi"
+          }
+        },
         "errors": {
           "loadFailed": "Webhooklar yüklenemedi",
           "saveFailed": "Webhook kaydedilemedi",
@@ -7648,6 +7741,140 @@
         "errors": {
           "loadFailed": "Kuyruk yüklenemedi",
           "saveFailed": "İşlem başarısız"
+        }
+      },
+      "analytics": {
+        "title": "Ürün analitiği",
+        "subtitle": "Katalog, depolar, para birimleri ve kategoriler tek bir panoda — Satışlar bölümündeki gibi.",
+        "exportButton": "Dışa aktar",
+        "modeOverview": "Genel bakış",
+        "modeBuilder": "Oluşturucu",
+        "empty": "Seçilen filtreler için veri yok",
+        "noneLowStock": "Stoğu azalan ürün yok",
+        "units": "adet",
+        "movementIn": "Giriş",
+        "movementOut": "Çıkış",
+        "filters": {
+          "from": "Başlangıç",
+          "to": "Bitiş",
+          "status": "Durum",
+          "statusAll": "Tüm durumlar",
+          "category": "Kategori",
+          "categoryAll": "Tüm kategoriler",
+          "location": "Depo",
+          "locationAll": "Tüm depolar",
+          "search": "Ara",
+          "searchPlaceholder": "Ad veya SKU",
+          "currency": "Rapor para birimi"
+        },
+        "kpis": {
+          "totalProducts": "Ürünler",
+          "catalogValue": "Katalog değeri",
+          "costValue": "Maliyet değeri",
+          "avgMargin": "Ortalama marj",
+          "stockUnits": "Stok, adet",
+          "attention": "Dikkat gerektiren"
+        },
+        "panels": {
+          "byCategory": "Kategoriye göre",
+          "byStatus": "Duruma göre",
+          "byCurrency": "Para birimine göre",
+          "byLocation": "Depoya göre",
+          "movementTimeline": "Stok hareketi",
+          "margin": "Marj dağılımı",
+          "tags": "Popüler etiketler",
+          "topProducts": "Değere göre en iyi ürünler",
+          "lowStock": "Azalanlar",
+          "outOfStock": "Stokta yok"
+        },
+        "errors": {
+          "loadFailed": "Analitik yüklenemedi",
+          "exportFailed": "Analitik dışa aktarılamadı"
+        }
+      },
+      "analyticsBuilder": {
+        "addBlock": "Widget ekle",
+        "edit": "Düzenle",
+        "done": "Bitti",
+        "save": "Kaydet",
+        "saving": "Kaydediliyor…",
+        "reset": "Sıfırla",
+        "configure": "Yapılandır",
+        "empty": "Veri yok",
+        "dash": "—",
+        "noCategory": "Kategorisiz",
+        "asOfNow": "şu an itibarıyla",
+        "column": "Değer",
+        "value": "Sayı",
+        "sumOf": "Toplam:",
+        "avgOf": "Ortalama:",
+        "notePlaceholder": "Not eklemek için \"Yapılandır\"a tıklayın",
+        "fields": {
+          "status": "Durum",
+          "categoryName": "Kategori",
+          "currency": "Para birimi",
+          "tags": "Etiketler",
+          "price": "Fiyat",
+          "costPrice": "Maliyet",
+          "quantity": "Stok",
+          "stockValue": "Stok değeri",
+          "marginPct": "Marj, %"
+        },
+        "marginBuckets": {
+          "none": "Maliyet verisi yok",
+          "neg": "<0%"
+        },
+        "metrics": {
+          "totalProducts": "Ürünler",
+          "activeProducts": "Aktif ürünler",
+          "catalogValue": "Katalog değeri",
+          "costValue": "Katalog maliyet değeri",
+          "avgMargin": "Ortalama marj",
+          "stockUnits": "Stok, adet",
+          "lowStockCount": "Azalanlar",
+          "outOfStockCount": "Stokta yok",
+          "categoriesCount": "Kategoriler"
+        },
+        "catalog": {
+          "title": "Widget ekle",
+          "tabs": {
+            "all": "Tümü",
+            "kpi": "Göstergeler",
+            "charts": "Grafikler",
+            "tables": "Tablolar",
+            "presets": "Diğer"
+          },
+          "items": {
+            "metric_total": { "title": "Ürünler", "subtitle": "Katalogdaki toplam ürün" },
+            "metric_active": { "title": "Aktif ürünler", "subtitle": "\"Aktif\" durumundaki ürünler" },
+            "metric_value": { "title": "Katalog değeri", "subtitle": "Tüm ürünlerde fiyat × stok toplamı" },
+            "metric_margin": { "title": "Ortalama marj", "subtitle": "Maliyeti olan ürünlerin ortalama marj yüzdesi" },
+            "metric_stock": { "title": "Stok, adet", "subtitle": "Tüm ürünlerdeki toplam stok" },
+            "metric_low": { "title": "Azalanlar", "subtitle": "Düşük stok eşiğine yakın ürünler" },
+            "line_growth": { "title": "Katalog büyümesi", "subtitle": "Aya göre yeni ürünler" },
+            "donut_status": { "title": "Duruma göre", "subtitle": "Duruma göre ürün payı" },
+            "bar_category": { "title": "Kategoriye göre değer", "subtitle": "Kategori başına stok değeri toplamı" },
+            "bar_currency": { "title": "Para birimine göre", "subtitle": "Fiyat para birimine göre ürün sayısı" },
+            "leaderboard_category": { "title": "Kategori sıralaması", "subtitle": "Toplam değere göre sıralanan kategoriler" },
+            "table_status": { "title": "Duruma göre tablo", "subtitle": "Duruma göre ürün sayısı" },
+            "warehouse_breakdown": { "title": "Depoya göre", "subtitle": "Depo başına stok ve değer" },
+            "margin_distribution": { "title": "Marj dağılımı", "subtitle": "Marj aralığına göre ürünler" },
+            "note": { "title": "Not", "subtitle": "Panoda serbest metin" }
+          }
+        },
+        "drawer": {
+          "title": "Widget ayarları",
+          "blockTitle": "Başlık",
+          "metric": "Gösterge",
+          "dimension": "Gruplama",
+          "valueMode": "Değer",
+          "valueModeCount": "Sayı",
+          "valueModeSum": "Alan toplamı",
+          "valueField": "Toplanacak alan",
+          "noteText": "Not metni",
+          "color": "Renk",
+          "width": "Genişlik",
+          "height": "Yükseklik"
         }
       }
     }

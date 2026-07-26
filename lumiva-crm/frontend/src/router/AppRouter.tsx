@@ -122,6 +122,7 @@ import { CompanyDetailsPage } from '../pages/companies/CompanyDetailsPage';
 import { CompanyTasksBoardPage } from '../pages/companies/CompanyTasksBoardPage';
 import { ProductsListPage } from '../pages/products/ProductsListPage';
 import { ProductFormPage } from '../pages/products/ProductFormPage';
+import { ProductDetailPage } from '../pages/products/ProductDetailPage';
 import { ProductAttributesPage } from '../pages/products/ProductAttributesPage';
 import { ProductCategoriesPage } from '../pages/products/ProductCategoriesPage';
 import { ProductFieldTypesPage } from '../pages/products/ProductFieldTypesPage';
@@ -130,8 +131,29 @@ import { ProductLocationsPage } from '../pages/products/ProductLocationsPage';
 import { ProductFeedsPage } from '../pages/products/ProductFeedsPage';
 import { ProductWebhooksPage } from '../pages/products/ProductWebhooksPage';
 import { ProductModerationQueuePage } from '../pages/products/ProductModerationQueuePage';
+import { ProductsAnalyticsPage } from '../pages/products/ProductsAnalyticsPage';
 import { ProductImportPage } from '../pages/products/ProductImportPage';
 import { ProductLabelsPrintPage } from '../pages/products/ProductLabelsPrintPage';
+import { BookingOverviewPage } from '../pages/bookings/BookingOverviewPage';
+import { ReservationsPage } from '../pages/bookings/ReservationsPage';
+import { ReservationDetailPage } from '../pages/bookings/ReservationDetailPage';
+import { ReservationsImportPage } from '../pages/bookings/ReservationsImportPage';
+import { BookingLocationsPage } from '../pages/bookings/BookingLocationsPage';
+import { BookingServicesPage } from '../pages/bookings/BookingServicesPage';
+import { BookingResourcesPage } from '../pages/bookings/BookingResourcesPage';
+import { BookingAvailabilityPage } from '../pages/bookings/BookingAvailabilityPage';
+import { BookingSettingsPage } from '../pages/bookings/BookingSettingsPage';
+import { BookingWaitlistPage } from '../pages/bookings/BookingWaitlistPage';
+import { BookingAnalyticsPage } from '../pages/bookings/BookingAnalyticsPage';
+import { BookingTemplatesPage } from '../pages/bookings/BookingTemplatesPage';
+import { BookingLogsPage } from '../pages/bookings/BookingLogsPage';
+import { HotelsOverviewPage } from '../pages/hotels/HotelsOverviewPage';
+import { HotelsListPage } from '../pages/hotels/HotelsListPage';
+import { HotelDetailPage } from '../pages/hotels/HotelDetailPage';
+import { HotelReservationsPage } from '../pages/hotels/HotelReservationsPage';
+import { HotelPricingPage } from '../pages/hotels/HotelPricingPage';
+import { HotelCalendarPage } from '../pages/hotels/HotelCalendarPage';
+import { HotelRoomPricingPage } from '../pages/hotels/HotelRoomPricingPage';
 import { AutomationsPage as AutomationsPageNew } from '../pages/automations/AutomationsPage';
 import { IntegrationsHubPage } from '../pages/integrations/IntegrationsHubPage';
 import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
@@ -889,6 +911,14 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/products/analytics"
+          element={
+            <ProtectedRoute>
+              <ProductsAnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/products/import"
           element={
             <ProtectedRoute>
@@ -908,7 +938,179 @@ export const AppRouter: React.FC = () => {
           path="/products/:id"
           element={
             <ProtectedRoute>
+              <ProductDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products/:id/edit"
+          element={
+            <ProtectedRoute>
               <ProductFormPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* -------- БРОНИРОВАНИЯ -------- */}
+        <Route
+          path="/bookings"
+          element={
+            <ProtectedRoute>
+              <BookingOverviewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/reservations"
+          element={
+            <ProtectedRoute>
+              <ReservationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/reservations/import"
+          element={
+            <ProtectedRoute>
+              <ReservationsImportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/reservations/:id"
+          element={
+            <ProtectedRoute>
+              <ReservationDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/locations"
+          element={
+            <ProtectedRoute>
+              <BookingLocationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/services"
+          element={
+            <ProtectedRoute>
+              <BookingServicesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/resources"
+          element={
+            <ProtectedRoute>
+              <BookingResourcesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/availability"
+          element={
+            <ProtectedRoute>
+              <BookingAvailabilityPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/settings"
+          element={
+            <ProtectedRoute>
+              <BookingSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/waitlist"
+          element={
+            <ProtectedRoute>
+              <BookingWaitlistPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/analytics"
+          element={
+            <ProtectedRoute>
+              <BookingAnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/templates"
+          element={
+            <ProtectedRoute>
+              <BookingTemplatesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/bookings/logs"
+          element={
+            <ProtectedRoute>
+              <BookingLogsPage />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* -------- ОТЕЛИ (Система резервации) -------- */}
+        <Route
+          path="/hotels"
+          element={
+            <ProtectedRoute>
+              <HotelsOverviewPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/list"
+          element={
+            <ProtectedRoute>
+              <HotelsListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/reservations"
+          element={
+            <ProtectedRoute>
+              <HotelReservationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/pricing"
+          element={
+            <ProtectedRoute>
+              <HotelPricingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/calendar"
+          element={
+            <ProtectedRoute>
+              <HotelCalendarPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/room-types/:roomTypeId/pricing"
+          element={
+            <ProtectedRoute>
+              <HotelRoomPricingPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/hotels/:id"
+          element={
+            <ProtectedRoute>
+              <HotelDetailPage />
             </ProtectedRoute>
           }
         />

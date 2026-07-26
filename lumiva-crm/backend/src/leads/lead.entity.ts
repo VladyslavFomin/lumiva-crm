@@ -15,6 +15,7 @@ import { LeadActivity } from './lead-activity.entity';
 import { Project } from '../projects/project.entity';
 import { Company } from '../companies/company.entity';
 import { Contact } from '../contacts/contact.entity';
+import { Reservation } from '../bookings/reservation.entity';
 
 @Entity('leads')
 export class Lead {
@@ -67,6 +68,10 @@ export class Lead {
   // ==== СВЯЗЬ С ПРОЕКТАМИ ====
   @OneToMany(() => Project, (p) => p.lead, { cascade: false })
   projects: Project[];
+
+  // ==== СВЯЗЬ С БРОНИРОВАНИЯМИ ====
+  @OneToMany(() => Reservation, (r) => r.lead, { cascade: false })
+  reservations: Reservation[];
 
   // ==== ДАННЫЕ ЛИДА ====
   @Column({ type: 'varchar', length: 255, nullable: true })

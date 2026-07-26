@@ -1,0 +1,79 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+
+import { Hotel } from './hotel.entity';
+import { HotelRoomType } from './hotel-room-type.entity';
+import { HotelMarket } from './hotel-market.entity';
+import { HotelRoomMarketPrice } from './hotel-room-market-price.entity';
+import { HotelRoomDateOverride } from './hotel-room-date-override.entity';
+import { HotelMarketGroup } from './hotel-market-group.entity';
+import { HotelPricingPeriod } from './hotel-pricing-period.entity';
+import { HotelDailyMarketRate } from './hotel-daily-market-rate.entity';
+import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
+import { HotelAgency } from './hotel-agency.entity';
+import { HotelReservation } from './hotel-reservation.entity';
+import { HotelReservationImportSession } from './hotel-reservation-import-session.entity';
+import { HotelPricingImportSession } from './hotel-pricing-import-session.entity';
+import { HotelRoomPricingImportSession } from './hotel-room-pricing-import-session.entity';
+
+import { HotelsService } from './hotels.service';
+import { HotelRoomTypesService } from './hotel-room-types.service';
+import { HotelsPricingService } from './hotels-pricing.service';
+import { HotelsAgenciesService } from './hotels-agencies.service';
+import { HotelReservationsService } from './hotel-reservations.service';
+import { HotelsReservationsImportService } from './hotels-reservations-import.service';
+import { HotelsPricingImportService } from './hotels-pricing-import.service';
+import { HotelsRoomPricingImportService } from './hotels-room-pricing-import.service';
+
+import { HotelsController } from './hotels.controller';
+import { HotelReservationsController } from './hotel-reservations.controller';
+import { HotelsReservationsImportController } from './hotels-reservations-import.controller';
+import { HotelsPricingImportController } from './hotels-pricing-import.controller';
+import { HotelsRoomPricingImportController } from './hotels-room-pricing-import.controller';
+
+import { RbacModule } from '../rbac/rbac.module';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([
+      Hotel,
+      HotelRoomType,
+      HotelMarket,
+      HotelRoomMarketPrice,
+      HotelRoomDateOverride,
+      HotelMarketGroup,
+      HotelPricingPeriod,
+      HotelDailyMarketRate,
+      HotelRoomOccupancyType,
+      HotelAgency,
+      HotelReservation,
+      HotelReservationImportSession,
+      HotelPricingImportSession,
+      HotelRoomPricingImportSession,
+    ]),
+    RbacModule,
+  ],
+  controllers: [
+    // Order matters: HotelReservationsController's bare `GET hotels/reservations` must be
+    // registered before HotelsController's `GET hotels/:id` catch-all, or Nest/Express would
+    // match "reservations" as the :id param first (same gotcha as within a single controller,
+    // but here it spans two controllers under the same 'hotels' prefix).
+    HotelReservationsController,
+    HotelsReservationsImportController,
+    HotelsPricingImportController,
+    HotelsRoomPricingImportController,
+    HotelsController,
+  ],
+  providers: [
+    HotelsService,
+    HotelRoomTypesService,
+    HotelsPricingService,
+    HotelsAgenciesService,
+    HotelReservationsService,
+    HotelsReservationsImportService,
+    HotelsPricingImportService,
+    HotelsRoomPricingImportService,
+  ],
+  exports: [HotelReservationsService, HotelsService],
+})
+export class HotelsModule {}

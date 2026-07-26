@@ -15,6 +15,7 @@ export enum EntityType {
   LEAD = 'lead',
   SALE = 'sale',
   PROJECT = 'project',
+  RESERVATION = 'reservation',
 }
 
 export enum NoteType {

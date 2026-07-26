@@ -876,9 +876,47 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         matchPaths: ['/app/products', '/products'],
         children: [
           { label: t('crm.nav.productsList'), path: '/app/products' },
+          { label: t('crm.nav.productsCategories'), path: '/app/products/categories' },
           { label: t('crm.nav.productsStock'), path: '/app/products/stock' },
           { label: t('crm.nav.productsAttributes'), path: '/app/products/attributes' },
           { label: t('crm.nav.productsFieldTypes'), path: '/app/products/field-types' },
+          { label: t('crm.nav.productsAnalytics'), path: '/app/products/analytics' },
+        ],
+      },
+
+      {
+        label: t('crm.nav.booking'),
+        path: '/bookings',
+        icon: 'calendar',
+        section: 'clients',
+        matchPaths: ['/app/bookings'],
+        children: [
+          { label: t('crm.nav.bookingOverview'), path: '/bookings' },
+          { label: t('crm.nav.bookingReservations'), path: '/bookings/reservations' },
+          { label: t('crm.nav.bookingWaitlist'), path: '/bookings/waitlist' },
+          { label: t('crm.nav.bookingResources'), path: '/bookings/resources' },
+          { label: t('crm.nav.bookingLocations'), path: '/bookings/locations' },
+          { label: t('crm.nav.bookingServices'), path: '/bookings/services' },
+          { label: t('crm.nav.bookingAvailability'), path: '/bookings/availability' },
+          { label: t('crm.nav.bookingAnalytics'), path: '/bookings/analytics' },
+          { label: t('crm.nav.bookingTemplates'), path: '/bookings/templates' },
+          { label: t('crm.nav.bookingLogs'), path: '/bookings/logs' },
+          { label: t('crm.nav.bookingSettings'), path: '/bookings/settings' },
+        ],
+      },
+
+      {
+        label: t('crm.nav.hotels'),
+        path: '/hotels',
+        icon: 'calendar',
+        section: 'clients',
+        matchPaths: ['/app/hotels'],
+        children: [
+          { label: t('crm.nav.hotelsOverview'), path: '/hotels' },
+          { label: t('crm.nav.hotelsList'), path: '/hotels/list' },
+          { label: t('crm.nav.hotelsReservations'), path: '/hotels/reservations' },
+          { label: t('crm.nav.hotelsPricing'), path: '/hotels/pricing' },
+          { label: t('crm.nav.hotelsCalendar'), path: '/hotels/calendar' },
         ],
       },
 
@@ -1071,6 +1109,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/client-accounts')) return 'client_accounts';
     if (p.startsWith('/workspace')) return 'custom_objects';
     if (p.startsWith('/products')) return 'products';
+    if (p.startsWith('/bookings')) return 'bookings';
+    if (p.startsWith('/hotels')) return 'hotels';
     if (p.startsWith('/sms')) return 'sms';
     return null;
   };
@@ -1084,7 +1124,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // Если компонент не найден в списке, разрешаем доступ (новый компонент)
     // Если найден, проверяем его статус
     // Для новых модулей (contacts, companies, automations) разрешаем доступ по умолчанию
-    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects', 'products'].includes(componentKey)) {
+    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects', 'products', 'bookings', 'hotels'].includes(componentKey)) {
       return true;
     }
     return component ? component.enabled : true;
@@ -1114,6 +1154,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/marketing')) return 'marketing';
     if (p.startsWith('/workspace')) return 'custom_objects';
     if (p.startsWith('/products')) return 'products';
+    if (p.startsWith('/bookings')) return 'bookings';
+    if (p.startsWith('/hotels')) return 'hotels';
     if (p.startsWith('/sms')) return 'chat';
     if (p.startsWith('/contacts/duplicates')) return 'settings';
     return null;

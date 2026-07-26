@@ -21,11 +21,15 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
     'settings', 'chat', 'contacts', 'companies',
     'tools_automation', 'custom_objects', 'email', 'marketing', 'products',
     'products_manage_fields', 'products_manage_stock', 'products_publish',
+    'bookings', 'bookings_manage_settings',
+    'hotels', 'hotels_manage_pricing',
   ],
   manager: [
     'leads', 'projects', 'analytics', 'chat', 'marketing',
     'contacts', 'companies', 'email', 'products',
     'products_manage_fields', 'products_manage_stock', 'products_publish',
+    'bookings', 'bookings_manage_settings',
+    'hotels', 'hotels_manage_pricing',
   ],
   viewer: [
     'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies',
@@ -37,7 +41,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
   sales: [
     'leads', 'projects', 'analytics', 'marketing', 'chat',
     'contacts', 'companies', 'email', 'products',
-    'products_manage_stock',
+    'products_manage_stock', 'bookings', 'hotels',
   ],
   developer: [
     'projects', 'analytics', 'chat', 'settings',
@@ -45,6 +49,7 @@ const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
   ],
   support: [
     'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies', 'email',
+    'bookings', 'hotels',
   ],
 };
 

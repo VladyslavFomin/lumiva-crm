@@ -1,7 +1,7 @@
 // src/api/notes.ts
 import { api } from './client';
 
-export type EntityType = 'lead' | 'contact' | 'company' | 'project' | 'sale' | 'user';
+export type EntityType = 'lead' | 'contact' | 'company' | 'project' | 'sale' | 'user' | 'reservation';
 
 export type NoteType = 'note' | 'call' | 'meeting' | 'email' | 'task' | 'reminder';
 

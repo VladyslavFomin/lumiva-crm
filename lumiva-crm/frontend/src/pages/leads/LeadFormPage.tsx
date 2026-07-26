@@ -37,6 +37,7 @@ import {
 } from '../../api/projects';
 import type { Project } from '../projects/projectTypes';
 import { fetchSales, type Sale } from '../../api/sales';
+import { fetchReservationsByLead, RESERVATION_STATUS_LABELS_RU, type Reservation } from '../../api/bookings';
 import { translateSaleStatus } from '../sales/saleStatusI18n';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { saleOrderDisplayNumber } from '../../utils/saleOrderDisplay';
@@ -125,6 +126,9 @@ export const LeadFormPage: React.FC = () => {
   const [leadSales, setLeadSales] = useState<Sale[]>([]);
   const [leadSalesLoading, setLeadSalesLoading] = useState(false);
   const [leadSalesError, setLeadSalesError] = useState<string | null>(null);
+  const [leadReservations, setLeadReservations] = useState<Reservation[]>([]);
+  const [leadReservationsLoading, setLeadReservationsLoading] = useState(false);
+  const [leadReservationsError, setLeadReservationsError] = useState<string | null>(null);
   const [projectActivities, setProjectActivities] = useState<ProjectActivity[]>([]);
   const [projectActivitiesLoading, setProjectActivitiesLoading] = useState(false);
   const [projectActivitiesError, setProjectActivitiesError] = useState<string | null>(null);
@@ -662,6 +666,37 @@ export const LeadFormPage: React.FC = () => {
       alive = false;
     };
   }, [id, isNew, t]);
+
+  /** Брони модуля "Бронирования" по лиду — виден, только если хоть одна бронь есть. */
+  useEffect(() => {
+    if (isNew || !id) {
+      setLeadReservations([]);
+      setLeadReservationsError(null);
+      setLeadReservationsLoading(false);
+      return;
+    }
+    let alive = true;
+    setLeadReservationsLoading(true);
+    setLeadReservationsError(null);
+    fetchReservationsByLead(id)
+      .then((items) => {
+        if (!alive) return;
+        setLeadReservations(items);
+      })
+      .catch((e) => {
+        // Модуль "Бронирования" может быть не включён у тенанта — не считаем это ошибкой карточки.
+        if (!alive) return;
+        setLeadReservations([]);
+        setLeadReservationsError(null);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLeadReservationsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, isNew]);
 
   // CCP client lookup when lead has ClientCabinet source
   useEffect(() => {
@@ -1379,6 +1414,42 @@ export const LeadFormPage: React.FC = () => {
                       </table>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Информация о бронировании (модуль "Бронирования") */}
+              {!leadReservationsLoading && leadReservations.length > 0 && (
+                <div style={{ background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3 }}>
+                      Информация о бронировании
+                    </span>
+                    <button type="button" onClick={() => navigate('/bookings/reservations')} style={{ fontFamily: FM, fontSize: 10, color: FG3, background: 'none', border: 'none', cursor: 'pointer' }}>
+                      Открыть все брони ↗
+                    </button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {leadReservations.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => navigate(`/bookings/reservations/${r.id}`)}
+                        style={{ textAlign: 'left', background: '#fff', border: `1px solid ${LINE}`, borderRadius: 10, padding: '10px 12px', cursor: 'pointer' }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 500, color: INK }}>
+                            {new Date(r.startAt).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' })}
+                          </span>
+                          <span style={{ fontFamily: FM, fontSize: 10, color: FG3 }}>
+                            {RESERVATION_STATUS_LABELS_RU[r.status] ?? r.status}
+                          </span>
+                        </div>
+                        {r.customFields?.serviceName && (
+                          <div style={{ fontFamily: FM, fontSize: 10, color: FG4, marginTop: 2 }}>{r.customFields.serviceName}</div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
