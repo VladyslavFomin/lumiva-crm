@@ -23,6 +23,7 @@ export interface Hotel {
   riskThresholdWarnPct: string | null;
   infoFields: Record<string, string | boolean>;
   coverPhotoUrl: string | null;
+  quickLinks: Array<{ label: string; url: string }>;
   createdAt: string;
   updatedAt: string;
   roomsCount: number;
@@ -842,4 +843,25 @@ export async function exportHotelInfo(hotelId: string, hotelName: string): Promi
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+}
+
+/* ---------- settings: feed token + period price summary ---------- */
+
+export function fetchFeedToken(hotelId: string) {
+  return api.get<{ token: string }>(`/hotels/${hotelId}/feed-token`);
+}
+
+export function regenerateFeedToken(hotelId: string) {
+  return api.post<{ token: string }>(`/hotels/${hotelId}/feed-token/regenerate`, {});
+}
+
+export interface HotelPeriodPriceSummaryRow {
+  periodId: string;
+  startDate: string;
+  endDate: string;
+  avgNetPP: number;
+}
+
+export function fetchPeriodPriceSummary(hotelId: string) {
+  return api.get<{ currency: string; rows: HotelPeriodPriceSummaryRow[] }>(`/hotels/${hotelId}/pricing/period-summary`);
 }

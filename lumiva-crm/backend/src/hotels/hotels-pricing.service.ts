@@ -209,6 +209,34 @@ export class HotelsPricingService {
     return rows.reduce((s, r) => s + toNum(r.netPP), 0) / rows.length;
   }
 
+  /** «Быстрая информация о цене» в настройках отеля: для каждого периода — та же прайсовая
+   * (не фактическая) средняя Net PP базового типа номера на referenceMarketGroupId, что
+   * getRoomPricing уже считает как referenceNetPP — вынесено отдельно, чтобы Settings не тянул
+   * данные конкретного типа номера ради одного числа на период. */
+  async getPeriodPriceSummary(tenantId: string, hotelId: string) {
+    const hotel = await this.hotelsRepo.findOne({ where: { id: hotelId, tenantId } });
+    if (!hotel) throw new NotFoundException('Отель не найден');
+    const baseRoomType = await this.roomTypesRepo.findOne({
+      where: { tenantId, hotelId, isBaseRoomType: true },
+    });
+    const groups = await this.marketGroupsRepo.find({ where: { tenantId, hotelId } });
+    const referenceMarketGroupId = hotel.referenceMarketGroupId || groups[0]?.id || null;
+    const periods = await this.periodsRepo.find({ where: { tenantId, hotelId }, order: { startDate: 'ASC' } });
+
+    const rows = await Promise.all(
+      periods.map(async (p) => ({
+        periodId: p.id,
+        startDate: p.startDate,
+        endDate: p.endDate,
+        avgNetPP:
+          baseRoomType && referenceMarketGroupId
+            ? round2(await this.averageNetPP(tenantId, baseRoomType.id, referenceMarketGroupId, p.startDate, p.endDate))
+            : 0,
+      })),
+    );
+    return { currency: 'EUR', rows };
+  }
+
   /** «Цены с размещением»: для каждого периода считает referenceNetPP (среднее Net PP
    * базового типа номера отеля за период на referenceMarketGroupId), затем цену для
    * каждой строки размещения этого типа номера = (referenceNetPP + offset) * coef,

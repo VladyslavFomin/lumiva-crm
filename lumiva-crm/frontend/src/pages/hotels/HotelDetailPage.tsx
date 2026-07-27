@@ -36,6 +36,9 @@ import {
   previewHotelInfoImport,
   applyHotelInfoImport,
   exportHotelInfo,
+  fetchFeedToken,
+  regenerateFeedToken,
+  fetchPeriodPriceSummary,
   type Hotel,
   type HotelRoomType,
   type HotelMarket,
@@ -46,6 +49,7 @@ import {
   type HotelFactsheetItemKind,
   type HotelFactsheetItemInput,
   type HotelInfoImportPreview,
+  type HotelPeriodPriceSummaryRow,
 } from '../../api/hotels';
 import './hotels-design.css';
 
@@ -790,8 +794,17 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
   const [data, setData] = useState<Record<string, string | boolean>>(hotel.infoFields || {});
   const [showImport, setShowImport] = useState(false);
   const [blocksKey, setBlocksKey] = useState(0);
+  const [revenueTarget, setRevenueTarget] = useState(hotel.seasonRevenueTarget);
+  const [riskBad, setRiskBad] = useState(hotel.riskThresholdBadPct ?? '');
+  const [riskWarn, setRiskWarn] = useState(hotel.riskThresholdWarnPct ?? '');
+  const [savingPricingSettings, setSavingPricingSettings] = useState(false);
 
   useEffect(() => setData(hotel.infoFields || {}), [hotel]);
+  useEffect(() => {
+    setRevenueTarget(hotel.seasonRevenueTarget);
+    setRiskBad(hotel.riskThresholdBadPct ?? '');
+    setRiskWarn(hotel.riskThresholdWarnPct ?? '');
+  }, [hotel]);
 
   const update = (key: string, val: string | boolean) => {
     const next = { ...data, [key]: val };
@@ -799,8 +812,66 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
     updateHotelInfo(hotel.id, { [key]: val }).then(onSaved).catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
   };
 
+  const savePricingSettings = () => {
+    setSavingPricingSettings(true);
+    updateHotel(hotel.id, {
+      seasonRevenueTarget: revenueTarget || '0',
+      riskThresholdBadPct: riskBad || null,
+      riskThresholdWarnPct: riskWarn || null,
+    })
+      .then(() => onSaved())
+      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
+      .finally(() => setSavingPricingSettings(false));
+  };
+
   return (
     <div>
+      <div className="ha-section-head" style={{ marginBottom: 10 }}>
+        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Аналитика и риски</div>
+      </div>
+      <div style={{ maxWidth: 520, marginBottom: 24 }}>
+        <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
+          Плановая выручка на сезон ({hotel.currency})
+        </label>
+        <input
+          value={revenueTarget}
+          onChange={(e) => setRevenueTarget(e.target.value)}
+          style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8, marginBottom: 12 }}
+        />
+        <div className="bk-row2">
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
+              Риск: низкая загрузка ниже, %
+            </label>
+            <input
+              value={riskBad}
+              onChange={(e) => setRiskBad(e.target.value)}
+              placeholder="45 (по умолчанию)"
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
+              Риск: внимание ниже, %
+            </label>
+            <input
+              value={riskWarn}
+              onChange={(e) => setRiskWarn(e.target.value)}
+              placeholder="65 (по умолчанию)"
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+          <button className="btn btn-sm btn-primary" disabled={savingPricingSettings} onClick={savePricingSettings}>
+            <Ic d={HTL_ICON.check} size={13} />Сохранить
+          </button>
+        </div>
+      </div>
+
+      <div className="ha-section-head" style={{ marginBottom: 10 }}>
+        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Фактшит</div>
+      </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
         <button className="btn btn-sm" onClick={() => exportHotelInfo(hotel.id, hotel.name).catch((e) => showAlert(e.message || 'Не удалось экспортировать', { variant: 'error' }))}>
           <Ic d={HTL_ICON.download} size={13} />Скачать Excel
@@ -1020,33 +1091,212 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
   );
 };
 
+const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, onSaved }) => {
+  const { showAlert } = useAlertModal();
+  const [name, setName] = useState(hotel.name);
+  const [checkIn, setCheckIn] = useState(hotel.checkInTime);
+  const [checkOut, setCheckOut] = useState(hotel.checkOutTime);
+  const [savingBasics, setSavingBasics] = useState(false);
+
+  const [links, setLinks] = useState<Array<{ label: string; url: string }>>(hotel.quickLinks || []);
+  const [savingLinks, setSavingLinks] = useState(false);
+
+  const [feedToken, setFeedToken] = useState<string | null>(null);
+  const [regeneratingToken, setRegeneratingToken] = useState(false);
+
+  const [periodSummary, setPeriodSummary] = useState<HotelPeriodPriceSummaryRow[]>([]);
+
+  useEffect(() => {
+    setName(hotel.name);
+    setCheckIn(hotel.checkInTime);
+    setCheckOut(hotel.checkOutTime);
+    setLinks(hotel.quickLinks || []);
+  }, [hotel]);
+
+  useEffect(() => {
+    fetchFeedToken(hotel.id).then((r) => setFeedToken(r.token)).catch(() => {});
+    fetchPeriodPriceSummary(hotel.id).then((r) => setPeriodSummary(r.rows)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotel.id]);
+
+  const saveBasics = () => {
+    setSavingBasics(true);
+    updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut })
+      .then(() => onSaved())
+      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
+      .finally(() => setSavingBasics(false));
+  };
+
+  const saveLinks = (next: Array<{ label: string; url: string }>) => {
+    setLinks(next);
+    setSavingLinks(true);
+    updateHotel(hotel.id, { quickLinks: next })
+      .then(() => onSaved())
+      .catch((e) => showAlert(e.message || 'Не удалось сохранить ссылки', { variant: 'error' }))
+      .finally(() => setSavingLinks(false));
+  };
+
+  const addLink = () => setLinks((prev) => [...prev, { label: '', url: '' }]);
+  const editLink = (i: number, patch: Partial<{ label: string; url: string }>) => {
+    setLinks((prev) => prev.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+  };
+  const commitLinks = () => saveLinks(links);
+  const removeLink = (i: number) => saveLinks(links.filter((_, idx) => idx !== i));
+
+  const regenerateToken = () => {
+    setRegeneratingToken(true);
+    regenerateFeedToken(hotel.id)
+      .then((r) => setFeedToken(r.token))
+      .catch((e) => showAlert(e.message || 'Не удалось обновить токен', { variant: 'error' }))
+      .finally(() => setRegeneratingToken(false));
+  };
+
+  const feedBase = `${window.location.origin}/v1/public/hotel-feed/${hotel.id}/${feedToken || '…'}`;
+
+  const copy = (text: string) => {
+    navigator.clipboard?.writeText(text)
+      .then(() => showAlert('Ссылка скопирована', { variant: 'success' }))
+      .catch(() => showAlert('Не удалось скопировать', { variant: 'error' }));
+  };
+
+  return (
+    <div style={{ maxWidth: 640 }}>
+      <div className="ha-section-head" style={{ marginBottom: 10 }}>
+        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Основное</div>
+      </div>
+      <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Название отеля</label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8, marginBottom: 12 }}
+      />
+      <div className="bk-row2">
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Заезд с</label>
+          <input
+            value={checkIn}
+            onChange={(e) => setCheckIn(e.target.value)}
+            style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
+          />
+        </div>
+        <div>
+          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Выезд до</label>
+          <input
+            value={checkOut}
+            onChange={(e) => setCheckOut(e.target.value)}
+            style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
+          />
+        </div>
+      </div>
+      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+        <button className="btn btn-primary" disabled={savingBasics} onClick={saveBasics}>
+          <Ic d={HTL_ICON.check} size={14} />Сохранить
+        </button>
+      </div>
+
+      <div className="ha-section-head" style={{ marginTop: 28, marginBottom: 10 }}>
+        <div>
+          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Быстрые ссылки</div>
+          <div className="sub" style={{ marginTop: 2 }}>Google, TripAdvisor, Booking.com и другие страницы отеля</div>
+        </div>
+      </div>
+      {links.map((l, i) => (
+        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <input
+            placeholder="Название"
+            value={l.label}
+            onChange={(e) => editLink(i, { label: e.target.value })}
+            onBlur={commitLinks}
+            style={{ flex: '0 0 160px', padding: '8px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+          />
+          <input
+            placeholder="https://…"
+            value={l.url}
+            onChange={(e) => editLink(i, { url: e.target.value })}
+            onBlur={commitLinks}
+            style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+          />
+          {l.url && (
+            <a href={l.url} target="_blank" rel="noreferrer" className="btn btn-sm" title="Открыть ссылку">
+              Открыть
+            </a>
+          )}
+          <button
+            style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer' }}
+            onClick={() => removeLink(i)}
+            title="Удалить"
+            disabled={savingLinks}
+          >
+            <Ic d={HTL_ICON.x} size={14} />
+          </button>
+        </div>
+      ))}
+      <button className="htl-gallery-add" onClick={addLink}><Ic d={HTL_ICON.plus} size={12} />Добавить ссылку</button>
+
+      <div className="ha-section-head" style={{ marginTop: 28, marginBottom: 10 }}>
+        <div>
+          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>XML/JSON лента (номера и цены)</div>
+          <div className="sub" style={{ marginTop: 2 }}>
+            Публичная ссылка для партнёров/каналов — доступна без входа в CRM, только по этому токену.
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+        <code style={{ flex: 1, fontSize: 11, padding: '8px 10px', background: 'var(--bg-muted)', borderRadius: 7, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+          {feedBase}/json
+        </code>
+        <button className="btn btn-sm" disabled={!feedToken} onClick={() => copy(`${feedBase}/json`)}>Копировать</button>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+        <code style={{ flex: 1, fontSize: 11, padding: '8px 10px', background: 'var(--bg-muted)', borderRadius: 7, overflowX: 'auto', whiteSpace: 'nowrap' }}>
+          {feedBase}/xml
+        </code>
+        <button className="btn btn-sm" disabled={!feedToken} onClick={() => copy(`${feedBase}/xml`)}>Копировать</button>
+      </div>
+      <button className="btn btn-sm" disabled={regeneratingToken} onClick={regenerateToken}>
+        Обновить токен (старые ссылки перестанут работать)
+      </button>
+
+      <div className="ha-section-head" style={{ marginTop: 28, marginBottom: 10 }}>
+        <div>
+          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Средняя цена по периодам</div>
+          <div className="sub" style={{ marginTop: 2 }}>Прайсовая Net PP из «Цены и рынки», по базовому типу номера</div>
+        </div>
+      </div>
+      <div className="pace-table-wrap">
+        <table className="pace-table">
+          <thead>
+            <tr><th>Период</th><th>Средняя цена</th></tr>
+          </thead>
+          <tbody>
+            {periodSummary.map((p) => (
+              <tr key={p.periodId}>
+                <td>{p.startDate} – {p.endDate}</td>
+                <td>{p.avgNetPP.toFixed(2)} €</td>
+              </tr>
+            ))}
+            {periodSummary.length === 0 && (
+              <tr><td colSpan={2} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>Нет периодов — задайте их в «Цены и рынки»</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
 export const HotelDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { showAlert } = useAlertModal();
   const [hotel, setHotel] = useState<Hotel | null>(null);
   const [roomTypes, setRoomTypes] = useState<HotelRoomType[]>([]);
   const [tab, setTab] = useState<Tab>('rooms');
-  const [settingsName, setSettingsName] = useState('');
-  const [settingsCheckIn, setSettingsCheckIn] = useState('');
-  const [settingsCheckOut, setSettingsCheckOut] = useState('');
-  const [settingsRevenueTarget, setSettingsRevenueTarget] = useState('');
-  const [settingsRiskBad, setSettingsRiskBad] = useState('');
-  const [settingsRiskWarn, setSettingsRiskWarn] = useState('');
-  const [savingSettings, setSavingSettings] = useState(false);
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const load = () => {
     if (!id) return;
     fetchHotel(id)
-      .then((h) => {
-        setHotel(h);
-        setSettingsName(h.name);
-        setSettingsCheckIn(h.checkInTime);
-        setSettingsCheckOut(h.checkOutTime);
-        setSettingsRevenueTarget(h.seasonRevenueTarget);
-        setSettingsRiskBad(h.riskThresholdBadPct ?? '');
-        setSettingsRiskWarn(h.riskThresholdWarnPct ?? '');
-      })
+      .then((h) => setHotel(h))
       .catch((e) => showAlert(e.message || 'Не удалось загрузить отель', { variant: 'error' }));
     fetchRoomTypes(id)
       .then(setRoomTypes)
@@ -1059,22 +1309,6 @@ export const HotelDetailPage: React.FC = () => {
   }, [id]);
 
   const totalRooms = useMemo(() => roomTypes.reduce((s, r) => s + r.quantity, 0), [roomTypes]);
-
-  const saveSettings = () => {
-    if (!id) return;
-    setSavingSettings(true);
-    updateHotel(id, {
-      name: settingsName,
-      checkInTime: settingsCheckIn,
-      checkOutTime: settingsCheckOut,
-      seasonRevenueTarget: settingsRevenueTarget || '0',
-      riskThresholdBadPct: settingsRiskBad || null,
-      riskThresholdWarnPct: settingsRiskWarn || null,
-    })
-      .then(() => load())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
-      .finally(() => setSavingSettings(false));
-  };
 
   if (!hotel) return null;
 
@@ -1133,71 +1367,7 @@ export const HotelDetailPage: React.FC = () => {
         {tab === 'markets' && <MarketsTab hotelId={hotel.id} roomTypes={roomTypes} />}
         {tab === 'info' && <HotelInfoTab hotel={hotel} onSaved={load} />}
         {tab === 'gallery' && <HotelGalleryTab hotelId={hotel.id} />}
-        {tab === 'settings' && (
-          <div style={{ maxWidth: 520 }}>
-            <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Название отеля</label>
-            <input
-              value={settingsName}
-              onChange={(e) => setSettingsName(e.target.value)}
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8, marginBottom: 12 }}
-            />
-            <div className="bk-row2">
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Заезд с</label>
-                <input
-                  value={settingsCheckIn}
-                  onChange={(e) => setSettingsCheckIn(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Выезд до</label>
-                <input
-                  value={settingsCheckOut}
-                  onChange={(e) => setSettingsCheckOut(e.target.value)}
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
-                />
-              </div>
-            </div>
-            <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4, marginTop: 12 }}>
-              Плановая выручка на сезон ({hotel.currency})
-            </label>
-            <input
-              value={settingsRevenueTarget}
-              onChange={(e) => setSettingsRevenueTarget(e.target.value)}
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8, marginBottom: 12 }}
-            />
-            <div className="bk-row2">
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
-                  Риск: низкая загрузка ниже, %
-                </label>
-                <input
-                  value={settingsRiskBad}
-                  onChange={(e) => setSettingsRiskBad(e.target.value)}
-                  placeholder="45 (по умолчанию)"
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
-                  Риск: внимание ниже, %
-                </label>
-                <input
-                  value={settingsRiskWarn}
-                  onChange={(e) => setSettingsRiskWarn(e.target.value)}
-                  placeholder="65 (по умолчанию)"
-                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
-                />
-              </div>
-            </div>
-            <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn btn-primary" disabled={savingSettings} onClick={saveSettings}>
-                <Ic d={HTL_ICON.check} size={14} />Сохранить
-              </button>
-            </div>
-          </div>
-        )}
+        {tab === 'settings' && <SettingsTab hotel={hotel} onSaved={load} />}
       </div>
     </MainLayout>
   );

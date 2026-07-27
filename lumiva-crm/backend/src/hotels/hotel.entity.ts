@@ -74,6 +74,16 @@ export class Hotel {
   @Column({ type: 'varchar', length: 512, nullable: true })
   coverPhotoUrl: string | null;
 
+  /** Быстрые ссылки в настройках отеля (Google, TripAdvisor и т.п.) — открытый список, а не
+   * фиксированные поля, т.к. набор площадок у каждого отеля свой. */
+  @Column({ type: 'jsonb', default: [] })
+  quickLinks: Array<{ label: string; url: string }>;
+
+  /** Секрет для публичной XML/JSON-ленты номеров/цен (см. HotelFeedController) — доступ без
+   * входа в CRM, только по этому токену в URL. null пока ни разу не запрашивался. */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  feedToken: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

@@ -507,6 +507,14 @@ export class HotelsController {
     return this.pricing.createPeriod(user.tenantId, hotelId, dto);
   }
 
+  @Get(':hotelId/pricing/period-summary')
+  getPeriodPriceSummary(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
+  ) {
+    return this.pricing.getPeriodPriceSummary(user.tenantId, hotelId);
+  }
+
   @Get(':hotelId/gallery/categories')
   listGalleryCategories(
     @CurrentUser() user: CurrentUserPayload,
@@ -675,5 +683,17 @@ export class HotelsController {
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
     return this.hotels.setCoverFromUpload(user.tenantId, id, file.filename);
+  }
+
+  @Get(':id/feed-token')
+  @RequirePermission('hotels', 'write')
+  getFeedToken(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.hotels.getOrCreateFeedToken(user.tenantId, id);
+  }
+
+  @Post(':id/feed-token/regenerate')
+  @RequirePermission('hotels', 'write')
+  regenerateFeedToken(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.hotels.regenerateFeedToken(user.tenantId, id);
   }
 }

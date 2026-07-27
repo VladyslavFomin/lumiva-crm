@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomBytes } from 'crypto';
 import { Hotel } from './hotel.entity';
 import { HotelRoomType } from './hotel-room-type.entity';
 import { HotelMarketGroup } from './hotel-market-group.entity';
@@ -108,6 +109,24 @@ export class HotelsService {
     hotel.coverPhotoUrl = `/v1/uploads/hotels/${tenantId}/${id}/${filename}`;
     await this.repo.save(hotel);
     return this.enrich(tenantId, hotel);
+  }
+
+  async getOrCreateFeedToken(tenantId: string, id: string) {
+    const hotel = await this.repo.findOne({ where: { id, tenantId } });
+    if (!hotel) throw new NotFoundException('Отель не найден');
+    if (!hotel.feedToken) {
+      hotel.feedToken = randomBytes(24).toString('hex');
+      await this.repo.save(hotel);
+    }
+    return { token: hotel.feedToken };
+  }
+
+  async regenerateFeedToken(tenantId: string, id: string) {
+    const hotel = await this.repo.findOne({ where: { id, tenantId } });
+    if (!hotel) throw new NotFoundException('Отель не найден');
+    hotel.feedToken = randomBytes(24).toString('hex');
+    await this.repo.save(hotel);
+    return { token: hotel.feedToken };
   }
 
   async remove(tenantId: string, id: string) {

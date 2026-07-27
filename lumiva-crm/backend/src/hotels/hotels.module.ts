@@ -29,6 +29,7 @@ import { HotelsAgenciesService } from './hotels-agencies.service';
 import { HotelsGalleryService } from './hotels-gallery.service';
 import { HotelsFactsheetService } from './hotels-factsheet.service';
 import { HotelsInfoImportService } from './hotels-info-import.service';
+import { HotelFeedService } from './hotel-feed.service';
 import { HotelAnalyticsService } from './hotel-analytics.service';
 import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelsReservationsImportService } from './hotels-reservations-import.service';
@@ -42,6 +43,7 @@ import { HotelsReservationsImportController } from './hotels-reservations-import
 import { HotelsPricingImportController } from './hotels-pricing-import.controller';
 import { HotelsRoomPricingImportController } from './hotels-room-pricing-import.controller';
 import { HotelsInfoImportController } from './hotels-info-import.controller';
+import { HotelFeedController } from './hotel-feed.controller';
 
 import { RbacModule } from '../rbac/rbac.module';
 
@@ -82,6 +84,7 @@ import { RbacModule } from '../rbac/rbac.module';
     HotelsPricingImportController,
     HotelsRoomPricingImportController,
     HotelsInfoImportController,
+    HotelFeedController,
     HotelsController,
   ],
   providers: [
@@ -92,6 +95,7 @@ import { RbacModule } from '../rbac/rbac.module';
     HotelsGalleryService,
     HotelsFactsheetService,
     HotelsInfoImportService,
+    HotelFeedService,
     HotelAnalyticsService,
     HotelReservationsService,
     HotelsReservationsImportService,
