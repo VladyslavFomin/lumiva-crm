@@ -361,6 +361,51 @@ export class HotelsController {
     return this.gallery.removePhoto(user.tenantId, id);
   }
 
+  @Patch('gallery-photos/:id')
+  @RequirePermission('hotels', 'write')
+  updateGalleryPhoto(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() dto: { categoryId?: string | null },
+  ) {
+    return this.gallery.updatePhoto(user.tenantId, id, dto);
+  }
+
+  @Post('gallery-photos/:id/replace')
+  @RequirePermission('hotels', 'write')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (req, _file, cb) => {
+          const tenantId = (req as any).user?.tenantId as string | undefined;
+          const photoId = (req.params as any)?.id as string | undefined;
+          if (!tenantId || !photoId) {
+            cb(new BadRequestException('Missing tenant or photo'), '');
+            return;
+          }
+          const dir = join(getUploadsRoot(), 'hotels', tenantId, 'gallery-replace', photoId);
+          mkdirSync(dir, { recursive: true });
+          cb(null, dir);
+        },
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname || '').toLowerCase();
+          const e = IMAGE_ALLOWED_EXT.includes(ext) ? ext : '.jpg';
+          cb(null, `${Date.now()}${e}`);
+        },
+      }),
+      limits: { fileSize: 8 * 1024 * 1024 },
+      fileFilter: imageFileFilter,
+    }),
+  )
+  replaceGalleryPhoto(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @UploadedFile() file: { filename: string } | undefined,
+  ) {
+    if (!file) throw new BadRequestException('Нужен файл');
+    return this.gallery.replacePhotoFile(user.tenantId, id, file.filename);
+  }
+
   /* ---------- factsheet items — restaurants/bars/pools/mini-club/services (global by id) ---------- */
 
   @Patch('factsheet-items/:id')
@@ -485,8 +530,9 @@ export class HotelsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
     @Query('categoryId') categoryId?: string,
+    @Query('roomTypeId') roomTypeId?: string,
   ) {
-    return this.gallery.listPhotos(user.tenantId, hotelId, categoryId);
+    return this.gallery.listPhotos(user.tenantId, hotelId, { categoryId, roomTypeId });
   }
 
   @Post(':hotelId/gallery/photos/upload')
@@ -497,11 +543,18 @@ export class HotelsController {
         destination: (req, _file, cb) => {
           const tenantId = (req as any).user?.tenantId as string | undefined;
           const hotelId = (req.params as any)?.hotelId as string | undefined;
+          const roomTypeId = (req.query as any)?.roomTypeId as string | undefined;
           if (!tenantId || !hotelId) {
             cb(new BadRequestException('Missing tenant or hotel'), '');
             return;
           }
-          const dir = join(getUploadsRoot(), 'hotels', tenantId, hotelId, 'gallery');
+          const dir = join(
+            getUploadsRoot(),
+            'hotels',
+            tenantId,
+            hotelId,
+            ...(roomTypeId ? ['gallery', 'room-types', roomTypeId] : ['gallery']),
+          );
           mkdirSync(dir, { recursive: true });
           cb(null, dir);
         },
@@ -519,10 +572,11 @@ export class HotelsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('hotelId', new ParseUUIDPipe()) hotelId: string,
     @Query('categoryId') categoryId: string | undefined,
+    @Query('roomTypeId') roomTypeId: string | undefined,
     @UploadedFile() file: { filename: string } | undefined,
   ) {
     if (!file) throw new BadRequestException('Нужен файл');
-    return this.gallery.createPhotoFromUpload(user.tenantId, hotelId, categoryId || null, file.filename);
+    return this.gallery.createPhotoFromUpload(user.tenantId, hotelId, categoryId || null, file.filename, roomTypeId || null);
   }
 
   @Get(':hotelId/factsheet-items')

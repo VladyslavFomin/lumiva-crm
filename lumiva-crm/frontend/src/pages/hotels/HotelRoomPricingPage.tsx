@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
+import { resolvePublicAssetUrl } from '../../api/client';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
+import { PhotoEditDrawer } from './PhotoEditDrawer';
 import {
   fetchRoomType,
   updateRoomType,
@@ -17,12 +19,87 @@ import {
   fetchHotel,
   previewRoomPricingImport,
   applyRoomPricingImport,
+  fetchGalleryPhotos,
+  uploadGalleryPhoto,
   type HotelRoomType,
   type HotelRoomPricing,
   type HotelRoomOccupancyType,
   type HotelRoomPricingImportPreview,
+  type HotelPhoto,
 } from '../../api/hotels';
 import './hotels-design.css';
+
+const RoomGalleryTab: React.FC<{ hotelId: string; roomTypeId: string }> = ({ hotelId, roomTypeId }) => {
+  const { showAlert, showConfirm } = useAlertModal();
+  const [photos, setPhotos] = useState<HotelPhoto[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [editingPhoto, setEditingPhoto] = useState<HotelPhoto | null>(null);
+  const addInputRef = useRef<HTMLInputElement>(null);
+
+  const load = () => {
+    fetchGalleryPhotos(hotelId, { roomTypeId })
+      .then(setPhotos)
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }));
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelId, roomTypeId]);
+
+  const handleUpload = (files: FileList) => {
+    setUploading(true);
+    Promise.all(Array.from(files).map((file) => uploadGalleryPhoto(hotelId, file, { roomTypeId })))
+      .then(() => load())
+      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }))
+      .finally(() => setUploading(false));
+  };
+
+  return (
+    <div>
+      <div
+        className="htl-gallery-grid"
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) handleUpload(e.dataTransfer.files); }}
+      >
+        {photos.map((p) => (
+          <div
+            key={p.id}
+            className="htl-gallery-thumb"
+            style={{ backgroundImage: `url(${resolvePublicAssetUrl(p.url)})`, cursor: 'pointer' }}
+            onClick={() => setEditingPhoto(p)}
+          >
+            <button onClick={(e) => { e.stopPropagation(); setEditingPhoto(p); }} title="Редактировать">
+              <Ic d={HTL_ICON.pencil} size={11} />
+            </button>
+          </div>
+        ))}
+        <div className="htl-gallery-dropzone" onClick={() => addInputRef.current?.click()}>
+          {uploading ? <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Загрузка…</span> : '+'}
+          <input
+            ref={addInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(e) => { if (e.target.files?.length) handleUpload(e.target.files); e.target.value = ''; }}
+          />
+        </div>
+      </div>
+
+      {editingPhoto && (
+        <PhotoEditDrawer
+          photo={editingPhoto}
+          onClose={() => setEditingPhoto(null)}
+          onSaved={load}
+          onDeleted={load}
+          showAlert={showAlert}
+          showConfirm={showConfirm}
+        />
+      )}
+    </div>
+  );
+};
 
 function fmtEUR(v: number) {
   return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -110,7 +187,7 @@ export const HotelRoomPricingPage: React.FC = () => {
   const [hotelName, setHotelName] = useState('');
   const [pricing, setPricing] = useState<HotelRoomPricing | null>(null);
   const [occupancyTypes, setOccupancyTypes] = useState<HotelRoomOccupancyType[]>([]);
-  const [tab, setTab] = useState<'pricing' | 'info'>('pricing');
+  const [tab, setTab] = useState<'pricing' | 'info' | 'gallery'>('pricing');
   const [offset, setOffset] = useState('0');
   const [showImport, setShowImport] = useState(false);
   const [editingCell, setEditingCell] = useState<{ occId: string; periodId: string } | null>(null);
@@ -262,10 +339,13 @@ export const HotelRoomPricingPage: React.FC = () => {
         <div className="htl-detail-tabs" style={{ marginTop: 16 }}>
           <div className={`htl-detail-tab${tab === 'pricing' ? ' active' : ''}`} onClick={() => setTab('pricing')}>Цены с размещением</div>
           <div className={`htl-detail-tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>Информация по номеру</div>
+          <div className={`htl-detail-tab${tab === 'gallery' ? ' active' : ''}`} onClick={() => setTab('gallery')}>Галерея</div>
         </div>
 
         {tab === 'info' ? (
           <InfoTab roomType={roomType} onSaved={load} />
+        ) : tab === 'gallery' ? (
+          <RoomGalleryTab hotelId={roomType.hotelId} roomTypeId={roomType.id} />
         ) : (
           <>
             {!isFixedRate && (

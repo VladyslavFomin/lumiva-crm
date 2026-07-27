@@ -703,6 +703,7 @@ export interface HotelPhoto {
   tenantId: string;
   hotelId: string;
   categoryId: string | null;
+  roomTypeId: string | null;
   url: string;
   sortOrder: number;
   createdAt: string;
@@ -724,17 +725,33 @@ export function removeGalleryCategory(id: string) {
   return api.delete<{ ok: boolean }>(`/hotels/gallery-categories/${id}`);
 }
 
-export function fetchGalleryPhotos(hotelId: string, categoryId?: string) {
+export function fetchGalleryPhotos(hotelId: string, opts: { categoryId?: string; roomTypeId?: string } = {}) {
+  const params: Record<string, string> = {};
+  if (opts.categoryId) params.categoryId = opts.categoryId;
+  if (opts.roomTypeId) params.roomTypeId = opts.roomTypeId;
   return api.get<HotelPhoto[]>(`/hotels/${hotelId}/gallery/photos`, {
-    params: categoryId ? { categoryId } : undefined,
+    params: Object.keys(params).length ? params : undefined,
   });
 }
 
-export function uploadGalleryPhoto(hotelId: string, file: File, categoryId?: string | null) {
+export function uploadGalleryPhoto(hotelId: string, file: File | Blob, opts: { categoryId?: string | null; roomTypeId?: string } = {}) {
   const fd = new FormData();
-  fd.append('file', file);
-  const qs = categoryId ? `?categoryId=${encodeURIComponent(categoryId)}` : '';
-  return api.postForm<HotelPhoto>(`/hotels/${hotelId}/gallery/photos/upload${qs}`, fd);
+  fd.append('file', file, 'photo.jpg');
+  const params = new URLSearchParams();
+  if (opts.categoryId) params.set('categoryId', opts.categoryId);
+  if (opts.roomTypeId) params.set('roomTypeId', opts.roomTypeId);
+  const qs = params.toString();
+  return api.postForm<HotelPhoto>(`/hotels/${hotelId}/gallery/photos/upload${qs ? `?${qs}` : ''}`, fd);
+}
+
+export function updateGalleryPhoto(id: string, dto: { categoryId?: string | null }) {
+  return api.patch<HotelPhoto>(`/hotels/gallery-photos/${id}`, dto);
+}
+
+export function replaceGalleryPhoto(id: string, file: File | Blob) {
+  const fd = new FormData();
+  fd.append('file', file, 'photo.jpg');
+  return api.postForm<HotelPhoto>(`/hotels/gallery-photos/${id}/replace`, fd);
 }
 
 export function removeGalleryPhoto(id: string) {

@@ -6,6 +6,7 @@ import { resolvePublicAssetUrl } from '../../api/client';
 import { HotelsSubnav } from './HotelsSubnav';
 import { HotelPricingCalendar } from './HotelPricingCalendar';
 import { Ic, HTL_ICON } from './HotelIcons';
+import { PhotoEditDrawer } from './PhotoEditDrawer';
 import {
   fetchHotel,
   updateHotel,
@@ -28,7 +29,6 @@ import {
   removeGalleryCategory,
   fetchGalleryPhotos,
   uploadGalleryPhoto,
-  removeGalleryPhoto,
   fetchFactsheetItems,
   createFactsheetItem,
   updateFactsheetItem,
@@ -866,7 +866,7 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
       .catch((e) => showAlert(e.message || 'Не удалось загрузить категории', { variant: 'error' }));
   };
   const loadPhotos = () => {
-    fetchGalleryPhotos(hotelId)
+    fetchGalleryPhotos(hotelId, {})
       .then(setPhotos)
       .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }));
   };
@@ -919,19 +919,15 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
       .catch((e) => showAlert(e.message || 'Не удалось удалить категорию', { variant: 'error' }));
   };
 
+  const [editingPhoto, setEditingPhoto] = useState<HotelPhoto | null>(null);
+
   const handleUpload = (files: FileList) => {
     const categoryId = activeCategoryId === 'all' || activeCategoryId === 'none' ? undefined : activeCategoryId;
     setUploading(true);
-    Promise.all(Array.from(files).map((file) => uploadGalleryPhoto(hotelId, file, categoryId)))
+    Promise.all(Array.from(files).map((file) => uploadGalleryPhoto(hotelId, file, { categoryId })))
       .then(() => loadPhotos())
       .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }))
       .finally(() => setUploading(false));
-  };
-
-  const handleRemovePhoto = (p: HotelPhoto) => {
-    removeGalleryPhoto(p.id)
-      .then(() => loadPhotos())
-      .catch((e) => showAlert(e.message || 'Не удалось удалить фото', { variant: 'error' }));
   };
 
   return (
@@ -985,8 +981,15 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
         onDrop={(e) => { e.preventDefault(); if (e.dataTransfer.files?.length) handleUpload(e.dataTransfer.files); }}
       >
         {visiblePhotos.map((p) => (
-          <div key={p.id} className="htl-gallery-thumb" style={{ backgroundImage: `url(${resolvePublicAssetUrl(p.url)})` }}>
-            <button onClick={() => handleRemovePhoto(p)} title="Удалить">×</button>
+          <div
+            key={p.id}
+            className="htl-gallery-thumb"
+            style={{ backgroundImage: `url(${resolvePublicAssetUrl(p.url)})`, cursor: 'pointer' }}
+            onClick={() => setEditingPhoto(p)}
+          >
+            <button onClick={(e) => { e.stopPropagation(); setEditingPhoto(p); }} title="Редактировать">
+              <Ic d={HTL_ICON.pencil} size={11} />
+            </button>
           </div>
         ))}
         <div className="htl-gallery-dropzone" onClick={() => addInputRef.current?.click()}>
@@ -1001,6 +1004,18 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
           />
         </div>
       </div>
+
+      {editingPhoto && (
+        <PhotoEditDrawer
+          photo={editingPhoto}
+          categories={categories}
+          onClose={() => setEditingPhoto(null)}
+          onSaved={loadPhotos}
+          onDeleted={loadPhotos}
+          showAlert={showAlert}
+          showConfirm={showConfirm}
+        />
+      )}
     </div>
   );
 };
