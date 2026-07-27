@@ -22,7 +22,12 @@ import type { CustomObjectFieldType } from '../custom-objects/custom-object-fiel
 import { SalesImportService } from '../sales/sales-import.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { AiOpenAiService } from './ai-openai.service';
-import { CRM_EXTENDED_AI_TOOL_DEFINITIONS } from './crm-ai-tool-definitions';
+import {
+  CRM_EXTENDED_AI_TOOL_DEFINITIONS,
+  CRM_PRODUCTS_AI_TOOL_DEFINITIONS,
+  CRM_BOOKINGS_AI_TOOL_DEFINITIONS,
+  CRM_HOTELS_AI_TOOL_DEFINITIONS,
+} from './crm-ai-tool-definitions';
 import { CompaniesService } from '../companies/companies.service';
 import { ContactsService } from '../contacts/contacts.service';
 import { SalesService } from '../sales/sales.service';
@@ -51,6 +56,16 @@ import { AiAgentLog } from '../ai-employees/ai-agent-log.entity';
 import { AiAgentPermission } from '../ai-employees/ai-agent-permission.entity';
 import { getAiEmployeeRole } from '../ai-employees/ai-employee-role-catalog';
 import { WorkspaceAreasService } from '../workspace-areas/workspace-areas.service';
+import { ProductsService } from '../products/products.service';
+import { BookingsCatalogService } from '../bookings/bookings-catalog.service';
+import { BookingsStaffService } from '../bookings/bookings-staff.service';
+import { BookingsAvailabilityService } from '../bookings/bookings-availability.service';
+import { ReservationsService } from '../bookings/reservations.service';
+import { HotelsService } from '../hotels/hotels.service';
+import { HotelRoomTypesService } from '../hotels/hotel-room-types.service';
+import { HotelsPricingService } from '../hotels/hotels-pricing.service';
+import { HotelReservationsService } from '../hotels/hotel-reservations.service';
+import type { HotelReservationInput } from '../hotels/hotel-reservations.service';
 
 const WORKSPACE_EXTRA_VIEWS = ['kanban', 'calendar', 'analytics'] as const;
 
@@ -653,6 +668,9 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     },
   },
   ...CRM_EXTENDED_AI_TOOL_DEFINITIONS,
+  ...CRM_PRODUCTS_AI_TOOL_DEFINITIONS,
+  ...CRM_BOOKINGS_AI_TOOL_DEFINITIONS,
+  ...CRM_HOTELS_AI_TOOL_DEFINITIONS,
 ];
 
 type ToolCtx = {
@@ -716,6 +734,15 @@ export class AiToolsService {
     @InjectRepository(AiAgentPermission)
     private readonly aiAgentPermissionsRepo: Repository<AiAgentPermission>,
     private readonly workspaceAreas: WorkspaceAreasService,
+    private readonly productsService: ProductsService,
+    private readonly bookingsCatalog: BookingsCatalogService,
+    private readonly bookingsStaff: BookingsStaffService,
+    private readonly bookingsAvailability: BookingsAvailabilityService,
+    private readonly reservationsService: ReservationsService,
+    private readonly hotelsService: HotelsService,
+    private readonly hotelRoomTypesService: HotelRoomTypesService,
+    private readonly hotelsPricingService: HotelsPricingService,
+    private readonly hotelReservationsService: HotelReservationsService,
   ) {}
 
   private crmFrontendBase(): string {
@@ -1060,6 +1087,91 @@ export class AiToolsService {
           return JSON.stringify(
             await this.toolMailchimpSubscribe(ctx.tenantId, args),
           );
+
+        // ---- Товары ----
+        case 'crm_product_search':
+          return JSON.stringify(await this.toolProductSearch(ctx.tenantId, args));
+        case 'crm_product_get':
+          return JSON.stringify(await this.toolProductGet(ctx.tenantId, args));
+        case 'crm_product_list_categories':
+          return JSON.stringify(await this.productsService.listCategories(ctx.tenantId));
+        case 'crm_product_update_price':
+          return JSON.stringify(await this.toolProductUpdatePrice(ctx, args));
+        case 'crm_product_update_status':
+          return JSON.stringify(await this.toolProductUpdateStatus(ctx, args));
+        case 'crm_product_bulk_update':
+          return JSON.stringify(await this.toolProductBulkUpdate(ctx.tenantId, args));
+        case 'crm_product_adjust_stock':
+          return JSON.stringify(await this.toolProductAdjustStock(ctx, args));
+
+        // ---- Бронирования ----
+        case 'crm_booking_list_locations':
+          return JSON.stringify(await this.bookingsCatalog.listLocations(ctx.tenantId));
+        case 'crm_booking_list_services':
+          return JSON.stringify(await this.bookingsCatalog.listServices(ctx.tenantId));
+        case 'crm_booking_list_resources':
+          return JSON.stringify(await this.bookingsCatalog.listResources(ctx.tenantId));
+        case 'crm_booking_list_staff':
+          return JSON.stringify(await this.bookingsStaff.listStaff(ctx.tenantId));
+        case 'crm_booking_check_availability':
+          return JSON.stringify(await this.toolBookingCheckAvailability(ctx.tenantId, args));
+        case 'crm_booking_search':
+          return JSON.stringify(await this.toolBookingSearch(ctx.tenantId, args));
+        case 'crm_booking_get':
+          return JSON.stringify(
+            await this.reservationsService.findOne(ctx.tenantId, String(args.reservationId || '')),
+          );
+        case 'crm_booking_create':
+          return JSON.stringify(await this.toolBookingCreate(ctx, args));
+        case 'crm_booking_reschedule':
+          return JSON.stringify(await this.toolBookingReschedule(ctx, args));
+        case 'crm_booking_confirm':
+          return JSON.stringify(await this.toolBookingTransition(ctx, args, 'userConfirmedStatusChange', 'confirm'));
+        case 'crm_booking_cancel':
+          return JSON.stringify(await this.toolBookingTransition(ctx, args, 'userConfirmedCancel', 'cancelByBusiness'));
+        case 'crm_booking_reject':
+          return JSON.stringify(await this.toolBookingTransition(ctx, args, 'userConfirmedStatusChange', 'reject'));
+        case 'crm_booking_check_in':
+          return JSON.stringify(await this.toolBookingTransition(ctx, args, null, 'checkIn'));
+        case 'crm_booking_complete':
+          return JSON.stringify(await this.toolBookingTransition(ctx, args, null, 'complete'));
+        case 'crm_booking_mark_no_show':
+          return JSON.stringify(await this.toolBookingTransition(ctx, args, null, 'markNoShow'));
+
+        // ---- Система резервации / Отели ----
+        case 'crm_hotel_list':
+          return JSON.stringify(await this.hotelsService.list(ctx.tenantId));
+        case 'crm_hotel_get':
+          return JSON.stringify(await this.hotelsService.get(ctx.tenantId, String(args.hotelId || '')));
+        case 'crm_hotel_list_room_types':
+          return JSON.stringify(
+            await this.hotelRoomTypesService.list(ctx.tenantId, String(args.hotelId || '')),
+          );
+        case 'crm_hotel_list_market_groups':
+          return JSON.stringify(
+            await this.hotelsPricingService.listMarketGroups(ctx.tenantId, String(args.hotelId || '')),
+          );
+        case 'crm_hotel_get_daily_rates':
+          return JSON.stringify(await this.toolHotelGetDailyRates(ctx.tenantId, args));
+        case 'crm_hotel_update_rate':
+          return JSON.stringify(await this.toolHotelUpdateRate(ctx.tenantId, args));
+        case 'crm_hotel_set_stop_sale':
+          return JSON.stringify(await this.toolHotelSetStopSale(ctx.tenantId, args));
+        case 'crm_hotel_reservation_search':
+          return JSON.stringify(await this.hotelReservationsService.list(ctx.tenantId, {
+            hotelId: args.hotelId ? String(args.hotelId) : undefined,
+            roomTypeId: args.roomTypeId ? String(args.roomTypeId) : undefined,
+            status: args.status ? String(args.status) : undefined,
+          }));
+        case 'crm_hotel_reservation_get':
+          return JSON.stringify(
+            await this.hotelReservationsService.get(ctx.tenantId, String(args.reservationId || '')),
+          );
+        case 'crm_hotel_reservation_create':
+          return JSON.stringify(await this.toolHotelReservationCreate(ctx.tenantId, args));
+        case 'crm_hotel_reservation_update':
+          return JSON.stringify(await this.toolHotelReservationUpdate(ctx.tenantId, args));
+
         default:
           return JSON.stringify({ error: 'unknown_tool', name });
       }
@@ -1070,6 +1182,346 @@ export class AiToolsService {
         tool: name,
       });
     }
+  }
+
+  /* ---------- Товары ---------- */
+
+  private async toolProductSearch(tenantId: string, args: Record<string, unknown>) {
+    const limit = Math.min(30, Math.max(1, Number(args.limit) || 10));
+    const result = await this.productsService.listProducts(tenantId, {
+      search: args.query ? String(args.query) : undefined,
+      categoryId: args.categoryId ? String(args.categoryId) : undefined,
+      status: args.status ? String(args.status) : undefined,
+      limit,
+    } as any);
+    return result;
+  }
+
+  private async toolProductGet(tenantId: string, args: Record<string, unknown>) {
+    return this.productsService.getProduct(tenantId, String(args.productId || ''));
+  }
+
+  private async toolProductUpdatePrice(ctx: ToolCtx, args: Record<string, unknown>) {
+    if (args.userConfirmedPriceChange !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedPriceChange_must_be_true',
+        hint: 'Сначала покажи текущую и новую цену пользователю и дождись явного согласия.',
+      };
+    }
+    const productId = String(args.productId || '');
+    if (!productId) return { ok: false, error: 'productId_required' };
+    const dto: Record<string, unknown> = {};
+    if (args.price !== undefined) dto.price = Number(args.price);
+    if (args.costPrice !== undefined) dto.costPrice = Number(args.costPrice);
+    if (args.currency !== undefined) dto.currency = String(args.currency);
+    if (args.salePrice !== undefined) dto.salePrice = Number(args.salePrice);
+    if (args.saleStartAt !== undefined) dto.saleStartAt = String(args.saleStartAt);
+    if (args.saleEndAt !== undefined) dto.saleEndAt = String(args.saleEndAt);
+    const product = await this.productsService.updateProduct(ctx.tenantId, productId, dto as any, ctx.userId);
+    return { ok: true, product };
+  }
+
+  private async toolProductUpdateStatus(ctx: ToolCtx, args: Record<string, unknown>) {
+    if (args.userConfirmedStatusChange !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedStatusChange_must_be_true',
+        hint: 'Сначала озвучь пользователю, на какой статус меняешь товар, и дождись согласия.',
+      };
+    }
+    const productId = String(args.productId || '');
+    const status = String(args.status || '');
+    if (!productId || !status) return { ok: false, error: 'productId_and_status_required' };
+    const product = await this.productsService.updateProduct(
+      ctx.tenantId,
+      productId,
+      { status } as any,
+      ctx.userId,
+    );
+    return { ok: true, product };
+  }
+
+  private async toolProductBulkUpdate(tenantId: string, args: Record<string, unknown>) {
+    if (args.userConfirmedBulkUpdate !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedBulkUpdate_must_be_true',
+        hint: 'Сначала покажи пользователю список затронутых товаров и дождись согласия.',
+      };
+    }
+    const productIds = Array.isArray(args.productIds)
+      ? (args.productIds as unknown[]).map((v) => String(v)).filter(Boolean)
+      : [];
+    if (!productIds.length) return { ok: false, error: 'productIds_required' };
+    const result = await this.productsService.bulkUpdateProducts(tenantId, {
+      productIds,
+      categoryId: args.categoryId ? String(args.categoryId) : undefined,
+      status: args.status ? String(args.status) : undefined,
+      tagsToAdd: Array.isArray(args.tagsToAdd) ? (args.tagsToAdd as unknown[]).map(String) : undefined,
+      tagsToRemove: Array.isArray(args.tagsToRemove) ? (args.tagsToRemove as unknown[]).map(String) : undefined,
+    });
+    return { ok: true, ...result };
+  }
+
+  private async toolProductAdjustStock(ctx: ToolCtx, args: Record<string, unknown>) {
+    if (args.userConfirmedStockAdjust !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedStockAdjust_must_be_true',
+        hint: 'Сначала озвучь пользователю величину корректировки остатка и дождись согласия.',
+      };
+    }
+    const productId = String(args.productId || '');
+    const delta = Number(args.delta);
+    if (!productId || !Number.isFinite(delta) || delta === 0) {
+      return { ok: false, error: 'productId_and_nonzero_delta_required' };
+    }
+    const movement = await this.productsService.adjustStock(ctx.tenantId, ctx.userId, {
+      productId,
+      variantId: args.variantId ? String(args.variantId) : undefined,
+      locationId: args.locationId ? String(args.locationId) : undefined,
+      delta,
+      reason: args.reason ? String(args.reason) : undefined,
+    });
+    return { ok: true, movement };
+  }
+
+  /* ---------- Бронирования ---------- */
+
+  private async toolBookingCheckAvailability(tenantId: string, args: Record<string, unknown>) {
+    const startAt = new Date(String(args.startAt || ''));
+    const endAt = new Date(String(args.endAt || ''));
+    return this.bookingsAvailability.inspectSlot(tenantId, {
+      staffUserId: args.staffUserId ? String(args.staffUserId) : undefined,
+      resourceId: args.resourceId ? String(args.resourceId) : undefined,
+      startAt,
+      endAt,
+    });
+  }
+
+  private async toolBookingSearch(tenantId: string, args: Record<string, unknown>) {
+    const limit = Math.min(50, Math.max(1, Number(args.limit) || 15));
+    const all = await this.reservationsService.list(tenantId, {
+      search: args.query ? String(args.query) : undefined,
+      from: args.from ? String(args.from) : undefined,
+      to: args.to ? String(args.to) : undefined,
+      status: args.status ? String(args.status) : undefined,
+    });
+    return all.slice(0, limit);
+  }
+
+  private async toolBookingCreate(ctx: ToolCtx, args: Record<string, unknown>) {
+    if (args.userConfirmedBooking !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedBooking_must_be_true',
+        hint: 'Сначала озвучь клиента, мастера/услугу, дату и время пользователю и дождись согласия.',
+      };
+    }
+    const locationId = String(args.locationId || '');
+    const startAt = String(args.startAt || '');
+    const endAt = String(args.endAt || '');
+    if (!locationId || !startAt || !endAt) {
+      return { ok: false, error: 'locationId_startAt_endAt_required' };
+    }
+    const actingStaffUserId = await this.reservationsService.findActingStaffUserId(
+      ctx.tenantId,
+      ctx.userEmail,
+    );
+    const reservation = await this.reservationsService.create(
+      ctx.tenantId,
+      {
+        locationId,
+        serviceId: args.serviceId ? String(args.serviceId) : undefined,
+        staffUserId: args.staffUserId ? String(args.staffUserId) : undefined,
+        resourceId: args.resourceId ? String(args.resourceId) : undefined,
+        startAt,
+        endAt,
+        participants: args.participants !== undefined ? Number(args.participants) : undefined,
+        customerName: args.customerName ? String(args.customerName) : undefined,
+        customerPhone: args.customerPhone ? String(args.customerPhone) : undefined,
+        customerEmail: args.customerEmail ? String(args.customerEmail) : undefined,
+        price: args.price !== undefined ? String(args.price) : undefined,
+        currency: args.currency ? String(args.currency) : undefined,
+      },
+      actingStaffUserId,
+    );
+    return { ok: true, reservation };
+  }
+
+  private async toolBookingReschedule(ctx: ToolCtx, args: Record<string, unknown>) {
+    if (args.userConfirmedReschedule !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedReschedule_must_be_true',
+        hint: 'Сначала озвучь новое время пользователю и дождись согласия.',
+      };
+    }
+    const reservationId = String(args.reservationId || '');
+    if (!reservationId) return { ok: false, error: 'reservationId_required' };
+    const actingStaffUserId = await this.reservationsService.findActingStaffUserId(
+      ctx.tenantId,
+      ctx.userEmail,
+    );
+    const dto: Record<string, unknown> = {};
+    if (args.startAt !== undefined) dto.startAt = String(args.startAt);
+    if (args.endAt !== undefined) dto.endAt = String(args.endAt);
+    if (args.staffUserId !== undefined) dto.staffUserId = String(args.staffUserId);
+    if (args.resourceId !== undefined) dto.resourceId = String(args.resourceId);
+    const reservation = await this.reservationsService.update(
+      ctx.tenantId,
+      reservationId,
+      dto,
+      actingStaffUserId,
+    );
+    return { ok: true, reservation };
+  }
+
+  private async toolBookingTransition(
+    ctx: ToolCtx,
+    args: Record<string, unknown>,
+    confirmField: string | null,
+    method: 'confirm' | 'cancelByBusiness' | 'reject' | 'checkIn' | 'complete' | 'markNoShow',
+  ) {
+    if (confirmField && args[confirmField] !== true) {
+      return {
+        ok: false,
+        error: `${confirmField}_must_be_true`,
+        hint: 'Сначала озвучь пользователю, что именно произойдёт с бронью, и дождись согласия.',
+      };
+    }
+    const reservationId = String(args.reservationId || '');
+    if (!reservationId) return { ok: false, error: 'reservationId_required' };
+    const actingStaffUserId = await this.reservationsService.findActingStaffUserId(
+      ctx.tenantId,
+      ctx.userEmail,
+    );
+    const reservation = await this.reservationsService[method](ctx.tenantId, reservationId, actingStaffUserId);
+    return { ok: true, reservation };
+  }
+
+  /* ---------- Система резервации / Отели ---------- */
+
+  private async toolHotelGetDailyRates(tenantId: string, args: Record<string, unknown>) {
+    const roomTypeId = String(args.roomTypeId || '');
+    const dates = Array.isArray(args.dates) ? (args.dates as unknown[]).map(String) : [];
+    return this.hotelsPricingService.getDailyRates(tenantId, roomTypeId, dates);
+  }
+
+  private async toolHotelUpdateRate(tenantId: string, args: Record<string, unknown>) {
+    if (args.userConfirmedRateChange !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedRateChange_must_be_true',
+        hint: 'Сначала покажи группу рынков, старую и новую цену пользователю и дождись согласия.',
+      };
+    }
+    const roomTypeId = String(args.roomTypeId || '');
+    const marketGroupId = String(args.marketGroupId || '');
+    const date = String(args.date || '');
+    if (!roomTypeId || !marketGroupId || !date) {
+      return { ok: false, error: 'roomTypeId_marketGroupId_date_required' };
+    }
+    const roomType = await this.hotelRoomTypesService.get(tenantId, roomTypeId);
+    const groups = await this.hotelsPricingService.listMarketGroups(tenantId, roomType.hotelId);
+    const validGroupIds = new Set((groups as Array<{ id: string }>).map((g) => g.id));
+    if (!validGroupIds.has(marketGroupId)) {
+      return {
+        ok: false,
+        error: 'invalid_or_missing_market_group',
+        marketGroups: groups,
+        hint: 'marketGroupId не относится к этому отелю — выбери из marketGroups и уточни у пользователя, если их несколько.',
+      };
+    }
+    const dto: Record<string, unknown> = {};
+    if (args.budgetPP !== undefined) dto.budgetPP = String(args.budgetPP);
+    if (args.ppAvg !== undefined) dto.ppAvg = String(args.ppAvg);
+    if (args.grossPP !== undefined) dto.grossPP = String(args.grossPP);
+    if (args.discountPct !== undefined) dto.discountPct = String(args.discountPct);
+    const rate = await this.hotelsPricingService.upsertDailyRate(
+      tenantId,
+      roomTypeId,
+      marketGroupId,
+      date,
+      dto,
+    );
+    return { ok: true, rate };
+  }
+
+  private async toolHotelSetStopSale(tenantId: string, args: Record<string, unknown>) {
+    if (args.userConfirmedStopSale !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedStopSale_must_be_true',
+        hint: 'Сначала озвучь пользователю дату и направление (стоп/снять стоп) и дождись согласия.',
+      };
+    }
+    const roomTypeId = String(args.roomTypeId || '');
+    const date = String(args.date || '');
+    if (!roomTypeId || !date || typeof args.stopped !== 'boolean') {
+      return { ok: false, error: 'roomTypeId_date_stopped_required' };
+    }
+    const result = await this.hotelsPricingService.setStopSaleDate(tenantId, roomTypeId, date, args.stopped);
+    return { ok: true, ...result };
+  }
+
+  private async toolHotelReservationCreate(tenantId: string, args: Record<string, unknown>) {
+    if (args.userConfirmedReservation !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedReservation_must_be_true',
+        hint: 'Сначала озвучь отель, тип номера, даты и имя гостя пользователю и дождись согласия.',
+      };
+    }
+    const hotelId = String(args.hotelId || '');
+    const roomTypeId = String(args.roomTypeId || '');
+    const guestName = String(args.guestName || '');
+    const checkIn = String(args.checkIn || '');
+    const checkOut = String(args.checkOut || '');
+    if (!hotelId || !roomTypeId || !guestName || !checkIn || !checkOut) {
+      return { ok: false, error: 'hotelId_roomTypeId_guestName_checkIn_checkOut_required' };
+    }
+    const dto: HotelReservationInput = {
+      hotelId,
+      roomTypeId,
+      guestName,
+      checkIn,
+      checkOut,
+      guestEmail: args.guestEmail ? String(args.guestEmail) : undefined,
+      guestPhone: args.guestPhone ? String(args.guestPhone) : undefined,
+      pax: args.pax !== undefined ? Number(args.pax) : undefined,
+      market: args.market ? String(args.market) : undefined,
+      costPerNight: args.costPerNight !== undefined ? String(args.costPerNight) : undefined,
+      ppPerNight: args.ppPerNight !== undefined ? String(args.ppPerNight) : undefined,
+      grossPerNight: args.grossPerNight !== undefined ? String(args.grossPerNight) : undefined,
+      discountPct: args.discountPct !== undefined ? String(args.discountPct) : undefined,
+    };
+    const reservation = await this.hotelReservationsService.create(tenantId, dto);
+    return { ok: true, reservation };
+  }
+
+  private async toolHotelReservationUpdate(tenantId: string, args: Record<string, unknown>) {
+    if (args.userConfirmedReservationChange !== true) {
+      return {
+        ok: false,
+        error: 'userConfirmedReservationChange_must_be_true',
+        hint: 'Сначала озвучь пользователю, что именно меняется в брони, и дождись согласия.',
+      };
+    }
+    const reservationId = String(args.reservationId || '');
+    if (!reservationId) return { ok: false, error: 'reservationId_required' };
+    const dto: Record<string, unknown> = {};
+    for (const key of [
+      'checkIn', 'checkOut', 'pax', 'guestName', 'guestEmail', 'guestPhone',
+      'costPerNight', 'ppPerNight', 'grossPerNight', 'discountPct', 'status', 'paidStatus',
+    ]) {
+      if (args[key] !== undefined) {
+        dto[key] = key === 'pax' ? Number(args[key]) : args[key];
+      }
+    }
+    const reservation = await this.hotelReservationsService.update(tenantId, reservationId, dto as any);
+    return { ok: true, reservation };
   }
 
   private async toolListLeads(ctx: ToolCtx, args: Record<string, unknown>) {

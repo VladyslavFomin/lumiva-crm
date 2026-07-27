@@ -849,3 +849,530 @@ export const CRM_EXTENDED_AI_TOOL_DEFINITIONS: unknown[] = [
     },
   },
 ];
+
+/**
+ * Товары (модуль «Товары»): поиск/чтение без подтверждения, изменения цены/статуса/остатков —
+ * только после userConfirmed*: true (см. buildSystemPrompt в ai-assistant.service.ts).
+ */
+export const CRM_PRODUCTS_AI_TOOL_DEFINITIONS: unknown[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_search',
+      description: 'Найти товары по названию или SKU (поиск ILIKE). Используй перед любым изменением цены/статуса/остатков, чтобы получить productId.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Название или SKU товара (частичное совпадение)' },
+          categoryId: { type: 'string' },
+          status: { type: 'string' },
+          limit: { type: 'integer', default: 10 },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_get',
+      description: 'Получить товар по UUID целиком (цена, себестоимость, остатки, варианты).',
+      parameters: {
+        type: 'object',
+        properties: { productId: { type: 'string' } },
+        required: ['productId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_list_categories',
+      description: 'Список категорий товаров тенанта.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_update_price',
+      description:
+        'Изменить цену/скидку товара. Только после того как показал пользователю текущую цену (crm_product_get) и новую, и дождался явного согласия («меняй», «да, ставь такую цену») — тогда userConfirmedPriceChange: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedPriceChange: {
+            type: 'boolean',
+            description: 'true только если пользователь прямо сейчас подтвердил изменение цены',
+          },
+          productId: { type: 'string' },
+          price: { type: 'number' },
+          costPrice: { type: 'number' },
+          currency: { type: 'string' },
+          salePrice: { type: 'number', description: 'Акционная цена (если есть распродажа)' },
+          saleStartAt: { type: 'string', description: 'ISO-дата начала акции' },
+          saleEndAt: { type: 'string', description: 'ISO-дата окончания акции' },
+        },
+        required: ['userConfirmedPriceChange', 'productId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_update_status',
+      description:
+        'Изменить статус товара (например active/draft/archived) — влияет на видимость на витрине. Только после явного согласия пользователя — userConfirmedStatusChange: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedStatusChange: { type: 'boolean' },
+          productId: { type: 'string' },
+          status: { type: 'string' },
+        },
+        required: ['userConfirmedStatusChange', 'productId', 'status'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_bulk_update',
+      description:
+        'Массово изменить несколько товаров сразу (категория, статус, теги). Покажи пользователю список затронутых товаров и дождись согласия — userConfirmedBulkUpdate: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedBulkUpdate: { type: 'boolean' },
+          productIds: { type: 'array', items: { type: 'string' } },
+          categoryId: { type: 'string' },
+          status: { type: 'string' },
+          tagsToAdd: { type: 'array', items: { type: 'string' } },
+          tagsToRemove: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['userConfirmedBulkUpdate', 'productIds'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_adjust_stock',
+      description:
+        'Скорректировать остаток товара (delta — положительное число, чтобы прибавить, отрицательное — чтобы списать). Только после явного согласия — userConfirmedStockAdjust: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedStockAdjust: { type: 'boolean' },
+          productId: { type: 'string' },
+          variantId: { type: 'string' },
+          locationId: { type: 'string' },
+          delta: { type: 'number', description: 'Ненулевое число: + приход, − списание' },
+          reason: { type: 'string' },
+        },
+        required: ['userConfirmedStockAdjust', 'productId', 'delta'],
+      },
+    },
+  },
+];
+
+/**
+ * Бронирования («Бронирования» — запись на приём к мастеру/сотруднику в конкретное время;
+ * НЕ то же самое, что номера отеля — см. CRM_HOTELS_AI_TOOL_DEFINITIONS ниже).
+ */
+export const CRM_BOOKINGS_AI_TOOL_DEFINITIONS: unknown[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_list_locations',
+      description: 'Список локаций модуля «Бронирования».',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_list_services',
+      description: 'Список услуг модуля «Бронирования» (для резолва названия услуги в id).',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_list_resources',
+      description: 'Список ресурсов (кабинеты/оборудование) модуля «Бронирования».',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_list_staff',
+      description: 'Список сотрудников/мастеров модуля «Бронирования» (для резолва имени мастера в staffUserId). Если по имени несколько совпадений — покажи варианты и спроси пользователя, не выбирай сам.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_check_availability',
+      description: 'Проверить, свободен ли мастер/ресурс на конкретный интервал времени, перед созданием брони.',
+      parameters: {
+        type: 'object',
+        properties: {
+          staffUserId: { type: 'string' },
+          resourceId: { type: 'string' },
+          startAt: { type: 'string', description: 'ISO 8601 datetime' },
+          endAt: { type: 'string', description: 'ISO 8601 datetime' },
+        },
+        required: ['startAt', 'endAt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_search',
+      description: 'Найти брони (записи на приём) по имени/телефону/email клиента и/или диапазону дат/статусу.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+          from: { type: 'string', description: 'ISO-дата, начало диапазона' },
+          to: { type: 'string', description: 'ISO-дата, конец диапазона' },
+          status: { type: 'string' },
+          limit: { type: 'integer', default: 15 },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_get',
+      description: 'Получить бронь (запись на приём) по UUID.',
+      parameters: {
+        type: 'object',
+        properties: { reservationId: { type: 'string' } },
+        required: ['reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_create',
+      description:
+        'Создать бронь (запись клиента на приём к мастеру/на услугу). Перед вызовом озвучь пользователю клиента, мастера/услугу, дату и время и дождись явного согласия — тогда userConfirmedBooking: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedBooking: { type: 'boolean' },
+          locationId: { type: 'string' },
+          serviceId: { type: 'string' },
+          staffUserId: { type: 'string' },
+          resourceId: { type: 'string' },
+          startAt: { type: 'string', description: 'ISO 8601 datetime' },
+          endAt: { type: 'string', description: 'ISO 8601 datetime' },
+          participants: { type: 'integer' },
+          customerName: { type: 'string' },
+          customerPhone: { type: 'string' },
+          customerEmail: { type: 'string' },
+          price: { type: 'number' },
+          currency: { type: 'string' },
+        },
+        required: ['userConfirmedBooking', 'locationId', 'startAt', 'endAt'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_reschedule',
+      description: 'Перенести бронь на другое время/мастера/ресурс. Дождись согласия пользователя — userConfirmedReschedule: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedReschedule: { type: 'boolean' },
+          reservationId: { type: 'string' },
+          startAt: { type: 'string' },
+          endAt: { type: 'string' },
+          staffUserId: { type: 'string' },
+          resourceId: { type: 'string' },
+        },
+        required: ['userConfirmedReschedule', 'reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_confirm',
+      description: 'Подтвердить бронь (статус confirmed). Дождись согласия пользователя — userConfirmedStatusChange: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedStatusChange: { type: 'boolean' },
+          reservationId: { type: 'string' },
+        },
+        required: ['userConfirmedStatusChange', 'reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_cancel',
+      description: 'Отменить бронь со стороны бизнеса. Дождись согласия пользователя — userConfirmedCancel: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedCancel: { type: 'boolean' },
+          reservationId: { type: 'string' },
+        },
+        required: ['userConfirmedCancel', 'reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_reject',
+      description: 'Отклонить бронь. Дождись согласия пользователя — userConfirmedStatusChange: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedStatusChange: { type: 'boolean' },
+          reservationId: { type: 'string' },
+        },
+        required: ['userConfirmedStatusChange', 'reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_check_in',
+      description: 'Отметить, что клиент пришёл (check-in). Фиксация факта, подтверждения не требует.',
+      parameters: {
+        type: 'object',
+        properties: { reservationId: { type: 'string' } },
+        required: ['reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_complete',
+      description: 'Отметить бронь как завершённую. Фиксация факта, подтверждения не требует.',
+      parameters: {
+        type: 'object',
+        properties: { reservationId: { type: 'string' } },
+        required: ['reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_mark_no_show',
+      description: 'Отметить неявку клиента. Фиксация факта, подтверждения не требует.',
+      parameters: {
+        type: 'object',
+        properties: { reservationId: { type: 'string' } },
+        required: ['reservationId'],
+      },
+    },
+  },
+];
+
+/**
+ * Система резервации / Отели (номера отеля, тарифы по датам и группам рынков) — ДРУГОЙ модуль,
+ * чем «Бронирования» выше: HotelReservation (номера), а не Reservation (запись на приём).
+ */
+export const CRM_HOTELS_AI_TOOL_DEFINITIONS: unknown[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_list',
+      description: 'Список отелей тенанта (для резолва названия отеля в hotelId).',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_get',
+      description: 'Получить отель по UUID.',
+      parameters: {
+        type: 'object',
+        properties: { hotelId: { type: 'string' } },
+        required: ['hotelId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_list_room_types',
+      description: 'Список типов номеров отеля (для резолва названия типа номера в roomTypeId).',
+      parameters: {
+        type: 'object',
+        properties: { hotelId: { type: 'string' } },
+        required: ['hotelId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_list_market_groups',
+      description:
+        'Список групп рынков отеля (например «Западная Европа», «Восточная Европа», «Внутренний рынок»). ОБЯЗАТЕЛЬНО вызови перед любым изменением тарифа — тариф хранится отдельно для каждой группы; если групп больше одной и пользователь не назвал нужную, спроси, для какой менять цену.',
+      parameters: {
+        type: 'object',
+        properties: { hotelId: { type: 'string' } },
+        required: ['hotelId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_get_daily_rates',
+      description: 'Текущие тарифы номера на конкретные даты, по всем группам рынков сразу. Используй, чтобы показать «было» перед «станет» в изменении тарифа.',
+      parameters: {
+        type: 'object',
+        properties: {
+          roomTypeId: { type: 'string' },
+          dates: { type: 'array', items: { type: 'string' }, description: 'Даты в формате YYYY-MM-DD' },
+        },
+        required: ['roomTypeId', 'dates'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_update_rate',
+      description:
+        'Изменить тариф номера на дату для конкретной группы рынков. Сначала crm_hotel_list_market_groups (резолв marketGroupId) и crm_hotel_get_daily_rates (текущая цена), назови группу рынков и старую/новую цену пользователю, дождись согласия — тогда userConfirmedRateChange: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedRateChange: { type: 'boolean' },
+          roomTypeId: { type: 'string' },
+          marketGroupId: { type: 'string', description: 'Из crm_hotel_list_market_groups — обязательно, если у отеля больше одной группы' },
+          date: { type: 'string', description: 'YYYY-MM-DD' },
+          budgetPP: { type: 'number' },
+          ppAvg: { type: 'number' },
+          grossPP: { type: 'number' },
+          discountPct: { type: 'number' },
+        },
+        required: ['userConfirmedRateChange', 'roomTypeId', 'marketGroupId', 'date'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_set_stop_sale',
+      description: 'Включить/выключить стоп-продажу номера на дату. Дождись согласия пользователя — userConfirmedStopSale: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedStopSale: { type: 'boolean' },
+          roomTypeId: { type: 'string' },
+          date: { type: 'string', description: 'YYYY-MM-DD' },
+          stopped: { type: 'boolean' },
+        },
+        required: ['userConfirmedStopSale', 'roomTypeId', 'date', 'stopped'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_reservation_search',
+      description: 'Найти брони номеров отеля (HotelReservation) по отелю/типу номера/статусу.',
+      parameters: {
+        type: 'object',
+        properties: {
+          hotelId: { type: 'string' },
+          roomTypeId: { type: 'string' },
+          status: { type: 'string' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_reservation_get',
+      description: 'Получить бронь номера отеля по UUID.',
+      parameters: {
+        type: 'object',
+        properties: { reservationId: { type: 'string' } },
+        required: ['reservationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_reservation_create',
+      description:
+        'Создать бронь номера отеля (заезд/выезд гостя). Перед вызовом озвучь пользователю отель, тип номера, даты и имя гостя, дождись явного согласия — тогда userConfirmedReservation: true. Поле market — свободный текст региона гостя (например «Германия»), это НЕ marketGroupId из crm_hotel_list_market_groups, не путай их.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedReservation: { type: 'boolean' },
+          hotelId: { type: 'string' },
+          roomTypeId: { type: 'string' },
+          guestName: { type: 'string' },
+          guestEmail: { type: 'string' },
+          guestPhone: { type: 'string' },
+          pax: { type: 'integer' },
+          market: { type: 'string', description: 'Свободный текст региона гостя, НЕ id группы рынков' },
+          checkIn: { type: 'string', description: 'YYYY-MM-DD' },
+          checkOut: { type: 'string', description: 'YYYY-MM-DD' },
+          costPerNight: { type: 'number' },
+          ppPerNight: { type: 'number' },
+          grossPerNight: { type: 'number' },
+          discountPct: { type: 'number' },
+        },
+        required: ['userConfirmedReservation', 'hotelId', 'roomTypeId', 'guestName', 'checkIn', 'checkOut'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_reservation_update',
+      description:
+        'Изменить бронь номера отеля — перенос дат, редактирование данных гостя/цены, или отмена (status: "cancelled"). Дождись согласия пользователя — userConfirmedReservationChange: true.',
+      parameters: {
+        type: 'object',
+        properties: {
+          userConfirmedReservationChange: { type: 'boolean' },
+          reservationId: { type: 'string' },
+          checkIn: { type: 'string' },
+          checkOut: { type: 'string' },
+          pax: { type: 'integer' },
+          guestName: { type: 'string' },
+          guestEmail: { type: 'string' },
+          guestPhone: { type: 'string' },
+          costPerNight: { type: 'number' },
+          ppPerNight: { type: 'number' },
+          grossPerNight: { type: 'number' },
+          discountPct: { type: 'number' },
+          status: { type: 'string', enum: ['confirmed', 'pending', 'checked_in', 'checked_out', 'cancelled'] },
+          paidStatus: { type: 'string', enum: ['full', 'partial', 'none', 'refunded'] },
+        },
+        required: ['userConfirmedReservationChange', 'reservationId'],
+      },
+    },
+  },
+];

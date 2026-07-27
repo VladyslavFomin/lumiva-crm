@@ -104,6 +104,12 @@ import { AutomationsModule } from '../automations/automations.module';
     HotelsPricingImportService,
     HotelsRoomPricingImportService,
   ],
-  exports: [HotelReservationsService, HotelsService, HotelAnalyticsService],
+  exports: [
+    HotelReservationsService,
+    HotelsService,
+    HotelAnalyticsService,
+    HotelsPricingService,
+    HotelRoomTypesService,
+  ],
 })
 export class HotelsModule {}

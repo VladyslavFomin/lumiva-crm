@@ -20,6 +20,9 @@ import { ContactsModule } from '../contacts/contacts.module';
 import { EmailModule } from '../email/email.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { WorkspaceAreasModule } from '../workspace-areas/workspace-areas.module';
+import { ProductsModule } from '../products/products.module';
+import { BookingsModule } from '../bookings/bookings.module';
+import { HotelsModule } from '../hotels/hotels.module';
 import { AiUsageLog } from './ai-usage-log.entity';
 import { AiMemoryChunk } from './ai-memory-chunk.entity';
 import { AiChatSession } from './ai-chat-session.entity';
@@ -66,6 +69,9 @@ import { AiController } from './ai.controller';
     EmailModule,
     AutomationsModule,
     WorkspaceAreasModule,
+    ProductsModule,
+    BookingsModule,
+    HotelsModule,
   ],
   controllers: [AiController],
   providers: [

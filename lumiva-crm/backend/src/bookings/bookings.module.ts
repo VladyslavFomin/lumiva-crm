@@ -83,6 +83,13 @@ import { AutomationsModule } from '../automations/automations.module';
     ReservationsImportService,
     ApiTokenGuard,
   ],
-  exports: [ReservationsService, BookingsProjectsService, BookingsAnalyticsService],
+  exports: [
+    ReservationsService,
+    BookingsProjectsService,
+    BookingsAnalyticsService,
+    BookingsCatalogService,
+    BookingsAvailabilityService,
+    BookingsStaffService,
+  ],
 })
 export class BookingsModule {}
