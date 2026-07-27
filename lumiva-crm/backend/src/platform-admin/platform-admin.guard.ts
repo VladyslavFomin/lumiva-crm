@@ -1,5 +1,5 @@
 // src/platform-admin/platform-admin.guard.ts
-import { Injectable, ExecutionContext } from '@nestjs/common';
+import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 
 /**
@@ -22,7 +22,7 @@ export class PlatformAdminGuard extends AuthGuard('platform-admin-jwt') {
   handleRequest(err: any, user: any, info: any) {
     if (err || !user) {
       console.error('[PlatformAdminGuard] Auth failed:', { err, info });
-      throw err || new Error('Unauthorized');
+      throw new UnauthorizedException();
     }
     console.log('[PlatformAdminGuard] Auth successful for user:', user.email);
     return user;

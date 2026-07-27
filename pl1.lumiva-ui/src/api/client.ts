@@ -1,6 +1,6 @@
 // src/api/client.ts
 import axios from "axios";
-import { getPanelToken } from "../auth/panelSession";
+import { getPanelToken, clearPanelSession } from "../auth/panelSession";
 
 const baseURL =
   import.meta.env.VITE_PLATFORM_API_URL?.trim() ||
@@ -65,8 +65,17 @@ apiClient.interceptors.response.use(
         message: error.message,
       });
     }
-    // Не перенаправляем автоматически - пусть компоненты сами решают, что делать
-    // Только логируем ошибку
+    // На 401 (в т.ч. протухший токен — см. platform-admin.guard.ts) сбрасываем сессию
+    // и уводим на логин глобально, а не полагаемся на то, что каждая страница сама
+    // обработает эту ошибку (раньше это делали только 2 из 9 страниц).
+    // Исключение — сам запрос логина: там 401 означает "неверный пароль", это должна
+    // показать форма логина, а не перезагрузка страницы.
+    const isLoginRequest = error.config?.url?.includes("/platform/auth/login");
+    const alreadyOnLogin = window.location.pathname === "/panel-login";
+    if (error.response?.status === 401 && !isLoginRequest && !alreadyOnLogin) {
+      clearPanelSession();
+      window.location.href = "/panel-login";
+    }
     return Promise.reject(error);
   }
 );

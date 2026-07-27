@@ -1,7 +1,9 @@
-import { Body, Controller, Get, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, UseGuards } from '@nestjs/common';
 import { PlatformSettingsService } from './platform-settings.service';
+import { PlatformAdminGuard } from '../platform-admin/platform-admin.guard';
 
 @Controller('platform/settings')
+@UseGuards(PlatformAdminGuard)
 export class PlatformSettingsController {
   constructor(private readonly settings: PlatformSettingsService) {}
 

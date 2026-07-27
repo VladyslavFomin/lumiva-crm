@@ -6,6 +6,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 import DashboardPage from "./pages/DashboardPage";
@@ -19,7 +20,7 @@ import PanelLoginPage from "./pages/PanelLoginPage";
 import ModulesPage from "./pages/ModulesPage";
 import ComponentsPage from "./pages/ComponentsPage";
 import BillingMonitorPage from "./pages/BillingMonitorPage";
-import { isPanelAuthed } from "./auth/panelSession";
+import { isPanelAuthed, clearPanelSession } from "./auth/panelSession";
 
 const PanelProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
@@ -32,7 +33,13 @@ const PanelProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
 
 const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const onTenants = location.pathname.startsWith("/tenants");
+
+  const handleLogout = () => {
+    clearPanelSession();
+    navigate("/panel-login", { replace: true });
+  };
 
   const title = onTenants ? "Тенанты" : "Обзор платформы";
   const subtitle = onTenants
@@ -195,8 +202,18 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           </NavLink>
         </nav>
 
-        <div className="px-5 pb-4 text-[11px] text-slate-500">
-          v0.1 · internal only
+        <div className="px-3 pb-4 space-y-2">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-sm text-slate-400 hover:bg-slate-900 hover:text-rose-400 transition-colors"
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-400" />
+            <span>Выйти</span>
+          </button>
+          <div className="px-2 text-[11px] text-slate-500">
+            v0.1 · internal only
+          </div>
         </div>
       </aside>
 

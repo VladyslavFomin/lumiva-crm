@@ -12,16 +12,47 @@ import {
   type TenantModule,
 } from "../api/modules";
 import { getApiErrorMessage } from "../api/client";
+import { clearPanelSession } from "../auth/panelSession";
 
 const MODULE_NAMES: Record<string, { name: string; icon: string }> = {
   chat: { name: "Онлайн-чат", icon: "💬" },
   clientcabinet: { name: "Client Cabinet Pro", icon: "👤" },
   cf7: { name: "Contact Form 7", icon: "✉️" },
+  crm_connector: { name: "CRM Connector / CF7", icon: "🔗" },
   woo: { name: "WooCommerce", icon: "🛒" },
   telegram: { name: "Telegram", icon: "📨" },
+  marketing: { name: "Маркетинг", icon: "📣" },
+  analytics: { name: "Аналитика", icon: "📊" },
+  reputation: { name: "Репутация", icon: "⭐" },
+  smm: { name: "SMM", icon: "📱" },
+  crm_dashboard: { name: "CRM Dashboard", icon: "🗂️" },
+  crm: { name: "CRM Core", icon: "🏗️" },
+  crm_bridge: { name: "CRM Bridge", icon: "🌉" },
+  diagnostics: { name: "Диагностика", icon: "🔍" },
+  email_branding: { name: "Email Branding", icon: "✉️" },
+  polylang_ai: { name: "Polylang AI", icon: "🌐" },
+  site_checker: { name: "Site Checker", icon: "🔎" },
 };
 
-const MODULE_ORDER = ["chat", "clientcabinet", "cf7", "woo", "telegram"];
+const MODULE_ORDER = [
+  "crm",
+  "crm_dashboard",
+  "crm_bridge",
+  "crm_connector",
+  "cf7",
+  "marketing",
+  "analytics",
+  "chat",
+  "telegram",
+  "clientcabinet",
+  "woo",
+  "reputation",
+  "smm",
+  "diagnostics",
+  "email_branding",
+  "polylang_ai",
+  "site_checker",
+];
 
 const MODULE_ALIASES: Record<string, string> = {
   client_cabinet: "clientcabinet",
@@ -74,8 +105,7 @@ const ModulesPage: React.FC = () => {
       const msg = getApiErrorMessage(e);
       if (e?.response?.status === 401) {
         setError("Ошибка аутентификации. Войдите в панель заново.");
-        localStorage.removeItem("pl1_admin_authed");
-        localStorage.removeItem("pl1_admin_token");
+        clearPanelSession();
         navigate("/panel-login", { replace: true });
       } else {
         setError(msg);
@@ -95,8 +125,7 @@ const ModulesPage: React.FC = () => {
       const msg = getApiErrorMessage(e);
       if (e?.response?.status === 401) {
         setError("Ошибка аутентификации. Войдите в панель заново.");
-        localStorage.removeItem("pl1_admin_authed");
-        localStorage.removeItem("pl1_admin_token");
+        clearPanelSession();
         navigate("/panel-login", { replace: true });
       } else {
         setError("Не удалось загрузить модули: " + msg);
@@ -142,8 +171,7 @@ const ModulesPage: React.FC = () => {
       const msg = getApiErrorMessage(e);
       if (axios.isAxiosError(e) && e.response?.status === 401) {
         setError("Ошибка аутентификации. Войдите в панель заново.");
-        localStorage.removeItem("pl1_admin_authed");
-        localStorage.removeItem("pl1_admin_token");
+        clearPanelSession();
         navigate("/panel-login", { replace: true });
         return;
       }

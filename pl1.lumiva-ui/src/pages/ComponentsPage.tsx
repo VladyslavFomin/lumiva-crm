@@ -38,6 +38,11 @@ const COMPONENTS: ComponentDef[] = [
     icon: "🏢",
   },
   {
+    key: "notes",
+    name: "Заметки",
+    icon: "📝",
+  },
+  {
     key: "projects",
     name: "Проекты",
     icon: "📁",
@@ -95,6 +100,31 @@ const COMPONENTS: ComponentDef[] = [
     key: "client_accounts",
     name: "Счета клиентов",
     icon: "🧾",
+  },
+  {
+    key: "sms",
+    name: "SMS",
+    icon: "📱",
+  },
+  {
+    key: "deduplication",
+    name: "Дедупликация",
+    icon: "🔍",
+  },
+  {
+    key: "products",
+    name: "Товары",
+    icon: "📦",
+  },
+  {
+    key: "bookings",
+    name: "Бронирования",
+    icon: "📅",
+  },
+  {
+    key: "hotels",
+    name: "Система резервации",
+    icon: "🏨",
   },
 ];
 
