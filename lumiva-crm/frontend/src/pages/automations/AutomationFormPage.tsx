@@ -2108,6 +2108,8 @@ export const AutomationFormPage: React.FC = () => {
                           <option value="leads">{t('crm.automations.form.report.types.leads')}</option>
                           <option value="tasks">{t('crm.automations.form.report.types.tasks')}</option>
                           <option value="projects">{t('crm.automations.form.report.types.projects')}</option>
+                          <option value="bookings">{t('crm.automations.form.report.types.bookings')}</option>
+                          <option value="hotels">{t('crm.automations.form.report.types.hotels')}</option>
                         </select>
                       </div>
                       <div className="cfg-field">

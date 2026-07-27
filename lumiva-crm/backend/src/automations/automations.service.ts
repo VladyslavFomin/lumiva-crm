@@ -80,6 +80,20 @@ export class AutomationsService {
   ) {}
 
   /**
+   * Email-адреса активных владельцев/менеджеров тенанта — общий резолвер для триггеров других
+   * модулей (бронирования, отели), которым нужно передать `adminEmails` в triggerData, чтобы
+   * `send_email` action с `to: "{{adminEmails}}"` просто работал, без своего запроса в каждом
+   * вызывающем сервисе.
+   */
+  async resolveAdminEmails(tenantId: string): Promise<string[]> {
+    const staff = await this.staffUsersService.listForTenant(tenantId);
+    return staff
+      .filter((s: any) => s.isActive && (s.role === 'owner' || s.role === 'manager'))
+      .map((s: any) => s.email)
+      .filter((e: unknown): e is string => Boolean(e));
+  }
+
+  /**
    * Получить все автоматизации тенанта
    */
   async findAll(tenantId: string, isActive?: boolean): Promise<Automation[]> {
@@ -1553,9 +1567,18 @@ export class AutomationsService {
         let recipientEmail: string[] = [];
         if (to) {
           const toArr = Array.isArray(to) ? to : [to];
-          recipientEmail = toArr
-            .map((addr) => this.interpolateString(String(addr), triggerData).trim())
-            .filter(Boolean);
+          // interpolateString на массиве (напр. "{{adminEmails}}") даёт один склеенный через
+          // запятую результат — разбиваем обратно на отдельные адреса, иначе получаем один
+          // некорректный "email1,email2" вместо двух получателей.
+          recipientEmail = [
+            ...new Set(
+              toArr
+                .map((addr) => this.interpolateString(String(addr), triggerData).trim())
+                .flatMap((v) => v.split(','))
+                .map((v) => v.trim())
+                .filter(Boolean),
+            ),
+          ];
         }
         if (!recipientEmail.length) {
           // Пытаемся извлечь email из triggerData
@@ -2037,6 +2060,10 @@ export class AutomationsService {
           reportPayload = await this.reportsService.buildTasksReport(tenantId, range);
         } else if (reportType === 'marketing') {
           reportPayload = await this.reportsService.buildMarketingReport(tenantId, range);
+        } else if (reportType === 'bookings') {
+          reportPayload = await this.reportsService.buildBookingsReport(tenantId, range);
+        } else if (reportType === 'hotels') {
+          reportPayload = await this.reportsService.buildHotelsReport(tenantId, range);
         } else {
           reportPayload = await this.reportsService.buildLeadsReport(tenantId, range);
         }

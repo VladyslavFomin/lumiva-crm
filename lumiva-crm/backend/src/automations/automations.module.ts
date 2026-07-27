@@ -25,6 +25,8 @@ import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { StaffUsersModule } from '../staff/staff-users.module';
 import { SmsModule } from '../sms/sms.module';
+import { BookingsModule } from '../bookings/bookings.module';
+import { HotelsModule } from '../hotels/hotels.module';
 
 @Module({
   imports: [
@@ -50,6 +52,8 @@ import { SmsModule } from '../sms/sms.module';
     NotificationsModule,
     StaffUsersModule,
     SmsModule,
+    forwardRef(() => BookingsModule),
+    forwardRef(() => HotelsModule),
   ],
   controllers: [AutomationsController],
   providers: [AutomationsService, ReportsService, AutomationsSchedulerService],

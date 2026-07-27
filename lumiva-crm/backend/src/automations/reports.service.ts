@@ -12,6 +12,8 @@ import { Project } from '../projects/project.entity';
 import { CompanyTask } from '../companies/company-task.entity';
 import { SalesAnalyticsQueryDto } from '../sales/dto/sales-analytics-query.dto';
 import { MarketingService } from '../marketing/marketing.service';
+import { BookingsAnalyticsService } from '../bookings/bookings-analytics.service';
+import { HotelAnalyticsService } from '../hotels/hotel-analytics.service';
 
 type ReportRange = { from: Date; to: Date };
 
@@ -48,6 +50,8 @@ export class ReportsService {
   constructor(
     private readonly salesService: SalesService,
     private readonly marketingService: MarketingService,
+    private readonly bookingsAnalyticsService: BookingsAnalyticsService,
+    private readonly hotelAnalyticsService: HotelAnalyticsService,
     @InjectRepository(Lead)
     private readonly leadRepo: Repository<Lead>,
     @InjectRepository(Project)
@@ -165,6 +169,61 @@ export class ReportsService {
             count: row.count,
             amount: row.amount,
           })),
+        },
+      ],
+    };
+  }
+
+  async buildBookingsReport(tenantId: string, range: ReportRange): Promise<ReportPayload> {
+    const summary = await this.bookingsAnalyticsService.getSummary(
+      tenantId,
+      range.from.toISOString(),
+      range.to.toISOString(),
+    );
+    return {
+      title: 'Отчёт по бронированиям',
+      range,
+      summary: {
+        totalCount: summary.totalReservations,
+        totalAmount: summary.totalRevenue,
+        avgAmount: summary.avgCheck,
+      },
+      summaryLabels: { total: 'Бронирований', amount: 'Выручка', avg: 'Средний чек' },
+      sections: [
+        {
+          title: 'Статусы',
+          rows: [
+            { label: 'Завершено', count: summary.completed },
+            { label: 'Отменено', count: summary.cancelled },
+            { label: 'Неявка', count: summary.noShow },
+          ],
+        },
+      ],
+    };
+  }
+
+  async buildHotelsReport(tenantId: string, range: ReportRange): Promise<ReportPayload> {
+    const summary = await this.hotelAnalyticsService.getSummary(tenantId, {
+      dateFrom: range.from.toISOString().slice(0, 10),
+      dateTo: range.to.toISOString().slice(0, 10),
+    });
+    return {
+      title: 'Отчёт по отелям',
+      range,
+      summary: {
+        totalCount: summary.kpis.roomsTotal,
+        totalAmount: summary.kpis.revenueSold,
+        currency: summary.kpis.currency,
+      },
+      summaryLabels: { total: 'Номеров', amount: 'Выручка' },
+      sections: [
+        {
+          title: 'Загрузка',
+          rows: [{ label: 'Занято сейчас, %', count: Math.round(summary.kpis.occupancyNowPct) }],
+        },
+        {
+          title: 'По типам номеров',
+          rows: summary.roomTypes.map((r) => ({ label: r.name, count: r.qtySold, amount: r.revenue })),
         },
       ],
     };

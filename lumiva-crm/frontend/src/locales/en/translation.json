@@ -4670,7 +4670,9 @@
             "notifications": "Notifications",
             "crmObjects": "CRM objects",
             "reportsExport": "Reports & export",
-            "integrations": "Integrations"
+            "integrations": "Integrations",
+            "bookings": "Bookings",
+            "hotels": "Hotels"
           },
           "triggerDesc": {
             "scheduled": "CRON or interval"
@@ -4938,7 +4940,16 @@
           "CUSTOM_OBJECT_RECORD_CREATED": "Record created (custom object)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Record updated (custom object)",
           "CUSTOM_OBJECT_STATUS_CHANGED": "Record status changed (custom object)",
-          "SHOPIFY_PAYMENT_RECEIVED": "Shopify Payment Received"
+          "SHOPIFY_PAYMENT_RECEIVED": "Shopify Payment Received",
+          "BOOKING_RESERVATION_CREATED": "New booking",
+          "BOOKING_RESERVATION_STATUS_CHANGED": "Booking status changed",
+          "BOOKING_RESERVATION_RESCHEDULED": "Booking rescheduled",
+          "BOOKING_WAITLIST_ENTRY_CREATED": "Waitlist entry created",
+          "HOTEL_RESERVATION_CREATED": "New hotel reservation",
+          "HOTEL_RESERVATION_STATUS_CHANGED": "Hotel reservation status changed",
+          "HOTEL_PRICE_CHANGED": "Room price changed",
+          "HOTEL_STOP_SALE_SET": "Room stop-sale changed",
+          "HOTEL_LOW_AVAILABILITY": "Low room availability"
         },
         "report": {
           "type": "Report type",
@@ -4947,7 +4958,9 @@
             "leads": "Leads",
             "projects": "Projects",
             "tasks": "Tasks",
-            "marketing": "Marketing (traffic and ads)"
+            "marketing": "Marketing (traffic and ads)",
+            "bookings": "Bookings",
+            "hotels": "Hotels"
           },
           "marketingHint": "Data from the CRM marketing traffic table: Google Ads, Meta, Yandex.Metrica, GA4 syncs and imports. If integrations are not set up or never ran, the report may have few or no rows.",
           "dataRangeTitle": "Report data period (optional)",

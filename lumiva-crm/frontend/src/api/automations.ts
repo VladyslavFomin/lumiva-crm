@@ -28,7 +28,16 @@ export type TriggerEvent =
   | 'custom_object.record_created'
   | 'custom_object.record_updated'
   | 'custom_object.status_changed'
-  | 'shopify.payment_received';
+  | 'shopify.payment_received'
+  | 'booking.reservation_created'
+  | 'booking.reservation_status_changed'
+  | 'booking.reservation_rescheduled'
+  | 'booking.waitlist_entry_created'
+  | 'hotel.reservation_created'
+  | 'hotel.reservation_status_changed'
+  | 'hotel.price_changed'
+  | 'hotel.stop_sale_set'
+  | 'hotel.low_availability';
 
 export type ActionType =
   | 'create_task'

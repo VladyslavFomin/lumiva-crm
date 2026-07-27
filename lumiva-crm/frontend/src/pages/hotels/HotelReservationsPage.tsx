@@ -187,6 +187,8 @@ export const HotelReservationsPage: React.FC = () => {
               <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
                 <div className="htl-info-item"><div className="l">Отель / номер</div><div className="v" style={{ fontSize: 12.5 }}>{hotelById.get(selected.hotelId)?.name}<br /><span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>{roomTypeById.get(selected.roomTypeId)?.name}</span></div></div>
                 <div className="htl-info-item"><div className="l">Агентство</div><div className="v" style={{ fontSize: 12.5 }}>{selected.agencyId ? agencyById.get(selected.agencyId)?.name : '—'}</div></div>
+                <div className="htl-info-item"><div className="l">Email гостя</div><div className="v" style={{ fontSize: 12.5 }}>{selected.guestEmail || '—'}</div></div>
+                <div className="htl-info-item"><div className="l">Телефон гостя</div><div className="v" style={{ fontSize: 12.5 }}>{selected.guestPhone || '—'}</div></div>
                 <div className="htl-info-item"><div className="l">Дата создания</div><div className="v" style={{ fontSize: 12.5 }}>{new Date(selected.createdAt).toLocaleDateString('ru-RU')}</div></div>
                 <div className="htl-info-item"><div className="l">Рынок продаж</div><div className="v" style={{ fontSize: 12.5 }}>{selected.market || '—'}</div></div>
                 <div className="htl-info-item"><div className="l">Заезд</div><div className="v" style={{ fontSize: 12.5 }}>{selected.checkIn}</div></div>
@@ -292,6 +294,8 @@ const NewReservationModal: React.FC<{
   const [roomTypeId, setRoomTypeId] = useState('');
   const [agencyId, setAgencyId] = useState('');
   const [guestName, setGuestName] = useState('');
+  const [guestEmail, setGuestEmail] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
   const [pax, setPax] = useState('2');
   const [market, setMarket] = useState('');
   const [checkIn, setCheckIn] = useState('');
@@ -314,6 +318,8 @@ const NewReservationModal: React.FC<{
       roomTypeId,
       agencyId: agencyId || null,
       guestName,
+      guestEmail: guestEmail || null,
+      guestPhone: guestPhone || null,
       pax: Number(pax) || 1,
       market: market || null,
       checkIn,
@@ -339,6 +345,10 @@ const NewReservationModal: React.FC<{
         <div className="bk-modal-body">
           <label>Гость</label>
           <input value={guestName} onChange={(e) => setGuestName(e.target.value)} />
+          <div className="bk-row2">
+            <div><label>Email гостя</label><input value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} /></div>
+            <div><label>Телефон гостя</label><input value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} /></div>
+          </div>
           <div className="bk-row2">
             <div>
               <label>Отель</label>

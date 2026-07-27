@@ -1,9 +1,11 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { BookingWaitlistEntry } from './booking-waitlist-entry.entity';
 import { BookingsProjectsService } from './bookings-projects.service';
 import { ReservationsService } from './reservations.service';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
 
 @Injectable()
 export class BookingsWaitlistService {
@@ -12,6 +14,8 @@ export class BookingsWaitlistService {
     private readonly repo: Repository<BookingWaitlistEntry>,
     private readonly projects: BookingsProjectsService,
     private readonly reservations: ReservationsService,
+    @Inject(forwardRef(() => AutomationsService))
+    private readonly automationsService: AutomationsService,
   ) {}
 
   async list(tenantId: string, status?: string): Promise<BookingWaitlistEntry[]> {
@@ -57,7 +61,19 @@ export class BookingsWaitlistService {
       priority: dto.priority || 'normal',
       status: 'waiting',
     });
-    return this.repo.save(entry);
+    const saved = await this.repo.save(entry);
+
+    try {
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.BOOKING_WAITLIST_ENTRY_CREATED, {
+        entityType: 'waitlist_entry',
+        entityId: saved.id,
+        waitlistEntry: saved,
+      });
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
+
+    return saved;
   }
 
   async updatePriority(

@@ -43,6 +43,15 @@ export class HotelReservation {
   @Column({ type: 'varchar', length: 255 })
   guestName: string;
 
+  /** Сырой снимок контактов гостя на самой брони — тот же паттерн, что
+   * Reservation.customerEmail/customerPhone в модуле Booking, без привязки к Contact/Lead
+   * (см. комментарий выше). Нужен для автоматизаций ("письмо гостю о новой брони"). */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  guestEmail: string | null;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  guestPhone: string | null;
+
   @Column({ type: 'integer', default: 1 })
   pax: number;
 

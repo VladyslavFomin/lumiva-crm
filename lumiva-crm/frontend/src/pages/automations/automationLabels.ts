@@ -27,6 +27,15 @@ const TRIGGER_EVENT_TO_FORM: Record<string, string> = {
   'custom_object.record_updated': 'CUSTOM_OBJECT_RECORD_UPDATED',
   'custom_object.status_changed': 'CUSTOM_OBJECT_STATUS_CHANGED',
   'shopify.payment_received': 'SHOPIFY_PAYMENT_RECEIVED',
+  'booking.reservation_created': 'BOOKING_RESERVATION_CREATED',
+  'booking.reservation_status_changed': 'BOOKING_RESERVATION_STATUS_CHANGED',
+  'booking.reservation_rescheduled': 'BOOKING_RESERVATION_RESCHEDULED',
+  'booking.waitlist_entry_created': 'BOOKING_WAITLIST_ENTRY_CREATED',
+  'hotel.reservation_created': 'HOTEL_RESERVATION_CREATED',
+  'hotel.reservation_status_changed': 'HOTEL_RESERVATION_STATUS_CHANGED',
+  'hotel.price_changed': 'HOTEL_PRICE_CHANGED',
+  'hotel.stop_sale_set': 'HOTEL_STOP_SALE_SET',
+  'hotel.low_availability': 'HOTEL_LOW_AVAILABILITY',
 };
 
 export const getTriggerLabel = (event: string, t: TFunction): string => {

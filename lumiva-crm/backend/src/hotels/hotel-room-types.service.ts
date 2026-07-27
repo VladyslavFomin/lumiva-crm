@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { HotelRoomType } from './hotel-room-type.entity';
@@ -8,6 +8,8 @@ import { HotelRoomDateOverride } from './hotel-room-date-override.entity';
 import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
 import { HotelReservation } from './hotel-reservation.entity';
 import { normalizeNumericInput } from './hotel-number.util';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
 
 function daysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
@@ -28,6 +30,8 @@ export class HotelRoomTypesService {
     private readonly occupancyTypesRepo: Repository<HotelRoomOccupancyType>,
     @InjectRepository(HotelReservation)
     private readonly reservationsRepo: Repository<HotelReservation>,
+    @Inject(forwardRef(() => AutomationsService))
+    private readonly automationsService: AutomationsService,
   ) {}
 
   /* ---------- room types ---------- */
@@ -82,11 +86,37 @@ export class HotelRoomTypesService {
 
   async update(tenantId: string, id: string, dto: Partial<HotelRoomType>) {
     const rt = await this.get(tenantId, id);
+    const previousBasePrice = rt.basePrice;
+    const previousOffset = rt.ppNetOffset;
+    const previousStopSale = rt.stopSale;
+
     const normalized = { ...dto };
     if (normalized.basePrice !== undefined) normalized.basePrice = normalizeNumericInput(normalized.basePrice);
     if (normalized.ppNetOffset !== undefined) normalized.ppNetOffset = normalizeNumericInput(normalized.ppNetOffset);
     Object.assign(rt, normalized);
-    return this.repo.save(rt);
+    const saved = await this.repo.save(rt);
+
+    try {
+      if (saved.basePrice !== previousBasePrice || saved.ppNetOffset !== previousOffset) {
+        await this.automationsService.triggerAutomation(tenantId, TriggerEvent.HOTEL_PRICE_CHANGED, {
+          entityType: 'hotel_room_type',
+          entityId: id,
+          roomType: saved,
+        });
+      }
+      if (saved.stopSale !== previousStopSale) {
+        await this.automationsService.triggerAutomation(tenantId, TriggerEvent.HOTEL_STOP_SALE_SET, {
+          entityType: 'hotel_room_type',
+          entityId: id,
+          roomType: saved,
+          stopped: saved.stopSale,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
+
+    return saved;
   }
 
   async remove(tenantId: string, id: string) {
@@ -178,12 +208,28 @@ export class HotelRoomTypesService {
   async upsertMarketPrice(tenantId: string, roomTypeId: string, marketId: string, price: string) {
     const normalizedPrice = normalizeNumericInput(price);
     let row = await this.marketPricesRepo.findOne({ where: { tenantId, roomTypeId, marketId } });
+    const previousPrice = row?.price;
     if (!row) {
       row = this.marketPricesRepo.create({ tenantId, roomTypeId, marketId, price: normalizedPrice });
     } else {
       row.price = normalizedPrice;
     }
-    return this.marketPricesRepo.save(row);
+    const saved = await this.marketPricesRepo.save(row);
+
+    if (previousPrice !== saved.price) {
+      try {
+        await this.automationsService.triggerAutomation(tenantId, TriggerEvent.HOTEL_PRICE_CHANGED, {
+          entityType: 'hotel_room_market_price',
+          entityId: saved.id,
+          roomTypeId,
+          marketId,
+          price: saved.price,
+        });
+      } catch (error) {
+        console.error('Failed to trigger automation:', error);
+      }
+    }
+    return saved;
   }
 
   /* ---------- date overrides (Календарь цен / Календарь номеров) ---------- */

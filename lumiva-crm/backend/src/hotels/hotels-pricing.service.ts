@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { HotelMarketGroup } from './hotel-market-group.entity';
@@ -9,6 +9,8 @@ import { HotelRoomOccupancyType } from './hotel-room-occupancy-type.entity';
 import { HotelRoomStopSaleDate } from './hotel-room-stop-sale-date.entity';
 import { Hotel } from './hotel.entity';
 import { normalizeNumericInput } from './hotel-number.util';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
 
 function toNum(v: string | number | null | undefined): number {
   const n = Number(v);
@@ -36,6 +38,8 @@ export class HotelsPricingService {
     private readonly occupancyTypesRepo: Repository<HotelRoomOccupancyType>,
     @InjectRepository(HotelRoomStopSaleDate)
     private readonly stopSaleDatesRepo: Repository<HotelRoomStopSaleDate>,
+    @Inject(forwardRef(() => AutomationsService))
+    private readonly automationsService: AutomationsService,
   ) {}
 
   /* ---------- stop-sale dates (Цены и рынки — точечный стоп на дату) ---------- */
@@ -58,6 +62,16 @@ export class HotelsPricingService {
       }
     } else {
       await this.stopSaleDatesRepo.delete({ tenantId, roomTypeId, date });
+    }
+    try {
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.HOTEL_STOP_SALE_SET, {
+        entityType: 'hotel_room_type',
+        entityId: roomTypeId,
+        date,
+        stopped,
+      });
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
     }
     return { date, stopped };
   }
@@ -180,12 +194,30 @@ export class HotelsPricingService {
     if (!row) {
       row = this.ratesRepo.create({ tenantId, roomTypeId, marketGroupId, date });
     }
+    const previousNetPP = row.netPP;
     if (dto.budgetPP !== undefined) row.budgetPP = normalizeNumericInput(dto.budgetPP);
     if (dto.ppAvg !== undefined) row.ppAvg = normalizeNumericInput(dto.ppAvg);
     if (dto.grossPP !== undefined) row.grossPP = normalizeNumericInput(dto.grossPP);
     if (dto.discountPct !== undefined) row.discountPct = normalizeNumericInput(dto.discountPct);
     row.netPP = String(round2(toNum(row.grossPP) * (1 - toNum(row.discountPct) / 100)));
-    return this.ratesRepo.save(row);
+    const saved = await this.ratesRepo.save(row);
+
+    if (previousNetPP !== saved.netPP) {
+      try {
+        await this.automationsService.triggerAutomation(tenantId, TriggerEvent.HOTEL_PRICE_CHANGED, {
+          entityType: 'hotel_daily_rate',
+          entityId: saved.id,
+          roomTypeId,
+          marketGroupId,
+          date,
+          previousNetPP,
+          newNetPP: saved.netPP,
+        });
+      } catch (error) {
+        console.error('Failed to trigger automation:', error);
+      }
+    }
+    return saved;
   }
 
   /** Средний Net PP за диапазон дат для заданного типа номера + группы рынков —

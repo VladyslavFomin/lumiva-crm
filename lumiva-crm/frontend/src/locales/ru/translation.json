@@ -4909,7 +4909,9 @@
             "notifications": "Уведомления",
             "crmObjects": "CRM-объекты",
             "reportsExport": "Отчёты и экспорт",
-            "integrations": "Интеграции"
+            "integrations": "Интеграции",
+            "bookings": "Бронирования",
+            "hotels": "Отели"
           },
           "triggerDesc": {
             "scheduled": "CRON или интервал"
@@ -5177,7 +5179,16 @@
           "CUSTOM_OBJECT_RECORD_CREATED": "Запись создана (custom object)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Запись обновлена (custom object)",
           "CUSTOM_OBJECT_STATUS_CHANGED": "Статус записи изменён (custom object)",
-          "SHOPIFY_PAYMENT_RECEIVED": "Получен платёж в Shopify"
+          "SHOPIFY_PAYMENT_RECEIVED": "Получен платёж в Shopify",
+          "BOOKING_RESERVATION_CREATED": "Новая бронь",
+          "BOOKING_RESERVATION_STATUS_CHANGED": "Статус брони изменён",
+          "BOOKING_RESERVATION_RESCHEDULED": "Бронь перенесена",
+          "BOOKING_WAITLIST_ENTRY_CREATED": "Запись в лист ожидания",
+          "HOTEL_RESERVATION_CREATED": "Новая бронь отеля",
+          "HOTEL_RESERVATION_STATUS_CHANGED": "Статус брони отеля изменён",
+          "HOTEL_PRICE_CHANGED": "Изменилась цена номера",
+          "HOTEL_STOP_SALE_SET": "Изменена стоп-продажа номера",
+          "HOTEL_LOW_AVAILABILITY": "Мало свободных номеров"
         },
         "report": {
           "type": "Тип отчёта",
@@ -5186,7 +5197,9 @@
             "leads": "Лиды",
             "projects": "Проекты",
             "tasks": "Задачи",
-            "marketing": "Маркетинг (трафик и реклама)"
+            "marketing": "Маркетинг (трафик и реклама)",
+            "bookings": "Бронирования",
+            "hotels": "Отели"
           },
           "marketingHint": "Данные из таблицы маркетингового трафика CRM: синхронизации Google Ads, Meta, Яндекс.Метрики, GA4 и импорты. Если интеграции не настроены или не запускались — в отчёте будет мало или нет строк.",
           "dataRangeTitle": "Период данных в отчёте (опционально)",

@@ -172,6 +172,8 @@ export interface HotelReservation {
   roomTypeId: string;
   agencyId: string | null;
   guestName: string;
+  guestEmail: string | null;
+  guestPhone: string | null;
   pax: number;
   market: string | null;
   checkIn: string;

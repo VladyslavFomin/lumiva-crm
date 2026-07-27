@@ -69,6 +69,19 @@ export enum TriggerEvent {
 
   // Shopify
   SHOPIFY_PAYMENT_RECEIVED = 'shopify.payment_received',
+
+  // Бронирования (Booking)
+  BOOKING_RESERVATION_CREATED = 'booking.reservation_created',
+  BOOKING_RESERVATION_STATUS_CHANGED = 'booking.reservation_status_changed',
+  BOOKING_RESERVATION_RESCHEDULED = 'booking.reservation_rescheduled',
+  BOOKING_WAITLIST_ENTRY_CREATED = 'booking.waitlist_entry_created',
+
+  // Отели (Hotels / Система резервации)
+  HOTEL_RESERVATION_CREATED = 'hotel.reservation_created',
+  HOTEL_RESERVATION_STATUS_CHANGED = 'hotel.reservation_status_changed',
+  HOTEL_PRICE_CHANGED = 'hotel.price_changed',
+  HOTEL_STOP_SALE_SET = 'hotel.stop_sale_set',
+  HOTEL_LOW_AVAILABILITY = 'hotel.low_availability',
 }
 
 export enum ActionType {

@@ -2883,7 +2883,9 @@
             "notifications": "Bildirimler",
             "crmObjects": "CRM nesneleri",
             "reportsExport": "Raporlar ve dışa aktarma",
-            "integrations": "Entegrasyonlar"
+            "integrations": "Entegrasyonlar",
+            "bookings": "Rezervasyonlar",
+            "hotels": "Oteller"
           },
           "triggerDesc": {
             "scheduled": "CRON veya aralık"
@@ -3151,7 +3153,16 @@
           "CUSTOM_OBJECT_RECORD_CREATED": "Kayıt oluşturuldu (özel nesne)",
           "CUSTOM_OBJECT_RECORD_UPDATED": "Kayıt güncellendi (özel nesne)",
           "CUSTOM_OBJECT_STATUS_CHANGED": "Kayıt durumu değişti (özel nesne)",
-          "SHOPIFY_PAYMENT_RECEIVED": "Shopify Ödemesi Alındı"
+          "SHOPIFY_PAYMENT_RECEIVED": "Shopify Ödemesi Alındı",
+          "BOOKING_RESERVATION_CREATED": "Yeni rezervasyon",
+          "BOOKING_RESERVATION_STATUS_CHANGED": "Rezervasyon durumu değişti",
+          "BOOKING_RESERVATION_RESCHEDULED": "Rezervasyon ertelendi",
+          "BOOKING_WAITLIST_ENTRY_CREATED": "Bekleme listesi kaydı oluşturuldu",
+          "HOTEL_RESERVATION_CREATED": "Yeni otel rezervasyonu",
+          "HOTEL_RESERVATION_STATUS_CHANGED": "Otel rezervasyon durumu değişti",
+          "HOTEL_PRICE_CHANGED": "Oda fiyatı değişti",
+          "HOTEL_STOP_SALE_SET": "Oda satış durdurma değişti",
+          "HOTEL_LOW_AVAILABILITY": "Düşük oda müsaitliği"
         },
         "report": {
           "type": "Rapor türü",
@@ -3160,7 +3171,9 @@
             "leads": "Leadler",
             "projects": "Projeler",
             "tasks": "Görevler",
-            "marketing": "Pazarlama (trafik ve reklamlar)"
+            "marketing": "Pazarlama (trafik ve reklamlar)",
+            "bookings": "Rezervasyonlar",
+            "hotels": "Oteller"
           },
           "marketingHint": "CRM pazarlama trafiği tablosundan veri: Google Ads, Meta, Yandex.Metrica, GA4 senkronları ve içe aktarmalar. Entegrasyonlar yoksa veya çalışmadıysa raporda az veya satır olmayabilir.",
           "dataRangeTitle": "Rapor veri dönemi (isteğe bağlı)",

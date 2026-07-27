@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { Hotel } from './hotel.entity';
@@ -46,6 +46,7 @@ import { HotelsInfoImportController } from './hotels-info-import.controller';
 import { HotelFeedController } from './hotel-feed.controller';
 
 import { RbacModule } from '../rbac/rbac.module';
+import { AutomationsModule } from '../automations/automations.module';
 
 @Module({
   imports: [
@@ -72,6 +73,7 @@ import { RbacModule } from '../rbac/rbac.module';
       HotelInfoImportSession,
     ]),
     RbacModule,
+    forwardRef(() => AutomationsModule),
   ],
   controllers: [
     // Order matters: HotelReservationsController's bare `GET hotels/reservations` must be
@@ -102,6 +104,6 @@ import { RbacModule } from '../rbac/rbac.module';
     HotelsPricingImportService,
     HotelsRoomPricingImportService,
   ],
-  exports: [HotelReservationsService, HotelsService],
+  exports: [HotelReservationsService, HotelsService, HotelAnalyticsService],
 })
 export class HotelsModule {}

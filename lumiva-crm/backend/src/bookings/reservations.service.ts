@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Reservation, ReservationStatus } from './reservation.entity';
@@ -9,6 +9,8 @@ import { StaffUser } from '../staff/staff-user.entity';
 import { BookingsProjectsService } from './bookings-projects.service';
 import { BookingsAvailabilityService } from './bookings-availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
 
 export interface ReservationListFilters {
   status?: string;
@@ -53,6 +55,8 @@ export class ReservationsService {
     private readonly projects: BookingsProjectsService,
     private readonly availability: BookingsAvailabilityService,
     private readonly notifications: NotificationsService,
+    @Inject(forwardRef(() => AutomationsService))
+    private readonly automationsService: AutomationsService,
   ) {}
 
   /* ---------- список / детали ---------- */
@@ -313,6 +317,17 @@ export class ReservationsService {
       `${dto.customerName || 'Клиент'} — ${saved.startAt.toLocaleString('ru-RU')}`,
       saved,
     );
+    try {
+      const adminEmails = await this.automationsService.resolveAdminEmails(tenantId);
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.BOOKING_RESERVATION_CREATED, {
+        entityType: 'reservation',
+        entityId: saved.id,
+        reservation: saved,
+        adminEmails,
+      });
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
 
     return saved;
   }
@@ -324,6 +339,7 @@ export class ReservationsService {
     actingStaffUserId: string | null,
   ): Promise<Reservation> {
     const reservation = await this.findOne(tenantId, id);
+    const previousStartAt = reservation.startAt;
     const rescheduling =
       (dto.startAt && new Date(dto.startAt).getTime() !== reservation.startAt.getTime()) ||
       (dto.endAt && new Date(dto.endAt).getTime() !== reservation.endAt.getTime());
@@ -348,6 +364,16 @@ export class ReservationsService {
 
     if (rescheduling) {
       await this.logActivity(tenantId, id, 'rescheduled', actingStaffUserId, 'Бронь перенесена');
+      try {
+        await this.automationsService.triggerAutomation(tenantId, TriggerEvent.BOOKING_RESERVATION_RESCHEDULED, {
+          entityType: 'reservation',
+          entityId: id,
+          reservation: saved,
+          previousStartAt,
+        });
+      } catch (error) {
+        console.error('Failed to trigger automation:', error);
+      }
     }
 
     return saved;
@@ -373,6 +399,19 @@ export class ReservationsService {
       fromStatus,
       status,
     );
+    try {
+      const adminEmails = await this.automationsService.resolveAdminEmails(tenantId);
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.BOOKING_RESERVATION_STATUS_CHANGED, {
+        entityType: 'reservation',
+        entityId: id,
+        reservation: saved,
+        fromStatus,
+        toStatus: status,
+        adminEmails,
+      });
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
     return saved;
   }
 

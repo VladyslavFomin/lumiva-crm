@@ -78,6 +78,25 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
         },
       ],
     },
+    {
+      group: t('crm.automations.form.library.groups.bookings'),
+      items: [
+        { id: 'booking.reservation_created', label: getTriggerLabel('booking.reservation_created', t), icon: 'calendar' },
+        { id: 'booking.reservation_status_changed', label: getTriggerLabel('booking.reservation_status_changed', t), icon: 'calendar' },
+        { id: 'booking.reservation_rescheduled', label: getTriggerLabel('booking.reservation_rescheduled', t), icon: 'calendar' },
+        { id: 'booking.waitlist_entry_created', label: getTriggerLabel('booking.waitlist_entry_created', t), icon: 'user' },
+      ],
+    },
+    {
+      group: t('crm.automations.form.library.groups.hotels'),
+      items: [
+        { id: 'hotel.reservation_created', label: getTriggerLabel('hotel.reservation_created', t), icon: 'calendar' },
+        { id: 'hotel.reservation_status_changed', label: getTriggerLabel('hotel.reservation_status_changed', t), icon: 'calendar' },
+        { id: 'hotel.price_changed', label: getTriggerLabel('hotel.price_changed', t), icon: 'sale' },
+        { id: 'hotel.stop_sale_set', label: getTriggerLabel('hotel.stop_sale_set', t), icon: 'bell' },
+        { id: 'hotel.low_availability', label: getTriggerLabel('hotel.low_availability', t), icon: 'bell' },
+      ],
+    },
   ];
 }
 

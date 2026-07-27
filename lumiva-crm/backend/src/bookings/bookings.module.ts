@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { BookingProject } from './booking-project.entity';
@@ -38,6 +38,7 @@ import { ApiTokensModule } from '../api-tokens/api-tokens.module';
 import { ApiTokenGuard } from '../api-tokens/api-token.guard';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { AutomationsModule } from '../automations/automations.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { RbacModule } from '../rbac/rbac.module';
     ApiTokensModule,
     NotificationsModule,
     RbacModule,
+    forwardRef(() => AutomationsModule),
   ],
   controllers: [
     BookingsController,
@@ -81,6 +83,6 @@ import { RbacModule } from '../rbac/rbac.module';
     ReservationsImportService,
     ApiTokenGuard,
   ],
-  exports: [ReservationsService, BookingsProjectsService],
+  exports: [ReservationsService, BookingsProjectsService, BookingsAnalyticsService],
 })
 export class BookingsModule {}
