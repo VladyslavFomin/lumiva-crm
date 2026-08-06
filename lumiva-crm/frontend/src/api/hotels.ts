@@ -195,6 +195,7 @@ export interface HotelReservation {
   roomTypeId: string;
   agencyId: string | null;
   roomUnitId: string | null;
+  occupancyTypeId: string | null;
   guestName: string;
   guestEmail: string | null;
   guestPhone: string | null;
@@ -216,6 +217,9 @@ export interface HotelReservation {
   checkedOutAt: string | null;
   depositAmount: string;
   payments: HotelReservationPayment[];
+  earlyCheckIn: boolean;
+  lateCheckOut: boolean;
+  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -541,6 +545,22 @@ export async function downloadReservationFolio(id: string): Promise<void> {
   a.click();
   a.remove();
   window.URL.revokeObjectURL(url);
+}
+
+export function sendFolioEmail(id: string) {
+  return api.post<{ ok: boolean }>(`/hotels/reservations/${id}/send-folio-email`, {});
+}
+
+export interface HotelReservationPriceLookup {
+  pricePerNight: number | null;
+  periodId: string | null;
+  spansMultiplePeriods: boolean;
+}
+
+export function fetchReservationPrice(roomTypeId: string, occupancyTypeId: string, checkIn: string, checkOut: string) {
+  return api.get<HotelReservationPriceLookup>(`/hotels/room-types/${roomTypeId}/reservation-price`, {
+    params: { occupancyTypeId, checkIn, checkOut },
+  });
 }
 
 /* ---------- front desk ---------- */

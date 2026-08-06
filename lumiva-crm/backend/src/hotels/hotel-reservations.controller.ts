@@ -119,4 +119,10 @@ export class HotelReservationsController {
     res.setHeader('Content-Disposition', `attachment; filename="folio-${id}.pdf"`);
     res.send(buffer);
   }
+
+  @Post(':id/send-folio-email')
+  @RequirePermission('hotels_manage_reservations', 'write')
+  sendFolioEmail(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.reservations.sendFolioEmail(user.tenantId, id);
+  }
 }

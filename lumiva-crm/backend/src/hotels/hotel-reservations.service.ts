@@ -18,6 +18,7 @@ import { TriggerEvent } from '../automations/automation.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
 import { HotelAvailabilityService } from './hotel-availability.service';
 import { renderHotelFolioPdf } from './hotel-folio-pdf.util';
+import { MailService } from '../mail/mail.service';
 
 export interface HotelReservationWriteOptions {
   /** Never populated from the HTTP request body — set only by the reservation-import flow for
@@ -53,6 +54,8 @@ export interface HotelReservationInput {
   hotelId: string;
   roomTypeId: string;
   agencyId?: string | null;
+  roomUnitId?: string | null;
+  occupancyTypeId?: string | null;
   guestName: string;
   guestEmail?: string | null;
   guestPhone?: string | null;
@@ -68,6 +71,9 @@ export interface HotelReservationInput {
   paidStatus?: HotelReservationPaidStatus;
   source?: 'manual' | 'import';
   depositAmount?: string;
+  earlyCheckIn?: boolean;
+  lateCheckOut?: boolean;
+  notes?: string | null;
 }
 
 const PRICE_FIELDS = ['costPerNight', 'ppPerNight', 'grossPerNight', 'discountPct'] as const;
@@ -88,6 +94,7 @@ export class HotelReservationsService {
     private readonly automationsService: AutomationsService,
     private readonly auditLog: AuditLogService,
     private readonly availability: HotelAvailabilityService,
+    private readonly mail: MailService,
   ) {}
 
   /** Проверяет заполняемость типа номера за месяц заезда и, если она достигла/превысила
@@ -162,6 +169,8 @@ export class HotelReservationsService {
       hotelId: dto.hotelId,
       roomTypeId: dto.roomTypeId,
       agencyId: dto.agencyId ?? null,
+      roomUnitId: dto.roomUnitId ?? null,
+      occupancyTypeId: dto.occupancyTypeId ?? null,
       guestName: dto.guestName,
       guestEmail: dto.guestEmail ?? null,
       guestPhone: dto.guestPhone ?? null,
@@ -177,6 +186,9 @@ export class HotelReservationsService {
       paidStatus: dto.paidStatus ?? 'none',
       source: dto.source ?? 'manual',
       depositAmount: dto.depositAmount !== undefined ? normalizeNumericInput(dto.depositAmount) : '0',
+      earlyCheckIn: dto.earlyCheckIn ?? false,
+      lateCheckOut: dto.lateCheckOut ?? false,
+      notes: dto.notes ?? null,
     });
     this.computeTotals(row);
     const saved = await this.repo.save(row);
@@ -460,6 +472,37 @@ export class HotelReservationsService {
       this.roomTypeRepo.findOne({ where: { id: reservation.roomTypeId, tenantId } }),
     ]);
     return renderHotelFolioPdf(reservation, hotel, roomType);
+  }
+
+  async sendFolioEmail(tenantId: string, id: string) {
+    const reservation = await this.get(tenantId, id);
+    if (!reservation.guestEmail) {
+      throw new BadRequestException('У брони нет email гостя — добавьте его, чтобы отправить счёт');
+    }
+    const [hotel, roomType] = await Promise.all([
+      this.hotelRepo.findOne({ where: { id: reservation.hotelId, tenantId } }),
+      this.roomTypeRepo.findOne({ where: { id: reservation.roomTypeId, tenantId } }),
+    ]);
+    const buffer = await renderHotelFolioPdf(reservation, hotel, roomType);
+
+    await this.mail.sendMail({
+      to: reservation.guestEmail,
+      subject: `Счёт по брони — ${hotel?.name || 'отель'}`,
+      html: `<p>Здравствуйте, ${reservation.guestName}!</p><p>Во вложении счёт по вашей брони (${reservation.checkIn} — ${reservation.checkOut}).</p>`,
+      attachments: [{ filename: `folio-${id}.pdf`, content: buffer.toString('base64') }],
+    });
+
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: reservation.id,
+      entityLabel: reservation.guestName,
+      action: 'update',
+      summary: `Счёт отправлен на ${reservation.guestEmail}`,
+      actorUserId: null,
+    });
+
+    return { ok: true };
   }
 
   async remove(tenantId: string, id: string, actorUserId?: string | null) {

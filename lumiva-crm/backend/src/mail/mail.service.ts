@@ -9,6 +9,9 @@ export interface MailSendOptions {
   to: string;
   subject: string;
   html: string;
+  /** Base64-encoded content — required (not a Buffer) so an attachment survives BullMQ's JSON
+   * serialization through Redis when queued. */
+  attachments?: Array<{ filename: string; content: string }>;
 }
 
 @Injectable()
@@ -65,6 +68,11 @@ export class MailService {
         to: opts.to,
         subject: opts.subject,
         html: opts.html,
+        attachments: opts.attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          encoding: 'base64' as const,
+        })),
       });
       this.logger.log(
         `Mail sent to ${opts.to}: ${opts.subject} (messageId=${info.messageId})`,

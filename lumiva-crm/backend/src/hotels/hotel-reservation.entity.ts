@@ -55,6 +55,12 @@ export class HotelReservation {
   @Column({ type: 'uuid', nullable: true })
   roomUnitId: string | null;
 
+  /** Drives price auto-fill (HotelsPricingService.getReservationPrice) — which occupancy row
+   * ("тип размещения": SGL, 2 AD, ...) this stay is priced as. ON DELETE SET NULL, same
+   * never-destroy-history precedent as roomUnitId. */
+  @Column({ type: 'uuid', nullable: true })
+  occupancyTypeId: string | null;
+
   @Column({ type: 'varchar', length: 255 })
   guestName: string;
 
@@ -123,6 +129,15 @@ export class HotelReservation {
    * editable too, so staff can always override the suggestion. */
   @Column({ type: 'jsonb', default: [] })
   payments: HotelReservationPayment[];
+
+  @Column({ type: 'boolean', default: false })
+  earlyCheckIn: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  lateCheckOut: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  notes: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

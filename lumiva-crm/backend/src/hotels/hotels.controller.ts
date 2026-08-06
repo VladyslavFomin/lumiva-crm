@@ -195,6 +195,17 @@ export class HotelsController {
     return this.roomTypes.getMonthFillStats(user.tenantId, roomTypeId, Number(year), Number(month));
   }
 
+  @Get('room-types/:roomTypeId/reservation-price')
+  getReservationPrice(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('roomTypeId', new ParseUUIDPipe()) roomTypeId: string,
+    @Query('occupancyTypeId') occupancyTypeId: string,
+    @Query('checkIn') checkIn: string,
+    @Query('checkOut') checkOut: string,
+  ) {
+    return this.pricing.getReservationPrice(user.tenantId, roomTypeId, occupancyTypeId, checkIn, checkOut);
+  }
+
   @Get('room-types/:roomTypeId/occupancy-types')
   listOccupancyTypes(
     @CurrentUser() user: CurrentUserPayload,

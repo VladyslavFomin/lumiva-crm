@@ -12,10 +12,13 @@ import {
   addReservationPayment,
   removeReservationPayment,
   downloadReservationFolio,
+  sendFolioEmail,
+  fetchReservationPrice,
   fetchHotels,
   fetchRoomTypes,
   fetchAgencies,
   fetchRoomUnits,
+  fetchOccupancyTypes,
   previewReservationsImport,
   applyReservationsImport,
   HOTEL_RESERVATION_STATUS_LABELS_RU,
@@ -25,6 +28,7 @@ import {
   type HotelRoomType,
   type HotelAgency,
   type HotelRoomUnit,
+  type HotelRoomOccupancyType,
   type HotelReservationImportPreview,
 } from '../../api/hotels';
 import './hotels-design.css';
@@ -53,15 +57,17 @@ export const HotelReservationsPage: React.FC = () => {
   const [filter, setFilter] = useState('all');
   const [agencyFilter, setAgencyFilter] = useState('all');
   const [selected, setSelected] = useState<HotelReservation | null>(null);
-  const [showNew, setShowNew] = useState(false);
+  const [modalState, setModalState] = useState<'new' | HotelReservation | null>(null);
   const [showImport, setShowImport] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [emailBusy, setEmailBusy] = useState(false);
   const [checkInUnits, setCheckInUnits] = useState<HotelRoomUnit[]>([]);
   const [checkInUnitId, setCheckInUnitId] = useState('');
   const [checkInOutBusy, setCheckInOutBusy] = useState(false);
   const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('card');
+  const [paymentNote, setPaymentNote] = useState('');
   const [paymentBusy, setPaymentBusy] = useState(false);
 
   const hotelById = useMemo(() => new Map(hotels.map((h) => [h.id, h])), [hotels]);
@@ -119,10 +125,19 @@ export const HotelReservationsPage: React.FC = () => {
   const handleAddPayment = () => {
     if (!selected || !paymentAmount) return;
     setPaymentBusy(true);
-    addReservationPayment(selected.id, { date: paymentDate, amount: paymentAmount, method: paymentMethod })
-      .then((r) => { setSelected(r); load(); setPaymentAmount(''); })
+    addReservationPayment(selected.id, { date: paymentDate, amount: paymentAmount, method: paymentMethod, note: paymentNote || undefined })
+      .then((r) => { setSelected(r); load(); setPaymentAmount(''); setPaymentNote(''); })
       .catch((e) => showAlert(e.message || 'Не удалось добавить платёж', { variant: 'error' }))
       .finally(() => setPaymentBusy(false));
+  };
+
+  const handleSendFolioEmail = () => {
+    if (!selected) return;
+    setEmailBusy(true);
+    sendFolioEmail(selected.id)
+      .then(() => showAlert('Счёт отправлен на почту гостя', { variant: 'success' }))
+      .catch((e) => showAlert(e.message || 'Не удалось отправить счёт', { variant: 'error' }))
+      .finally(() => setEmailBusy(false));
   };
 
   const handleRemovePayment = (paymentId: string) => {
@@ -168,7 +183,7 @@ export const HotelReservationsPage: React.FC = () => {
           </div>
           <div className="htl-hero-r io-toolbar">
             <button className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />Импорт из Excel</button>
-            <button className="btn btn-primary" onClick={() => setShowNew(true)}><Ic d={HTL_ICON.plus} size={14} />Новая бронь</button>
+            <button className="btn btn-primary" onClick={() => setModalState('new')}><Ic d={HTL_ICON.plus} size={14} />Новая бронь</button>
           </div>
         </div>
 
@@ -238,7 +253,10 @@ export const HotelReservationsPage: React.FC = () => {
                 <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>{selected.id.slice(0, 8)}</div>
                 <h3>{selected.guestName}</h3>
               </div>
-              <button onClick={() => setSelected(null)}><Ic d={HTL_ICON.x} size={16} /></button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button onClick={() => setModalState(selected)} title="Изменить"><Ic d={HTL_ICON.pencil} size={16} /></button>
+                <button onClick={() => setSelected(null)}><Ic d={HTL_ICON.x} size={16} /></button>
+              </div>
             </div>
             <div className="bk-drawer-body">
               <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
@@ -253,6 +271,16 @@ export const HotelReservationsPage: React.FC = () => {
                 <div className="htl-info-item"><div className="l">Ночей</div><div className="v" style={{ fontSize: 12.5 }}>{nights(selected.checkIn, selected.checkOut)}</div></div>
                 <div className="htl-info-item"><div className="l">Гостей (PAX)</div><div className="v" style={{ fontSize: 12.5 }}>{selected.pax}</div></div>
               </div>
+
+              {(selected.earlyCheckIn || selected.lateCheckOut) && (
+                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
+                  {selected.earlyCheckIn && <span className="ppt-stop-badge" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}>Раннее заселение</span>}
+                  {selected.lateCheckOut && <span className="ppt-stop-badge" style={{ background: 'var(--surface-2)', color: 'var(--ink)' }}>Позднее выселение</span>}
+                </div>
+              )}
+              {selected.notes && (
+                <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--fg-3)', whiteSpace: 'pre-wrap' }}>{selected.notes}</div>
+              )}
 
               <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>Финансовая раскладка</div>
               <div className="htl-price-breakdown" style={{ marginTop: 8 }}>
@@ -311,27 +339,45 @@ export const HotelReservationsPage: React.FC = () => {
                     </span>
                   </div>
                 ))}
-                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
                   <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={{ width: 130, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }} />
                   <input placeholder="Сумма" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} style={{ width: 70, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }} />
                   <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }}>
                     <option value="card">Карта</option>
                     <option value="cash">Наличные</option>
-                    <option value="transfer">Перевод</option>
+                    <option value="bank_transfer">Расчётный счёт</option>
+                    <option value="other">Другое</option>
                   </select>
+                  <input
+                    placeholder="Реквизиты: последние 4 цифры карты, банк…"
+                    value={paymentNote}
+                    onChange={(e) => setPaymentNote(e.target.value)}
+                    style={{ flex: 1, minWidth: 140, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }}
+                  />
                   <button className="btn btn-sm" disabled={paymentBusy || !paymentAmount} onClick={handleAddPayment}>
                     <Ic d={HTL_ICON.plus} size={12} />
                   </button>
                 </div>
               </div>
 
-              <button
-                className="btn"
-                style={{ width: '100%', marginTop: 12 }}
-                onClick={() => downloadReservationFolio(selected.id).catch((e) => showAlert(e.message || 'Не удалось скачать счёт', { variant: 'error' }))}
-              >
-                <Ic d={HTL_ICON.download} size={14} />Скачать счёт (PDF)
-              </button>
+              <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                <button
+                  className="btn"
+                  style={{ flex: 1 }}
+                  onClick={() => downloadReservationFolio(selected.id).catch((e) => showAlert(e.message || 'Не удалось скачать счёт', { variant: 'error' }))}
+                >
+                  <Ic d={HTL_ICON.download} size={14} />Скачать счёт
+                </button>
+                <button
+                  className="btn"
+                  style={{ flex: 1 }}
+                  disabled={emailBusy || !selected.guestEmail}
+                  title={selected.guestEmail ? undefined : 'У брони нет email гостя'}
+                  onClick={handleSendFolioEmail}
+                >
+                  <Ic d={HTL_ICON.check} size={14} />Отправить на почту
+                </button>
+              </div>
 
               {(selected.checkedInAt || selected.checkedOutAt) && (
                 <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 10 }}>
@@ -405,16 +451,18 @@ export const HotelReservationsPage: React.FC = () => {
         </div>
       )}
 
-      {showNew && (
-        <NewReservationModal
+      {modalState && (
+        <ReservationModal
           hotels={hotels}
           roomTypes={roomTypes}
           agencies={agencies}
+          initial={modalState === 'new' ? null : modalState}
           saving={saving}
           setSaving={setSaving}
-          onClose={() => setShowNew(false)}
-          onCreated={() => {
-            setShowNew(false);
+          onClose={() => setModalState(null)}
+          onSaved={(r) => {
+            setModalState(null);
+            setSelected((prev) => (prev && prev.id === r.id ? r : prev));
             load();
           }}
         />
@@ -434,44 +482,80 @@ export const HotelReservationsPage: React.FC = () => {
   );
 };
 
-const NewReservationModal: React.FC<{
+const ReservationModal: React.FC<{
   hotels: Hotel[];
   roomTypes: HotelRoomType[];
   agencies: HotelAgency[];
+  initial: HotelReservation | null;
   saving: boolean;
   setSaving: (v: boolean) => void;
   onClose: () => void;
-  onCreated: () => void;
-}> = ({ hotels, roomTypes, agencies, saving, setSaving, onClose, onCreated }) => {
+  onSaved: (r: HotelReservation) => void;
+}> = ({ hotels, roomTypes, agencies, initial, saving, setSaving, onClose, onSaved }) => {
   const { showAlert } = useAlertModal();
-  const [hotelId, setHotelId] = useState(hotels[0]?.id || '');
-  const [roomTypeId, setRoomTypeId] = useState('');
-  const [agencyId, setAgencyId] = useState('');
-  const [guestName, setGuestName] = useState('');
-  const [guestEmail, setGuestEmail] = useState('');
-  const [guestPhone, setGuestPhone] = useState('');
-  const [pax, setPax] = useState('2');
-  const [market, setMarket] = useState('');
-  const [checkIn, setCheckIn] = useState('');
-  const [checkOut, setCheckOut] = useState('');
-  const [costPerNight, setCostPerNight] = useState('0');
-  const [ppPerNight, setPpPerNight] = useState('0');
-  const [grossPerNight, setGrossPerNight] = useState('0');
-  const [discountPct, setDiscountPct] = useState('0');
-  const [depositAmount, setDepositAmount] = useState('0');
+  const [hotelId, setHotelId] = useState(initial?.hotelId || hotels[0]?.id || '');
+  const [roomTypeId, setRoomTypeId] = useState(initial?.roomTypeId || '');
+  const [agencyId, setAgencyId] = useState(initial?.agencyId || '');
+  const [roomUnitId, setRoomUnitId] = useState(initial?.roomUnitId || '');
+  const [occupancyTypeId, setOccupancyTypeId] = useState(initial?.occupancyTypeId || '');
+  const [guestName, setGuestName] = useState(initial?.guestName || '');
+  const [guestEmail, setGuestEmail] = useState(initial?.guestEmail || '');
+  const [guestPhone, setGuestPhone] = useState(initial?.guestPhone || '');
+  const [pax, setPax] = useState(initial ? String(initial.pax) : '2');
+  const [market, setMarket] = useState(initial?.market || '');
+  const [checkIn, setCheckIn] = useState(initial?.checkIn || '');
+  const [checkOut, setCheckOut] = useState(initial?.checkOut || '');
+  const [costPerNight, setCostPerNight] = useState(initial?.costPerNight || '0');
+  const [ppPerNight, setPpPerNight] = useState(initial?.ppPerNight || '0');
+  const [grossPerNight, setGrossPerNight] = useState(initial?.grossPerNight || '0');
+  const [discountPct, setDiscountPct] = useState(initial?.discountPct || '0');
+  const [depositAmount, setDepositAmount] = useState(initial?.depositAmount || '0');
+  const [earlyCheckIn, setEarlyCheckIn] = useState(initial?.earlyCheckIn || false);
+  const [lateCheckOut, setLateCheckOut] = useState(initial?.lateCheckOut || false);
+  const [notes, setNotes] = useState(initial?.notes || '');
+
+  const [occupancyTypes, setOccupancyTypes] = useState<HotelRoomOccupancyType[]>([]);
+  const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
+  const [priceWarning, setPriceWarning] = useState('');
+  const pricesTouchedManually = React.useRef(false);
 
   const roomsForHotel = roomTypes.filter((r) => r.hotelId === hotelId);
 
-  const handleCreate = () => {
+  useEffect(() => {
+    if (!roomTypeId) { setOccupancyTypes([]); setRoomUnits([]); return; }
+    fetchOccupancyTypes(roomTypeId).then(setOccupancyTypes).catch(() => setOccupancyTypes([]));
+    fetchRoomUnits({ roomTypeId }).then((units) => setRoomUnits(units.filter((u) => u.active))).catch(() => setRoomUnits([]));
+  }, [roomTypeId]);
+
+  useEffect(() => {
+    setPriceWarning('');
+    if (pricesTouchedManually.current) return;
+    if (!roomTypeId || !occupancyTypeId || !checkIn || !checkOut) return;
+    fetchReservationPrice(roomTypeId, occupancyTypeId, checkIn, checkOut)
+      .then((r) => {
+        if (r.pricePerNight === null) return;
+        setPpPerNight(String(r.pricePerNight));
+        setGrossPerNight(String(r.pricePerNight));
+        if (r.spansMultiplePeriods) {
+          setPriceWarning('Бронь пересекает периоды цен — проверьте цену вручную');
+        }
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomTypeId, occupancyTypeId, checkIn, checkOut]);
+
+  const handleSave = () => {
     if (!guestName.trim() || !hotelId || !roomTypeId || !checkIn || !checkOut) {
       showAlert('Заполните гостя, отель, номер и даты', { variant: 'error' });
       return;
     }
     setSaving(true);
-    createReservation({
+    const dto = {
       hotelId,
       roomTypeId,
       agencyId: agencyId || null,
+      roomUnitId: roomUnitId || null,
+      occupancyTypeId: occupancyTypeId || null,
       guestName,
       guestEmail: guestEmail || null,
       guestPhone: guestPhone || null,
@@ -484,9 +568,14 @@ const NewReservationModal: React.FC<{
       grossPerNight,
       discountPct,
       depositAmount,
-    })
-      .then(() => onCreated())
-      .catch((e) => showAlert(e.message || 'Не удалось создать бронь', { variant: 'error' }))
+      earlyCheckIn,
+      lateCheckOut,
+      notes: notes || null,
+    };
+    const req = initial ? updateReservation(initial.id, dto) : createReservation(dto);
+    req
+      .then((r) => onSaved(r))
+      .catch((e) => showAlert(e.message || 'Не удалось сохранить бронь', { variant: 'error' }))
       .finally(() => setSaving(false));
   };
 
@@ -495,7 +584,7 @@ const NewReservationModal: React.FC<{
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="bk-modal-head">
-          <h3>Новая бронь</h3>
+          <h3>{initial ? 'Изменить бронь' : 'Новая бронь'}</h3>
           <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
         <div className="bk-modal-body">
@@ -508,15 +597,31 @@ const NewReservationModal: React.FC<{
           <div className="bk-row2">
             <div>
               <label>Отель</label>
-              <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); setRoomTypeId(''); }}>
+              <select value={hotelId} onChange={(e) => { setHotelId(e.target.value); setRoomTypeId(''); setOccupancyTypeId(''); setRoomUnitId(''); }}>
                 {hotels.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
               </select>
             </div>
             <div>
               <label>Тип номера</label>
-              <select value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)}>
+              <select value={roomTypeId} onChange={(e) => { setRoomTypeId(e.target.value); setOccupancyTypeId(''); setRoomUnitId(''); }}>
                 <option value="">—</option>
                 {roomsForHotel.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="bk-row2">
+            <div>
+              <label>Тип размещения</label>
+              <select value={occupancyTypeId} onChange={(e) => setOccupancyTypeId(e.target.value)} disabled={!roomTypeId}>
+                <option value="">—</option>
+                {occupancyTypes.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label>Номер</label>
+              <select value={roomUnitId} onChange={(e) => setRoomUnitId(e.target.value)} disabled={!roomTypeId}>
+                <option value="">Без номера</option>
+                {roomUnits.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
               </select>
             </div>
           </div>
@@ -536,20 +641,42 @@ const NewReservationModal: React.FC<{
           </div>
           <label>Рынок продаж</label>
           <input placeholder="СНГ, Германия, Внутренний…" value={market} onChange={(e) => setMarket(e.target.value)} />
-          <div className="bk-row2">
+          {priceWarning && (
+            <div style={{ marginTop: 8, fontSize: 11.5, color: '#cc7a00' }}>{priceWarning}</div>
+          )}
+          <div className="bk-row2" style={{ marginTop: 8 }}>
             <div><label>Себестоимость/ночь</label><input value={costPerNight} onChange={(e) => setCostPerNight(e.target.value)} /></div>
-            <div><label>PP/ночь</label><input value={ppPerNight} onChange={(e) => setPpPerNight(e.target.value)} /></div>
+            <div><label>PP/ночь</label><input value={ppPerNight} onChange={(e) => { pricesTouchedManually.current = true; setPpPerNight(e.target.value); }} /></div>
           </div>
           <div className="bk-row2">
-            <div><label>Brutto/ночь</label><input value={grossPerNight} onChange={(e) => setGrossPerNight(e.target.value)} /></div>
+            <div><label>Brutto/ночь</label><input value={grossPerNight} onChange={(e) => { pricesTouchedManually.current = true; setGrossPerNight(e.target.value); }} /></div>
             <div><label>Скидка, %</label><input value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} /></div>
           </div>
           <label>Депозит</label>
           <input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
+          <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
+              <input type="checkbox" checked={earlyCheckIn} onChange={(e) => setEarlyCheckIn(e.target.checked)} />
+              Раннее заселение
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, cursor: 'pointer' }}>
+              <input type="checkbox" checked={lateCheckOut} onChange={(e) => setLateCheckOut(e.target.checked)} />
+              Позднее выселение
+            </label>
+          </div>
+          <label style={{ marginTop: 8 }}>Примечания</label>
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={2}
+            style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, resize: 'vertical' }}
+          />
         </div>
         <div className="bk-modal-foot">
           <button className="btn" onClick={onClose}>Отмена</button>
-          <button className="btn btn-primary" disabled={saving} onClick={handleCreate}><Ic d={HTL_ICON.check} size={14} />Создать бронь</button>
+          <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
+            <Ic d={HTL_ICON.check} size={14} />{initial ? 'Сохранить' : 'Создать бронь'}
+          </button>
         </div>
       </div>
     </div>

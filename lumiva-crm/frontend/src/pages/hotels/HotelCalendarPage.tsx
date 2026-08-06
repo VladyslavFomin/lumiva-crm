@@ -3,6 +3,7 @@ import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { HotelPricingCalendar } from './HotelPricingCalendar';
+import { HotelRoomOccupancyGrid } from './HotelRoomOccupancyGrid';
 import { fetchHotels, fetchRoomTypes, type Hotel, type HotelRoomType } from '../../api/hotels';
 import './hotels-design.css';
 
@@ -11,6 +12,7 @@ export const HotelCalendarPage: React.FC = () => {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [hotelId, setHotelId] = useState('');
   const [roomTypes, setRoomTypes] = useState<HotelRoomType[]>([]);
+  const [tab, setTab] = useState<'price' | 'occupancy'>('price');
 
   useEffect(() => {
     fetchHotels()
@@ -49,8 +51,17 @@ export const HotelCalendarPage: React.FC = () => {
           </div>
         </div>
 
+        <div className="bk-savedviews" style={{ marginTop: 16 }}>
+          <div className={`bk-sv-tab${tab === 'price' ? ' active' : ''}`} onClick={() => setTab('price')}>Цены и доступность</div>
+          <div className={`bk-sv-tab${tab === 'occupancy' ? ' active' : ''}`} onClick={() => setTab('occupancy')}>Занятость номеров</div>
+        </div>
+
         <div style={{ marginTop: 16 }}>
-          <HotelPricingCalendar roomTypes={roomTypes} />
+          {tab === 'price' ? (
+            <HotelPricingCalendar roomTypes={roomTypes} />
+          ) : (
+            <HotelRoomOccupancyGrid roomTypes={roomTypes} />
+          )}
         </div>
       </div>
     </MainLayout>

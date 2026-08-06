@@ -365,4 +365,36 @@ export class HotelsPricingService {
       occupancyRows: rows,
     };
   }
+
+  /** Price lookup for the reservation form's auto-fill — reuses getRoomPricing's already-computed
+   * per-period/per-occupancy-row prices rather than recomputing the coefficient/override logic.
+   * Looks up the period containing checkIn (the common case); if checkOut falls in a different
+   * period, still returns that period's price but flags spansMultiplePeriods so the UI can warn
+   * staff to double-check rather than silently mis-pricing a season-boundary stay. */
+  async getReservationPrice(
+    tenantId: string,
+    roomTypeId: string,
+    occupancyTypeId: string,
+    checkIn: string,
+    checkOut: string,
+  ): Promise<{ pricePerNight: number | null; periodId: string | null; spansMultiplePeriods: boolean }> {
+    const roomType = await this.roomTypesRepo.findOne({ where: { id: roomTypeId, tenantId } });
+    if (!roomType) throw new NotFoundException('Тип номера не найден');
+
+    const pricing = await this.getRoomPricing(tenantId, roomType.hotelId, roomTypeId);
+    const checkInPeriod = pricing.periods.find((p) => checkIn >= p.startDate && checkIn <= p.endDate);
+    if (!checkInPeriod) return { pricePerNight: null, periodId: null, spansMultiplePeriods: false };
+
+    const row = pricing.occupancyRows.find((r) => r.id === occupancyTypeId);
+    if (!row) return { pricePerNight: null, periodId: checkInPeriod.id, spansMultiplePeriods: false };
+
+    const checkOutPeriod = pricing.periods.find((p) => checkOut >= p.startDate && checkOut <= p.endDate);
+    const spansMultiplePeriods = !checkOutPeriod || checkOutPeriod.id !== checkInPeriod.id;
+
+    return {
+      pricePerNight: row.pricesByPeriod[checkInPeriod.id] ?? null,
+      periodId: checkInPeriod.id,
+      spansMultiplePeriods,
+    };
+  }
 }

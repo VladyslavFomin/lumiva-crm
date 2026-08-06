@@ -53,6 +53,7 @@ import { HotelFeedController } from './hotel-feed.controller';
 
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
+import { MailModule } from '../mail/mail.module';
 
 @Module({
   imports: [
@@ -81,6 +82,7 @@ import { AutomationsModule } from '../automations/automations.module';
     ]),
     RbacModule,
     forwardRef(() => AutomationsModule),
+    MailModule,
   ],
   controllers: [
     // Order matters: HotelReservationsController's bare `GET hotels/reservations` must be
