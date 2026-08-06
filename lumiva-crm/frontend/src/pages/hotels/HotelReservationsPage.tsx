@@ -533,7 +533,10 @@ const ReservationModal: React.FC<{
     if (!roomTypeId || !occupancyTypeId || !checkIn || !checkOut) return;
     fetchReservationPrice(roomTypeId, occupancyTypeId, checkIn, checkOut)
       .then((r) => {
-        if (r.pricePerNight === null) return;
+        if (r.pricePerNight === null) {
+          setPriceWarning('Нет настроенного периода цен на эти даты («Цены и рынки») — введите цену вручную');
+          return;
+        }
         setPpPerNight(String(r.pricePerNight));
         setGrossPerNight(String(r.pricePerNight));
         if (r.spansMultiplePeriods) {
