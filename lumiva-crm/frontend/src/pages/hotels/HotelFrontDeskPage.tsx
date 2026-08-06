@@ -31,9 +31,19 @@ export const HotelFrontDeskPage: React.FC = () => {
   const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
   const [data, setData] = useState<HotelFrontDeskToday | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [checkInUnitByReservation, setCheckInUnitByReservation] = useState<Record<string, string>>({});
 
   const roomTypeById = useMemo(() => new Map(roomTypes.map((r) => [r.id, r])), [roomTypes]);
   const roomUnitById = useMemo(() => new Map(roomUnits.map((u) => [u.id, u])), [roomUnits]);
+  const activeUnitsByRoomType = useMemo(() => {
+    const map = new Map<string, HotelRoomUnit[]>();
+    for (const u of roomUnits) {
+      if (!u.active) continue;
+      if (!map.has(u.roomTypeId)) map.set(u.roomTypeId, []);
+      map.get(u.roomTypeId)!.push(u);
+    }
+    return map;
+  }, [roomUnits]);
 
   const load = () => {
     fetchFrontDeskToday(date, hotelId || undefined)
@@ -64,7 +74,7 @@ export const HotelFrontDeskPage: React.FC = () => {
 
   const handleCheckIn = (id: string) => {
     setBusyId(id);
-    checkInReservation(id)
+    checkInReservation(id, checkInUnitByReservation[id] || undefined)
       .then(() => load())
       .catch((e) => showAlert(e.message || 'Не удалось заселить', { variant: 'error' }))
       .finally(() => setBusyId(null));
@@ -124,18 +134,35 @@ export const HotelFrontDeskPage: React.FC = () => {
               <table className="bk-table">
                 <thead><tr><th>Гость</th><th>Номер</th><th>Ночей</th><th /></tr></thead>
                 <tbody>
-                  {(data?.arrivals ?? []).map((r) => (
-                    <tr key={r.id}>
-                      <td style={{ fontWeight: 600 }}>{r.guestName}</td>
-                      <td style={{ fontSize: 11.5 }}>{roomCell(r)}</td>
-                      <td style={{ fontSize: 11.5 }}>{r.pax} pax</td>
-                      <td>
-                        <button className="btn btn-sm btn-primary" disabled={busyId === r.id} onClick={() => handleCheckIn(r.id)}>
-                          <Ic d={HTL_ICON.check} size={12} />Заселить
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {(data?.arrivals ?? []).map((r) => {
+                    const units = activeUnitsByRoomType.get(r.roomTypeId) || [];
+                    const selectedUnitId = checkInUnitByReservation[r.id] ?? r.roomUnitId ?? '';
+                    return (
+                      <tr key={r.id}>
+                        <td style={{ fontWeight: 600 }}>{r.guestName}</td>
+                        <td style={{ fontSize: 11.5 }}>
+                          {units.length > 0 ? (
+                            <select
+                              value={selectedUnitId}
+                              onChange={(e) => setCheckInUnitByReservation((prev) => ({ ...prev, [r.id]: e.target.value }))}
+                              style={{ padding: '4px 6px', border: '1px solid var(--line-2)', borderRadius: 6, fontSize: 11.5 }}
+                            >
+                              <option value="">Без номера — {roomTypeById.get(r.roomTypeId)?.name || '—'}</option>
+                              {units.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+                            </select>
+                          ) : (
+                            roomCell(r)
+                          )}
+                        </td>
+                        <td style={{ fontSize: 11.5 }}>{r.pax} pax</td>
+                        <td>
+                          <button className="btn btn-sm btn-primary" disabled={busyId === r.id} onClick={() => handleCheckIn(r.id)}>
+                            <Ic d={HTL_ICON.check} size={12} />Заселить
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {(data?.arrivals ?? []).length === 0 && (
                     <tr><td colSpan={4} style={{ textAlign: 'center', color: 'var(--fg-3)', padding: 20 }}>Нет заездов</td></tr>
                   )}
