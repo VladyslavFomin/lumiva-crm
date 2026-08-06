@@ -26,6 +26,14 @@ export interface HotelReservationPayment {
   note: string | null;
 }
 
+export interface HotelReservationGuest {
+  id: string;
+  fullName: string;
+  passportNumber: string;
+  age: string;
+  note: string | null;
+}
+
 /** Гость хранится как обычное имя/pax — без Contact/Lead-матчинга (решение
  * пользователя в plan mode: ни один из 7 макетов не показывает CRM-привязку гостя). */
 @Entity('hotel_reservations')
@@ -138,6 +146,12 @@ export class HotelReservation {
 
   @Column({ type: 'text', nullable: true })
   notes: string | null;
+
+  /** Full guest manifest for check-in (name/passport/age per guest) — separate from
+   * guestName/guestEmail/guestPhone above, which stay the "booking contact" used for
+   * automations/email. Not auto-synced with pax — both are independently editable. */
+  @Column({ type: 'jsonb', default: [] })
+  guests: HotelReservationGuest[];
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

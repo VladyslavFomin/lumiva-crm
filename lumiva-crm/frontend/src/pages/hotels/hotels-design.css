@@ -119,6 +119,9 @@
 .px-scope .bk-drawer-head h3{font-family:var(--ff-display);font-size:17px;font-weight:600;letter-spacing:-0.015em;margin-top:2px}
 .px-scope .bk-drawer-head button{background:none;border:0;color:var(--fg-3);cursor:pointer;display:flex}
 .px-scope .bk-drawer-body{padding:20px 22px;flex:1}
+/* Reservation drawer needs more room (payments, guest manifest) than the shared 420px default —
+   scoped override applied alongside .bk-drawer only on that one drawer, not the shared class. */
+.px-scope .htl-res-drawer{width:min(640px, 100vw)}
 
 /* Hotel reservation system — ported verbatim from Claude Design styles/hotels.css */
 .htl-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:4px}

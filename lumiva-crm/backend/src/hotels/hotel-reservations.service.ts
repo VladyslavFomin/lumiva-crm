@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
 import {
   HotelReservation,
+  HotelReservationGuest,
   HotelReservationPaidStatus,
   HotelReservationPayment,
   HotelReservationStatus,
@@ -74,6 +75,7 @@ export interface HotelReservationInput {
   earlyCheckIn?: boolean;
   lateCheckOut?: boolean;
   notes?: string | null;
+  guests?: HotelReservationGuest[];
 }
 
 const PRICE_FIELDS = ['costPerNight', 'ppPerNight', 'grossPerNight', 'discountPct'] as const;
@@ -189,6 +191,7 @@ export class HotelReservationsService {
       earlyCheckIn: dto.earlyCheckIn ?? false,
       lateCheckOut: dto.lateCheckOut ?? false,
       notes: dto.notes ?? null,
+      guests: dto.guests ?? [],
     });
     this.computeTotals(row);
     const saved = await this.repo.save(row);

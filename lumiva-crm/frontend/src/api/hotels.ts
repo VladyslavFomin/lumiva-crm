@@ -220,6 +220,7 @@ export interface HotelReservation {
   earlyCheckIn: boolean;
   lateCheckOut: boolean;
   notes: string | null;
+  guests: HotelReservationGuest[];
   createdAt: string;
   updatedAt: string;
 }
@@ -229,6 +230,14 @@ export interface HotelReservationPayment {
   date: string;
   amount: string;
   method: string;
+  note: string | null;
+}
+
+export interface HotelReservationGuest {
+  id: string;
+  fullName: string;
+  passportNumber: string;
+  age: string;
   note: string | null;
 }
 

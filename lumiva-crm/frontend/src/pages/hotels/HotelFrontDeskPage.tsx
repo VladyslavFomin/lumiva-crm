@@ -3,15 +3,18 @@ import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
+import { HousekeepingBadge } from './HotelDetailPage';
 import {
   fetchFrontDeskToday,
   checkInReservation,
   checkOutReservation,
   fetchHotels,
   fetchRoomTypes,
+  fetchRoomUnits,
   type HotelFrontDeskToday,
   type Hotel,
   type HotelRoomType,
+  type HotelRoomUnit,
 } from '../../api/hotels';
 import './hotels-design.css';
 
@@ -25,10 +28,12 @@ export const HotelFrontDeskPage: React.FC = () => {
   const [hotelId, setHotelId] = useState('');
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [roomTypes, setRoomTypes] = useState<HotelRoomType[]>([]);
+  const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
   const [data, setData] = useState<HotelFrontDeskToday | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const roomTypeById = useMemo(() => new Map(roomTypes.map((r) => [r.id, r])), [roomTypes]);
+  const roomUnitById = useMemo(() => new Map(roomUnits.map((u) => [u.id, u])), [roomUnits]);
 
   const load = () => {
     fetchFrontDeskToday(date, hotelId || undefined)
@@ -42,7 +47,12 @@ export const HotelFrontDeskPage: React.FC = () => {
         setHotels(h);
         return Promise.all(h.map((hotel) => fetchRoomTypes(hotel.id)));
       })
-      .then((lists) => setRoomTypes(lists.flat()))
+      .then((lists) => {
+        const flat = lists.flat();
+        setRoomTypes(flat);
+        return Promise.all(flat.map((rt) => fetchRoomUnits({ roomTypeId: rt.id })));
+      })
+      .then((unitLists) => setRoomUnits(unitLists.flat()))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -58,6 +68,24 @@ export const HotelFrontDeskPage: React.FC = () => {
       .then(() => load())
       .catch((e) => showAlert(e.message || 'Не удалось заселить', { variant: 'error' }))
       .finally(() => setBusyId(null));
+  };
+
+  const roomCell = (r: { roomTypeId: string; roomUnitId: string | null }) => {
+    const unit = r.roomUnitId ? roomUnitById.get(r.roomUnitId) : undefined;
+    if (unit) {
+      return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontWeight: 600, color: 'var(--ink)' }}>
+          <HousekeepingBadge status={unit.housekeepingStatus} />
+          {unit.label}
+        </span>
+      );
+    }
+    return (
+      <span>
+        {roomTypeById.get(r.roomTypeId)?.name || '—'}
+        <span style={{ color: 'var(--fg-3)', marginLeft: 5 }}>(не назначен)</span>
+      </span>
+    );
   };
 
   const handleCheckOut = (id: string) => {
@@ -99,7 +127,7 @@ export const HotelFrontDeskPage: React.FC = () => {
                   {(data?.arrivals ?? []).map((r) => (
                     <tr key={r.id}>
                       <td style={{ fontWeight: 600 }}>{r.guestName}</td>
-                      <td style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{roomTypeById.get(r.roomTypeId)?.name || '—'}</td>
+                      <td style={{ fontSize: 11.5 }}>{roomCell(r)}</td>
                       <td style={{ fontSize: 11.5 }}>{r.pax} pax</td>
                       <td>
                         <button className="btn btn-sm btn-primary" disabled={busyId === r.id} onClick={() => handleCheckIn(r.id)}>
@@ -127,7 +155,7 @@ export const HotelFrontDeskPage: React.FC = () => {
                   {(data?.departures ?? []).map((r) => (
                     <tr key={r.id}>
                       <td style={{ fontWeight: 600 }}>{r.guestName}</td>
-                      <td style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{roomTypeById.get(r.roomTypeId)?.name || '—'}</td>
+                      <td style={{ fontSize: 11.5 }}>{roomCell(r)}</td>
                       <td style={{ fontSize: 11.5 }}>{r.pax} pax</td>
                       <td>
                         <button className="btn btn-sm btn-primary" disabled={busyId === r.id} onClick={() => handleCheckOut(r.id)}>

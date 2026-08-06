@@ -3,6 +3,7 @@ import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
+import { HousekeepingBadge } from './HotelDetailPage';
 import {
   fetchReservations,
   createReservation,
@@ -29,6 +30,7 @@ import {
   type HotelAgency,
   type HotelRoomUnit,
   type HotelRoomOccupancyType,
+  type HotelReservationGuest,
   type HotelReservationImportPreview,
 } from '../../api/hotels';
 import './hotels-design.css';
@@ -52,6 +54,7 @@ export const HotelReservationsPage: React.FC = () => {
   const [reservations, setReservations] = useState<HotelReservation[]>([]);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [roomTypes, setRoomTypes] = useState<HotelRoomType[]>([]);
+  const [allRoomUnits, setAllRoomUnits] = useState<HotelRoomUnit[]>([]);
   const [agencies, setAgencies] = useState<HotelAgency[]>([]);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('all');
@@ -73,6 +76,7 @@ export const HotelReservationsPage: React.FC = () => {
   const hotelById = useMemo(() => new Map(hotels.map((h) => [h.id, h])), [hotels]);
   const roomTypeById = useMemo(() => new Map(roomTypes.map((r) => [r.id, r])), [roomTypes]);
   const agencyById = useMemo(() => new Map(agencies.map((a) => [a.id, a])), [agencies]);
+  const roomUnitById = useMemo(() => new Map(allRoomUnits.map((u) => [u.id, u])), [allRoomUnits]);
 
   const load = () => {
     fetchReservations()
@@ -87,7 +91,12 @@ export const HotelReservationsPage: React.FC = () => {
         setHotels(h);
         return Promise.all(h.map((hotel) => fetchRoomTypes(hotel.id)));
       })
-      .then((lists) => setRoomTypes(lists.flat()))
+      .then((lists) => {
+        const flat = lists.flat();
+        setRoomTypes(flat);
+        return Promise.all(flat.map((rt) => fetchRoomUnits({ roomTypeId: rt.id })));
+      })
+      .then((unitLists) => setAllRoomUnits(unitLists.flat()))
       .catch((e) => showAlert(e.message || 'Не удалось загрузить отели', { variant: 'error' }));
     fetchAgencies()
       .then(setAgencies)
@@ -224,7 +233,15 @@ export const HotelReservationsPage: React.FC = () => {
                   <td style={{ fontWeight: 600 }}>{r.guestName}</td>
                   <td>
                     <div>{hotelById.get(r.hotelId)?.name || '—'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--fg-3)' }}>{roomTypeById.get(r.roomTypeId)?.name || '—'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                      {roomTypeById.get(r.roomTypeId)?.name || '—'}
+                      {r.roomUnitId && roomUnitById.get(r.roomUnitId) && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600, color: 'var(--ink)' }}>
+                          · <HousekeepingBadge status={roomUnitById.get(r.roomUnitId)!.housekeepingStatus} />
+                          {roomUnitById.get(r.roomUnitId)!.label}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td><span className="agency-pill"><i />{r.agencyId ? agencyById.get(r.agencyId)?.name || '—' : '—'}</span></td>
                   <td style={{ fontSize: 11, color: 'var(--fg-3)' }}>{new Date(r.createdAt).toLocaleDateString('ru-RU')}</td>
@@ -247,7 +264,7 @@ export const HotelReservationsPage: React.FC = () => {
       {selected && (
         <div className="px-scope">
           <div className="bk-drawer-back" onClick={() => setSelected(null)} />
-          <div className="bk-drawer" onClick={(e) => e.stopPropagation()}>
+          <div className="bk-drawer htl-res-drawer" onClick={(e) => e.stopPropagation()}>
             <div className="bk-drawer-head">
               <div>
                 <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>{selected.id.slice(0, 8)}</div>
@@ -260,7 +277,20 @@ export const HotelReservationsPage: React.FC = () => {
             </div>
             <div className="bk-drawer-body">
               <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-                <div className="htl-info-item"><div className="l">Отель / номер</div><div className="v" style={{ fontSize: 12.5 }}>{hotelById.get(selected.hotelId)?.name}<br /><span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>{roomTypeById.get(selected.roomTypeId)?.name}</span></div></div>
+                <div className="htl-info-item"><div className="l">Отель / тип номера</div><div className="v" style={{ fontSize: 12.5 }}>{hotelById.get(selected.hotelId)?.name}<br /><span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>{roomTypeById.get(selected.roomTypeId)?.name}</span></div></div>
+                <div className="htl-info-item">
+                  <div className="l">Номер</div>
+                  <div className="v" style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {selected.roomUnitId && roomUnitById.get(selected.roomUnitId) ? (
+                      <>
+                        <HousekeepingBadge status={roomUnitById.get(selected.roomUnitId)!.housekeepingStatus} />
+                        {roomUnitById.get(selected.roomUnitId)!.label}
+                      </>
+                    ) : (
+                      <span style={{ color: 'var(--fg-3)' }}>не назначен</span>
+                    )}
+                  </div>
+                </div>
                 <div className="htl-info-item"><div className="l">Агентство</div><div className="v" style={{ fontSize: 12.5 }}>{selected.agencyId ? agencyById.get(selected.agencyId)?.name : '—'}</div></div>
                 <div className="htl-info-item"><div className="l">Email гостя</div><div className="v" style={{ fontSize: 12.5 }}>{selected.guestEmail || '—'}</div></div>
                 <div className="htl-info-item"><div className="l">Телефон гостя</div><div className="v" style={{ fontSize: 12.5 }}>{selected.guestPhone || '—'}</div></div>
@@ -513,6 +543,12 @@ const ReservationModal: React.FC<{
   const [earlyCheckIn, setEarlyCheckIn] = useState(initial?.earlyCheckIn || false);
   const [lateCheckOut, setLateCheckOut] = useState(initial?.lateCheckOut || false);
   const [notes, setNotes] = useState(initial?.notes || '');
+  const [guests, setGuests] = useState<HotelReservationGuest[]>(initial?.guests || []);
+
+  const addGuestRow = () => setGuests((prev) => [...prev, { id: crypto.randomUUID(), fullName: '', passportNumber: '', age: '', note: null }]);
+  const updateGuestRow = (id: string, patch: Partial<HotelReservationGuest>) =>
+    setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
+  const removeGuestRow = (id: string) => setGuests((prev) => prev.filter((g) => g.id !== id));
 
   const [occupancyTypes, setOccupancyTypes] = useState<HotelRoomOccupancyType[]>([]);
   const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
@@ -574,6 +610,7 @@ const ReservationModal: React.FC<{
       earlyCheckIn,
       lateCheckOut,
       notes: notes || null,
+      guests,
     };
     const req = initial ? updateReservation(initial.id, dto) : createReservation(dto);
     req
@@ -674,6 +711,50 @@ const ReservationModal: React.FC<{
             rows={2}
             style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, resize: 'vertical' }}
           />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16 }}>
+            <label style={{ margin: 0 }}>Гости</label>
+            <button type="button" className="btn btn-sm" onClick={addGuestRow}><Ic d={HTL_ICON.plus} size={12} />Добавить гостя</button>
+          </div>
+          {guests.length === 0 && (
+            <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 6 }}>Гости ещё не добавлены</div>
+          )}
+          {guests.map((g) => (
+            <div key={g.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
+              <input
+                placeholder="ФИО"
+                value={g.fullName}
+                onChange={(e) => updateGuestRow(g.id, { fullName: e.target.value })}
+                style={{ flex: 2, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+              />
+              <input
+                placeholder="Паспорт №"
+                value={g.passportNumber}
+                onChange={(e) => updateGuestRow(g.id, { passportNumber: e.target.value })}
+                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+              />
+              <input
+                placeholder="Возраст"
+                value={g.age}
+                onChange={(e) => updateGuestRow(g.id, { age: e.target.value })}
+                style={{ width: 70, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+              />
+              <input
+                placeholder="Примечание"
+                value={g.note || ''}
+                onChange={(e) => updateGuestRow(g.id, { note: e.target.value || null })}
+                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+              />
+              <button
+                type="button"
+                onClick={() => removeGuestRow(g.id)}
+                title="Удалить гостя"
+                style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', display: 'flex', flexShrink: 0 }}
+              >
+                <Ic d={HTL_ICON.x} size={13} />
+              </button>
+            </div>
+          ))}
         </div>
         <div className="bk-modal-foot">
           <button className="btn" onClick={onClose}>Отмена</button>
