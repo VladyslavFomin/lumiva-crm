@@ -11,10 +11,12 @@ import {
   fetchHotels,
   fetchRoomTypes,
   fetchRoomUnits,
+  fetchReservations,
   type HotelFrontDeskToday,
   type Hotel,
   type HotelRoomType,
   type HotelRoomUnit,
+  type HotelReservation,
 } from '../../api/hotels';
 import './hotels-design.css';
 
@@ -30,6 +32,7 @@ export const HotelFrontDeskPage: React.FC = () => {
   const [roomTypes, setRoomTypes] = useState<HotelRoomType[]>([]);
   const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
   const [data, setData] = useState<HotelFrontDeskToday | null>(null);
+  const [allReservations, setAllReservations] = useState<HotelReservation[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [checkInUnitByReservation, setCheckInUnitByReservation] = useState<Record<string, string>>({});
 
@@ -63,6 +66,8 @@ export const HotelFrontDeskPage: React.FC = () => {
         return Promise.all(flat.map((rt) => fetchRoomUnits({ roomTypeId: rt.id })));
       })
       .then((unitLists) => setRoomUnits(unitLists.flat()))
+      .then(() => fetchReservations())
+      .then(setAllReservations)
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -78,6 +83,16 @@ export const HotelFrontDeskPage: React.FC = () => {
       .then(() => load())
       .catch((e) => showAlert(e.message || 'Не удалось заселить', { variant: 'error' }))
       .finally(() => setBusyId(null));
+  };
+
+  const occupiedUnitIdsFor = (r: HotelFrontDeskToday['arrivals'][number]) => {
+    const set = new Set<string>();
+    for (const other of allReservations) {
+      if (!other.roomUnitId || other.status === 'cancelled' || other.id === r.id) continue;
+      if (other.roomTypeId !== r.roomTypeId) continue;
+      if (other.checkIn < r.checkOut && other.checkOut > r.checkIn) set.add(other.roomUnitId);
+    }
+    return set;
   };
 
   const roomCell = (r: { roomTypeId: string; roomUnitId: string | null }) => {
@@ -137,6 +152,7 @@ export const HotelFrontDeskPage: React.FC = () => {
                   {(data?.arrivals ?? []).map((r) => {
                     const units = activeUnitsByRoomType.get(r.roomTypeId) || [];
                     const selectedUnitId = checkInUnitByReservation[r.id] ?? r.roomUnitId ?? '';
+                    const occupied = occupiedUnitIdsFor(r);
                     return (
                       <tr key={r.id}>
                         <td style={{ fontWeight: 600 }}>{r.guestName}</td>
@@ -148,7 +164,14 @@ export const HotelFrontDeskPage: React.FC = () => {
                               style={{ padding: '4px 6px', border: '1px solid var(--line-2)', borderRadius: 6, fontSize: 11.5 }}
                             >
                               <option value="">Без номера — {roomTypeById.get(r.roomTypeId)?.name || '—'}</option>
-                              {units.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+                              {units.map((u) => {
+                                const isOccupied = occupied.has(u.id);
+                                return (
+                                  <option key={u.id} value={u.id} disabled={isOccupied} style={{ color: isOccupied ? '#d64545' : '#2f9e5c' }}>
+                                    {u.label}{isOccupied ? ' — занят' : ' — свободен'}
+                                  </option>
+                                );
+                              })}
                             </select>
                           ) : (
                             roomCell(r)

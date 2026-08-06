@@ -20,6 +20,8 @@ import {
   fetchAgencies,
   fetchRoomUnits,
   fetchOccupancyTypes,
+  fetchMarkets,
+  fetchMarketPrices,
   previewReservationsImport,
   applyReservationsImport,
   HOTEL_RESERVATION_STATUS_LABELS_RU,
@@ -30,6 +32,8 @@ import {
   type HotelAgency,
   type HotelRoomUnit,
   type HotelRoomOccupancyType,
+  type HotelMarket,
+  type HotelRoomMarketPrice,
   type HotelReservationGuest,
   type HotelReservationImportPreview,
 } from '../../api/hotels';
@@ -312,6 +316,27 @@ export const HotelReservationsPage: React.FC = () => {
                 <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--fg-3)', whiteSpace: 'pre-wrap' }}>{selected.notes}</div>
               )}
 
+              {selected.guests.length > 0 && (
+                <>
+                  <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>
+                    Гости ({selected.guests.length})
+                  </div>
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {selected.guests.map((g) => (
+                      <div key={g.id} style={{ border: '1px solid var(--line-2)', borderRadius: 10, padding: '8px 10px', fontSize: 12.5 }}>
+                        <div style={{ fontWeight: 600 }}>{g.fullName || '—'}{g.age ? `, ${g.age} лет` : ''}</div>
+                        <div style={{ color: 'var(--fg-3)', fontSize: 11.5, marginTop: 2 }}>
+                          {g.citizenship && <span>{g.citizenship} · </span>}
+                          {g.passportNumber && <span>паспорт {g.passportNumber}</span>}
+                          {g.passportExpiry && <span> (до {g.passportExpiry})</span>}
+                        </div>
+                        {g.note && <div style={{ color: 'var(--fg-3)', fontSize: 11.5, marginTop: 2 }}>{g.note}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+
               <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>Финансовая раскладка</div>
               <div className="htl-price-breakdown" style={{ marginTop: 8 }}>
                 <div className="row"><span>Себестоимость / ночь</span><b>${selected.costPerNight}</b></div>
@@ -545,23 +570,47 @@ const ReservationModal: React.FC<{
   const [notes, setNotes] = useState(initial?.notes || '');
   const [guests, setGuests] = useState<HotelReservationGuest[]>(initial?.guests || []);
 
-  const addGuestRow = () => setGuests((prev) => [...prev, { id: crypto.randomUUID(), fullName: '', passportNumber: '', age: '', note: null }]);
+  const addGuestRow = () => setGuests((prev) => [...prev, { id: crypto.randomUUID(), fullName: '', citizenship: '', passportNumber: '', passportExpiry: '', age: '', note: null }]);
   const updateGuestRow = (id: string, patch: Partial<HotelReservationGuest>) =>
     setGuests((prev) => prev.map((g) => (g.id === id ? { ...g, ...patch } : g)));
   const removeGuestRow = (id: string) => setGuests((prev) => prev.filter((g) => g.id !== id));
 
   const [occupancyTypes, setOccupancyTypes] = useState<HotelRoomOccupancyType[]>([]);
   const [roomUnits, setRoomUnits] = useState<HotelRoomUnit[]>([]);
+  const [markets, setMarkets] = useState<HotelMarket[]>([]);
+  const [marketPrices, setMarketPrices] = useState<HotelRoomMarketPrice[]>([]);
+  const [roomTypeReservations, setRoomTypeReservations] = useState<HotelReservation[]>([]);
   const [priceWarning, setPriceWarning] = useState('');
   const pricesTouchedManually = React.useRef(false);
 
   const roomsForHotel = roomTypes.filter((r) => r.hotelId === hotelId);
 
   useEffect(() => {
-    if (!roomTypeId) { setOccupancyTypes([]); setRoomUnits([]); return; }
+    if (!hotelId) { setMarkets([]); return; }
+    fetchMarkets(hotelId).then(setMarkets).catch(() => setMarkets([]));
+  }, [hotelId]);
+
+  useEffect(() => {
+    if (!roomTypeId) { setOccupancyTypes([]); setRoomUnits([]); setMarketPrices([]); setRoomTypeReservations([]); return; }
     fetchOccupancyTypes(roomTypeId).then(setOccupancyTypes).catch(() => setOccupancyTypes([]));
     fetchRoomUnits({ roomTypeId }).then((units) => setRoomUnits(units.filter((u) => u.active))).catch(() => setRoomUnits([]));
+    fetchMarketPrices(roomTypeId).then(setMarketPrices).catch(() => setMarketPrices([]));
+    fetchReservations({ roomTypeId }).then(setRoomTypeReservations).catch(() => setRoomTypeReservations([]));
   }, [roomTypeId]);
+
+  // Units already booked for an overlapping range on the picked dates — excludes this same
+  // reservation's own existing booking when editing, mirrors HotelAvailabilityService's
+  // excludeReservationId convention server-side.
+  const occupiedUnitIds = useMemo(() => {
+    const set = new Set<string>();
+    if (!checkIn || !checkOut) return set;
+    for (const r of roomTypeReservations) {
+      if (!r.roomUnitId || r.status === 'cancelled') continue;
+      if (initial && r.id === initial.id) continue;
+      if (r.checkIn < checkOut && r.checkOut > checkIn) set.add(r.roomUnitId);
+    }
+    return set;
+  }, [roomTypeReservations, checkIn, checkOut, initial]);
 
   useEffect(() => {
     setPriceWarning('');
@@ -574,6 +623,8 @@ const ReservationModal: React.FC<{
           return;
         }
         setPpPerNight(String(r.pricePerNight));
+        // Brutto/ночь falls back to this occupancy-based price too — the market-price effect
+        // below overrides it once a market with a configured flat price is picked.
         setGrossPerNight(String(r.pricePerNight));
         if (r.spansMultiplePeriods) {
           setPriceWarning('Бронь пересекает периоды цен — проверьте цену вручную');
@@ -582,6 +633,20 @@ const ReservationModal: React.FC<{
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomTypeId, occupancyTypeId, checkIn, checkOut]);
+
+  // Market's flat per-market price (independent pricing mechanism, deliberately not reconciled
+  // with the occupancy-based one above) drives Brutto/ночь — the retail sell price for that
+  // market — while occupancy+dates above drives PP/ночь.
+  // fetchMarketPrices returns every historical price row, including orphaned ones left behind
+  // by deleted markets that happen to share a code with a currently-valid one — filter to only
+  // marketIds that still exist in `markets` before matching by code, or a stale $0 row can win.
+  useEffect(() => {
+    if (pricesTouchedManually.current) return;
+    if (!market || !marketPrices.length || !markets.length) return;
+    const validMarketIds = new Set(markets.map((m) => m.id));
+    const match = marketPrices.find((mp) => mp.code === market && validMarketIds.has(mp.marketId));
+    if (match) setGrossPerNight(match.price);
+  }, [market, marketPrices, markets]);
 
   const handleSave = () => {
     if (!guestName.trim() || !hotelId || !roomTypeId || !checkIn || !checkOut) {
@@ -661,7 +726,14 @@ const ReservationModal: React.FC<{
               <label>Номер</label>
               <select value={roomUnitId} onChange={(e) => setRoomUnitId(e.target.value)} disabled={!roomTypeId}>
                 <option value="">Без номера</option>
-                {roomUnits.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+                {roomUnits.map((u) => {
+                  const occupied = occupiedUnitIds.has(u.id);
+                  return (
+                    <option key={u.id} value={u.id} disabled={occupied} style={{ color: occupied ? '#d64545' : '#2f9e5c' }}>
+                      {u.label}{occupied ? ' — занят на эти даты' : ' — свободен'}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
@@ -680,7 +752,13 @@ const ReservationModal: React.FC<{
             </div>
           </div>
           <label>Рынок продаж</label>
-          <input placeholder="СНГ, Германия, Внутренний…" value={market} onChange={(e) => setMarket(e.target.value)} />
+          <select value={market} onChange={(e) => setMarket(e.target.value)} disabled={!markets.length}>
+            <option value="">—</option>
+            {markets.map((m) => <option key={m.id} value={m.code}>{m.name} ({m.code})</option>)}
+          </select>
+          {!markets.length && hotelId && (
+            <div style={{ fontSize: 11, color: 'var(--fg-3)', marginTop: 4 }}>У отеля ещё не настроены рынки («Цены и рынки»)</div>
+          )}
           {priceWarning && (
             <div style={{ marginTop: 8, fontSize: 11.5, color: '#cc7a00' }}>{priceWarning}</div>
           )}
@@ -719,40 +797,62 @@ const ReservationModal: React.FC<{
           {guests.length === 0 && (
             <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 6 }}>Гости ещё не добавлены</div>
           )}
-          {guests.map((g) => (
-            <div key={g.id} style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
-              <input
-                placeholder="ФИО"
-                value={g.fullName}
-                onChange={(e) => updateGuestRow(g.id, { fullName: e.target.value })}
-                style={{ flex: 2, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
-              />
-              <input
-                placeholder="Паспорт №"
-                value={g.passportNumber}
-                onChange={(e) => updateGuestRow(g.id, { passportNumber: e.target.value })}
-                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
-              />
-              <input
-                placeholder="Возраст"
-                value={g.age}
-                onChange={(e) => updateGuestRow(g.id, { age: e.target.value })}
-                style={{ width: 70, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
-              />
-              <input
-                placeholder="Примечание"
-                value={g.note || ''}
-                onChange={(e) => updateGuestRow(g.id, { note: e.target.value || null })}
-                style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
-              />
-              <button
-                type="button"
-                onClick={() => removeGuestRow(g.id)}
-                title="Удалить гостя"
-                style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', display: 'flex', flexShrink: 0 }}
-              >
-                <Ic d={HTL_ICON.x} size={13} />
-              </button>
+          {guests.map((g, gi) => (
+            <div key={g.id} style={{ border: '1px solid var(--line-2)', borderRadius: 10, padding: 10, marginTop: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Гость {gi + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removeGuestRow(g.id)}
+                  title="Удалить гостя"
+                  style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', display: 'flex' }}
+                >
+                  <Ic d={HTL_ICON.x} size={13} />
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input
+                  placeholder="ФИО"
+                  value={g.fullName}
+                  onChange={(e) => updateGuestRow(g.id, { fullName: e.target.value })}
+                  style={{ flex: 2, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                />
+                <input
+                  placeholder="Гражданство"
+                  value={g.citizenship}
+                  onChange={(e) => updateGuestRow(g.id, { citizenship: e.target.value })}
+                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                />
+                <input
+                  placeholder="Возраст"
+                  value={g.age}
+                  onChange={(e) => updateGuestRow(g.id, { age: e.target.value })}
+                  style={{ width: 70, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                <input
+                  placeholder="Паспорт №"
+                  value={g.passportNumber}
+                  onChange={(e) => updateGuestRow(g.id, { passportNumber: e.target.value })}
+                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label style={{ fontSize: 10, color: 'var(--fg-3)' }}>Паспорт действителен до</label>
+                  <input
+                    type="date"
+                    value={g.passportExpiry}
+                    onChange={(e) => updateGuestRow(g.id, { passportExpiry: e.target.value })}
+                    style={{ width: '100%', padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                  />
+                </div>
+                <input
+                  placeholder="Примечание"
+                  value={g.note || ''}
+                  onChange={(e) => updateGuestRow(g.id, { note: e.target.value || null })}
+                  style={{ flex: 1, minWidth: 0, padding: '7px 9px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
+                />
+              </div>
             </div>
           ))}
         </div>

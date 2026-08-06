@@ -236,7 +236,9 @@ export interface HotelReservationPayment {
 export interface HotelReservationGuest {
   id: string;
   fullName: string;
+  citizenship: string;
   passportNumber: string;
+  passportExpiry: string;
   age: string;
   note: string | null;
 }
