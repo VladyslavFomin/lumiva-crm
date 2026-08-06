@@ -21,6 +21,7 @@ import { HotelGalleryCategory } from './hotel-gallery-category.entity';
 import { HotelPhoto } from './hotel-photo.entity';
 import { HotelFactsheetItem } from './hotel-factsheet-item.entity';
 import { HotelInfoImportSession } from './hotel-info-import-session.entity';
+import { HotelRoomUnit } from './hotel-room-unit.entity';
 
 import { HotelsService } from './hotels.service';
 import { HotelRoomTypesService } from './hotel-room-types.service';
@@ -35,10 +36,15 @@ import { HotelReservationsService } from './hotel-reservations.service';
 import { HotelsReservationsImportService } from './hotels-reservations-import.service';
 import { HotelsPricingImportService } from './hotels-pricing-import.service';
 import { HotelsRoomPricingImportService } from './hotels-room-pricing-import.service';
+import { HotelRoomUnitsService } from './hotel-room-units.service';
+import { HotelAvailabilityService } from './hotel-availability.service';
+import { HotelFrontDeskService } from './hotel-frontdesk.service';
 
 import { HotelsController } from './hotels.controller';
 import { HotelAnalyticsController } from './hotel-analytics.controller';
 import { HotelReservationsController } from './hotel-reservations.controller';
+import { HotelRoomUnitsController } from './hotel-room-units.controller';
+import { HotelFrontDeskController } from './hotel-frontdesk.controller';
 import { HotelsReservationsImportController } from './hotels-reservations-import.controller';
 import { HotelsPricingImportController } from './hotels-pricing-import.controller';
 import { HotelsRoomPricingImportController } from './hotels-room-pricing-import.controller';
@@ -71,6 +77,7 @@ import { AutomationsModule } from '../automations/automations.module';
       HotelPhoto,
       HotelFactsheetItem,
       HotelInfoImportSession,
+      HotelRoomUnit,
     ]),
     RbacModule,
     forwardRef(() => AutomationsModule),
@@ -81,6 +88,8 @@ import { AutomationsModule } from '../automations/automations.module';
     // match "reservations" as the :id param first (same gotcha as within a single controller,
     // but here it spans two controllers under the same 'hotels' prefix).
     HotelReservationsController,
+    HotelRoomUnitsController,
+    HotelFrontDeskController,
     HotelAnalyticsController,
     HotelsReservationsImportController,
     HotelsPricingImportController,
@@ -103,6 +112,9 @@ import { AutomationsModule } from '../automations/automations.module';
     HotelsReservationsImportService,
     HotelsPricingImportService,
     HotelsRoomPricingImportService,
+    HotelRoomUnitsService,
+    HotelAvailabilityService,
+    HotelFrontDeskService,
   ],
   exports: [
     HotelReservationsService,

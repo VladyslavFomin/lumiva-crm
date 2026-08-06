@@ -7,9 +7,15 @@ import {
   fetchReservations,
   createReservation,
   updateReservation,
+  checkInReservation,
+  checkOutReservation,
+  addReservationPayment,
+  removeReservationPayment,
+  downloadReservationFolio,
   fetchHotels,
   fetchRoomTypes,
   fetchAgencies,
+  fetchRoomUnits,
   previewReservationsImport,
   applyReservationsImport,
   HOTEL_RESERVATION_STATUS_LABELS_RU,
@@ -18,6 +24,7 @@ import {
   type Hotel,
   type HotelRoomType,
   type HotelAgency,
+  type HotelRoomUnit,
   type HotelReservationImportPreview,
 } from '../../api/hotels';
 import './hotels-design.css';
@@ -49,6 +56,13 @@ export const HotelReservationsPage: React.FC = () => {
   const [showNew, setShowNew] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [checkInUnits, setCheckInUnits] = useState<HotelRoomUnit[]>([]);
+  const [checkInUnitId, setCheckInUnitId] = useState('');
+  const [checkInOutBusy, setCheckInOutBusy] = useState(false);
+  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState('card');
+  const [paymentBusy, setPaymentBusy] = useState(false);
 
   const hotelById = useMemo(() => new Map(hotels.map((h) => [h.id, h])), [hotels]);
   const roomTypeById = useMemo(() => new Map(roomTypes.map((r) => [r.id, r])), [roomTypes]);
@@ -74,6 +88,49 @@ export const HotelReservationsPage: React.FC = () => {
       .catch((e) => showAlert(e.message || 'Не удалось загрузить агентства', { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setCheckInUnitId('');
+    if (selected && (selected.status === 'confirmed' || selected.status === 'pending')) {
+      fetchRoomUnits({ roomTypeId: selected.roomTypeId }).then((units) => setCheckInUnits(units.filter((u) => u.active))).catch(() => setCheckInUnits([]));
+    } else {
+      setCheckInUnits([]);
+    }
+  }, [selected?.id, selected?.roomTypeId, selected?.status]);
+
+  const handleCheckIn = () => {
+    if (!selected) return;
+    setCheckInOutBusy(true);
+    checkInReservation(selected.id, checkInUnitId || undefined)
+      .then((r) => { setSelected(r); load(); })
+      .catch((e) => showAlert(e.message || 'Не удалось заселить', { variant: 'error' }))
+      .finally(() => setCheckInOutBusy(false));
+  };
+
+  const handleCheckOut = () => {
+    if (!selected) return;
+    setCheckInOutBusy(true);
+    checkOutReservation(selected.id)
+      .then((r) => { setSelected(r); load(); })
+      .catch((e) => showAlert(e.message || 'Не удалось выселить', { variant: 'error' }))
+      .finally(() => setCheckInOutBusy(false));
+  };
+
+  const handleAddPayment = () => {
+    if (!selected || !paymentAmount) return;
+    setPaymentBusy(true);
+    addReservationPayment(selected.id, { date: paymentDate, amount: paymentAmount, method: paymentMethod })
+      .then((r) => { setSelected(r); load(); setPaymentAmount(''); })
+      .catch((e) => showAlert(e.message || 'Не удалось добавить платёж', { variant: 'error' }))
+      .finally(() => setPaymentBusy(false));
+  };
+
+  const handleRemovePayment = (paymentId: string) => {
+    if (!selected) return;
+    removeReservationPayment(selected.id, paymentId)
+      .then((r) => { setSelected(r); load(); })
+      .catch((e) => showAlert(e.message || 'Не удалось удалить платёж', { variant: 'error' }));
+  };
 
   const filtered = useMemo(
     () =>
@@ -208,10 +265,107 @@ export const HotelReservationsPage: React.FC = () => {
                 <div className="row final" style={{ gridColumn: '1 / -1' }}><span>Итоговая стоимость</span><b>${Number(selected.total).toLocaleString(undefined, { maximumFractionDigits: 2 })}</b></div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14, fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 13 }}>
                 <span style={{ color: 'var(--fg-3)' }}>Статус оплаты</span>
-                <span style={{ fontWeight: 600 }}>{HOTEL_RESERVATION_PAID_LABELS_RU[selected.paidStatus]}</span>
+                <select
+                  style={{ padding: '6px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5, fontWeight: 600 }}
+                  value={selected.paidStatus}
+                  onChange={(e) => {
+                    const paidStatus = e.target.value as HotelReservation['paidStatus'];
+                    updateReservation(selected.id, { paidStatus })
+                      .then((r) => { setSelected(r); load(); })
+                      .catch((err) => showAlert(err.message || 'Не удалось обновить статус оплаты', { variant: 'error' }));
+                  }}
+                >
+                  {Object.entries(HOTEL_RESERVATION_PAID_LABELS_RU).map(([k, l]) => (
+                    <option key={k} value={k}>{l}</option>
+                  ))}
+                </select>
               </div>
+
+              {selected.depositAmount && Number(selected.depositAmount) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8, fontSize: 13 }}>
+                  <span style={{ color: 'var(--fg-3)' }}>Депозит</span>
+                  <span style={{ fontWeight: 600 }}>${selected.depositAmount}</span>
+                </div>
+              )}
+
+              <div style={{ marginTop: 16, fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em' }}>Платежи</div>
+              <div style={{ marginTop: 8 }}>
+                {selected.payments.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>Платежей ещё нет</div>
+                )}
+                {selected.payments.map((p) => (
+                  <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid var(--line-2)', fontSize: 12.5 }}>
+                    <span>{p.date} · {p.method}{p.note ? ` · ${p.note}` : ''}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <b>${p.amount}</b>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePayment(p.id)}
+                        title="Удалить платёж"
+                        style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', display: 'flex' }}
+                      >
+                        <Ic d={HTL_ICON.x} size={12} />
+                      </button>
+                    </span>
+                  </div>
+                ))}
+                <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                  <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} style={{ width: 130, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }} />
+                  <input placeholder="Сумма" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} style={{ width: 70, padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }} />
+                  <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} style={{ padding: '6px 8px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12 }}>
+                    <option value="card">Карта</option>
+                    <option value="cash">Наличные</option>
+                    <option value="transfer">Перевод</option>
+                  </select>
+                  <button className="btn btn-sm" disabled={paymentBusy || !paymentAmount} onClick={handleAddPayment}>
+                    <Ic d={HTL_ICON.plus} size={12} />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                className="btn"
+                style={{ width: '100%', marginTop: 12 }}
+                onClick={() => downloadReservationFolio(selected.id).catch((e) => showAlert(e.message || 'Не удалось скачать счёт', { variant: 'error' }))}
+              >
+                <Ic d={HTL_ICON.download} size={14} />Скачать счёт (PDF)
+              </button>
+
+              {(selected.checkedInAt || selected.checkedOutAt) && (
+                <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr', marginTop: 10 }}>
+                  {selected.checkedInAt && (
+                    <div className="htl-info-item"><div className="l">Заселён</div><div className="v" style={{ fontSize: 12.5 }}>{new Date(selected.checkedInAt).toLocaleString('ru-RU')}</div></div>
+                  )}
+                  {selected.checkedOutAt && (
+                    <div className="htl-info-item"><div className="l">Выселен</div><div className="v" style={{ fontSize: 12.5 }}>{new Date(selected.checkedOutAt).toLocaleString('ru-RU')}</div></div>
+                  )}
+                </div>
+              )}
+
+              {(selected.status === 'confirmed' || selected.status === 'pending') && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
+                  {checkInUnits.length > 0 && (
+                    <select
+                      style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--line-2)', borderRadius: 8 }}
+                      value={checkInUnitId}
+                      onChange={(e) => setCheckInUnitId(e.target.value)}
+                    >
+                      <option value="">Без номера</option>
+                      {checkInUnits.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+                    </select>
+                  )}
+                  <button className="btn btn-primary" style={{ flex: 1 }} disabled={checkInOutBusy} onClick={handleCheckIn}>
+                    <Ic d={HTL_ICON.check} size={14} />Заселить
+                  </button>
+                </div>
+              )}
+              {selected.status === 'checked_in' && (
+                <button className="btn btn-primary" style={{ width: '100%', marginTop: 16 }} disabled={checkInOutBusy} onClick={handleCheckOut}>
+                  <Ic d={HTL_ICON.check} size={14} />Выселить
+                </button>
+              )}
 
               <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
                 <select
@@ -304,6 +458,7 @@ const NewReservationModal: React.FC<{
   const [ppPerNight, setPpPerNight] = useState('0');
   const [grossPerNight, setGrossPerNight] = useState('0');
   const [discountPct, setDiscountPct] = useState('0');
+  const [depositAmount, setDepositAmount] = useState('0');
 
   const roomsForHotel = roomTypes.filter((r) => r.hotelId === hotelId);
 
@@ -328,6 +483,7 @@ const NewReservationModal: React.FC<{
       ppPerNight,
       grossPerNight,
       discountPct,
+      depositAmount,
     })
       .then(() => onCreated())
       .catch((e) => showAlert(e.message || 'Не удалось создать бронь', { variant: 'error' }))
@@ -388,6 +544,8 @@ const NewReservationModal: React.FC<{
             <div><label>Brutto/ночь</label><input value={grossPerNight} onChange={(e) => setGrossPerNight(e.target.value)} /></div>
             <div><label>Скидка, %</label><input value={discountPct} onChange={(e) => setDiscountPct(e.target.value)} /></div>
           </div>
+          <label>Депозит</label>
+          <input value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} />
         </div>
         <div className="bk-modal-foot">
           <button className="btn" onClick={onClose}>Отмена</button>

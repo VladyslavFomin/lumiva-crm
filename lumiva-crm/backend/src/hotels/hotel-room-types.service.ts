@@ -298,6 +298,35 @@ export class HotelRoomTypesService {
     };
   }
 
+  /** Max-concurrent overlapping active-reservation count per day in [from,to) — same overlap
+   * query shape as getMonthFillStats, but bucketed per day instead of averaged, since a monthly
+   * average can't answer "is Sept 3rd full." Used by HotelAvailabilityService for real
+   * overbooking blocking. */
+  async getConcurrentCountsByDay(
+    tenantId: string,
+    roomTypeId: string,
+    from: string,
+    to: string,
+    excludeReservationId?: string,
+  ): Promise<Record<string, number>> {
+    const qb = this.reservationsRepo
+      .createQueryBuilder('r')
+      .where('r.tenantId = :tenantId', { tenantId })
+      .andWhere('r.roomTypeId = :roomTypeId', { roomTypeId })
+      .andWhere('r.status != :cancelled', { cancelled: 'cancelled' })
+      .andWhere('r.checkIn < :to', { to })
+      .andWhere('r.checkOut > :from', { from });
+    if (excludeReservationId) qb.andWhere('r.id != :excludeId', { excludeId: excludeReservationId });
+    const reservations = await qb.getMany();
+
+    const counts: Record<string, number> = {};
+    for (let d = new Date(`${from}T00:00:00Z`); d < new Date(`${to}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + 1)) {
+      const day = d.toISOString().slice(0, 10);
+      counts[day] = reservations.filter((r) => r.checkIn <= day && r.checkOut > day).length;
+    }
+    return counts;
+  }
+
   /* ---------- occupancy types (Цены с размещением) ---------- */
 
   listOccupancyTypes(tenantId: string, roomTypeId: string) {

@@ -18,6 +18,14 @@ export type HotelReservationPaidStatus = 'full' | 'partial' | 'none' | 'refunded
 
 export type HotelReservationSource = 'manual' | 'import';
 
+export interface HotelReservationPayment {
+  id: string;
+  date: string;
+  amount: string;
+  method: string;
+  note: string | null;
+}
+
 /** Гость хранится как обычное имя/pax — без Contact/Lead-матчинга (решение
  * пользователя в plan mode: ни один из 7 макетов не показывает CRM-привязку гостя). */
 @Entity('hotel_reservations')
@@ -39,6 +47,13 @@ export class HotelReservation {
 
   @Column({ type: 'uuid', nullable: true })
   agencyId: string | null;
+
+  /** Specific physical room (HotelRoomUnit) assigned to this stay — nullable, usually set at
+   * check-in rather than at booking time (booking by room type without a specific room number
+   * yet is the normal flow in real hotels). ON DELETE SET NULL so deactivating/removing a unit
+   * never destroys reservation history. */
+  @Column({ type: 'uuid', nullable: true })
+  roomUnitId: string | null;
 
   @Column({ type: 'varchar', length: 255 })
   guestName: string;
@@ -93,6 +108,21 @@ export class HotelReservation {
 
   @Column({ type: 'varchar', length: 16, default: 'manual' })
   source: HotelReservationSource;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  checkedInAt: Date | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  checkedOutAt: Date | null;
+
+  @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
+  depositAmount: string;
+
+  /** Simple payment ledger — appended to by addPayment/removePayment, drives the auto-suggested
+   * paidStatus (see HotelReservationsService.suggestPaidStatus). paidStatus itself stays directly
+   * editable too, so staff can always override the suggestion. */
+  @Column({ type: 'jsonb', default: [] })
+  payments: HotelReservationPayment[];
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

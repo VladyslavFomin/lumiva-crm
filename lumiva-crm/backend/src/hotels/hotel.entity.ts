@@ -84,6 +84,12 @@ export class Hotel {
   @Column({ type: 'varchar', length: 64, nullable: true })
   feedToken: string | null;
 
+  /** When true, HotelAvailabilityService.checkAvailability always returns ok — bypasses
+   * capacity/stop-sale/blocked-date checks entirely for this hotel. Hotel-level, not per-request
+   * (mirrors Booking's Project.overbookingAllowed precedent: no client-supplied force flag). */
+  @Column({ type: 'boolean', default: false })
+  allowOverbooking: boolean;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

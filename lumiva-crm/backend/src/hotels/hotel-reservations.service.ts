@@ -1,17 +1,30 @@
-import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { randomUUID } from 'crypto';
 import {
   HotelReservation,
   HotelReservationPaidStatus,
+  HotelReservationPayment,
   HotelReservationStatus,
 } from './hotel-reservation.entity';
 import { normalizeNumericInput } from './hotel-number.util';
 import { Hotel } from './hotel.entity';
 import { HotelRoomType } from './hotel-room-type.entity';
+import { HotelRoomUnit } from './hotel-room-unit.entity';
 import { HotelRoomTypesService } from './hotel-room-types.service';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
+import { HotelAvailabilityService } from './hotel-availability.service';
+import { renderHotelFolioPdf } from './hotel-folio-pdf.util';
+
+export interface HotelReservationWriteOptions {
+  /** Never populated from the HTTP request body — set only by the reservation-import flow for
+   * historical data, mirroring Booking's import precedent. The only other bypass is hotel-level
+   * Hotel.allowOverbooking. */
+  skipValidation?: boolean;
+}
 
 export interface HotelReservationFilters {
   hotelId?: string;
@@ -54,6 +67,7 @@ export interface HotelReservationInput {
   status?: HotelReservationStatus;
   paidStatus?: HotelReservationPaidStatus;
   source?: 'manual' | 'import';
+  depositAmount?: string;
 }
 
 const PRICE_FIELDS = ['costPerNight', 'ppPerNight', 'grossPerNight', 'discountPct'] as const;
@@ -67,9 +81,13 @@ export class HotelReservationsService {
     private readonly hotelRepo: Repository<Hotel>,
     @InjectRepository(HotelRoomType)
     private readonly roomTypeRepo: Repository<HotelRoomType>,
+    @InjectRepository(HotelRoomUnit)
+    private readonly roomUnitsRepo: Repository<HotelRoomUnit>,
     private readonly roomTypesService: HotelRoomTypesService,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
+    private readonly auditLog: AuditLogService,
+    private readonly availability: HotelAvailabilityService,
   ) {}
 
   /** Проверяет заполняемость типа номера за месяц заезда и, если она достигла/превысила
@@ -123,7 +141,22 @@ export class HotelReservationsService {
     row.total = String(round2(toNum(row.roomTotal) * (1 - toNum(row.discountPct) / 100)));
   }
 
-  async create(tenantId: string, dto: HotelReservationInput) {
+  async create(
+    tenantId: string,
+    dto: HotelReservationInput,
+    actorUserId?: string | null,
+    options: HotelReservationWriteOptions = {},
+  ) {
+    if (!options.skipValidation) {
+      const result = await this.availability.checkAvailability({
+        tenantId,
+        roomTypeId: dto.roomTypeId,
+        checkIn: dto.checkIn,
+        checkOut: dto.checkOut,
+      });
+      if (!result.ok) throw new BadRequestException(result.reason);
+    }
+
     const row = this.repo.create({
       tenantId,
       hotelId: dto.hotelId,
@@ -143,6 +176,7 @@ export class HotelReservationsService {
       status: dto.status ?? 'confirmed',
       paidStatus: dto.paidStatus ?? 'none',
       source: dto.source ?? 'manual',
+      depositAmount: dto.depositAmount !== undefined ? normalizeNumericInput(dto.depositAmount) : '0',
     });
     this.computeTotals(row);
     const saved = await this.repo.save(row);
@@ -160,32 +194,74 @@ export class HotelReservationsService {
         hotel,
         roomType,
         adminEmails,
+        ...this.buildNotificationTokens(saved, hotel, roomType),
       });
       await this.checkLowAvailability(tenantId, saved, adminEmails);
     } catch (error) {
       console.error('Failed to trigger automation:', error);
     }
 
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: saved.id,
+      entityLabel: saved.guestName,
+      action: 'create',
+      summary: 'Бронь отеля создана',
+      actorUserId: actorUserId ?? null,
+    });
+
     return saved;
   }
 
-  async update(tenantId: string, id: string, dto: Partial<HotelReservationInput>) {
+  async update(
+    tenantId: string,
+    id: string,
+    dto: Partial<HotelReservationInput>,
+    actorUserId?: string | null,
+    options: HotelReservationWriteOptions = {},
+  ) {
     const row = await this.get(tenantId, id);
     const fromStatus = row.status;
     const priceFieldsChanged = PRICE_FIELDS.some(
       (key) => dto[key] !== undefined && normalizeNumericInput(dto[key]) !== row[key],
     );
+    const datesOrRoomChanged =
+      (dto.checkIn !== undefined && dto.checkIn !== row.checkIn) ||
+      (dto.checkOut !== undefined && dto.checkOut !== row.checkOut) ||
+      (dto.roomTypeId !== undefined && dto.roomTypeId !== row.roomTypeId);
+
+    if (datesOrRoomChanged && !options.skipValidation) {
+      const result = await this.availability.checkAvailability({
+        tenantId,
+        roomTypeId: dto.roomTypeId ?? row.roomTypeId,
+        checkIn: dto.checkIn ?? row.checkIn,
+        checkOut: dto.checkOut ?? row.checkOut,
+        excludeReservationId: id,
+      });
+      if (!result.ok) throw new BadRequestException(result.reason);
+    }
 
     const normalized = { ...dto };
     for (const key of PRICE_FIELDS) {
       if (normalized[key] !== undefined) normalized[key] = normalizeNumericInput(normalized[key]);
     }
+    if (normalized.depositAmount !== undefined) normalized.depositAmount = normalizeNumericInput(normalized.depositAmount);
     Object.assign(row, normalized);
     this.computeTotals(row);
     const saved = await this.repo.save(row);
 
     try {
       const adminEmails = await this.automationsService.resolveAdminEmails(tenantId);
+      const statusChanged = dto.status !== undefined && dto.status !== fromStatus;
+      let hotel: Hotel | null = null;
+      let roomType: HotelRoomType | null = null;
+      if (statusChanged || priceFieldsChanged) {
+        [hotel, roomType] = await Promise.all([
+          this.hotelRepo.findOne({ where: { id: saved.hotelId, tenantId } }),
+          this.roomTypeRepo.findOne({ where: { id: saved.roomTypeId, tenantId } }),
+        ]);
+      }
       if (dto.status !== undefined && dto.status !== fromStatus) {
         await this.automationsService.triggerAutomation(tenantId, TriggerEvent.HOTEL_RESERVATION_STATUS_CHANGED, {
           entityType: 'hotel_reservation',
@@ -194,6 +270,7 @@ export class HotelReservationsService {
           fromStatus,
           toStatus: saved.status,
           adminEmails,
+          ...this.buildNotificationTokens(saved, hotel, roomType),
         });
         if (saved.status === 'cancelled') {
           await this.checkLowAvailability(tenantId, saved, adminEmails);
@@ -204,18 +281,220 @@ export class HotelReservationsService {
           entityType: 'hotel_reservation',
           entityId: id,
           reservation: saved,
+          ...this.buildNotificationTokens(saved, hotel, roomType),
         });
       }
     } catch (error) {
       console.error('Failed to trigger automation:', error);
     }
 
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: saved.id,
+      entityLabel: saved.guestName,
+      action: 'update',
+      summary: dto.status !== undefined && dto.status !== fromStatus
+        ? `Статус брони изменён: ${fromStatus} → ${saved.status}`
+        : 'Бронь отеля обновлена',
+      changes: dto.status !== undefined && dto.status !== fromStatus
+        ? [{ field: 'status', oldValue: fromStatus, newValue: saved.status }]
+        : null,
+      actorUserId: actorUserId ?? null,
+    });
+
     return saved;
   }
 
-  async remove(tenantId: string, id: string) {
+  /** Fires HOTEL_RESERVATION_STATUS_CHANGED — shared by update() (generic status field edit) and
+   * checkIn()/checkOut() (dedicated front-desk actions) so the automation-trigger logic isn't
+   * duplicated across all three status-changing call sites. */
+  private async fireStatusChangeTrigger(
+    tenantId: string,
+    saved: HotelReservation,
+    fromStatus: HotelReservationStatus,
+  ) {
+    try {
+      const adminEmails = await this.automationsService.resolveAdminEmails(tenantId);
+      const [hotel, roomType] = await Promise.all([
+        this.hotelRepo.findOne({ where: { id: saved.hotelId, tenantId } }),
+        this.roomTypeRepo.findOne({ where: { id: saved.roomTypeId, tenantId } }),
+      ]);
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.HOTEL_RESERVATION_STATUS_CHANGED, {
+        entityType: 'hotel_reservation',
+        entityId: saved.id,
+        reservation: saved,
+        fromStatus,
+        toStatus: saved.status,
+        adminEmails,
+        ...this.buildNotificationTokens(saved, hotel, roomType),
+      });
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
+    }
+  }
+
+  async checkIn(tenantId: string, id: string, roomUnitId: string | null | undefined, actorUserId?: string | null) {
+    const row = await this.get(tenantId, id);
+    if (row.status === 'checked_in') throw new BadRequestException('Гость уже заселён');
+    if (row.status === 'cancelled') throw new BadRequestException('Бронь отменена');
+
+    if (roomUnitId) {
+      const unit = await this.roomUnitsRepo.findOne({
+        where: { id: roomUnitId, tenantId, roomTypeId: row.roomTypeId, active: true },
+      });
+      if (!unit) throw new BadRequestException('Номер не найден или не принадлежит этому типу номера');
+      row.roomUnitId = roomUnitId;
+    }
+
+    const fromStatus = row.status;
+    row.status = 'checked_in';
+    row.checkedInAt = new Date();
+    const saved = await this.repo.save(row);
+
+    await this.fireStatusChangeTrigger(tenantId, saved, fromStatus);
+
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: saved.id,
+      entityLabel: saved.guestName,
+      action: 'update',
+      summary: 'Гость заселён',
+      changes: [{ field: 'status', oldValue: fromStatus, newValue: saved.status }],
+      actorUserId: actorUserId ?? null,
+    });
+
+    return saved;
+  }
+
+  async checkOut(tenantId: string, id: string, actorUserId?: string | null) {
+    const row = await this.get(tenantId, id);
+    if (row.status !== 'checked_in') throw new BadRequestException('Бронь не в статусе «Заселён»');
+
+    const fromStatus = row.status;
+    row.status = 'checked_out';
+    row.checkedOutAt = new Date();
+    const saved = await this.repo.save(row);
+
+    await this.fireStatusChangeTrigger(tenantId, saved, fromStatus);
+
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: saved.id,
+      entityLabel: saved.guestName,
+      action: 'update',
+      summary: 'Гость выселен',
+      changes: [{ field: 'status', oldValue: fromStatus, newValue: saved.status }],
+      actorUserId: actorUserId ?? null,
+    });
+
+    return saved;
+  }
+
+  /** none/partial/full from Σpayments vs total — never overwrites a manually-set 'refunded'
+   * state. paidStatus stays directly editable via update() too, so staff can always override. */
+  private suggestPaidStatus(row: HotelReservation): HotelReservationPaidStatus {
+    const paid = row.payments.reduce((s, p) => s + toNum(p.amount), 0);
+    const total = toNum(row.total);
+    if (paid <= 0) return 'none';
+    if (paid >= total) return 'full';
+    return 'partial';
+  }
+
+  async addPayment(
+    tenantId: string,
+    id: string,
+    payment: { date: string; amount: string; method: string; note?: string | null },
+    actorUserId?: string | null,
+  ) {
+    const row = await this.get(tenantId, id);
+    const entry: HotelReservationPayment = {
+      id: randomUUID(),
+      date: payment.date,
+      amount: normalizeNumericInput(payment.amount),
+      method: payment.method,
+      note: payment.note ?? null,
+    };
+    row.payments = [...row.payments, entry];
+    if (row.paidStatus !== 'refunded') row.paidStatus = this.suggestPaidStatus(row);
+    const saved = await this.repo.save(row);
+
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: saved.id,
+      entityLabel: saved.guestName,
+      action: 'update',
+      summary: `Платёж добавлен: ${entry.amount}`,
+      actorUserId: actorUserId ?? null,
+    });
+
+    return saved;
+  }
+
+  async removePayment(tenantId: string, id: string, paymentId: string, actorUserId?: string | null) {
+    const row = await this.get(tenantId, id);
+    row.payments = row.payments.filter((p) => p.id !== paymentId);
+    if (row.paidStatus !== 'refunded') row.paidStatus = this.suggestPaidStatus(row);
+    const saved = await this.repo.save(row);
+
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: saved.id,
+      entityLabel: saved.guestName,
+      action: 'update',
+      summary: 'Платёж удалён',
+      actorUserId: actorUserId ?? null,
+    });
+
+    return saved;
+  }
+
+  async renderFolio(tenantId: string, id: string) {
+    const reservation = await this.get(tenantId, id);
+    const [hotel, roomType] = await Promise.all([
+      this.hotelRepo.findOne({ where: { id: reservation.hotelId, tenantId } }),
+      this.roomTypeRepo.findOne({ where: { id: reservation.roomTypeId, tenantId } }),
+    ]);
+    return renderHotelFolioPdf(reservation, hotel, roomType);
+  }
+
+  async remove(tenantId: string, id: string, actorUserId?: string | null) {
     const row = await this.get(tenantId, id);
     await this.repo.remove(row);
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'hotel_reservation',
+      entityId: id,
+      entityLabel: row.guestName,
+      action: 'delete',
+      summary: 'Бронь отеля удалена',
+      actorUserId: actorUserId ?? null,
+    });
     return { ok: true };
+  }
+
+  /**
+   * Плоские токены для текста уведомлений в автоматизациях ({{guest_name}}, {{room_type}}, ...) —
+   * та же идея, что и у токенов бронирований (см. ReservationsService.buildNotificationTokens),
+   * чтобы конструктор автоматизаций одинаково выглядел для Бронирований и Hotels/PMS.
+   */
+  private buildNotificationTokens(
+    reservation: HotelReservation,
+    hotel: Hotel | null,
+    roomType: HotelRoomType | null,
+  ): Record<string, string> {
+    return {
+      guest_name: reservation.guestName || '',
+      room_type: roomType?.name || '',
+      check_in: reservation.checkIn,
+      check_out: reservation.checkOut,
+      hotel_name: hotel?.name || '',
+      booking_id: reservation.id,
+      status: reservation.status,
+    };
   }
 }

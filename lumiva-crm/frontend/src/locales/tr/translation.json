@@ -690,6 +690,7 @@
       "hotelsOverview": "Genel Bakış",
       "hotelsList": "Oteller",
       "hotelsReservations": "Rezervasyonlar",
+      "hotelsFrontDesk": "Bugün",
       "hotelsPricing": "Fiyatlar ve Pazarlar",
       "hotelsCalendar": "Oda Takvimi",
       "hotelsAnalytics": "Analitik",
@@ -7152,6 +7153,7 @@
         "bookings_manage_settings": "Rezervasyon ayarları (hizmetler, lokasyonlar, kaynaklar, uygunluk)",
         "hotels": "Otel rezervasyon sistemi",
         "hotels_manage_pricing": "Otel fiyat ve pazar yönetimi",
+        "hotels_manage_reservations": "Otel giriş/çıkış, ödemeler ve odalar",
         "email": "E-posta",
         "marketing": "Pazarlama",
         "tools_automation": "Otomasyon",
@@ -7169,7 +7171,8 @@
           "products_manage_stock": "Stok bölümünde stok düzeltmeleri",
           "products_publish": "Ürünün genel katalogda gösterilme taleplerini onaylama veya reddetme",
           "bookings_manage_settings": "Hizmetleri, lokasyonları, kaynakları ve personel uygunluğunu yönetme",
-          "hotels_manage_pricing": "Otel pazar fiyatlarını, takvimi ve oda fiyatlandırmasını yönetme"
+          "hotels_manage_pricing": "Otel pazar fiyatlarını, takvimi ve oda fiyatlandırmasını yönetme",
+          "hotels_manage_reservations": "Rezervasyon oluşturma/düzenleme, giriş/çıkış, ödemeler ve odalar"
         }
       }
     },

@@ -39,6 +39,10 @@ import {
   fetchFeedToken,
   regenerateFeedToken,
   fetchPeriodPriceSummary,
+  fetchRoomUnits,
+  createRoomUnit,
+  updateRoomUnitHousekeeping,
+  deleteRoomUnit,
   type Hotel,
   type HotelRoomType,
   type HotelMarket,
@@ -50,6 +54,9 @@ import {
   type HotelFactsheetItemInput,
   type HotelInfoImportPreview,
   type HotelPeriodPriceSummaryRow,
+  type HotelRoomUnit,
+  type HotelRoomUnitHousekeepingStatus,
+  HOTEL_ROOM_UNIT_HOUSEKEEPING_LABELS_RU,
 } from '../../api/hotels';
 import './hotels-design.css';
 
@@ -129,6 +136,114 @@ const RoomTypeModal: React.FC<{
   );
 };
 
+const HOUSEKEEPING_COLORS: Record<HotelRoomUnitHousekeepingStatus, string> = {
+  clean: '#2f9e5c',
+  dirty: '#d64545',
+  inspected: '#3b7fd6',
+  out_of_order: '#8a8f98',
+};
+
+const HOUSEKEEPING_CYCLE: HotelRoomUnitHousekeepingStatus[] = ['clean', 'dirty', 'inspected', 'out_of_order'];
+
+export const HousekeepingBadge: React.FC<{ status: HotelRoomUnitHousekeepingStatus; onClick?: () => void; title?: string }> = ({
+  status,
+  onClick,
+  title,
+}) => (
+  <span
+    onClick={onClick}
+    title={title || HOTEL_ROOM_UNIT_HOUSEKEEPING_LABELS_RU[status]}
+    style={{
+      display: 'inline-block',
+      width: 8,
+      height: 8,
+      borderRadius: '50%',
+      background: HOUSEKEEPING_COLORS[status],
+      cursor: onClick ? 'pointer' : 'default',
+      flexShrink: 0,
+    }}
+  />
+);
+
+const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: HotelRoomUnit[]; onChanged: () => void }> = ({
+  roomTypeId,
+  units,
+  onChanged,
+}) => {
+  const { showAlert, showConfirm } = useAlertModal();
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState('');
+  const activeUnits = units.filter((u) => u.active);
+
+  const cycleStatus = (u: HotelRoomUnit) => {
+    const next = HOUSEKEEPING_CYCLE[(HOUSEKEEPING_CYCLE.indexOf(u.housekeepingStatus) + 1) % HOUSEKEEPING_CYCLE.length];
+    updateRoomUnitHousekeeping(u.id, next).then(onChanged).catch((e) => showAlert(e.message || 'Не удалось изменить статус', { variant: 'error' }));
+  };
+
+  const handleAdd = () => {
+    const label = newLabel.trim();
+    if (!label) { setAdding(false); return; }
+    createRoomUnit({ roomTypeId, label })
+      .then(() => { setNewLabel(''); setAdding(false); onChanged(); })
+      .catch((e) => showAlert(e.message || 'Не удалось добавить номер', { variant: 'error' }));
+  };
+
+  const handleRemove = async (u: HotelRoomUnit) => {
+    const ok = await showConfirm(`Удалить номер «${u.label}»?`, { title: 'Удалить номер', confirmLabel: 'Удалить', danger: true });
+    if (!ok) return;
+    deleteRoomUnit(u.id).then(onChanged).catch((e) => showAlert(e.message || 'Не удалось удалить номер', { variant: 'error' }));
+  };
+
+  return (
+    <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--line-2)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+        <span style={{ fontSize: 11, color: 'var(--fg-3)', marginRight: 2 }}>Номера:</span>
+        {activeUnits.map((u) => (
+          <span
+            key={u.id}
+            title={`${u.label} — ${HOTEL_ROOM_UNIT_HOUSEKEEPING_LABELS_RU[u.housekeepingStatus]} (клик — сменить статус)`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, background: 'var(--surface-2)', border: '1px solid var(--line-2)', borderRadius: 999, padding: '2px 7px' }}
+          >
+            <HousekeepingBadge status={u.housekeepingStatus} onClick={() => cycleStatus(u)} />
+            {u.label}
+            <button
+              type="button"
+              onClick={() => handleRemove(u)}
+              title="Удалить номер"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--fg-3)', display: 'flex' }}
+            >
+              <Ic d={HTL_ICON.x} size={10} />
+            </button>
+          </span>
+        ))}
+        {adding ? (
+          <input
+            autoFocus
+            placeholder="204"
+            value={newLabel}
+            onChange={(e) => setNewLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleAdd();
+              if (e.key === 'Escape') { setAdding(false); setNewLabel(''); }
+            }}
+            onBlur={handleAdd}
+            style={{ width: 60, fontSize: 11.5, padding: '2px 6px', border: '1px solid var(--line-2)', borderRadius: 999 }}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            title="Добавить номер"
+            style={{ display: 'inline-flex', alignItems: 'center', background: 'none', border: '1px dashed var(--line-2)', borderRadius: 999, padding: '2px 7px', cursor: 'pointer', color: 'var(--fg-3)' }}
+          >
+            <Ic d={HTL_ICON.plus} size={10} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChanged: () => void }> = ({
   hotelId,
   roomTypes,
@@ -138,6 +253,15 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
   const navigate = useNavigate();
   const [modalState, setModalState] = useState<'new' | HotelRoomType | null>(null);
   const [editingQty, setEditingQty] = useState<string | null>(null);
+  const [units, setUnits] = useState<HotelRoomUnit[]>([]);
+
+  const loadUnits = () => {
+    fetchRoomUnits({ hotelId }).then(setUnits).catch(() => {});
+  };
+  useEffect(() => {
+    loadUnits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hotelId]);
 
   const totalRooms = roomTypes.reduce((s, r) => s + r.quantity, 0);
 
@@ -276,6 +400,12 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
               )}
               <button className="btn btn-sm" onClick={() => navigate(`/hotels/room-types/${r.id}/pricing`)}>Редактировать цены</button>
             </div>
+            <RoomUnitsSection
+              hotelId={hotelId}
+              roomTypeId={r.id}
+              units={units.filter((u) => u.roomTypeId === r.id)}
+              onChanged={loadUnits}
+            />
           </div>
         ))}
       </div>
@@ -1096,6 +1226,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
   const [name, setName] = useState(hotel.name);
   const [checkIn, setCheckIn] = useState(hotel.checkInTime);
   const [checkOut, setCheckOut] = useState(hotel.checkOutTime);
+  const [allowOverbooking, setAllowOverbooking] = useState(hotel.allowOverbooking);
   const [savingBasics, setSavingBasics] = useState(false);
 
   const [links, setLinks] = useState<Array<{ label: string; url: string }>>(hotel.quickLinks || []);
@@ -1110,6 +1241,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
     setName(hotel.name);
     setCheckIn(hotel.checkInTime);
     setCheckOut(hotel.checkOutTime);
+    setAllowOverbooking(hotel.allowOverbooking);
     setLinks(hotel.quickLinks || []);
   }, [hotel]);
 
@@ -1121,7 +1253,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
 
   const saveBasics = () => {
     setSavingBasics(true);
-    updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut })
+    updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut, allowOverbooking })
       .then(() => onSaved())
       .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
       .finally(() => setSavingBasics(false));
@@ -1188,6 +1320,10 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
           />
         </div>
       </div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12.5, cursor: 'pointer' }}>
+        <input type="checkbox" checked={allowOverbooking} onChange={(e) => setAllowOverbooking(e.target.checked)} />
+        Разрешить овербукинг (отключает проверку доступности номеров при создании броней)
+      </label>
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
         <button className="btn btn-primary" disabled={savingBasics} onClick={saveBasics}>
           <Ic d={HTL_ICON.check} size={14} />Сохранить

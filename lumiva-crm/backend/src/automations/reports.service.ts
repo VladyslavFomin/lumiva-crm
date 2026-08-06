@@ -2,9 +2,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, Repository } from 'typeorm';
-import * as fs from 'fs';
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
+import { resolveUnicodePdfFont } from '../common/pdf-font.util';
 
 import { SalesService } from '../sales/sales.service';
 import { Lead } from '../leads/lead.entity';
@@ -858,22 +858,4 @@ export class ReportsService {
       }
     });
   }
-}
-
-/** TTF с кириллицей: Alpine (font-dejavu), Debian/Ubuntu. */
-function resolveUnicodePdfFont(): string | null {
-  const candidates = [
-    '/usr/share/fonts/TTF/DejaVuSans.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-    '/usr/share/fonts/dejavu/DejaVuSans.ttf',
-    '/usr/share/fonts/dejavu/ttf/DejaVuSans.ttf',
-  ];
-  for (const p of candidates) {
-    try {
-      if (fs.existsSync(p)) return p;
-    } catch {
-      /* ignore */
-    }
-  }
-  return null;
 }

@@ -22,7 +22,8 @@ export type PermissionKey =
   | 'bookings'
   | 'bookings_manage_settings'
   | 'hotels'
-  | 'hotels_manage_pricing';
+  | 'hotels_manage_pricing'
+  | 'hotels_manage_reservations';
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
 

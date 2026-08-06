@@ -43,25 +43,7 @@ import {
   parseCsvRobust,
   parseXlsxRobust,
 } from '../lib/import-spreadsheet.util';
-import { existsSync } from 'fs';
-
-/** TTF с кириллицей: Alpine (font-dejavu), Debian/Ubuntu. Тот же список, что в automations/reports.service.ts. */
-function resolveUnicodePdfFont(): string | null {
-  const candidates = [
-    '/usr/share/fonts/TTF/DejaVuSans.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-    '/usr/share/fonts/dejavu/DejaVuSans.ttf',
-    '/usr/share/fonts/dejavu/ttf/DejaVuSans.ttf',
-  ];
-  for (const p of candidates) {
-    try {
-      if (existsSync(p)) return p;
-    } catch {
-      /* ignore */
-    }
-  }
-  return null;
-}
+import { resolveUnicodePdfFont } from '../common/pdf-font.util';
 
 /** Структурные колонки товара, доступные для маппинга при импорте (наравне с product_field_defs). */
 const IMPORT_STRUCTURAL_FIELDS: Array<{ key: string; label: string }> = [

@@ -108,6 +108,11 @@ export const StaffPermissionsPage: React.FC = () => {
             label: t('crm.staff.permissions.hotels_manage_pricing'),
             hint: t('crm.staff.permissions.hint.hotels_manage_pricing'),
           },
+          {
+            key: 'hotels_manage_reservations',
+            label: t('crm.staff.permissions.hotels_manage_reservations'),
+            hint: t('crm.staff.permissions.hint.hotels_manage_reservations'),
+          },
           { key: 'projects', label: t('crm.staff.permissions.projects') },
           { key: 'analytics', label: t('crm.staff.permissions.analytics') },
           { key: 'finance', label: t('crm.staff.permissions.finance') },

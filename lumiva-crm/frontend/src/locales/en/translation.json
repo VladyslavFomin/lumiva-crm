@@ -631,6 +631,7 @@
       "hotelsOverview": "Overview",
       "hotelsList": "Hotels",
       "hotelsReservations": "Reservations",
+      "hotelsFrontDesk": "Today",
       "hotelsPricing": "Pricing & markets",
       "hotelsCalendar": "Room calendar",
       "hotelsAnalytics": "Analytics",
@@ -7151,6 +7152,7 @@
         "bookings_manage_settings": "Booking settings (services, locations, resources, availability)",
         "hotels": "Hotel reservation system",
         "hotels_manage_pricing": "Manage hotel pricing and markets",
+        "hotels_manage_reservations": "Hotel check-in/out, payments and rooms",
         "email": "Email",
         "marketing": "Marketing",
         "tools_automation": "Automation",
@@ -7168,7 +7170,8 @@
           "products_manage_stock": "Stock corrections in the Stock section",
           "products_publish": "Approve or reject requests to show a product in the public catalog",
           "bookings_manage_settings": "Manage services, locations, resources and staff availability",
-          "hotels_manage_pricing": "Manage market pricing, calendar and occupancy rates for hotels"
+          "hotels_manage_pricing": "Manage market pricing, calendar and occupancy rates for hotels",
+          "hotels_manage_reservations": "Create/edit reservations, check-in/out, payments and rooms"
         }
       }
     },

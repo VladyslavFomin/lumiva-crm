@@ -230,7 +230,7 @@ export class HotelsReservationsImportService {
           discountPct: get('discountPct').replace(',', '.') || '0',
           status: mappedStatus,
           source: 'import',
-        });
+        }, undefined, { skipValidation: true });
         created++;
         void reservation;
       } catch (err: any) {

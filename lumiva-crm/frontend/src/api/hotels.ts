@@ -24,6 +24,7 @@ export interface Hotel {
   infoFields: Record<string, string | boolean>;
   coverPhotoUrl: string | null;
   quickLinks: Array<{ label: string; url: string }>;
+  allowOverbooking: boolean;
   createdAt: string;
   updatedAt: string;
   roomsCount: number;
@@ -157,6 +158,28 @@ export interface HotelAgency {
   name: string;
 }
 
+export type HotelRoomUnitHousekeepingStatus = 'clean' | 'dirty' | 'inspected' | 'out_of_order';
+
+export interface HotelRoomUnit {
+  id: string;
+  tenantId: string;
+  hotelId: string;
+  roomTypeId: string;
+  label: string;
+  housekeepingStatus: HotelRoomUnitHousekeepingStatus;
+  note: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const HOTEL_ROOM_UNIT_HOUSEKEEPING_LABELS_RU: Record<HotelRoomUnitHousekeepingStatus, string> = {
+  clean: 'Убрана',
+  dirty: 'Грязная',
+  inspected: 'Проверена',
+  out_of_order: 'Не работает',
+};
+
 export type HotelReservationStatus =
   | 'confirmed'
   | 'pending'
@@ -171,6 +194,7 @@ export interface HotelReservation {
   hotelId: string;
   roomTypeId: string;
   agencyId: string | null;
+  roomUnitId: string | null;
   guestName: string;
   guestEmail: string | null;
   guestPhone: string | null;
@@ -188,8 +212,20 @@ export interface HotelReservation {
   status: HotelReservationStatus;
   paidStatus: HotelReservationPaidStatus;
   source: 'manual' | 'import';
+  checkedInAt: string | null;
+  checkedOutAt: string | null;
+  depositAmount: string;
+  payments: HotelReservationPayment[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface HotelReservationPayment {
+  id: string;
+  date: string;
+  amount: string;
+  method: string;
+  note: string | null;
 }
 
 export const HOTEL_RESERVATION_STATUS_LABELS_RU: Record<HotelReservationStatus, string> = {
@@ -472,6 +508,74 @@ export function updateReservation(id: string, dto: Partial<HotelReservation>) {
 
 export function deleteReservation(id: string) {
   return api.delete<{ ok: boolean }>(`/hotels/reservations/${id}`);
+}
+
+export function checkInReservation(id: string, roomUnitId?: string) {
+  return api.post<HotelReservation>(`/hotels/reservations/${id}/check-in`, { roomUnitId });
+}
+
+export function checkOutReservation(id: string) {
+  return api.post<HotelReservation>(`/hotels/reservations/${id}/check-out`, {});
+}
+
+export function addReservationPayment(id: string, dto: { date: string; amount: string; method: string; note?: string }) {
+  return api.post<HotelReservation>(`/hotels/reservations/${id}/payments`, dto);
+}
+
+export function removeReservationPayment(id: string, paymentId: string) {
+  return api.delete<HotelReservation>(`/hotels/reservations/${id}/payments/${paymentId}`);
+}
+
+export async function downloadReservationFolio(id: string): Promise<void> {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE}/hotels/reservations/${id}/folio.pdf`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) throw new Error(`Не удалось скачать счёт: ${res.status}`);
+  const blob = await res.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `folio-${id}.pdf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+/* ---------- front desk ---------- */
+
+export interface HotelFrontDeskToday {
+  date: string;
+  arrivals: HotelReservation[];
+  departures: HotelReservation[];
+  inHouseCount: number;
+}
+
+export function fetchFrontDeskToday(date?: string, hotelId?: string) {
+  return api.get<HotelFrontDeskToday>('/hotels/frontdesk/today', { params: { date, hotelId } });
+}
+
+/* ---------- room units ---------- */
+
+export function fetchRoomUnits(filters: { hotelId?: string; roomTypeId?: string } = {}) {
+  return api.get<HotelRoomUnit[]>('/hotels/room-units', { params: filters });
+}
+
+export function createRoomUnit(dto: { roomTypeId: string; label: string; note?: string }) {
+  return api.post<HotelRoomUnit>('/hotels/room-units', dto);
+}
+
+export function updateRoomUnit(id: string, dto: Partial<{ label: string; note: string | null; active: boolean }>) {
+  return api.patch<HotelRoomUnit>(`/hotels/room-units/${id}`, dto);
+}
+
+export function updateRoomUnitHousekeeping(id: string, housekeepingStatus: HotelRoomUnitHousekeepingStatus) {
+  return api.patch<HotelRoomUnit>(`/hotels/room-units/${id}/housekeeping`, { housekeepingStatus });
+}
+
+export function deleteRoomUnit(id: string) {
+  return api.delete<{ ok: boolean }>(`/hotels/room-units/${id}`);
 }
 
 /* ---------- import: reservations ---------- */

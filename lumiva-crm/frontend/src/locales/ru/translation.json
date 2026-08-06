@@ -661,6 +661,7 @@
       "hotelsOverview": "Обзор",
       "hotelsList": "Отели",
       "hotelsReservations": "Брони",
+      "hotelsFrontDesk": "Сегодня",
       "hotelsPricing": "Цены и рынки",
       "hotelsCalendar": "Календарь номеров",
       "hotelsAnalytics": "Аналитика",
@@ -6782,6 +6783,7 @@
         "bookings_manage_settings": "Настройки бронирований (услуги, локации, ресурсы, расписание)",
         "hotels": "Система резервации отелей",
         "hotels_manage_pricing": "Управление ценами и рынками отелей",
+        "hotels_manage_reservations": "Заселение/выселение, платежи и номера отелей",
         "email": "Email",
         "marketing": "Маркетинг",
         "tools_automation": "Автоматизация",
@@ -6799,7 +6801,8 @@
           "products_manage_stock": "Корректировки остатков в разделе «Склад»",
           "products_publish": "Подтверждать или отклонять запросы на показ товара в публичном каталоге",
           "bookings_manage_settings": "Управление услугами, локациями, ресурсами и расписанием мастеров",
-          "hotels_manage_pricing": "Управление ценами по рынкам, календарём и размещениями отелей"
+          "hotels_manage_pricing": "Управление ценами по рынкам, календарём и размещениями отелей",
+          "hotels_manage_reservations": "Создание/редактирование броней, заселение/выселение, платежи и номера"
         }
       },
       "profile": {

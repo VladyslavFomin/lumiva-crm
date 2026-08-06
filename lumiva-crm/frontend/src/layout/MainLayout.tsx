@@ -915,6 +915,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.hotelsOverview'), path: '/hotels' },
           { label: t('crm.nav.hotelsList'), path: '/hotels/list' },
           { label: t('crm.nav.hotelsReservations'), path: '/hotels/reservations' },
+          { label: t('crm.nav.hotelsFrontDesk'), path: '/hotels/frontdesk' },
           { label: t('crm.nav.hotelsPricing'), path: '/hotels/pricing' },
           { label: t('crm.nav.hotelsCalendar'), path: '/hotels/calendar' },
           { label: t('crm.nav.hotelsAnalytics'), path: '/hotels/analytics' },
