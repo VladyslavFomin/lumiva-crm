@@ -229,8 +229,9 @@
 .htl-gallery-thumb{position:relative;aspect-ratio:1/1;border-radius:10px;background:var(--bg-muted) center/cover no-repeat;border:1px solid var(--line-2);overflow:hidden}
 .htl-gallery-thumb button{position:absolute;top:5px;right:5px;width:20px;height:20px;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;border:none;cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
 .htl-gallery-dropzone{aspect-ratio:1/1;border-radius:10px;border:1.5px dashed var(--line-2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--fg-3);font-size:20px}
-.htl-detail-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line-2);margin-bottom:16px}
-.htl-detail-tab{padding:9px 14px;font-size:13px;color:var(--fg-3);cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+.htl-detail-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line-2);margin-bottom:16px;overflow-x:auto;scrollbar-width:none}
+.htl-detail-tabs::-webkit-scrollbar{display:none}
+.htl-detail-tab{padding:9px 14px;font-size:13px;color:var(--fg-3);cursor:pointer;border-bottom:2px solid transparent;font-weight:500;white-space:nowrap;flex-shrink:0}
 .htl-detail-tab.active{color:var(--ink);border-color:var(--ink)}
 .htl-detail-tab:hover{color:var(--ink)}
 
@@ -238,6 +239,7 @@
 .htl-info-item{border:1px solid var(--line-2);border-radius:10px;padding:10px 12px}
 .htl-info-item .l{font-size:10.5px;color:var(--fg-3)}
 .htl-info-item .v{font-size:13px;font-weight:600;color:var(--ink);margin-top:3px}
+@media (max-width:640px){.htl-info-grid{grid-template-columns:repeat(2,1fr)}}
 
 .htl-fill-bar{height:8px;border-radius:5px;background:var(--bg-muted);overflow:hidden;position:relative;flex:1}
 .htl-fill-bar .fill{height:100%;background:var(--ink);border-radius:5px}

@@ -138,7 +138,7 @@ async function bootstrap() {
       'X-WP-Nonce',
       'X-Lumiva-Secret',
     ],
-    exposedHeaders: ['X-Total-Count', 'X-Request-Id', 'X-Marketing-Sync-Rows'],
+    exposedHeaders: ['X-Total-Count', 'X-Request-Id', 'X-Marketing-Sync-Rows', 'Content-Disposition'],
     credentials: false,
     maxAge: 86400,
   });

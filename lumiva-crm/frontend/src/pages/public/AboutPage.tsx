@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { useTranslation } from 'react-i18next';
 import { PublicPageLayout } from './PublicPageLayout';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,58 +15,19 @@ const fadeUp: any = {
   visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: 'easeOut' } },
 };
 
-const VALUES = [
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" />
-      </svg>
-    ),
-    title: 'Простота',
-    desc: 'Мы создаём продукт, которым хочется пользоваться каждый день. Без лишнего — только то, что реально нужно бизнесу.',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-      </svg>
-    ),
-    title: 'Скорость',
-    desc: 'Быстрый интерфейс, быстрые ответы поддержки и быстрое внедрение. Мы уважаем ваше время.',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
-      </svg>
-    ),
-    title: 'Надёжность',
-    desc: 'Ваши данные в безопасности. Изолированные аккаунты, шифрование и регулярные бэкапы.',
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-      </svg>
-    ),
-    title: 'Партнёрство',
-    desc: 'Мы строим долгосрочные отношения. Каждый клиент — партнёр, а не просто пользователь.',
-  },
-];
-
-const MILESTONES = [
-  { year: '2022', text: 'Основание компании. Первые прототипы CRM.' },
-  { year: '2023', text: 'Запуск бета-версии. Первые 50 клиентов.' },
-  { year: '2024', text: 'Публичный релиз. Рабочие области и автоматизации.' },
-  { year: '2025', text: 'Интеграции с 20+ сервисами. AI-ассистент.' },
-  { year: '2026', text: 'Новый дизайн, мобильное приложение. Рост в 3×.' },
-];
-
-const STATS = [
-  { value: '500+', label: 'Клиентов' },
-  { value: '20+', label: 'Интеграций' },
-  { value: '99.9%', label: 'Uptime' },
-  { value: '4 года', label: 'На рынке' },
+const VALUE_ICONS = [
+  <svg key="0" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" /><path d="M12 8v4l3 3" />
+  </svg>,
+  <svg key="1" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+  </svg>,
+  <svg key="2" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0110 0v4" />
+  </svg>,
+  <svg key="3" className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+  </svg>,
 ];
 
 function AnimatedNumber({ value }: { value: string }) {
@@ -83,11 +45,23 @@ function AnimatedNumber({ value }: { value: string }) {
 }
 
 export default function AboutPage() {
+  const { t } = useTranslation();
+
+  const values = t('publicPages.about.values', { returnObjects: true }) as Array<{ title: string; desc: string }>;
+  const milestones = t('publicPages.about.milestones', { returnObjects: true }) as Array<{ year: string; text: string }>;
+  const techStack = t('publicPages.about.techStack', { returnObjects: true }) as Array<{ label: string; stack: string }>;
+  const stats = [
+    { value: '500+', label: t('publicPages.about.statsClients') },
+    { value: '20+', label: t('publicPages.about.statsIntegrations') },
+    { value: '99.9%', label: t('publicPages.about.statsUptime') },
+    { value: t('publicPages.about.statsYearsValue'), label: t('publicPages.about.statsYears') },
+  ];
+
   return (
     <PublicPageLayout
       pageKey="about"
-      title="О Lumiva CRM"
-      subtitle="Мы создаём CRM, которая помогает малому и среднему бизнесу расти быстрее. Простая в использовании, мощная в возможностях."
+      title={t('publicPages.about.title')}
+      subtitle={t('publicPages.about.subtitle')}
     >
       {/* Stats */}
       <motion.div
@@ -97,7 +71,7 @@ export default function AboutPage() {
         viewport={{ once: true }}
         className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-16"
       >
-        {STATS.map((s) => (
+        {stats.map((s) => (
           <motion.div
             key={s.label}
             variants={fadeUp}
@@ -123,19 +97,19 @@ export default function AboutPage() {
           <div className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
           <div className="pointer-events-none absolute -left-12 -bottom-12 h-48 w-48 rounded-full bg-white/5 blur-2xl" />
           <div className="relative">
-            <div className="text-[10px] uppercase tracking-[0.22em] opacity-50 mb-3 font-semibold">Наша миссия</div>
+            <div className="text-[10px] uppercase tracking-[0.22em] opacity-50 mb-3 font-semibold">{t('publicPages.about.missionKicker')}</div>
             <blockquote className="text-xl sm:text-2xl font-semibold leading-relaxed max-w-3xl">
-              «Сделать профессиональные инструменты управления бизнесом доступными для каждой команды — независимо от размера и бюджета.»
+              «{t('publicPages.about.missionQuote')}»
             </blockquote>
-            <div className="mt-6 text-sm opacity-50">Команда Lumiva CRM</div>
+            <div className="mt-6 text-sm opacity-50">{t('publicPages.about.missionAttribution')}</div>
           </div>
         </div>
       </motion.section>
 
       {/* Values */}
       <section className="mb-16">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-slate-400 mb-2 font-semibold">Ценности</div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-8">Что нас объединяет</h2>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-slate-400 mb-2 font-semibold">{t('publicPages.about.valuesKicker')}</div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-8">{t('publicPages.about.valuesTitle')}</h2>
         <motion.div
           variants={stagger}
           initial="hidden"
@@ -143,7 +117,7 @@ export default function AboutPage() {
           viewport={{ once: true, margin: '-40px' }}
           className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4"
         >
-          {VALUES.map((v) => (
+          {values.map((v, i) => (
             <motion.div
               key={v.title}
               variants={fadeUp}
@@ -152,7 +126,7 @@ export default function AboutPage() {
               className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)]"
             >
               <div className="mb-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-100 bg-slate-50 text-slate-600 group-hover:bg-black group-hover:text-white group-hover:border-black transition-all duration-200">
-                {v.icon}
+                {VALUE_ICONS[i]}
               </div>
               <div className="text-sm font-semibold text-slate-800 mb-2">{v.title}</div>
               <div className="text-xs text-slate-500 leading-relaxed">{v.desc}</div>
@@ -163,12 +137,12 @@ export default function AboutPage() {
 
       {/* Timeline */}
       <section className="mb-16">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-slate-400 mb-2 font-semibold">История</div>
-        <h2 className="text-2xl font-bold text-slate-900 mb-8">Как мы развивались</h2>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-slate-400 mb-2 font-semibold">{t('publicPages.about.historyKicker')}</div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-8">{t('publicPages.about.historyTitle')}</h2>
         <div className="relative">
           <div className="absolute left-[1.75rem] top-0 bottom-0 w-px bg-slate-200 hidden sm:block" />
           <div className="flex flex-col gap-5">
-            {MILESTONES.map((m, i) => (
+            {milestones.map((m, i) => (
               <motion.div
                 key={m.year}
                 initial={{ opacity: 0, x: -16 }}
@@ -202,20 +176,16 @@ export default function AboutPage() {
         className="mb-16"
       >
         <div className="rounded-3xl border border-slate-200 bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.05)]">
-          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-400 mb-2 font-semibold">Технологии</div>
-          <h2 className="text-xl font-bold text-slate-900 mb-6">На чём построено</h2>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-slate-400 mb-2 font-semibold">{t('publicPages.about.techKicker')}</div>
+          <h2 className="text-xl font-bold text-slate-900 mb-6">{t('publicPages.about.techTitle')}</h2>
           <div className="grid sm:grid-cols-3 gap-6">
-            {[
-              { label: 'Frontend', stack: 'React 19, TypeScript, Tailwind CSS, Framer Motion' },
-              { label: 'Backend', stack: 'NestJS, TypeORM, PostgreSQL, JWT-аутентификация' },
-              { label: 'Инфраструктура', stack: 'Docker, GitHub Actions CI/CD, Nginx, SSL/TLS' },
-            ].map((t) => (
-              <div key={t.label} className="group">
+            {techStack.map((tech) => (
+              <div key={tech.label} className="group">
                 <div className="text-xs font-semibold text-slate-800 mb-1.5 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-black inline-block" />
-                  {t.label}
+                  {tech.label}
                 </div>
-                <div className="text-xs text-slate-500 leading-relaxed">{t.stack}</div>
+                <div className="text-xs text-slate-500 leading-relaxed">{tech.stack}</div>
               </div>
             ))}
           </div>
@@ -224,14 +194,14 @@ export default function AboutPage() {
 
       {/* Contact CTA */}
       <section className="text-center">
-        <h2 className="text-xl font-bold text-slate-900 mb-3">Хотите познакомиться ближе?</h2>
-        <p className="text-sm text-slate-500 mb-6">Запишитесь на демо и мы расскажем всё о продукте</p>
+        <h2 className="text-xl font-bold text-slate-900 mb-3">{t('publicPages.about.ctaTitle')}</h2>
+        <p className="text-sm text-slate-500 mb-6">{t('publicPages.about.ctaSubtitle')}</p>
         <div className="flex flex-wrap gap-3 justify-center">
           <Link
             to="/contact"
             className="inline-flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-black text-white text-xs font-semibold hover:bg-neutral-800 transition-colors"
           >
-            Записаться на демо
+            {t('publicPages.about.ctaBtnDemo')}
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
               <path d="M17 8l4 4m0 0l-4 4m4-4H3" />
             </svg>
@@ -240,7 +210,7 @@ export default function AboutPage() {
             to="/features"
             className="inline-flex items-center px-6 py-2.5 rounded-xl border border-slate-200 bg-white text-xs font-medium text-slate-700 hover:border-slate-300 transition-colors"
           >
-            Посмотреть функции
+            {t('publicPages.about.ctaBtnFeatures')}
           </Link>
         </div>
       </section>

@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 
 import { IntegrationConnection } from '../integration-connection.entity';
-import { Lead } from '../../leads/lead.entity';
-import { LeadsService } from '../../leads/leads.service';
-import { NotesService } from '../../notes/notes.service';
-import { EntityType, NoteType } from '../../notes/dto/create-note.dto';
+import { WhatsappCrmService } from '../../whatsapp-crm/whatsapp-crm.service';
 
 type WaCfg = {
   catalogId?: string;
@@ -22,10 +19,7 @@ export class WhatsappWebhookService {
   constructor(
     @InjectRepository(IntegrationConnection)
     private readonly integrationRepo: Repository<IntegrationConnection>,
-    @InjectRepository(Lead)
-    private readonly leadRepo: Repository<Lead>,
-    private readonly leadsService: LeadsService,
-    private readonly notesService: NotesService,
+    private readonly whatsappCrmService: WhatsappCrmService,
   ) {}
 
   parseConfig(entity: IntegrationConnection): WaCfg | null {
@@ -76,21 +70,6 @@ export class WhatsappWebhookService {
     return String(phone || '').replace(/\D/g, '');
   }
 
-  private async findLeadByPhoneDigits(
-    tenantId: string,
-    digits: string,
-  ): Promise<Lead | null> {
-    if (!digits) return null;
-    return this.leadRepo
-      .createQueryBuilder('l')
-      .where('l.tenantId = :tenantId', { tenantId })
-      .andWhere("regexp_replace(coalesce(l.phone, ''), '[^0-9]', '', 'g') = :digits", {
-        digits,
-      })
-      .orderBy('l.updatedAt', 'DESC')
-      .getOne();
-  }
-
   async handleInbound(connectionId: string, body: unknown): Promise<void> {
     const row = await this.loadWhatsappConnection(connectionId);
     if (!row) {
@@ -131,11 +110,9 @@ export class WhatsappWebhookService {
           const digits = this.normalizeDigits(from);
           if (!digits) continue;
           const type = String((msg as any).type || 'text');
-          let textBody = '';
+          let textBody: string | null = null;
           if (type === 'text' && (msg as any).text && typeof (msg as any).text === 'object') {
             textBody = String((msg as any).text.body || '').trim();
-          } else {
-            textBody = `[${type}]`;
           }
           const waName =
             (value as any).contacts &&
@@ -145,44 +122,19 @@ export class WhatsappWebhookService {
               : '';
           const displayPhone =
             meta && typeof meta === 'object' ? String(meta.display_phone_number || '') : '';
+          const timestampRaw = (msg as any).timestamp;
+          const timestamp = timestampRaw != null ? parseInt(String(timestampRaw), 10) : null;
 
-          let lead = await this.findLeadByPhoneDigits(tenantId, digits);
-          if (!lead) {
-            lead = await this.leadsService.createForTenant(tenantId, {
-              name: waName || `WhatsApp +${digits}`,
-              phone: from.startsWith('+') ? from : `+${digits}`,
-              source: 'whatsapp',
-              status: 'new',
-            });
-          }
-
-          const lines = [
-            'Входящее сообщение WhatsApp',
-            displayPhone ? `Линия: ${displayPhone}` : null,
-            waName ? `Имя в WhatsApp: ${waName}` : null,
-            '',
-            textBody || '(пустое тело)',
-          ]
-            .filter((x) => x != null)
-            .join('\n');
-
-          await this.notesService.create(
-            tenantId,
-            {
-              entityType: EntityType.LEAD,
-              entityId: lead.id,
-              content: lines,
-              title: 'WhatsApp · входящее',
-              type: NoteType.NOTE,
-              metadata: {
-                channel: 'whatsapp_inbound',
-                messageId: (msg as any).id ?? null,
-                connectionId,
-              },
-            },
-            undefined,
-            'WhatsApp',
-          );
+          await this.whatsappCrmService.recordInboundMessage(tenantId, connectionId, {
+            waMessageId: String((msg as any).id ?? ''),
+            fromDigits: digits,
+            profileName: waName || null,
+            type,
+            text: textBody,
+            displayPhone: displayPhone || null,
+            timestamp: Number.isFinite(timestamp) ? timestamp : null,
+            raw: msg,
+          });
         }
       }
     }

@@ -19,12 +19,14 @@ export interface TelegramBot {
 export interface TelegramContact {
   id: string;
   tenantId: string;
+  botId: string | null;
   telegramUserId: string;
   telegramUsername: string | null;
   telegramFirstName: string | null;
   telegramLastName: string | null;
   contactId: string | null;
   companyId: string | null;
+  leadId: string | null;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -34,6 +36,7 @@ export interface TelegramMessage {
   id: string;
   tenantId: string;
   contactId: string;
+  botId: string | null;
   messageId: string;
   chatId: string | null;
   direction: 'incoming' | 'outgoing';
@@ -43,6 +46,11 @@ export interface TelegramMessage {
   isRead: boolean;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TelegramContactWithPreview extends TelegramContact {
+  lastMessage: TelegramMessage | null;
+  unreadCount: number;
 }
 
 export interface CreateTelegramBotDto {
@@ -104,6 +112,16 @@ export async function fetchTelegramMessages(query?: ListTelegramMessagesQuery): 
 
 export async function sendTelegramMessage(dto: SendTelegramMessageDto): Promise<TelegramMessage> {
   const res = await api.post<TelegramMessage>('/telegram-crm/send', dto);
+  return res;
+}
+
+export async function fetchTelegramContacts(query?: { search?: string; botId?: string }): Promise<TelegramContactWithPreview[]> {
+  const res = await api.get<TelegramContactWithPreview[]>('/telegram-crm/contacts', { params: query });
+  return res;
+}
+
+export async function markTelegramContactRead(contactId: string): Promise<{ success: boolean }> {
+  const res = await api.post<{ success: boolean }>(`/telegram-crm/contacts/${contactId}/read`);
   return res;
 }
 

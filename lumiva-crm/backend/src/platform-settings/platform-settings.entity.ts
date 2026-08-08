@@ -84,6 +84,11 @@ export class PlatformSettings {
   @Column({ type: 'text', nullable: true })
   stripePriceStoragePack: string | null;
 
+  /** Recurring monthly Stripe Price для добавка "IP-телефония" (+€14/мес). Если не задан —
+   * checkout собирается на лету через price_data (см. BillingService.createAiAddonCheckoutSession). */
+  @Column({ type: 'text', nullable: true })
+  stripePriceTelephonyAddon: string | null;
+
   /** Сколько центов AI-кредитов начислять за одну покупку (если нет metadata в Stripe) */
   @Column({ type: 'int', nullable: true })
   aiCreditsPackAmountCents: number | null;

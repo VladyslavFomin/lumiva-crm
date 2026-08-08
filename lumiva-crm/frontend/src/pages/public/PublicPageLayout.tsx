@@ -8,7 +8,7 @@ import { PublicFooter } from '../../components/public/PublicFooter';
 type PageKey =
   | 'development' | 'scenarios' | 'api' | 'integrations'
   | 'solutions' | 'analytics' | 'marketing' | 'sales'
-  | 'blog' | 'privacy' | 'pricing' | 'features'
+  | 'blog' | 'privacy' | 'pricing' | 'features' | 'security' | 'compare'
   | 'about' | 'contact' | 'faq' | 'terms' | 'changelog' | 'home';
 
 const PARENT_MAP: Partial<Record<PageKey, PageKey>> = {
@@ -18,6 +18,7 @@ const PARENT_MAP: Partial<Record<PageKey, PageKey>> = {
   faq:       'about',
   terms:     'about',
   privacy:   'about',
+  security:  'about',
   changelog: 'features',
 };
 
@@ -36,6 +37,8 @@ const PAGE_PATHS: Partial<Record<PageKey, string>> = {
   faq:          '/faq',
   terms:        '/terms',
   privacy:      '/privacy',
+  security:     '/security',
+  compare:      '/compare',
   changelog:    '/changelog',
   development:  '/development',
   scenarios:    '/scenarios',
@@ -126,7 +129,7 @@ export const PublicPageLayout: React.FC<Props> = ({ pageKey, title, subtitle, ch
             )}
             <div className="mt-6 flex flex-wrap gap-2.5">
               <Link
-                to="/login"
+                to="/?mode=signup"
                 className="inline-flex items-center gap-1.5 rounded-full bg-black px-5 py-2 text-xs font-semibold text-white hover:bg-neutral-800 transition-colors"
               >
                 {t('publicPages.common.primaryCta', { defaultValue: 'Попробовать бесплатно' })}

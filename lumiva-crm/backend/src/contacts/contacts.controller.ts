@@ -69,7 +69,7 @@ export class ContactsController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateContactDto,
   ) {
-    return this.contactsService.create(user.tenantId, dto);
+    return this.contactsService.create(user.tenantId, dto, user.userId ?? user.id ?? user.sub);
   }
 
   @Patch(':id')
@@ -79,7 +79,7 @@ export class ContactsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateContactDto,
   ) {
-    return this.contactsService.update(user.tenantId, id, dto);
+    return this.contactsService.update(user.tenantId, id, dto, user.userId ?? user.id ?? user.sub);
   }
 
   @Delete(':id')
@@ -88,7 +88,7 @@ export class ContactsController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    await this.contactsService.delete(user.tenantId, id);
+    await this.contactsService.delete(user.tenantId, id, user.userId ?? user.id ?? user.sub);
     return { success: true };
   }
 
@@ -106,7 +106,7 @@ export class ContactsController {
   // ========== МАССОВЫЕ ОПЕРАЦИИ ==========
 
   @Post('bulk-update')
-  @RequirePermission('contacts', 'write')
+  @RequirePermission('contacts_manage_bulk', 'write')
   async bulkUpdate(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: BulkUpdateContactsDto,

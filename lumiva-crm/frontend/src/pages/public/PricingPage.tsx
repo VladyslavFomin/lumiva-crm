@@ -62,7 +62,7 @@ const T = {
     faqLink: 'полный FAQ',
     faqOr: ' или напишите нам.',
     ctaKicker: 'ГОТОВЫ ПОПРОБОВАТЬ?',
-    ctaTitle: '14 дней на Pro. Без карты. Без звонков.',
+    ctaTitle: '14 дней на Enterprise. Без карты. Без звонков.',
     ctaCreate: 'Создать аккаунт',
     ctaDemo: 'Демо',
     fromYear: 'от €624/год',
@@ -111,7 +111,7 @@ const T = {
     faqLink: 'full FAQ',
     faqOr: ' or write to us.',
     ctaKicker: 'READY TO START?',
-    ctaTitle: '14 days on Professional. No card. No calls.',
+    ctaTitle: '14 days on Enterprise. No card. No calls.',
     ctaCreate: 'Create account',
     ctaDemo: 'Book a demo',
     fromYear: 'from €624/yr',
@@ -160,7 +160,7 @@ const T = {
     faqLink: 'tam SSS',
     faqOr: ' veya bize yazın.',
     ctaKicker: 'BAŞLAMAYA HAZIR MISINIZ?',
-    ctaTitle: "Professional'da 14 gün. Kart yok. Arama yok.",
+    ctaTitle: "Enterprise'da 14 gün. Kart yok. Arama yok.",
     ctaCreate: 'Hesap oluştur',
     ctaDemo: 'Demo ayarla',
     fromYear: '€624/yıldan',
@@ -367,8 +367,8 @@ function getFaqs(lang: Lang) {
   if (lang === 'en') return [
     { q: 'Can I change my plan?', a: 'Yes, at any time. Upgrade takes effect immediately with prorated billing. Downgrade takes effect at the start of the next billing period, no penalties.' },
     { q: 'How are leads counted?', a: 'A lead is a unique contact that enters the system in a month. If the same contact comes in again in the same month, it does not increment the counter. The counter resets on the 1st.' },
-    { q: 'What happens if I exceed the lead limit?', a: "We don't shut anything down. Overages are billed at plan rate: $9.90 per 1,000 additional leads. You can set a hard limit in settings." },
-    { q: 'Is there a free trial?', a: 'Pro — 14 days without a card, with all integrations and no limits. Starter — free tier up to 100 leads/mo forever.' },
+    { q: 'What happens if I exceed the lead limit?', a: "We don't shut anything down. Overages are billed at plan rate: €5 per 1,000 additional leads. You can set a hard limit in settings." },
+    { q: 'Is there a free trial?', a: 'Standard and Professional start free — the account runs in a limited mode until you pick a plan. Enterprise includes a 14-day trial with full access, no card required.' },
     { q: 'Does the price include VAT?', a: 'Prices shown are exclusive of VAT/taxes. Applicable taxes will be added at checkout based on your location.' },
     { q: 'What payment methods are accepted?', a: 'Card, bank transfer, SEPA, crypto (USDT, USDC), Stripe for international clients.' },
     { q: 'Where is data stored?', a: 'Your choice: Moscow (152-FZ), Frankfurt (GDPR) or Istanbul. Enterprise — any cloud or on-prem.' },
@@ -377,8 +377,8 @@ function getFaqs(lang: Lang) {
   if (lang === 'tr') return [
     { q: 'Planımı değiştirebilir miyim?', a: 'Evet, istediğiniz zaman. Yükseltme hemen geçerli olur, orantılı faturalandırma ile. Düşürme bir sonraki dönemin başında geçerli olur, ceza yok.' },
     { q: 'Leadler nasıl sayılır?', a: 'Bir lead, bir ayda sisteme giren benzersiz bir kişidir. Aynı kişi aynı ay tekrar gelirse sayaç artmaz. Sayaç 1\'inde sıfırlanır.' },
-    { q: 'Lead limitini aşarsam ne olur?', a: 'Hiçbir şeyi kapatmıyoruz. Aşımlar plan fiyatıyla faturalandırılır: her ek 1.000 lead için 99 ₺. Ayarlarda sert limit belirleyebilirsiniz.' },
-    { q: 'Ücretsiz deneme var mı?', a: 'Pro — kartı olmadan, tüm entegrasyonlarla ve limitsiz 14 gün. Starter — sonsuza kadar ayda 100 leada kadar ücretsiz.' },
+    { q: 'Lead limitini aşarsam ne olur?', a: 'Hiçbir şeyi kapatmıyoruz. Aşımlar plan fiyatıyla faturalandırılır: her ek 1.000 lead için €5. Ayarlarda sert limit belirleyebilirsiniz.' },
+    { q: 'Ücretsiz deneme var mı?', a: 'Standard ve Professional ücretsiz başlar — bir plan seçene kadar hesap sınırlı modda çalışır. Enterprise, kart gerektirmeyen 14 günlük tam erişimli bir deneme içerir.' },
     { q: 'Fiyata KDV dahil mi?', a: 'Gösterilen fiyatlar KDV hariçtir. Ödeme sırasında konumunuza göre geçerli vergiler eklenir.' },
     { q: 'Hangi ödeme yöntemleri kabul ediliyor?', a: 'Kart, banka havalesi, kripto (USDT, USDC), uluslararası müşteriler için Stripe.' },
     { q: 'Veriler nerede saklanır?', a: 'Seçiminize göre: Moskova (152-FZ), Frankfurt (GDPR) veya İstanbul. Enterprise — herhangi bir bulut veya şirket içi.' },
@@ -387,8 +387,8 @@ function getFaqs(lang: Lang) {
   return [
     { q: 'Могу ли я сменить тариф?', a: 'Да, в любой момент. Повышение — сразу, с пропорциональной оплатой разницы. Понижение — с начала следующего периода, без штрафов.' },
     { q: 'Как считаются лиды?', a: 'Лид — это уникальный контакт, пришедший в систему за месяц. Если один контакт приходит повторно в том же месяце, он не увеличивает счётчик. Счётчик обнуляется 1-го числа.' },
-    { q: 'Что, если я превысил лимит лидов?', a: 'Мы не отключаем ничего. Превышение оплачивается по тарифу: 990 ₽ за каждые следующие 1 000 лидов. Вы можете поставить жёсткий лимит в настройках.' },
-    { q: 'Есть ли бесплатный период?', a: 'Pro — 14 дней без карты, со всеми интеграциями и без лимитов. Starter — free tier до 100 лидов/мес навсегда.' },
+    { q: 'Что, если я превысил лимит лидов?', a: 'Мы не отключаем ничего. Превышение оплачивается по тарифу: €5 за каждые следующие 1 000 лидов. Вы можете поставить жёсткий лимит в настройках.' },
+    { q: 'Есть ли бесплатный период?', a: 'Standard и Professional можно начать бесплатно — аккаунт работает в ограниченном режиме, пока вы не выберете тариф. Для Enterprise доступен 14-дневный пробный период с полным доступом, без привязки карты.' },
     { q: 'Включён ли НДС?', a: 'Цены указаны без НДС. Для юрлиц РФ выставляем счёт с НДС 20%. Для международных клиентов — без НДС.' },
     { q: 'Какие способы оплаты?', a: 'Карта, безналичный расчёт по счёту, СБП, криптовалюта (USDT, USDC), Stripe для международных клиентов.' },
     { q: 'Где хранятся данные?', a: 'По выбору: Москва (152-ФЗ), Франкфурт (GDPR) или Стамбул. Enterprise — любое собственное облако или on-prem.' },
@@ -509,7 +509,7 @@ function Calculator({ period, lang }: { period: 'm' | 'y'; lang: Lang }) {
         </div>
 
         <div style={{ marginTop: 28, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <Link to="/login" className="lv-btn lv-btn-primary lv-btn-lg">
+          <Link to="/?mode=signup" className="lv-btn lv-btn-primary lv-btn-lg">
             {tx.calcApply} <ArrowIcon />
           </Link>
           <Link to="/contact" className="lv-btn lv-btn-lg">
@@ -662,7 +662,7 @@ export default function PricingPage() {
                 </div>
 
                 <Link
-                  to={p.id === 'enterprise' ? '/contact' : '/login'}
+                  to={p.id === 'enterprise' ? '/contact' : '/?mode=signup'}
                   className={`lv-btn lv-btn-lg${!p.featured ? ' lv-btn-primary' : ' lv-btn-white'}`}
                   style={{ marginTop: 24 }}
                 >
@@ -794,7 +794,7 @@ export default function PricingPage() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <Link to="/login" className="lv-btn lv-btn-primary lv-btn-lg">
+              <Link to="/?mode=signup" className="lv-btn lv-btn-primary lv-btn-lg">
                 {tx.ctaCreate} <ArrowIcon />
               </Link>
               <Link to="/contact" className="lv-btn lv-btn-lg">

@@ -56,6 +56,45 @@ export class AutomationsController {
     );
   }
 
+  /** Запуски, ожидающие подтверждения сотрудника (шаг с `_requireApproval`) */
+  @Get('executions/pending-approvals')
+  @RequirePermission('tools_automation', 'read')
+  async pendingApprovals(@CurrentUser() user: CurrentUserPayload) {
+    return this.automationsService.listPendingApprovals(user.tenantId);
+  }
+
+  @Post('executions/:id/approve')
+  @RequirePermission('tools_automation', 'write')
+  async approveExecution(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { note?: string },
+  ) {
+    return this.automationsService.decideApproval(
+      user.tenantId,
+      id,
+      user.userId ?? user.id ?? user.sub,
+      true,
+      body?.note,
+    );
+  }
+
+  @Post('executions/:id/reject')
+  @RequirePermission('tools_automation', 'write')
+  async rejectExecution(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { note?: string },
+  ) {
+    return this.automationsService.decideApproval(
+      user.tenantId,
+      id,
+      user.userId ?? user.id ?? user.sub,
+      false,
+      body?.note,
+    );
+  }
+
   /** Сводка: запуски, топ сценариев, распределение по триггерам */
   @Get('usage')
   @RequirePermission('tools_automation', 'read')

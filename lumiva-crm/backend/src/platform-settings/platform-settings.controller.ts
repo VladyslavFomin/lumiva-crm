@@ -37,6 +37,7 @@ export class PlatformSettingsController {
         aiImageCostCents: null,
         stripePriceAiCredits: null,
         stripePriceStoragePack: null,
+        stripePriceTelephonyAddon: null,
         aiCreditsPackAmountCents: null,
         storagePackBytes: null,
         integrationOAuthApps: null,
@@ -72,6 +73,7 @@ export class PlatformSettingsController {
       aiImageCostCents?: number | null;
       stripePriceAiCredits?: string | null;
       stripePriceStoragePack?: string | null;
+      stripePriceTelephonyAddon?: string | null;
       aiCreditsPackAmountCents?: number | null;
       storagePackBytes?: string | null;
       integrationOAuthApps?: Record<

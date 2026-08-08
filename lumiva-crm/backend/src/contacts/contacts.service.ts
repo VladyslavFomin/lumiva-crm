@@ -12,6 +12,7 @@ import { Lead } from '../leads/lead.entity';
 import { excludeTrashedLeads } from '../leads/lead-relations.util';
 import { Project } from '../projects/project.entity';
 import { Company } from '../companies/company.entity';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 @Injectable()
 export class ContactsService {
@@ -26,6 +27,7 @@ export class ContactsService {
     private readonly companyRepo: Repository<Company>,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -44,12 +46,13 @@ export class ContactsService {
   ): Promise<{ items: Contact[]; total: number }> {
     const qb = this.repo
       .createQueryBuilder('contact')
+      .leftJoin('contact.company', 'company')
       .where('contact.tenantId = :tenantId', { tenantId });
 
     if (options?.search) {
       const search = `%${options.search.toLowerCase()}%`;
       qb.andWhere(
-        '(LOWER(contact.fullName) LIKE :search OR LOWER(contact.email) LIKE :search OR LOWER(contact.phone) LIKE :search OR LOWER(contact.company) LIKE :search)',
+        '(LOWER(contact.fullName) LIKE :search OR LOWER(contact.email) LIKE :search OR LOWER(contact.phone) LIKE :search OR LOWER(company.name) LIKE :search)',
         { search },
       );
     }
@@ -150,7 +153,7 @@ export class ContactsService {
   /**
    * Создать контакт
    */
-  async create(tenantId: string, dto: CreateContactDto): Promise<Contact> {
+  async create(tenantId: string, dto: CreateContactDto, actorUserId?: string | null): Promise<Contact> {
     // Вычисляем fullName
     const fullName = this.computeFullName(dto.firstName, dto.lastName, dto.email);
 
@@ -197,7 +200,18 @@ export class ContactsService {
       console.error('Failed to trigger automation:', error);
     }
 
-    return Array.isArray(saved) ? saved[0] : saved;
+    const createdContact = Array.isArray(saved) ? saved[0] : saved;
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'contact',
+      entityId: createdContact.id,
+      entityLabel: createdContact.fullName,
+      action: 'create',
+      summary: 'Контакт создан',
+      actorUserId: actorUserId ?? null,
+    });
+
+    return createdContact;
   }
 
   /**
@@ -207,8 +221,10 @@ export class ContactsService {
     tenantId: string,
     id: string,
     dto: UpdateContactDto,
+    actorUserId?: string | null,
   ): Promise<Contact> {
     const contact = await this.findOne(tenantId, id);
+    const before = { email: contact.email, phone: contact.phone, status: contact.status, assignedUserId: contact.assignedUserId };
 
     // Обновляем поля
     if (dto.firstName !== undefined) contact.firstName = dto.firstName || null;
@@ -258,15 +274,39 @@ export class ContactsService {
       console.error('Failed to trigger automation:', error);
     }
 
-    return Array.isArray(saved) ? saved[0] : saved;
+    const updatedContact = Array.isArray(saved) ? saved[0] : saved;
+    const changes = (['email', 'phone', 'status', 'assignedUserId'] as const)
+      .filter((field) => before[field] !== updatedContact[field])
+      .map((field) => ({ field, oldValue: before[field] ?? null, newValue: (updatedContact[field] as string | null) ?? null }));
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'contact',
+      entityId: updatedContact.id,
+      entityLabel: updatedContact.fullName,
+      action: 'update',
+      summary: 'Контакт обновлён',
+      changes: changes.length ? changes : null,
+      actorUserId: actorUserId ?? null,
+    });
+
+    return updatedContact;
   }
 
   /**
    * Удалить контакт
    */
-  async delete(tenantId: string, id: string): Promise<void> {
+  async delete(tenantId: string, id: string, actorUserId?: string | null): Promise<void> {
     const contact = await this.findOne(tenantId, id);
     await this.repo.remove(contact);
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'contact',
+      entityId: id,
+      entityLabel: contact.fullName,
+      action: 'delete',
+      summary: 'Контакт удалён',
+      actorUserId: actorUserId ?? null,
+    });
   }
 
   /**

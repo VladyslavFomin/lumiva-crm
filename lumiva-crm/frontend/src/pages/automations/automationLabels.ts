@@ -36,6 +36,11 @@ const TRIGGER_EVENT_TO_FORM: Record<string, string> = {
   'hotel.price_changed': 'HOTEL_PRICE_CHANGED',
   'hotel.stop_sale_set': 'HOTEL_STOP_SALE_SET',
   'hotel.low_availability': 'HOTEL_LOW_AVAILABILITY',
+  'product.price_changed': 'PRODUCT_PRICE_CHANGED',
+  'product.status_changed': 'PRODUCT_STATUS_CHANGED',
+  'product.stock_low': 'PRODUCT_STOCK_LOW',
+  'lead.stale': 'LEAD_STALE',
+  'sale.stale': 'SALE_STALE',
 };
 
 export const getTriggerLabel = (event: string, t: TFunction): string => {

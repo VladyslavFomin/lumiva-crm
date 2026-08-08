@@ -31,6 +31,7 @@ export class SmsController {
   async getConfig(@CurrentUser() user: CurrentUserPayload) {
     const config = await this.smsService.getConfig(user.tenantId);
     if (!config) return null;
+    const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
     // Не возвращаем чувствительные поля в полном виде
     return {
       id: config.id,
@@ -38,6 +39,10 @@ export class SmsController {
       senderName: config.senderName,
       isEnabled: config.isEnabled,
       hasCredentials: Object.keys(config.credentials).length > 0,
+      inboundWebhookUrl:
+        config.provider === 'twilio' && base
+          ? `${base}/v1/webhooks/sms/twilio/${user.tenantId}`
+          : null,
     };
   }
 

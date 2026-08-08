@@ -20,8 +20,11 @@ import { SaveAnalyticsPresetDto } from './dto/save-analytics-preset.dto';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard'; // путь как у других контроллеров
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('sales', 'read')
 @Controller('sales')
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
@@ -108,6 +111,6 @@ export class SalesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateSaleDto,
   ) {
-    return this.salesService.update(user.tenantId, id, dto);
+    return this.salesService.update(user.tenantId, id, dto, user.userId ?? user.id ?? user.sub);
   }
 }

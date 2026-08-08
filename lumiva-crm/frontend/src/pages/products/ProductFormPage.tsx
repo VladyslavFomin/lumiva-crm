@@ -12,10 +12,13 @@ import {
   deleteProduct,
   fetchProductCategories,
   fetchProductAttributes,
+  addProductAttributeValue,
+  removeProductAttributeValue,
   fetchProductFieldDefs,
   generateProductVariants,
   updateProductVariant,
   deleteProductVariant,
+  adjustProductStock,
   fetchProducts,
   fetchProductChangeLogs,
   requestProductPublication,
@@ -181,6 +184,9 @@ export const ProductFormPage: React.FC = () => {
   const [publishBusy, setPublishBusy] = useState(false);
   const [rejectReasonDraft, setRejectReasonDraft] = useState('');
   const [showRejectBox, setShowRejectBox] = useState(false);
+  const [attrValueDrafts, setAttrValueDrafts] = useState<Record<string, string>>({});
+  const [savingAttrValue, setSavingAttrValue] = useState<string | null>(null);
+  const [adjustingVariantId, setAdjustingVariantId] = useState<string | null>(null);
 
   useEffect(() => {
     Promise.all([fetchProductCategories(), fetchProductAttributes(), fetchProductFieldDefs(), fetchProducts({ limit: 200 }), fetchSites()])
@@ -379,6 +385,48 @@ export const ProductFormPage: React.FC = () => {
     }
   };
 
+  const reloadAttributes = () => {
+    fetchProductAttributes().then(setAttributes).catch(() => {});
+  };
+
+  const handleAddAttrValue = async (attrId: string) => {
+    const value = (attrValueDrafts[attrId] || '').trim();
+    if (!value) return;
+    setSavingAttrValue(attrId);
+    try {
+      await addProductAttributeValue(attrId, { value });
+      setAttrValueDrafts((prev) => ({ ...prev, [attrId]: '' }));
+      reloadAttributes();
+    } catch (err: any) {
+      showAlert(err.message || t('crm.products.attributes.errors.saveFailed'), { variant: 'error' });
+    } finally {
+      setSavingAttrValue(null);
+    }
+  };
+
+  const handleRemoveAttrValue = async (attrId: string, valueId: string) => {
+    try {
+      await removeProductAttributeValue(attrId, valueId);
+      reloadAttributes();
+    } catch (err: any) {
+      showAlert(err.message || t('crm.products.attributes.errors.saveFailed'), { variant: 'error' });
+    }
+  };
+
+  const handleVariantQuantityDelta = async (variantId: string, delta: number) => {
+    if (!id) return;
+    setAdjustingVariantId(variantId);
+    try {
+      await adjustProductStock({ productId: id, variantId, delta, reason: t('crm.products.form.variants.table.quantity') });
+      const { variants: v } = await fetchProduct(id);
+      setVariants(v);
+    } catch (err: any) {
+      showAlert(err.message || t('crm.products.form.errors.saveFailed'), { variant: 'error' });
+    } finally {
+      setAdjustingVariantId(null);
+    }
+  };
+
   const handleGenerateVariants = async () => {
     if (!id || !selectedAttrIds.length) return;
     setGeneratingVariants(true);
@@ -402,11 +450,6 @@ export const ProductFormPage: React.FC = () => {
     } catch (err: any) {
       showAlert(err.message || t('crm.products.form.errors.saveFailed'), { variant: 'error' });
     }
-  };
-
-  const handleVariantQuantityAdjust = async () => {
-    // Остаток варианта меняется только через раздел «Склад» (движение остатков) — переходим туда.
-    navigate('/products/stock');
   };
 
   const handleVariantDelete = async (variantId: string) => {
@@ -991,6 +1034,62 @@ export const ProductFormPage: React.FC = () => {
                       )}
                     </div>
 
+                    {!!selectedAttrIds.length && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                        {selectedAttrIds.map((attrId) => {
+                          const attr = attrById.get(attrId);
+                          if (!attr) return null;
+                          return (
+                            <div key={attrId} style={{ border: `1px solid ${LINE}`, borderRadius: 8, padding: 10 }}>
+                              <div style={{ fontSize: 11.5, fontWeight: 500, marginBottom: 6 }}>{attr.name}</div>
+                              {!attr.values.length && (
+                                <div style={{ fontSize: 11, color: '#c08319', marginBottom: 6 }}>
+                                  {t('crm.products.form.variants.noValuesHint')}
+                                </div>
+                              )}
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                                {attr.values.map((v) => (
+                                  <span
+                                    key={v.id}
+                                    style={{
+                                      display: 'flex', alignItems: 'center', gap: 6, padding: '3px 9px',
+                                      borderRadius: 999, background: BG_MUTED, border: `1px solid ${LINE}`, fontSize: 11.5,
+                                    }}
+                                  >
+                                    {v.label}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveAttrValue(attrId, v.id)}
+                                      style={{ background: 'none', border: 'none', color: FG3, cursor: 'pointer', fontSize: 12, lineHeight: 1, padding: 0 }}
+                                    >
+                                      ×
+                                    </button>
+                                  </span>
+                                ))}
+                              </div>
+                              <div style={{ display: 'flex', gap: 6 }}>
+                                <input
+                                  value={attrValueDrafts[attrId] || ''}
+                                  onChange={(e) => setAttrValueDrafts((prev) => ({ ...prev, [attrId]: e.target.value }))}
+                                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleAddAttrValue(attrId); } }}
+                                  placeholder={t('crm.products.attributes.addValueLabel') || ''}
+                                  style={{ flex: '0 1 180px', padding: '5px 8px', fontSize: 11.5, border: `1px solid ${LINE}`, borderRadius: 6 }}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddAttrValue(attrId)}
+                                  disabled={savingAttrValue === attrId}
+                                  style={{ padding: '5px 12px', fontSize: 11.5, borderRadius: 6, border: `1px solid ${LINE}`, background: '#fff', color: FG3, cursor: 'pointer' }}
+                                >
+                                  {t('crm.products.attributes.addValueButton')}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {isNew ? (
                       <div style={{ fontSize: 12, color: FG4 }}>{t('crm.products.form.actions.save')} → {t('crm.products.form.variants.generateButton')}</div>
                     ) : (
@@ -1033,12 +1132,39 @@ export const ProductFormPage: React.FC = () => {
                                     style={{ width: 100, padding: '4px 6px', border: `1px solid ${LINE}`, borderRadius: 6, fontSize: 12 }}
                                   />
                                 </td>
-                                <td
-                                  style={{ padding: '8px 10px', cursor: 'pointer', textDecoration: 'underline dotted' }}
-                                  onClick={() => handleVariantQuantityAdjust()}
-                                  title={t('crm.products.stock.title') || ''}
-                                >
-                                  {v.quantity}
+                                <td style={{ padding: '8px 10px' }}>
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleVariantQuantityDelta(v.id, -1)}
+                                      disabled={adjustingVariantId === v.id}
+                                      style={{ width: 22, height: 22, border: `1px solid ${LINE}`, background: '#fff', color: FG3, borderRadius: 6, cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
+                                    >
+                                      −
+                                    </button>
+                                    <input
+                                      key={v.quantity}
+                                      type="number"
+                                      defaultValue={v.quantity}
+                                      disabled={adjustingVariantId === v.id}
+                                      onBlur={(e) => {
+                                        const next = Number(e.target.value);
+                                        if (Number.isFinite(next) && next !== v.quantity) {
+                                          handleVariantQuantityDelta(v.id, next - v.quantity);
+                                        }
+                                      }}
+                                      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                                      style={{ width: 56, padding: '4px 6px', border: `1px solid ${LINE}`, borderRadius: 6, fontSize: 12, textAlign: 'center' }}
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleVariantQuantityDelta(v.id, 1)}
+                                      disabled={adjustingVariantId === v.id}
+                                      style={{ width: 22, height: 22, border: `1px solid ${LINE}`, background: '#fff', color: FG3, borderRadius: 6, cursor: 'pointer', lineHeight: 1, flexShrink: 0 }}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
                                 </td>
                                 <td style={{ padding: '8px 10px' }}>
                                   <input

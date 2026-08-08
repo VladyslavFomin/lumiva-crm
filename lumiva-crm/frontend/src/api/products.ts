@@ -557,3 +557,174 @@ export const updateProductWebhook = (
 export const regenerateProductWebhookSecret = (id: string) =>
   api.post<ProductWebhook>(`/products/webhooks/${id}/regenerate-secret`, {});
 export const deleteProductWebhook = (id: string) => api.delete<{ ok: true }>(`/products/webhooks/${id}`);
+
+export type ProductWebhookDeliveryStatus = 'pending' | 'success' | 'failed';
+export interface ProductWebhookDelivery {
+  id: string;
+  webhookId: string;
+  event: ProductWebhookEvent;
+  status: ProductWebhookDeliveryStatus;
+  attempt: number;
+  maxAttempts: number;
+  nextAttemptAt: string;
+  lastStatusCode: number | null;
+  lastError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export const fetchProductWebhookDeliveries = (webhookId: string) =>
+  api.get<ProductWebhookDelivery[]>(`/products/webhooks/${webhookId}/deliveries`);
+
+/* ------------------------------------------------------------------ analytics */
+
+export interface ProductsAnalyticsFilters {
+  from?: string;
+  to?: string;
+  status?: ProductStatus;
+  categoryId?: string;
+  locationId?: string;
+  tag?: string;
+  search?: string;
+  displayCurrency?: string;
+  /** Множители валюта -> displayCurrency, см. GET /marketing/fx-rates multiplyToDisplay */
+  rates?: Record<string, number>;
+}
+
+export interface ProductsAnalyticsByCategory {
+  categoryId: string | null;
+  name: string;
+  color: string | null;
+  count: number;
+  value: number;
+  stockUnits: number;
+}
+export interface ProductsAnalyticsByStatus {
+  status: ProductStatus;
+  count: number;
+  value: number;
+}
+export interface ProductsAnalyticsByCurrency {
+  currency: string;
+  count: number;
+  nativeValue: number;
+  convertedValue: number;
+}
+export interface ProductsAnalyticsByTag {
+  tag: string;
+  count: number;
+}
+export interface ProductsAnalyticsByLocation {
+  locationId: string;
+  name: string;
+  isDefault: boolean;
+  productCount: number;
+  stockUnits: number;
+  value: number;
+  lowStockCount: number;
+}
+export interface ProductsAnalyticsTopProduct {
+  id: string;
+  name: string;
+  sku: string | null;
+  currency: string;
+  price: number;
+  quantity: number;
+  value: number;
+}
+export interface ProductsAnalyticsLowStock {
+  id: string;
+  name: string;
+  sku: string | null;
+  quantity: number;
+  lowStockThreshold: number;
+}
+export interface ProductsAnalyticsMovementBucket {
+  period: string;
+  in: number;
+  out: number;
+  net: number;
+}
+export interface ProductsAnalyticsMarginBucket {
+  bucket: string;
+  count: number;
+}
+
+export interface ProductsAnalyticsResult {
+  displayCurrency: string;
+  filters: {
+    from: string | null;
+    to: string | null;
+    status: string | null;
+    categoryId: string | null;
+    locationId: string | null;
+    tag: string | null;
+    search: string | null;
+  };
+  kpis: {
+    totalProducts: number;
+    activeProducts: number;
+    totalCatalogValue: number;
+    totalCostValue: number;
+    avgMarginPct: number | null;
+    totalStockUnits: number;
+    lowStockCount: number;
+    outOfStockCount: number;
+    totalCategories: number;
+    totalWarehouses: number;
+  };
+  byCategory: ProductsAnalyticsByCategory[];
+  byStatus: ProductsAnalyticsByStatus[];
+  byCurrency: ProductsAnalyticsByCurrency[];
+  byTag: ProductsAnalyticsByTag[];
+  byLocation: ProductsAnalyticsByLocation[];
+  topProducts: ProductsAnalyticsTopProduct[];
+  lowStock: ProductsAnalyticsLowStock[];
+  outOfStock: Array<{ id: string; name: string; sku: string | null }>;
+  marginBuckets: ProductsAnalyticsMarginBucket[];
+  stockMovementTimeline: ProductsAnalyticsMovementBucket[];
+}
+
+function buildAnalyticsParams(filters?: ProductsAnalyticsFilters): Record<string, string> {
+  const p: Record<string, string> = {};
+  if (!filters) return p;
+  if (filters.from) p.from = filters.from;
+  if (filters.to) p.to = filters.to;
+  if (filters.status) p.status = filters.status;
+  if (filters.categoryId) p.categoryId = filters.categoryId;
+  if (filters.locationId) p.locationId = filters.locationId;
+  if (filters.tag) p.tag = filters.tag;
+  if (filters.search) p.search = filters.search;
+  if (filters.displayCurrency) p.displayCurrency = filters.displayCurrency;
+  if (filters.rates) p.rates = JSON.stringify(filters.rates);
+  return p;
+}
+
+export const fetchProductsAnalytics = (filters?: ProductsAnalyticsFilters) =>
+  api.get<ProductsAnalyticsResult>('/products/analytics', { params: buildAnalyticsParams(filters) });
+
+export async function exportProductsAnalytics(filters?: ProductsAnalyticsFilters): Promise<void> {
+  const token = getAccessToken();
+  const params = new URLSearchParams(buildAnalyticsParams(filters));
+  const res = await fetch(`${API_BASE}/products/analytics/export?${params.toString()}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  });
+  if (!res.ok) {
+    throw new Error(`Не удалось экспортировать аналитику: ${res.status}`);
+  }
+  const blob = await res.blob();
+  const disposition = res.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : 'products-analytics.xlsx';
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
+export const fetchProductsAnalyticsPreset = () => api.get<Record<string, any> | null>('/products/analytics/preset');
+export const saveProductsAnalyticsPreset = (payload: Record<string, any>) =>
+  api.patch<Record<string, any>>('/products/analytics/preset', { payload });

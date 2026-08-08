@@ -46,6 +46,10 @@ export class TelegramContact {
   @Column({ type: 'varchar', length: 20, nullable: true })
   telegramPhone: string | null;
 
+  // ==== ЧЕРЕЗ КАКОГО БОТА ПОСЛЕДНИЙ РАЗ ПИСАЛИ (нужно для ответа из инбокса) ====
+  @Column({ type: 'uuid', nullable: true })
+  botId: string | null;
+
   // ==== СВЯЗЬ С КОНТАКТОМ ====
   @Column({ type: 'uuid', nullable: true })
   contactId: string | null; // Связь с Contact

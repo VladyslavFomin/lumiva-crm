@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { PublicPageLayout } from './PublicPageLayout';
+import { BLOG_POSTS, type BlogPost } from './blogPosts.data';
 
 type Lang = 'ru' | 'en' | 'tr';
 
@@ -51,102 +52,7 @@ const T = {
   },
 };
 
-interface Post {
-  slug: string;
-  category: string;
-  date: string;
-  readTime: number;
-  featured?: boolean;
-  titleRu: string;
-  titleEn: string;
-  titleTr: string;
-  excerptRu: string;
-  excerptEn: string;
-  excerptTr: string;
-  tag: string;
-}
-
-const POSTS: Post[] = [
-  {
-    slug: 'deal-cycle-optimization',
-    category: 'sales',
-    date: '2026-04-12',
-    readTime: 7,
-    featured: true,
-    titleRu: 'Как сократить цикл сделки без потери маржинальности',
-    titleEn: 'How to shorten the sales cycle without losing margin',
-    titleTr: 'Marjı kaybetmeden satış döngüsünü nasıl kısaltırsınız',
-    excerptRu: 'Методика приоритизации лидов, контроль касаний и внедрение SLA для менеджеров. Реальные числа из практики клиентов Lumiva.',
-    excerptEn: 'Lead prioritization methodology, touch control, and SLA implementation for managers. Real numbers from Lumiva client practices.',
-    excerptTr: 'Müşteri adayı önceliklendirme metodolojisi, dokunuş kontrolü ve yöneticiler için SLA uygulaması.',
-    tag: 'SLA · Воронка продаж',
-  },
-  {
-    slug: 'utm-architecture',
-    category: 'analytics',
-    date: '2026-04-05',
-    readTime: 9,
-    titleRu: 'UTM-архитектура для прозрачной аналитики CRM',
-    titleEn: 'UTM architecture for transparent CRM analytics',
-    titleTr: 'Şeffaf CRM analitiği için UTM mimarisi',
-    excerptRu: 'Практика построения структуры меток и отчётов для маркетинга и отдела продаж. Шаблоны и примеры.',
-    excerptEn: 'Building a tag structure and reports for marketing and sales. Templates and examples.',
-    excerptTr: 'Pazarlama ve satış için etiket yapısı ve raporlar oluşturma. Şablonlar ve örnekler.',
-    tag: 'UTM · Аналитика',
-  },
-  {
-    slug: 'crm-adoption',
-    category: 'implementation',
-    date: '2026-03-28',
-    readTime: 11,
-    titleRu: 'Как внедрять CRM, чтобы команда реально работала в системе',
-    titleEn: 'How to implement CRM so the team actually uses it',
-    titleTr: 'CRM\'i ekibin gerçekten kullanacağı şekilde nasıl uygularsınız',
-    excerptRu: 'Подход к запуску, регламентам и адаптации сотрудников без сопротивления. Чек-лист из 12 пунктов.',
-    excerptEn: 'Approach to launch, regulations, and employee onboarding without resistance. A 12-point checklist.',
-    excerptTr: 'Direnç olmadan başlatma, düzenlemeler ve çalışan katılımı yaklaşımı. 12 maddelik kontrol listesi.',
-    tag: 'Внедрение · Команда',
-  },
-  {
-    slug: 'automation-triggers',
-    category: 'automation',
-    date: '2026-03-18',
-    readTime: 6,
-    titleRu: 'Триггерные автоматизации: 8 сценариев для отдела продаж',
-    titleEn: 'Trigger automations: 8 scenarios for the sales team',
-    titleTr: 'Tetikleyici otomasyonlar: Satış ekibi için 8 senaryo',
-    excerptRu: 'Как настроить автоматические задачи, уведомления и статусы без программирования. Примеры из реальных воронок.',
-    excerptEn: 'How to set up automatic tasks, notifications, and statuses without programming. Examples from real funnels.',
-    excerptTr: 'Programlama yapmadan otomatik görevler, bildirimler ve durumlar nasıl kurulur.',
-    tag: 'Автоматизация',
-  },
-  {
-    slug: 'integrations-guide',
-    category: 'integrations',
-    date: '2026-03-10',
-    readTime: 8,
-    titleRu: 'Руководство по интеграциям: от Telegram до 1С',
-    titleEn: 'Integration guide: from Telegram to ERP systems',
-    titleTr: 'Entegrasyon rehberi: Telegram\'dan ERP sistemlerine',
-    excerptRu: 'Как выбрать нужные интеграции, настроить синхронизацию и избежать дублирования данных.',
-    excerptEn: 'How to choose the right integrations, set up synchronization, and avoid data duplication.',
-    excerptTr: 'Doğru entegrasyonları nasıl seçersiniz, senkronizasyonu kurun ve veri tekrarını önleyin.',
-    tag: 'Интеграции',
-  },
-  {
-    slug: 'analytics-dashboards',
-    category: 'analytics',
-    date: '2026-02-25',
-    readTime: 10,
-    titleRu: 'Дашборды для руководителя: что смотреть каждый день',
-    titleEn: 'Manager dashboards: what to check every day',
-    titleTr: 'Yönetici panelleri: Her gün neye bakmalısınız',
-    excerptRu: 'Набор метрик, которые дают реальную картину здоровья бизнеса. Как настроить CRM-аналитику за 30 минут.',
-    excerptEn: 'A set of metrics that give a real picture of business health. How to set up CRM analytics in 30 minutes.',
-    excerptTr: 'İşletmenin gerçek sağlık durumunu gösteren metrikler seti.',
-    tag: 'Аналитика · Дашборды',
-  },
-];
+const POSTS: BlogPost[] = BLOG_POSTS;
 
 const CATEGORIES = [
   { key: 'sales', ru: 'Продажи', en: 'Sales', tr: 'Satış' },
@@ -174,10 +80,10 @@ function formatDate(iso: string, lang: Lang) {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
-function getPostTitle(p: Post, lang: Lang) {
+function getPostTitle(p: BlogPost, lang: Lang) {
   return lang === 'en' ? p.titleEn : lang === 'tr' ? p.titleTr : p.titleRu;
 }
-function getPostExcerpt(p: Post, lang: Lang) {
+function getPostExcerpt(p: BlogPost, lang: Lang) {
   return lang === 'en' ? p.excerptEn : lang === 'tr' ? p.excerptTr : p.excerptRu;
 }
 

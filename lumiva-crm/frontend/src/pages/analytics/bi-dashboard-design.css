@@ -1,0 +1,95 @@
+.px-scope .bi-kpi-link{text-decoration:none;transition:border-color .12s,transform .12s}
+.px-scope .bi-kpi-link:hover{border-color:var(--ink);transform:translateY(-1px)}
+.px-scope .bi-module-links{display:flex;flex-wrap:wrap;gap:10px}
+.px-scope .bi-module-link{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:500;border:1px solid var(--line-2);background:#fff;color:var(--ink);text-decoration:none;transition:background .12s,border-color .12s}
+.px-scope .bi-module-link:hover{border-color:var(--ink);background:var(--bg-muted)}
+.px-scope .bi-module-link .arrow{color:var(--fg-3)}
+
+.px-scope .bi-modules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:0}
+@media (max-width:1200px){.px-scope .bi-modules{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:640px){.px-scope .bi-modules{grid-template-columns:1fr}}
+.px-scope .bi-mod{border:1px solid var(--line-2);border-radius:14px;background:#fff;padding:16px 18px;display:flex;flex-direction:column;transition:border-color .15s;text-decoration:none}
+.px-scope .bi-mod:hover{border-color:var(--ink)}
+.px-scope .bi-mod-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:2px}
+.px-scope .bi-mod-name{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink)}
+.px-scope .bi-mod-name .ic{width:26px;height:26px;border-radius:8px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;color:var(--fg-2);flex-shrink:0}
+.px-scope .bi-mod-link{color:var(--fg-3);transition:color .12s,transform .12s}
+.px-scope .bi-mod:hover .bi-mod-link{color:var(--ink);transform:translateX(2px)}
+.px-scope .bi-mod-sub{font-size:11px;color:var(--fg-3);margin:2px 0 12px}
+.px-scope .bi-mod-kpis{display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap}
+.px-scope .bi-mod-kpi .l{font-size:10px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.04em;font-family:var(--ff-mono)}
+.px-scope .bi-mod-kpi .v{font-family:var(--ff-display);font-size:19px;font-weight:600;color:var(--ink);letter-spacing:-0.01em;margin-top:3px}
+.px-scope .bi-mod-kpi .v small{font-size:11px;color:var(--fg-3);font-weight:500;margin-left:1px}
+.px-scope .bi-mod-spark{margin-top:auto}
+.px-scope .bi-mod-foot{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--fg-3);margin-top:8px;padding-top:10px;border-top:1px solid var(--line-3)}
+.px-scope .bi-mod-foot .up{color:#1f8a5e}
+.px-scope .bi-mod-foot .down{color:#cc2f47}
+.px-scope .bi-mod-foot .warn{color:#a06b1a}
+
+.px-scope .bi-alerts{display:flex;flex-direction:column}
+.px-scope .bi-alert{display:grid;grid-template-columns:80px 100px 1fr auto;align-items:center;gap:14px;padding:12px 4px;border-bottom:1px solid var(--line-3);text-decoration:none}
+.px-scope .bi-alert:last-child{border-bottom:0}
+.px-scope .bi-alert-mod{font-family:var(--ff-mono);font-size:10px;letter-spacing:0.05em;color:var(--fg-3);text-transform:uppercase}
+.px-scope .bi-alert-txt{font-size:12.5px;color:var(--ink);line-height:1.4}
+.px-scope .bi-alert-txt b{font-weight:600}
+.px-scope .bi-alert-link{font-size:11.5px;color:var(--fg-3);white-space:nowrap;transition:color .12s}
+.px-scope .bi-alert:hover .bi-alert-link{color:var(--ink)}
+
+.px-scope .bi-team{display:flex;flex-direction:column}
+.px-scope .bi-team-row{display:grid;grid-template-columns:28px 1fr auto;align-items:center;gap:12px;padding:10px 4px;border-bottom:1px solid var(--line-3)}
+.px-scope .bi-team-row:last-child{border-bottom:0}
+.px-scope .bi-team-rank{font-family:var(--ff-mono);font-size:11px;color:var(--fg-3)}
+.px-scope .bi-team-name{display:flex;align-items:center;gap:10px}
+.px-scope .bi-team-name .ava{width:28px;height:28px;border-radius:50%;background:var(--bg-soft);border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;color:var(--ink);flex-shrink:0}
+.px-scope .bi-team-name .nm{font-size:12.5px;font-weight:500;color:var(--ink)}
+.px-scope .bi-team-chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}
+.px-scope .bi-team-chip{font-size:10px;color:var(--fg-3);font-family:var(--ff-mono);background:var(--bg-muted);padding:1px 6px;border-radius:4px}
+.px-scope .bi-team-delta{font-family:var(--ff-mono);font-size:12px;text-align:right;color:var(--fg-3)}
+
+.px-scope .bi-combined-legend{display:flex;gap:16px;font-size:11px;color:var(--fg-3);margin-top:10px;flex-wrap:wrap}
+.px-scope .bi-combined-legend span{display:flex;align-items:center;gap:6px}
+.px-scope .bi-combined-legend i{width:12px;height:2px;border-radius:2px;display:inline-block}
+
+.px-scope .bi-co-table-wrap{overflow:visible}
+.px-scope .bi-co-table{min-width:0!important;table-layout:fixed}
+.px-scope .bi-co-table th:nth-child(1),.px-scope .bi-co-table td:nth-child(1){width:36%}
+.px-scope .bi-co-table th:nth-child(2),.px-scope .bi-co-table td:nth-child(2){width:20%}
+.px-scope .bi-co-table th:nth-child(3),.px-scope .bi-co-table td:nth-child(3){width:16%}
+.px-scope .bi-co-table th:nth-child(4),.px-scope .bi-co-table td:nth-child(4){width:28%}
+.px-scope .bi-co-table td,.px-scope .bi-co-table th{white-space:normal;word-break:break-word;padding:9px 8px}
+.px-scope .bi-co-table td:last-child{padding-right:14px}
+
+.px-scope .bi-two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:900px){.px-scope .bi-two-col{grid-template-columns:1fr}}
+.px-scope .bi-two-col-wide{display:grid;grid-template-columns:1.3fr 1fr;gap:16px}
+@media (max-width:900px){.px-scope .bi-two-col-wide{grid-template-columns:1fr}}
+
+.px-scope .bi-spark{margin-top:8px}
+
+/* .rev-bar-fill (shared telephony/hotels CSS) is a bare <span> with no display set,
+   so its inline `width` style never renders — fix scoped to this page. */
+.px-scope .rev-bar-fill{display:block}
+
+.px-scope .ha-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+@media (max-width:900px){.px-scope .ha-kpis{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:480px){.px-scope .ha-kpis{grid-template-columns:1fr}}
+.px-scope .ha-kpi{border:1px solid var(--line-2);border-radius:12px;background:#fff;padding:14px 16px;position:relative;overflow:hidden}
+.px-scope .ha-kpi .l{font-size:11px;color:var(--fg-3);display:flex;align-items:center;justify-content:space-between}
+.px-scope .ha-kpi .v{font-family:var(--ff-display);font-size:22px;font-weight:600;color:var(--ink);margin-top:6px;letter-spacing:-0.01em}
+.px-scope .ha-kpi .v small{font-size:12px;color:var(--fg-3);font-weight:500;margin-left:2px}
+.px-scope .ha-kpi .d{font-size:11px;margin-top:4px;color:var(--fg-3)}
+.px-scope .ha-kpi .d.up{color:#1f8a5e}
+.px-scope .ha-kpi .d.down{color:#cc2f47}
+.px-scope .ha-kpi .d.warn{color:#a06b1a}
+
+.px-scope .pace-table-wrap{border:1px solid var(--line-2);border-radius:12px;overflow:auto}
+.px-scope .pace-table{width:100%;border-collapse:collapse;font-size:12px;min-width:480px}
+.px-scope .pace-table th{padding:9px 12px;background:var(--bg-muted);font-weight:600;color:var(--fg-2);font-size:10.5px;text-transform:uppercase;letter-spacing:.03em;text-align:right;border-bottom:1px solid var(--line-2);white-space:nowrap}
+.px-scope .pace-table th:first-child{text-align:left}
+.px-scope .pace-table td{padding:9px 12px;border-bottom:1px solid var(--line-3);text-align:right;color:var(--ink)}
+.px-scope .pace-table td:first-child{text-align:left;font-weight:600}
+.px-scope .pace-table tr:last-child td{border-bottom:none}
+.px-scope .pace-table td.need{font-family:var(--ff-mono);font-weight:700}
+.px-scope .pace-table td.need.high{color:#c0392b}
+.px-scope .pace-table td.need.mid{color:#a06b1a}
+.px-scope .pace-table td.need.low{color:#1f8a5e}

@@ -37,6 +37,8 @@ import { User } from '../users/user.entity';
 import { Tenant } from '../tenants/tenant.entity';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SitesService } from '../sites/sites.service';
+import { AutomationsService } from '../automations/automations.service';
+import { TriggerEvent } from '../automations/automation.entity';
 import type { Site } from '../sites/site.entity';
 import {
   buildSuggestedCustomObjectFieldMapping,
@@ -131,6 +133,7 @@ export class ProductsService {
     private readonly notifications: NotificationsService,
     private readonly sites: SitesService,
     private readonly webhooksDispatcher: ProductWebhooksService,
+    private readonly automationsService: AutomationsService,
   ) {}
 
   /* ------------------------------------------------------------------ utils */
@@ -571,6 +574,26 @@ export class ProductsService {
   async deleteAttribute(tenantId: string, id: string) {
     const attribute = await this.attributes.findOne({ where: { tenantId, id } });
     if (!attribute) throw new NotFoundException('Атрибут не найден');
+    // Без этой проверки удаление атрибута оставляло бы варианты товара со ссылкой на
+    // несуществующий attributeId — describeVariant() на фронтенде рисовал бы "?" вместо
+    // названия атрибута, без возможности исправить это иначе как удалением/пересозданием
+    // варианта. См. lumiva_products_module_roadmap.md — та же категория бага, что и с
+    // генерацией вариантов у пустого атрибута.
+    // ВАЖНО: join на products с фильтром isDeleted=false — deleteProduct() мягкий (isDeleted),
+    // варианты удалённых товаров никуда не деваются из БД; без этого фильтра атрибут навсегда
+    // "завис" бы как используемый после удаления единственного товара, который на него ссылался.
+    const inUse = await this.variants
+      .createQueryBuilder('v')
+      .innerJoin(Product, 'p', 'p.id = v.productId')
+      .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere('p.isDeleted = false')
+      .andWhere('jsonb_exists(v.attributeValues, :attrId)', { attrId: id })
+      .getCount();
+    if (inUse > 0) {
+      throw new BadRequestException(
+        `Атрибут «${attribute.name}» используется в вариантах товара — сначала удалите эти варианты или уберите атрибут из вариаций товара`,
+      );
+    }
     await this.attributes.remove(attribute);
     return { ok: true };
   }
@@ -597,6 +620,18 @@ export class ProductsService {
   async removeAttributeValue(tenantId: string, id: string, valueId: string) {
     const attribute = await this.attributes.findOne({ where: { tenantId, id } });
     if (!attribute) throw new NotFoundException('Атрибут не найден');
+    const inUse = await this.variants
+      .createQueryBuilder('v')
+      .innerJoin(Product, 'p', 'p.id = v.productId')
+      .where('v.tenantId = :tenantId', { tenantId })
+      .andWhere('p.isDeleted = false')
+      .andWhere('v.attributeValues ->> :attrId = :valueId', { attrId: id, valueId })
+      .getCount();
+    if (inUse > 0) {
+      throw new BadRequestException(
+        'Это значение используется в вариантах товара — сначала удалите эти варианты или смените их атрибуты',
+      );
+    }
     attribute.values = (attribute.values || []).filter((v) => v.id !== valueId);
     return this.attributes.save(attribute);
   }
@@ -1006,6 +1041,34 @@ export class ProductsService {
       { field: 'barcode', oldValue: before.barcode, newValue: saved.barcode },
     ]);
 
+    if (before.price !== saved.price || before.costPrice !== saved.costPrice) {
+      try {
+        await this.automationsService.triggerAutomation(tenantId, TriggerEvent.PRODUCT_PRICE_CHANGED, {
+          entityType: 'product',
+          entityId: saved.id,
+          product: saved,
+          oldPrice: before.price,
+          newPrice: saved.price,
+        });
+      } catch (error) {
+        this.log.error('Failed to trigger PRODUCT_PRICE_CHANGED automation:', error);
+      }
+    }
+
+    if (before.status !== saved.status) {
+      try {
+        await this.automationsService.triggerAutomation(tenantId, TriggerEvent.PRODUCT_STATUS_CHANGED, {
+          entityType: 'product',
+          entityId: saved.id,
+          product: saved,
+          oldStatus: before.status,
+          newStatus: saved.status,
+        });
+      } catch (error) {
+        this.log.error('Failed to trigger PRODUCT_STATUS_CHANGED automation:', error);
+      }
+    }
+
     this.webhooksDispatcher
       .dispatch(tenantId, 'product.updated', { productId: saved.id, sku: saved.sku, name: saved.name })
       .catch(() => {});
@@ -1205,6 +1268,16 @@ export class ProductsService {
     if (attrs.length !== attributeIds.length) {
       throw new BadRequestException('Один или несколько атрибутов не найдены');
     }
+    // Атрибут без значений (только что созданный, но ещё не заполненный, напр. «Размер» без
+    // S/M/L) молча выпадал бы из декартова произведения ниже — при всех пустых атрибутах это
+    // раньше создавало один-единственный "призрачный" вариант с attributeValues:{} (в UI
+    // отображался как комбинация "—"), что выглядело как баг. Явная ошибка вместо этого.
+    const emptyAttrs = attrs.filter((a) => !(a.values || []).length);
+    if (emptyAttrs.length) {
+      throw new BadRequestException(
+        `У атрибута${emptyAttrs.length > 1 ? 'ов' : ''} ${emptyAttrs.map((a) => `«${a.name}»`).join(', ')} нет значений — добавьте их перед генерацией вариантов`,
+      );
+    }
     let combos: ProductVariantAttributeValues[] = [{}];
     for (const attr of attrs) {
       const values = attr.values || [];
@@ -1311,6 +1384,20 @@ export class ProductsService {
       productId: product.id,
       link: `/products/${product.id}`,
     });
+
+    try {
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.PRODUCT_STOCK_LOW, {
+        entityType: 'product',
+        entityId: product.id,
+        product,
+        previousQuantity,
+        newQuantity,
+        threshold,
+        isOut,
+      });
+    } catch (error) {
+      this.log.error('Failed to trigger PRODUCT_STOCK_LOW automation:', error);
+    }
   }
 
   /** Находит дефолтный склад тенанта, создаёт при отсутствии (тенанты, заведённые до §12.2). */
@@ -1814,6 +1901,18 @@ export class ProductsService {
       createdFieldLabels.push(newField.label);
     }
 
+    // Мультивалютные цены "обратным" импортом — каждая отдельная колонка файла сопоставлена
+    // не единому полю, а конкретной валюте (ключ маппинга вида `extraPrice:USD`), в отличие от
+    // структурного поля `prices`, которое ждёт одну колонку с уже собранной строкой
+    // "USD:19.99,TRY:650". Оба способа совместимы — их результаты просто объединяются построчно
+    // (см. lumiva_products_module_roadmap.md §16 «Импорт мультивалютных цен»).
+    const extraPriceColumns = Object.entries(mapping)
+      .map(([key, column]) => {
+        const m = /^extraPrice:([A-Z]{3})$/.exec(key);
+        return m && column ? { currency: m[1], column } : null;
+      })
+      .filter((v): v is { currency: string; column: string } => !!v);
+
     let created = 0;
     let updatedCount = 0;
     const errors: Array<{ row: number; message: string }> = [];
@@ -1887,7 +1986,7 @@ export class ProductsService {
         const metaTitle = get('metaTitle');
         const metaDescription = get('metaDescription');
         const pricesRaw = get('prices');
-        const prices = pricesRaw
+        const pricesFromCombinedColumn = pricesRaw
           ? pricesRaw
               .split(',')
               .map((pair) => {
@@ -1896,7 +1995,19 @@ export class ProductsService {
                 return currency && Number.isFinite(priceVal) ? { currency, price: priceVal } : null;
               })
               .filter((p): p is { currency: string; price: number } => !!p)
-          : undefined;
+          : [];
+        const pricesFromExtraColumns = extraPriceColumns
+          .map(({ currency, column }) => {
+            const raw = String(row[column] ?? '').trim();
+            const priceVal = Number(raw.replace(',', '.'));
+            return raw && Number.isFinite(priceVal) ? { currency, price: priceVal } : null;
+          })
+          .filter((p): p is { currency: string; price: number } => !!p);
+        // extraPrice-колонки перекрывают combined-строку при совпадении валюты (явное
+        // сопоставление колонки надёжнее, чем часть комбинированной строки).
+        const mergedPrices = new Map(pricesFromCombinedColumn.map((p) => [p.currency, p]));
+        for (const p of pricesFromExtraColumns) mergedPrices.set(p.currency, p);
+        const prices = mergedPrices.size ? Array.from(mergedPrices.values()) : undefined;
 
         let existing: Product | null = null;
         if (sku) existing = await this.products.findOne({ where: { tenantId, sku, isDeleted: false } });

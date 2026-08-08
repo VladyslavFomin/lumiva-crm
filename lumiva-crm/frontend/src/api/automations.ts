@@ -37,7 +37,12 @@ export type TriggerEvent =
   | 'hotel.reservation_status_changed'
   | 'hotel.price_changed'
   | 'hotel.stop_sale_set'
-  | 'hotel.low_availability';
+  | 'hotel.low_availability'
+  | 'product.price_changed'
+  | 'product.status_changed'
+  | 'product.stock_low'
+  | 'lead.stale'
+  | 'sale.stale';
 
 export type ActionType =
   | 'create_task'
@@ -50,6 +55,7 @@ export type ActionType =
   | 'send_mailchimp_campaign'
   | 'send_zapier'
   | 'send_whatsapp'
+  | 'send_sms'
   | 'send_google_calendar'
   | 'send_outlook_calendar'
   | 'send_bitrix'
@@ -121,10 +127,16 @@ export interface AutomationExecution {
   triggerData: any;
   entityType: string | null;
   entityId: string | null;
-  status: 'pending' | 'success' | 'error' | 'skipped';
+  status: 'pending' | 'success' | 'error' | 'skipped' | 'paused_delay' | 'paused_approval' | 'rejected';
   errorMessage: string | null;
   executionResult: any | null;
   actionsExecuted: number;
+  pausedAtStep?: number | null;
+  resumeAt?: string | null;
+  ctxSnapshot?: any | null;
+  approvalDecidedBy?: string | null;
+  approvalDecidedAt?: string | null;
+  approvalNote?: string | null;
   createdAt: string;
   automation?: Pick<Automation, 'id' | 'name'>;
 }
@@ -218,6 +230,18 @@ export async function fetchAutomationExecutions(
   return api.get<AutomationExecution[]>('/automations/executions', {
     params: { limit, status },
   });
+}
+
+export async function fetchPendingApprovals(): Promise<AutomationExecution[]> {
+  return api.get<AutomationExecution[]>('/automations/executions/pending-approvals');
+}
+
+export async function approveExecution(id: string, note?: string): Promise<AutomationExecution> {
+  return api.post<AutomationExecution>(`/automations/executions/${id}/approve`, { note });
+}
+
+export async function rejectExecution(id: string, note?: string): Promise<AutomationExecution> {
+  return api.post<AutomationExecution>(`/automations/executions/${id}/reject`, { note });
 }
 
 export async function fetchAutomationUsageStats(

@@ -10,11 +10,13 @@ import { User } from '../users/user.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { Lead } from '../leads/lead.entity';
 import { AutomationsModule } from '../automations/automations.module';
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Project, ProjectActivity, User, StaffUser, Lead]),
     forwardRef(() => AutomationsModule),
+    RbacModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],

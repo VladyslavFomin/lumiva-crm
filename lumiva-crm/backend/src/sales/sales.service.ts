@@ -34,6 +34,7 @@ import { FieldType } from '../custom-fields/custom-field.entity';
 import { AnalyticsPreset } from './sales-analytics-preset.entity';
 import { SaveAnalyticsPresetDto } from './dto/save-analytics-preset.dto';
 import { LeadsService } from '../leads/leads.service';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 // строковый тип статуса из сущности
 type SaleStatusString = Sale['status'];
@@ -60,6 +61,7 @@ export class SalesService {
     private readonly leadsService: LeadsService,
 
     private readonly customFieldsService: CustomFieldsService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /* ───────────────────── helpers ───────────────────── */
@@ -1218,6 +1220,7 @@ export class SalesService {
     tenantId: string,
     id: string,
     dto: UpdateSaleDto,
+    actorUserId?: string | null,
   ): Promise<Sale> {
     const sale = await this.saleRepo.findOne({
       where: { id, tenantId } as any,
@@ -1286,6 +1289,21 @@ export class SalesService {
     } catch {
       // не роняем ответ, если внешний сервис упал
     }
+
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'sale',
+      entityId: saved.id,
+      entityLabel: saved.guestName || saved.externalOrderNo || saved.hotel,
+      action: 'update',
+      summary: dto.status !== undefined && dto.status !== oldStatus
+        ? `Статус продажи изменён: ${oldStatus} → ${dto.status}`
+        : 'Продажа обновлена',
+      changes: dto.status !== undefined && dto.status !== oldStatus
+        ? [{ field: 'status', oldValue: oldStatus, newValue: dto.status }]
+        : null,
+      actorUserId: actorUserId ?? null,
+    });
 
     return saved;
   }

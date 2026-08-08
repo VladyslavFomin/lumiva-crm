@@ -47,6 +47,7 @@ export const COMPONENT_KEYS = [
   'custom_objects',
   'email',
   'telegram',
+  'whatsapp',
   'chat',
   'client_accounts',
   'sms',
@@ -106,6 +107,7 @@ const COMPONENT_MIN_PLAN: Record<string, NormalizedTenantPlan> = {
   email: 'standard',
   custom_objects: 'standard',
   telegram: 'professional',
+  whatsapp: 'professional',
   chat: 'professional',
   client_accounts: 'enterprise',
   sms: 'standard',
@@ -127,6 +129,13 @@ export function normalizeTenantPlan(plan?: string | null): NormalizedTenantPlan 
 
 function isPlanAllowed(current: NormalizedTenantPlan, minPlan: NormalizedTenantPlan) {
   return PLAN_RANK[current] >= PLAN_RANK[minPlan];
+}
+
+/** Telephony is a paid add-on on top of any plan (see Tenant.telephonyAddonEnabled) — except
+ * Ultimate, where it's included for free. Not part of COMPONENT_KEYS/COMPONENT_MIN_PLAN on
+ * purpose (that mechanism can't express "off by default for everyone except one specific tier"). */
+export function isTelephonyIncludedInPlan(plan?: string | null): boolean {
+  return normalizeTenantPlan(plan) === 'ultimate';
 }
 
 export function isModuleAllowedByPlan(moduleKey: string, plan?: string | null) {

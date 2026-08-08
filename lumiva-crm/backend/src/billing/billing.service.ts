@@ -4,10 +4,27 @@ import { Repository } from 'typeorm';
 import Stripe from 'stripe';
 import { Tenant } from '../tenants/tenant.entity';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
-import { buildPlanEntitlements, normalizeTenantPlan } from '../tenants/plan-entitlements';
+import { buildPlanEntitlements, normalizeTenantPlan, isComponentAllowedByPlan } from '../tenants/plan-entitlements';
 
 type PlanCode = 'standard' | 'professional' | 'enterprise' | 'ultimate';
 type BillingPeriod = 'month' | 'year';
+
+/** Схлопывает гранулярные COMPONENT_KEYS в укрупнённые группы для витрины тарифов. */
+const FEATURE_GROUPS: Record<string, string[]> = {
+  contacts_companies: ['contacts', 'companies', 'notes'],
+  leads: ['leads'],
+  projects: ['projects', 'projects_analytics', 'projects_kanban', 'projects_calendar'],
+  sales: ['sales', 'sales_pipeline', 'sales_analytics'],
+  marketing: ['marketing', 'marketing_campaigns', 'marketing_analytics'],
+  automation: ['tools', 'tools_settings', 'tools_integrations', 'tools_automation'],
+  custom_objects: ['custom_objects'],
+  email: ['email'],
+  sms: ['sms'],
+  deduplication: ['deduplication'],
+  telegram: ['telegram'],
+  chat: ['chat'],
+  client_accounts: ['client_accounts'],
+};
 
 @Injectable()
 export class BillingService {
@@ -26,6 +43,19 @@ export class BillingService {
     const tenant = await this.tenantsRepo.findOne({ where: { id: tenantId } });
     if (!tenant) throw new BadRequestException('Tenant not found');
     return tenant;
+  }
+
+  /** Возвращает существующий Stripe Customer тенанта или создаёт и сохраняет новый. */
+  private async getOrCreateStripeCustomerId(tenant: Tenant, stripe: Stripe): Promise<string> {
+    if (tenant.stripeCustomerId) return tenant.stripeCustomerId;
+    const customer = await stripe.customers.create({
+      email: tenant.ownerEmail || undefined,
+      name: tenant.name,
+      metadata: { tenantId: tenant.id },
+    });
+    tenant.stripeCustomerId = customer.id;
+    await this.tenantsRepo.save(tenant);
+    return customer.id;
   }
 
   private async resolvePriceId(plan: PlanCode): Promise<string> {
@@ -115,7 +145,7 @@ export class BillingService {
     const tenantId = meta.tenantId;
     if (
       !tenantId ||
-      (purchaseType !== 'ai_prepaid' && purchaseType !== 'storage_pack')
+      (purchaseType !== 'ai_prepaid' && purchaseType !== 'storage_pack' && purchaseType !== 'telephony_addon')
     ) {
       return { applied: false };
     }
@@ -137,6 +167,8 @@ export class BillingService {
       }
       const cur = BigInt(tenant.storageExtraBytes || '0');
       tenant.storageExtraBytes = (cur + bytes).toString();
+    } else if (purchaseType === 'telephony_addon') {
+      tenant.telephonyAddonEnabled = true;
     }
 
     tenant.stripeAuxLastSessionId = session.id;
@@ -146,6 +178,26 @@ export class BillingService {
 
   async getCatalog() {
     return this.settings.getBillingPlans();
+  }
+
+  /**
+   * Для каждого тарифа — какие укрупнённые группы фич (FEATURE_GROUPS) открываются
+   * именно на этом тарифе (не накопительно). Источник правды — isComponentAllowedByPlan
+   * из plan-entitlements.ts, тот же, что реально решает видимость разделов CRM.
+   */
+  getPlanFeatureUnlocks(): Record<PlanCode, string[]> {
+    const planOrder: PlanCode[] = ['standard', 'professional', 'enterprise', 'ultimate'];
+    const result: Record<PlanCode, string[]> = {
+      standard: [],
+      professional: [],
+      enterprise: [],
+      ultimate: [],
+    };
+    for (const [group, keys] of Object.entries(FEATURE_GROUPS)) {
+      const unlockPlan = planOrder.find((plan) => keys.every((key) => isComponentAllowedByPlan(key, plan)));
+      if (unlockPlan) result[unlockPlan].push(group);
+    }
+    return result;
   }
 
   private async activatePlan(tenantId: string, plan: PlanCode) {
@@ -220,7 +272,7 @@ export class BillingService {
         monthlyPrice: String(monthly),
         yearlyDiscount: String(yearlyDiscount),
       },
-      customer_email: tenant.ownerEmail || undefined,
+      customer: await this.getOrCreateStripeCustomerId(tenant, stripe),
     });
 
     return {
@@ -278,14 +330,39 @@ export class BillingService {
           await this.applyAddonSession(session);
         }
       }
+    } else if (event.type === 'customer.subscription.deleted') {
+      // The only Stripe Subscription in this system is the telephony addon (mode:'subscription')
+      // — the main plan is prepaid one-time Checkout, so any subscription under a tenant's
+      // customer id is unambiguously the telephony one.
+      const subscription = event.data.object as Stripe.Subscription;
+      await this.handleTelephonySubscriptionCancelled(subscription.customer as string);
+    } else if (event.type === 'invoice.payment_failed') {
+      const invoice = event.data.object as Stripe.Invoice;
+      await this.handlePaymentFailed(invoice.customer as string);
     }
 
     return { ok: true };
   }
 
+  private async handleTelephonySubscriptionCancelled(stripeCustomerId: string) {
+    if (!stripeCustomerId) return;
+    const tenant = await this.tenantsRepo.findOne({ where: { stripeCustomerId } });
+    if (!tenant || !tenant.telephonyAddonEnabled) return;
+    tenant.telephonyAddonEnabled = false;
+    await this.tenantsRepo.save(tenant);
+  }
+
+  private async handlePaymentFailed(stripeCustomerId: string) {
+    if (!stripeCustomerId) return;
+    const tenant = await this.tenantsRepo.findOne({ where: { stripeCustomerId } });
+    if (!tenant) return;
+    tenant.lastPaymentFailedAt = new Date();
+    await this.tenantsRepo.save(tenant);
+  }
+
   async createAiAddonCheckoutSession(input: {
     tenantId?: string | null;
-    kind: 'ai_prepaid' | 'storage_pack';
+    kind: 'ai_prepaid' | 'storage_pack' | 'telephony_addon';
     successUrl: string;
     cancelUrl: string;
   }) {
@@ -297,6 +374,7 @@ export class BillingService {
       throw new BadRequestException('Stripe is not configured');
     }
     const stripe = this.getStripeClient(secretKey);
+    const customerId = await this.getOrCreateStripeCustomerId(tenant, stripe);
 
     const creditsCents =
       cfg?.aiCreditsPackAmountCents != null && cfg.aiCreditsPackAmountCents > 0
@@ -320,7 +398,7 @@ export class BillingService {
             purchaseType: 'ai_prepaid',
             creditsCents: String(creditsCents),
           },
-          customer_email: tenant.ownerEmail || undefined,
+          customer: customerId,
         });
         return { id: session.id, url: session.url };
       }
@@ -345,7 +423,41 @@ export class BillingService {
           purchaseType: 'ai_prepaid',
           creditsCents: String(creditsCents),
         },
-        customer_email: tenant.ownerEmail || undefined,
+        customer: customerId,
+      });
+      return { id: session.id, url: session.url };
+    }
+
+    if (input.kind === 'telephony_addon') {
+      const telephonyPriceId = (cfg?.stripePriceTelephonyAddon || '').trim();
+      if (telephonyPriceId.startsWith('price_')) {
+        const session = await stripe.checkout.sessions.create({
+          mode: 'subscription',
+          line_items: [{ price: telephonyPriceId, quantity: 1 }],
+          success_url: input.successUrl,
+          cancel_url: input.cancelUrl,
+          metadata: { tenantId: tenant.id, purchaseType: 'telephony_addon' },
+          customer: customerId,
+        });
+        return { id: session.id, url: session.url };
+      }
+      const session = await stripe.checkout.sessions.create({
+        mode: 'subscription',
+        line_items: [
+          {
+            quantity: 1,
+            price_data: {
+              currency: 'eur',
+              unit_amount: 1400,
+              recurring: { interval: 'month' },
+              product_data: { name: 'IP-телефония · запись, транскрипция, теги' },
+            },
+          },
+        ],
+        success_url: input.successUrl,
+        cancel_url: input.cancelUrl,
+        metadata: { tenantId: tenant.id, purchaseType: 'telephony_addon' },
+        customer: customerId,
       });
       return { id: session.id, url: session.url };
     }
@@ -362,7 +474,7 @@ export class BillingService {
           purchaseType: 'storage_pack',
           storageBytes: storageBytes.toString(),
         },
-        customer_email: tenant.ownerEmail || undefined,
+        customer: customerId,
       });
       return { id: session.id, url: session.url };
     }
@@ -387,8 +499,36 @@ export class BillingService {
         purchaseType: 'storage_pack',
         storageBytes: storageBytes.toString(),
       },
-      customer_email: tenant.ownerEmail || undefined,
+      customer: customerId,
     });
     return { id: session.id, url: session.url };
+  }
+
+  /** Сессия Stripe Customer Portal — просмотр/смена/удаление способов оплаты, история счетов. */
+  async createPortalSession(input: { tenantId?: string | null; returnUrl: string }) {
+    const tenant = await this.getTenantOrFail(input.tenantId);
+    const cfg = await this.settings.getSettings();
+    const secretKey = cfg?.stripeSecretKey?.trim() || process.env.STRIPE_SECRET_KEY?.trim();
+    if (!secretKey) {
+      throw new BadRequestException('Stripe is not configured');
+    }
+    const stripe = this.getStripeClient(secretKey);
+    const customerId = await this.getOrCreateStripeCustomerId(tenant, stripe);
+
+    try {
+      const session = await stripe.billingPortal.sessions.create({
+        customer: customerId,
+        return_url: input.returnUrl,
+      });
+      return { url: session.url };
+    } catch (err: any) {
+      const message = String(err?.message || '');
+      if (message.toLowerCase().includes('no configuration') || message.toLowerCase().includes('default configuration')) {
+        throw new BadRequestException(
+          'Stripe Customer Portal is not configured yet. Open Stripe Dashboard → Settings → Billing → Customer portal and save the default configuration once.',
+        );
+      }
+      throw err;
+    }
   }
 }

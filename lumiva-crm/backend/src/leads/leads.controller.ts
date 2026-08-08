@@ -25,6 +25,8 @@ import { LeadActivityService } from './lead-activity.service';
 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 
 import { User } from '../users/user.entity';
 import { StaffUser, StaffRole } from '../staff/staff-user.entity';
@@ -40,7 +42,8 @@ interface CurrentUserPayload {
 const UUID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('leads', 'read')
 @Controller('leads')
 export class LeadsController {
   constructor(
@@ -203,6 +206,7 @@ export class LeadsController {
   // ====================== GET /leads/roi ======================
   // ROI по лидам: суммы продаж, выручка, ROI-показатели
   @Get('roi')
+  @RequirePermission('leads_view_roi', 'read')
   async roi(
     @CurrentUser() user: CurrentUserPayload,
     @Query('from') from?: string,
@@ -212,13 +216,7 @@ export class LeadsController {
     @Query('displayCurrency') displayCurrency?: string,
     @Query('rates') rates?: string,
   ) {
-    const { tenantId, role } = user;
-
-    // Можно ограничить доступ только владельцу / менеджеру / финансисту
-    const allowed: StaffRole[] = ['owner', 'manager', 'finance'];
-    if (role && !allowed.includes(role)) {
-      throw new ForbiddenException('Недостаточно прав для просмотра ROI');
-    }
+    const { tenantId } = user;
     return this.leadsService.getRoiForTenant(tenantId, {
       from,
       to,

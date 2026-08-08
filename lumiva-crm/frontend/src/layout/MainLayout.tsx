@@ -42,6 +42,7 @@ import { resolvePublicAssetUrl } from '../api/client';
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/withTimeout';
 import { AiAssistantPanel } from '../components/ai/AiAssistantPanel';
 import { AiAssistantTriggerIcon } from '../components/ai/AiAssistantTriggerIcon';
+import { HelpdeskQuickRequestModal } from './HelpdeskQuickRequestModal';
 import {
   fetchNotifications,
   markNotificationRead,
@@ -161,6 +162,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const [navProjectCount, setNavProjectCount] = useState<number | null>(null);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsPreviewOpen, setNotificationsPreviewOpen] = useState(false);
+  const [helpdeskQuickRequestOpen, setHelpdeskQuickRequestOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
   const [taskNotifications, setTaskNotifications] = useState<
     Array<{
@@ -523,6 +525,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     const meta = notification.meta && typeof notification.meta === 'object' ? notification.meta : {};
     if (meta.type === 'email.message_received') return 'Почта';
     if (meta.type === 'email.calendar_invite_received') return 'Встреча';
+    if (meta.type === 'helpdesk.ticket') return 'Хэлпдеск';
     return 'Система';
   };
 
@@ -821,6 +824,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       },
 
       {
+        label: t('crm.nav.biDashboard'),
+        path: '/bi',
+        icon: 'analytics',
+        section: 'main',
+      },
+
+      {
+        label: t('crm.nav.teamCalendar'),
+        path: '/calendar',
+        icon: 'calendar',
+        section: 'main',
+      },
+
+      {
         label: t('crm.nav.leads'),
         path: '/app/leads',
         icon: 'leads',
@@ -899,7 +916,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.bookingServices'), path: '/bookings/services' },
           { label: t('crm.nav.bookingAvailability'), path: '/bookings/availability' },
           { label: t('crm.nav.bookingAnalytics'), path: '/bookings/analytics' },
-          { label: t('crm.nav.bookingTemplates'), path: '/bookings/templates' },
           { label: t('crm.nav.bookingLogs'), path: '/bookings/logs' },
           { label: t('crm.nav.bookingSettings'), path: '/bookings/settings' },
         ],
@@ -960,14 +976,30 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       },
 
       {
-        label: t('crm.nav.sms'),
-        path: '/app/sms',
+        label: t('crm.nav.helpdesk'),
+        path: '/helpdesk',
+        icon: 'invoice',
+        section: 'clients',
+      },
+
+      {
+        label: t('crm.nav.esign'),
+        path: '/esign',
+        icon: 'invoice',
+        section: 'clients',
+      },
+
+      {
+        label: t('crm.nav.telephony'),
+        path: '/app/telephony',
         icon: 'chat',
         section: 'clients',
-        matchPaths: ['/app/sms', '/sms'],
+        matchPaths: ['/app/telephony', '/telephony', '/app/sms', '/sms'],
         children: [
-          { label: t('crm.nav.smsMessages'), path: '/app/sms' },
-          { label: t('crm.nav.smsSettings'), path: '/app/sms/settings' },
+          { label: t('crm.nav.telephonyCalls'), path: '/app/telephony' },
+          { label: t('crm.nav.smsMessages'), path: '/app/telephony/sms', matchPaths: ['/app/telephony/sms', '/telephony/sms', '/app/sms', '/sms'] },
+          { label: t('crm.nav.telephonyAnalytics'), path: '/app/telephony/analytics' },
+          { label: t('crm.nav.telephonySettings'), path: '/app/telephony/settings', matchPaths: ['/app/telephony/settings', '/telephony/settings', '/app/sms/settings', '/sms/settings'] },
         ],
       },
 
@@ -979,6 +1011,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         children: [
           { label: t('crm.nav.marketingTraffic'), path: '/app/marketing/traffic' },
           { label: t('crm.nav.marketingCampaigns'), path: '/app/marketing/campaigns' },
+          {
+            label: t('crm.nav.marketingBroadcasts'),
+            path: '/app/marketing/broadcasts',
+            matchPaths: ['/app/marketing/broadcasts', '/marketing/broadcasts'],
+          },
           { label: t('crm.nav.marketingUtms'), path: '/app/marketing/utms' },
           { label: t('crm.nav.marketingSegments'), path: '/app/marketing/segments' },
           { label: t('crm.nav.marketingChannels'), path: '/app/marketing/channels' },
@@ -1017,6 +1054,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           '/automations',
           '/app/telegram',
           '/telegram',
+          '/app/whatsapp',
+          '/whatsapp',
           '/app/integrations-hub',
           '/integrations-hub',
           '/app/web-forms',
@@ -1024,6 +1063,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         ],
         children: [
           { label: t('crm.nav.toolsAutomations'), path: '/app/automations' },
+          {
+            label: t('crm.nav.pendingApprovals'),
+            path: '/app/automations/pending-approvals',
+            matchPaths: ['/app/automations/pending-approvals', '/automations/pending-approvals'],
+          },
           {
             label: t('crm.nav.toolsWebForms'),
             path: '/app/web-forms',
@@ -1035,6 +1079,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             matchPaths: ['/app/integrations-hub', '/integrations-hub'],
           },
           { label: t('crm.nav.toolsTelegram'), path: '/app/telegram' },
+          {
+            label: t('crm.nav.telegramInbox'),
+            path: '/app/telegram/inbox',
+            matchPaths: ['/app/telegram/inbox', '/telegram/inbox'],
+          },
+          {
+            label: t('crm.nav.whatsappInbox'),
+            path: '/app/whatsapp/inbox',
+            matchPaths: ['/app/whatsapp/inbox', '/whatsapp/inbox'],
+          },
         ],
       },
 
@@ -1069,10 +1123,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           '/staff/permissions',
           '/app/contacts/duplicates',
           '/contacts/duplicates',
+          '/app/settings/audit-log',
+          '/settings/audit-log',
+          '/app/settings/export',
+          '/settings/export',
+          '/app/settings/api-tokens',
+          '/settings/api-tokens',
         ],
         children: [
           { label: t('crm.nav.settingsCompany'), path: '/app/settings' },
           { label: t('crm.nav.settingsApi'), path: '/app/settings/api' },
+          { label: t('crm.nav.apiTokens'), path: '/app/settings/api-tokens' },
           {
             label: t('crm.nav.settingsAccount'),
             path: '/app/profile/overview',
@@ -1082,6 +1143,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.staffPermissions'), path: '/app/staff/permissions' },
           { label: t('crm.nav.departments'), path: '/app/departments' },
           { label: t('crm.nav.deduplication'), path: '/app/contacts/duplicates' },
+          { label: t('crm.nav.auditLog'), path: '/app/settings/audit-log' },
+          { label: t('crm.nav.exportBackup'), path: '/app/settings/export' },
         ],
       },
     ],
@@ -1105,6 +1168,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/integrations-hub')) return 'tools_automation';
     if (p.startsWith('/email')) return 'email';
     if (p.startsWith('/telegram')) return 'telegram';
+    if (p.startsWith('/whatsapp')) return 'whatsapp';
     if (p.startsWith('/settings')) return 'tools_settings';
     if (p.startsWith('/profile')) return 'tools_settings';
     if (p.startsWith('/chat')) return 'chat';
@@ -1113,6 +1177,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/products')) return 'products';
     if (p.startsWith('/bookings')) return 'bookings';
     if (p.startsWith('/hotels')) return 'hotels';
+    if (p.startsWith('/telephony/sms')) return 'sms';
     if (p.startsWith('/sms')) return 'sms';
     return null;
   };
@@ -1126,7 +1191,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // Если компонент не найден в списке, разрешаем доступ (новый компонент)
     // Если найден, проверяем его статус
     // Для новых модулей (contacts, companies, automations) разрешаем доступ по умолчанию
-    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'notes', 'custom_objects', 'products', 'bookings', 'hotels'].includes(componentKey)) {
+    if (!component && ['contacts', 'companies', 'tools_automation', 'email', 'telegram', 'whatsapp', 'notes', 'custom_objects', 'products', 'bookings', 'hotels'].includes(componentKey)) {
       return true;
     }
     return component ? component.enabled : true;
@@ -1149,9 +1214,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/integrations-hub')) return 'tools_automation';
     if (p.startsWith('/email')) return 'email';
     if (p.startsWith('/telegram')) return 'chat';
+    if (p.startsWith('/whatsapp')) return 'chat';
     if (p.startsWith('/chat')) return 'chat';
     if (p.startsWith('/online-chat')) return 'chat';
     if (p.startsWith('/analytics')) return 'analytics';
+    if (p.startsWith('/bi')) return 'analytics';
     if (p.startsWith('/sales')) return 'analytics';
     if (p.startsWith('/marketing')) return 'marketing';
     if (p.startsWith('/workspace')) return 'custom_objects';
@@ -1159,6 +1226,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/bookings')) return 'bookings';
     if (p.startsWith('/hotels')) return 'hotels';
     if (p.startsWith('/sms')) return 'chat';
+    if (p.startsWith('/telephony')) return 'chat';
     if (p.startsWith('/contacts/duplicates')) return 'settings';
     return null;
   };
@@ -1877,13 +1945,23 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                     {t('crm.notifications.title')}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setNotificationsOpen(false)}
-                  className="h-8 w-8 rounded-full border border-slate-200 text-slate-500 hover:text-slate-900"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHelpdeskQuickRequestOpen(true)}
+                    className="px-3 py-1.5 text-[11px] font-semibold rounded-full bg-lumiva-accent text-white hover:bg-lumiva-accent-hover whitespace-nowrap"
+                    title="Отправить обращение в поддержку"
+                  >
+                    + Заявка в поддержку
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNotificationsOpen(false)}
+                    className="h-8 w-8 rounded-full border border-slate-200 text-slate-500 hover:text-slate-900"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
                 <div className="flex flex-wrap items-center gap-2">
@@ -2428,6 +2506,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         onClose={() => setAiAssistantOpen(false)}
         userName={user?.name?.trim() || null}
       />
+
+      <HelpdeskQuickRequestModal open={helpdeskQuickRequestOpen} onClose={() => setHelpdeskQuickRequestOpen(false)} />
     </div>
   );
 };

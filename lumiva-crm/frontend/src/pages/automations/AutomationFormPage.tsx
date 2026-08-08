@@ -32,6 +32,8 @@ import { StaffPicker } from '../../components/StaffPicker';
 import { buildAutomationTemplatePresets } from './automationTemplatePresets';
 import { buildAutomationTriggerGroups, buildAutomationActionGroups } from './automationBuilderGroups';
 import { getActionLabel } from './automationLabels';
+import { getNotificationTokens } from './notificationTokens';
+import { VariablePicker } from './VariablePicker';
 import './automations-builder.css';
 
 export const AutomationFormPage: React.FC = () => {
@@ -43,6 +45,11 @@ export const AutomationFormPage: React.FC = () => {
   const leadIdFromQuery = searchParams.get('leadId');
   const templateParam = searchParams.get('template');
   const leadWeeklyPresetAppliedRef = useRef(false);
+  const emailSubjectInputRef = useRef<HTMLInputElement | null>(null);
+  const emailBodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const telegramTextTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const notificationTitleInputRef = useRef<HTMLInputElement | null>(null);
+  const notificationBodyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [leadFromQuery, setLeadFromQuery] = useState<Lead | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -63,7 +70,12 @@ export const AutomationFormPage: React.FC = () => {
   const [pickerPos, setPickerPos] = useState<{x: number; y: number} | null>(null);
   const [pickerSearch, setPickerSearch] = useState('');
   const [pickerTab, setPickerTab] = useState<'action' | 'trigger'>('action');
-  const [cfgTab, setCfgTab] = useState<'params' | 'conditions' | 'logs'>('params');
+  const [cfgTab, setCfgTab] = useState<'params' | 'conditions' | 'timing' | 'logs'>('params');
+  // 'timing' only exists on the action panel — falling back to the trigger panel with it still
+  // selected would render a blank tab body, so reset to 'params' when that happens.
+  useEffect(() => {
+    if (selectedStep === 'trigger' && cfgTab === 'timing') setCfgTab('params');
+  }, [selectedStep, cfgTab]);
   const [testVisible, setTestVisible] = useState(false);
   const [testResult, setTestResult] = useState<{errors: string[]; warnings: string[]} | null>(null);
   const [execLogs, setExecLogs] = useState<AutomationExecution[]>([]);
@@ -984,12 +996,13 @@ export const AutomationFormPage: React.FC = () => {
     x:        <><path d="M18 6L6 18M6 6l12 12"/></>,
     custom:   <><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 12h8M12 8v8"/></>,
     zapier:   <><circle cx="12" cy="12" r="9"/><path d="M9 6l6 6-6 6"/></>,
+    phone:    <><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M11 18h2"/></>,
   };
 
   const getActionIcon = (type: string): React.ReactNode => {
     const map: Record<string, string> = {
       send_email: 'mail', send_telegram: 'tg', send_slack: 'slack', send_teams: 'teams',
-      send_whatsapp: 'whatsapp', send_notification: 'bell', create_task: 'task',
+      send_whatsapp: 'whatsapp', send_sms: 'phone', send_notification: 'bell', create_task: 'task',
       create_note: 'note', change_status: 'update', update_field: 'update',
       add_tag: 'tag', remove_tag: 'tag', assign_user: 'user', assign_task: 'task',
       create_custom_object_record: 'custom', send_report: 'report', send_data_export: 'export',
@@ -1017,6 +1030,7 @@ export const AutomationFormPage: React.FC = () => {
   };
 
   const ua = (field: string, val: any) => updateAction(selIdx!, field, val);
+  const notificationTokens = getNotificationTokens(formData.triggerEvent);
 
   return (
     <MainLayout>
@@ -1285,53 +1299,13 @@ export const AutomationFormPage: React.FC = () => {
                   <div className="cfg-field">
                     <label className="cfg-field-label">{t('crm.automations.form.builderUi.triggerFieldLabel')} <span className="req">*</span></label>
                     <select className="cfg-select" value={formData.triggerEvent} onChange={e => onTriggerEventChange(e.target.value as TriggerEvent)}>
-                      <optgroup label={t('crm.automations.form.triggerGroups.contacts')}>
-                        <option value="contact.created">{t('crm.automations.form.triggers.CONTACT_CREATED')}</option>
-                        <option value="contact.updated">{t('crm.automations.form.triggers.CONTACT_UPDATED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.companies')}>
-                        <option value="company.created">{t('crm.automations.form.triggers.COMPANY_CREATED')}</option>
-                        <option value="company.updated">{t('crm.automations.form.triggers.COMPANY_UPDATED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.leads')}>
-                        <option value="lead.created">{t('crm.automations.form.triggers.LEAD_CREATED')}</option>
-                        <option value="lead.updated">{t('crm.automations.form.triggers.LEAD_UPDATED')}</option>
-                        <option value="lead.status_changed">{t('crm.automations.form.triggers.LEAD_STATUS_CHANGED')}</option>
-                        <option value="lead.assigned">{t('crm.automations.form.triggers.LEAD_ASSIGNED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.sales')}>
-                        <option value="sale.created">{t('crm.automations.form.triggers.SALE_CREATED')}</option>
-                        <option value="sale.updated">{t('crm.automations.form.triggers.SALE_UPDATED')}</option>
-                        <option value="sale.status_changed">{t('crm.automations.form.triggers.SALE_STATUS_CHANGED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.projects')}>
-                        <option value="project.created">{t('crm.automations.form.triggers.PROJECT_CREATED')}</option>
-                        <option value="project.status_changed">{t('crm.automations.form.triggers.PROJECT_STATUS_CHANGED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.tasks')}>
-                        <option value="task.created">{t('crm.automations.form.triggers.TASK_CREATED')}</option>
-                        <option value="task.updated">{t('crm.automations.form.triggers.TASK_UPDATED')}</option>
-                        <option value="task.status_changed">{t('crm.automations.form.triggers.TASK_STATUS_CHANGED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.reports')}>
-                        <option value="report.scheduled">{t('crm.automations.form.triggers.REPORT_SCHEDULED')}</option>
-                        <option value="scheduled">{t('crm.automations.form.triggers.SCHEDULED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.email')}>
-                        <option value="email.sent">{t('crm.automations.form.triggers.EMAIL_SENT')}</option>
-                        <option value="email.received">{t('crm.automations.form.triggers.EMAIL_RECEIVED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.telegram')}>
-                        <option value="telegram.message_received">{t('crm.automations.form.triggers.TELEGRAM_MESSAGE_RECEIVED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.notes')}>
-                        <option value="note.created">{t('crm.automations.form.triggers.NOTE_CREATED')}</option>
-                      </optgroup>
-                      <optgroup label={t('crm.automations.form.triggerGroups.customObjects')}>
-                        <option value="custom_object.record_created">{t('crm.automations.form.triggers.CUSTOM_OBJECT_RECORD_CREATED')}</option>
-                        <option value="custom_object.record_updated">{t('crm.automations.form.triggers.CUSTOM_OBJECT_RECORD_UPDATED')}</option>
-                        <option value="custom_object.status_changed">{t('crm.automations.form.triggers.CUSTOM_OBJECT_STATUS_CHANGED')}</option>
-                      </optgroup>
+                      {triggerGroups.map(g => (
+                        <optgroup key={g.group} label={g.group}>
+                          {g.items.map(item => (
+                            <option key={item.id} value={item.id}>{item.label}</option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                   </div>
 
@@ -1477,9 +1451,37 @@ export const AutomationFormPage: React.FC = () => {
                 <div className="auto-cfg-tabs">
                   <button className={cfgTab === 'params' ? 'active' : ''} onClick={() => setCfgTab('params')}>{t('crm.automations.form.builderUi.cfgTabParams')}</button>
                   <button className={cfgTab === 'conditions' ? 'active' : ''} onClick={() => setCfgTab('conditions')}>{t('crm.automations.form.builderUi.cfgTabConditions')}</button>
+                  <button className={cfgTab === 'timing' ? 'active' : ''} onClick={() => setCfgTab('timing')}>{t('crm.automations.form.builderUi.cfgTabTiming')}</button>
                   <button className={cfgTab === 'logs' ? 'active' : ''} onClick={() => { setCfgTab('logs'); loadExecLogs(); }}>{t('crm.automations.form.builderUi.cfgTabLogs')}</button>
                 </div>
                 <div className="auto-cfg-body">
+                  {cfgTab === 'timing' && <>
+                    <p className="cfg-field-help">{t('crm.automations.form.builderUi.stepTimingIntro')}</p>
+                    <div className="cfg-field">
+                      <label className="cfg-field-label">{t('crm.automations.form.builderUi.delayMinutesLabel')}</label>
+                      <input
+                        type="number"
+                        min={0}
+                        className="cfg-input"
+                        value={selAction.config._delayMinutes ?? ''}
+                        onChange={e => ua('_delayMinutes', e.target.value ? Math.max(0, parseInt(e.target.value, 10)) : undefined)}
+                        placeholder="0"
+                      />
+                      <p className="cfg-field-help">{t('crm.automations.form.builderUi.delayMinutesHelp')}</p>
+                    </div>
+                    <div className="cfg-field">
+                      <label className="cfg-check">
+                        <input
+                          type="checkbox"
+                          checked={!!selAction.config._requireApproval}
+                          onChange={e => ua('_requireApproval', e.target.checked || undefined)}
+                        />
+                        {t('crm.automations.form.builderUi.requireApprovalCheckbox')}
+                      </label>
+                      <p className="cfg-field-help">{t('crm.automations.form.builderUi.requireApprovalHelp')}</p>
+                    </div>
+                  </>}
+
                   {cfgTab === 'params' && <>
 
                   {/* Action type selector */}
@@ -1518,6 +1520,7 @@ export const AutomationFormPage: React.FC = () => {
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.emailAction.to')}</label>
                         <input className="cfg-input" value={selAction.config.to || ''} onChange={e => ua('to', e.target.value)} placeholder="{{lead.email}}" />
+                        <p className="cfg-field-help">{t('crm.automations.form.builderUi.emailToAutoHint')}</p>
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -1531,11 +1534,13 @@ export const AutomationFormPage: React.FC = () => {
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.emailAction.subject')}</label>
-                        <input className="cfg-input" value={selAction.config.subject || ''} onChange={e => ua('subject', e.target.value)} placeholder={t('crm.automations.form.builderUi.subjectPlaceholder')} />
+                        <input ref={emailSubjectInputRef} className="cfg-input" value={selAction.config.subject || ''} onChange={e => ua('subject', e.target.value)} placeholder={t('crm.automations.form.builderUi.subjectPlaceholder')} />
+                        <VariablePicker tokens={notificationTokens} inputRef={emailSubjectInputRef} value={selAction.config.subject || ''} onInsert={v => ua('subject', v)} />
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.emailAction.body')}</label>
-                        <textarea className="cfg-input ta" value={selAction.config.textBody || ''} onChange={e => ua('textBody', e.target.value)} placeholder={t('crm.automations.form.builderUi.emailBodyPlaceholder')} />
+                        <textarea ref={emailBodyTextareaRef} className="cfg-input ta" value={selAction.config.textBody || ''} onChange={e => ua('textBody', e.target.value)} placeholder={t('crm.automations.form.builderUi.emailBodyPlaceholder')} />
+                        <VariablePicker tokens={notificationTokens} inputRef={emailBodyTextareaRef} value={selAction.config.textBody || ''} onInsert={v => ua('textBody', v)} />
                       </div>
                     </>
                   )}
@@ -1618,7 +1623,8 @@ export const AutomationFormPage: React.FC = () => {
                       {/* Message template */}
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.builderUi.telegramMessageLabel')}</label>
-                        <textarea className="cfg-input ta" value={selAction.config.text || ''} onChange={e => ua('text', e.target.value)} placeholder={t('crm.automations.form.builderUi.telegramMessagePlaceholder')} rows={3}/>
+                        <textarea ref={telegramTextTextareaRef} className="cfg-input ta" value={selAction.config.text || ''} onChange={e => ua('text', e.target.value)} placeholder={t('crm.automations.form.builderUi.telegramMessagePlaceholder')} rows={3}/>
+                        <VariablePicker tokens={notificationTokens} inputRef={telegramTextTextareaRef} value={selAction.config.text || ''} onInsert={v => ua('text', v)} />
                         <p className="cfg-field-help">{t('crm.automations.form.builderUi.telegramVarsHint')}</p>
                       </div>
                     </>
@@ -1697,10 +1703,27 @@ export const AutomationFormPage: React.FC = () => {
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.builderUi.phoneToLabel')}</label>
                         <input className="cfg-input" value={selAction.config.to || ''} onChange={e => ua('to', e.target.value)} placeholder="{{lead.phone}}" />
+                        <p className="cfg-field-help">{t('crm.automations.form.builderUi.phoneToAutoHint')}</p>
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.builderUi.textLabel')}</label>
                         <textarea className="cfg-input ta" value={selAction.config.text || ''} onChange={e => ua('text', e.target.value)} placeholder={t('crm.automations.form.builderUi.whatsappMessagePlaceholder')} />
+                      </div>
+                    </>
+                  )}
+
+                  {/* ── send_sms ── */}
+                  {selAction.type === 'send_sms' && (
+                    <>
+                      <p className="cfg-field-help">{t('crm.automations.form.builderUi.smsConfigHint')}</p>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.phoneToLabel')}</label>
+                        <input className="cfg-input" value={selAction.config.to || ''} onChange={e => ua('to', e.target.value)} placeholder="{{lead.phone}}" />
+                        <p className="cfg-field-help">{t('crm.automations.form.builderUi.phoneToAutoHint')}</p>
+                      </div>
+                      <div className="cfg-field">
+                        <label className="cfg-field-label">{t('crm.automations.form.builderUi.textLabel')}</label>
+                        <textarea className="cfg-input ta" value={selAction.config.text || ''} onChange={e => ua('text', e.target.value)} placeholder={t('crm.automations.form.builderUi.smsMessagePlaceholder')} />
                       </div>
                     </>
                   )}
@@ -1719,11 +1742,13 @@ export const AutomationFormPage: React.FC = () => {
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.builderUi.titleLabel')}</label>
-                        <input className="cfg-input" value={selAction.config.title || ''} onChange={e => ua('title', e.target.value)} placeholder={t('crm.automations.form.builderUi.notificationTitlePlaceholder')} />
+                        <input ref={notificationTitleInputRef} className="cfg-input" value={selAction.config.title || ''} onChange={e => ua('title', e.target.value)} placeholder={t('crm.automations.form.builderUi.notificationTitlePlaceholder')} />
+                        <VariablePicker tokens={notificationTokens} inputRef={notificationTitleInputRef} value={selAction.config.title || ''} onInsert={v => ua('title', v)} />
                       </div>
                       <div className="cfg-field">
                         <label className="cfg-field-label">{t('crm.automations.form.builderUi.textLabel')}</label>
-                        <textarea className="cfg-input ta" value={selAction.config.body || ''} onChange={e => ua('body', e.target.value)} placeholder={t('crm.automations.form.builderUi.notificationBodyPlaceholder')} />
+                        <textarea ref={notificationBodyTextareaRef} className="cfg-input ta" value={selAction.config.body || ''} onChange={e => ua('body', e.target.value)} placeholder={t('crm.automations.form.builderUi.notificationBodyPlaceholder')} />
+                        <VariablePicker tokens={notificationTokens} inputRef={notificationBodyTextareaRef} value={selAction.config.body || ''} onInsert={v => ua('body', v)} />
                       </div>
                     </>
                   )}

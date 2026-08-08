@@ -53,6 +53,7 @@ import { HotelFeedController } from './hotel-feed.controller';
 
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 import { MailModule } from '../mail/mail.module';
 
 @Module({
@@ -82,6 +83,7 @@ import { MailModule } from '../mail/mail.module';
     ]),
     RbacModule,
     forwardRef(() => AutomationsModule),
+    AuditLogModule,
     MailModule,
   ],
   controllers: [

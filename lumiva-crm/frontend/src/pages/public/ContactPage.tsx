@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { PublicPageLayout } from './PublicPageLayout';
 
 type FormState = 'idle' | 'loading' | 'success' | 'error';
 
 export default function ContactPage() {
+  const { t } = useTranslation();
   const [form, setForm] = useState({ name: '', email: '', company: '', phone: '', message: '', teamSize: '' });
   const [state, setState] = useState<FormState>('idle');
 
@@ -18,7 +20,7 @@ export default function ContactPage() {
     if (!form.name || !form.email) return;
     setState('loading');
     try {
-      const res = await fetch('/v1/demo-requests', {
+      const res = await fetch('/v1/public/demo-requests', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -32,8 +34,8 @@ export default function ContactPage() {
   return (
     <PublicPageLayout
       pageKey="contact"
-      title="Запросить демо"
-      subtitle="Оставьте заявку и мы свяжемся с вами в течение рабочего дня. Покажем как Lumiva CRM решает задачи вашего бизнеса."
+      title={t('publicPages.contact.title')}
+      subtitle={t('publicPages.contact.subtitle')}
     >
       <div className="mt-10 grid lg:grid-cols-5 gap-8 items-start">
 
@@ -47,39 +49,39 @@ export default function ContactPage() {
           {state === 'success' ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center shadow-card">
               <div className="text-5xl mb-4">🎉</div>
-              <h3 className="text-xl font-semibold text-slate-900 mb-2">Заявка отправлена!</h3>
-              <p className="text-sm text-slate-500 mb-6">Мы свяжемся с вами в течение одного рабочего дня.</p>
+              <h3 className="text-xl font-semibold text-slate-900 mb-2">{t('publicPages.contact.successTitle')}</h3>
+              <p className="text-sm text-slate-500 mb-6">{t('publicPages.contact.successText')}</p>
               <button
                 onClick={() => { setState('idle'); setForm({ name: '', email: '', company: '', phone: '', message: '', teamSize: '' }); }}
                 className="px-5 py-2.5 rounded-xl bg-black text-white text-xs font-semibold"
               >
-                Отправить ещё
+                {t('publicPages.contact.sendAnother')}
               </button>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-card flex flex-col gap-4">
-              <h3 className="text-base font-semibold text-slate-900 mb-2">Расскажите о вашем бизнесе</h3>
+              <h3 className="text-base font-semibold text-slate-900 mb-2">{t('publicPages.contact.formTitle')}</h3>
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="form-label">Имя <span className="text-status-error">*</span></label>
+                  <label className="form-label">{t('publicPages.contact.fieldName')} <span className="text-status-error">*</span></label>
                   <input
                     name="name"
                     value={form.name}
                     onChange={handleChange}
-                    placeholder="Иван Петров"
+                    placeholder={t('publicPages.contact.namePlaceholder')}
                     required
                     className="base-input"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="form-label">Email <span className="text-status-error">*</span></label>
+                  <label className="form-label">{t('publicPages.contact.fieldEmail')} <span className="text-status-error">*</span></label>
                   <input
                     name="email"
                     type="email"
                     value={form.email}
                     onChange={handleChange}
-                    placeholder="ivan@company.ru"
+                    placeholder={t('publicPages.contact.emailPlaceholder')}
                     required
                     className="base-input"
                   />
@@ -88,54 +90,54 @@ export default function ContactPage() {
 
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <label className="form-label">Компания</label>
+                  <label className="form-label">{t('publicPages.contact.fieldCompany')}</label>
                   <input
                     name="company"
                     value={form.company}
                     onChange={handleChange}
-                    placeholder="ООО «Пример»"
+                    placeholder={t('publicPages.contact.companyPlaceholder')}
                     className="base-input"
                   />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="form-label">Телефон</label>
+                  <label className="form-label">{t('publicPages.contact.fieldPhone')}</label>
                   <input
                     name="phone"
                     type="tel"
                     value={form.phone}
                     onChange={handleChange}
-                    placeholder="+7 (999) 000-00-00"
+                    placeholder={t('publicPages.contact.phonePlaceholder')}
                     className="base-input"
                   />
                 </div>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="form-label">Размер команды</label>
+                <label className="form-label">{t('publicPages.contact.fieldTeamSize')}</label>
                 <select name="teamSize" value={form.teamSize} onChange={handleChange} className="base-select">
-                  <option value="">Выберите...</option>
-                  <option value="1-5">1–5 человек</option>
-                  <option value="6-20">6–20 человек</option>
-                  <option value="21-50">21–50 человек</option>
-                  <option value="50+">Более 50</option>
+                  <option value="">{t('publicPages.contact.fieldTeamSizePlaceholder')}</option>
+                  <option value="1-5">{t('publicPages.contact.teamSizeOpt1')}</option>
+                  <option value="6-20">{t('publicPages.contact.teamSizeOpt2')}</option>
+                  <option value="21-50">{t('publicPages.contact.teamSizeOpt3')}</option>
+                  <option value="50+">{t('publicPages.contact.teamSizeOpt4')}</option>
                 </select>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <label className="form-label">Расскажите о задаче</label>
+                <label className="form-label">{t('publicPages.contact.fieldMessage')}</label>
                 <textarea
                   name="message"
                   value={form.message}
                   onChange={handleChange}
                   rows={4}
-                  placeholder="Что вы хотите автоматизировать? Какие есть сложности?"
+                  placeholder={t('publicPages.contact.messagePlaceholder')}
                   className="base-textarea"
                 />
               </div>
 
               {state === 'error' && (
                 <div className="rounded-xl bg-status-error-bg border border-red-200 px-3 py-2 text-xs text-status-error">
-                  Ошибка при отправке. Попробуйте снова или напишите нам напрямую.
+                  {t('publicPages.contact.errorText')}
                 </div>
               )}
 
@@ -144,12 +146,12 @@ export default function ContactPage() {
                 disabled={state === 'loading'}
                 className="w-full py-3 rounded-xl bg-black text-white text-xs font-semibold shadow-[0_4px_14px_rgba(0,0,0,0.25)] hover:bg-black-hover disabled:opacity-60 disabled:cursor-not-allowed transition-all"
               >
-                {state === 'loading' ? 'Отправляем...' : 'Запросить демо →'}
+                {state === 'loading' ? t('publicPages.contact.submitting') : t('publicPages.contact.submitBtn')}
               </button>
 
               <p className="text-[10px] text-slate-400 text-center">
-                Нажимая кнопку, вы соглашаетесь с{' '}
-                <Link to="/privacy" className="underline hover:text-slate-900">политикой конфиденциальности</Link>
+                {t('publicPages.contact.consentPrefix')}{' '}
+                <Link to="/privacy" className="underline hover:text-slate-900">{t('publicPages.contact.consentLink')}</Link>
               </p>
             </form>
           )}
@@ -163,14 +165,14 @@ export default function ContactPage() {
           className="lg:col-span-2 flex flex-col gap-4"
         >
           <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5">
-            <h4 className="text-sm font-semibold text-slate-900 mb-4">Что вы получите на демо</h4>
+            <h4 className="text-sm font-semibold text-slate-900 mb-4">{t('publicPages.contact.sidebarTitle')}</h4>
             <div className="flex flex-col gap-3">
               {[
-                'Полный обзор платформы под вашу задачу',
-                'Настройка воронок и рабочих областей',
-                'Демонстрация ключевых интеграций',
-                'Ответы на все технические вопросы',
-                'Персональный план внедрения',
+                t('publicPages.contact.benefit1'),
+                t('publicPages.contact.benefit2'),
+                t('publicPages.contact.benefit3'),
+                t('publicPages.contact.benefit4'),
+                t('publicPages.contact.benefit5'),
               ].map((item) => (
                 <div key={item} className="flex items-start gap-2 text-xs text-slate-500">
                   <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-[10px] shrink-0 mt-0.5">✓</span>
@@ -181,14 +183,14 @@ export default function ContactPage() {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.04)] p-5">
-            <h4 className="text-sm font-semibold text-slate-900 mb-3">Другие способы связи</h4>
+            <h4 className="text-sm font-semibold text-slate-900 mb-3">{t('publicPages.contact.otherWaysTitle')}</h4>
             <div className="flex flex-col gap-3">
               <a href="mailto:hello@lumiva.agency" className="flex items-center gap-2.5 text-xs text-slate-500 hover:text-slate-900 transition-colors">
                 <span className="w-8 h-8 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center shrink-0 text-slate-500">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                 </span>
                 <div>
-                  <div className="font-medium text-slate-900">Email</div>
+                  <div className="font-medium text-slate-900">{t('publicPages.contact.emailLabel')}</div>
                   <div>hello@lumiva.agency</div>
                 </div>
               </a>
@@ -197,7 +199,7 @@ export default function ContactPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.6} strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                 </span>
                 <div>
-                  <div className="font-medium text-slate-900">Telegram</div>
+                  <div className="font-medium text-slate-900">{t('publicPages.contact.telegramLabel')}</div>
                   <div>@lumiva_crm</div>
                 </div>
               </a>
@@ -205,8 +207,8 @@ export default function ContactPage() {
           </div>
 
           <div className="rounded-2xl bg-black text-white p-5">
-            <div className="text-xs font-semibold mb-1">Ответим за 24 часа</div>
-            <div className="text-[11px] opacity-70">Работаем по будням с 9:00 до 18:00 МСК</div>
+            <div className="text-xs font-semibold mb-1">{t('publicPages.contact.responseTime')}</div>
+            <div className="text-[11px] opacity-70">{t('publicPages.contact.responseHours')}</div>
           </div>
         </motion.div>
       </div>

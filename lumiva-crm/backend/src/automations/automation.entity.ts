@@ -82,6 +82,20 @@ export enum TriggerEvent {
   HOTEL_PRICE_CHANGED = 'hotel.price_changed',
   HOTEL_STOP_SALE_SET = 'hotel.stop_sale_set',
   HOTEL_LOW_AVAILABILITY = 'hotel.low_availability',
+
+  // Товары (Products)
+  PRODUCT_PRICE_CHANGED = 'product.price_changed',
+  PRODUCT_STATUS_CHANGED = 'product.status_changed',
+  PRODUCT_STOCK_LOW = 'product.stock_low',
+
+  /**
+   * Зависшие лиды/сделки — единственные "staleness" события, которые проверяются по расписанию
+   * (см. AutomationsSchedulerService), а не срабатывают по записи. Порог в днях настраивается на
+   * самой автоматизации через meta.staleDays (по умолчанию 14, как в остальных report/scheduled
+   * триггерах через meta.schedule).
+   */
+  LEAD_STALE = 'lead.stale',
+  SALE_STALE = 'sale.stale',
 }
 
 export enum ActionType {
@@ -143,6 +157,9 @@ export enum ActionType {
 
   /** Копирование строки из пользовательской таблицы (триггер custom_object.*) в другую таблицу */
   CREATE_CUSTOM_OBJECT_RECORD = 'create_custom_object_record',
+
+  /** Jira — создание задачи по REST API (third_party_link · jira) */
+  CREATE_JIRA_ISSUE = 'create_jira_issue',
 }
 
 @Entity('automations')
@@ -180,13 +197,26 @@ export class Automation {
   }> | null;
 
   // ==== ДЕЙСТВИЯ (THEN) ====
-  @Column({ 
+  @Column({
     type: 'jsonb',
     default: () => "'[]'::jsonb",
   })
   actions: Array<{
     type: string; // Тип действия
-    config: Record<string, any>; // Конфигурация действия
+    /**
+     * Конфигурация действия. Ключи с подчёркиванием — метаданные шага, а не параметры самого
+     * действия (тот же jsonb-мешок, чтобы не менять схему сущности под каждую новую возможность):
+     * - `_conditions`: Condition[] — выполнить действие, только если условия проходят по текущему ctx
+     *   (иначе шаг молча пропускается, выполнение продолжается со следующего действия).
+     * - `_delayMinutes`: number — подождать столько минут после предыдущего действия, прежде чем
+     *   выполнить это (0/не задано = сразу, как раньше). Пауза не блокирует запрос — выполнение
+     *   останавливается (`AutomationExecution.status = 'paused_delay'`) и возобновляется по крону
+     *   (`AutomationsService.resumeDueExecutions`).
+     * - `_requireApproval`: boolean — остановиться перед этим действием и не выполнять его, пока
+     *   сотрудник не подтвердит (`AutomationExecution.status = 'paused_approval'`,
+     *   `POST /automations/executions/:id/approve|reject`).
+     */
+    config: Record<string, any>;
   }>;
 
   // ==== СТАТУС ====

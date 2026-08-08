@@ -5,6 +5,7 @@ import {
   NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { randomUUID } from 'crypto';
@@ -42,6 +43,7 @@ import {
   unlinkUploadsRelative,
 } from '../common/uploads-root.util';
 import { stat } from 'fs/promises';
+import type { AutomationsService as AutomationsServiceType } from '../automations/automations.service';
 
 function numStorageBytes(v: string | bigint | null | undefined): number {
   if (v === undefined || v === null) return 0;
@@ -63,6 +65,7 @@ export class TenantsService {
     private readonly staffUsers: StaffUsersService,
     private readonly mail: MailService,
     private readonly tenantLogs: TenantLogsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   private applyPlanEntitlements(tenant: Tenant) {
@@ -329,6 +332,16 @@ export class TenantsService {
       avatarUrl: dto.avatarUrl ?? null,
       externalId: ownerTenantUser.id,
     });
+
+    try {
+      // Ленивый import — статический сломал бы бут приложения циклом
+      // tenants.service -> automations.service -> integrations.service -> tenants.service.
+      const { AutomationsService } = await import('../automations/automations.service.js');
+      const automationsService = this.moduleRef.get<AutomationsServiceType>(AutomationsService, { strict: false });
+      await automationsService.seedDefaultBookingAutomation(tenant.id);
+    } catch (error) {
+      this.logger.error('Failed to seed default booking automation', error as Error);
+    }
 
     return tenant;
   }

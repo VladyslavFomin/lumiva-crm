@@ -6,6 +6,8 @@ import { ReservationActivity, ReservationActivityType } from './reservation-acti
 import { Lead } from '../leads/lead.entity';
 import { Contact } from '../contacts/contact.entity';
 import { StaffUser } from '../staff/staff-user.entity';
+import { BookingService } from './booking-service.entity';
+import { BookingLocation } from './booking-location.entity';
 import { BookingsProjectsService } from './bookings-projects.service';
 import { BookingsAvailabilityService } from './bookings-availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -52,6 +54,10 @@ export class ReservationsService {
     private readonly contactsRepo: Repository<Contact>,
     @InjectRepository(StaffUser)
     private readonly staffRepo: Repository<StaffUser>,
+    @InjectRepository(BookingService)
+    private readonly servicesRepo: Repository<BookingService>,
+    @InjectRepository(BookingLocation)
+    private readonly locationsRepo: Repository<BookingLocation>,
     private readonly projects: BookingsProjectsService,
     private readonly availability: BookingsAvailabilityService,
     private readonly notifications: NotificationsService,
@@ -311,19 +317,17 @@ export class ReservationsService {
     const saved = await this.repo.save(reservation);
 
     await this.logActivity(tenantId, saved.id, 'created', actingStaffUserId, 'Бронь создана');
-    await this.notifyOwnersAndManagers(
-      tenantId,
-      'Новая бронь',
-      `${dto.customerName || 'Клиент'} — ${saved.startAt.toLocaleString('ru-RU')}`,
-      saved,
-    );
     try {
-      const adminEmails = await this.automationsService.resolveAdminEmails(tenantId);
+      const [adminEmails, tokens] = await Promise.all([
+        this.automationsService.resolveAdminEmails(tenantId),
+        this.buildNotificationTokens(saved),
+      ]);
       await this.automationsService.triggerAutomation(tenantId, TriggerEvent.BOOKING_RESERVATION_CREATED, {
         entityType: 'reservation',
         entityId: saved.id,
         reservation: saved,
         adminEmails,
+        ...tokens,
       });
     } catch (error) {
       console.error('Failed to trigger automation:', error);
@@ -365,11 +369,17 @@ export class ReservationsService {
     if (rescheduling) {
       await this.logActivity(tenantId, id, 'rescheduled', actingStaffUserId, 'Бронь перенесена');
       try {
+        const [adminEmails, tokens] = await Promise.all([
+          this.automationsService.resolveAdminEmails(tenantId),
+          this.buildNotificationTokens(saved),
+        ]);
         await this.automationsService.triggerAutomation(tenantId, TriggerEvent.BOOKING_RESERVATION_RESCHEDULED, {
           entityType: 'reservation',
           entityId: id,
           reservation: saved,
           previousStartAt,
+          adminEmails,
+          ...tokens,
         });
       } catch (error) {
         console.error('Failed to trigger automation:', error);
@@ -400,7 +410,10 @@ export class ReservationsService {
       status,
     );
     try {
-      const adminEmails = await this.automationsService.resolveAdminEmails(tenantId);
+      const [adminEmails, tokens] = await Promise.all([
+        this.automationsService.resolveAdminEmails(tenantId),
+        this.buildNotificationTokens(saved),
+      ]);
       await this.automationsService.triggerAutomation(tenantId, TriggerEvent.BOOKING_RESERVATION_STATUS_CHANGED, {
         entityType: 'reservation',
         entityId: id,
@@ -408,6 +421,7 @@ export class ReservationsService {
         fromStatus,
         toStatus: status,
         adminEmails,
+        ...tokens,
       });
     } catch (error) {
       console.error('Failed to trigger automation:', error);
@@ -477,23 +491,30 @@ export class ReservationsService {
     );
   }
 
-  private async notifyOwnersAndManagers(
-    tenantId: string,
-    title: string,
-    body: string,
-    reservation: Reservation,
-  ): Promise<void> {
-    const staff = await this.staffRepo.find({
-      where: { tenantId, isActive: true },
-    });
-    const targetIds = staff
-      .filter((s) => s.role === 'owner' || s.role === 'manager')
-      .map((s) => s.id);
-    if (!targetIds.length) return;
-    await this.notifications.create(tenantId, targetIds, title, body, {
-      type: 'booking.reservation_created',
-      reservationId: reservation.id,
-      link: `/bookings/reservations/${reservation.id}`,
-    });
+  /**
+   * Плоские токены для текста уведомлений в автоматизациях ({{client_name}}, {{service}}, ...) —
+   * имена намеренно совпадают с токенами бывшей страницы "Шаблоны сообщений" (удалена, см. историю),
+   * чтобы тенанты, привыкшие к тем именам, могли использовать их и в конструкторе автоматизаций.
+   */
+  private async buildNotificationTokens(reservation: Reservation): Promise<Record<string, string>> {
+    const [service, staff, location] = await Promise.all([
+      reservation.serviceId
+        ? this.servicesRepo.findOne({ where: { id: reservation.serviceId } })
+        : Promise.resolve(null),
+      reservation.staffUserId
+        ? this.staffRepo.findOne({ where: { id: reservation.staffUserId } })
+        : Promise.resolve(null),
+      this.locationsRepo.findOne({ where: { id: reservation.locationId } }),
+    ]);
+    return {
+      client_name: reservation.customerName || '',
+      service: service?.name || '',
+      date: reservation.startAt.toLocaleDateString('ru-RU'),
+      time: reservation.startAt.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
+      staff: staff?.fullName || '',
+      location_address: location?.address || location?.name || '',
+      booking_id: reservation.id,
+      status: reservation.status,
+    };
   }
 }

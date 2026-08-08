@@ -10,11 +10,11 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan } from 'typeorm';
+import { Repository, LessThan, LessThanOrEqual, Not, In } from 'typeorm';
 import axios from 'axios';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
-import { Automation, TriggerEvent } from './automation.entity';
+import { Automation, TriggerEvent, ActionType } from './automation.entity';
 import { AutomationExecution } from './automation-execution.entity';
 import { Lead } from '../leads/lead.entity';
 import { Contact } from '../contacts/contact.entity';
@@ -43,6 +43,7 @@ import { StaffUsersService } from '../staff/staff-users.service';
 export class AutomationsService {
   private readonly logger = new Logger(AutomationsService.name);
   private scheduleRunning = false;
+  private staleCheckRunning = false;
   constructor(
     @InjectRepository(Automation)
     private readonly automationRepo: Repository<Automation>,
@@ -91,6 +92,37 @@ export class AutomationsService {
       .filter((s: any) => s.isActive && (s.role === 'owner' || s.role === 'manager'))
       .map((s: any) => s.email)
       .filter((e: unknown): e is string => Boolean(e));
+  }
+
+  /**
+   * Создаёт автоматизацию "Новая бронь → уведомить сотрудников" при заведении тенанта —
+   * замена старого хардкодного notifyOwnersAndManagers() из ReservationsService.create().
+   * Видна и редактируема в разделе Автоматизации, в отличие от прежнего скрытого поведения.
+   */
+  async seedDefaultBookingAutomation(tenantId: string): Promise<void> {
+    const automation = this.automationRepo.create({
+      tenantId,
+      name: 'Новая бронь — уведомить сотрудников',
+      description: 'Отправляет внутреннее уведомление сотрудникам при создании новой брони. Можно изменить получателей, текст или добавить email/Telegram.',
+      triggerEvent: TriggerEvent.BOOKING_RESERVATION_CREATED,
+      conditions: null,
+      actions: [
+        {
+          type: ActionType.SEND_NOTIFICATION,
+          config: {
+            title: 'Новая бронь',
+            body: '{{client_name}} — {{date}} {{time}}, {{service}}',
+          },
+        },
+      ],
+      isActive: true,
+      maxExecutions: null,
+      cooldownSeconds: null,
+      meta: null,
+      executionCount: 0,
+      errorCount: 0,
+    });
+    await this.automationRepo.save(automation);
   }
 
   /**
@@ -240,11 +272,10 @@ export class AutomationsService {
     if (rangeOv) {
       triggerData.reportRangeOverride = rangeOv;
     }
-    await this.executeAutomation(automation, event, triggerData);
-    const fresh = await this.findOne(tenantId, automationId);
+    const execution = await this.executeAutomation(automation, event, triggerData);
     return {
-      success: !fresh.lastError,
-      errorMessage: fresh.lastError ?? undefined,
+      success: execution.status !== 'error',
+      errorMessage: execution.status === 'error' ? execution.errorMessage ?? undefined : undefined,
     };
   }
 
@@ -393,6 +424,77 @@ export class AutomationsService {
       }
     } finally {
       this.scheduleRunning = false;
+    }
+  }
+
+  /**
+   * Проверка зависших лидов/сделок (раз в день, см. AutomationsSchedulerService).
+   * В отличие от остальных триггеров, которые срабатывают по записи (fire-on-write), это событие
+   * по времени — "N дней без изменений" нельзя поймать в момент какой-либо записи, потому что
+   * ничего не пишется, пока лид/сделка просто лежит без движения.
+   *
+   * Находки агрегируются в одно событие на автоматизацию за день (а не по одной сущности), потому
+   * что triggerAutomation учитывает cooldownSeconds/maxExecutions самой автоматизации — при десятке
+   * зависших лидов отдельные вызовы "съели" бы cooldown на первом же и заглушили остальные.
+   */
+  async runStaleEntityChecks(): Promise<void> {
+    if (this.staleCheckRunning) return;
+    this.staleCheckRunning = true;
+    try {
+      const automations = await this.automationRepo.find({
+        where: [
+          { triggerEvent: TriggerEvent.LEAD_STALE, isActive: true },
+          { triggerEvent: TriggerEvent.SALE_STALE, isActive: true },
+        ] as any,
+      });
+
+      const today = new Date().toISOString().slice(0, 10);
+      for (const automation of automations) {
+        if (automation.lastExecutedAt && automation.lastExecutedAt.toISOString().slice(0, 10) === today) {
+          continue; // уже отработала сегодня
+        }
+        const configuredDays = Number((automation.meta as any)?.staleDays);
+        const staleDays = configuredDays > 0 ? configuredDays : 14;
+        const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000);
+
+        if (automation.triggerEvent === TriggerEvent.LEAD_STALE) {
+          const staleLeads = await this.leadRepo.find({
+            where: {
+              tenantId: automation.tenantId,
+              status: Not(In(['won', 'lost'])),
+              updatedAt: LessThan(cutoff),
+            } as any,
+            order: { updatedAt: 'ASC' },
+            take: 200,
+          });
+          if (!staleLeads.length) continue;
+          await this.triggerAutomation(automation.tenantId, TriggerEvent.LEAD_STALE, {
+            entityType: 'lead_stale_digest',
+            count: staleLeads.length,
+            staleDays,
+            leads: staleLeads.map((l) => ({ id: l.id, name: l.name, status: l.status, updatedAt: l.updatedAt })),
+          });
+        } else if (automation.triggerEvent === TriggerEvent.SALE_STALE) {
+          const staleSales = await this.saleRepo.find({
+            where: {
+              tenantId: automation.tenantId,
+              status: In(['new', 'pending', 'other']),
+              updatedAt: LessThan(cutoff),
+            } as any,
+            order: { updatedAt: 'ASC' },
+            take: 200,
+          });
+          if (!staleSales.length) continue;
+          await this.triggerAutomation(automation.tenantId, TriggerEvent.SALE_STALE, {
+            entityType: 'sale_stale_digest',
+            count: staleSales.length,
+            staleDays,
+            sales: staleSales.map((s) => ({ id: s.id, status: s.status, updatedAt: s.updatedAt })),
+          });
+        }
+      }
+    } finally {
+      this.staleCheckRunning = false;
     }
   }
 
@@ -615,7 +717,7 @@ export class AutomationsService {
     automation: Automation,
     event: TriggerEvent,
     triggerData: any,
-  ): Promise<void> {
+  ): Promise<AutomationExecution> {
     let effectiveTriggerData =
       typeof triggerData === 'object' && triggerData !== null && !Array.isArray(triggerData)
         ? { ...triggerData }
@@ -645,23 +747,67 @@ export class AutomationsService {
 
     await this.executionRepo.save(execution);
 
-    const results: Array<{
-      action: string;
-      success: boolean;
-      result?: any;
-      error?: string;
-    }> = [];
-    let firstError: string | null = null;
-
-    let ctx: any =
+    const ctx: any =
       typeof effectiveTriggerData === 'object' &&
       effectiveTriggerData !== null &&
       !Array.isArray(effectiveTriggerData)
         ? { ...effectiveTriggerData }
         : { _trigger: effectiveTriggerData };
 
-    for (let i = 0; i < automation.actions.length; i++) {
+    return this.runActionsFrom(automation, execution, ctx, 0, [], false);
+  }
+
+  /**
+   * Выполняет действия автоматизации начиная с indexа `startIndex`, продолжая накопленные
+   * `priorResults`. Общий путь для первого запуска (startIndex=0, isResume=false) и возобновления
+   * после паузы (delay/approval) — `isResume=true` гарантирует, что шаг, на котором стояла пауза,
+   * не поставит паузу повторно (иначе возобновление зациклилось бы само на себя).
+   */
+  private async runActionsFrom(
+    automation: Automation,
+    execution: AutomationExecution,
+    initialCtx: any,
+    startIndex: number,
+    priorResults: Array<{ action: string; success: boolean; result?: any; error?: string; skipped?: boolean }>,
+    isResume: boolean,
+  ): Promise<AutomationExecution> {
+    const results = [...priorResults];
+    let firstError: string | null = results.find((r) => !r.success)?.error || null;
+    let ctx = initialCtx;
+
+    for (let i = startIndex; i < automation.actions.length; i++) {
       const action = automation.actions[i];
+      const resumingThisStep = isResume && i === startIndex;
+      const stepConditions = (action.config as any)?._conditions as
+        | Array<{ field: string; operator: string; value?: any }>
+        | undefined;
+
+      if (stepConditions?.length && !this.checkConditions(stepConditions, ctx)) {
+        results.push({ action: action.type, success: true, skipped: true });
+        continue;
+      }
+
+      const delayMinutes = Number((action.config as any)?._delayMinutes) || 0;
+      if (!resumingThisStep && delayMinutes > 0) {
+        execution.status = 'paused_delay';
+        execution.pausedAtStep = i;
+        execution.resumeAt = new Date(Date.now() + delayMinutes * 60_000);
+        execution.ctxSnapshot = ctx;
+        execution.executionResult = results;
+        await this.executionRepo.save(execution);
+        return execution;
+      }
+
+      if (!resumingThisStep && (action.config as any)?._requireApproval) {
+        execution.status = 'paused_approval';
+        execution.pausedAtStep = i;
+        execution.resumeAt = null;
+        execution.ctxSnapshot = ctx;
+        execution.executionResult = results;
+        await this.executionRepo.save(execution);
+        return execution;
+      }
+
       try {
         const result = await this.executeAction(action, ctx, automation.tenantId);
         results.push({ action: action.type, success: true, result });
@@ -673,14 +819,8 @@ export class AutomationsService {
         };
       } catch (error: any) {
         const msg = error?.message || String(error);
-        results.push({
-          action: action.type,
-          success: false,
-          error: msg,
-        });
-        if (!firstError) {
-          firstError = msg;
-        }
+        results.push({ action: action.type, success: false, error: msg });
+        if (!firstError) firstError = msg;
       }
     }
 
@@ -699,8 +839,88 @@ export class AutomationsService {
     }
 
     execution.executionResult = results;
+    execution.pausedAtStep = null;
+    execution.resumeAt = null;
+    execution.ctxSnapshot = null;
     await this.automationRepo.save(automation);
     await this.executionRepo.save(execution);
+    return execution;
+  }
+
+  /** Cron entry point: resumes `paused_delay` executions whose wait has elapsed. */
+  async resumeDueExecutions(): Promise<void> {
+    const due = await this.executionRepo.find({
+      where: { status: 'paused_delay', resumeAt: LessThanOrEqual(new Date()) } as any,
+      take: 200,
+    });
+    for (const execution of due) {
+      const automation = await this.automationRepo.findOne({ where: { id: execution.automationId } });
+      if (!automation || !automation.isActive) {
+        execution.status = 'error';
+        execution.errorMessage = 'Automation was disabled or deleted while this run was paused';
+        execution.pausedAtStep = null;
+        execution.resumeAt = null;
+        await this.executionRepo.save(execution).catch(() => undefined);
+        continue;
+      }
+      await this.runActionsFrom(
+        automation,
+        execution,
+        execution.ctxSnapshot,
+        execution.pausedAtStep ?? 0,
+        (execution.executionResult as any[]) || [],
+        true,
+      ).catch((e) => this.logger.error(`resumeDueExecutions(${execution.id}) failed: ${e.message}`));
+    }
+  }
+
+  async listPendingApprovals(tenantId: string): Promise<AutomationExecution[]> {
+    return this.executionRepo
+      .createQueryBuilder('e')
+      .leftJoinAndSelect('e.automation', 'a')
+      .where('e.tenantId = :tenantId', { tenantId })
+      .andWhere('e.status = :status', { status: 'paused_approval' })
+      .orderBy('e.createdAt', 'DESC')
+      .getMany();
+  }
+
+  async decideApproval(
+    tenantId: string,
+    executionId: string,
+    staffUserId: string | undefined,
+    approve: boolean,
+    note?: string,
+  ): Promise<AutomationExecution> {
+    const execution = await this.executionRepo.findOne({ where: { id: executionId, tenantId } });
+    if (!execution) throw new NotFoundException('Execution not found');
+    if (execution.status !== 'paused_approval') {
+      throw new BadRequestException('This execution is not waiting for approval');
+    }
+
+    execution.approvalDecidedBy = staffUserId || null;
+    execution.approvalDecidedAt = new Date();
+    execution.approvalNote = note || null;
+
+    if (!approve) {
+      execution.status = 'rejected';
+      execution.pausedAtStep = null;
+      execution.resumeAt = null;
+      await this.executionRepo.save(execution);
+      return execution;
+    }
+
+    await this.executionRepo.save(execution);
+    const automation = await this.automationRepo.findOne({ where: { id: execution.automationId, tenantId } });
+    if (!automation) throw new NotFoundException('Automation not found');
+    await this.runActionsFrom(
+      automation,
+      execution,
+      execution.ctxSnapshot,
+      execution.pausedAtStep ?? 0,
+      (execution.executionResult as any[]) || [],
+      true,
+    );
+    return (await this.executionRepo.findOne({ where: { id: executionId } })) as AutomationExecution;
   }
 
   /**
@@ -1010,11 +1230,13 @@ export class AutomationsService {
           String(
             triggerData?.lead?.phone ||
               triggerData?.contact?.phone ||
+              triggerData?.reservation?.customerPhone ||
+              triggerData?.reservation?.guestPhone ||
               triggerData?.phone ||
               '',
           ).trim();
         if (!toPhone) {
-          throw new Error('send_sms: укажите номер to или поле phone у лида/контакта');
+          throw new Error('send_sms: укажите номер to или поле phone у лида/контакта/брони');
         }
         const message = this.interpolateString(
           String(smsText || 'Сообщение из Lumiva CRM'),
@@ -1067,6 +1289,8 @@ export class AutomationsService {
           String(
             triggerData?.lead?.phone ||
               triggerData?.contact?.phone ||
+              triggerData?.reservation?.customerPhone ||
+              triggerData?.reservation?.guestPhone ||
               triggerData?.phone ||
               '',
           ).trim();
@@ -1581,13 +1805,16 @@ export class AutomationsService {
           ];
         }
         if (!recipientEmail.length) {
-          // Пытаемся извлечь email из triggerData
-          const emailFromData = 
-            triggerData.lead?.email || 
-            triggerData.contact?.email || 
+          // Пытаемся извлечь email из triggerData — включая клиента брони/резервации
+          // (Bookings кладёт customerEmail, Hotels — guestEmail, см. reservation в payload триггера)
+          const emailFromData =
+            triggerData.lead?.email ||
+            triggerData.contact?.email ||
+            triggerData.reservation?.customerEmail ||
+            triggerData.reservation?.guestEmail ||
             triggerData.email ||
             triggerData.to;
-          
+
           if (emailFromData) {
             recipientEmail = Array.isArray(emailFromData) ? emailFromData : [emailFromData];
           } else {

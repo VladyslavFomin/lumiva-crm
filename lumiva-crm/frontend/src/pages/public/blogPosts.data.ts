@@ -1,0 +1,225 @@
+export interface BlogPost {
+  slug: string;
+  category: string;
+  date: string;
+  readTime: number;
+  featured?: boolean;
+  titleRu: string;
+  titleEn: string;
+  titleTr: string;
+  excerptRu: string;
+  excerptEn: string;
+  excerptTr: string;
+  tag: string;
+  bodyRu: string[];
+  bodyEn: string[];
+  bodyTr: string[];
+}
+
+export const BLOG_POSTS: BlogPost[] = [
+  {
+    slug: 'deal-cycle-optimization',
+    category: 'sales',
+    date: '2026-04-12',
+    readTime: 7,
+    featured: true,
+    titleRu: 'Как сократить цикл сделки без потери маржинальности',
+    titleEn: 'How to shorten the sales cycle without losing margin',
+    titleTr: 'Marjı kaybetmeden satış döngüsünü nasıl kısaltırsınız',
+    excerptRu: 'Методика приоритизации лидов, контроль касаний и внедрение SLA для менеджеров. Реальные числа из практики клиентов Lumiva.',
+    excerptEn: 'Lead prioritization methodology, touch control, and SLA implementation for managers. Real numbers from Lumiva client practices.',
+    excerptTr: 'Müşteri adayı önceliklendirme metodolojisi, dokunuş kontrolü ve yöneticiler için SLA uygulaması.',
+    tag: 'SLA · Воронка продаж',
+    bodyRu: [
+      'Длинный цикл сделки — это не всегда следствие сложного продукта или дорогого чека. Чаще всего он растягивается из-за пауз, которые никто не контролирует: лид ждёт ответа менеджера, менеджер ждёт решения клиента, а CRM просто фиксирует статус «в работе» неделями.',
+      'Первый шаг — приоритизация. Не все лиды одинаково готовы купить, и обработка «по очереди», без скоринга, автоматически удлиняет цикл для самых горячих обращений. Внутри Lumiva CRM это решается правилами автоматизации: лид с высоким скорингом или из платного канала попадает в очередь конкретного менеджера мгновенно, а не «когда дойдут руки».',
+      'Второй шаг — контроль касаний. Если между звонком и следующим шагом проходит больше суток без причины, это почти всегда провисание, а не пауза «клиент думает». Настройте SLA-триггеры: если по сделке нет активности N часов, задача автоматически уходит на эскалацию руководителю отдела.',
+      'Третий шаг — уберите ручные передачи между этапами воронки. Каждая точка, где статус сделки меняет человек, а не система, — это потенциальная задержка на несколько часов или дней. Автоматизации на смену стадии, постановку задач и уведомления снимают эту нагрузку с менеджера.',
+      'На практике клиентов, внедривших SLA-контроль и приоритизацию лидов в Lumiva, среднее время цикла сделки в B2B-сегменте сокращалось на 18–30% в течение первого квартала — без изменения цены или условий продажи, только за счёт устранения пауз.',
+    ],
+    bodyEn: [
+      'A long deal cycle is not always a sign of a complex product or a high price tag. More often it stretches out because of pauses nobody is tracking: the lead is waiting on a manager, the manager is waiting on the client, and the CRM just sits at "in progress" for weeks.',
+      'The first step is prioritization. Not every lead is equally ready to buy, and processing them strictly in order — without scoring — automatically lengthens the cycle for the hottest inquiries. Inside Lumiva CRM this is solved with automation rules: a lead with a high score or from a paid channel is routed to a specific manager\'s queue instantly, not "whenever there\'s time."',
+      'The second step is touch control. If more than a day passes between a call and the next step with no reason, that is almost always a stall, not the client "thinking it over." Set up SLA triggers: if there is no activity on a deal for N hours, a task automatically escalates to the department head.',
+      'The third step is removing manual handoffs between funnel stages. Every point where a person changes the deal status instead of the system is a potential delay of hours or days. Automations for stage changes, task creation, and notifications take that load off the manager.',
+      'Across Lumiva clients who implemented SLA control and lead prioritization, the average B2B deal cycle shrank 18–30% within the first quarter — with no change to price or terms, purely from eliminating stalls.',
+    ],
+    bodyTr: [
+      'Uzun bir satış döngüsü her zaman karmaşık bir ürünün ya da yüksek bir fiyatın sonucu değildir. Genellikle kimsenin takip etmediği duraklamalar yüzünden uzar: müşteri adayı yöneticinin cevabını bekler, yönetici müşterinin kararını bekler, CRM ise haftalarca "işlemde" durumunda kalır.',
+      'İlk adım önceliklendirmedir. Her müşteri adayı satın almaya aynı derecede hazır değildir; skorlama olmadan sırayla işlem yapmak en sıcak talepler için döngüyü otomatik olarak uzatır. Lumiva CRM içinde bu, otomasyon kurallarıyla çözülür: yüksek skorlu veya ücretli kanaldan gelen bir müşteri adayı, "sıra geldiğinde" değil, anında ilgili yöneticinin kuyruğuna yönlendirilir.',
+      'İkinci adım dokunuş kontrolüdür. Bir görüşme ile sonraki adım arasında nedensiz bir günden fazla zaman geçiyorsa bu neredeyse her zaman bir durgunluktur, müşterinin "düşünmesi" değil. SLA tetikleyicileri kurun: bir fırsatta N saat boyunca aktivite yoksa görev otomatik olarak departman yöneticisine yükseltilir.',
+      'Üçüncü adım, huni aşamaları arasındaki manuel devirleri kaldırmaktır. Sistemin değil bir kişinin fırsat durumunu değiştirdiği her nokta, saatler veya günler süren potansiyel bir gecikmedir. Aşama değişikliği, görev oluşturma ve bildirimler için otomasyonlar bu yükü yöneticiden alır.',
+      'SLA kontrolü ve müşteri adayı önceliklendirmesini uygulayan Lumiva müşterilerinde, ortalama B2B satış döngüsü ilk çeyrekte %18–30 kısaldı — fiyat veya koşullarda değişiklik olmadan, yalnızca duraklamaların ortadan kaldırılmasıyla.',
+    ],
+  },
+  {
+    slug: 'utm-architecture',
+    category: 'analytics',
+    date: '2026-04-05',
+    readTime: 9,
+    titleRu: 'UTM-архитектура для прозрачной аналитики CRM',
+    titleEn: 'UTM architecture for transparent CRM analytics',
+    titleTr: 'Şeffaf CRM analitiği için UTM mimarisi',
+    excerptRu: 'Практика построения структуры меток и отчётов для маркетинга и отдела продаж. Шаблоны и примеры.',
+    excerptEn: 'Building a tag structure and reports for marketing and sales. Templates and examples.',
+    excerptTr: 'Pazarlama ve satış için etiket yapısı ve raporlar oluşturma. Şablonlar ve örnekler.',
+    tag: 'UTM · Аналитика',
+    bodyRu: [
+      'Большинство CRM-отчётов «канал не окупается» на самом деле означают «канал размечен непоследовательно». Если разные сотрудники ставят UTM-метки по своему усмотрению, аналитика по каналам превращается в набор строк, которые невозможно сгруппировать.',
+      'Базовое правило — фиксированный словарь значений для utm_source и utm_medium, задокументированный один раз и используемый всеми: маркетингом, подрядчиками, таргетологами. Никаких «vk», «VK» и «vkontakte» одновременно — один источник, одно написание.',
+      'utm_campaign стоит строить по шаблону "год-квартал-название", а не свободным текстом — это позволяет фильтровать отчёты по периоду без ручной сортировки. utm_content используйте для различения креативов внутри одной кампании, а не для второго уровня канала.',
+      'В Lumiva CRM UTM-параметры лида сохраняются на карточке при первом касании и видны в отчётах по каналам без дополнительной настройки — но это работает только если метки на входе уже приведены к единому словарю. Регулярная сверка (раз в месяц) новых значений source/medium, которые появились в системе, — дешёвая привычка, которая экономит часы на разборе аналитики позже.',
+      'Итоговая связка: маркетинг размечает по словарю → лид приходит в CRM с UTM на карточке → отчёт по каналам строится автоматически → отдел продаж видит, из какого источника лид, ещё до звонка.',
+    ],
+    bodyEn: [
+      'Most "this channel doesn\'t pay off" CRM reports actually mean "this channel is tagged inconsistently." If different people set UTM tags however they like, channel analytics turns into rows that can\'t be grouped.',
+      'The base rule is a fixed vocabulary for utm_source and utm_medium, documented once and used by everyone — marketing, contractors, media buyers. No "vk", "VK", and "vkontakte" at the same time: one source, one spelling.',
+      'Build utm_campaign on a "year-quarter-name" template rather than free text — that lets you filter reports by period without manual sorting. Use utm_content to distinguish creatives within one campaign, not as a second channel level.',
+      'In Lumiva CRM, a lead\'s UTM parameters are saved on the card at first touch and show up in channel reports with no extra setup — but that only works if the incoming tags already follow one vocabulary. A monthly check of new source/medium values that appeared in the system is a cheap habit that saves hours of analytics cleanup later.',
+      'The end-to-end chain: marketing tags by the vocabulary → the lead arrives in the CRM with UTM on the card → the channel report builds automatically → sales sees which source the lead came from before the first call.',
+    ],
+    bodyTr: [
+      'Çoğu "bu kanal karşılığını vermiyor" CRM raporu aslında "bu kanal tutarsız etiketlenmiş" anlamına gelir. Farklı kişiler UTM etiketlerini kendi isteğine göre koyarsa kanal analitiği gruplandırılamayan satırlara dönüşür.',
+      'Temel kural, utm_source ve utm_medium için bir kez belgelenen ve herkes tarafından kullanılan sabit bir sözlüktür: pazarlama, yükleniciler, medya satın alma uzmanları. Aynı anda "vk", "VK" ve "vkontakte" olmaz — tek kaynak, tek yazım.',
+      'utm_campaign\'i serbest metin yerine "yıl-çeyrek-isim" şablonuyla oluşturun — bu, raporları manuel sıralama olmadan döneme göre filtrelemenizi sağlar. utm_content\'i ikinci bir kanal seviyesi olarak değil, aynı kampanya içindeki kreatifleri ayırt etmek için kullanın.',
+      'Lumiva CRM\'de, bir müşteri adayının UTM parametreleri ilk temasta kartına kaydedilir ve ek bir kurulum olmadan kanal raporlarında görünür — ancak bu yalnızca gelen etiketler zaten tek bir sözlüğe uyuyorsa çalışır. Sistemde ortaya çıkan yeni source/medium değerlerinin aylık kontrolü, daha sonra analitik temizliğinde saatler kazandıran ucuz bir alışkanlıktır.',
+      'Uçtan uca zincir: pazarlama sözlüğe göre etiketler → müşteri adayı kartında UTM ile CRM\'e gelir → kanal raporu otomatik oluşur → satış, ilk aramadan önce müşteri adayının hangi kaynaktan geldiğini görür.',
+    ],
+  },
+  {
+    slug: 'crm-adoption',
+    category: 'implementation',
+    date: '2026-03-28',
+    readTime: 11,
+    titleRu: 'Как внедрять CRM, чтобы команда реально работала в системе',
+    titleEn: 'How to implement CRM so the team actually uses it',
+    titleTr: 'CRM\'i ekibin gerçekten kullanacağı şekilde nasıl uygularsınız',
+    excerptRu: 'Подход к запуску, регламентам и адаптации сотрудников без сопротивления. Чек-лист из 12 пунктов.',
+    excerptEn: 'Approach to launch, regulations, and employee onboarding without resistance. A 12-point checklist.',
+    excerptTr: 'Direnç olmadan başlatma, düzenlemeler ve çalışan katılımı yaklaşımı. 12 maddelik kontrol listesi.',
+    tag: 'Внедрение · Команда',
+    bodyRu: [
+      'Самая частая причина, по которой CRM «не приживается», — не сама система, а то, что её включили одним днём без регламента и без ответа на главный вопрос сотрудника: «что мне будет, если я не буду вести карточки?».',
+      'Работающее внедрение начинается не с настройки полей, а с одного документа: кто, на каком этапе и что обязан заполнить в карточке. Без этого регламента даже самая удобная CRM превращается в необязательную таблицу, которую заполняют «когда вспомнят».',
+      'Второй элемент — видимая обратная связь. Если менеджер видит, что данные из CRM реально используются в отчётах руководителя, на планёрках, при расчёте бонусов — сопротивление снижается кратно быстрее, чем от любых инструкций. Если данные никто не смотрит, никто их и не вносит.',
+      'Третье — не включайте всё сразу. Стартуйте с минимального набора полей и одной воронки, обкатайте регламент на реальных сделках 2–3 недели, и только потом расширяйте на автоматизации, дополнительные модули и отчётность.',
+      'Чек-лист запуска CRM (сокращённо): 1) один регламент на 1 страницу, 2) назначен ответственный за качество данных, 3) обязательные поля минимизированы, 4) воронка отражает реальные этапы, а не «как удобно программисту», 5) первая неделя — ручная проверка карточек, 6) отчёт руководителя строится из CRM, а не из Excel параллельно, 7) бонусы менеджеров привязаны к данным CRM, 8) есть канал для вопросов по системе, 9) автоматизации подключаются после стабилизации регламента, 10) обучение — не одна лекция, а разбор реальных кейсов, 11) есть тестовый период с обратной связью команды, 12) регламент пересматривается через месяц по фактическому использованию.',
+    ],
+    bodyEn: [
+      'The most common reason a CRM "doesn\'t stick" isn\'t the system itself — it\'s turning it on in a single day, with no process and no answer to the employee\'s main question: "what happens if I just don\'t fill in the cards?"',
+      'A working rollout doesn\'t start with field configuration — it starts with one document: who is required to fill in what, at which stage of the deal. Without that, even the most convenient CRM turns into an optional spreadsheet that gets filled in "whenever someone remembers."',
+      'The second element is visible feedback. If a manager sees that CRM data is actually used in leadership reports, in stand-ups, in bonus calculations — resistance drops far faster than from any set of instructions. If nobody looks at the data, nobody enters it either.',
+      'Third — don\'t turn everything on at once. Start with a minimal field set and one pipeline, run the process on real deals for 2–3 weeks, and only then expand into automations, extra modules, and reporting.',
+      'Launch checklist (condensed): 1) one process document, one page, 2) a data-quality owner assigned, 3) required fields kept to a minimum, 4) the pipeline reflects real stages, not "whatever\'s convenient to build", 5) manual card review in the first week, 6) leadership reports come from the CRM, not a parallel spreadsheet, 7) manager bonuses tied to CRM data, 8) a channel exists for system questions, 9) automations turned on after the process stabilizes, 10) training is real-case walkthroughs, not a single lecture, 11) a trial period with team feedback, 12) the process gets revisited after a month based on actual usage.',
+    ],
+    bodyTr: [
+      'Bir CRM\'in "tutmamasının" en yaygın nedeni sistemin kendisi değil, herhangi bir süreç olmadan ve çalışanın asıl sorusuna yanıt vermeden tek günde açılmasıdır: "kartları doldurmazsam ne olur?"',
+      'Başarılı bir uygulama alan yapılandırmasıyla değil tek bir belgeyle başlar: kim, fırsatın hangi aşamasında, kartta neyi doldurmakla yükümlü. Bu olmadan en kullanışlı CRM bile "hatırlandığında" doldurulan isteğe bağlı bir tabloya dönüşür.',
+      'İkinci unsur görünür geri bildirimdir. Bir yönetici CRM verilerinin yönetici raporlarında, toplantılarda, prim hesaplamalarında gerçekten kullanıldığını görürse, direnç herhangi bir talimattan çok daha hızlı azalır. Veriye kimse bakmıyorsa kimse de girmez.',
+      'Üçüncüsü, her şeyi aynı anda açmayın. Minimum alan seti ve tek bir huni ile başlayın, süreci gerçek fırsatlar üzerinde 2-3 hafta test edin ve ancak sonra otomasyonlara, ek modüllere ve raporlamaya genişletin.',
+      'Başlatma kontrol listesi (özet): 1) tek sayfalık bir süreç belgesi, 2) veri kalitesinden sorumlu bir kişi atanmış, 3) zorunlu alanlar minimumda tutulmuş, 4) huni "geliştiriciye uygun olan" değil gerçek aşamaları yansıtıyor, 5) ilk hafta manuel kart kontrolü, 6) yönetici raporları paralel bir tablodan değil CRM\'den geliyor, 7) yönetici primleri CRM verilerine bağlı, 8) sistem soruları için bir kanal var, 9) otomasyonlar süreç oturduktan sonra devreye alınıyor, 10) eğitim tek bir ders değil gerçek vaka incelemeleri, 11) ekip geri bildirimli bir deneme süresi var, 12) süreç bir ay sonra gerçek kullanıma göre gözden geçiriliyor.',
+    ],
+  },
+  {
+    slug: 'automation-triggers',
+    category: 'automation',
+    date: '2026-03-18',
+    readTime: 6,
+    titleRu: 'Триггерные автоматизации: 8 сценариев для отдела продаж',
+    titleEn: 'Trigger automations: 8 scenarios for the sales team',
+    titleTr: 'Tetikleyici otomasyonlar: Satış ekibi için 8 senaryo',
+    excerptRu: 'Как настроить автоматические задачи, уведомления и статусы без программирования. Примеры из реальных воронок.',
+    excerptEn: 'How to set up automatic tasks, notifications, and statuses without programming. Examples from real funnels.',
+    excerptTr: 'Programlama yapmadan otomatik görevler, bildirimler ve durumlar nasıl kurulur.',
+    tag: 'Автоматизация',
+    bodyRu: [
+      'Автоматизации в CRM не заменяют менеджера — они убирают шаги, которые человек забывает сделать вовремя. Ниже восемь сценариев, которые закрывают большую часть типовых провисаний воронки без единой строки кода.',
+      '1) Новый лид без ответа 30 минут → задача менеджеру + уведомление руководителю. 2) Сделка не менялась 5 дней подряд → эскалация в общий чат отдела. 3) Лид перешёл на этап «Переговоры» → автосоздание задачи «отправить КП» с дедлайном. 4) Оплата поступила → автоматическая смена статуса и запуск проектной задачи на онбординг клиента. 5) Клиент открыл письмо с предложением, но не ответил 3 дня → напоминание менеджеру о повторном касании.',
+      '6) Лид указал источник «реклама» и высокий бюджет → мгновенная маршрутизация к старшему менеджеру, а не в общую очередь. 7) Сделка отменена → автоматический опрос причины отказа для последующей аналитики. 8) Годовщина первой покупки клиента → задача менеджеру на допродажу или продление.',
+      'Общий принцип: каждая автоматизация должна закрывать конкретную, ранее ручную операцию, а не «на всякий случай». Начинайте с одного-двух триггеров, которые чаще всего проваливаются у вашей команды именно сейчас, а не пытайтесь внедрить все восемь сразу.',
+    ],
+    bodyEn: [
+      'CRM automations don\'t replace the manager — they remove steps a human forgets to do on time. Below are eight scenarios that cover most typical funnel stalls without a single line of code.',
+      '1) New lead with no response in 30 minutes → task for the manager + notification to the lead. 2) A deal untouched for 5 straight days → escalation to the team chat. 3) A lead moves to the "Negotiation" stage → auto-create a "send proposal" task with a deadline. 4) Payment received → automatic status change and a client-onboarding project task kicks off. 5) The client opened the proposal email but didn\'t reply in 3 days → reminder for the manager to follow up.',
+      '6) A lead flags source "ads" with a high budget → instant routing to a senior manager instead of the general queue. 7) A deal is cancelled → an automatic decline-reason survey for later analytics. 8) The anniversary of a client\'s first purchase → a task for the manager to upsell or renew.',
+      'The general principle: each automation should close a specific, previously manual step — not exist "just in case." Start with the one or two triggers that most often fall through for your team right now, rather than trying to roll out all eight at once.',
+    ],
+    bodyTr: [
+      'CRM otomasyonları yöneticinin yerini almaz — bir kişinin zamanında yapmayı unuttuğu adımları ortadan kaldırır. Aşağıda tek bir kod satırı olmadan tipik huni duraklamalarının çoğunu kapatan sekiz senaryo var.',
+      '1) 30 dakika içinde yanıtlanmayan yeni müşteri adayı → yöneticiye görev + bildirim. 2) 5 gün boyunca değişmeyen fırsat → ekip sohbetine yükseltme. 3) Müşteri adayı "Görüşme" aşamasına geçer → son tarihli "teklif gönder" görevi otomatik oluşturulur. 4) Ödeme alınır → otomatik durum değişikliği ve müşteri katılım proje görevi başlar. 5) Müşteri teklif e-postasını açtı ama 3 gün yanıtlamadı → yöneticiye takip hatırlatması.',
+      '6) Müşteri adayı yüksek bütçeli "reklam" kaynağını belirtir → genel kuyruk yerine kıdemli bir yöneticiye anında yönlendirme. 7) Fırsat iptal edilir → daha sonraki analiz için otomatik ret nedeni anketi. 8) Müşterinin ilk satın alma yıl dönümü → yöneticiye ek satış veya yenileme görevi.',
+      'Genel ilke: her otomasyon "ihtimale karşı" değil, daha önce manuel olan belirli bir adımı kapatmalıdır. Sekizini birden uygulamaya çalışmak yerine, ekibinizde şu anda en sık aksayan bir veya iki tetikleyiciyle başlayın.',
+    ],
+  },
+  {
+    slug: 'integrations-guide',
+    category: 'integrations',
+    date: '2026-03-10',
+    readTime: 8,
+    titleRu: 'Руководство по интеграциям: от Telegram до 1С',
+    titleEn: 'Integration guide: from Telegram to ERP systems',
+    titleTr: 'Entegrasyon rehberi: Telegram\'dan ERP sistemlerine',
+    excerptRu: 'Как выбрать нужные интеграции, настроить синхронизацию и избежать дублирования данных.',
+    excerptEn: 'How to choose the right integrations, set up synchronization, and avoid data duplication.',
+    excerptTr: 'Doğru entegrasyonları nasıl seçersiniz, senkronizasyonu kurun ve veri tekrarını önleyin.',
+    tag: 'Интеграции',
+    bodyRu: [
+      'Интеграции — это не «чем больше, тем лучше». Каждая подключённая система — это ещё один источник данных, который нужно синхронизировать и объяснить команде, откуда что берётся. Начинайте с одной, самой болезненной точки, а не со списка «на будущее».',
+      'Мессенджеры (Telegram, WhatsApp) чаще всего дают быстрый эффект: заявки перестают теряться в личных чатах менеджеров и сразу попадают в CRM карточкой с историей переписки. Это обычно первая интеграция, которую стоит подключать.',
+      'Учётные системы (1С и аналоги) решают другую задачу — синхронизацию склада, счетов и оплат, чтобы менеджер не переключался между двумя системами при выставлении счёта. Здесь критично заранее договориться, какая система — источник правды для остатков, чтобы не было расхождений.',
+      'Главная ошибка при подключении интеграций — синхронизировать данные в обе стороны без чёткого правила, кто главный. Если клиент может редактироваться и в CRM, и в учётной системе одновременно, рано или поздно данные разъедутся. Выбирайте одну систему источником для каждого типа данных: контакты — из CRM, остатки — из учётки.',
+      'Перед подключением новой интеграции стоит ответить на три вопроса: какую конкретно ручную операцию она убирает, кто отвечает за неё после подключения, и что произойдёт, если синхронизация на день отвалится. Если на третий вопрос нет спокойного ответа — сначала нужен план отказоустойчивости, а не сама интеграция.',
+    ],
+    bodyEn: [
+      'Integrations aren\'t "the more, the better." Every connected system is one more data source that has to stay in sync and be explained to the team. Start with the single most painful gap, not a wishlist for later.',
+      'Messengers (Telegram, WhatsApp) usually give the fastest payoff: inquiries stop getting lost in managers\' personal chats and land in the CRM as a card with the full conversation history. This is typically the first integration worth connecting.',
+      'Accounting/ERP systems (1C and similar) solve a different problem — syncing inventory, invoices, and payments so the manager doesn\'t switch between two systems to issue an invoice. Here it\'s critical to agree in advance which system is the source of truth for stock levels, so the numbers don\'t drift apart.',
+      'The main mistake when connecting integrations is syncing data both ways with no clear rule on which side wins. If a client record can be edited in both the CRM and the accounting system at the same time, the data will eventually diverge. Pick one source system per data type: contacts from the CRM, stock from the accounting system.',
+      'Before adding a new integration, answer three questions: exactly which manual step does it remove, who owns it after it\'s connected, and what happens if the sync breaks for a day. If there\'s no calm answer to the third question, you need a fallback plan before the integration itself.',
+    ],
+    bodyTr: [
+      'Entegrasyonlar "ne kadar çok o kadar iyi" değildir. Bağlanan her sistem, senkronize tutulması ve ekibe nereden geldiği açıklanması gereken bir veri kaynağı daha demektir. "İleride lazım olur" listesi yerine en can sıkıcı tek noktadan başlayın.',
+      'Mesajlaşma uygulamaları (Telegram, WhatsApp) genellikle en hızlı sonucu verir: talepler yöneticilerin kişisel sohbetlerinde kaybolmayı bırakır ve tüm yazışma geçmişiyle birlikte CRM\'e bir kart olarak düşer. Bu genellikle bağlanmaya değer ilk entegrasyondur.',
+      'Muhasebe/ERP sistemleri (1C ve benzerleri) farklı bir sorunu çözer — stok, fatura ve ödemelerin senkronizasyonu, böylece yönetici fatura keserken iki sistem arasında geçiş yapmaz. Burada, rakamların birbirinden ayrışmaması için hangi sistemin stok için gerçek kaynak olduğunu önceden kararlaştırmak kritiktir.',
+      'Entegrasyon bağlarken yapılan en büyük hata, hangi tarafın kazandığına dair net bir kural olmadan verileri iki yönde senkronize etmektir. Bir müşteri kaydı hem CRM\'de hem muhasebe sisteminde aynı anda düzenlenebiliyorsa, veriler er ya da geç birbirinden sapar. Her veri türü için tek bir kaynak sistem seçin: kişiler CRM\'den, stok muhasebe sisteminden.',
+      'Yeni bir entegrasyon eklemeden önce üç soruyu yanıtlayın: tam olarak hangi manuel adımı kaldırıyor, bağlandıktan sonra kim sahipleniyor ve senkronizasyon bir gün bozulursa ne olur. Üçüncü soruya sakin bir yanıt yoksa, entegrasyonun kendisinden önce bir yedek plana ihtiyacınız var.',
+    ],
+  },
+  {
+    slug: 'analytics-dashboards',
+    category: 'analytics',
+    date: '2026-02-25',
+    readTime: 10,
+    titleRu: 'Дашборды для руководителя: что смотреть каждый день',
+    titleEn: 'Manager dashboards: what to check every day',
+    titleTr: 'Yönetici panelleri: Her gün neye bakmalısınız',
+    excerptRu: 'Набор метрик, которые дают реальную картину здоровья бизнеса. Как настроить CRM-аналитику за 30 минут.',
+    excerptEn: 'A set of metrics that give a real picture of business health. How to set up CRM analytics in 30 minutes.',
+    excerptTr: 'İşletmenin gerçek sağlık durumunu gösteren metrikler seti.',
+    tag: 'Аналитика · Дашборды',
+    bodyRu: [
+      'Дашборд с тридцатью виджетами — это не аналитика, это шум. Руководителю ежедневно нужно пять-семь метрик, которые отвечают на один вопрос: где сейчас риск, а где всё идёт по плану.',
+      'Первый блок — воронка сегодня: сколько новых лидов пришло, сколько обработано в SLA, сколько просрочено. Это метрики скорости реакции, а не объёма — они показывают, не проваливается ли обработка прямо сейчас.',
+      'Второй блок — деньги в движении: сумма сделок на каждом этапе воронки и сумма, которая «зависла» без движения дольше обычного цикла. Это то, что превращается в кассовый разрыв, если не заметить вовремя.',
+      'Третий блок — по людям: нагрузка на каждого менеджера (открытые сделки, просроченные задачи) и конверсия по менеджеру за последние 30 дней. Не для наказания, а чтобы увидеть перекос нагрузки раньше, чем он превратится в потерянные лиды.',
+      'Четвёртый блок — по каналам: откуда идёт основной поток лидов сейчас и как меняется их качество (конверсия в сделку) по сравнению с прошлым месяцем. Резкое падение качества лида из канала при стабильном объёме — сигнал проверить настройку рекламы или скрипт квалификации.',
+      'В Lumiva CRM такой набор собирается на главный дашборд без написания SQL-запросов — виджеты берут данные напрямую из модулей Лидов, Сделок и Продаж и обновляются в реальном времени. Настройка первой рабочей версии занимает около получаса: выбрать 5–7 виджетов из готового списка и один раз задать период сравнения.',
+    ],
+    bodyEn: [
+      'A dashboard with thirty widgets isn\'t analytics — it\'s noise. A manager needs five to seven metrics a day that answer one question: where is the risk right now, and where is everything on track.',
+      'The first block is today\'s funnel: how many new leads came in, how many were handled within SLA, how many are overdue. These are response-speed metrics, not volume metrics — they show whether processing is failing right now.',
+      'The second block is money in motion: the deal value sitting at each funnel stage, and the amount that has been stuck longer than the usual cycle. That\'s what turns into a cash gap if it isn\'t caught in time.',
+      'The third block is per-person: each manager\'s load (open deals, overdue tasks) and their conversion rate over the last 30 days. Not for punishment — to spot a workload imbalance before it turns into lost leads.',
+      'The fourth block is per-channel: where the main lead flow is coming from right now, and how lead quality (conversion to deal) is changing versus last month. A sharp quality drop from a channel at a stable volume is a signal to check the ad setup or the qualification script.',
+      'In Lumiva CRM, this set assembles on the home dashboard with no SQL — widgets pull directly from the Leads, Deals, and Sales modules and update in real time. Setting up the first working version takes about half an hour: pick 5–7 widgets from the ready list and set the comparison period once.',
+    ],
+    bodyTr: [
+      'Otuz widget\'lı bir pano analitik değil, gürültüdür. Bir yöneticinin günde beş ila yedi metriğe ihtiyacı vardır ve bunlar tek bir soruyu yanıtlar: risk şu anda nerede, her şey nerede plana uygun gidiyor.',
+      'İlk blok bugünkü huni: kaç yeni müşteri adayı geldi, kaçı SLA içinde işlendi, kaçı gecikti. Bunlar hacim değil, yanıt hızı metrikleridir — işlemenin şu anda aksayıp aksamadığını gösterirler.',
+      'İkinci blok hareket halindeki para: huni her aşamasındaki fırsat tutarı ve olağan döngüden daha uzun süredir hareketsiz kalan tutar. Zamanında fark edilmezse nakit açığına dönüşen şey budur.',
+      'Üçüncü blok kişi bazında: her yöneticinin yükü (açık fırsatlar, gecikmiş görevler) ve son 30 gündeki dönüşüm oranı. Cezalandırmak için değil, iş yükü dengesizliğini kaybedilen müşteri adaylarına dönüşmeden önce görmek için.',
+      'Dördüncü blok kanal bazında: ana müşteri adayı akışının şu anda nereden geldiği ve kalitesinin (fırsata dönüşüm) geçen aya göre nasıl değiştiği. Sabit hacimde bir kanaldan gelen kalitenin keskin düşüşü, reklam ayarını veya yeterlilik senaryosunu kontrol etme sinyalidir.',
+      'Lumiva CRM\'de bu set, SQL yazmadan ana panoda bir araya gelir — widget\'lar verileri doğrudan Müşteri Adayları, Fırsatlar ve Satış modüllerinden alır ve gerçek zamanlı güncellenir. İlk çalışan sürümü kurmak yaklaşık yarım saat sürer: hazır listeden 5-7 widget seçin ve karşılaştırma dönemini bir kez ayarlayın.',
+    ],
+  },
+];

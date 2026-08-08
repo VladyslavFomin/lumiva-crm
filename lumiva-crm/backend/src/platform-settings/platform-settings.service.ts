@@ -337,6 +337,7 @@ export class PlatformSettingsService {
     aiImageCostCents?: number | null;
     stripePriceAiCredits?: string | null;
     stripePriceStoragePack?: string | null;
+    stripePriceTelephonyAddon?: string | null;
     aiCreditsPackAmountCents?: number | null;
     storagePackBytes?: string | null;
     integrationOAuthApps?: Record<
@@ -372,6 +373,7 @@ export class PlatformSettingsService {
         aiImageCostCents: payload.aiImageCostCents ?? null,
         stripePriceAiCredits: payload.stripePriceAiCredits ?? null,
         stripePriceStoragePack: payload.stripePriceStoragePack ?? null,
+        stripePriceTelephonyAddon: payload.stripePriceTelephonyAddon ?? null,
         aiCreditsPackAmountCents: payload.aiCreditsPackAmountCents ?? null,
         storagePackBytes: payload.storagePackBytes ?? null,
         integrationOAuthApps: payload.integrationOAuthApps ?? null,
@@ -441,6 +443,9 @@ export class PlatformSettingsService {
       }
       if (payload.stripePriceStoragePack !== undefined) {
         current.stripePriceStoragePack = payload.stripePriceStoragePack;
+      }
+      if (payload.stripePriceTelephonyAddon !== undefined) {
+        current.stripePriceTelephonyAddon = payload.stripePriceTelephonyAddon;
       }
       if (payload.aiCreditsPackAmountCents !== undefined) {
         current.aiCreditsPackAmountCents = payload.aiCreditsPackAmountCents;

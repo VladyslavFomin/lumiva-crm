@@ -63,6 +63,28 @@ export class AutomationExecution {
   @Column({ type: 'integer', default: 0 })
   actionsExecuted: number; // Количество выполненных действий
 
+  // ==== ПАУЗА / ВОЗОБНОВЛЕНИЕ (задержка перед шагом, ожидание подтверждения) ====
+  // status также принимает 'paused_delay' | 'paused_approval' | 'rejected' в дополнение к
+  // 'pending' | 'success' | 'error' — колонка свободная varchar, доп. значения не ломают старые.
+
+  @Column({ type: 'integer', nullable: true })
+  pausedAtStep: number | null; // Индекс действия, на котором остановились
+
+  @Column({ type: 'timestamptz', nullable: true })
+  resumeAt: Date | null; // Когда планировщик должен возобновить (для paused_delay)
+
+  @Column({ type: 'jsonb', nullable: true })
+  ctxSnapshot: any | null; // Снимок контекста выполнения на момент паузы
+
+  @Column({ type: 'uuid', nullable: true })
+  approvalDecidedBy: string | null;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  approvalDecidedAt: Date | null;
+
+  @Column({ type: 'text', nullable: true })
+  approvalNote: string | null;
+
   // ==== AUDIT ====
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

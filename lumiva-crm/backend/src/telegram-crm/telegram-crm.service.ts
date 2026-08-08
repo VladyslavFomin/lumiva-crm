@@ -310,6 +310,7 @@ export class TelegramCrmService {
     if (!contact) {
       contact = this.contactRepo.create({
         tenantId, telegramUserId,
+        botId: bot.id,
         telegramUsername: message.from.username || null,
         telegramFirstName: message.from.first_name || null,
         telegramLastName: message.from.last_name || null,
@@ -317,6 +318,7 @@ export class TelegramCrmService {
         status: 'active',
       });
     } else {
+      contact.botId = bot.id;
       contact.telegramUsername = message.from.username || null;
       contact.telegramFirstName = message.from.first_name || null;
       contact.telegramLastName = message.from.last_name || null;
@@ -327,6 +329,7 @@ export class TelegramCrmService {
     const telegramMessage = this.messageRepo.create({
       tenantId,
       contactId: contact.id,
+      botId: bot.id,
       messageId: String(message.message_id),
       chatId,
       direction: 'incoming',
@@ -643,6 +646,10 @@ export class TelegramCrmService {
     const bot = await this.findBot(tenantId, botId);
     const contact = await this.contactRepo.findOne({ where: { tenantId, telegramUserId } });
     if (!contact) throw new NotFoundException('Telegram contact not found');
+    if (contact.botId !== bot.id) {
+      contact.botId = bot.id;
+      await this.contactRepo.save(contact);
+    }
 
     try {
       const response = await axios.post(
@@ -653,6 +660,7 @@ export class TelegramCrmService {
       return this.messageRepo.save(this.messageRepo.create({
         tenantId,
         contactId: contact.id,
+        botId: bot.id,
         messageId: String(sent.message_id),
         chatId: String(sent.chat.id),
         direction: 'outgoing',
@@ -686,6 +694,10 @@ export class TelegramCrmService {
     const bot = await this.findBot(tenantId, botId);
     const contact = await this.contactRepo.findOne({ where: { tenantId, telegramUserId } });
     if (!contact) throw new NotFoundException('Telegram contact not found');
+    if (contact.botId !== bot.id) {
+      contact.botId = bot.id;
+      await this.contactRepo.save(contact);
+    }
 
     const safeName = String(filename || 'file.dat').replace(/[^\w.\-]+/g, '_').slice(0, 120);
     const boundary = `----lumiva${Date.now()}`;
@@ -712,6 +724,7 @@ export class TelegramCrmService {
       return this.messageRepo.save(this.messageRepo.create({
         tenantId,
         contactId: contact.id,
+        botId: bot.id,
         messageId: String(sent.message_id),
         chatId: String(sent.chat?.id ?? telegramUserId),
         direction: 'outgoing',
@@ -748,6 +761,68 @@ export class TelegramCrmService {
     if (options?.offset) qb.offset(options.offset);
     qb.orderBy('message.date', 'DESC');
     return { items: await qb.getMany(), total };
+  }
+
+  /** Conversation list for the inbox UI: one row per contact with a last-message preview and
+   * unread count, newest activity first. */
+  async findContacts(
+    tenantId: string,
+    options?: { search?: string; botId?: string },
+  ): Promise<Array<TelegramContact & { lastMessage: TelegramMessage | null; unreadCount: number }>> {
+    const qb = this.contactRepo.createQueryBuilder('contact')
+      .where('contact.tenantId = :tenantId', { tenantId });
+    if (options?.botId) qb.andWhere('contact.botId = :botId', { botId: options.botId });
+    if (options?.search) {
+      qb.andWhere(
+        '(contact.telegramUsername ILIKE :s OR contact.telegramFirstName ILIKE :s OR contact.telegramLastName ILIKE :s OR contact.telegramPhone ILIKE :s)',
+        { s: `%${options.search}%` },
+      );
+    }
+    const contacts = await qb.getMany();
+    if (!contacts.length) return [];
+    const contactIds = contacts.map((c) => c.id);
+
+    const lastMessages = await this.messageRepo.createQueryBuilder('m')
+      .distinctOn(['m.contactId'])
+      .where('m.tenantId = :tenantId', { tenantId })
+      .andWhere('m.contactId IN (:...contactIds)', { contactIds })
+      .orderBy('m.contactId')
+      .addOrderBy('m.date', 'DESC')
+      .getMany();
+    const lastByContact = new Map(lastMessages.map((m) => [m.contactId, m]));
+
+    const unreadRows = await this.messageRepo.createQueryBuilder('m')
+      .select('m.contactId', 'contactId')
+      .addSelect('COUNT(*)', 'count')
+      .where('m.tenantId = :tenantId', { tenantId })
+      .andWhere('m.contactId IN (:...contactIds)', { contactIds })
+      .andWhere('m.direction = :dir', { dir: 'incoming' })
+      .andWhere('m.isRead = false')
+      .groupBy('m.contactId')
+      .getRawMany<{ contactId: string; count: string }>();
+    const unreadByContact = new Map(unreadRows.map((r) => [r.contactId, parseInt(r.count, 10)]));
+
+    return contacts
+      .map((c) => ({
+        ...c,
+        lastMessage: lastByContact.get(c.id) ?? null,
+        unreadCount: unreadByContact.get(c.id) ?? 0,
+      }))
+      .sort((a, b) => {
+        const ad = a.lastMessage ? new Date(a.lastMessage.date).getTime() : new Date(a.createdAt).getTime();
+        const bd = b.lastMessage ? new Date(b.lastMessage.date).getTime() : new Date(b.createdAt).getTime();
+        return bd - ad;
+      });
+  }
+
+  async markContactMessagesRead(tenantId: string, contactId: string): Promise<void> {
+    await this.messageRepo.createQueryBuilder()
+      .update(TelegramMessage)
+      .set({ isRead: true })
+      .where('"tenantId" = :tenantId AND "contactId" = :contactId AND direction = :dir AND "isRead" = false', {
+        tenantId, contactId, dir: 'incoming',
+      })
+      .execute();
   }
 
   async sendDirectToChat(tenantId: string, botId: string, chatId: string, text: string): Promise<void> {

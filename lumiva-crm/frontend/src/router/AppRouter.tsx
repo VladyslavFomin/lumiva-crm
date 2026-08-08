@@ -1,5 +1,5 @@
 // src/router/AppRouter.tsx
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   BrowserRouter,
   Routes,
@@ -11,10 +11,12 @@ import {
 import { LoginPage } from '../pages/LoginPage';
 import { BillingPage } from '../pages/BillingPage';
 import { DashboardPage } from '../pages/DashboardPage';
+import { BiDashboardPage } from '../pages/analytics/BiDashboardPage';
 import LandingPage from "../pages/LandingPage";
 import DevelopmentPage from '../pages/public/DevelopmentPage';
 import ScenariosPage from '../pages/public/ScenariosPage';
 import ApiPage from '../pages/public/ApiPage';
+import ApiDocsPage from '../pages/public/ApiDocsPage';
 import IntegrationsPage from '../pages/public/IntegrationsPage';
 import SolutionsPage from '../pages/public/SolutionsPage';
 import AnalyticsPage from '../pages/public/AnalyticsPage';
@@ -22,9 +24,14 @@ import MarketingPage from '../pages/public/MarketingPage';
 import SalesSolutionsPage from '../pages/public/SalesSolutionsPage';
 import WarehouseSolutionsPage from '../pages/public/WarehouseSolutionsPage';
 import ClientAccountsSolutionsPage from '../pages/public/ClientAccountsSolutionsPage';
-import InventorySolutionsPage from '../pages/public/InventorySolutionsPage';
+import ProductsSolutionsPage from '../pages/public/ProductsSolutionsPage';
+import BookingSolutionsPage from '../pages/public/BookingSolutionsPage';
+import HotelSolutionsPage from '../pages/public/HotelSolutionsPage';
+import SecurityPage from '../pages/public/SecurityPage';
+import ComparePage from '../pages/public/ComparePage';
 import PrivacyPage from '../pages/public/PrivacyPage';
 import BlogPage from '../pages/public/BlogPage';
+import BlogPostPage from '../pages/public/BlogPostPage';
 import PricingPage from '../pages/public/PricingPage';
 import FeaturesPage from '../pages/public/FeaturesPage';
 import AboutPage from '../pages/public/AboutPage';
@@ -101,6 +108,8 @@ import ClientFinancialOperationsPage from '../pages/client-accounts/ClientFinanc
 // MARKETING
 import { TrafficPage } from '../pages/marketing/TrafficPage';
 import { CampaignsPage } from '../pages/marketing/CampaignsPage';
+import { BroadcastsPage } from '../pages/marketing/BroadcastsPage';
+import { BroadcastFormPage } from '../pages/marketing/BroadcastFormPage';
 import { UtmsPage } from '../pages/marketing/UtmsPage';
 import { SegmentsPage } from '../pages/marketing/SegmentsPage';
 import { SmmPage } from '../pages/marketing/SmmPage';
@@ -109,8 +118,20 @@ import { SeoPage } from '../pages/marketing/SeoPage';
 import { EmailTemplatesPage } from '../pages/marketing/EmailTemplatesPage';
 import { EmailTemplateFormPage } from '../pages/marketing/EmailTemplateFormPage';
 import  OnlineChatPage  from '../pages/online-chat/OnlineChatPage'; // или default export
-import { getAccessToken } from '../auth/session';
+import { getAccessToken, isBillingLocked } from '../auth/session';
 import SetPasswordPage from '../pages/SetPasswordPage';
+import { OnboardingWizardPage } from '../pages/onboarding/OnboardingWizardPage';
+import { fetchOnboardingState } from '../api/onboarding';
+import { TeamCalendarPage } from '../pages/calendar/TeamCalendarPage';
+import { PortalLoginPage } from '../pages/portal/PortalLoginPage';
+import { PortalVerifyPage } from '../pages/portal/PortalVerifyPage';
+import { PortalDashboardPage } from '../pages/portal/PortalDashboardPage';
+import { PortalProtectedRoute } from '../pages/portal/PortalProtectedRoute';
+import { PortalTicketsPage } from '../pages/portal/PortalTicketsPage';
+import { PortalTicketDetailPage } from '../pages/portal/PortalTicketDetailPage';
+import { HelpdeskPage } from '../pages/helpdesk/HelpdeskPage';
+import { EsignPage } from '../pages/esign/EsignPage';
+import { EsignPublicPage } from '../pages/esign/EsignPublicPage';
 
 // NEW MODULES
 import { ContactsListPage } from '../pages/contacts/ContactsListPage';
@@ -145,7 +166,6 @@ import { BookingAvailabilityPage } from '../pages/bookings/BookingAvailabilityPa
 import { BookingSettingsPage } from '../pages/bookings/BookingSettingsPage';
 import { BookingWaitlistPage } from '../pages/bookings/BookingWaitlistPage';
 import { BookingAnalyticsPage } from '../pages/bookings/BookingAnalyticsPage';
-import { BookingTemplatesPage } from '../pages/bookings/BookingTemplatesPage';
 import { BookingLogsPage } from '../pages/bookings/BookingLogsPage';
 import { HotelsOverviewPage } from '../pages/hotels/HotelsOverviewPage';
 import { HotelsListPage } from '../pages/hotels/HotelsListPage';
@@ -159,14 +179,22 @@ import { HotelAnalyticsPage } from '../pages/hotels/HotelAnalyticsPage';
 import { AutomationsPage as AutomationsPageNew } from '../pages/automations/AutomationsPage';
 import { IntegrationsHubPage } from '../pages/integrations/IntegrationsHubPage';
 import { AutomationFormPage } from '../pages/automations/AutomationFormPage';
+import { PendingApprovalsPage } from '../pages/automations/PendingApprovalsPage';
 import { EmailAccountsPage } from '../pages/email/EmailAccountsPage';
 import { EmailAccountFormPage } from '../pages/email/EmailAccountFormPage';
 import { EmailInboxPage } from '../pages/email/EmailInboxPage';
 import { TelegramBotsPage } from '../pages/telegram-crm/TelegramBotsPage';
 import { TelegramBotFormPage } from '../pages/telegram-crm/TelegramBotFormPage';
-import { SmsPage } from '../pages/sms/SmsPage';
-import { SmsSettingsPage } from '../pages/sms/SmsSettingsPage';
+import TelegramInboxPage from '../pages/telegram-crm/TelegramInboxPage';
+import WhatsappInboxPage from '../pages/whatsapp-crm/WhatsappInboxPage';
+import { TelephonyPage } from '../pages/telephony/TelephonyPage';
+import { TelephonySmsPage } from '../pages/telephony/TelephonySmsPage';
+import { TelephonyAnalyticsPage } from '../pages/telephony/TelephonyAnalyticsPage';
+import { TelephonySettingsPage } from '../pages/telephony/TelephonySettingsPage';
 import { DuplicatesPage } from '../pages/deduplication/DuplicatesPage';
+import { AuditLogPage } from '../pages/settings/AuditLogPage';
+import { ExportBackupPage } from '../pages/settings/ExportBackupPage';
+import { ApiTokensPage } from '../pages/settings/ApiTokensPage';
 import { WorkspaceTablesPage } from '../pages/workspace/WorkspaceTablesPage';
 import { WorkspaceNewTablePage } from '../pages/workspace/WorkspaceNewTablePage';
 import { WorkspaceTableViewPage } from '../pages/workspace/WorkspaceTableViewPage';
@@ -185,12 +213,55 @@ import {
   AiEmployeesPage,
 } from '../pages/ai-employees/AiEmployeesPage';
 
+// Routes a still-onboarding tenant may reach without being bounced to the wizard.
+const ONBOARDING_EXEMPT_PATHS = new Set([
+  '/onboarding',
+  '/app/billing',
+  '/billing',
+  '/forbidden',
+  '/tenant-inactive',
+]);
+
+// Fetched once per page load (not per navigation) and cached at module scope — the wizard itself
+// does a full navigation on completion, which naturally clears this on the next load.
+let onboardingCheckPromise: Promise<boolean> | null = null;
+function needsOnboardingOnce(): Promise<boolean> {
+  if (!onboardingCheckPromise) {
+    onboardingCheckPromise = fetchOnboardingState()
+      .then((s) => !s.onboardingCompletedAt)
+      // Fail open — a broken/slow check must never trap a user outside the app.
+      .catch(() => false);
+  }
+  return onboardingCheckPromise;
+}
+
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   children,
 }) => {
   const token = getAccessToken();
+  const location = useLocation();
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (!token) return;
+    let alive = true;
+    needsOnboardingOnce().then((v) => {
+      if (alive) setNeedsOnboarding(v);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [token]);
+
   if (!token) {
     return <Navigate to="/login" replace />;
+  }
+  if (
+    needsOnboarding &&
+    !ONBOARDING_EXEMPT_PATHS.has(location.pathname) &&
+    !isBillingLocked()
+  ) {
+    return <Navigate to="/onboarding" replace />;
   }
   return children;
 };
@@ -218,6 +289,7 @@ export const AppRouter: React.FC = () => {
         <Route path="/development" element={<DevelopmentPage />} />
         <Route path="/scenarios" element={<ScenariosPage />} />
         <Route path="/api-integration" element={<ApiPage />} />
+        <Route path="/api-integration/docs" element={<ApiDocsPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
         <Route path="/solutions" element={<SolutionsPage />} />
         <Route path="/solutions/analytics" element={<AnalyticsPage />} />
@@ -225,11 +297,17 @@ export const AppRouter: React.FC = () => {
         <Route path="/solutions/sales" element={<SalesSolutionsPage />} />
         <Route path="/solutions/warehouse" element={<WarehouseSolutionsPage />} />
         <Route path="/solutions/client-accounts" element={<ClientAccountsSolutionsPage />} />
-        <Route path="/solutions/inventory" element={<InventorySolutionsPage />} />
+        <Route path="/solutions/products" element={<ProductsSolutionsPage />} />
+        <Route path="/solutions/inventory" element={<Navigate to="/solutions/products" replace />} />
+        <Route path="/solutions/booking" element={<BookingSolutionsPage />} />
+        <Route path="/solutions/hotels" element={<HotelSolutionsPage />} />
         <Route path="/analytics" element={<Navigate to="/solutions/analytics" replace />} />
         <Route path="/pricing" element={<PricingPage />} />
         <Route path="/privacy"   element={<PrivacyPage />} />
+        <Route path="/security"  element={<SecurityPage />} />
+        <Route path="/compare"   element={<ComparePage />} />
         <Route path="/blog"      element={<BlogPage />} />
+        <Route path="/blog/:slug" element={<BlogPostPage />} />
         <Route path="/features"  element={<FeaturesPage />} />
         <Route path="/about"     element={<AboutPage />} />
         <Route path="/contact"   element={<ContactPage />} />
@@ -246,6 +324,34 @@ export const AppRouter: React.FC = () => {
         {/* Публичная встраиваемая форма (iframe на сторонних сайтах) */}
         <Route path="/embed/:publicId" element={<PublicEmbedFormPage />} />
 
+        {/* Личный кабинет клиента (self-service portal) — отдельная от staff-логина авторизация */}
+        <Route path="/portal/:clientKey/login" element={<PortalLoginPage />} />
+        <Route path="/portal/:clientKey/verify" element={<PortalVerifyPage />} />
+        <Route
+          path="/portal/:clientKey/dashboard"
+          element={
+            <PortalProtectedRoute>
+              <PortalDashboardPage />
+            </PortalProtectedRoute>
+          }
+        />
+        <Route
+          path="/portal/:clientKey/tickets"
+          element={
+            <PortalProtectedRoute>
+              <PortalTicketsPage />
+            </PortalProtectedRoute>
+          }
+        />
+        <Route
+          path="/portal/:clientKey/tickets/:ticketId"
+          element={
+            <PortalProtectedRoute>
+              <PortalTicketDetailPage />
+            </PortalProtectedRoute>
+          }
+        />
+
         {/* DASHBOARD */}
         <Route
           path="/billing"
@@ -261,6 +367,52 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <OnboardingWizardPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/calendar"
+          element={
+            <ProtectedRoute>
+              <TeamCalendarPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/helpdesk"
+          element={
+            <ProtectedRoute>
+              <HelpdeskPage />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/esign"
+          element={
+            <ProtectedRoute>
+              <EsignPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/esign/:token" element={<EsignPublicPage />} />
+
+        <Route
+          path="/bi"
+          element={
+            <ProtectedRoute>
+              <BiDashboardPage />
             </ProtectedRoute>
           }
         />
@@ -667,6 +819,22 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
+          path="/marketing/broadcasts"
+          element={
+            <ProtectedRoute>
+              <BroadcastsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketing/broadcasts/:id"
+          element={
+            <ProtectedRoute>
+              <BroadcastFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/marketing/smm"
           element={
             <ProtectedRoute>
@@ -1043,14 +1211,6 @@ export const AppRouter: React.FC = () => {
           }
         />
         <Route
-          path="/bookings/templates"
-          element={
-            <ProtectedRoute>
-              <BookingTemplatesPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/bookings/logs"
           element={
             <ProtectedRoute>
@@ -1147,6 +1307,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <AutomationFormPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/automations/pending-approvals"
+          element={
+            <ProtectedRoute>
+              <PendingApprovalsPage />
             </ProtectedRoute>
           }
         />
@@ -1316,28 +1484,87 @@ export const AppRouter: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/telegram/inbox"
+          element={
+            <ProtectedRoute>
+              <TelegramInboxPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/whatsapp/inbox"
+          element={
+            <ProtectedRoute>
+              <WhatsappInboxPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/telephony"
+          element={
+            <ProtectedRoute>
+              <TelephonyPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/telephony/sms"
+          element={
+            <ProtectedRoute>
+              <TelephonySmsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/telephony/analytics"
+          element={
+            <ProtectedRoute>
+              <TelephonyAnalyticsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/telephony/settings"
+          element={
+            <ProtectedRoute>
+              <TelephonySettingsPage />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route
-          path="/sms"
-          element={
-            <ProtectedRoute>
-              <SmsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/sms/settings"
-          element={
-            <ProtectedRoute>
-              <SmsSettingsPage />
-            </ProtectedRoute>
-          }
-        />
+        {/* SMS and Telephony merged into one "SMS и телефония" section 2026-08-04 — old URLs redirect */}
+        <Route path="/sms" element={<Navigate to="/telephony/sms" replace />} />
+        <Route path="/sms/settings" element={<Navigate to="/telephony/settings" replace />} />
         <Route
           path="/contacts/duplicates"
           element={
             <ProtectedRoute>
               <DuplicatesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/audit-log"
+          element={
+            <ProtectedRoute>
+              <AuditLogPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/export"
+          element={
+            <ProtectedRoute>
+              <ExportBackupPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings/api-tokens"
+          element={
+            <ProtectedRoute>
+              <ApiTokensPage />
             </ProtectedRoute>
           }
         />

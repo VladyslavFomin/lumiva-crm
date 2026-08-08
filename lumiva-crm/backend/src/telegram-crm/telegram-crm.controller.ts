@@ -125,6 +125,27 @@ export class TelegramCrmController {
     return { success: true };
   }
 
+  // ==== INBOX (conversation list) ====
+  @Get('contacts')
+  @RequirePermission('telegram', 'read')
+  async findContacts(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('search') search?: string,
+    @Query('botId') botId?: string,
+  ) {
+    return this.telegramCrmService.findContacts(user.tenantId, { search, botId });
+  }
+
+  @Post('contacts/:id/read')
+  @RequirePermission('telegram', 'read')
+  async markContactRead(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    await this.telegramCrmService.markContactMessagesRead(user.tenantId, id);
+    return { success: true };
+  }
+
   // ==== MESSAGES ====
   @Get('messages')
   @RequirePermission('telegram', 'read')

@@ -410,6 +410,19 @@
 }
 .cfg-input:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(34,34,34,0.06); }
 .cfg-input.ta { min-height: 80px; resize: vertical; line-height: 1.4; }
+.var-picker {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 5px;
+  margin-top: -2px;
+}
+.var-picker-label {
+  font-size: 10.5px; color: var(--fg-3); margin-right: 2px;
+}
+.var-picker-chip {
+  font-family: var(--ff-mono); font-size: 10.5px; color: var(--fg-2);
+  background: var(--bg-soft); border: 1px solid var(--line-3); border-radius: 5px;
+  padding: 3px 7px; cursor: pointer; transition: background .12s, border-color .12s, color .12s;
+}
+.var-picker-chip:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
 .cfg-input.code {
   font-family: var(--ff-mono); font-size: 11.5px; background: var(--bg-muted);
 }

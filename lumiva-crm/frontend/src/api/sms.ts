@@ -11,6 +11,7 @@ export interface SmsConfigDto {
   senderName: string | null;
   isEnabled: boolean;
   hasCredentials: boolean;
+  inboundWebhookUrl: string | null;
 }
 
 export interface SaveSmsConfigDto {

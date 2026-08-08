@@ -345,6 +345,14 @@ export default function ApiPage() {
                   </span>
                 ))}
               </div>
+              <div className="mt-5">
+                <a
+                  href="/api-integration/docs"
+                  className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100"
+                >
+                  Открыть справочник API →
+                </a>
+              </div>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
               {text.topStats.map((stat) => (

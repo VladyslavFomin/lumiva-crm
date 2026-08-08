@@ -11,6 +11,7 @@ import { PlatformAuthController } from './platform-auth.controller';
 import { PlatformAdminGuard } from './platform-admin.guard';
 import { PlatformAdminStrategy } from './platform-admin.strategy';
 import { Tenant } from '../tenants/tenant.entity';
+import { PlatformSettingsModule } from '../platform-settings/platform-settings.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { Tenant } from '../tenants/tenant.entity';
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '8h' },
     }),
+    PlatformSettingsModule,
   ],
   providers: [PlatformAdminService, PlatformAuthService, PlatformAdminGuard, PlatformAdminStrategy],
   controllers: [PlatformAdminController, PlatformAuthController],

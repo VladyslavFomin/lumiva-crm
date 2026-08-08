@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { BillingPage } from '../BillingPage';
 import {
   fetchCompanySettings,
   normalizeLogoUrl,
@@ -40,8 +41,87 @@ import {
   fetchEmailTemplates,
   type EmailTemplate,
 } from '../../api/email';
+import { API_BASE } from '../../api/client';
+import './settings-design.css';
 
 type TabId = 'general' | 'billing' | 'sessions' | 'invites' | 'storage';
+
+const D = {
+  building: (
+    <>
+      <rect x="4" y="3" width="16" height="18" rx="1.5" />
+      <path d="M8 7h2" /><path d="M14 7h2" /><path d="M8 11h2" /><path d="M14 11h2" /><path d="M8 15h2" /><path d="M14 15h2" />
+    </>
+  ),
+  card: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 10h18" /><path d="M7 15h4" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="8" r="3.5" />
+      <path d="M3 20c0-3 3-5.5 6-5.5s6 2.5 6 5.5" />
+      <circle cx="17" cy="9" r="2.5" />
+      <path d="M15 14.5c2.5 0 5 1.5 5 4" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3 7l9 6 9-6" />
+    </>
+  ),
+  disk: (
+    <>
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v14c0 1.66 3.58 3 8 3s8-1.34 8-3V5" />
+      <path d="M4 12c0 1.66 3.58 3 8 3s8-1.34 8-3" />
+    </>
+  ),
+  upload: (
+    <>
+      <path d="M12 21V9" /><path d="M7 14l5-5 5 5" /><path d="M4 3h16" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="8" y="8" width="12" height="12" rx="1.5" />
+      <path d="M16 8V5a1 1 0 00-1-1H5a1 1 0 00-1 1v10a1 1 0 001 1h3" />
+    </>
+  ),
+  key: (
+    <>
+      <circle cx="8" cy="14" r="4" />
+      <path d="M11 11l8-8" /><path d="M16 6l3 3" /><path d="M13 9l2 2" />
+    </>
+  ),
+  check: <path d="M5 12l4 4 10-10" />,
+  plus: (
+    <>
+      <path d="M12 5v14" /><path d="M5 12h14" />
+    </>
+  ),
+  file: (
+    <>
+      <path d="M14 3H6a2 2 0 00-2 2v14a2 2 0 002 2h12a2 2 0 002-2V8l-6-5z" />
+      <path d="M14 3v5h5" />
+    </>
+  ),
+  laptop: (
+    <>
+      <rect x="4" y="4" width="16" height="11" rx="1.5" />
+      <path d="M2 19h20" />
+    </>
+  ),
+};
+
+const Icon: React.FC<{ d: React.ReactNode; size?: number }> = ({ d, size = 14 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    {d}
+  </svg>
+);
 
 const INVITE_ROLES: Exclude<StaffRole, 'owner'>[] = [
   'manager',
@@ -98,6 +178,18 @@ export const SettingsCompanyPage: React.FC = () => {
   );
   const [inviteSending, setInviteSending] = useState(false);
   const [resendBusyId, setResendBusyId] = useState<string | null>(null);
+  const [clientKeyCopied, setClientKeyCopied] = useState(false);
+
+  const copyClientKey = () => {
+    if (!data?.clientKey) return;
+    navigator.clipboard
+      .writeText(data.clientKey)
+      .then(() => {
+        setClientKeyCopied(true);
+        setTimeout(() => setClientKeyCopied(false), 1600);
+      })
+      .catch(() => {});
+  };
 
   const locale = useMemo(() => {
     if (i18n.language === 'tr') return 'tr-TR';
@@ -408,15 +500,12 @@ export const SettingsCompanyPage: React.FC = () => {
     }
   };
 
-  const cardClass =
-    'rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]';
-
-  const tabs: { id: TabId; label: string }[] = [
-    { id: 'general', label: t('crm.settings.company.tabs.general') },
-    { id: 'billing', label: t('crm.settings.company.tabs.billing') },
-    { id: 'sessions', label: t('crm.settings.company.tabs.sessions') },
-    { id: 'invites', label: t('crm.settings.company.tabs.invites') },
-    { id: 'storage', label: t('crm.settings.company.tabs.storage') },
+  const tabs: { id: TabId; label: string; ic: React.ReactNode }[] = [
+    { id: 'general', label: t('crm.settings.company.tabs.general'), ic: D.building },
+    { id: 'billing', label: t('crm.settings.company.tabs.billing'), ic: D.card },
+    { id: 'sessions', label: t('crm.settings.company.tabs.sessions'), ic: D.users },
+    { id: 'invites', label: t('crm.settings.company.tabs.invites'), ic: D.mail },
+    { id: 'storage', label: t('crm.settings.company.tabs.storage'), ic: D.disk },
   ];
 
   const used = data?.storageUsedBytes ?? 0;
@@ -426,109 +515,111 @@ export const SettingsCompanyPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="min-h-[60vh] space-y-5">
-        <div>
-          <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
-            {t('crm.settings.company.sectionLabel')}
+      <div className="st-scope">
+        <div className="st-head">
+          <div>
+            <div className="kicker"><span className="dot" />{t('crm.settings.company.sectionLabel')}</div>
+            <h1>{t('crm.settings.company.title')}</h1>
+            <p className="sub">{t('crm.settings.company.subtitle')}</p>
           </div>
-          <h1 className="mt-1 text-xl font-semibold text-slate-900">
-            {t('crm.settings.company.title')}
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            {t('crm.settings.company.subtitle')}
-          </p>
         </div>
 
         {!isOwner && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            {t('crm.settings.company.ownerOnly')}
-          </div>
+          <div className="st-owner-note"><Icon d={D.key} size={14} />{t('crm.settings.company.ownerOnly')}</div>
         )}
 
-        {error && (
-          <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            {success}
-          </div>
-        )}
+        {error && <div className="st-banner err">{error}</div>}
+        {success && <div className="st-banner ok"><Icon d={D.check} size={14} />{success}</div>}
 
         {loading && (
-          <div className="text-sm text-slate-500">{t('crm.settings.company.loading')}</div>
+          <div style={{ padding: '24px 0', color: 'var(--fg-3)', fontSize: 13 }}>{t('crm.settings.company.loading')}</div>
         )}
 
         {!loading && data && (
           <>
-            <div className="flex flex-wrap gap-2">
+            <div className="st-tabs">
               {tabs.map((x) => (
                 <button
                   key={x.id}
                   type="button"
+                  className={`st-tab${tab === x.id ? ' active' : ''}`}
                   onClick={() => setTab(x.id)}
-                  className={
-                    'rounded-xl border px-4 py-2 text-sm font-medium transition-colors ' +
-                    (tab === x.id
-                      ? 'border-lumiva-accent bg-lumiva-accent text-white shadow-btn-primary'
-                      : 'border-border-default bg-white text-text-secondary hover:border-border-strong')
-                  }
                 >
-                  {x.label}
+                  <span className="ic"><Icon d={x.ic} size={14} /></span>{x.label}
                 </button>
               ))}
             </div>
 
             {tab === 'general' && (
-              <form onSubmit={handleSubmit} className={`${cardClass} space-y-5`}>
-                <div className="space-y-4">
+              <form onSubmit={handleSubmit} className="st-grid">
+                <div className="st-panel">
+                  <div className="st-panel-head">
                     <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        {t('crm.settings.company.fields.name')}
-                      </label>
+                      <div className="pt"><span className="ic"><Icon d={D.building} size={14} /></span>{t('crm.settings.company.tabs.general')}</div>
+                    </div>
+                  </div>
+                  <div className="st-panel-body">
+                    <div className="st-logo-row" style={{ marginBottom: 20 }}>
+                      <div className="st-logo-box">
+                        {logoUrl ? <img src={logoUrl} alt={t('crm.settings.company.fields.logoAlt') || ''} /> : <Icon d={D.building} size={26} />}
+                      </div>
+                      <div className="st-logo-actions">
+                        {isOwner && (
+                          <label className="aib ghost sm" style={{ cursor: 'pointer', width: 'fit-content' }}>
+                            <Icon d={D.upload} size={13} />
+                            {uploadingLogo ? t('crm.settings.company.logoUploading') : t('crm.settings.company.logoUpload')}
+                            <input
+                              type="file"
+                              accept="image/png,image/jpeg,image/webp,image/gif"
+                              style={{ display: 'none' }}
+                              onChange={handleLogoFile}
+                              disabled={uploadingLogo}
+                            />
+                          </label>
+                        )}
+                        <div className="hint">{t('crm.settings.company.fields.logoHint')}</div>
+                      </div>
+                    </div>
+
+                    <div className="ai-field">
+                      <label className="ai-label">{t('crm.settings.company.fields.name')}</label>
                       <input
+                        className="ai-input"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         disabled={!isOwner}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 disabled:opacity-60"
                         placeholder={t('crm.settings.company.fields.namePlaceholder')}
                       />
                     </div>
 
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        {t('crm.settings.company.fields.language')}
-                      </label>
-                      <select
-                        value={uiLanguage}
-                        onChange={(e) => setUiLanguage(e.target.value)}
-                        disabled={!isOwner}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 disabled:opacity-60"
-                      >
-                        <option value="">{t('crm.settings.company.fields.languageEmpty')}</option>
-                        {langOptions.map((o) => (
+                    <div className="ai-field-row" style={{ marginBottom: 14 }}>
+                      <div className="ai-field" style={{ margin: 0 }}>
+                        <label className="ai-label">{t('crm.settings.company.fields.language')}</label>
+                        <select
+                          className="ai-select"
+                          value={uiLanguage}
+                          onChange={(e) => setUiLanguage(e.target.value)}
+                          disabled={!isOwner}
+                        >
+                          <option value="">{t('crm.settings.company.fields.languageEmpty')}</option>
+                          {langOptions.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
                           </option>
                         ))}
                       </select>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {t('crm.settings.company.fields.languageHint')}
-                      </p>
+                      <p className="ai-hint">{t('crm.settings.company.fields.languageHint')}</p>
                     </div>
 
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        {t('crm.settings.company.fields.aiWrapperTemplate')}
-                      </label>
+                    <div className="ai-field" style={{ margin: 0 }}>
+                      <label className="ai-label">{t('crm.settings.company.fields.aiWrapperTemplate')}</label>
                       <select
+                        className="ai-select"
                         value={aiWrapperEmailTemplateId}
                         onChange={(e) =>
                           setAiWrapperEmailTemplateId(e.target.value)
                         }
                         disabled={!isOwner || emailTemplatesLoading}
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 disabled:opacity-60"
                       >
                         <option value="">
                           {t('crm.settings.company.fields.aiWrapperTemplateEmpty')}
@@ -545,260 +636,206 @@ export const SettingsCompanyPage: React.FC = () => {
                         ))}
                       </select>
                       {emailTemplatesLoading && (
-                        <p className="mt-1 text-[11px] text-slate-500">
-                          {t(
-                            'crm.settings.company.fields.aiWrapperTemplatesLoading',
-                          )}
-                        </p>
+                        <p className="ai-hint">{t('crm.settings.company.fields.aiWrapperTemplatesLoading')}</p>
                       )}
                       {emailTemplatesError && (
-                        <p className="mt-1 text-[11px] text-red-600">
-                          {emailTemplatesError}
-                        </p>
+                        <p className="ai-hint" style={{ color: '#cc2f47' }}>{emailTemplatesError}</p>
                       )}
                     </div>
-
-                    <div>
-                      <label className="mb-1 block text-xs font-medium text-slate-600">
-                        {t('crm.settings.company.fields.logo')}
-                      </label>
-                      <div className="flex flex-wrap items-center gap-3">
-                        {isOwner && (
-                          <label className="cursor-pointer rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-100">
-                            {uploadingLogo
-                              ? t('crm.settings.company.logoUploading')
-                              : t('crm.settings.company.logoUpload')}
-                            <input
-                              type="file"
-                              accept="image/png,image/jpeg,image/webp,image/gif"
-                              className="hidden"
-                              onChange={handleLogoFile}
-                              disabled={uploadingLogo}
-                            />
-                          </label>
-                        )}
-                      </div>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        {t('crm.settings.company.fields.logoHint')}
-                      </p>
                     </div>
 
                     {isOwner && (
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="btn-primary btn-primary-lg"
-                      >
+                      <button type="submit" disabled={saving} className="aib" style={{ marginTop: 18 }}>
+                        <Icon d={D.check} size={15} />
                         {saving ? t('crm.settings.company.saving') : t('crm.settings.company.save')}
                       </button>
                     )}
 
-                    <div className="grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
+                    <div className="st-meta-row">
                       <div>
-                        <div className="text-xs font-medium text-slate-500">
-                          {t('crm.settings.company.fields.created')}
-                        </div>
-                        <div className="mt-1 text-sm text-slate-900">
-                          {new Date(data.createdAt).toLocaleString(locale)}
-                        </div>
+                        <div className="k">{t('crm.settings.company.fields.created')}</div>
+                        <div className="v">{new Date(data.createdAt).toLocaleString(locale)}</div>
                       </div>
                       <div>
-                        <div className="text-xs font-medium text-slate-500">
-                          {t('crm.settings.company.fields.updated')}
-                        </div>
-                        <div className="mt-1 text-sm text-slate-900">
-                          {new Date(data.updatedAt).toLocaleString(locale)}
-                        </div>
+                        <div className="k">{t('crm.settings.company.fields.updated')}</div>
+                        <div className="v">{new Date(data.updatedAt).toLocaleString(locale)}</div>
                       </div>
                     </div>
+                  </div>
+                </div>
+
+                <div className="st-panel">
+                  <div className="st-panel-head"><div className="pt"><span className="ic"><Icon d={D.key} size={14} /></span>{t('crm.settings.company.fields.clientKey')}</div></div>
+                  <div className="st-panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div className="ai-field" style={{ margin: 0 }}>
+                      <label className="ai-label">{t('crm.settings.company.fields.clientKey')}</label>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <input className="ai-input" style={{ fontFamily: 'var(--ff-mono)', fontSize: 12 }} value={data.clientKey} readOnly />
+                        <button type="button" className="aib ghost sm" title={t('crm.common.copy') || 'Copy'} onClick={copyClientKey}>
+                          <Icon d={clientKeyCopied ? D.check : D.copy} size={13} />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="ai-field" style={{ margin: 0 }}>
+                      <label className="ai-label">API endpoint</label>
+                      <input
+                        className="ai-input"
+                        style={{ fontFamily: 'var(--ff-mono)', fontSize: 11.5 }}
+                        value={`${window.location.origin}${API_BASE}`}
+                        readOnly
+                      />
+                    </div>
+                  </div>
                 </div>
               </form>
             )}
 
             {tab === 'billing' && (
-              <div className={`${cardClass} space-y-4`}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div>
-                    <div className="text-xs font-medium text-slate-500">
-                      {t('crm.settings.company.fields.plan')}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div className="st-panel">
+                  <div className="st-plan-row">
+                    <div className="st-plan-cell">
+                      <div className="l">{t('crm.settings.company.fields.plan')}</div>
+                      <div className="v"><span className="pr-badge active">{data.plan}</span></div>
                     </div>
-                    <div className="mt-1 inline-flex rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-900">
-                      {data.plan}
+                    <div className="st-plan-cell">
+                      <div className="l">{t('crm.settings.company.fields.status')}</div>
+                      <div className="v"><span className={`pr-badge ${data.status === 'active' ? 'active' : 'hidden'}`}>{data.status}</span></div>
                     </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-slate-500">
-                      {t('crm.settings.company.billing.activeUntil')}
+                    <div className="st-plan-cell">
+                      <div className="l">{t('crm.settings.company.billing.activeUntil')}</div>
+                      <div className="v">
+                        {data.activeUntil
+                          ? new Date(data.activeUntil).toLocaleString(locale)
+                          : t('crm.settings.company.billing.unlimited')}
+                      </div>
                     </div>
-                    <div className="mt-1 text-sm font-medium text-slate-900">
-                      {data.activeUntil
-                        ? new Date(data.activeUntil).toLocaleString(locale)
-                        : t('crm.settings.company.billing.unlimited')}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-xs font-medium text-slate-500">
-                      {t('crm.settings.company.fields.status')}
-                    </div>
-                    <div
-                      className={
-                        'mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ' +
-                        (data.status === 'active'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-200 text-slate-700')
-                      }
-                    >
-                      {data.status}
+                    <div className="st-plan-cell">
+                      <div className="l">{t('crm.settings.company.fields.clientKey')}</div>
+                      <div className="v mono">{data.clientKey}</div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-xs font-medium text-slate-500">
-                      {t('crm.settings.company.fields.clientKey')}
-                    </div>
-                    <div className="mt-1 break-all font-mono text-xs text-slate-700">{data.clientKey}</div>
-                  </div>
+                  <div className="st-billing-hint">{t('crm.settings.company.billing.hint')}</div>
                 </div>
-                <p className="text-sm text-slate-600">{t('crm.settings.company.billing.hint')}</p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/billing')}
-                        className="btn-primary btn-primary-lg"
-                >
-                  {t('crm.settings.company.billing.manage')}
-                </button>
+
+                <BillingPage embedded currentPlan={data.plan} />
               </div>
             )}
 
             {tab === 'sessions' && (
-              <div className="space-y-5">
-                <div className={`${cardClass} overflow-x-auto`}>
-                  <p className="mb-4 text-sm text-slate-600">{t('crm.settings.company.sessions.hint')}</p>
-                  <table className="w-full min-w-[640px] text-left text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-200 text-xs text-slate-500">
-                        <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colName')}</th>
-                        <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colEmail')}</th>
-                        <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colRole')}</th>
-                        <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colLastLogin')}</th>
-                        <th className="pb-2">{t('crm.settings.company.sessions.colActions')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {staff.map((s) => (
-                        <tr key={s.id} className="border-b border-slate-100">
-                          <td className="py-2 pr-3 font-medium text-slate-900">{s.fullName}</td>
-                          <td className="py-2 pr-3 text-slate-700">{s.email}</td>
-                          <td className="py-2 pr-3 text-slate-600">{s.role}</td>
-                          <td className="py-2 pr-3 text-slate-600">
-                            {s.lastLoginAt
-                              ? new Date(s.lastLoginAt).toLocaleString(locale)
-                              : '—'}
-                          </td>
-                          <td className="py-2">
-                            {s.role !== 'owner' && isOwner ? (
-                              <button
-                                type="button"
-                                onClick={() => toggleStaffActive(s)}
-                                className={
-                                  'text-xs font-semibold underline ' +
-                                  (s.isActive ? 'text-rose-600' : 'text-emerald-700')
-                                }
-                              >
-                                {s.isActive
-                                  ? t('crm.settings.company.sessions.deactivate')
-                                  : t('crm.settings.company.sessions.activate')}
-                              </button>
-                            ) : (
-                              <span className="text-xs text-slate-400">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {isOwner && (
-                <div className={`${cardClass} overflow-x-auto`}>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {t('crm.settings.company.sessions.activeLoginsTitle')}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600">
-                    {t('crm.settings.company.sessions.activeLoginsHint')}
-                  </p>
-                  {sessionsLoading ? (
-                    <p className="mt-4 text-sm text-slate-500">{t('crm.settings.company.sessions.loading')}</p>
-                  ) : orderedSessions.length === 0 ? (
-                    <p className="mt-4 text-sm text-slate-500">{t('crm.settings.company.sessions.noSessions')}</p>
-                  ) : (
-                    <table className="mt-4 w-full min-w-[720px] text-left text-sm">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div className="st-panel">
+                  <div className="st-panel-head">
+                    <div className="pt"><span className="ic"><Icon d={D.users} size={14} /></span>{t('crm.settings.company.tabs.sessions')}</div>
+                    <div className="pd" style={{ margin: 0 }}>{t('crm.settings.company.sessions.hint')}</div>
+                  </div>
+                  <div className="st-table-wrap">
+                    <table className="st-table">
                       <thead>
-                        <tr className="border-b border-slate-200 text-xs text-slate-500">
-                          <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colName')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colEmail')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colIp')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colStarted')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colLastSeen')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.sessions.colUserAgent')}</th>
-                          <th className="pb-2">{t('crm.settings.company.sessions.colActions')}</th>
+                        <tr>
+                          <th>{t('crm.settings.company.sessions.colName')}</th>
+                          <th>{t('crm.settings.company.sessions.colEmail')}</th>
+                          <th>{t('crm.settings.company.sessions.colRole')}</th>
+                          <th>{t('crm.settings.company.sessions.colLastLogin')}</th>
+                          <th>{t('crm.settings.company.sessions.colActions')}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {orderedSessions.map((row, idx) => {
-                          const prev = orderedSessions[idx - 1];
-                          const isFirstForUser = !prev || prev.userId !== row.userId;
-                          const n = sessionCountByUser.get(row.userId) || 0;
-                          const ua =
-                            row.userAgent && row.userAgent.length > 80
-                              ? `${row.userAgent.slice(0, 80)}…`
-                              : row.userAgent || '—';
-                          return (
-                            <tr key={row.id} className="border-b border-slate-100">
-                              <td className="py-2 pr-3 font-medium text-slate-900">
-                                {row.userName || '—'}
-                              </td>
-                              <td className="py-2 pr-3 text-slate-700">{row.userEmail}</td>
-                              <td className="py-2 pr-3 font-mono text-xs text-slate-700">
-                                {row.ip || '—'}
-                              </td>
-                              <td className="py-2 pr-3 text-slate-600">
-                                {new Date(row.createdAt).toLocaleString(locale)}
-                              </td>
-                              <td className="py-2 pr-3 text-slate-600">
-                                {new Date(row.lastSeenAt).toLocaleString(locale)}
-                              </td>
-                              <td className="max-w-[200px] py-2 pr-3 text-xs text-slate-500" title={row.userAgent || ''}>
-                                {ua}
-                              </td>
-                              <td className="py-2">
-                                {isOwner ? (
-                                  <div className="flex flex-wrap gap-2">
-                                    <button
-                                      type="button"
-                                      onClick={() => void handleRevokeSession(row)}
-                                      className="text-xs font-semibold text-rose-600 underline"
-                                    >
-                                      {t('crm.settings.company.sessions.revokeOne')}
-                                    </button>
-                                    {isFirstForUser && n > 1 && (
-                                      <button
-                                        type="button"
-                                        onClick={() => void handleRevokeAllForUser(row.userId)}
-                                        className="text-xs font-semibold text-rose-700 underline"
-                                      >
-                                        {t('crm.settings.company.sessions.revokeAll', { count: n })}
-                                      </button>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-xs text-slate-400">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        {staff.map((s) => (
+                          <tr key={s.id}>
+                            <td style={{ fontWeight: 500 }}>{s.fullName}</td>
+                            <td className="mono">{s.email}</td>
+                            <td>{t(`crm.staff.roles.${s.role}`, { defaultValue: s.role })}</td>
+                            <td className="mono">
+                              {s.lastLoginAt
+                                ? new Date(s.lastLoginAt).toLocaleString(locale)
+                                : '—'}
+                            </td>
+                            <td>
+                              {s.role !== 'owner' && isOwner ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStaffActive(s)}
+                                  className={`st-link-action${s.isActive ? ' danger' : ''}`}
+                                >
+                                  {s.isActive
+                                    ? t('crm.settings.company.sessions.deactivate')
+                                    : t('crm.settings.company.sessions.activate')}
+                                </button>
+                              ) : (
+                                <span style={{ color: 'var(--fg-4)' }}>—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+
+                {isOwner && (
+                <div className="st-panel">
+                  <div className="st-panel-head">
+                    <div className="pt"><span className="ic"><Icon d={D.laptop} size={14} /></span>{t('crm.settings.company.sessions.activeLoginsTitle')}</div>
+                    <div className="pd" style={{ margin: 0 }}>{t('crm.settings.company.sessions.activeLoginsHint')}</div>
+                  </div>
+                  {sessionsLoading ? (
+                    <div className="st-table-empty">{t('crm.settings.company.sessions.loading')}</div>
+                  ) : orderedSessions.length === 0 ? (
+                    <div className="st-table-empty">{t('crm.settings.company.sessions.noSessions')}</div>
+                  ) : (
+                    <div className="st-table-wrap">
+                      <table className="st-table">
+                        <thead>
+                          <tr>
+                            <th>{t('crm.settings.company.sessions.colName')}</th>
+                            <th>{t('crm.settings.company.sessions.colEmail')}</th>
+                            <th>{t('crm.settings.company.sessions.colIp')}</th>
+                            <th>{t('crm.settings.company.sessions.colStarted')}</th>
+                            <th>{t('crm.settings.company.sessions.colLastSeen')}</th>
+                            <th>{t('crm.settings.company.sessions.colUserAgent')}</th>
+                            <th>{t('crm.settings.company.sessions.colActions')}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orderedSessions.map((row, idx) => {
+                            const prev = orderedSessions[idx - 1];
+                            const isFirstForUser = !prev || prev.userId !== row.userId;
+                            const n = sessionCountByUser.get(row.userId) || 0;
+                            const ua =
+                              row.userAgent && row.userAgent.length > 60
+                                ? `${row.userAgent.slice(0, 60)}…`
+                                : row.userAgent || '—';
+                            return (
+                              <tr key={row.id}>
+                                <td style={{ fontWeight: 500 }}>{row.userName || '—'}</td>
+                                <td className="mono">{row.userEmail}</td>
+                                <td className="mono">{row.ip || '—'}</td>
+                                <td className="mono">{new Date(row.createdAt).toLocaleString(locale)}</td>
+                                <td className="mono">{new Date(row.lastSeenAt).toLocaleString(locale)}</td>
+                                <td style={{ fontSize: 11, color: 'var(--fg-3)' }} title={row.userAgent || ''}>{ua}</td>
+                                <td>
+                                  {isOwner ? (
+                                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                      <button type="button" onClick={() => void handleRevokeSession(row)} className="st-link-action danger">
+                                        {t('crm.settings.company.sessions.revokeOne')}
+                                      </button>
+                                      {isFirstForUser && n > 1 && (
+                                        <button type="button" onClick={() => void handleRevokeAllForUser(row.userId)} className="st-link-action danger">
+                                          {t('crm.settings.company.sessions.revokeAll', { count: n })}
+                                        </button>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: 'var(--fg-4)' }}>—</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
                 )}
@@ -806,56 +843,47 @@ export const SettingsCompanyPage: React.FC = () => {
             )}
 
             {tab === 'invites' && (
-              <div className={`${cardClass} space-y-6`}>
-                <p className="text-sm text-slate-600">
-                  {t('crm.settings.company.invites.hint')}
-                </p>
+              <div className="st-panel">
+                <div className="st-panel-head"><div className="pt"><span className="ic"><Icon d={D.mail} size={14} /></span>{t('crm.settings.company.tabs.invites')}</div></div>
+                <div className="st-panel-body">
+                  <p style={{ fontSize: 12.5, color: 'var(--fg-2)', marginBottom: isOwner ? 16 : 0 }}>
+                    {t('crm.settings.company.invites.hint')}
+                  </p>
 
-                {isOwner && (
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
-                    <div>
-                      <h3 className="text-sm font-semibold text-slate-900">
-                        {t('crm.settings.company.invites.formTitle')}
-                      </h3>
-                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
-                        {t('crm.settings.company.invites.formSubtitle')}
-                      </p>
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          {t('crm.settings.company.invites.fieldEmail')}
-                        </label>
-                        <input
-                          value={inviteEmail}
-                          onChange={(e) => setInviteEmail(e.target.value)}
-                          type="email"
-                          autoComplete="off"
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#222222]/40"
-                        />
+                  {isOwner && (
+                    <div className="st-invite-form">
+                      <div className="ft">{t('crm.settings.company.invites.formTitle')}</div>
+                      <div className="fd">{t('crm.settings.company.invites.formSubtitle')}</div>
+                      <div className="ai-field-row" style={{ marginBottom: 12 }}>
+                        <div className="ai-field" style={{ margin: 0 }}>
+                          <label className="ai-label">{t('crm.settings.company.invites.fieldEmail')}</label>
+                          <input
+                            className="ai-input"
+                            value={inviteEmail}
+                            onChange={(e) => setInviteEmail(e.target.value)}
+                            type="email"
+                            autoComplete="off"
+                          />
+                        </div>
+                        <div className="ai-field" style={{ margin: 0 }}>
+                          <label className="ai-label">{t('crm.settings.company.invites.fieldName')}</label>
+                          <input
+                            className="ai-input"
+                            value={inviteFullName}
+                            onChange={(e) => setInviteFullName(e.target.value)}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          {t('crm.settings.company.invites.fieldName')}
-                        </label>
-                        <input
-                          value={inviteFullName}
-                          onChange={(e) => setInviteFullName(e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#222222]/40"
-                        />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="mb-1 block text-xs font-medium text-slate-600">
-                          {t('crm.settings.company.invites.fieldRole')}
-                        </label>
+                      <div className="ai-field" style={{ marginBottom: 14, maxWidth: 320 }}>
+                        <label className="ai-label">{t('crm.settings.company.invites.fieldRole')}</label>
                         <select
+                          className="ai-select"
                           value={inviteRole}
                           onChange={(e) =>
                             setInviteRole(
                               e.target.value as Exclude<StaffRole, 'owner'>,
                             )
                           }
-                          className="w-full max-w-md rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-[#222222]/40"
                         >
                           {inviteRoleOptions.map((o) => (
                             <option key={o.value} value={o.value}>
@@ -864,189 +892,160 @@ export const SettingsCompanyPage: React.FC = () => {
                           ))}
                         </select>
                       </div>
+                      <button
+                        type="button"
+                        disabled={inviteSending || !inviteEmail.trim()}
+                        onClick={() => void handleSendInvite()}
+                        className="aib"
+                      >
+                        <Icon d={D.plus} size={15} />
+                        {inviteSending
+                          ? t('crm.settings.company.invites.sending')
+                          : t('crm.settings.company.invites.send')}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      disabled={inviteSending || !inviteEmail.trim()}
-                      onClick={() => void handleSendInvite()}
-                      className="btn-primary btn-primary-lg"
-                    >
-                      {inviteSending
-                        ? t('crm.settings.company.invites.sending')
-                        : t('crm.settings.company.invites.send')}
-                    </button>
-                  </div>
-                )}
+                  )}
 
-                {invited.length === 0 ? (
-                  <p className="text-sm text-slate-500">
-                    {t('crm.settings.company.invites.empty')}
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full min-w-[560px] text-left text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-xs text-slate-500">
-                          <th className="pb-2 pr-3">
-                            {t('crm.settings.company.invites.colEmail')}
-                          </th>
-                          <th className="pb-2 pr-3">
-                            {t('crm.settings.company.invites.colRole')}
-                          </th>
-                          <th className="pb-2 pr-3">
-                            {t('crm.settings.company.invites.colStatus')}
-                          </th>
-                          {isOwner && (
-                            <th className="pb-2">
-                              {t('crm.settings.company.invites.colActions')}
-                            </th>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {invited.map((s) => (
-                          <tr key={s.id} className="border-b border-slate-100">
-                            <td className="py-2 pr-3">{s.email}</td>
-                            <td className="py-2 pr-3">
-                              {t(`crm.staff.roles.${s.role}`, { defaultValue: s.role })}
-                            </td>
-                            <td className="py-2 pr-3">{s.inviteStatus}</td>
-                            {isOwner && (
-                              <td className="py-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void handleResendInvite(s.id)}
-                                  disabled={resendBusyId === s.id}
-                                  className="text-xs font-semibold text-[#222222] underline disabled:opacity-50"
-                                >
-                                  {resendBusyId === s.id
-                                    ? t('crm.settings.company.invites.resending')
-                                    : t('crm.settings.company.invites.resend')}
-                                </button>
-                              </td>
-                            )}
+                  {invited.length === 0 ? (
+                    <div className="st-table-empty">{t('crm.settings.company.invites.empty')}</div>
+                  ) : (
+                    <div className="st-table-wrap">
+                      <table className="st-table">
+                        <thead>
+                          <tr>
+                            <th>{t('crm.settings.company.invites.colEmail')}</th>
+                            <th>{t('crm.settings.company.invites.colRole')}</th>
+                            <th>{t('crm.settings.company.invites.colStatus')}</th>
+                            {isOwner && <th>{t('crm.settings.company.invites.colActions')}</th>}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
+                        </thead>
+                        <tbody>
+                          {invited.map((s) => (
+                            <tr key={s.id}>
+                              <td className="mono">{s.email}</td>
+                              <td>{t(`crm.staff.roles.${s.role}`, { defaultValue: s.role })}</td>
+                              <td><span className="pr-badge draft">{s.inviteStatus}</span></td>
+                              {isOwner && (
+                                <td>
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleResendInvite(s.id)}
+                                    disabled={resendBusyId === s.id}
+                                    className="st-link-action"
+                                  >
+                                    {resendBusyId === s.id
+                                      ? t('crm.settings.company.invites.resending')
+                                      : t('crm.settings.company.invites.resend')}
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
             {tab === 'storage' && (
-              <div className="space-y-4">
-                <div className={cardClass}>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {t('crm.settings.company.storage.usageTitle')}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600">{t('crm.settings.company.storage.tiersHint')}</p>
-                  <div className="mt-4 text-sm text-slate-800">
-                    <span className="font-semibold">{formatBytes(used)}</span>
-                    {quota !== null && (
-                      <>
-                        {' '}
-                        / <span className="font-semibold">{formatBytes(quota)}</span>
-                      </>
-                    )}
-                    {quota === null && (
-                      <span className="ml-2 text-slate-500">
-                        ({t('crm.settings.company.storage.unlimitedPlan')})
-                      </span>
-                    )}
-                  </div>
-                  {quota !== null && (
-                    <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-                      <div
-                        className="h-full rounded-full bg-lumiva-accent transition-[width]"
-                        style={{ width: `${pct}%` }}
-                      />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                <div className="st-panel">
+                  <div className="st-panel-head"><div className="pt"><span className="ic"><Icon d={D.disk} size={14} /></span>{t('crm.settings.company.storage.usageTitle')}</div></div>
+                  <div className="st-usage">
+                    <p style={{ fontSize: 12.5, color: 'var(--fg-2)', marginBottom: 10 }}>{t('crm.settings.company.storage.tiersHint')}</p>
+                    <div className="st-usage-num">
+                      <strong>{formatBytes(used)}</strong>
+                      {quota !== null && (
+                        <>
+                          {' '}/ <strong>{formatBytes(quota)}</strong>
+                        </>
+                      )}
+                      {quota === null && (
+                        <span style={{ marginLeft: 8, color: 'var(--fg-3)' }}>
+                          ({t('crm.settings.company.storage.unlimitedPlan')})
+                        </span>
+                      )}
                     </div>
-                  )}
-                  <p className="mt-3 text-[11px] text-slate-500">{t('crm.settings.company.storage.extraHint')}</p>
-                  <button
-                    type="button"
-                    onClick={() => navigate('/billing')}
-                    className="mt-4 btn-primary"
-                  >
-                    {t('crm.settings.company.storage.buyMore')}
-                  </button>
+                    {quota !== null && (
+                      <div className="st-usage-bar"><div className="fill" style={{ width: `${pct}%` }} /></div>
+                    )}
+                    <div className="st-usage-hint">{t('crm.settings.company.storage.extraHint')}</div>
+                    <div style={{ marginTop: 14 }}>
+                      <button type="button" onClick={() => navigate('/billing')} className="aib sm">
+                        <Icon d={D.card} size={14} />{t('crm.settings.company.storage.buyMore')}
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
-                <div className={`${cardClass} overflow-x-auto`}>
-                  <h3 className="text-sm font-semibold text-slate-900">
-                    {t('crm.settings.company.storage.filesTitle')}
-                  </h3>
-                  <p className="mt-1 text-sm text-slate-600">{t('crm.settings.company.storage.filesHint')}</p>
+                <div className="st-panel">
+                  <div className="st-panel-head">
+                    <div className="pt"><span className="ic"><Icon d={D.file} size={14} /></span>{t('crm.settings.company.storage.filesTitle')}</div>
+                    <div className="pd" style={{ margin: 0 }}>{t('crm.settings.company.storage.filesHint')}</div>
+                  </div>
                   {!data?.canDeleteTenantStorage && (
-                    <p className="mt-2 text-[11px] text-slate-500">
+                    <p style={{ padding: '10px 18px 0', fontSize: 11, color: 'var(--fg-3)' }}>
                       {t('crm.settings.company.storage.deleteRolesHint')}
                     </p>
                   )}
                   {storageFilesLoading ? (
-                    <p className="mt-4 text-sm text-slate-500">{t('crm.settings.company.storage.loadingFiles')}</p>
+                    <div className="st-table-empty">{t('crm.settings.company.storage.loadingFiles')}</div>
                   ) : storageFiles.length === 0 ? (
-                    <p className="mt-4 text-sm text-slate-500">{t('crm.settings.company.storage.noFiles')}</p>
+                    <div className="st-table-empty">{t('crm.settings.company.storage.noFiles')}</div>
                   ) : (
-                    <table className="mt-4 w-full min-w-[760px] text-left text-sm">
-                      <thead>
-                        <tr className="border-b border-slate-200 text-xs text-slate-500">
-                          <th className="pb-2 pr-3">{t('crm.settings.company.storage.colSource')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.storage.colFile')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.storage.colSize')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.storage.colUploadedBy')}</th>
-                          <th className="pb-2 pr-3">{t('crm.settings.company.storage.colDate')}</th>
-                          <th className="pb-2">{t('crm.settings.company.storage.colActions')}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {storageFiles.map((f) => (
-                          <tr key={f.id} className="border-b border-slate-100">
-                            <td className="py-2 pr-3 text-slate-600">
-                              {t(`crm.settings.company.storage.source.${f.source}`)}
-                            </td>
-                            <td className="py-2 pr-3 font-medium text-slate-900">
-                              {f.relativePath ? (
-                                <a
-                                  href={tenantStorageFileHref(f.relativePath)}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="text-slate-900 underline hover:text-slate-700"
-                                >
-                                  {f.originalName}
-                                </a>
-                              ) : (
-                                f.originalName
-                              )}
-                            </td>
-                            <td className="py-2 pr-3 text-slate-600">
-                              {f.sizeBytes !== null && f.sizeBytes !== undefined
-                                ? formatBytes(f.sizeBytes)
-                                : '—'}
-                            </td>
-                            <td className="py-2 pr-3 text-slate-600">
-                              {f.uploadedByEmail || '—'}
-                            </td>
-                            <td className="py-2 pr-3 text-slate-600">
-                              {new Date(f.createdAt).toLocaleString(locale)}
-                            </td>
-                            <td className="py-2">
-                              {data?.canDeleteTenantStorage ? (
-                                <button
-                                  type="button"
-                                  onClick={() => void handleStorageDelete(f.id)}
-                                  className="text-xs font-semibold text-rose-600 underline"
-                                >
-                                  {t('crm.settings.company.storage.delete')}
-                                </button>
-                              ) : (
-                                <span className="text-xs text-slate-400">—</span>
-                              )}
-                            </td>
+                    <div className="st-table-wrap">
+                      <table className="st-table">
+                        <thead>
+                          <tr>
+                            <th>{t('crm.settings.company.storage.colSource')}</th>
+                            <th>{t('crm.settings.company.storage.colFile')}</th>
+                            <th>{t('crm.settings.company.storage.colSize')}</th>
+                            <th>{t('crm.settings.company.storage.colUploadedBy')}</th>
+                            <th>{t('crm.settings.company.storage.colDate')}</th>
+                            <th>{t('crm.settings.company.storage.colActions')}</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {storageFiles.map((f) => (
+                            <tr key={f.id}>
+                              <td>{t(`crm.settings.company.storage.source.${f.source}`)}</td>
+                              <td style={{ fontWeight: 500 }}>
+                                {f.relativePath ? (
+                                  <a
+                                    href={tenantStorageFileHref(f.relativePath)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    style={{ color: 'var(--ink)', textDecoration: 'underline' }}
+                                  >
+                                    {f.originalName}
+                                  </a>
+                                ) : (
+                                  f.originalName
+                                )}
+                              </td>
+                              <td className="mono">
+                                {f.sizeBytes !== null && f.sizeBytes !== undefined
+                                  ? formatBytes(f.sizeBytes)
+                                  : '—'}
+                              </td>
+                              <td className="mono">{f.uploadedByEmail || '—'}</td>
+                              <td className="mono">{new Date(f.createdAt).toLocaleString(locale)}</td>
+                              <td>
+                                {data?.canDeleteTenantStorage ? (
+                                  <button type="button" onClick={() => void handleStorageDelete(f.id)} className="st-link-action danger">
+                                    {t('crm.settings.company.storage.delete')}
+                                  </button>
+                                ) : (
+                                  <span style={{ color: 'var(--fg-4)' }}>—</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
               </div>

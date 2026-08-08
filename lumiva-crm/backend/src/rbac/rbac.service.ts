@@ -4,10 +4,11 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StaffRolePermission } from './staff-role-permission.entity';
 import { StaffUserPermission } from './staff-user-permission.entity';
-import type {
-  PermissionKey,
-  RoleMatrix,
-  UserPermissionMatrix,
+import {
+  GRANULAR_FALLBACK_TO_BASE,
+  type PermissionKey,
+  type RoleMatrix,
+  type UserPermissionMatrix,
 } from './permission.types';
 import type { StaffRole } from '../staff/staff-user.entity';
 
@@ -15,40 +16,43 @@ import type { StaffRole } from '../staff/staff-user.entity';
  * Дефолтная матрица прав — применяется для тенантов,
  * у которых ещё нет настроенных прав в базе данных.
  */
+// 'sales' (the module/resource) is added to every role below — the Sales controller had zero
+// RBAC gating before this pass (any authenticated role, full access), so every role needs the
+// base key by default to avoid narrowing access for tenants who never touch Staff Permissions.
 const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, PermissionKey[]> = {
   owner: [
-    'leads', 'projects', 'staff', 'finance', 'analytics',
-    'settings', 'chat', 'contacts', 'companies',
+    'leads', 'leads_view_roi', 'projects', 'projects_manage_trash', 'staff', 'finance', 'analytics',
+    'settings', 'chat', 'contacts', 'companies', 'sales', 'helpdesk', 'esign',
     'tools_automation', 'custom_objects', 'email', 'marketing', 'products',
     'products_manage_fields', 'products_manage_stock', 'products_publish',
     'bookings', 'bookings_manage_settings',
     'hotels', 'hotels_manage_pricing', 'hotels_manage_reservations',
   ],
   manager: [
-    'leads', 'projects', 'analytics', 'chat', 'marketing',
-    'contacts', 'companies', 'email', 'products',
+    'leads', 'leads_view_roi', 'projects', 'analytics', 'chat', 'marketing',
+    'contacts', 'companies', 'sales', 'helpdesk', 'esign', 'email', 'products',
     'products_manage_fields', 'products_manage_stock', 'products_publish',
     'bookings', 'bookings_manage_settings',
     'hotels', 'hotels_manage_pricing', 'hotels_manage_reservations',
   ],
   viewer: [
-    'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies',
+    'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies', 'sales',
   ],
   finance: [
-    'leads', 'projects', 'finance', 'analytics', 'chat', 'contacts', 'companies', 'products',
+    'leads', 'leads_view_roi', 'projects', 'finance', 'analytics', 'chat', 'contacts', 'companies', 'sales', 'products',
     'products_manage_stock',
   ],
   sales: [
     'leads', 'projects', 'analytics', 'marketing', 'chat',
-    'contacts', 'companies', 'email', 'products',
+    'contacts', 'companies', 'sales', 'email', 'products',
     'products_manage_stock', 'bookings', 'hotels', 'hotels_manage_reservations',
   ],
   developer: [
-    'projects', 'analytics', 'chat', 'settings',
+    'projects', 'analytics', 'chat', 'settings', 'sales',
     'tools_automation', 'custom_objects',
   ],
   support: [
-    'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies', 'email',
+    'leads', 'projects', 'analytics', 'chat', 'contacts', 'companies', 'sales', 'helpdesk', 'email',
     'bookings', 'hotels', 'hotels_manage_reservations',
   ],
 };
@@ -144,6 +148,14 @@ export class RbacService {
     });
 
     if (row) return !!row.allowed;
+
+    // No explicit row for this exact key. If it's one of the newly-added granular keys, defer to
+    // its base key's own resolution (still respecting that base key's explicit-row/default split)
+    // instead of falling straight to "deny" — see GRANULAR_FALLBACK_TO_BASE's doc comment.
+    const baseKey = GRANULAR_FALLBACK_TO_BASE[permission];
+    if (baseKey) {
+      return this.can(tenantId, role, baseKey);
+    }
 
     // Проверяем: есть ли вообще какие-то записи для этого тенанта
     const anyRow = await this.repo.findOne({ where: { tenantId } });

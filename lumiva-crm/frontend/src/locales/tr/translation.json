@@ -651,6 +651,8 @@
     },
     "nav": {
       "dashboard": "Ana sayfa",
+      "biDashboard": "BI Panosu",
+      "teamCalendar": "Ekip Takvimi",
       "leads": "Leadler",
       "leadsNew": "Yeni lead",
       "leadsLost": "Kayıp leadler",
@@ -683,7 +685,6 @@
       "bookingResources": "Kaynaklar",
       "bookingAvailability": "Uygunluk",
       "bookingAnalytics": "Analitik",
-      "bookingTemplates": "Şablonlar",
       "bookingLogs": "Günlükler",
       "bookingSettings": "Ayarlar",
       "hotels": "Otel Rezervasyon Sistemi",
@@ -701,6 +702,7 @@
       "marketing": "Pazarlama",
       "marketingTraffic": "Trafik",
       "marketingCampaigns": "Kampanyalar (ROAS)",
+      "marketingBroadcasts": "Toplu gönderimler",
       "marketingUtms": "UTM etiketleri",
       "marketingSegments": "Segmentler",
       "marketingStatuses": "Lead / müşteri durumları",
@@ -718,10 +720,15 @@
       "contacts": "Kişiler",
       "tools": "Araçlar",
       "toolsAutomations": "Otomasyonlar",
+      "pendingApprovals": "Onay bekleyenler",
       "integrationsHub": "Entegrasyonlar",
       "toolsTelegram": "Telegram",
+      "telegramInbox": "Telegram · Gelen Kutusu",
+      "whatsappInbox": "WhatsApp · Gelen Kutusu",
       "toolsWebForms": "Site formları",
       "chat": "Sohbet",
+      "helpdesk": "Destek merkezi",
+      "esign": "E-imza",
       "clientAccounts": "Müşteri hesapları",
       "staff": "Personel",
       "staffList": "Personel listesi",
@@ -730,6 +737,7 @@
       "settings": "Ayarlar",
       "settingsCompany": "Şirket ayarları",
       "settingsApi": "API ve entegrasyonlar",
+      "apiTokens": "API anahtarları",
       "settingsAccount": "Hesap",
       "aiEmployees": "Yapay zekâ çalışanları",
       "aiEmployeesDashboard": "Pano",
@@ -738,9 +746,15 @@
       "aiEmployeesLogs": "Günlükler",
       "aiEmployeesReports": "Raporlar",
       "deduplication": "Tekilleştirme",
+      "auditLog": "Etkinlik günlüğü",
+      "exportBackup": "Dışa aktarma ve yedekleme",
       "sms": "SMS",
       "smsMessages": "Mesajlar",
-      "smsSettings": "SMS Ayarları"
+      "smsSettings": "SMS Ayarları",
+      "telephony": "SMS ve Telefon",
+      "telephonyCalls": "Aramalar",
+      "telephonyAnalytics": "Analitik",
+      "telephonySettings": "Ayarlar"
     },
     "aiEmployees": {
       "badge": {
@@ -2114,6 +2128,68 @@
         "currencyTitle": "Veri kaynağı para birimi"
       }
     },
+    "telegram": {
+      "inbox": {
+        "title": "Telegram · Gelen Kutusu",
+        "subtitle": "Telegram botlarınıza yazan herkesle olan yazışmalar",
+        "listHeading": "Yazışmalar",
+        "searchPlaceholder": "İsim, kullanıcı adı veya telefonla ara",
+        "loadingContacts": "Yazışmalar yükleniyor...",
+        "empty": "Henüz yazışma yok",
+        "contactFallback": "İsimsiz",
+        "you": "Siz",
+        "selectPrompt": "Soldan bir yazışma seçin",
+        "openLead": "Lead'i aç",
+        "noLeadYet": "Henüz lead oluşturulmadı",
+        "refresh": "Yenile",
+        "loadingMessages": "Mesajlar yükleniyor...",
+        "replyPlaceholder": "Bir mesaj yazın...",
+        "send": "Gönder",
+        "noBots": "Bağlı bir Telegram botu yok.",
+        "noBotsLink": "Bot bağla",
+        "attachmentPhoto": "📷 Fotoğraf",
+        "attachmentDocument": "📎 Belge",
+        "attachmentVoice": "🎤 Sesli mesaj",
+        "attachmentVideo": "🎬 Video",
+        "attachmentSticker": "🖼 Çıkartma",
+        "attachmentLocation": "📍 Konum",
+        "attachmentOther": "Ek",
+        "errors": {
+          "sendFailed": "Mesaj gönderilemedi"
+        }
+      }
+    },
+    "whatsapp": {
+      "inbox": {
+        "title": "WhatsApp · Gelen Kutusu",
+        "subtitle": "WhatsApp'tan size yazan herkesle olan yazışmalar",
+        "listHeading": "Yazışmalar",
+        "searchPlaceholder": "İsim veya numarayla ara",
+        "loadingContacts": "Yazışmalar yükleniyor...",
+        "empty": "Henüz yazışma yok",
+        "contactFallback": "İsimsiz",
+        "you": "Siz",
+        "selectPrompt": "Soldan bir yazışma seçin",
+        "openLead": "Lead'i aç",
+        "noLeadYet": "Henüz lead oluşturulmadı",
+        "refresh": "Yenile",
+        "loadingMessages": "Mesajlar yükleniyor...",
+        "replyPlaceholder": "Bir mesaj yazın...",
+        "send": "Gönder",
+        "noConnections": "Bağlı bir WhatsApp numarası yok.",
+        "noConnectionsLink": "WhatsApp bağla",
+        "attachmentPhoto": "📷 Fotoğraf",
+        "attachmentDocument": "📎 Belge",
+        "attachmentVoice": "🎤 Sesli mesaj",
+        "attachmentVideo": "🎬 Video",
+        "attachmentSticker": "🖼 Çıkartma",
+        "attachmentLocation": "📍 Konum",
+        "attachmentOther": "Ek",
+        "errors": {
+          "sendFailed": "Mesaj gönderilemedi"
+        }
+      }
+    },
     "integrationsHub": {
       "title": "Entegrasyonlar",
       "subtitle": "Konnektör kataloğu, bağlantılar, pazarlama ve senkron burada. IF/THEN senaryoları «Otomasyonlar» bölümünde oluşturulur ve düzenlenir.",
@@ -2460,6 +2536,23 @@
       }
     },
     "automations": {
+      "approvals": {
+        "title": "Onay bekleyenler",
+        "subtitle": "Bir personelin onayını bekleyen otomasyon adımları",
+        "back": "← Otomasyonlara dön",
+        "loading": "Yükleniyor…",
+        "empty": "Onay bekleyen çalıştırma yok",
+        "pendingStep": "{{step}} adımı bekliyor",
+        "triggeredAt": "Başlatıldı: {{date}}",
+        "notePlaceholder": "Not (isteğe bağlı)",
+        "approve": "Onayla",
+        "reject": "Reddet",
+        "deciding": "Kaydediliyor…",
+        "errors": {
+          "loadFailed": "Liste yüklenemedi",
+          "decideFailed": "Karar kaydedilemedi"
+        }
+      },
       "list": {
         "title": "Otomasyonlar",
         "subtitle": "IF/THEN kuralları — tetikleyiciler ve eylemler",
@@ -2886,10 +2979,12 @@
             "reportsExport": "Raporlar ve dışa aktarma",
             "integrations": "Entegrasyonlar",
             "bookings": "Rezervasyonlar",
-            "hotels": "Oteller"
+            "hotels": "Oteller",
+            "products": "Ürünler"
           },
           "triggerDesc": {
-            "scheduled": "CRON veya aralık"
+            "scheduled": "CRON veya aralık",
+            "stale": "Günde bir kez kontrol edilir · 14 günlük hareketsizlik eşiği"
           },
           "actionDesc": {
             "send_email": "Şablon veya özel e-posta"
@@ -2958,7 +3053,13 @@
           "actionStepCaption": "Eylem · {{n}} / {{total}} adım",
           "cfgTabParams": "Parametreler",
           "cfgTabConditions": "Koşullar",
+          "cfgTabTiming": "Gecikme/onay",
           "cfgTabLogs": "Günlükler",
+          "stepTimingIntro": "İsteğe bağlı: bu adımdan önce yürütmeyi duraklat. Duraklama başka bir şeyi engellemez — akış daha sonra devam eder (zamanlanmış olarak ya da bir personel onayladıktan sonra).",
+          "delayMinutesLabel": "Bu adımdan önce gecikme (dakika)",
+          "delayMinutesHelp": "Akış burada durur ve bir önceki adımdan bu kadar dakika sonra devam eder.",
+          "requireApprovalCheckbox": "Bu adımdan önce personel onayı gerektir",
+          "requireApprovalHelp": "Akış, biri «Onay bekleyenler» sayfasında onaylayana kadar burada durur.",
           "triggerFieldLabel": "Tetikleyici olayı",
           "scheduleSection": "Zamanlama",
           "generalSection": "Genel",
@@ -2994,15 +3095,32 @@
           "pickEmailTemplate": "— şablon yok —",
           "createEmailTemplate": "Şablon oluştur",
           "subjectPlaceholder": "Konu",
+          "emailToAutoHint": "Boş bırakılırsa lead/kişi e-postasına veya bu otomasyonu tetikleyen rezervasyondaki müşteri e-postasına gönderilir.",
           "emailBodyPlaceholder": "E-posta gövdesi…",
           "slackMessagePlaceholder": "Slack mesajı",
           "teamsTitlePlaceholder": "Bildirim",
           "teamsTextPlaceholder": "Bildirim metni",
           "whatsappMessagePlaceholder": "Mesaj",
+          "smsConfigHint": "SMS → Ayarlar bölümünde bağlanan SMS sağlayıcısı üzerinden gönderilir (Twilio / SMSC.ru / SMS.ru).",
+          "smsMessagePlaceholder": "SMS metni",
           "notificationTitlePlaceholder": "Bildirim",
           "notificationBodyPlaceholder": "Bildirim metni: {{lead.name}}",
           "notificationRecipientsPlaceholder": "— tüm personel —",
           "notificationRecipientsHelp": "Boş bırakın — tüm aktif personel alır.",
+          "variablePickerLabel": "Değişken ekle:",
+          "tokenClientName": "Müşteri adı",
+          "tokenService": "Hizmet",
+          "tokenDate": "Tarih",
+          "tokenTime": "Saat",
+          "tokenStaff": "Personel",
+          "tokenLocationAddress": "Lokasyon adresi",
+          "tokenBookingId": "Rezervasyon ID",
+          "tokenStatus": "Durum",
+          "tokenGuestName": "Misafir adı",
+          "tokenRoomType": "Oda tipi",
+          "tokenCheckIn": "Giriş",
+          "tokenCheckOut": "Çıkış",
+          "tokenHotelName": "Otel",
           "assignStaffPlaceholder": "— personel seçin —",
           "assignStaffHelp": "Birden fazla seçebilirsiniz — kayıt hepsine atanır.",
           "notePlaceholder": "Not içeriği…",
@@ -3053,6 +3171,7 @@
           "taskIdLabel": "Task ID",
           "staffLabel": "Personel *",
           "phoneToLabel": "Kime (telefon)",
+          "phoneToAutoHint": "Boş bırakılırsa lead/kişi telefonuna veya bu otomasyonu tetikleyen rezervasyondaki müşteri telefonuna kullanılır.",
           "paramsJsonLabel": "Parametreler (JSON)",
           "apiMethodLabel": "API metodu",
           "bitrixConnectionLabel": "Bitrix24 bağlantısı",
@@ -3163,7 +3282,12 @@
           "HOTEL_RESERVATION_STATUS_CHANGED": "Otel rezervasyon durumu değişti",
           "HOTEL_PRICE_CHANGED": "Oda fiyatı değişti",
           "HOTEL_STOP_SALE_SET": "Oda satış durdurma değişti",
-          "HOTEL_LOW_AVAILABILITY": "Düşük oda müsaitliği"
+          "HOTEL_LOW_AVAILABILITY": "Düşük oda müsaitliği",
+          "PRODUCT_PRICE_CHANGED": "Ürün fiyatı değişti",
+          "PRODUCT_STATUS_CHANGED": "Ürün durumu değişti",
+          "PRODUCT_STOCK_LOW": "Ürün stoku azaldı",
+          "LEAD_STALE": "Müşteri adayı durgunlaştı",
+          "SALE_STALE": "Fırsat durgunlaştı"
         },
         "report": {
           "type": "Rapor türü",
@@ -3504,6 +3628,7 @@
           "send_mailchimp_campaign": "Mailchimp / kitle yayını",
           "send_zapier": "Zapier'a gönder (Catch Hook)",
           "send_whatsapp": "WhatsApp'a gönder",
+          "send_sms": "SMS gönder",
           "send_google_calendar": "Google Calendar etkinliği",
           "send_outlook_calendar": "Outlook etkinliği (Microsoft 365)",
           "send_bitrix": "Bitrix24 çağrısı (REST)",
@@ -3725,6 +3850,87 @@
           "assign_user": "Assign user",
           "send_notification": "Notification",
           "remove_tag": "Remove tag"
+        }
+      }
+    },
+    "marketingBroadcasts": {
+      "list": {
+        "title": "Toplu gönderimler",
+        "subtitle": "Bir lead segmentine planlı, çok adımlı email/SMS gönderimleri — postadan tek seferlik gönderimin aksine",
+        "create": "+ Yeni gönderim",
+        "loading": "Yükleniyor…",
+        "empty": "Henüz gönderim yok",
+        "colName": "Ad",
+        "colChannel": "Kanal",
+        "colStatus": "Durum",
+        "colSteps": "Adım",
+        "colSent": "Gönderildi",
+        "colScheduled": "Planlanan",
+        "colActions": "İşlemler",
+        "edit": "Düzenle",
+        "delete": "Sil",
+        "cancel": "İptal et",
+        "confirmCancel": "Gönderim iptal edilsin mi? Henüz gönderilmemiş adımlar gönderilmeyecek.",
+        "confirmDelete": "Taslak gönderim silinsin mi?",
+        "failedSuffix": "({{count}} hata)",
+        "status": {
+          "draft": "Taslak",
+          "scheduled": "Planlandı",
+          "running": "Gönderiliyor",
+          "completed": "Tamamlandı",
+          "cancelled": "İptal edildi"
+        },
+        "errors": {
+          "loadFailed": "Gönderimler yüklenemedi",
+          "cancelFailed": "Gönderim iptal edilemedi",
+          "deleteFailed": "Gönderim silinemedi"
+        }
+      },
+      "form": {
+        "titleNew": "Yeni gönderim",
+        "subtitleNew": "Hedef kitleyi ve adımları ayarlayın, ardından gönderimi planlayın",
+        "subtitleStatus": "Durum: {{status}}",
+        "back": "← Listeye dön",
+        "fieldName": "Ad",
+        "fieldNamePlaceholder": "Örn: Yeni lead ısındırma",
+        "channelLabel": "Kanal",
+        "audienceLabel": "Hedef kitle",
+        "audienceAllEmail": "E-postası olan tüm lead'ler",
+        "audienceAllPhone": "Telefonu olan tüm lead'ler",
+        "audienceHint": "Segmentler «Pazarlama → Segmentler» sayfasında oluşturulur",
+        "fromLabel": "Gönderen",
+        "fromPlaceholder": "Bir e-posta hesabı seçin",
+        "trackOpensLabel": "Açılmaları izle",
+        "stepsHeading": "Gönderim adımları",
+        "addStep": "+ Adım ekle",
+        "stepsHint": "0. adım, başlatma sırasında (gecikmesi 0 ise) hemen gönderilir. Sonraki her adım, bir önceki adımdan belirtilen gün sayısı sonra gider — böylece tek seferlik değil, bir ısındırma dizisi oluşur.",
+        "stepLabel": "Adım {{n}}",
+        "removeStep": "Kaldır",
+        "delayDaysLabel": "Gecikme (gün)",
+        "subjectPlaceholder": "E-posta konusu",
+        "bodyPlaceholderEmail": "E-posta HTML veya metni",
+        "bodyPlaceholderSms": "SMS metni",
+        "launchHeading": "Başlatma",
+        "sendNow": "Şimdi gönder",
+        "sendLater": "Planla",
+        "saveDraft": "Taslağı kaydet",
+        "saving": "Kaydediliyor…",
+        "saveAndSend": "Kaydet ve gönder",
+        "saveAndSchedule": "Kaydet ve planla",
+        "launching": "Başlatılıyor…",
+        "draftHint": "Önce taslağı kaydedin, ardından gönderimi başlatın.",
+        "statsLine": "Gönderilen/aktif: {{done}} / {{total}}",
+        "statsFailed": " · hata: {{count}}",
+        "loading": "Yükleniyor…",
+        "success": {
+          "sent": "Gönderim başlatıldı",
+          "scheduled": "Gönderim planlandı"
+        },
+        "errors": {
+          "nameRequired": "Gönderim adı girin",
+          "loadFailed": "Gönderim yüklenemedi",
+          "saveFailed": "Gönderim kaydedilemedi",
+          "scheduleFailed": "Gönderim başlatılamadı"
         }
       }
     },
@@ -5679,6 +5885,9 @@
           "projects-analytics": "Proje analitiği",
           "leads-analytics": "Lead analitiği",
           "sales-analytics": "Satış analitiği",
+          "products-analytics": "Ürün analitiği",
+          "bookings-analytics": "Rezervasyon analitiği",
+          "hotels-analytics": "Otel analitiği",
           "profile-completion": "Profilinizi tamamlayın",
           "learn-inspire": "Öğrenin ve ilham alın",
           "funnel_today": "Bugünün Hunisi",
@@ -5761,6 +5970,24 @@
         "kpiCount": "Siparişler",
         "kpiAmount": "Tutar",
         "openFull": "Tam satış analitiği"
+      },
+      "productsAnalyticsWidget": {
+        "kpiActive": "Aktif ürünler",
+        "kpiLowStock": "Azalan/tükenen stok",
+        "catalogValue": "Katalog değeri",
+        "openFull": "Tam ürün analitiği"
+      },
+      "bookingsAnalyticsWidget": {
+        "kpiReservations": "Rezervasyonlar",
+        "kpiOccupancy": "Doluluk",
+        "avgCheck": "Ortalama fiş",
+        "openFull": "Tam rezervasyon analitiği"
+      },
+      "hotelsAnalyticsWidget": {
+        "kpiOccupancy": "Şu anki doluluk",
+        "kpiRoomsAvailable": "Boş oda",
+        "revenue": "Gelir",
+        "openFull": "Tam otel analitiği"
       },
       "addToHomeFromAnalytics": "Ana sayfaya ekle",
       "projects": {
@@ -7143,8 +7370,16 @@
         }
       },
       "permissions": {
+        "helpdesk": "Destek merkezi (talepler)",
+        "esign": "E-imza",
+        "leads_view_roi": "Lead ROI görüntüleme",
+        "sales": "Satışlar",
+        "sales_manage_import": "CSV'den satış içe aktarma",
         "contacts": "Kişiler",
+        "contacts_manage_bulk": "Kişilerde toplu düzenleme",
+        "notes": "Notlar",
         "companies": "Şirketler",
+        "companies_manage_tasks": "Şirket görevleri",
         "products": "Ürünler",
         "products_manage_fields": "Ürün alan oluşturucu",
         "products_manage_stock": "Stok düzeltmeleri",
@@ -7154,8 +7389,12 @@
         "hotels": "Otel rezervasyon sistemi",
         "hotels_manage_pricing": "Otel fiyat ve pazar yönetimi",
         "hotels_manage_reservations": "Otel giriş/çıkış, ödemeler ve odalar",
+        "projects_manage_trash": "Projeleri silme ve geri yükleme",
         "email": "E-posta",
         "marketing": "Pazarlama",
+        "telegram": "Telegram",
+        "whatsapp": "WhatsApp",
+        "telephony": "Telefon sistemi",
         "tools_automation": "Otomasyon",
         "custom_objects": "No-code Workspace",
         "group": {
@@ -7167,6 +7406,11 @@
         "hint": {
           "staff": "Personel yönetimi, davetler",
           "settings": "Şirket ayarları, API, entegrasyonlar",
+          "leads_view_roi": "Lead ROI raporuna erişim (satış tutarları, gelir)",
+          "sales_manage_import": "CSV dosyasından satış yükleme",
+          "contacts_manage_bulk": "Birden fazla kişide aynı anda toplu değişiklik",
+          "companies_manage_tasks": "Şirket görevlerini oluşturma, düzenleme ve silme",
+          "projects_manage_trash": "Proje çöp kutusunu silme, geri yükleme ve boşaltma",
           "products_manage_fields": "Özel alan tipleri ve varyasyon öznitelikleri",
           "products_manage_stock": "Stok bölümünde stok düzeltmeleri",
           "products_publish": "Ürünün genel katalogda gösterilme taleplerini onaylama veya reddetme",
@@ -7896,6 +8140,23 @@
       }
     }
   },
+  "landing": {
+    "nav": {
+      "login": "Giriş yap"
+    },
+    "hero": {
+      "titleLine1": "Veri.",
+      "titleLine1Light": "Kanallar.",
+      "titleLine2": "Huni.",
+      "titleLine2Light": "Tek yerde.",
+      "mainSubtitle": "Kaosu çalışan bir büyüme sistemine dönüştürüyoruz. Müşteri adayları, fırsatlar, analitik ve iletişim — pazarlama ve satış ekipleri için tek bir bütünleşik döngüde.",
+      "ctaStart": "14 gün ücretsiz başla",
+      "ctaTour": "Turu izle",
+      "metricClients": "MÜŞTERİ",
+      "metricLeads": "İŞLENEN MÜŞTERİ ADAYI",
+      "metricCountries": "ÜLKE"
+    }
+  },
   "publicPages": {
     "nav": {
       "development": "Geliştirme",
@@ -7907,11 +8168,15 @@
       "marketing": "Pazarlama",
       "sales": "Satış",
       "client-accounts": "Müşteri Hesapları",
-      "inventory": "Ürün Kataloğu",
+      "products": "Ürünler",
       "warehouse": "Depo",
+      "booking": "Rezervasyonlar",
+      "hotels": "Otel/PMS",
       "pricing": "Fiyatlar",
       "blog": "Blog",
       "privacy": "Gizlilik",
+      "security": "Güvenlik",
+      "compare": "Neden Lumiva",
       "features": "Özellikler",
       "about": "Hakkımızda",
       "contact": "İletişim",
@@ -7954,10 +8219,32 @@
       "techTitle": "Ne ile inşa edildi",
       "ctaTitle": "Tanışmak ister misiniz?",
       "ctaSubtitle": "Demo için kayıt olun",
+      "ctaBtnDemo": "Demo talep et",
+      "ctaBtnFeatures": "Özellikleri gör",
+      "missionAttribution": "Lumiva CRM ekibi",
       "statsClients": "Müşteri",
       "statsIntegrations": "Entegrasyon",
       "statsUptime": "Uptime",
-      "statsYears": "Yıl"
+      "statsYears": "Yıl",
+      "statsYearsValue": "4 yıl",
+      "values": [
+        { "title": "Sadelik", "desc": "Her gün kullanılmak istenen bir ürün oluşturuyoruz. Fazlalık yok — yalnızca işletmenin gerçekten ihtiyaç duyduğu şeyler." },
+        { "title": "Hız", "desc": "Hızlı arayüz, hızlı destek yanıtları ve hızlı uygulama. Zamanınıza saygı duyuyoruz." },
+        { "title": "Güvenilirlik", "desc": "Verileriniz güvende. İzole hesaplar, şifreleme ve düzenli yedeklemeler." },
+        { "title": "Ortaklık", "desc": "Uzun vadeli ilişkiler kuruyoruz. Her müşteri sadece bir kullanıcı değil, bir ortaktır." }
+      ],
+      "milestones": [
+        { "year": "2022", "text": "Şirket kuruldu. İlk CRM prototipleri." },
+        { "year": "2023", "text": "Beta sürümü başlatıldı. İlk 50 müşteri." },
+        { "year": "2024", "text": "Genel yayın. Çalışma alanları ve otomasyonlar." },
+        { "year": "2025", "text": "20+ hizmetle entegrasyon. Yapay zeka asistanı." },
+        { "year": "2026", "text": "Yeni tasarım, mobil uygulama. 3× büyüme." }
+      ],
+      "techStack": [
+        { "label": "Frontend", "stack": "React 19, TypeScript, Tailwind CSS, Framer Motion" },
+        { "label": "Backend", "stack": "NestJS, TypeORM, PostgreSQL, JWT kimlik doğrulama" },
+        { "label": "Altyapı", "stack": "Docker, GitHub Actions CI/CD, Nginx, SSL/TLS" }
+      ]
     },
     "contact": {
       "title": "Demo talep et",
@@ -7969,13 +8256,33 @@
       "fieldPhone": "Telefon",
       "fieldTeamSize": "Ekip boyutu",
       "fieldMessage": "Zorluğunuzu anlatın",
+      "namePlaceholder": "Ahmet Yılmaz",
+      "emailPlaceholder": "ahmet@sirket.com",
+      "companyPlaceholder": "Örnek A.Ş.",
+      "phonePlaceholder": "+90 (5XX) 000-0000",
+      "messagePlaceholder": "Neyi otomatikleştirmek istiyorsunuz? Hangi zorluklar var?",
       "fieldTeamSizePlaceholder": "Seçin...",
+      "teamSizeOpt1": "1–5 kişi",
+      "teamSizeOpt2": "6–20 kişi",
+      "teamSizeOpt3": "21–50 kişi",
+      "teamSizeOpt4": "50+",
       "submitBtn": "Demo talep et →",
       "submitting": "Gönderiliyor...",
+      "errorText": "Gönderirken bir hata oluştu. Tekrar deneyin veya bizimle doğrudan iletişime geçin.",
+      "consentPrefix": "Butona tıklayarak",
+      "consentLink": "gizlilik politikasını",
       "successTitle": "Talep gönderildi!",
       "successText": "Bir iş günü içinde size ulaşacağız.",
       "sendAnother": "Tekrar gönder",
       "sidebarTitle": "Demoda neler alırsınız",
+      "benefit1": "İhtiyacınıza özel platform turu",
+      "benefit2": "Huni ve çalışma alanı kurulumu",
+      "benefit3": "Temel entegrasyonların gösterimi",
+      "benefit4": "Tüm teknik sorularınıza yanıt",
+      "benefit5": "Kişisel bir uygulama planı",
+      "otherWaysTitle": "Diğer iletişim yolları",
+      "emailLabel": "E-posta",
+      "telegramLabel": "Telegram",
       "responseTime": "24 saat içinde yanıt",
       "responseHours": "Hafta içi 9:00–18:00"
     },
@@ -7986,26 +8293,326 @@
       "notFoundTitle": "Cevap bulamadınız mı?",
       "notFoundText": "24 saat içinde yanıt veririz.",
       "contactBtn": "Bize yazın",
-      "usefulLinks": "Faydalı bağlantılar"
+      "usefulLinks": "Faydalı bağlantılar",
+      "linkFeatures": "Özellikler",
+      "linkPricing": "Fiyatlandırma",
+      "linkIntegrations": "Entegrasyonlar",
+      "linkApi": "API dokümanı",
+      "linkChangelog": "Güncellemeler",
+      "categories": [
+        {
+          "category": "Genel",
+          "items": [
+            { "q": "Lumiva CRM nedir?", "a": "Lumiva CRM; müşteri, proje ve satış yönetimi için bulut tabanlı bir platformdur. CRM, no-code çalışma alanları, otomasyonlar, analitik ve popüler servislerle entegrasyonlar içerir." },
+            { "q": "Lumiva hangi işletmeler için uygun?", "a": "Küçük ve orta ölçekli işletmeler için: serbest çalışanlardan ve girişimlerden 50-200 kişilik ekiplere kadar. Satış, pazarlama, proje yönetimi ve müşteri hizmetlerinde kullanılır." },
+            { "q": "Bilgisayara bir şey kurmak gerekiyor mu?", "a": "Hayır. Lumiva CRM tamamen tarayıcıda çalışır. Ayrıca iOS ve Android için mobil uygulama mevcuttur. Kurulum veya sunucu bakımı gerekmez." }
+          ]
+        },
+        {
+          "category": "Fiyatlandırma ve ödeme",
+          "items": [
+            { "q": "Ücretsiz bir dönem var mı?", "a": "Evet. Kayıttan sonra hesap süresiz olarak sınırlı modda çalışır. Tüm modülleri etkinleştirmek için bir plan seçmeniz gerekir." },
+            { "q": "Ödeme nasıl işliyor?", "a": "Ödeme kullanıcı başına aylık olarak alınır. Yıllık planda plana bağlı olarak otomatik %10-20 indirim uygulanır. Kart ve banka havalesi kabul ediyoruz." },
+            { "q": "Aboneliği iptal edebilir miyim?", "a": "Evet, istediğiniz zaman. İptalden sonra hesap sınırlı moda geçer, veriler 30 gün saklanır." },
+            { "q": "STK'lar ve eğitim kurumları için indirim var mı?", "a": "Evet. Destekleyici belgelerle hello@lumiva.agency adresine yazın, size özel koşulları değerlendirelim." }
+          ]
+        },
+        {
+          "category": "Teknik sorular",
+          "items": [
+            { "q": "Verilerim nasıl korunuyor?", "a": "Her müşteri izole bir hesapta çalışır (çoklu kiracı mimarisi). Tüm veriler aktarım sırasında (TLS 1.3) ve depolamada şifrelenir. Düzenli yedeklemeler yapılır." },
+            { "q": "Entegrasyonlar için API var mı?", "a": "Evet. Lumiva CRM, token kimlik doğrulamalı bir REST API sunar. Dokümantasyon kayıttan sonra API bölümünde mevcuttur." },
+            { "q": "Başka bir CRM'den veri aktarabilir miyim?", "a": "Evet. Excel/CSV içe aktarma desteklenir. Ayrıca AmoCRM, Bitrix24 ve HubSpot için doğrudan bağlayıcılar mevcuttur." },
+            { "q": "Platformun SLA'sı nedir?", "a": "Ücretli planlar için %99,9 çalışma süresi garanti ediyoruz. Planlı bakımlar en az 24 saat önceden duyurulur." }
+          ]
+        },
+        {
+          "category": "Entegrasyonlar",
+          "items": [
+            { "q": "Hangi entegrasyonlar destekleniyor?", "a": "Google Analytics 4, Meta Ads, Google Ads, Mailchimp, WooCommerce, AmoCRM, Bitrix24, HubSpot, Telegram, WhatsApp, Slack, Google Sheets, WordPress CF7, Zapier, 1C, SAP, Jira, OpenAI ve daha fazlası." },
+            { "q": "Telegram botu nasıl bağlanır?", "a": "\"Telegram\" bölümünde bir bot oluşturun, @BotFather'dan alınan token'ı yapıştırın. Bağlandıktan sonra tüm müşteri mesajları CRM'e düşer ve doğrudan arayüzden yanıtlayabilirsiniz." },
+            { "q": "Webhook desteği var mı?", "a": "Evet. WordPress Contact Form 7, AmoCRM, WhatsApp ve özel kaynaklar için gelen webhook'lar yapılandırılabilir." }
+          ]
+        }
+      ]
     },
     "terms": {
       "title": "Kullanım Şartları",
-      "subtitle": "Lumiva CRM kullanma koşulları.",
+      "subtitle": "Lumiva CRM platformunu kullanma koşulları. Son güncelleme: Nisan 2026.",
       "toc": "İçindekiler",
-      "lastUpdated": "Son güncelleme"
+      "lastUpdated": "Son güncelleme: 18 Nisan 2026. Sorularınız için bize yazın:",
+      "sections": [
+        {
+          "title": "1. Genel hükümler",
+          "content": "İşbu Kullanım Şartları (\"Sözleşme\"), Lumiva LLC (\"Şirket\") ile Lumiva CRM platformunun kullanıcısı (\"Kullanıcı\") arasındaki ilişkiyi düzenler.\n\nLumiva CRM platformunu kullanarak Kullanıcı, işbu Sözleşme'nin koşullarını kabul ettiğini onaylar. Kullanıcı koşulları kabul etmiyorsa platformu kullanmayı durdurmalıdır."
+        },
+        {
+          "title": "2. Hizmetin tanımı",
+          "content": "Lumiva CRM; müşteri ilişkileri yönetimi, iş süreçleri otomasyonu ve analitik için bulut tabanlı bir platformdur. Platform, SaaS (Hizmet Olarak Yazılım) modeliyle sunulur.\n\nŞirket, kullanıcıları önceden bilgilendirmek kaydıyla işlevselliği değiştirme, modül ekleme veya kaldırma ve teknik özellikleri değiştirme hakkını saklı tutar."
+        },
+        {
+          "title": "3. Kayıt ve hesap",
+          "content": "3.1. Platformu kullanmak için geçerli bir e-posta adresiyle kayıt olmak ve güvenli bir şifre oluşturmak gerekir.\n\n3.2. Kullanıcı, kayıt sırasında doğru bilgi vermek ve bunları güncel tutmakla yükümlüdür.\n\n3.3. Kullanıcı, hesap bilgilerinin gizliliğinden ve hesabı kullanılarak gerçekleştirilen tüm işlemlerden sorumludur.\n\n3.4. Hesaba yetkisiz erişim tespit edilirse Kullanıcı, Şirket'i derhal bilgilendirmekle yükümlüdür."
+        },
+        {
+          "title": "4. Ödeme koşulları",
+          "content": "4.1. Platform abonelik esasına göre sunulur. Fiyat, seçilen plana ve kullanıcı sayısına göre hesaplanır.\n\n4.2. Ödeme, seçilen dönem (aylık veya yıllık) için önceden yapılır.\n\n4.3. Abonelik iptal edildiğinde, plan aksini belirtmedikçe kullanılmayan dönem için iade yapılmaz.\n\n4.4. Şirket, değişiklik yürürlüğe girmeden en az 30 gün önce bildirimde bulunarak fiyatları değiştirebilir."
+        },
+        {
+          "title": "5. Tarafların hak ve yükümlülükleri",
+          "content": "5.1. Kullanıcı:\n• platformu yalnızca yasal amaçlarla kullanmalı;\n• platformu kullanırken üçüncü tarafların haklarını ihlal etmemeli;\n• diğer kullanıcıların verilerine yetkisiz erişim girişiminde bulunmamalı;\n• yürürlükteki veri koruma mevzuatına uymalıdır.\n\n5.2. Şirket:\n• platform kullanılabilirliğini ayda en az %99,9 seviyesinde tutmalı;\n• planlı bakımları en az 24 saat önceden bildirmeli;\n• Kullanıcı verilerini Gizlilik Politikası'na uygun şekilde saklamalıdır."
+        },
+        {
+          "title": "6. Fikri mülkiyet",
+          "content": "6.1. Kaynak kod, tasarım, veritabanları ve dokümantasyon dahil olmak üzere Lumiva CRM platformu üzerindeki tüm haklar Şirket'e aittir.\n\n6.2. Kullanıcı tarafından platforma yüklenen veriler Kullanıcı'nın mülkiyetindedir. Şirket, kullanıcı verileri üzerinde hak iddia etmez.\n\n6.3. Kullanıcı'ya, işbu Sözleşme koşullarına uygun olarak platformu kullanmak için sınırlı, münhasır olmayan bir lisans verilir."
+        },
+        {
+          "title": "7. Veri gizliliği",
+          "content": "7.1. Şirket, kişisel verileri Gizlilik Politikası'na ve yürürlükteki veri koruma mevzuatına uygun olarak işler; Kullanıcı Rusya'da ise bu, 152-FZ sayılı \"Kişisel Veriler Hakkında\" Federal Kanun'u da kapsar.\n\n7.2. Kullanıcı verileri, yasaların gerektirdiği veya hizmetin sunulması için gerekli olan durumlar (örneğin ödeme sağlayıcıları) dışında üçüncü taraflarla paylaşılmaz.\n\n7.3. Veri işleme hakkında ayrıntılı bilgi Gizlilik Politikası'nda yer almaktadır."
+        },
+        {
+          "title": "8. Sorumluluğun sınırlandırılması",
+          "content": "8.1. Platform \"olduğu gibi\" sunulur. Şirket, kesintisiz ve hatasız çalışmayı garanti etmez.\n\n8.2. Şirket, platformun kullanımından veya kullanılamamasından kaynaklanan dolaylı zararlardan, kar kayıplarından veya veri kaybından sorumlu değildir.\n\n8.3. Şirket'in azami sorumluluğu, Kullanıcı'nın hizmeti kullandığı son 3 ay boyunca ödediği tutarla sınırlıdır."
+        },
+        {
+          "title": "9. Değişiklik ve fesih",
+          "content": "9.1. Şirket, Kullanıcı'ya en az 14 gün önceden bildirimde bulunarak işbu Sözleşme'nin koşullarını değiştirebilir.\n\n9.2. Kullanıcı, hello@lumiva.agency adresine bildirim göndererek işbu Sözleşme'yi istediği zaman feshedebilir.\n\n9.3. Fesih durumunda Kullanıcı verileri 30 gün süreyle saklanır ve ardından silinir."
+        },
+        {
+          "title": "10. Uygulanacak hukuk",
+          "content": "İşbu Sözleşme, Rusya Federasyonu yasalarına tabidir. Tüm uyuşmazlıklar Şirket'in kayıtlı bulunduğu yerdeki mahkemelerde çözülür.\n\nİşbu Sözleşme ile ilgili sorularınız için: hello@lumiva.agency"
+        }
+      ]
     },
     "changelog": {
       "title": "Güncelleme Geçmişi",
-      "subtitle": "Lumiva CRM'deki yenilikler.",
+      "subtitle": "Lumiva CRM'deki yenilikler. Platformu müşteri geri bildirimlerine dayanarak sürekli geliştiriyoruz.",
       "latest": "En son",
       "subscribeTitle": "Güncel kalın",
-      "subscribeSubtitle": "Yeni özelliklerden ilk öğrenin.",
+      "subscribeSubtitle": "Yeni özelliklerden ilk siz haberdar olun — Telegram kanalımızı veya RSS'i takip edin.",
       "telegramBtn": "Telegram kanalı",
       "suggestBtn": "Özellik önerin",
       "tagNew": "Yeni",
       "tagImproved": "İyileştirme",
       "tagFixed": "Düzeltildi",
-      "tagSecurity": "Güvenlik"
+      "tagSecurity": "Güvenlik",
+      "releasesCount": "sürüm",
+      "followTitle": "Güncellemeleri takip edin",
+      "releases": [
+        {
+          "version": "2.5.0",
+          "date": "18 Nisan 2026",
+          "highlight": "Yeni tasarım ve pazarlama sayfaları",
+          "changes": [
+            { "type": "new", "text": "Birleşik tasarım sistemi: Button, Card, Badge, Modal, Input bileşenleri" },
+            { "type": "new", "text": "Yeni sayfalar: Özellikler, Hakkımızda, İletişim, SSS, Şartlar, Güncellemeler" },
+            { "type": "new", "text": "Bölüm navigasyonlu yenilenmiş alt bilgi (footer)" },
+            { "type": "improved", "text": "Butonlar ve formlar artık tüm CRM'de tutarlı görünüyor" },
+            { "type": "improved", "text": "Rate limiting: aşırı yüke karşı API koruması (20 istek/sn, 100 istek/10sn)" },
+            { "type": "security", "text": "JWT_SECRET artık varsayılan bir değere sahip değil — ortamda zorunlu" },
+            { "type": "security", "text": "Helmet ile güvenlik HTTP başlıkları eklendi" },
+            { "type": "security", "text": "CORS origin'leri CORS_ORIGINS ortam değişkenine taşındı" },
+            { "type": "fixed", "text": "Üretimde synchronize: false — şema artık otomatik değişmiyor" }
+          ]
+        },
+        {
+          "version": "2.4.2",
+          "date": "5 Nisan 2026",
+          "changes": [
+            { "type": "fixed", "text": "Çalışma alanlarında büyük hacimli dosya yükleme hatası düzeltildi" },
+            { "type": "fixed", "text": "Telegram botunda yinelenen bildirim hatası giderildi" },
+            { "type": "improved", "text": "Sorgu optimizasyonuyla müşteri adayları sayfası yüklemesi %40 hızlandı" }
+          ]
+        },
+        {
+          "version": "2.4.0",
+          "date": "20 Mart 2026",
+          "highlight": "Yapay zeka asistanı ve Workspace iyileştirmeleri",
+          "changes": [
+            { "type": "new", "text": "Yapay zeka asistanı: müşteri adayı analizi ve otomatik alan doldurma" },
+            { "type": "new", "text": "Çalışma alanları: görev bağımlılıklarını izlemek için Gantt şeması" },
+            { "type": "new", "text": "Workspace: filtreli ve sıralamalı kayıtlı görünümler" },
+            { "type": "improved", "text": "768px altı ekranlar için mobil uyumlu arayüz" },
+            { "type": "improved", "text": "Çalışma alanlarında yeni alan türleri: formül, puanlama, ilerleme" },
+            { "type": "fixed", "text": "Rusça sütun başlıklarıyla Excel içe aktarma hatası düzeltildi" }
+          ]
+        },
+        {
+          "version": "2.3.0",
+          "date": "1 Şubat 2026",
+          "highlight": "Meta Ads ve Google Ads entegrasyonu",
+          "changes": [
+            { "type": "new", "text": "Meta Ads entegrasyonu: kampanya ve dönüşüm içe aktarma" },
+            { "type": "new", "text": "Google Ads entegrasyonu: harcama ve tıklama senkronizasyonu" },
+            { "type": "new", "text": "Pazarlama: kanal karşılaştırma panosu" },
+            { "type": "improved", "text": "Analitik: biçimlendirmeli Excel rapor dışa aktarımı" },
+            { "type": "security", "text": "Bağımlılıklar güncellendi: paketlerdeki 3 CVE giderildi" }
+          ]
+        },
+        {
+          "version": "2.2.0",
+          "date": "15 Aralık 2025",
+          "highlight": "Telegram CRM ve canlı sohbet",
+          "changes": [
+            { "type": "new", "text": "Telegram CRM: botlar aracılığıyla doğrudan CRM'de müşteri sohbeti" },
+            { "type": "new", "text": "Canlı sohbet: yazışma geçmişli site widget'ı" },
+            { "type": "new", "text": "WhatsApp: webhook ile gelen mesaj alımı" },
+            { "type": "improved", "text": "E-posta: açılma takibiyle toplu gönderim" },
+            { "type": "fixed", "text": "Kenar çubuğundaki okunmamış mesaj sayacı düzeltildi" }
+          ]
+        },
+        {
+          "version": "2.1.0",
+          "date": "10 Ekim 2025",
+          "highlight": "Çalışma alanları v2",
+          "changes": [
+            { "type": "new", "text": "Çalışma alanları: tablonun yanı sıra Kanban ve Takvim görünümleri" },
+            { "type": "new", "text": "Özel alanlar: tablolar arası bağlantılar (entity ref)" },
+            { "type": "new", "text": "Otomasyonlar: çalışma alanlarında olay tabanlı tetikleyiciler" },
+            { "type": "improved", "text": "Performans: tablo verisi önbellekleme" }
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Gizlilik Politikası",
+      "subtitle": "Lumiva CRM, verilerinizin korunmasını ciddiye alır. Burada nelerin toplandığı, nasıl kullanıldığı ve bilgilerinizin nasıl korunduğu ayrıntılı olarak açıklanmaktadır.",
+      "items": [
+        "Yalnızca CRM'in çalışması, müşteri desteği ve faturalandırma için gerekli verileri işleriz.",
+        "Verilere erişim rollerle sınırlıdır ve kritik işlemler denetim kaydına işlenir.",
+        "Müşteri talebi üzerine, kararlaştırılan süreler içinde veri dışa aktarımı veya silinmesi mümkündür."
+      ],
+      "lastUpdatedBadge": "Son güncelleme: 19 Nisan 2026",
+      "gdprBadge": "GDPR uyumlu",
+      "toc": "İçindekiler",
+      "footerTitle": "Sorularınız mı var?",
+      "footerText": "Bu Politika hakkında sorularınız varsa veya haklarınızı kullanmak istiyorsanız bize yazın:",
+      "footerOr": "veya",
+      "footerForm": "iletişim formunu",
+      "footerResponse": "30 gün içinde yanıt vereceğiz.",
+      "sections": [
+        {
+          "id": "general",
+          "title": "1. Genel hükümler",
+          "content": "İşbu Gizlilik Politikası (\"Politika\"), Lumiva CRM'in (\"Şirket\", \"biz\") lumiva.agency platformu (\"Platform\", \"Hizmet\") kullanıcılarının kişisel verilerini nasıl topladığını, kullandığını, sakladığını ve koruduğunu açıklar.\n\nPlatformu kullanarak işbu Politika'nın koşullarını kabul etmiş olursunuz. Kabul etmiyorsanız lütfen Hizmet'i kullanmayı durdurun.\n\nPolitika tüm kullanıcılar için geçerlidir: bireyler, kuruluş temsilcileri ve Platform ile etkileşimde bulunan diğer kişiler. Politika, Lumiva CRM markası altında faaliyet gösteren tüm ürünleri, siteleri ve mobil uygulamaları kapsar."
+        },
+        {
+          "id": "data-collected",
+          "title": "2. Hangi verileri topluyoruz",
+          "content": "**2.1 Doğrudan sağladığınız veriler:**\n- Ad, soyad veya görünen ad\n- E-posta adresi\n- Telefon numarası (form doldurulduğunda)\n- Kuruluş adı ve unvan\n- Ödeme bilgileri (ödeme sağlayıcı tarafından işlenir, sunucularımızda saklanmaz)\n- CRM'e girilen her türlü veri (kişiler, fırsatlar, notlar, dosyalar)\n\n**2.2 Otomatik olarak toplanan veriler:**\n- IP adresi ve ülke/şehir düzeyinde konum\n- Tarayıcı türü, işletim sistemi, ekran çözünürlüğü\n- Giriş tarihi ve saati, oturum süresi\n- Ziyaret ettiğiniz ve kullandığınız sayfa ve özellikler\n- UTM etiketleri ve yönlendirme kaynakları\n- Hata ve çökme verileri (loglar)\n\n**2.3 Üçüncü taraf kaynaklardan gelen veriler:**\n- Bağlı entegrasyonlardan gelen bilgiler (Google Analytics, Meta Ads, AmoCRM ve diğerleri) — yalnızca bağlantı sırasında açıkça izin verdiğiniz ölçüde\n- Herkese açık profil verileri (OAuth ile giriş yapıyorsanız)"
+        },
+        {
+          "id": "purpose",
+          "title": "3. Veri işleme amaçları",
+          "content": "Verilerinizi yalnızca aşağıdaki amaçlarla işleriz:\n\n**3.1 Hizmetin sunulması:**\nHesap oluşturma ve yönetimi, CRM özelliklerine erişim sağlama, cihazlar arası veri senkronizasyonu, sözleşme yükümlülüklerinin yerine getirilmesi.\n\n**3.2 Ürünün iyileştirilmesi:**\nÖzellik kullanımının analizi, hataların ve darboğazların tespiti, yeni geliştirmelerin önceliklendirilmesi. Veriler analizden önce anonimleştirilir veya toplulaştırılır.\n\n**3.3 İletişim:**\nİşlemsel e-postaların gönderilmesi (kayıt onayı, şifre sıfırlama, plan değişikliği bildirimleri) ve destek taleplerine yanıt verilmesi. Pazarlama e-postaları yalnızca açık onayınızla gönderilir.\n\n**3.4 Güvenlik:**\nDolandırıcılığın, yetkisiz erişimin ve kötüye kullanımın önlenmesi. Yasal gerekliliklere uyum.\n\n**3.5 Faturalandırma:**\nFatura kesme, ödeme işleme, mali kayıtların tutulması. İşlem verileri vergi mevzuatı gerekliliklerine uygun olarak saklanır."
+        },
+        {
+          "id": "legal-basis",
+          "title": "4. Hukuki dayanaklar",
+          "content": "Verileri aşağıdaki hukuki dayanaklarla işleriz:\n\n**Sözleşmenin ifası** — talep ettiğiniz Hizmet'in sunulması için işlemenin gerekli olduğu durumlarda (hesap oluşturma, işlemler).\n\n**Meşru menfaat** — güvenliği artırmak, kötüye kullanımı önlemek ve ürünü geliştirmek için. Bu durumlarda menfaatlerimizi gizlilik haklarınızla dengeleriz.\n\n**Rıza** — pazarlama e-postaları ve analitik çerezleri için. Rızanızı istediğiniz zaman, Hizmet'i kullanmanızı etkilemeden geri çekebilirsiniz.\n\n**Yasal yükümlülük** — yürürlükteki mevzuata (vergi, muhasebe veya düzenleyici talepleri) uyum için işlemenin gerekli olduğu durumlarda."
+        },
+        {
+          "id": "storage",
+          "title": "5. Veri saklama ve koruma",
+          "content": "**5.1 Veriler nerede saklanır:**\nVeriler güvenli veri merkezlerindeki sunucularda saklanır. Ana altyapı Rusya ve/veya AB'de bulunmaktadır. Yedeklemeler günlük olarak oluşturulur ve şifrelenmiş şekilde saklanır.\n\n**5.2 Saklama süreleri:**\n- Hesap ve CRM verileri: sözleşme süresi boyunca + hesap silindikten sonra 30 gün\n- Mali belgeler: 5 yıl (yasal gereklilik)\n- Teknik loglar: 90 gün\n- Destek talebi verileri: 2 yıl\n\n**5.3 Koruma önlemleri:**\n- Aktarım sırasında şifreleme: TLS 1.3\n- Depolanan verilerde şifreleme: AES-256\n- Personel için çok faktörlü kimlik doğrulama\n- Düzenli güvenlik denetimleri ve sızma testleri\n- Çoklu kiracı mimarisi: her hesap veritabanı düzeyinde izole edilir\n- Personelin veriye erişimi sınırlıdır — yalnızca gerekçeli ihtiyaç halinde ve talep üzerine\n\n**5.4 Olay bildirimi:**\nHaklarınız için risk oluşturabilecek bir veri ihlali durumunda, sizi ve ilgili düzenleyici kurumları yasaların öngördüğü süreler içinde (en geç 72 saat) bilgilendireceğiz."
+        },
+        {
+          "id": "sharing",
+          "title": "6. Verilerin üçüncü taraflarla paylaşılması",
+          "content": "Kişisel verilerinizi üçüncü taraflara **satmayız**.\n\n**6.1 Yükleniciler ve alt işleyiciler:**\nVerileri, çalışmamıza yardımcı olan güvenilir hizmet sağlayıcılarla paylaşabiliriz: bulut altyapısı, ödeme sistemleri, destek hizmetleri. Her alt işleyici, en az bizimki kadar sıkı veri koruma standartlarına uymayı taahhüt eden bir sözleşmeyle bağlıdır.\n\n**6.2 Seçtiğiniz entegrasyonlar:**\nÜçüncü taraf hizmetleri (Google, Meta, Telegram vb.) bağlarsanız, veriler bu hizmetlerin kendi gizlilik politikalarına göre paylaşılır. Entegrasyonu istediğiniz zaman kapatabilirsiniz.\n\n**6.3 Kurumsal işlemler:**\nBirleşme, satın alma veya varlık satışı durumunda verileriniz, size bildirimde bulunularak ve haklarınız korunarak yeni sahibe aktarılabilir.\n\n**6.4 Yasal gereklilikler:**\nVerileri, devlet kurumlarının, mahkemelerin veya düzenleyicilerin geçerli bir talebi üzerine ifşa edebiliriz. Bu durumlarda, yasaklanmadıkça sizi bilgilendirmeyi hedefleriz."
+        },
+        {
+          "id": "rights",
+          "title": "7. Haklarınız",
+          "content": "Kişisel verilerinizle ilgili aşağıdaki haklara sahipsiniz:\n\n**Erişim hakkı** — verilerinizi işleyip işlemediğimizin teyidini talep etme ve bir kopyasını alma.\n\n**Düzeltme hakkı** — yanlış veya eksik verilerin düzeltilmesini talep etme. Verilerin çoğunu hesap ayarlarından kendiniz güncelleyebilirsiniz.\n\n**Silme hakkı (\"unutulma hakkı\")** — kişisel verilerinizin silinmesini talep etme. Yasal olarak saklama zorunlu olmadıkça, işleme amaçları için artık gerekli olmayan verileri sileriz.\n\n**İşlemeyi kısıtlama hakkı** — belirli durumlarda (örneğin doğruluğuna itiraz ederken) veri işlemenin durdurulmasını talep etme.\n\n**Veri taşınabilirliği hakkı** — verilerinizi başka bir sağlayıcıya aktarmak üzere yapılandırılmış, makine tarafından okunabilir bir formatta (CSV/JSON) alma.\n\n**İtiraz hakkı** — doğrudan pazarlama dahil, meşru menfaate dayalı işlemeye itiraz etme.\n\n**Rızayı geri çekme hakkı** — daha önce verilen rızayı, geri çekilmeden önceki işlemenin hukuka uygunluğunu etkilemeden istediğiniz zaman geri çekme.\n\nBu haklardan herhangi birini kullanmak için **privacy@lumiva.agency** adresine başvurun. 30 gün içinde yanıt veririz. Talebi reddedersek nedenini açıklarız."
+        },
+        {
+          "id": "cookies",
+          "title": "8. Çerezler",
+          "content": "**8.1 Çerez nedir:**\nÇerezler, tarayıcınız tarafından saklanan küçük metin dosyalarıdır. Bunları Hizmet'in çalışması, analitik ve kişiselleştirme için kullanırız.\n\n**8.2 Çerez türleri:**\n\n*Zorunlu (teknik)* — Platform'un çalışması için gereklidir: kimlik doğrulama, güvenlik, yük dengeleme. Devre dışı bırakılamaz.\n\n*Analitik* — Hizmet'in nasıl kullanıldığını anlamamıza yardımcı olur (Google Analytics 4, Yandex Metrica). Veriler anonimleştirilir. Ayarlardan devre dışı bırakılabilir.\n\n*Pazarlama* — ilgili reklamları göstermek için kullanılır (Meta Pixel, Google Ads). Yalnızca rızanızla ayarlanır.\n\n**8.3 Çerez yönetimi:**\nÇerezleri tarayıcı ayarlarınız veya ilk ziyarette görünen rıza banner'ı aracılığıyla yönetebilirsiniz. Analitik çerezleri devre dışı bırakmak CRM işlevselliğini etkilemez."
+        },
+        {
+          "id": "transfers",
+          "title": "9. Sınır ötesi veri aktarımı",
+          "content": "AB/AEA, Birleşik Krallık veya sınır ötesi aktarım kısıtlaması olan başka bir yargı alanındaysanız, uygun güvenceleri sağlarız:\n\n- Avrupa Komisyonu tarafından onaylanan Standart Sözleşme Hükümleri (SCC)\n- Veri koruma yeterliliği kararı bulunan ülkelere aktarım\n- Belirli yargı alanları için özel hukuki mekanizmalar\n\nKullanılan ülke ve mekanizmaların listesi privacy@lumiva.agency adresinden talep üzerine sunulur."
+        },
+        {
+          "id": "dpa",
+          "title": "10. Veri İşleme Sözleşmesi (DPA)",
+          "content": "Kuruluşunuz, müşterilerinizin kişisel verilerini işlemek için Lumiva CRM'i kullanıyorsa, siz veri sorumlusu, biz ise veri işleyiciyiz.\n\nAşağıdakileri içeren bir Veri İşleme Sözleşmesi (Data Processing Agreement) imzalamaya hazırız:\n- Veri sahibi kategorilerinin ve veri türlerinin tanımı\n- İşleme amaçları ve talimatları\n- Teknik ve organizasyonel güvenlik önlemleri\n- Alt işleyicilerin görevlendirilme koşulları\n- Olay müdahale prosedürleri\n\nDPA şablonu talep etmek veya bireysel koşulları görüşmek için privacy@lumiva.agency adresine başvurun."
+        },
+        {
+          "id": "children",
+          "title": "11. Çocuklar ve reşit olmayanlar",
+          "content": "Lumiva CRM, 18 yaş ve üzeri kişiler (veya bulunduğunuz yargı alanındaki dijital reşitlik yaşı) tarafından kullanılmak üzere tasarlanmıştır.\n\nÇocukların verilerini bilerek toplamayız. Bir çocuğun verilerinin ebeveyn rızası olmadan toplandığını öğrenirsek, bu verileri derhal sileriz.\n\nBir çocuğun bize veri sağladığını düşünüyorsanız, lütfen privacy@lumiva.agency adresinden bizimle iletişime geçin."
+        },
+        {
+          "id": "changes",
+          "title": "12. Politika'daki değişiklikler",
+          "content": "İşbu Politika'yı zaman zaman güncelleyebiliriz. Önemli değişikliklerde, değişiklik yürürlüğe girmeden en az 14 gün önce e-posta veya Platform üzerindeki bir banner aracılığıyla sizi bilgilendireceğiz.\n\nSon güncelleme tarihi sayfanın altında belirtilmiştir. Değişiklikler yürürlüğe girdikten sonra Hizmet'i kullanmaya devam etmeniz, güncellenmiş Politika'yı kabul ettiğiniz anlamına gelir.\n\nPolitika'nın önceki sürümleri talep üzerine sunulur."
+        },
+        {
+          "id": "contacts",
+          "title": "13. İletişim ve başvurular",
+          "content": "Gizlilikle ilgili sorular, haklarınızın kullanılması veya veri işlemeyle ilgili başvurular için:\n\n**E-posta:** privacy@lumiva.agency\n**Genel sorular:** hello@lumiva.agency\n**İletişim formu:** lumiva.agency/contact\n\nVeri Koruma Görevlisi (DPO) atanmıştır ve yukarıdaki iletişim bilgilerinden ulaşılabilir.\n\nHaklarınızın ihlal edildiğini düşünüyorsanız, ülkenizin yetkili denetim makamına da başvurabilirsiniz (Rusya'da — Roskomnadzor, AB'de — üye devletinizin denetim makamı)."
+        }
+      ]
+    },
+    "security": {
+      "title": "Güvenlik ve Veri Koruma",
+      "subtitle": "Lumiva CRM'de veri koruması gerçekte nasıl çalışıyor — altyapı, uygulama ve erişim düzeyinde. Pazarlama vaatleri değil, yalnızca gerçekten uygulanan şeyler.",
+      "s1Kicker": "01 · ŞİFRELEME",
+      "s1Title": "Veri şifreleme",
+      "s1Items": [
+        { "title": "Aktarım sırasında şifreleme", "desc": "Platforma yapılan tüm bağlantılar TLS 1.3 kullanır." },
+        { "title": "Depolanan verilerde şifreleme", "desc": "Veritabanındaki veriler AES-256 ile şifrelenir." },
+        { "title": "Şifre saklama", "desc": "Kullanıcı şifreleri bcrypt hash'i olarak saklanır — şifrenin kendisi hiçbir yerde açık metin olarak saklanmaz veya geri alınamaz, yalnızca sıfırlanabilir." }
+      ],
+      "s2Kicker": "02 · İZOLASYON VE ERİŞİM",
+      "s2Title": "Müşteriler arası veri izolasyonu",
+      "s2Items": [
+        { "title": "Çoklu kiracı mimarisi", "desc": "Her müşterinin (kiracının) verileri veritabanı düzeyinde izole edilir — bir kiracı API üzerinden başka birinin verisine erişemez." },
+        { "title": "Rol tabanlı erişim kontrolü (RBAC)", "desc": "Bölümlere ve işlemlere erişim, kiracı içindeki personel rolüne göre belirlenir; daha yeni modüllerde ayrıntılı izinler vardır (örn. fiyatlandırma, ayarlar, katalog yönetimi için ayrı haklar)." }
+      ],
+      "s3Kicker": "03 · UYGULAMA GÜVENLİĞİ",
+      "s3Title": "Uygulama düzeyinde koruma",
+      "s3Items": [
+        { "title": "Rate limiting", "desc": "API, aşırı yüke ve kaba kuvvet denemelerine karşı korunur: saniyede 20 istek ve 10 saniyede 100 istek." },
+        { "title": "Güvenlik HTTP başlıkları", "desc": "Helmet aracılığıyla uygulanır — clickjacking, MIME-sniffing ve diğer yaygın başlık düzeyi saldırılarına karşı koruma." },
+        { "title": "Zorunlu token secret'ı", "desc": "JWT_SECRET ortamda zorunludur ve varsayılan bir yedek değeri yoktur — bu, tahmin edilebilir bir secret'tan kaynaklanan tüm bir güvenlik açığı sınıfını ortadan kaldırır." },
+        { "title": "Yapılandırılabilir CORS", "desc": "İzin verilen kaynakların listesi bir ortam değişkeni aracılığıyla açıkça belirlenir, herhangi bir kaynağa açık bırakılmaz." }
+      ],
+      "s4Kicker": "04 · DEĞİŞİKLİK TAKİBİ",
+      "s4Title": "Değişiklik günlükleri",
+      "s4Text": "Ürünler modülü tam bir değişiklik günlüğü tutar — fiyat, maliyet, durum, SKU, barkod — her değişikliğin yazarı ve zamanıyla birlikte. Diğer CRM modülleri (Müşteri Adayları, Fırsatlar, Projeler) için eşdeğer günlükleme henüz aynı kapsamda uygulanmadı — bu bir yol haritası maddesidir, teslim edilmiş bir özellik değil.",
+      "s5Kicker": "05 · VERİ GİZLİLİĞİ",
+      "s5Title": "Verileriniz üzerinde gizlilik ve kontrol",
+      "s5Items": [
+        { "title": "Talep üzerine dışa aktarma ve silme", "desc": "Verilerinizin dışa aktarılmasını veya silinmesini talep edebilirsiniz — süreler ve süreç Gizlilik Politikası'nda açıklanmıştır." },
+        { "title": "Depolama bölgesi seçimi", "desc": "Veriler Rusya ve/veya AB'deki güvenli veri merkezlerinde saklanır." }
+      ],
+      "s5PrivacyLink": "Ayrıntılar için Gizlilik Politikası'na bakın",
+      "s6Title": "Bir güvenlik açığı mı buldunuz?",
+      "s6Text": "Bir güvenlik sorunu bulduysanız, doğrudan bizimle iletişime geçin — bu tür bildirimlere öncelik veririz.",
+      "s6EmailLabel": "Bize yazın"
+    },
+    "compare": {
+      "title": "Ekipler neden Lumiva CRM'i seçiyor",
+      "subtitle": "Belirli markalarla karşılaştırma değil — Lumiva'yı küçük/orta ölçekli işletmeler için tipik bir CRM'den gerçekten ayıran şeyler.",
+      "items": [
+        { "title": "Sadece satış değil", "desc": "Rezervasyonlar ve Otel/PMS, müşteri adayları ve fırsatlarla aynı CRM'e entegredir — harici bir CRM'e ayrı bir randevu aracı veya oda rezervasyon sistemi eklemeye gerek yok." },
+        { "title": "Geliştirici gerektirmeyen no-code", "desc": "Çalışma alanları: formüller, puanlamalar ve tablolar arası bağlantılarla tablolar, Kanban, Takvim ve Gantt — kod yazmadan ve geliştirici ekibine talep açmadan yapılandırılır." },
+        { "title": "Sadece yanıt vermekle kalmayıp harekete geçen yapay zeka", "desc": "Yapay Zeka Asistanı, sohbette komutla fiyatları, tarifeleri ve rezervasyonları değiştirir. Yapay Zeka Çalışanları, yapılandırılabilir özerkliğe ve işlemler için onay kuyruğuna sahip rol tabanlı ajanlardır." },
+        { "title": "Tek bir veri modeli", "desc": "Müşteri adayları, fırsatlar, projeler, ürünler, rezervasyonlar ve oteller aynı kişileri ve şirketleri paylaşır — veriler modüller arasında çoğaltılmaz veya birbirinden sapmaz." },
+        { "title": "Şeffaf fiyatlandırma", "desc": "9 modülün tamamı her planda mevcuttur — fark limit ve destek düzeyindedir, gizli özellik kilitlerinde değil." },
+        { "title": "Rozetlerle değil, gerçeklerle güvenlik", "desc": "TLS 1.3, AES-256, rol tabanlı erişim, veritabanı düzeyinde çoklu kiracı izolasyonu — doğrulayabileceğiniz somut teknik önlemler." }
+      ],
+      "pricingLink": "Fiyatlara bakın",
+      "securityLink": "Güvenlik nasıl çalışır",
+      "ctaKicker": "Denemeye hazır mısınız?",
+      "ctaTitle": "14 gün ücretsiz. Kart gerekmez.",
+      "ctaBtn1": "Hesap oluştur",
+      "ctaBtn2": "Ekiple iletişime geçin"
     },
     "footer": {
       "tagline": "İşletme büyümesi için akıllı CRM",
@@ -8013,7 +8620,8 @@
       "company": "Şirket",
       "rights": "Tüm hakları saklıdır.",
       "privacy": "Gizlilik Politikası",
-      "terms": "Kullanım Koşulları"
+      "terms": "Kullanım Koşulları",
+      "security": "Güvenlik"
     }
   }
 }

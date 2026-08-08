@@ -76,7 +76,7 @@ export class CompaniesController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateCompanyDto,
   ) {
-    return this.companiesService.create(user.tenantId, dto);
+    return this.companiesService.create(user.tenantId, dto, user.userId ?? user.id ?? user.sub);
   }
 
   @Patch(':id')
@@ -86,7 +86,7 @@ export class CompaniesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateCompanyDto,
   ) {
-    return this.companiesService.update(user.tenantId, id, dto);
+    return this.companiesService.update(user.tenantId, id, dto, user.userId ?? user.id ?? user.sub);
   }
 
   @Delete(':id')
@@ -95,7 +95,7 @@ export class CompaniesController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    await this.companiesService.delete(user.tenantId, id);
+    await this.companiesService.delete(user.tenantId, id, user.userId ?? user.id ?? user.sub);
     return { success: true };
   }
 
@@ -136,7 +136,7 @@ export class CompaniesController {
   }
 
   @Post('tasks')
-  @RequirePermission('companies', 'write')
+  @RequirePermission('companies_manage_tasks', 'write')
   async createTask(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateCompanyTaskDto,
@@ -145,7 +145,7 @@ export class CompaniesController {
   }
 
   @Patch('tasks/:taskId')
-  @RequirePermission('companies', 'write')
+  @RequirePermission('companies_manage_tasks', 'write')
   async updateTask(
     @CurrentUser() user: CurrentUserPayload,
     @Param('taskId', new ParseUUIDPipe()) taskId: string,
@@ -155,7 +155,7 @@ export class CompaniesController {
   }
 
   @Patch('tasks/:taskId/status')
-  @RequirePermission('companies', 'write')
+  @RequirePermission('companies_manage_tasks', 'write')
   async changeTaskStatus(
     @CurrentUser() user: CurrentUserPayload,
     @Param('taskId', new ParseUUIDPipe()) taskId: string,
@@ -170,7 +170,7 @@ export class CompaniesController {
   }
 
   @Delete('tasks/:taskId')
-  @RequirePermission('companies', 'delete')
+  @RequirePermission('companies_manage_tasks', 'delete')
   async deleteTask(
     @CurrentUser() user: CurrentUserPayload,
     @Param('taskId', new ParseUUIDPipe()) taskId: string,

@@ -378,7 +378,7 @@ export async function createCheckoutSession(payload: {
 }
 
 export async function createAiAddonCheckoutSession(payload: {
-  kind: 'ai_prepaid' | 'storage_pack';
+  kind: 'ai_prepaid' | 'storage_pack' | 'telephony_addon';
   successUrl: string;
   cancelUrl: string;
 }): Promise<{ id: string; url: string | null }> {
@@ -392,6 +392,19 @@ export async function confirmCheckoutSession(sessionId: string): Promise<{ ok: b
   return request(`/billing/checkout-confirm?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'GET',
   });
+}
+
+export async function createPortalSession(payload: { returnUrl: string }): Promise<{ url: string }> {
+  return request('/billing/portal-session', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchBillingPlanFeatures(): Promise<
+  Record<'standard' | 'professional' | 'enterprise' | 'ultimate', string[]>
+> {
+  return request('/billing/plan-features', { method: 'GET' });
 }
 
 // ---------- ОБЩИЙ API-ВРАППЕР ----------

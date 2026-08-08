@@ -592,6 +592,8 @@
     },
     "nav": {
       "dashboard": "Home",
+      "biDashboard": "BI Dashboard",
+      "teamCalendar": "Team Calendar",
       "leads": "Leads",
       "leadsNew": "New lead",
       "leadsLost": "Lost leads",
@@ -624,7 +626,6 @@
       "bookingResources": "Resources",
       "bookingAvailability": "Availability",
       "bookingAnalytics": "Analytics",
-      "bookingTemplates": "Templates",
       "bookingLogs": "Logs",
       "bookingSettings": "Settings",
       "hotels": "Hotel reservations",
@@ -642,6 +643,7 @@
       "marketing": "Marketing",
       "marketingTraffic": "Traffic",
       "marketingCampaigns": "Campaigns (ROAS)",
+      "marketingBroadcasts": "Broadcasts",
       "marketingUtms": "UTM tags",
       "marketingSegments": "Segments",
       "marketingStatuses": "Lead / client statuses",
@@ -659,15 +661,26 @@
       "contacts": "Contacts",
       "tools": "Tools",
       "toolsAutomations": "Automations",
+      "pendingApprovals": "Pending approvals",
       "integrationsHub": "Integrations",
       "toolsTelegram": "Telegram",
+      "telegramInbox": "Telegram · Inbox",
+      "whatsappInbox": "WhatsApp · Inbox",
       "toolsWebForms": "Site forms",
       "chat": "Chat",
+      "helpdesk": "Helpdesk",
+      "esign": "E-signature",
       "clientAccounts": "Client accounts",
       "sms": "SMS",
       "smsMessages": "Messages",
       "smsSettings": "SMS Settings",
+      "telephony": "SMS & Telephony",
+      "telephonyCalls": "Calls",
+      "telephonyAnalytics": "Analytics",
+      "telephonySettings": "Settings",
       "deduplication": "Deduplication",
+      "auditLog": "Activity log",
+      "exportBackup": "Export & backup",
       "staff": "Staff",
       "staffList": "Staff list",
       "staffPermissions": "Access rights",
@@ -675,6 +688,7 @@
       "settings": "Settings",
       "settingsCompany": "Company settings",
       "settingsApi": "API & integrations",
+      "apiTokens": "API tokens",
       "settingsAccount": "Account",
       "aiEmployees": "AI Employees",
       "aiEmployeesDashboard": "Dashboard",
@@ -3699,6 +3713,68 @@
         "dimensionValueSuffix": "{{label}} — value"
       }
     },
+    "telegram": {
+      "inbox": {
+        "title": "Telegram · Inbox",
+        "subtitle": "Conversations with everyone who has messaged your Telegram bots",
+        "listHeading": "Conversations",
+        "searchPlaceholder": "Search by name, username or phone",
+        "loadingContacts": "Loading conversations...",
+        "empty": "No conversations yet",
+        "contactFallback": "No name",
+        "you": "You",
+        "selectPrompt": "Select a conversation on the left",
+        "openLead": "Open lead",
+        "noLeadYet": "No lead created yet",
+        "refresh": "Refresh",
+        "loadingMessages": "Loading messages...",
+        "replyPlaceholder": "Type a message...",
+        "send": "Send",
+        "noBots": "No Telegram bot is connected yet.",
+        "noBotsLink": "Connect a bot",
+        "attachmentPhoto": "📷 Photo",
+        "attachmentDocument": "📎 Document",
+        "attachmentVoice": "🎤 Voice message",
+        "attachmentVideo": "🎬 Video",
+        "attachmentSticker": "🖼 Sticker",
+        "attachmentLocation": "📍 Location",
+        "attachmentOther": "Attachment",
+        "errors": {
+          "sendFailed": "Failed to send message"
+        }
+      }
+    },
+    "whatsapp": {
+      "inbox": {
+        "title": "WhatsApp · Inbox",
+        "subtitle": "Conversations with everyone who has messaged you on WhatsApp",
+        "listHeading": "Conversations",
+        "searchPlaceholder": "Search by name or number",
+        "loadingContacts": "Loading conversations...",
+        "empty": "No conversations yet",
+        "contactFallback": "No name",
+        "you": "You",
+        "selectPrompt": "Select a conversation on the left",
+        "openLead": "Open lead",
+        "noLeadYet": "No lead created yet",
+        "refresh": "Refresh",
+        "loadingMessages": "Loading messages...",
+        "replyPlaceholder": "Type a message...",
+        "send": "Send",
+        "noConnections": "No WhatsApp number is connected yet.",
+        "noConnectionsLink": "Connect WhatsApp",
+        "attachmentPhoto": "📷 Photo",
+        "attachmentDocument": "📎 Document",
+        "attachmentVoice": "🎤 Voice message",
+        "attachmentVideo": "🎬 Video",
+        "attachmentSticker": "🖼 Sticker",
+        "attachmentLocation": "📍 Location",
+        "attachmentOther": "Attachment",
+        "errors": {
+          "sendFailed": "Failed to send message"
+        }
+      }
+    },
     "integrationsHub": {
       "title": "Integrations",
       "subtitle": "Connector catalog, connections, marketing, and sync live here. IF/THEN scenarios are created and edited under Automations.",
@@ -4044,6 +4120,87 @@
         }
       }
     },
+    "marketingBroadcasts": {
+      "list": {
+        "title": "Broadcasts",
+        "subtitle": "Scheduled, multi-step email/SMS broadcasts to a lead segment — unlike a one-off send from the mailbox",
+        "create": "+ New broadcast",
+        "loading": "Loading…",
+        "empty": "No broadcasts yet",
+        "colName": "Name",
+        "colChannel": "Channel",
+        "colStatus": "Status",
+        "colSteps": "Steps",
+        "colSent": "Sent",
+        "colScheduled": "Scheduled for",
+        "colActions": "Actions",
+        "edit": "Edit",
+        "delete": "Delete",
+        "cancel": "Cancel",
+        "confirmCancel": "Cancel this broadcast? Steps that haven't been sent yet won't go out.",
+        "confirmDelete": "Delete this broadcast draft?",
+        "failedSuffix": "({{count}} failed)",
+        "status": {
+          "draft": "Draft",
+          "scheduled": "Scheduled",
+          "running": "Sending",
+          "completed": "Completed",
+          "cancelled": "Cancelled"
+        },
+        "errors": {
+          "loadFailed": "Failed to load broadcasts",
+          "cancelFailed": "Failed to cancel the broadcast",
+          "deleteFailed": "Failed to delete the broadcast"
+        }
+      },
+      "form": {
+        "titleNew": "New broadcast",
+        "subtitleNew": "Set up the audience and steps, then schedule the send",
+        "subtitleStatus": "Status: {{status}}",
+        "back": "← Back to list",
+        "fieldName": "Name",
+        "fieldNamePlaceholder": "e.g. New-lead warm-up",
+        "channelLabel": "Channel",
+        "audienceLabel": "Audience",
+        "audienceAllEmail": "All leads with an email",
+        "audienceAllPhone": "All leads with a phone number",
+        "audienceHint": "Segments are created on the Marketing → Segments page",
+        "fromLabel": "From",
+        "fromPlaceholder": "Select an email account",
+        "trackOpensLabel": "Track opens",
+        "stepsHeading": "Broadcast steps",
+        "addStep": "+ Add step",
+        "stepsHint": "Step 0 sends immediately on launch (if its delay is 0). Each following step goes out the given number of days after the previous one — this builds a warm-up sequence, not a one-off blast.",
+        "stepLabel": "Step {{n}}",
+        "removeStep": "Remove",
+        "delayDaysLabel": "Delay (days)",
+        "subjectPlaceholder": "Email subject",
+        "bodyPlaceholderEmail": "Email HTML or text",
+        "bodyPlaceholderSms": "SMS text",
+        "launchHeading": "Launch",
+        "sendNow": "Send now",
+        "sendLater": "Schedule",
+        "saveDraft": "Save draft",
+        "saving": "Saving…",
+        "saveAndSend": "Save and send",
+        "saveAndSchedule": "Save and schedule",
+        "launching": "Launching…",
+        "draftHint": "Save the draft first, then launch the broadcast.",
+        "statsLine": "Sent/active: {{done}} of {{total}}",
+        "statsFailed": " · failed: {{count}}",
+        "loading": "Loading…",
+        "success": {
+          "sent": "Broadcast launched",
+          "scheduled": "Broadcast scheduled"
+        },
+        "errors": {
+          "nameRequired": "Enter a broadcast name",
+          "loadFailed": "Failed to load the broadcast",
+          "saveFailed": "Failed to save the broadcast",
+          "scheduleFailed": "Failed to launch the broadcast"
+        }
+      }
+    },
     "salesIntegrations": {
       "kicker": "Sales integrations",
       "title": "Sales channel integrations",
@@ -4247,6 +4404,23 @@
       }
     },
     "automations": {
+      "approvals": {
+        "title": "Pending approvals",
+        "subtitle": "Automation steps that paused waiting for a staff member to approve them",
+        "back": "← Back to automations",
+        "loading": "Loading…",
+        "empty": "No runs are waiting for approval",
+        "pendingStep": "Waiting on step {{step}}",
+        "triggeredAt": "Started: {{date}}",
+        "notePlaceholder": "Note (optional)",
+        "approve": "Approve",
+        "reject": "Reject",
+        "deciding": "Saving…",
+        "errors": {
+          "loadFailed": "Failed to load the list",
+          "decideFailed": "Failed to save the decision"
+        }
+      },
       "list": {
         "title": "Automations",
         "subtitle": "Rule-based automations (IF/THEN)",
@@ -4673,10 +4847,12 @@
             "reportsExport": "Reports & export",
             "integrations": "Integrations",
             "bookings": "Bookings",
-            "hotels": "Hotels"
+            "hotels": "Hotels",
+            "products": "Products"
           },
           "triggerDesc": {
-            "scheduled": "CRON or interval"
+            "scheduled": "CRON or interval",
+            "stale": "Checked once a day · 14-day no-activity threshold"
           },
           "actionDesc": {
             "send_email": "Template or custom email"
@@ -4745,7 +4921,13 @@
           "actionStepCaption": "Action · step {{n}} of {{total}}",
           "cfgTabParams": "Parameters",
           "cfgTabConditions": "Conditions",
+          "cfgTabTiming": "Delay/approval",
           "cfgTabLogs": "Logs",
+          "stepTimingIntro": "Optional: pause execution before this step. The pause doesn't block anything else — the flow continues later (on schedule, or once a staff member approves it).",
+          "delayMinutesLabel": "Delay before this step (minutes)",
+          "delayMinutesHelp": "The flow stops here and continues this many minutes after the previous step.",
+          "requireApprovalCheckbox": "Require staff approval before this step",
+          "requireApprovalHelp": "The flow stops here until someone approves it on the \"Pending approvals\" page.",
           "triggerFieldLabel": "Trigger event",
           "scheduleSection": "Schedule",
           "generalSection": "General",
@@ -4781,15 +4963,32 @@
           "pickEmailTemplate": "— no template —",
           "createEmailTemplate": "Create template",
           "subjectPlaceholder": "Subject",
+          "emailToAutoHint": "Leave empty to send to the lead/contact email, or the customer email from the booking/reservation that triggered this automation.",
           "emailBodyPlaceholder": "Email body…",
           "slackMessagePlaceholder": "Slack message",
           "teamsTitlePlaceholder": "Notification",
           "teamsTextPlaceholder": "Notification text",
           "whatsappMessagePlaceholder": "Message",
+          "smsConfigHint": "Sent via the SMS provider connected under SMS → Settings (Twilio / SMSC.ru / SMS.ru).",
+          "smsMessagePlaceholder": "SMS text",
           "notificationTitlePlaceholder": "Notification",
           "notificationBodyPlaceholder": "Notification body: {{lead.name}}",
           "notificationRecipientsPlaceholder": "— all staff —",
           "notificationRecipientsHelp": "Leave empty — every active staff member receives it.",
+          "variablePickerLabel": "Insert variable:",
+          "tokenClientName": "Client name",
+          "tokenService": "Service",
+          "tokenDate": "Date",
+          "tokenTime": "Time",
+          "tokenStaff": "Staff",
+          "tokenLocationAddress": "Location address",
+          "tokenBookingId": "Booking ID",
+          "tokenStatus": "Status",
+          "tokenGuestName": "Guest name",
+          "tokenRoomType": "Room type",
+          "tokenCheckIn": "Check-in",
+          "tokenCheckOut": "Check-out",
+          "tokenHotelName": "Hotel",
           "assignStaffPlaceholder": "— choose staff —",
           "assignStaffHelp": "You can pick several — the record is assigned to each.",
           "notePlaceholder": "Note content…",
@@ -4840,6 +5039,7 @@
           "taskIdLabel": "Task ID",
           "staffLabel": "Staff *",
           "phoneToLabel": "To (phone)",
+          "phoneToAutoHint": "Leave empty to use the lead/contact phone, or the customer phone from the booking/reservation that triggered this automation.",
           "paramsJsonLabel": "Parameters (JSON)",
           "apiMethodLabel": "API method",
           "bitrixConnectionLabel": "Bitrix24 connection",
@@ -4950,7 +5150,12 @@
           "HOTEL_RESERVATION_STATUS_CHANGED": "Hotel reservation status changed",
           "HOTEL_PRICE_CHANGED": "Room price changed",
           "HOTEL_STOP_SALE_SET": "Room stop-sale changed",
-          "HOTEL_LOW_AVAILABILITY": "Low room availability"
+          "HOTEL_LOW_AVAILABILITY": "Low room availability",
+          "PRODUCT_PRICE_CHANGED": "Product price changed",
+          "PRODUCT_STATUS_CHANGED": "Product status changed",
+          "PRODUCT_STOCK_LOW": "Product stock low",
+          "LEAD_STALE": "Lead has gone stale",
+          "SALE_STALE": "Deal has gone stale"
         },
         "report": {
           "type": "Report type",
@@ -5297,6 +5502,7 @@
           "send_mailchimp_campaign": "Mailchimp / audience broadcast",
           "send_zapier": "Send to Zapier (Catch Hook)",
           "send_whatsapp": "Send to WhatsApp",
+          "send_sms": "Send SMS",
           "send_google_calendar": "Google Calendar event",
           "send_outlook_calendar": "Outlook event (Microsoft 365)",
           "send_bitrix": "Bitrix24 call (REST)",
@@ -5678,6 +5884,9 @@
           "projects-analytics": "Project analytics",
           "leads-analytics": "Lead analytics",
           "sales-analytics": "Sales analytics",
+          "products-analytics": "Products analytics",
+          "bookings-analytics": "Bookings analytics",
+          "hotels-analytics": "Hotel analytics",
           "profile-completion": "Complete your profile",
           "learn-inspire": "Learn & get inspired",
           "funnel_today": "Today's Funnel",
@@ -5779,6 +5988,24 @@
         "kpiCount": "Orders",
         "kpiAmount": "Amount",
         "openFull": "Full sales analytics"
+      },
+      "productsAnalyticsWidget": {
+        "kpiActive": "Active products",
+        "kpiLowStock": "Low/out of stock",
+        "catalogValue": "Catalog value",
+        "openFull": "Full products analytics"
+      },
+      "bookingsAnalyticsWidget": {
+        "kpiReservations": "Reservations",
+        "kpiOccupancy": "Occupancy",
+        "avgCheck": "Avg. check",
+        "openFull": "Full bookings analytics"
+      },
+      "hotelsAnalyticsWidget": {
+        "kpiOccupancy": "Occupancy now",
+        "kpiRoomsAvailable": "Rooms available",
+        "revenue": "Revenue",
+        "openFull": "Full hotel analytics"
       },
       "addToHomeFromAnalytics": "Add to home",
       "presets": {
@@ -7142,8 +7369,16 @@
         }
       },
       "permissions": {
+        "helpdesk": "Helpdesk (tickets)",
+        "esign": "E-signature",
+        "leads_view_roi": "View lead ROI",
+        "sales": "Sales",
+        "sales_manage_import": "Import sales from CSV",
         "contacts": "Contacts",
+        "contacts_manage_bulk": "Bulk-edit contacts",
+        "notes": "Notes",
         "companies": "Companies",
+        "companies_manage_tasks": "Company tasks",
         "products": "Products",
         "products_manage_fields": "Product field builder",
         "products_manage_stock": "Stock adjustments",
@@ -7153,8 +7388,12 @@
         "hotels": "Hotel reservation system",
         "hotels_manage_pricing": "Manage hotel pricing and markets",
         "hotels_manage_reservations": "Hotel check-in/out, payments and rooms",
+        "projects_manage_trash": "Delete and restore projects",
         "email": "Email",
         "marketing": "Marketing",
+        "telegram": "Telegram",
+        "whatsapp": "WhatsApp",
+        "telephony": "Telephony",
         "tools_automation": "Automation",
         "custom_objects": "No-code Workspace",
         "group": {
@@ -7166,6 +7405,11 @@
         "hint": {
           "staff": "Staff management, invites",
           "settings": "Company settings, API, integrations",
+          "leads_view_roi": "Access to the lead ROI report (sales totals, revenue)",
+          "sales_manage_import": "Upload sales from a CSV file",
+          "contacts_manage_bulk": "Bulk changes across multiple contacts at once",
+          "companies_manage_tasks": "Create, edit and delete company tasks",
+          "projects_manage_trash": "Delete, restore and empty the project trash",
           "products_manage_fields": "Custom field types and variation attributes",
           "products_manage_stock": "Stock corrections in the Stock section",
           "products_publish": "Approve or reject requests to show a product in the public catalog",
@@ -7895,6 +8139,23 @@
       }
     }
   },
+  "landing": {
+    "nav": {
+      "login": "Log in"
+    },
+    "hero": {
+      "titleLine1": "Data.",
+      "titleLine1Light": "Channels.",
+      "titleLine2": "Funnel.",
+      "titleLine2Light": "One place.",
+      "mainSubtitle": "We turn chaos into a working growth system. Leads, deals, analytics, and communications — one unified loop for marketing and sales teams.",
+      "ctaStart": "Start free for 14 days",
+      "ctaTour": "Watch the tour",
+      "metricClients": "CLIENTS",
+      "metricLeads": "LEADS PROCESSED",
+      "metricCountries": "COUNTRIES"
+    }
+  },
   "publicPages": {
     "nav": {
       "development": "Development",
@@ -7906,11 +8167,15 @@
       "marketing": "Marketing",
       "sales": "Sales",
       "client-accounts": "Client Accounts",
-      "inventory": "Product Catalog",
+      "products": "Products",
       "warehouse": "Warehouse",
+      "booking": "Bookings",
+      "hotels": "Hotels/PMS",
       "pricing": "Pricing",
       "blog": "Blog",
       "privacy": "Privacy",
+      "security": "Security",
+      "compare": "Why Lumiva",
       "features": "Features",
       "about": "About",
       "contact": "Contact",
@@ -7953,10 +8218,32 @@
       "techTitle": "Built with",
       "ctaTitle": "Want to get to know us better?",
       "ctaSubtitle": "Book a demo and we'll show you everything about the product",
+      "ctaBtnDemo": "Book a demo",
+      "ctaBtnFeatures": "See features",
+      "missionAttribution": "The Lumiva CRM team",
       "statsClients": "Clients",
       "statsIntegrations": "Integrations",
       "statsUptime": "Uptime",
-      "statsYears": "Years on market"
+      "statsYears": "Years on market",
+      "statsYearsValue": "4 years",
+      "values": [
+        { "title": "Simplicity", "desc": "We build a product people want to use every day. Nothing extra — only what a business actually needs." },
+        { "title": "Speed", "desc": "A fast interface, fast support replies, and fast rollout. We respect your time." },
+        { "title": "Reliability", "desc": "Your data is safe. Isolated accounts, encryption, and regular backups." },
+        { "title": "Partnership", "desc": "We build long-term relationships. Every client is a partner, not just a user." }
+      ],
+      "milestones": [
+        { "year": "2022", "text": "Company founded. First CRM prototypes." },
+        { "year": "2023", "text": "Beta launch. First 50 clients." },
+        { "year": "2024", "text": "Public release. Workspaces and automations." },
+        { "year": "2025", "text": "Integrations with 20+ services. AI assistant." },
+        { "year": "2026", "text": "New design, mobile app. 3× growth." }
+      ],
+      "techStack": [
+        { "label": "Frontend", "stack": "React 19, TypeScript, Tailwind CSS, Framer Motion" },
+        { "label": "Backend", "stack": "NestJS, TypeORM, PostgreSQL, JWT authentication" },
+        { "label": "Infrastructure", "stack": "Docker, GitHub Actions CI/CD, Nginx, SSL/TLS" }
+      ]
     },
     "contact": {
       "title": "Request a demo",
@@ -7968,17 +8255,78 @@
       "fieldPhone": "Phone",
       "fieldTeamSize": "Team size",
       "fieldMessage": "Describe your challenge",
+      "namePlaceholder": "John Smith",
+      "emailPlaceholder": "john@company.com",
+      "companyPlaceholder": "Acme Inc.",
+      "phonePlaceholder": "+1 (555) 000-0000",
+      "messagePlaceholder": "What do you want to automate? What's slowing you down?",
       "fieldTeamSizePlaceholder": "Select...",
+      "teamSizeOpt1": "1–5 people",
+      "teamSizeOpt2": "6–20 people",
+      "teamSizeOpt3": "21–50 people",
+      "teamSizeOpt4": "50+",
       "submitBtn": "Request demo →",
       "submitting": "Sending...",
+      "errorText": "Something went wrong. Please try again or reach us directly.",
+      "consentPrefix": "By clicking the button, you agree to the",
+      "consentLink": "privacy policy",
       "successTitle": "Request sent!",
       "successText": "We'll get back to you within one business day.",
       "sendAnother": "Send another",
       "sidebarTitle": "What you get in the demo",
+      "benefit1": "A full walkthrough of the platform tailored to your case",
+      "benefit2": "Pipeline and workspace setup",
+      "benefit3": "A demo of the key integrations",
+      "benefit4": "Answers to all your technical questions",
+      "benefit5": "A personal rollout plan",
+      "otherWaysTitle": "Other ways to reach us",
+      "emailLabel": "Email",
+      "telegramLabel": "Telegram",
       "responseTime": "Reply within 24 hours",
       "responseHours": "Weekdays 9 AM – 6 PM Moscow time"
     },
     "faq": {
+      "linkFeatures": "Features",
+      "linkPricing": "Pricing",
+      "linkIntegrations": "Integrations",
+      "linkApi": "API docs",
+      "linkChangelog": "Changelog",
+      "categories": [
+        {
+          "category": "General",
+          "items": [
+            { "q": "What is Lumiva CRM?", "a": "Lumiva CRM is a cloud platform for managing clients, projects, and sales. It includes a CRM, no-code workspaces, automations, analytics, and integrations with popular services." },
+            { "q": "What kind of business is Lumiva for?", "a": "Small and medium businesses: from freelancers and startups to teams of 50–200 people. Used in sales, marketing, project management, and client service." },
+            { "q": "Do I need to install anything on my computer?", "a": "No. Lumiva CRM runs entirely in the browser. There's also a mobile app for iOS and Android. No installation or server maintenance required." }
+          ]
+        },
+        {
+          "category": "Pricing & billing",
+          "items": [
+            { "q": "Is there a free tier?", "a": "Yes. After signing up, the account works in a limited mode indefinitely. To unlock all modules, choose a plan." },
+            { "q": "How does billing work?", "a": "Billing is per user, per month. An annual plan gets an automatic 10–20% discount depending on the tier. We accept cards and bank transfer." },
+            { "q": "Can I cancel my subscription?", "a": "Yes, anytime. After cancellation the account switches to a limited mode; data is kept for 30 days." },
+            { "q": "Are there discounts for nonprofits and schools?", "a": "Yes. Email us at hello@lumiva.agency with supporting documents and we'll work out individual terms." }
+          ]
+        },
+        {
+          "category": "Technical questions",
+          "items": [
+            { "q": "How is my data protected?", "a": "Every client runs in an isolated account (multi-tenant architecture). All data is encrypted in transit (TLS 1.3) and at rest. Regular backups." },
+            { "q": "Is there an API for integrations?", "a": "Yes. Lumiva CRM provides a REST API with token authentication. Documentation is available in the API section after signup." },
+            { "q": "Can I import data from another CRM?", "a": "Yes. Import from Excel/CSV is supported, along with direct connectors for AmoCRM, Bitrix24, and HubSpot." },
+            { "q": "What's the platform's SLA?", "a": "We guarantee 99.9% uptime for paid plans. Scheduled maintenance is announced at least 24 hours in advance." }
+          ]
+        },
+        {
+          "category": "Integrations",
+          "items": [
+            { "q": "Which integrations are supported?", "a": "Google Analytics 4, Meta Ads, Google Ads, Mailchimp, WooCommerce, AmoCRM, Bitrix24, HubSpot, Telegram, WhatsApp, Slack, Google Sheets, WordPress CF7, Zapier, 1C, SAP, Jira, OpenAI, and more." },
+            { "q": "How do I connect a Telegram bot?", "a": "In the \"Telegram\" section, create a bot and paste the token from @BotFather. Once connected, all client messages land in the CRM and you can reply right from the interface." },
+            { "q": "Are webhooks supported?", "a": "Yes. You can set up inbound webhooks for WordPress Contact Form 7, AmoCRM, WhatsApp, and custom sources." }
+          ]
+        }
+      ],
       "title": "Frequently asked questions",
       "subtitle": "Answers to the most common questions. Didn't find an answer? Write to us.",
       "allCategory": "All",
@@ -7989,22 +8337,281 @@
     },
     "terms": {
       "title": "Terms of Service",
-      "subtitle": "Terms and conditions for using the Lumiva CRM platform.",
+      "subtitle": "Terms and conditions for using the Lumiva CRM platform. Last updated: April 2026.",
       "toc": "Table of contents",
-      "lastUpdated": "Last updated"
+      "lastUpdated": "Last updated: April 18, 2026. If you have any questions, email us at",
+      "sections": [
+        {
+          "title": "1. General provisions",
+          "content": "These Terms of Service (the \"Agreement\") govern the relationship between Lumiva LLC (the \"Company\") and the user of the Lumiva CRM platform (the \"User\").\n\nBy using the Lumiva CRM platform, the User confirms agreement with the terms of this Agreement. If the User does not agree with these terms, they must stop using the platform."
+        },
+        {
+          "title": "2. Description of the service",
+          "content": "Lumiva CRM is a cloud platform for customer relationship management, business process automation, and analytics. The platform is provided on a SaaS (Software as a Service) model.\n\nThe Company reserves the right to change functionality, add or remove modules, and change technical specifications with prior notice to users."
+        },
+        {
+          "title": "3. Registration and account",
+          "content": "3.1. To use the platform, the User must register with a valid email address and create a secure password.\n\n3.2. The User must provide accurate information at registration and keep it up to date.\n\n3.3. The User is responsible for the confidentiality of their account credentials and for all actions taken through their account.\n\n3.4. If unauthorized access to the account is discovered, the User must notify the Company immediately."
+        },
+        {
+          "title": "4. Payment terms",
+          "content": "4.1. The platform is provided on a subscription basis. Pricing is calculated based on the selected plan and the number of users.\n\n4.2. Payment is made in advance for the chosen period (monthly or annually).\n\n4.3. Upon cancellation of a subscription, no refund is issued for the unused period unless otherwise stated by the plan.\n\n4.4. The Company may change pricing with at least 30 days' notice before the change takes effect."
+        },
+        {
+          "title": "5. Rights and obligations of the parties",
+          "content": "5.1. The User must:\n• use the platform only for lawful purposes;\n• not infringe the rights of third parties while using the platform;\n• not attempt unauthorized access to other users' data;\n• comply with applicable data protection law.\n\n5.2. The Company must:\n• maintain platform availability of at least 99.9% per month;\n• give at least 24 hours' notice of scheduled maintenance;\n• store User data in accordance with the Privacy Policy."
+        },
+        {
+          "title": "6. Intellectual property",
+          "content": "6.1. All rights to the Lumiva CRM platform, including source code, design, databases, and documentation, belong to the Company.\n\n6.2. Data uploaded by the User to the platform remains the User's property. The Company does not claim rights to user data.\n\n6.3. The User is granted a limited, non-exclusive license to use the platform in accordance with the terms of this Agreement."
+        },
+        {
+          "title": "7. Data confidentiality",
+          "content": "7.1. The Company processes personal data in accordance with the Privacy Policy and applicable data protection law, including, where the User is in Russia, Federal Law No. 152-FZ \"On Personal Data.\"\n\n7.2. User data is not shared with third parties except as required by law or necessary to provide the service (for example, payment providers).\n\n7.3. Detailed information about data processing is set out in the Privacy Policy."
+        },
+        {
+          "title": "8. Limitation of liability",
+          "content": "8.1. The platform is provided \"as is.\" The Company does not guarantee uninterrupted, error-free operation.\n\n8.2. The Company is not liable for indirect losses, lost profits, or data loss arising from use or inability to use the platform.\n\n8.3. The Company's maximum liability is limited to the amount paid by the User over the last 3 months of using the service."
+        },
+        {
+          "title": "9. Changes and termination",
+          "content": "9.1. The Company may change the terms of this Agreement with at least 14 days' notice to the User.\n\n9.2. The User may terminate this Agreement at any time by sending a notice to hello@lumiva.agency.\n\n9.3. Upon termination, User data is retained for 30 days and then deleted."
+        },
+        {
+          "title": "10. Governing law",
+          "content": "This Agreement is governed by the laws of the Russian Federation. All disputes are resolved in court at the Company's place of registration.\n\nFor questions related to this Agreement, contact: hello@lumiva.agency"
+        }
+      ]
     },
     "changelog": {
       "title": "Changelog",
-      "subtitle": "What's new in Lumiva CRM. We continuously improve the platform.",
+      "subtitle": "What's new in Lumiva CRM. We continuously improve the platform based on customer feedback.",
       "latest": "Latest",
       "subscribeTitle": "Stay up to date",
-      "subscribeSubtitle": "Follow our Telegram channel to be the first to know about new features.",
+      "subscribeSubtitle": "Follow our Telegram channel or RSS to be the first to know about new features.",
       "telegramBtn": "Telegram channel",
       "suggestBtn": "Suggest a feature",
       "tagNew": "New",
       "tagImproved": "Improved",
       "tagFixed": "Fixed",
-      "tagSecurity": "Security"
+      "tagSecurity": "Security",
+      "releasesCount": "releases",
+      "followTitle": "Follow the updates",
+      "releases": [
+        {
+          "version": "2.5.0",
+          "date": "April 18, 2026",
+          "highlight": "New design and marketing pages",
+          "changes": [
+            { "type": "new", "text": "Unified design system: Button, Card, Badge, Modal, Input components" },
+            { "type": "new", "text": "New pages: Features, About, Contact, FAQ, Terms, Changelog" },
+            { "type": "new", "text": "Redesigned footer with section navigation" },
+            { "type": "improved", "text": "Buttons and forms now look consistent across the whole CRM" },
+            { "type": "improved", "text": "Rate limiting: API protection against overload (20 req/s, 100 req/10s)" },
+            { "type": "security", "text": "JWT_SECRET no longer has a fallback value — it's now required in the environment" },
+            { "type": "security", "text": "Added security HTTP headers via Helmet" },
+            { "type": "security", "text": "CORS origins moved to the CORS_ORIGINS environment variable" },
+            { "type": "fixed", "text": "synchronize: false in production — the schema no longer changes automatically" }
+          ]
+        },
+        {
+          "version": "2.4.2",
+          "date": "April 5, 2026",
+          "changes": [
+            { "type": "fixed", "text": "Fixed file uploads in workspaces failing on large volumes" },
+            { "type": "fixed", "text": "Fixed duplicate notifications in the Telegram bot" },
+            { "type": "improved", "text": "Sped up the leads page load by 40% via query optimization" }
+          ]
+        },
+        {
+          "version": "2.4.0",
+          "date": "March 20, 2026",
+          "highlight": "AI assistant and Workspace improvements",
+          "changes": [
+            { "type": "new", "text": "AI assistant: lead analysis and automatic field filling" },
+            { "type": "new", "text": "Workspaces: Gantt chart for tracking task dependencies" },
+            { "type": "new", "text": "Workspace: saved views with filters and sorting" },
+            { "type": "improved", "text": "Mobile-friendly interface for screens < 768px" },
+            { "type": "improved", "text": "New workspace field types: formula, rating, progress" },
+            { "type": "fixed", "text": "Fixed Excel import with Russian column headers" }
+          ]
+        },
+        {
+          "version": "2.3.0",
+          "date": "February 1, 2026",
+          "highlight": "Meta Ads and Google Ads integration",
+          "changes": [
+            { "type": "new", "text": "Meta Ads integration: campaign and conversion import" },
+            { "type": "new", "text": "Google Ads integration: spend and click sync" },
+            { "type": "new", "text": "Marketing: channel comparison dashboard" },
+            { "type": "improved", "text": "Analytics: report export to Excel with formatting" },
+            { "type": "security", "text": "Updated dependencies: fixed 3 CVEs in packages" }
+          ]
+        },
+        {
+          "version": "2.2.0",
+          "date": "December 15, 2025",
+          "highlight": "Telegram CRM and live chat",
+          "changes": [
+            { "type": "new", "text": "Telegram CRM: chat with clients directly in the CRM via bots" },
+            { "type": "new", "text": "Live chat: a website widget with conversation history" },
+            { "type": "new", "text": "WhatsApp: receive inbound messages via webhook" },
+            { "type": "improved", "text": "Email: bulk sending with open tracking" },
+            { "type": "fixed", "text": "Fixed the unread message counter in the sidebar" }
+          ]
+        },
+        {
+          "version": "2.1.0",
+          "date": "October 10, 2025",
+          "highlight": "Workspaces v2",
+          "changes": [
+            { "type": "new", "text": "Workspaces: Kanban and Calendar views in addition to the table" },
+            { "type": "new", "text": "Custom fields: links between tables (entity ref)" },
+            { "type": "new", "text": "Automations: event-based triggers in workspaces" },
+            { "type": "improved", "text": "Performance: table data caching" }
+          ]
+        }
+      ]
+    },
+    "privacy": {
+      "title": "Privacy Policy",
+      "subtitle": "Lumiva CRM takes protecting your data seriously. Here's a detailed look at what we collect, how we use it, and how we protect your information.",
+      "items": [
+        "We only process the data required to run the CRM, support customers, and issue invoices.",
+        "Data access is role-restricted, and critical actions are logged in an audit trail.",
+        "Export or deletion of data is available on request, within agreed timeframes."
+      ],
+      "lastUpdatedBadge": "Last updated: April 19, 2026",
+      "gdprBadge": "GDPR compliant",
+      "toc": "Table of contents",
+      "footerTitle": "Still have questions?",
+      "footerText": "If you have questions about this Policy or want to exercise your rights, email us at",
+      "footerOr": "or use our",
+      "footerForm": "contact form",
+      "footerResponse": "We'll respond within 30 days.",
+      "sections": [
+        {
+          "id": "general",
+          "title": "1. General provisions",
+          "content": "This Privacy Policy (the \"Policy\") describes how Lumiva CRM (the \"Company\", \"we\", \"us\") collects, uses, stores, and protects the personal data of users of the lumiva.agency platform (the \"Platform\", \"Service\").\n\nBy using the Platform, you agree to the terms of this Policy. If you do not agree, please stop using the Service.\n\nThe Policy applies to all users: individuals, organization representatives, and any other people interacting with the Platform. It covers all products, websites, and mobile apps operating under the Lumiva CRM brand."
+        },
+        {
+          "id": "data-collected",
+          "title": "2. What data we collect",
+          "content": "**2.1 Data you provide directly:**\n- First name, last name, or a display name\n- Email address\n- Phone number (when filling out forms)\n- Organization name and job title\n- Payment details (processed by the payment provider, not stored on our servers)\n- Any data entered into the CRM (contacts, deals, notes, files)\n\n**2.2 Data collected automatically:**\n- IP address and country/city-level geolocation\n- Browser type, operating system, screen resolution\n- Login date and time, session duration\n- Pages and features you visit and use\n- UTM tags and referral sources\n- Error and crash data (logs)\n\n**2.3 Data from third-party sources:**\n- Information from connected integrations (Google Analytics, Meta Ads, AmoCRM, and others) — only to the extent you explicitly authorized when connecting\n- Publicly available profile data (if you sign in via OAuth)"
+        },
+        {
+          "id": "purpose",
+          "title": "3. Purposes of processing",
+          "content": "We process your data solely for the following purposes:\n\n**3.1 Providing the Service:**\nCreating and managing your account, granting access to CRM features, syncing data across devices, fulfilling contractual obligations.\n\n**3.2 Improving the product:**\nAnalyzing feature usage, identifying bugs and bottlenecks, prioritizing new development. Data is anonymized or aggregated before analysis.\n\n**3.3 Communication:**\nSending transactional emails (registration confirmation, password reset, plan change notices) and responding to support requests. Marketing emails only with your explicit consent.\n\n**3.4 Security:**\nPreventing fraud, unauthorized access, and abuse. Complying with legal requirements.\n\n**3.5 Billing:**\nIssuing invoices, processing payments, keeping financial records. Transaction data is retained in accordance with tax law requirements."
+        },
+        {
+          "id": "legal-basis",
+          "title": "4. Legal basis",
+          "content": "We process data on the following legal bases:\n\n**Contract performance** — when processing is necessary to provide the Service you requested (account creation, transactions).\n\n**Legitimate interest** — for improving security, preventing abuse, and enhancing the product. In these cases we balance our interests against your privacy rights.\n\n**Consent** — for marketing emails and analytics cookies. You may withdraw consent at any time without affecting your use of the Service.\n\n**Legal obligation** — when processing is required to comply with applicable law (tax, accounting, or regulator requests)."
+        },
+        {
+          "id": "storage",
+          "title": "5. Storage and protection of data",
+          "content": "**5.1 Where data is stored:**\nData is stored on servers in secure data centers. Core infrastructure is located in Russia and/or the EU. Backups are created daily and stored encrypted.\n\n**5.2 Retention periods:**\n- Account and CRM data: for the full term of the contract + 30 days after account deletion\n- Financial documents: 5 years (legal requirement)\n- Technical logs: 90 days\n- Support request data: 2 years\n\n**5.3 Protection measures:**\n- Encryption in transit: TLS 1.3\n- Encryption at rest: AES-256\n- Multi-factor authentication for staff\n- Regular security audits and penetration testing\n- Multi-tenant architecture: each account is isolated at the database level\n- Restricted staff access to data — only on a documented need basis and on request\n\n**5.4 Incident notification:**\nIn the event of a data breach that could pose a risk to your rights, we will notify you and the relevant regulators within the timeframes required by law (no later than 72 hours)."
+        },
+        {
+          "id": "sharing",
+          "title": "6. Sharing data with third parties",
+          "content": "We **do not sell** your personal data to third parties.\n\n**6.1 Contractors and sub-processors:**\nWe may share data with trusted service providers who help us operate: cloud infrastructure, payment systems, support services. Every sub-processor is bound by a contract requiring data protection standards no less strict than ours.\n\n**6.2 Integrations you choose:**\nIf you connect third-party services (Google, Meta, Telegram, etc.), data is shared with those services per their own privacy policies. You can disconnect an integration at any time.\n\n**6.3 Corporate transactions:**\nIn the event of a merger, acquisition, or sale of assets, your data may be transferred to the new owner — with notice to you and your rights preserved.\n\n**6.4 Legal requirements:**\nWe may disclose data in response to a valid request from government authorities, courts, or regulators. In such cases, we aim to notify you unless prohibited by law."
+        },
+        {
+          "id": "rights",
+          "title": "7. Your rights",
+          "content": "You have the following rights regarding your personal data:\n\n**Right of access** — request confirmation of whether we process your data, and obtain a copy of it.\n\n**Right to rectification** — request correction of inaccurate or incomplete data. Most data can be updated yourself in account settings.\n\n**Right to erasure (\"right to be forgotten\")** — request deletion of your personal data. We will delete data no longer needed for the processing purposes, except where retention is legally required.\n\n**Right to restrict processing** — request that processing be paused in certain situations (for example, while you dispute its accuracy).\n\n**Right to data portability** — receive your data in a structured, machine-readable format (CSV/JSON) to transfer to another provider.\n\n**Right to object** — object to processing based on legitimate interest, including for direct marketing.\n\n**Right to withdraw consent** — withdraw previously given consent at any time, without affecting the lawfulness of processing before withdrawal.\n\nTo exercise any of these rights, contact **privacy@lumiva.agency**. We will respond within 30 days. If we decline a request, we will explain why."
+        },
+        {
+          "id": "cookies",
+          "title": "8. Cookies",
+          "content": "**8.1 What cookies are:**\nCookies are small text files stored by your browser. We use them to run the Service, for analytics, and for personalization.\n\n**8.2 Types of cookies:**\n\n*Essential (technical)* — required for the Platform to work: authentication, security, load balancing. Cannot be disabled.\n\n*Analytics* — help us understand how the Service is used (Google Analytics 4, Yandex Metrica). Data is anonymized. Can be disabled in settings.\n\n*Marketing* — used to show relevant ads (Meta Pixel, Google Ads). Set only with your consent.\n\n**8.3 Managing cookies:**\nYou can manage cookies via your browser settings or the consent banner on first visit. Disabling analytics cookies does not affect CRM functionality."
+        },
+        {
+          "id": "transfers",
+          "title": "9. Cross-border data transfers",
+          "content": "If you are located in the EU/EEA, the UK, or another jurisdiction with cross-border transfer restrictions, we apply appropriate safeguards:\n\n- Standard Contractual Clauses (SCCs) approved by the European Commission\n- Transfers to countries with an adequacy decision\n- Specific legal mechanisms for particular jurisdictions\n\nA list of countries and mechanisms used is available on request at privacy@lumiva.agency."
+        },
+        {
+          "id": "dpa",
+          "title": "10. Data Processing Agreement (DPA)",
+          "content": "If your organization uses Lumiva CRM to process your customers' personal data, you are the controller and we are the data processor.\n\nWe're ready to sign a Data Processing Agreement, which includes:\n- A description of data subject categories and data types\n- Processing purposes and instructions\n- Technical and organizational security measures\n- Terms for engaging sub-processors\n- Incident response procedures\n\nTo request a DPA template or negotiate individual terms, contact privacy@lumiva.agency."
+        },
+        {
+          "id": "children",
+          "title": "11. Children and minors",
+          "content": "Lumiva CRM is intended for use by people 18 years of age or older (or the age of digital consent in your jurisdiction).\n\nWe do not knowingly collect children's data. If we learn that a child's data was collected without parental consent, we will delete it immediately.\n\nIf you believe a child has provided us with data, please contact us at privacy@lumiva.agency."
+        },
+        {
+          "id": "changes",
+          "title": "12. Changes to this Policy",
+          "content": "We may update this Policy from time to time. For material changes, we will notify you by email or via a banner on the Platform at least 14 days before the change takes effect.\n\nThe date of the last update is shown at the bottom of the page. Continued use of the Service after changes take effect constitutes acceptance of the revised Policy.\n\nPrevious versions of the Policy are available on request."
+        },
+        {
+          "id": "contacts",
+          "title": "13. Contact us",
+          "content": "For privacy questions, exercising your rights, or inquiries related to data processing:\n\n**Email:** privacy@lumiva.agency\n**General questions:** hello@lumiva.agency\n**Contact form:** lumiva.agency/contact\n\nA Data Protection Officer (DPO) has been appointed and is reachable at the contacts above.\n\nIf you believe your rights have been violated, you also have the right to lodge a complaint with the supervisory authority in your country (in Russia — Roskomnadzor, in the EU — your member state's supervisory authority)."
+        }
+      ]
+    },
+    "security": {
+      "title": "Security & Data Protection",
+      "subtitle": "How data protection actually works in Lumiva CRM — infrastructure, application, and access. No marketing promises, only what's actually implemented.",
+      "s1Kicker": "01 · ENCRYPTION",
+      "s1Title": "Data encryption",
+      "s1Items": [
+        { "title": "Encryption in transit", "desc": "All connections to the platform use TLS 1.3." },
+        { "title": "Encryption at rest", "desc": "Data in the database is encrypted with AES-256." },
+        { "title": "Password storage", "desc": "User passwords are stored as bcrypt hashes — the password itself is never stored in plain text or recoverable, only resettable." }
+      ],
+      "s2Kicker": "02 · ISOLATION & ACCESS",
+      "s2Title": "Data isolation between customers",
+      "s2Items": [
+        { "title": "Multi-tenant architecture", "desc": "Each customer's (tenant's) data is isolated at the database level — one tenant cannot reach another's data through the API." },
+        { "title": "Role-based access control (RBAC)", "desc": "Access to sections and actions is determined by staff role within the tenant; newer modules have granular permissions (e.g. separate rights for pricing, settings, catalog management)." }
+      ],
+      "s3Kicker": "03 · APPLICATION SECURITY",
+      "s3Title": "Application-level protection",
+      "s3Items": [
+        { "title": "Rate limiting", "desc": "The API is protected against overload and brute-force attempts: 20 requests per second and 100 requests per 10 seconds." },
+        { "title": "Security HTTP headers", "desc": "Applied via Helmet — protection against clickjacking, MIME-sniffing, and other common header-level attacks." },
+        { "title": "Mandatory token secret", "desc": "JWT_SECRET is required in the environment with no fallback default — this eliminates a whole class of vulnerabilities from a guessable secret." },
+        { "title": "Configurable CORS", "desc": "The list of allowed origins is set explicitly via an environment variable, not left open to any source." }
+      ],
+      "s4Kicker": "04 · CHANGE TRACKING",
+      "s4Title": "Change logs",
+      "s4Text": "The Products module keeps a full change log — price, cost, status, SKU, barcode — with the author and time of every change. Equivalent logging for other CRM modules (Leads, Deals, Projects) isn't implemented to the same extent yet — it's on the backlog, not a shipped feature.",
+      "s5Kicker": "05 · DATA PRIVACY",
+      "s5Title": "Privacy and control over your data",
+      "s5Items": [
+        { "title": "Export and deletion on request", "desc": "You can request an export or deletion of your data — timelines and process are described in the Privacy Policy." },
+        { "title": "Choice of storage region", "desc": "Data is stored in secure data centers in Russia and/or the EU." }
+      ],
+      "s5PrivacyLink": "More details in the Privacy Policy",
+      "s6Title": "Found a vulnerability?",
+      "s6Text": "If you've found a security issue, contact us directly — we prioritize responding to these reports.",
+      "s6EmailLabel": "Contact us"
+    },
+    "compare": {
+      "title": "Why teams choose Lumiva CRM",
+      "subtitle": "Not a comparison against specific brands — what actually sets Lumiva apart from a typical small/medium-business CRM.",
+      "items": [
+        { "title": "Not just sales", "desc": "Bookings and Hotels/PMS are built into the same CRM as leads and deals — no need to glue a separate scheduling tool or a room-booking system onto an outside CRM." },
+        { "title": "No-code, no developer needed", "desc": "Workspaces: tables, Kanban, Calendar and Gantt with formulas, ratings and links between tables — configured without code and without a dev-team ticket." },
+        { "title": "AI that acts, not just answers", "desc": "The AI Assistant changes prices, rates and bookings on command right in the chat. AI Employees are role-based agents with configurable autonomy and an approval queue for actions." },
+        { "title": "One data model", "desc": "Leads, deals, projects, products, bookings and hotels share the same contacts and companies — data isn't duplicated or drifting between modules." },
+        { "title": "Transparent pricing", "desc": "All 9 modules are available on every plan — the difference is in limits and support level, not hidden feature paywalls." },
+        { "title": "Security by facts, not by badges", "desc": "TLS 1.3, AES-256, role-based access, database-level multi-tenant isolation — concrete technical measures you can verify." }
+      ],
+      "pricingLink": "See pricing",
+      "securityLink": "How security works",
+      "ctaKicker": "Ready to try it?",
+      "ctaTitle": "14 days free. No card.",
+      "ctaBtn1": "Create account",
+      "ctaBtn2": "Talk to the team"
     },
     "footer": {
       "tagline": "Smart CRM for business growth",
@@ -8012,7 +8619,8 @@
       "company": "Company",
       "rights": "All rights reserved.",
       "privacy": "Privacy Policy",
-      "terms": "Terms of Service"
+      "terms": "Terms of Service",
+      "security": "Security"
     }
   }
 }

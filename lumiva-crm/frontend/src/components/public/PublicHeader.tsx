@@ -19,8 +19,9 @@ import { ApiError, resolvePublicAssetUrl } from '../../api/client';
 
 type PageKey =
   | 'development' | 'scenarios' | 'api' | 'integrations'
-  | 'solutions' | 'analytics' | 'marketing' | 'sales' | 'warehouse' | 'client-accounts' | 'inventory'
-  | 'blog' | 'privacy' | 'pricing' | 'features'
+  | 'solutions' | 'analytics' | 'marketing' | 'sales' | 'warehouse' | 'client-accounts' | 'products'
+  | 'booking' | 'hotels'
+  | 'blog' | 'privacy' | 'security' | 'compare' | 'pricing' | 'features'
   | 'about' | 'contact' | 'faq' | 'terms' | 'changelog' | 'home';
 
 interface PublicHeaderProps {
@@ -129,7 +130,7 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
   }, [refreshTenantSession]);
 
   const isActive = (key: PageKey) => activeKey === key;
-  const isSolutionActive = ['solutions', 'analytics', 'marketing', 'sales', 'warehouse', 'client-accounts', 'inventory'].includes(activeKey ?? '');
+  const isSolutionActive = ['solutions', 'analytics', 'marketing', 'sales', 'warehouse', 'client-accounts', 'products', 'booking', 'hotels'].includes(activeKey ?? '');
 
   const primaryItems = [
     { key: 'features' as PageKey, to: '/features' },
@@ -141,8 +142,10 @@ export const PublicHeader: React.FC<PublicHeaderProps> = ({ activeKey }) => {
     { key: 'marketing' as PageKey, to: '/solutions/marketing' },
     { key: 'sales' as PageKey, to: '/solutions/sales' },
     { key: 'client-accounts' as PageKey, to: '/solutions/client-accounts' },
-    { key: 'inventory' as PageKey, to: '/solutions/inventory' },
+    { key: 'products' as PageKey, to: '/solutions/products' },
     { key: 'warehouse' as PageKey, to: '/solutions/warehouse' },
+    { key: 'booking' as PageKey, to: '/solutions/booking' },
+    { key: 'hotels' as PageKey, to: '/solutions/hotels' },
   ];
   const tailItems = [
     { key: 'about' as PageKey, to: '/about' },

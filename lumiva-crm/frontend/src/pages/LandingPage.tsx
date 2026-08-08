@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { login, resendSignupCode, signup, verifySignupCode } from "../api/client";
 import { persistSession } from "../auth/session";
 import { PublicHeader } from "../components/public/PublicHeader";
@@ -365,38 +365,40 @@ const LOGOS = ["Northwind", "Contour BI", "Parallax", "Meridian", "Helix", "Stra
 ═══════════════════════════════════════════════════════════════════ */
 
 /* ─── HERO ───────────────────────────────────────────────────────── */
-const HeroSection: React.FC<{ onOpenDemo: () => void }> = ({ onOpenDemo }) => (
+const HeroSection: React.FC<{ onOpenDemo: () => void }> = ({ onOpenDemo }) => {
+  const { t } = useTranslation();
+  return (
   <section className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-12 lg:items-start pt-10 pb-12 sm:pt-14 sm:pb-14 md:pt-20 md:pb-16">
     {/* Left */}
     <div>
       <Kicker>Lumiva · v4</Kicker>
       <h1 style={{ fontFamily: FF, fontSize: "clamp(32px,8vw,82px)", lineHeight: 1.0,
         letterSpacing: "-0.04em", fontWeight: 500, marginTop: 28, color: INK }} className="max-w-[100%]">
-        Данные. <span style={{ color: FG3, fontWeight: 400 }}>Каналы.</span><br />
-        Воронка. <span style={{ color: FG3, fontWeight: 400 }}>В одном месте.</span>
+        {t('landing.hero.titleLine1')} <span style={{ color: FG3, fontWeight: 400 }}>{t('landing.hero.titleLine1Light')}</span><br />
+        {t('landing.hero.titleLine2')} <span style={{ color: FG3, fontWeight: 400 }}>{t('landing.hero.titleLine2Light')}</span>
       </h1>
       <p style={{ fontSize: 18, lineHeight: 1.55, color: FG2, maxWidth: 540, marginTop: 24 }} className="text-base sm:text-lg">
-        Мы собираем хаос в работающую систему роста. Лиды, сделки, аналитика, коммуникации — единый контур для команд маркетинга и продаж.
+        {t('landing.hero.mainSubtitle')}
       </p>
       <div style={{ display: "flex", gap: 12, marginTop: 40, flexWrap: "wrap" }}>
         <Link to="/pricing"
           style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "15px 24px",
             fontSize: 15, fontWeight: 500, borderRadius: 999, border: `1px solid ${INK}`,
             background: INK, color: "#fff", textDecoration: "none", whiteSpace: "nowrap" }}>
-          Начать 14 дней <Icon name="arrow" size={15} />
+          {t('landing.hero.ctaStart')} <Icon name="arrow" size={15} />
         </Link>
         <button onClick={onOpenDemo}
           style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "15px 24px",
             fontSize: 15, fontWeight: 500, borderRadius: 999, border: `1px solid ${LINE}`,
             background: "#fff", color: INK, cursor: "pointer", whiteSpace: "nowrap" }}>
-          Смотреть тур <Icon name="play" size={13} />
+          {t('landing.hero.ctaTour')} <Icon name="play" size={13} />
         </button>
       </div>
       <div style={{ display: "flex", gap: 48, marginTop: 52, flexWrap: "wrap" }}>
         {[
-          { label: "КЛИЕНТЫ", val: "1 200+" },
-          { label: "ОБРАБОТАНО ЛИДОВ", val: "48.2М" },
-          { label: "СТРАНЫ", val: "32" },
+          { label: t('landing.hero.metricClients'), val: "1 200+" },
+          { label: t('landing.hero.metricLeads'), val: "48.2М" },
+          { label: t('landing.hero.metricCountries'), val: "32" },
         ].map(m => (
           <div key={m.label}>
             <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.1em", color: FG3 }}>{m.label}</div>
@@ -416,7 +418,8 @@ const HeroSection: React.FC<{ onOpenDemo: () => void }> = ({ onOpenDemo }) => (
       <LandingAuthPanel compact />
     </motion.div>
   </section>
-);
+  );
+};
 
 /* ─── LOGO MARQUEE ───────────────────────────────────────────────── */
 const LogoMarquee: React.FC = () => (
@@ -780,7 +783,10 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
             resendCode: "Отправить код повторно", resendWait: "Повторная отправка через", verifyTapHint: "Нажмите, чтобы ввести код",
           };
 
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState<"login" | "signup">(
+    searchParams.get("mode") === "signup" ? "signup" : "login",
+  );
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

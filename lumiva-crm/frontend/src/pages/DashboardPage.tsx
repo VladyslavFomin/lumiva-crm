@@ -47,6 +47,9 @@ import { FunnelTodayWidget } from '../dashboard/widgets/FunnelTodayWidget';
 import { LeadSourcesWidget } from '../dashboard/widgets/LeadSourcesWidget';
 import { RecentDealsWidget } from '../dashboard/widgets/RecentDealsWidget';
 import { BirthdaysWidget } from '../dashboard/widgets/BirthdaysWidget';
+import { ProductsAnalyticsWidget } from '../dashboard/widgets/ProductsAnalyticsWidget';
+import { BookingsAnalyticsWidget } from '../dashboard/widgets/BookingsAnalyticsWidget';
+import { HotelsAnalyticsWidget } from '../dashboard/widgets/HotelsAnalyticsWidget';
 
 interface LeadShort {
   id: string;
@@ -1325,6 +1328,12 @@ export const DashboardPage: React.FC = () => {
             <Link to="/sales/analytics" className="inline-flex items-center justify-center w-full rounded-2xl border border-[#222] bg-[#222] text-white text-[11px] font-semibold py-2.5 hover:bg-neutral-800 transition-colors">{t('crm.dashboard.salesAnalyticsWidget.openFull')}</Link>
           </div>
         );
+      case 'products-analytics':
+        return <ProductsAnalyticsWidget />;
+      case 'bookings-analytics':
+        return <BookingsAnalyticsWidget />;
+      case 'hotels-analytics':
+        return <HotelsAnalyticsWidget />;
       case 'funnel_today':
         return <FunnelTodayWidget />;
       case 'lead_sources_week':

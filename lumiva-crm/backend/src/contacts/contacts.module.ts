@@ -9,12 +9,14 @@ import { Project } from '../projects/project.entity';
 import { Company } from '../companies/company.entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Contact, Lead, Project, Company]),
     RbacModule,
     forwardRef(() => AutomationsModule),
+    AuditLogModule,
   ],
   controllers: [ContactsController],
   providers: [ContactsService],

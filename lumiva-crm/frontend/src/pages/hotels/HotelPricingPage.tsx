@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Toggle } from '../../components/ui';
 import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
@@ -433,11 +434,10 @@ export const HotelPricingPage: React.FC = () => {
                     {isStopped && <span className="ppt-stop-badge">СТОП</span>}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    <input
-                      type="checkbox"
+                    <Toggle
                       checked={isStopped}
                       onChange={() => toggleStopSaleDate(row.date)}
-                      title="Стоп-продажа на эту дату (все рынки)"
+                      aria-label={`Стоп-продажа на ${row.date} (все рынки)`}
                     />
                   </td>
                   {marketGroups.map((group, groupIdx) => {

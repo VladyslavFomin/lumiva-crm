@@ -24,3 +24,7 @@ export const createApiToken = (dto: { name: string; description?: string | null 
   });
 
 export const deleteApiToken = (id: string) => api.delete<void>(`/api-tokens/${id}`);
+
+/** Toggle revoke/reinstate without deleting — used by the general token-management page. */
+export const updateApiToken = (id: string, patch: { isActive?: boolean; name?: string; expiresAt?: string | null }) =>
+  api.patch<ApiTokenRecord>(`/api-tokens/${id}`, patch);

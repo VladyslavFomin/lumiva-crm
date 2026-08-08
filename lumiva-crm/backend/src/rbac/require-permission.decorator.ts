@@ -8,7 +8,7 @@ export const PERMISSION_META_KEY = 'rbac_permission';
 // 1. RequirePermission('leads') - старый формат
 // 2. RequirePermission('contacts', 'read') - новый формат (resource, action)
 export const RequirePermission = (
-  resource: PermissionKey | string,
+  resource: PermissionKey,
   action?: 'read' | 'write' | 'delete',
 ) => {
   if (action) {
@@ -16,5 +16,5 @@ export const RequirePermission = (
     return SetMetadata(PERMISSION_META_KEY, { resource, action });
   }
   // Старый формат: просто PermissionKey
-  return SetMetadata(PERMISSION_META_KEY, resource as PermissionKey);
+  return SetMetadata(PERMISSION_META_KEY, resource);
 };

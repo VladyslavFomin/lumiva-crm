@@ -45,6 +45,14 @@ export class ApiTokenGuard implements CanActivate {
       throw new UnauthorizedException('Invalid API token');
     }
 
+    if (apiToken.isActive === false) {
+      throw new UnauthorizedException('API token has been revoked');
+    }
+
+    if (apiToken.expiresAt && apiToken.expiresAt.getTime() < Date.now()) {
+      throw new UnauthorizedException('API token has expired');
+    }
+
     // защита от старых записей без tenantId
     if (!apiToken.tenantId) {
       throw new ForbiddenException('Token has no tenant bound');

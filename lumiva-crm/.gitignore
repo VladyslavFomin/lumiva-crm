@@ -34,3 +34,6 @@ infra/*secret*
 .env.*
 *.env
 .env.local
+
+# --- Vite cache ---
+.vite

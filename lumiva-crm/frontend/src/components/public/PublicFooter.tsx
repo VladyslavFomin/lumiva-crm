@@ -11,17 +11,26 @@ export const PublicFooter: React.FC = () => {
     { to: '/pricing',     label: t('publicPages.nav.pricing') },
     { to: '/integrations',label: t('publicPages.nav.integrations') },
     { to: '/changelog',   label: t('publicPages.nav.changelog') },
+    { to: '/development', label: t('publicPages.nav.development') },
+    { to: '/scenarios',   label: t('publicPages.nav.scenarios') },
+    { to: '/api-integration', label: t('publicPages.nav.api') },
   ];
   const solutionLinks = [
-    { to: '/solutions/analytics', label: t('publicPages.nav.analytics') },
-    { to: '/solutions/marketing', label: t('publicPages.nav.marketing') },
-    { to: '/solutions/sales',     label: t('publicPages.nav.sales') },
+    { to: '/solutions/analytics',      label: t('publicPages.nav.analytics') },
+    { to: '/solutions/marketing',      label: t('publicPages.nav.marketing') },
+    { to: '/solutions/sales',          label: t('publicPages.nav.sales') },
+    { to: '/solutions/client-accounts',label: t('publicPages.nav.client-accounts') },
+    { to: '/solutions/products',       label: t('publicPages.nav.products') },
+    { to: '/solutions/warehouse',      label: t('publicPages.nav.warehouse') },
+    { to: '/solutions/booking',        label: t('publicPages.nav.booking') },
+    { to: '/solutions/hotels',         label: t('publicPages.nav.hotels') },
   ];
   const companyLinks = [
     { to: '/about',   label: t('publicPages.nav.about') },
     { to: '/contact', label: t('publicPages.nav.contact') },
     { to: '/blog',    label: t('publicPages.nav.blog') },
     { to: '/faq',     label: t('publicPages.nav.faq') },
+    { to: '/compare', label: t('publicPages.nav.compare') },
   ];
 
   return (
@@ -39,6 +48,10 @@ export const PublicFooter: React.FC = () => {
             <p className="text-[11px] text-neutral-400 leading-relaxed">
               {t('publicPages.footer.tagline', { defaultValue: 'Умная CRM для роста вашего бизнеса' })}
             </p>
+            <div className="mt-4 flex flex-col gap-1.5 text-[11px] text-neutral-400">
+              <a href="mailto:hello@lumiva.agency" className="hover:text-white transition-colors w-fit">hello@lumiva.agency</a>
+              <a href="tel:+74996537883" className="hover:text-white transition-colors w-fit">+7 499 653 78 83</a>
+            </div>
             <div className="mt-4 flex items-center gap-2">
               <a
                 href="https://t.me/lumiva_crm"
@@ -118,6 +131,9 @@ export const PublicFooter: React.FC = () => {
             </Link>
             <Link to="/terms" className="hover:text-white transition-colors">
               {t('publicPages.footer.terms', { defaultValue: 'Условия использования' })}
+            </Link>
+            <Link to="/security" className="hover:text-white transition-colors">
+              {t('publicPages.footer.security', { defaultValue: 'Безопасность' })}
             </Link>
           </div>
         </div>

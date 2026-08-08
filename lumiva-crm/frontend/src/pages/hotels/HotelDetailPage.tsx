@@ -300,7 +300,7 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>
           {roomTypes.length} типа номеров · <b style={{ color: 'var(--ink)' }}>{totalRooms}</b> номеров всего
         </div>
@@ -505,7 +505,7 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>Разные цены для разных рынков продаж. База — внутренний рынок.</div>
         <button className="btn btn-sm" onClick={() => setShowAddMarket(true)}><Ic d={HTL_ICON.plus} size={13} />Добавить рынок</button>
       </div>

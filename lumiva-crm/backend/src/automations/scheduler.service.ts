@@ -12,4 +12,16 @@ export class AutomationsSchedulerService {
   async runScheduledReports() {
     await this.automationsService.runScheduledReports();
   }
+
+  // once a day at 08:00 UTC — stale lead/deal digest
+  @Cron('0 8 * * *')
+  async runStaleEntityChecks() {
+    await this.automationsService.runStaleEntityChecks();
+  }
+
+  // every minute — resumes automations paused on a `_delayMinutes` step whose wait has elapsed
+  @Cron('* * * * *')
+  async resumeDueExecutions() {
+    await this.automationsService.resumeDueExecutions();
+  }
 }

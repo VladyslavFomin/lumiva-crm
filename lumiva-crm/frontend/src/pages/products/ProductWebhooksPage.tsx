@@ -10,8 +10,10 @@ import {
   updateProductWebhook,
   regenerateProductWebhookSecret,
   deleteProductWebhook,
+  fetchProductWebhookDeliveries,
   type ProductWebhook,
   type ProductWebhookEvent,
+  type ProductWebhookDelivery,
 } from '../../api/products';
 import { fetchSites, type Site } from '../../api/sites';
 import './products-design.css';
@@ -42,6 +44,14 @@ const I = {
       <path d="M4 7h16" />
       <path d="M9 7V4h6v3" />
       <path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13" />
+    </>
+  ),
+  history: (
+    <>
+      <path d="M3 12a9 9 0 109-9" />
+      <path d="M3 12V6" />
+      <path d="M3 12h6" />
+      <path d="M12 7v5l3 3" />
     </>
   ),
 };
@@ -140,6 +150,72 @@ const WebhookModal: React.FC<{
   );
 };
 
+const DELIVERY_STATUS_COLOR: Record<ProductWebhookDelivery['status'], string> = {
+  success: '#1f8a5e',
+  pending: '#c08319',
+  failed: '#cc2f47',
+};
+
+const DeliveriesModal: React.FC<{ webhook: ProductWebhook | null; onClose: () => void }> = ({ webhook, onClose }) => {
+  const { t } = useTranslation();
+  const { showAlert } = useAlertModal();
+  const [deliveries, setDeliveries] = useState<ProductWebhookDelivery[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!webhook) return;
+    setLoading(true);
+    fetchProductWebhookDeliveries(webhook.id)
+      .then(setDeliveries)
+      .catch((e) => showAlert(e.message || t('crm.products.webhooks.errors.loadFailed'), { variant: 'error' }))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webhook?.id]);
+
+  if (!webhook) return null;
+
+  return (
+    <div className="pr-cat-modal-back" onClick={onClose}>
+      <div className="pr-cat-modal" style={{ maxWidth: 560 }} onClick={(e) => e.stopPropagation()}>
+        <h3>{t('crm.products.webhooks.deliveries.title', { name: webhook.name })}</h3>
+        {loading ? (
+          <div className="an-empty">{t('crm.common.loading')}</div>
+        ) : !deliveries.length ? (
+          <div className="an-empty">{t('crm.products.webhooks.deliveries.empty')}</div>
+        ) : (
+          <div style={{ maxHeight: 420, overflowY: 'auto' }}>
+            {deliveries.map((d) => (
+              <div key={d.id} className="an-legend-row" style={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <span
+                  className="pr-badge"
+                  style={{ color: DELIVERY_STATUS_COLOR[d.status], borderColor: DELIVERY_STATUS_COLOR[d.status] + '55' }}
+                >
+                  {t(`crm.products.webhooks.deliveries.status.${d.status}`)}
+                </span>
+                <span className="nm" style={{ flex: 'unset' }}>
+                  {t(`crm.products.webhooks.events.${d.event}`)} · {t('crm.products.webhooks.deliveries.attempt')} {d.attempt}/{d.maxAttempts}
+                </span>
+                <span className="val" style={{ flexBasis: '100%', textAlign: 'left', marginTop: 2 }}>
+                  {d.status === 'pending'
+                    ? `${t('crm.products.webhooks.deliveries.nextAttempt')}: ${new Date(d.nextAttemptAt).toLocaleString()}`
+                    : new Date(d.updatedAt).toLocaleString()}
+                  {d.lastStatusCode ? ` · HTTP ${d.lastStatusCode}` : ''}
+                  {d.lastError ? ` · ${d.lastError}` : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="pr-cat-modal-foot">
+          <button type="button" className="aib ghost" onClick={onClose}>
+            {t('crm.products.fieldTypes.modal.cancel')}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const ProductWebhooksPage: React.FC = () => {
   const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
@@ -148,6 +224,7 @@ export const ProductWebhooksPage: React.FC = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalState>(null);
+  const [deliveriesFor, setDeliveriesFor] = useState<ProductWebhook | null>(null);
 
   const load = () => {
     setLoading(true);
@@ -263,6 +340,9 @@ export const ProductWebhooksPage: React.FC = () => {
                     </td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="px-row-actions">
+                        <button type="button" title={t('crm.products.webhooks.deliveries.button') || ''} onClick={() => setDeliveriesFor(wh)}>
+                          <Icon d={I.history} size={13} />
+                        </button>
                         <button type="button" title={t('crm.products.webhooks.regenerateSecret') || ''} onClick={() => handleRegenerateSecret(wh)}>
                           <Icon d={I.edit} size={13} />
                         </button>
@@ -279,6 +359,7 @@ export const ProductWebhooksPage: React.FC = () => {
         )}
 
         <WebhookModal state={modal} sites={sites} onClose={() => setModal(null)} onSaved={load} />
+        <DeliveriesModal webhook={deliveriesFor} onClose={() => setDeliveriesFor(null)} />
       </div>
     </MainLayout>
   );

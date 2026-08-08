@@ -11,6 +11,8 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 import { SalesImportService } from './sales-import.service';
 import type {
   ImportPreviewResponse,
@@ -18,7 +20,8 @@ import type {
   ImportApplyResult,
 } from './sales-import.service';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('sales_manage_import', 'write')
 @Controller('sales/import')
 export class SalesImportController {
   constructor(private readonly importService: SalesImportService) {}

@@ -78,8 +78,30 @@ export const StaffPermissionsPage: React.FC = () => {
         groupLabel: t('crm.staff.permissions.group.crm'),
         items: [
           { key: 'leads', label: t('crm.staff.permissions.leads') },
+          {
+            key: 'leads_view_roi',
+            label: t('crm.staff.permissions.leads_view_roi'),
+            hint: t('crm.staff.permissions.hint.leads_view_roi'),
+          },
+          { key: 'sales', label: t('crm.staff.permissions.sales') },
+          {
+            key: 'sales_manage_import',
+            label: t('crm.staff.permissions.sales_manage_import'),
+            hint: t('crm.staff.permissions.hint.sales_manage_import'),
+          },
           { key: 'contacts', label: t('crm.staff.permissions.contacts') },
+          {
+            key: 'contacts_manage_bulk',
+            label: t('crm.staff.permissions.contacts_manage_bulk'),
+            hint: t('crm.staff.permissions.hint.contacts_manage_bulk'),
+          },
+          { key: 'notes', label: t('crm.staff.permissions.notes') },
           { key: 'companies', label: t('crm.staff.permissions.companies') },
+          {
+            key: 'companies_manage_tasks',
+            label: t('crm.staff.permissions.companies_manage_tasks'),
+            hint: t('crm.staff.permissions.hint.companies_manage_tasks'),
+          },
           { key: 'products', label: t('crm.staff.permissions.products') },
           {
             key: 'products_manage_fields',
@@ -114,6 +136,11 @@ export const StaffPermissionsPage: React.FC = () => {
             hint: t('crm.staff.permissions.hint.hotels_manage_reservations'),
           },
           { key: 'projects', label: t('crm.staff.permissions.projects') },
+          {
+            key: 'projects_manage_trash',
+            label: t('crm.staff.permissions.projects_manage_trash'),
+            hint: t('crm.staff.permissions.hint.projects_manage_trash'),
+          },
           { key: 'analytics', label: t('crm.staff.permissions.analytics') },
           { key: 'finance', label: t('crm.staff.permissions.finance') },
         ],
@@ -122,8 +149,13 @@ export const StaffPermissionsPage: React.FC = () => {
         groupLabel: t('crm.staff.permissions.group.communication'),
         items: [
           { key: 'chat', label: t('crm.staff.permissions.chat') },
+          { key: 'helpdesk', label: t('crm.staff.permissions.helpdesk') },
+          { key: 'esign', label: t('crm.staff.permissions.esign') },
           { key: 'email', label: t('crm.staff.permissions.email') },
           { key: 'marketing', label: t('crm.staff.permissions.marketing') },
+          { key: 'telegram', label: t('crm.staff.permissions.telegram') },
+          { key: 'whatsapp', label: t('crm.staff.permissions.whatsapp') },
+          { key: 'telephony', label: t('crm.staff.permissions.telephony') },
         ],
       },
       {

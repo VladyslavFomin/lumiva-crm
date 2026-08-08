@@ -1,11 +1,16 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Logger, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios from 'axios';
+import { validateTwilioSignature } from '../common/twilio-signature.util';
 import { SmsConfig, SmsProvider, TwilioCredentials, SmscCredentials, SmsruCredentials } from './sms-config.entity';
 import { SmsMessage, SmsEntityType } from './sms-message.entity';
 import { SendSmsDto } from './dto/send-sms.dto';
 import { SaveSmsConfigDto } from './dto/save-sms-config.dto';
+import { Lead } from '../leads/lead.entity';
+import { LeadsService } from '../leads/leads.service';
+import { NotesService } from '../notes/notes.service';
+import { EntityType, NoteType } from '../notes/dto/create-note.dto';
 
 export interface SmsListQuery {
   entityType?: SmsEntityType;
@@ -16,11 +21,19 @@ export interface SmsListQuery {
 
 @Injectable()
 export class SmsService {
+  private readonly log = new Logger(SmsService.name);
+
   constructor(
     @InjectRepository(SmsConfig)
     private readonly configRepo: Repository<SmsConfig>,
     @InjectRepository(SmsMessage)
     private readonly messageRepo: Repository<SmsMessage>,
+    @InjectRepository(Lead)
+    private readonly leadRepo: Repository<Lead>,
+    @Inject(forwardRef(() => LeadsService))
+    private readonly leadsService: LeadsService,
+    @Inject(forwardRef(() => NotesService))
+    private readonly notesService: NotesService,
   ) {}
 
   // ─── Config ───────────────────────────────────────────────────────────────
@@ -185,6 +198,91 @@ export class SmsService {
     const first = Object.values(data?.sms || {})[0] as any;
     const cost = first?.cost != null ? parseFloat(first.cost) : undefined;
     return { externalId: String(first?.sms_id ?? ''), cost: isNaN(cost as number) ? undefined : cost, costUnit: 'RUB' };
+  }
+
+  // ─── Inbound (Twilio webhook) ───────────────────────────────────────────────
+
+  private normalizeDigits(phone: string): string {
+    return String(phone || '').replace(/\D/g, '');
+  }
+
+  private async findLeadByPhoneDigits(tenantId: string, digits: string): Promise<Lead | null> {
+    if (!digits) return null;
+    return this.leadRepo.createQueryBuilder('l')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere("regexp_replace(coalesce(l.phone, ''), '[^0-9]', '', 'g') = :digits", { digits })
+      .orderBy('l.updatedAt', 'DESC').getOne();
+  }
+
+  /** Handles an inbound Twilio SMS webhook for a given tenant. Verifies the request actually came
+   * from Twilio (signature over the tenant's own Auth Token) before touching anything. */
+  async recordInboundTwilio(
+    tenantId: string,
+    publicUrl: string,
+    params: Record<string, string>,
+    signature: string,
+  ): Promise<{ accepted: boolean; reason?: string }> {
+    const config = await this.configRepo.findOne({ where: { tenantId } });
+    if (!config || config.provider !== 'twilio') {
+      return { accepted: false, reason: 'SMS is not configured with Twilio for this tenant' };
+    }
+    const creds = config.credentials as TwilioCredentials;
+    if (!creds?.authToken) {
+      return { accepted: false, reason: 'Twilio Auth Token not configured' };
+    }
+    if (!validateTwilioSignature(creds.authToken, publicUrl, params, signature)) {
+      this.log.warn(`Twilio inbound SMS: signature mismatch for tenant ${tenantId}`);
+      return { accepted: false, reason: 'Invalid signature' };
+    }
+
+    const messageSid = String(params.MessageSid || params.SmsSid || '').trim();
+    if (messageSid) {
+      const existing = await this.messageRepo.findOne({ where: { tenantId, externalId: messageSid } });
+      if (existing) return { accepted: true }; // already recorded — Twilio retried delivery
+    }
+
+    const from = String(params.From || '').trim();
+    const to = String(params.To || '').trim();
+    const body = String(params.Body || '');
+    const digits = this.normalizeDigits(from);
+
+    let lead: Lead | null = await this.findLeadByPhoneDigits(tenantId, digits);
+    if (!lead && digits) {
+      lead = await this.leadsService.createForTenant(tenantId, {
+        name: `SMS +${digits}`,
+        phone: from.startsWith('+') ? from : `+${digits}`,
+        source: 'sms',
+        status: 'new',
+      });
+    }
+
+    const record = this.messageRepo.create({
+      tenantId,
+      direction: 'inbound',
+      fromPhone: from || null,
+      toPhone: to,
+      body,
+      status: 'delivered',
+      provider: 'twilio',
+      externalId: messageSid || null,
+      entityType: lead ? 'lead' : null,
+      entityId: lead?.id ?? null,
+      meta: { numMedia: params.NumMedia ?? null },
+    });
+    await this.messageRepo.save(record);
+
+    if (lead) {
+      await this.notesService.create(tenantId, {
+        entityType: EntityType.LEAD,
+        entityId: lead.id,
+        content: `Входящее SMS\nОт: ${from}\n\n${body || '(пустое тело)'}`,
+        title: 'SMS · входящее',
+        type: NoteType.NOTE,
+        metadata: { channel: 'sms_inbound', externalId: messageSid || null },
+      }, undefined, 'SMS').catch((e) => this.log.warn(`SMS inbound: note sync failed: ${e.message}`));
+    }
+
+    return { accepted: true };
   }
 
   // ─── Query ────────────────────────────────────────────────────────────────

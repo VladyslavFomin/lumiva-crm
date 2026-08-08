@@ -402,38 +402,6 @@ export const WAITLIST_STATUS_LABELS_RU: Record<WaitlistStatus, string> = {
   removed: 'Удалён',
 };
 
-/* ---------- notification templates ---------- */
-
-export type BookingTemplateChannel = 'email' | 'telegram' | 'internal';
-export type BookingTemplateEvent =
-  | 'reservation_created'
-  | 'reservation_confirmed'
-  | 'reservation_rescheduled'
-  | 'reservation_cancelled'
-  | 'reservation_reminder'
-  | 'reservation_no_show';
-
-export interface BookingNotificationTemplate {
-  id: string;
-  tenantId: string;
-  projectId: string;
-  name: string;
-  event: BookingTemplateEvent;
-  channel: BookingTemplateChannel;
-  subject: string | null;
-  body: string;
-  active: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export const fetchBookingTemplates = () => api.get<BookingNotificationTemplate[]>('/bookings/templates');
-export const createBookingTemplate = (dto: Partial<BookingNotificationTemplate>) =>
-  api.post<BookingNotificationTemplate>('/bookings/templates', dto);
-export const updateBookingTemplate = (id: string, dto: Partial<BookingNotificationTemplate>) =>
-  api.patch<BookingNotificationTemplate>(`/bookings/templates/${id}`, dto);
-export const deleteBookingTemplate = (id: string) => api.delete<void>(`/bookings/templates/${id}`);
-
 /* ---------- analytics ---------- */
 
 export interface BookingAnalyticsSummary {

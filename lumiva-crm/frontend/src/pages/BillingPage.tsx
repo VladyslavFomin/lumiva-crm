@@ -4,10 +4,13 @@ import { useTranslation } from 'react-i18next';
 import {
   confirmCheckoutSession,
   createCheckoutSession,
+  createPortalSession,
   fetchBillingCatalog,
+  fetchBillingPlanFeatures,
   type BillingCatalogPlan,
 } from '../api/client';
-import { markBillingUnlocked } from '../auth/session';
+import { fetchCompanySettings } from '../api/settings';
+import { getAccessToken, markBillingUnlocked } from '../auth/session';
 import { setAppLanguage } from '../i18n';
 
 type PlanCode = 'standard' | 'professional' | 'enterprise' | 'ultimate';
@@ -20,9 +23,46 @@ const YEARLY_DISCOUNT: Record<PlanCode, number> = {
   ultimate: 0.2,
 };
 
+const PLAN_RANK: Record<PlanCode, number> = {
+  standard: 1,
+  professional: 2,
+  enterprise: 3,
+  ultimate: 4,
+};
+
+/** Зеркалит normalizeTenantPlan на бэке (backend/src/tenants/plan-entitlements.ts) — только для подсветки текущего плана в UI. */
+function normalizePlanCode(raw?: string | null): PlanCode | null {
+  const v = (raw || '').trim().toLowerCase();
+  if (v === 'free_locked' || v === 'locked' || v === 'free' || !v) return null;
+  if (v === 'basic' || v === 'starter' || v === 'standard') return 'standard';
+  if (v === 'pro' || v === 'professional') return 'professional';
+  if (v === 'enterprise') return 'enterprise';
+  if (v === 'ultimate') return 'ultimate';
+  return 'standard';
+}
+
+const FEATURE_LABELS: Record<string, { ru: string; en: string; tr: string }> = {
+  contacts_companies: { ru: 'Контакты и компании', en: 'Contacts & companies', tr: 'Kişiler ve şirketler' },
+  leads: { ru: 'Лиды', en: 'Leads', tr: 'Potansiyel müşteriler' },
+  projects: { ru: 'Проекты и канбан', en: 'Projects & kanban', tr: 'Projeler ve kanban' },
+  sales: { ru: 'Продажи и воронка', en: 'Sales & pipeline', tr: 'Satış ve huni' },
+  marketing: { ru: 'Маркетинг и кампании', en: 'Marketing & campaigns', tr: 'Pazarlama ve kampanyalar' },
+  automation: { ru: 'Инструменты и автоматизации', en: 'Tools & automations', tr: 'Araçlar ve otomasyonlar' },
+  custom_objects: { ru: 'Кастомные объекты', en: 'Custom objects', tr: 'Özel nesneler' },
+  email: { ru: 'Email-рассылки', en: 'Email', tr: 'E-posta' },
+  sms: { ru: 'SMS', en: 'SMS', tr: 'SMS' },
+  deduplication: { ru: 'Дедупликация', en: 'Deduplication', tr: 'Yinelenen kayıt temizliği' },
+  telegram: { ru: 'Telegram', en: 'Telegram', tr: 'Telegram' },
+  chat: { ru: 'Онлайн-чат', en: 'Live chat', tr: 'Canlı sohbet' },
+  client_accounts: { ru: 'Клиентские кабинеты', en: 'Client accounts', tr: 'Müşteri hesapları' },
+};
+
 const DEFAULT_PLANS: BillingCatalogPlan[] = [];
 
-export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false }) => {
+export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | null }> = ({
+  embedded = false,
+  currentPlan,
+}) => {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -31,9 +71,13 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
     params.get('period') === 'year' ? 'year' : 'month',
   );
   const [loadingPlan, setLoadingPlan] = React.useState<PlanCode | null>(null);
+  const [portalLoading, setPortalLoading] = React.useState(false);
+  const [ownPlan, setOwnPlan] = React.useState<string | null | undefined>(currentPlan);
+  const [featureUnlocks, setFeatureUnlocks] = React.useState<Record<PlanCode, string[]> | null>(null);
   const [status, setStatus] = React.useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(
     null,
   );
+  const resolvedPlan = normalizePlanCode(currentPlan !== undefined ? currentPlan : ownPlan);
   const sessionId = params.get('session_id');
   const cancelled = params.get('cancelled');
   const renew = params.get('renew') === '1';
@@ -68,6 +112,13 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
           login: 'Login',
           footer: 'Lumiva CRM billing and renewals',
           recommended: 'Recommended',
+          currentPlanBadge: 'Your current plan',
+          upgradeTo: 'Upgrade',
+          downgradeTo: 'Switch to this plan',
+          paymentMethods: 'Payment methods',
+          paymentMethodsHint: 'View, update or remove cards, see your billing history — via Stripe.',
+          paymentMethodsLoading: 'Opening…',
+          portalError: 'Could not open the payment methods page. Please try again in a moment.',
         }
       : lang === 'tr'
         ? {
@@ -91,6 +142,13 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
             login: 'Giriş',
             footer: 'Lumiva CRM faturalandırma ve yenilemeler',
             recommended: 'Önerilen',
+            currentPlanBadge: 'Mevcut planınız',
+            upgradeTo: 'Yükselt',
+            downgradeTo: 'Bu plana geç',
+            paymentMethods: 'Ödeme yöntemleri',
+            paymentMethodsHint: 'Kartlarınızı görüntüleyin, güncelleyin veya kaldırın, fatura geçmişinizi görün — Stripe üzerinden.',
+            paymentMethodsLoading: 'Açılıyor…',
+            portalError: 'Ödeme yöntemleri sayfası açılamadı. Lütfen birazdan tekrar deneyin.',
           }
         : {
             title: renew ? 'Продлите тариф и продолжайте работу в CRM' : 'Активируйте тариф и получите полный доступ к CRM',
@@ -113,6 +171,13 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
             login: 'Вход',
             footer: 'Lumiva CRM · биллинг и продления',
             recommended: 'Рекомендуем',
+            currentPlanBadge: 'Ваш текущий план',
+            upgradeTo: 'Улучшить',
+            downgradeTo: 'Перейти на этот план',
+            paymentMethods: 'Способы оплаты',
+            paymentMethodsHint: 'Посмотреть, поменять или удалить карты, история платежей — через Stripe.',
+            paymentMethodsLoading: 'Открываем…',
+            portalError: 'Не удалось открыть страницу способов оплаты. Попробуйте ещё раз чуть позже.',
           };
 
   const getLocalizedPlanContent = (plan: BillingCatalogPlan) => {
@@ -153,6 +218,24 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
         // use defaults when backend catalog unavailable
       });
   }, []);
+
+  React.useEffect(() => {
+    fetchBillingPlanFeatures()
+      .then(setFeatureUnlocks)
+      .catch(() => {
+        // структурные буллеты — не критично, просто не покажем
+      });
+  }, []);
+
+  React.useEffect(() => {
+    if (currentPlan !== undefined) return; // передано снаружи — не подтягиваем сами
+    if (!getAccessToken()) return;
+    fetchCompanySettings({ skipUnauthorizedRedirect: true })
+      .then((data) => setOwnPlan(data.plan))
+      .catch(() => {
+        // неавторизован / не удалось — просто не подсвечиваем текущий план
+      });
+  }, [currentPlan]);
 
   React.useEffect(() => {
     if (cancelled === '1') {
@@ -211,6 +294,21 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
     }
   };
 
+  const openPaymentMethods = async () => {
+    try {
+      setPortalLoading(true);
+      setStatus(null);
+      const data = await createPortalSession({ returnUrl: window.location.href });
+      if (!data.url) {
+        throw new Error('Stripe portal URL is empty');
+      }
+      window.location.href = data.url;
+    } catch (e: any) {
+      setStatus({ type: 'error', text: e?.message || text.portalError });
+      setPortalLoading(false);
+    }
+  };
+
   return (
     <div
       className={
@@ -263,26 +361,39 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
             {text.title}
           </h1>
           <p className={`mt-2 text-slate-600 ${embedded ? 'text-base leading-relaxed' : 'text-sm'}`}>{text.subtitle}</p>
-          <div className="mt-5 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-            <button
-              type="button"
-              onClick={() => setPeriod('month')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                period === 'month' ? '!bg-slate-900 !text-white' : '!bg-transparent !text-slate-600'
-              }`}
-            >
-              {text.month}
-            </button>
-            <button
-              type="button"
-              onClick={() => setPeriod('year')}
-              className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                period === 'year' ? '!bg-indigo-600 !text-white' : '!bg-transparent !text-slate-600'
-              }`}
-            >
-              {text.year}
-            </button>
+          <div className="mt-5 flex flex-wrap items-center gap-3">
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+              <button
+                type="button"
+                onClick={() => setPeriod('month')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                  period === 'month' ? '!bg-slate-900 !text-white' : '!bg-transparent !text-slate-600'
+                }`}
+              >
+                {text.month}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPeriod('year')}
+                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                  period === 'year' ? '!bg-indigo-600 !text-white' : '!bg-transparent !text-slate-600'
+                }`}
+              >
+                {text.year}
+              </button>
+            </div>
+            {resolvedPlan ? (
+              <button
+                type="button"
+                onClick={openPaymentMethods}
+                disabled={portalLoading}
+                className="rounded-xl border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 transition-colors hover:border-slate-900 hover:text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {portalLoading ? text.paymentMethodsLoading : `💳 ${text.paymentMethods}`}
+              </button>
+            ) : null}
           </div>
+          {resolvedPlan ? <p className="mt-2 text-xs text-slate-500">{text.paymentMethodsHint}</p> : null}
         </div>
 
         {status ? (
@@ -302,6 +413,12 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
         <div className={planGridClass}>
           {plans.map((plan) => {
             const localized = getLocalizedPlanContent(plan);
+            const isCurrent = resolvedPlan === plan.code;
+            const isUpgrade = resolvedPlan != null && PLAN_RANK[plan.code as PlanCode] > PLAN_RANK[resolvedPlan];
+            const isDowngrade = resolvedPlan != null && PLAN_RANK[plan.code as PlanCode] < PLAN_RANK[resolvedPlan];
+            const unlockLabels = (featureUnlocks?.[plan.code as PlanCode] || [])
+              .map((key) => FEATURE_LABELS[key]?.[lang])
+              .filter(Boolean);
             return (
             <article
               key={plan.code}
@@ -310,7 +427,9 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
                   ? 'w-full min-w-0 snap-start rounded-2xl p-4 shadow-[0_10px_24px_rgba(15,23,42,0.09)] hover:shadow-[0_16px_30px_rgba(15,23,42,0.14)]'
                   : 'rounded-3xl p-4 shadow-[0_16px_40px_rgba(15,23,42,0.08)] hover:shadow-[0_26px_55px_rgba(15,23,42,0.18)]'
               } ${
-                isPreferredPlan && preferredPlan === plan.code
+                isCurrent
+                  ? 'border-emerald-400/90 ring-2 ring-emerald-200'
+                  : isPreferredPlan && preferredPlan === plan.code
                   ? 'border-cyan-400/90 ring-2 ring-cyan-200'
                   : plan.code === 'enterprise'
                   ? 'border-indigo-300/80 ring-1 ring-indigo-200'
@@ -324,7 +443,11 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
                     : 'bg-cyan-300/20 opacity-0 group-hover:opacity-100'
                 }`}
               />
-              {plan.code === 'enterprise' ? (
+              {isCurrent ? (
+                <div className={`absolute rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-emerald-700 ${embedded ? 'right-2 top-2' : 'right-4 top-4'}`}>
+                  {text.currentPlanBadge}
+                </div>
+              ) : plan.code === 'enterprise' ? (
                 <div className={`absolute rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-indigo-700 ${embedded ? 'right-2 top-2' : 'right-4 top-4'}`}>
                   {text.recommended}
                 </div>
@@ -358,29 +481,49 @@ export const BillingPage: React.FC<{ embedded?: boolean }> = ({ embedded = false
                     <span>{feature}</span>
                   </li>
                 ))}
+                {unlockLabels.map((label) => (
+                  <li key={`unlock-${label}`} className="flex items-start gap-2 font-semibold text-emerald-700">
+                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    <span>+ {label}</span>
+                  </li>
+                ))}
               </ul>
-              <button
-                type="button"
-                disabled={loadingPlan === plan.code}
-                onClick={() => startCheckout(plan.code)}
-                className={`w-full rounded-xl border font-semibold transition-all duration-300 disabled:cursor-not-allowed ${
-                  embedded ? 'px-4 py-2.5 text-sm' : 'px-4 py-3 text-sm'
-                } ${
-                  plan.code === 'enterprise'
-                    ? 'mt-8 !border-indigo-500 !bg-indigo-600 !text-white shadow-[0_12px_25px_rgba(79,70,229,0.35)] hover:!bg-indigo-500 disabled:!border-indigo-500 disabled:!bg-indigo-500 disabled:!text-white'
-                    : 'mt-8 !border-slate-900 !bg-slate-900 !text-white shadow-[0_8px_20px_rgba(15,23,42,0.28)] hover:!bg-slate-800 disabled:!border-slate-700 disabled:!bg-slate-700 disabled:!text-white'
-                }`}
-              >
-                {loadingPlan === plan.code
-                  ? text.loading
-                  : renew
-                    ? period === 'year'
-                      ? text.renewYear
-                      : text.renewMonth
-                    : period === 'year'
-                      ? text.chooseYear
-                      : text.choose}
-              </button>
+              {isCurrent ? (
+                <div
+                  className={`mt-8 w-full rounded-xl border border-emerald-200 bg-emerald-50 text-center font-semibold text-emerald-700 ${
+                    embedded ? 'px-4 py-2.5 text-sm' : 'px-4 py-3 text-sm'
+                  }`}
+                >
+                  {text.currentPlanBadge}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={loadingPlan === plan.code}
+                  onClick={() => startCheckout(plan.code)}
+                  className={`w-full rounded-xl border font-semibold transition-all duration-300 disabled:cursor-not-allowed ${
+                    embedded ? 'px-4 py-2.5 text-sm' : 'px-4 py-3 text-sm'
+                  } ${
+                    plan.code === 'enterprise'
+                      ? 'mt-8 !border-indigo-500 !bg-indigo-600 !text-white shadow-[0_12px_25px_rgba(79,70,229,0.35)] hover:!bg-indigo-500 disabled:!border-indigo-500 disabled:!bg-indigo-500 disabled:!text-white'
+                      : 'mt-8 !border-slate-900 !bg-slate-900 !text-white shadow-[0_8px_20px_rgba(15,23,42,0.28)] hover:!bg-slate-800 disabled:!border-slate-700 disabled:!bg-slate-700 disabled:!text-white'
+                  }`}
+                >
+                  {loadingPlan === plan.code
+                    ? text.loading
+                    : isUpgrade
+                      ? text.upgradeTo
+                      : isDowngrade
+                        ? text.downgradeTo
+                        : renew
+                          ? period === 'year'
+                            ? text.renewYear
+                            : text.renewMonth
+                          : period === 'year'
+                            ? text.chooseYear
+                            : text.choose}
+                </button>
+              )}
             </article>
             );
           })}

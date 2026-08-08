@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import type { Request } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -22,6 +23,8 @@ import { buildPlanEntitlements, normalizeTenantPlan } from '../tenants/plan-enti
 import { MailService } from '../mail/mail.service';
 import { UserSessionsService } from './user-sessions.service';
 import { getClientIp } from '../common/client-ip.util';
+import type { AutomationsService as AutomationsServiceType } from '../automations/automations.service';
+import type { EsignService as EsignServiceType } from '../esign/esign.service';
 
 @Injectable()
 export class AuthService {
@@ -41,6 +44,8 @@ export class AuthService {
     private readonly mailService: MailService,
 
     private readonly userSessions: UserSessionsService,
+
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   // ========= ЛОГИН =========
@@ -265,6 +270,23 @@ export class AuthService {
       lastLoginAt: null,
     });
     await this.staffRepo.save(staff);
+
+    try {
+      // Ленивый import — избегаем статического цикла через automations.service -> integrations.service.
+      const { AutomationsService } = await import('../automations/automations.service.js');
+      const automationsService = this.moduleRef.get<AutomationsServiceType>(AutomationsService, { strict: false });
+      await automationsService.seedDefaultBookingAutomation(tenant.id);
+    } catch (error) {
+      console.error('Failed to seed default booking automation:', error);
+    }
+
+    try {
+      const { EsignService } = await import('../esign/esign.service.js');
+      const esignService = this.moduleRef.get<EsignServiceType>(EsignService, { strict: false });
+      await esignService.seedDefaultTemplates(tenant.id);
+    } catch (error) {
+      console.error('Failed to seed default esign templates:', error);
+    }
 
     const verificationCode = this.generateVerificationCode();
     user.emailVerificationRequired = true;

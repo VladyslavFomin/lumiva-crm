@@ -3,7 +3,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
-type SubnavKey = 'catalog' | 'categories' | 'fields' | 'stock' | 'locations' | 'feeds' | 'webhooks' | 'moderation';
+type SubnavKey = 'catalog' | 'categories' | 'attributes' | 'fields' | 'stock' | 'locations' | 'feeds' | 'webhooks' | 'moderation' | 'analytics';
 
 const ICONS: Record<SubnavKey, React.ReactNode> = {
   catalog: (
@@ -15,6 +15,12 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
   categories: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
       <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+    </svg>
+  ),
+  attributes: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M20.59 13.41L12 22l-8.59-8.59A2 2 0 013 12V4a1 1 0 011-1h8a2 2 0 011.41.59l8.18 8.18a2 2 0 010 2.83z" />
+      <circle cx="7.5" cy="7.5" r="1.2" fill="currentColor" stroke="none" />
     </svg>
   ),
   fields: (
@@ -55,6 +61,12 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
       <circle cx="12" cy="12" r="9" />
     </svg>
   ),
+  analytics: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+      <path d="M3 3v18h18" />
+      <path d="M7 15l4-5 3 3 5-7" />
+    </svg>
+  ),
 };
 
 export const ProductsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
@@ -64,12 +76,14 @@ export const ProductsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   const items: Array<{ key: SubnavKey; label: string; path: string }> = [
     { key: 'catalog', label: t('crm.products.subnav.catalog'), path: '/products' },
     { key: 'categories', label: t('crm.products.subnav.categories'), path: '/products/categories' },
+    { key: 'attributes', label: t('crm.products.subnav.attributes'), path: '/products/attributes' },
     { key: 'fields', label: t('crm.products.subnav.fields'), path: '/products/field-types' },
     { key: 'stock', label: t('crm.products.subnav.stock'), path: '/products/stock' },
     { key: 'locations', label: t('crm.products.subnav.locations'), path: '/products/locations' },
     { key: 'feeds', label: t('crm.products.subnav.feeds'), path: '/products/feeds' },
     { key: 'webhooks', label: t('crm.products.subnav.webhooks'), path: '/products/webhooks' },
     { key: 'moderation', label: t('crm.products.subnav.moderation'), path: '/products/moderation' },
+    { key: 'analytics', label: t('crm.products.subnav.analytics'), path: '/products/analytics' },
   ];
 
   return (

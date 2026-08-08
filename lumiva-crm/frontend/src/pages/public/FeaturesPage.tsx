@@ -59,6 +59,9 @@ const T = {
       { n: '07', t: 'BI-дашборды', lede: '80+ готовых виджетов и конструктор. Экспорт в PDF, подписки по расписанию для команд.' },
       { n: '08', t: 'API и webhooks', lede: 'REST, GraphQL и потоковое API. SDK для Python, Node и Go. Интеграции с Zapier, Make, n8n.' },
       { n: '09', t: 'Безопасность', lede: 'SOC 2 Type II, ISO 27001, GDPR, 152-ФЗ. SSO, RBAC, полный журнал аудита.' },
+      { n: '10', t: 'Рабочие области (no-code)', lede: 'Таблицы, Kanban, Календарь и Gantt в одном модуле. Формулы, рейтинги, связи между таблицами и автоматизации по событиям — без кода.' },
+      { n: '11', t: 'AI-ассистент', lede: 'Чат с доступом к данным тенанта: меняет цены, тарифы и брони по команде, отвечает на вопросы по CRM прямо в интерфейсе.' },
+      { n: '12', t: 'AI-сотрудники', lede: 'Ролевые AI-агенты — менеджер лидов, продаж, маркетинга и другие — с настраиваемой автономностью: от подсказок до действий с очередью на согласование.' },
     ],
     spots: [
       { bullets: [
@@ -150,6 +153,9 @@ const T = {
       { n: '07', t: 'BI Dashboards', lede: '80+ ready widgets and a builder. PDF export, scheduled subscriptions for teams.' },
       { n: '08', t: 'API & Webhooks', lede: 'REST, GraphQL and streaming API. SDKs for Python, Node and Go. Zapier, Make, n8n.' },
       { n: '09', t: 'Security', lede: 'SOC 2 Type II, ISO 27001, GDPR. SSO, RBAC, full audit log.' },
+      { n: '10', t: 'Workspace (no-code)', lede: 'Tables, Kanban, Calendar and Gantt in one module. Formulas, ratings, links between tables and event-based automations — no code required.' },
+      { n: '11', t: 'AI Assistant', lede: 'A chat with access to your tenant data: changes prices, rates and bookings on command, answers questions about your CRM right in the interface.' },
+      { n: '12', t: 'AI Employees', lede: 'Role-based AI agents — lead manager, sales manager, marketing manager and more — with configurable autonomy: from suggestions to actions with an approval queue.' },
     ],
     spots: [
       { bullets: [
@@ -241,6 +247,9 @@ const T = {
       { n: '07', t: 'BI Panelleri', lede: '80+ hazır widget ve oluşturucu. PDF dışa aktarma, ekipler için zamanlanmış abonelikler.' },
       { n: '08', t: 'API ve Webhooklar', lede: 'REST, GraphQL ve akış API. Python, Node ve Go için SDK. Zapier, Make, n8n.' },
       { n: '09', t: 'Güvenlik', lede: 'SOC 2 Type II, ISO 27001, GDPR. SSO, RBAC, tam denetim günlüğü.' },
+      { n: '10', t: 'Çalışma Alanları (no-code)', lede: 'Tablolar, Kanban, Takvim ve Gantt tek modülde. Formüller, puanlamalar, tablolar arası bağlantılar ve olay tabanlı otomasyonlar — kod yazmadan.' },
+      { n: '11', t: 'Yapay Zeka Asistanı', lede: 'Kiracı verilerinize erişimi olan bir sohbet: komutla fiyatları, tarifeleri ve rezervasyonları değiştirir, CRM hakkındaki sorulara arayüzde yanıt verir.' },
+      { n: '12', t: 'Yapay Zeka Çalışanları', lede: 'Rol tabanlı yapay zeka ajanları — müşteri adayı yöneticisi, satış yöneticisi, pazarlama yöneticisi ve daha fazlası — önerilerden onay kuyruklu işlemlere kadar yapılandırılabilir özerklikle.' },
     ],
     spots: [
       { bullets: [
@@ -718,7 +727,7 @@ export default function FeaturesPage() {
                     </div>
                   ))}
                 </div>
-                <Link to="/login" className="lv-btn-feat primary" style={{ marginTop: 28 }}>
+                <Link to="/?mode=signup" className="lv-btn-feat primary" style={{ marginTop: 28 }}>
                   {tx.tabTryFree} <IC.Arrow />
                 </Link>
               </div>
@@ -811,7 +820,7 @@ export default function FeaturesPage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <Link to="/login" className="lv-btn-feat primary">{tx.ctaBtn} <IC.Arrow /></Link>
+            <Link to="/?mode=signup" className="lv-btn-feat primary">{tx.ctaBtn} <IC.Arrow /></Link>
             <Link to="/contact" className="lv-btn-feat">{tx.ctaDemo}</Link>
           </div>
         </div>

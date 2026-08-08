@@ -1,0 +1,162 @@
+/* ============================================
+   HELPDESK — scoped design system ("Хэлпдеск")
+   Ported from Claude Design (helpdesk.html / document-signing.css / hotels.css).
+   Follows the same .px-scope convention as ../esign/esign-design.css and
+   ../hotels/hotels-design.css — variables and generic primitives are
+   redeclared here too so this module works standalone (harmless duplication).
+   ============================================ */
+
+.px-scope {
+  --ink: #222;
+  --ink-soft: #2f2f2f;
+  --fg-1: #222;
+  --fg-2: #555;
+  --fg-3: #888;
+  --fg-4: #b5b5b5;
+  --line-1: #1f1f1f;
+  --line-2: #e7e7e7;
+  --line-3: #f0f0f0;
+  --bg: #fff;
+  --bg-muted: #fafafa;
+  --bg-soft: #f5f5f5;
+  --ff-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--fg-1);
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.px-scope h1, .px-scope h2, .px-scope h3, .px-scope h4 { font-family: var(--ff-display); font-weight: 600; letter-spacing: -0.02em; margin: 0; color: var(--ink); }
+.px-scope button { font-family: inherit; cursor: pointer; }
+.px-scope svg { display: block; }
+.px-scope .kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--ink)}
+
+/* buttons */
+.px-scope .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;border:1px solid var(--line-2);background:#fff;color:var(--ink);transition:background .12s,border-color .12s;text-decoration:none}
+.px-scope .btn:hover{border-color:var(--ink)}
+.px-scope .btn:disabled{opacity:.5;cursor:default}
+.px-scope .btn-sm{padding:7px 11px;font-size:12px}
+.px-scope .btn-primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.px-scope .btn-primary:hover{background:#000}
+.px-scope .tb-icon-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid var(--line-2);border-radius:8px;background:#fff;font-size:12.5px;color:var(--ink);cursor:pointer;font-family:inherit;transition:border-color .12s,background .12s}
+.px-scope .tb-icon-btn:hover{border-color:var(--ink)}
+.px-scope .tb-icon-btn:disabled{opacity:.5;cursor:default}
+.px-scope .tb-icon-btn .ic{width:13px;height:13px;color:var(--fg-2)}
+
+/* hero */
+.px-scope .esn-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+.px-scope .esn-hero h1{font-size:24px;font-weight:600;letter-spacing:-0.02em;color:var(--ink);margin:8px 0 4px}
+.px-scope .esn-hero .sub{font-size:13px;color:var(--fg-3);max-width:560px;line-height:1.5}
+.px-scope .esn-hero-r{display:flex;gap:8px;flex-shrink:0}
+
+/* KPI row */
+.px-scope .esn-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+@media (max-width:900px){.px-scope .esn-kpis{grid-template-columns:repeat(2,1fr)}}
+.px-scope .esn-kpi{border:1px solid var(--line-2);border-radius:12px;background:#fff;padding:14px 16px}
+.px-scope .esn-kpi .l{font-size:11px;color:var(--fg-3)}
+.px-scope .esn-kpi .v{font-family:var(--ff-display);font-size:22px;font-weight:600;color:var(--ink);margin-top:6px;letter-spacing:-0.01em}
+.px-scope .esn-kpi .d{font-size:11px;margin-top:4px;color:var(--fg-3)}
+.px-scope .esn-kpi .d.warn{color:#a06b1a}
+.px-scope .esn-kpi .d.up{color:#1f8a5e}
+
+/* tabs + toolbar */
+.px-scope .view-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line-2);margin-bottom:18px;overflow-x:auto;scrollbar-width:none;align-items:center}
+.px-scope .view-tabs::-webkit-scrollbar{display:none}
+.px-scope .view-tab{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;font-size:13px;color:var(--fg-2);border-bottom:1.5px solid transparent;margin-bottom:-1px;cursor:pointer;background:none;border-top:0;border-left:0;border-right:0;font-family:inherit;white-space:nowrap;transition:color .12s,border-color .12s}
+.px-scope .view-tab:hover{color:var(--ink)}
+.px-scope .view-tab.active{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+.px-scope .view-tab .badge{font-family:var(--ff-mono);font-size:10px;color:var(--fg-4);letter-spacing:0.04em}
+.px-scope .view-tab.active .badge{color:var(--fg-3)}
+.px-scope .toolbar-spacer{flex:1}
+.px-scope .tb-search{display:flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line-2);border-radius:8px;background:#fff;transition:border-color .12s}
+.px-scope .tb-search:focus-within{border-color:var(--ink)}
+.px-scope .tb-search input{border:0;outline:0;font-size:12.5px;font-family:inherit;width:100%;background:transparent}
+.px-scope .tb-search input::placeholder{color:var(--fg-4)}
+
+/* two-pane layout (base, from document-signing.css) + hd overrides (wider list) */
+.px-scope .ds-layout{display:grid;grid-template-columns:340px 1fr;gap:16px;margin-bottom:16px;align-items:start}
+.px-scope .hd-layout{grid-template-columns:380px 1fr}
+@media (max-width:1000px){.px-scope .ds-layout{grid-template-columns:1fr}}
+
+.px-scope .ds-list{border:1px solid var(--line-2);border-radius:14px;background:#fff;overflow:hidden;max-height:660px;overflow-y:auto}
+.px-scope .ds-doc-title{font-size:13px;font-weight:600;color:var(--ink);line-height:1.35}
+.px-scope .ds-doc-link{font-size:11.5px;color:var(--fg-3);margin-top:5px}
+.px-scope .ds-doc-foot{font-size:11px;color:var(--fg-4);margin-top:8px;display:flex;gap:6px;font-family:var(--ff-mono);align-items:center}
+.px-scope .ds-doc-foot .ic{color:var(--fg-3)}
+.px-scope .ds-empty{padding:40px 20px;text-align:center;color:var(--fg-3);font-size:13px}
+
+.px-scope .hd-ticket{padding:14px 16px;border-bottom:1px solid var(--line-3);cursor:pointer;transition:background .12s}
+.px-scope .hd-ticket:last-child{border-bottom:0}
+.px-scope .hd-ticket:hover{background:var(--bg-muted)}
+.px-scope .hd-ticket.active{background:var(--bg-soft)}
+.px-scope .hd-ticket-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.px-scope .hd-id{font-family:var(--ff-mono);font-size:10.5px;color:var(--fg-3);letter-spacing:0.03em}
+.px-scope .hd-overdue{color:#cc2f47;font-weight:600}
+
+.px-scope .hd-pill{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.px-scope .hd-pill.lg{padding:5px 12px;font-size:11.5px;border-radius:7px}
+.px-scope .hd-pill.low{background:#f3f3f3;color:#666}
+.px-scope .hd-pill.medium{background:#f0f6fc;color:#1769d1}
+.px-scope .hd-pill.high{background:#fbf2dc;color:#a06b1a}
+.px-scope .hd-pill.urgent{background:#fbecef;color:#cc2f47}
+
+.px-scope .ds-status{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:600;white-space:nowrap;flex-shrink:0}
+.px-scope .ds-status.lg{padding:5px 12px;font-size:11.5px;border-radius:7px}
+.px-scope .ds-status.open{background:#f0f6fc;color:#1769d1}
+.px-scope .ds-status.pending{background:#fbf2dc;color:#a06b1a}
+.px-scope .ds-status.resolved{background:#eaf4ee;color:#1f8a5e}
+.px-scope .ds-status.closed{background:#f3f3f3;color:#666}
+
+.px-scope .ds-detail{border:1px solid var(--line-2);border-radius:14px;background:#fff;padding:20px 22px;min-height:660px;display:flex;flex-direction:column}
+.px-scope .ds-detail-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding-bottom:16px;border-bottom:1px solid var(--line-3)}
+.px-scope .ds-detail-kind{font-family:var(--ff-mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .ds-detail-head h2{font-size:18px;margin-top:4px}
+.px-scope .ds-detail-link{font-size:12.5px;color:var(--fg-3);margin-top:6px}
+.px-scope .ds-detail-link a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--line-2)}
+
+.px-scope .hd-body{display:grid;grid-template-columns:1fr 260px;gap:24px;margin-top:18px;flex:1;min-height:0}
+@media (max-width:1300px){.px-scope .hd-body{grid-template-columns:1fr}}
+
+.px-scope .hd-thread{display:flex;flex-direction:column;gap:14px;min-height:0}
+.px-scope .hd-msg{border:1px solid var(--line-3);border-radius:10px;padding:12px 14px;background:var(--bg-muted)}
+.px-scope .hd-msg.outgoing{background:#fff;border-color:var(--line-2)}
+.px-scope .hd-msg-head{display:flex;justify-content:space-between;font-size:11.5px;margin-bottom:6px;gap:10px}
+.px-scope .hd-msg-head .nm{font-weight:600;color:var(--ink)}
+.px-scope .hd-msg-head .tm{color:var(--fg-3);font-family:var(--ff-mono);white-space:nowrap}
+.px-scope .hd-msg-text{font-size:13px;color:var(--fg-2);line-height:1.5;white-space:pre-wrap}
+
+.px-scope .hd-reply{border:1px solid var(--line-2);border-radius:10px;padding:12px;margin-top:4px}
+.px-scope .hd-reply textarea{width:100%;border:0;resize:vertical;font-family:inherit;font-size:13px;outline:none;color:var(--ink);background:transparent}
+.px-scope .hd-reply-actions{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:10px;border-top:1px solid var(--line-3);gap:8px;flex-wrap:wrap}
+.px-scope .hd-reply-chan{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg-3)}
+.px-scope .hd-reply-chan .ic{color:var(--fg-3)}
+
+.px-scope .ds-meta{display:flex;flex-direction:column;gap:8px;padding-top:0}
+.px-scope .ds-meta-row{display:flex;flex-direction:column;gap:2px;font-size:12px}
+.px-scope .ds-meta-row .l{color:var(--fg-3);font-size:11px}
+.px-scope .ds-meta-row .v{color:var(--ink);font-weight:500}
+.px-scope .ds-meta-row .v.mono{font-family:var(--ff-mono);font-weight:400;font-size:11.5px}
+
+.px-scope .ds-actions{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line-3)}
+.px-scope .ds-actions .btn,.px-scope .ds-actions .tb-icon-btn{width:100%;justify-content:center}
+
+/* channel badge (list + meta) */
+.px-scope .hd-channel{display:inline-flex;align-items:center;gap:5px}
+
+/* inline edit popovers (priority / assignee) */
+.px-scope .hd-select-inline{border:1px solid var(--line-2);border-radius:8px;padding:6px 9px;font-size:12px;font-family:inherit;color:var(--ink);background:#fff;width:100%}
+.px-scope .hd-select-inline:focus{outline:0;border-color:var(--ink)}
+
+/* create-ticket panel (shared with esign's esn-panel/esn-field naming) */
+.px-scope .esn-panel{border:1px solid var(--line-2);border-radius:14px;background:#fff;padding:18px 20px;margin-bottom:16px}
+.px-scope .esn-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.px-scope .esn-field .l{font-size:11.5px;color:var(--fg-3)}
+.px-scope .esn-field input,.px-scope .esn-field select,.px-scope .esn-field textarea{border:1px solid var(--line-2);border-radius:8px;padding:8px 11px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff}
+.px-scope .esn-field input:focus,.px-scope .esn-field select:focus,.px-scope .esn-field textarea:focus{outline:0;border-color:var(--ink)}
+.px-scope .esn-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.px-scope .esn-row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+@media (max-width:760px){.px-scope .esn-row2,.px-scope .esn-row3{grid-template-columns:1fr}}
+.px-scope .esn-alert{font-size:12px;padding:9px 12px;border-radius:9px;margin-bottom:12px}
+.px-scope .esn-alert.warn{color:#a06b1a;background:#fdf3d7;border:1px solid #f0d9a8}
+.px-scope .esn-alert.err{color:#cc2f47;background:#fbecef;border:1px solid #f0c8cf}

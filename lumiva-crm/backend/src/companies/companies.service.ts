@@ -15,6 +15,7 @@ import { Contact } from '../contacts/contact.entity';
 import { CompanyTask, CompanyTaskStatus } from './company-task.entity';
 import { CreateCompanyTaskDto } from './dto/create-company-task.dto';
 import { UpdateCompanyTaskDto } from './dto/update-company-task.dto';
+import { AuditLogService } from '../audit-log/audit-log.service';
 
 @Injectable()
 export class CompaniesService {
@@ -31,6 +32,7 @@ export class CompaniesService {
     private readonly taskRepo: Repository<CompanyTask>,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
+    private readonly auditLog: AuditLogService,
   ) {}
 
   /**
@@ -194,7 +196,7 @@ export class CompaniesService {
   /**
    * Создать компанию
    */
-  async create(tenantId: string, dto: CreateCompanyDto): Promise<Company> {
+  async create(tenantId: string, dto: CreateCompanyDto, actorUserId?: string | null): Promise<Company> {
     const company = this.repo.create({
       tenantId,
       name: dto.name,
@@ -239,6 +241,16 @@ export class CompaniesService {
       console.error('Failed to trigger automation:', error);
     }
 
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'company',
+      entityId: saved.id,
+      entityLabel: saved.name,
+      action: 'create',
+      summary: 'Компания создана',
+      actorUserId: actorUserId ?? null,
+    });
+
     return saved;
   }
 
@@ -249,8 +261,10 @@ export class CompaniesService {
     tenantId: string,
     id: string,
     dto: UpdateCompanyDto,
+    actorUserId?: string | null,
   ): Promise<Company> {
     const company = await this.findOne(tenantId, id);
+    const before = { name: company.name, email: company.email, status: company.status, assignedUserId: company.assignedUserId };
 
     // Обновляем поля
     if (dto.name !== undefined) company.name = dto.name;
@@ -296,15 +310,38 @@ export class CompaniesService {
       console.error('Failed to trigger automation:', error);
     }
 
+    const changes = (['name', 'email', 'status', 'assignedUserId'] as const)
+      .filter((field) => before[field] !== saved[field])
+      .map((field) => ({ field, oldValue: before[field] ?? null, newValue: (saved[field] as string | null) ?? null }));
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'company',
+      entityId: saved.id,
+      entityLabel: saved.name,
+      action: 'update',
+      summary: 'Компания обновлена',
+      changes: changes.length ? changes : null,
+      actorUserId: actorUserId ?? null,
+    });
+
     return saved;
   }
 
   /**
    * Удалить компанию
    */
-  async delete(tenantId: string, id: string): Promise<void> {
+  async delete(tenantId: string, id: string, actorUserId?: string | null): Promise<void> {
     const company = await this.findOne(tenantId, id);
     await this.repo.remove(company);
+    void this.auditLog.log({
+      tenantId,
+      entityType: 'company',
+      entityId: id,
+      entityLabel: company.name,
+      action: 'delete',
+      summary: 'Компания удалена',
+      actorUserId: actorUserId ?? null,
+    });
   }
 
   /**

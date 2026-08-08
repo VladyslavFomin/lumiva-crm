@@ -16,6 +16,18 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
         { id: 'sale.created', label: getTriggerLabel('sale.created', t), icon: 'sale' },
         { id: 'sale.updated', label: getTriggerLabel('sale.updated', t), icon: 'sale' },
         { id: 'sale.status_changed', label: getTriggerLabel('sale.status_changed', t), icon: 'sale' },
+        {
+          id: 'lead.stale',
+          label: getTriggerLabel('lead.stale', t),
+          icon: 'lead',
+          desc: t('crm.automations.form.library.triggerDesc.stale'),
+        },
+        {
+          id: 'sale.stale',
+          label: getTriggerLabel('sale.stale', t),
+          icon: 'sale',
+          desc: t('crm.automations.form.library.triggerDesc.stale'),
+        },
       ],
     },
     {
@@ -97,6 +109,14 @@ export function buildAutomationTriggerGroups(t: TFunction): AutomationLibGroup[]
         { id: 'hotel.low_availability', label: getTriggerLabel('hotel.low_availability', t), icon: 'bell' },
       ],
     },
+    {
+      group: t('crm.automations.form.library.groups.products'),
+      items: [
+        { id: 'product.price_changed', label: getTriggerLabel('product.price_changed', t), icon: 'sale' },
+        { id: 'product.status_changed', label: getTriggerLabel('product.status_changed', t), icon: 'custom' },
+        { id: 'product.stock_low', label: getTriggerLabel('product.stock_low', t), icon: 'bell' },
+      ],
+    },
   ];
 }
 
@@ -115,6 +135,7 @@ export function buildAutomationActionGroups(t: TFunction): AutomationLibGroup[] 
         { id: 'send_slack', label: getActionLabel('send_slack', t), icon: 'slack' },
         { id: 'send_teams', label: getActionLabel('send_teams', t), icon: 'teams' },
         { id: 'send_whatsapp', label: getActionLabel('send_whatsapp', t), icon: 'whatsapp' },
+        { id: 'send_sms', label: getActionLabel('send_sms', t), icon: 'phone' },
         { id: 'send_notification', label: getActionLabel('send_notification', t), icon: 'bell' },
       ],
     },

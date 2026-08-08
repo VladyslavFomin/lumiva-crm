@@ -21,6 +21,8 @@ import { ProjectsService } from './projects.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -30,7 +32,8 @@ import { User } from '../users/user.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 
 @Controller('projects')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('projects', 'read')
 export class ProjectsController {
   private readonly logger = new Logger(ProjectsController.name);
 
@@ -398,15 +401,12 @@ export class ProjectsController {
 
   // ================== DELETE /projects/:id ==================
   @Delete(':id')
+  @RequirePermission('projects_manage_trash', 'delete')
   async delete(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
   ) {
-    const { tenantId, role } = user;
-
-    if (role !== 'owner') {
-      throw new ForbiddenException('Удалять проекты может только владелец');
-    }
+    const { tenantId } = user;
 
     await this.projectsService.softDeleteForTenant(tenantId, id, {
       userId: (user as any).userId,
@@ -418,15 +418,12 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/restore ==================
   @Patch(':id/restore')
+  @RequirePermission('projects_manage_trash', 'write')
   async restore(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
   ) {
-    const { tenantId, role } = user;
-
-    if (role !== 'owner') {
-      throw new ForbiddenException('Восстанавливать проекты может только владелец');
-    }
+    const { tenantId } = user;
 
     return this.projectsService.restoreForTenant(tenantId, id, {
       userId: (user as any).userId,
@@ -437,27 +434,21 @@ export class ProjectsController {
 
   // ================== DELETE /projects/:id/permanent ==================
   @Delete(':id/permanent')
+  @RequirePermission('projects_manage_trash', 'delete')
   async permanentDelete(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
   ) {
-    const { tenantId, role } = user;
-
-    if (role !== 'owner') {
-      throw new ForbiddenException('Полностью удалять проекты может только владелец');
-    }
+    const { tenantId } = user;
 
     return this.projectsService.hardDeleteForTenant(tenantId, id);
   }
 
   // ================== DELETE /projects/trash/empty ==================
   @Delete('trash/empty')
+  @RequirePermission('projects_manage_trash', 'delete')
   async emptyTrash(@CurrentUser() user: CurrentUserPayload) {
-    const { tenantId, role } = user;
-
-    if (role !== 'owner') {
-      throw new ForbiddenException('Очищать корзину может только владелец');
-    }
+    const { tenantId } = user;
 
     return this.projectsService.emptyTrashForTenant(tenantId);
   }

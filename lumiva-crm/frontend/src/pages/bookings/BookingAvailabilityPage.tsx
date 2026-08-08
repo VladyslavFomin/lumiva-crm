@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Toggle } from '../../components/ui';
 import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { BookingsSubnav } from './BookingsSubnav';
@@ -412,8 +413,8 @@ const LocationWeeklyHoursPanel: React.FC<{ locations: BookingLocation[]; onChang
           const enabled = !!hours[d.key]?.length;
           const period = hours[d.key]?.[0];
           return (
-            <div key={d.key} style={{ display: 'grid', gridTemplateColumns: '22px 130px 1fr', gap: 10, alignItems: 'center', padding: '9px 0', borderBottom: i < 6 ? '1px solid var(--line-3)' : 'none' }}>
-              <input type="checkbox" checked={enabled} onChange={() => toggleDay(d.key)} />
+            <div key={d.key} style={{ display: 'grid', gridTemplateColumns: '36px 130px 1fr', gap: 10, alignItems: 'center', padding: '9px 0', borderBottom: i < 6 ? '1px solid var(--line-3)' : 'none' }}>
+              <Toggle checked={enabled} onChange={() => toggleDay(d.key)} aria-label={d.label} />
               <span style={{ fontSize: 12.5, fontWeight: 500, color: enabled ? 'var(--ink)' : 'var(--fg-4)' }}>{d.label}</span>
               {enabled ? (
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -551,8 +552,8 @@ const BookingRulesPanel: React.FC<{ project: BookingProject | null; onChanged: (
           <div className="bk-field"><label>Дедлайн отмены (ч)</label><input type="number" value={draft.cancellationDeadlineHours ?? ''} onChange={(e) => setDraft((d) => ({ ...d, cancellationDeadlineHours: Number(e.target.value) || 0 }))} /></div>
           <div className="bk-field"><label>Дедлайн переноса (ч)</label><input type="number" value={draft.rescheduleDeadlineHours ?? ''} onChange={(e) => setDraft((d) => ({ ...d, rescheduleDeadlineHours: Number(e.target.value) || 0 }))} /></div>
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginTop: 8 }}>
-          <input type="checkbox" checked={draft.overbookingAllowed ?? false} onChange={(e) => setDraft((d) => ({ ...d, overbookingAllowed: e.target.checked }))} />
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, marginTop: 8, cursor: 'pointer' }}>
+          <Toggle checked={draft.overbookingAllowed ?? false} onChange={() => setDraft((d) => ({ ...d, overbookingAllowed: !(d.overbookingAllowed ?? false) }))} />
           Разрешить овербукинг (без проверки конфликтов)
         </label>
         <button className="btn btn-primary btn-sm" style={{ marginTop: 14 }} disabled={saving} onClick={save}>
@@ -781,7 +782,7 @@ export const BookingAvailabilityPage: React.FC = () => {
                   <span style={{ fontSize: 12.5, fontWeight: 500 }}>{s.staffUser?.fullName} <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>· {s.staffUser?.role}</span></span>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
                     <span style={{ color: s.availableForBooking ? '#175c3d' : 'var(--fg-3)' }}>{s.availableForBooking ? 'Доступен' : 'Недоступен'}</span>
-                    <input type="checkbox" checked={s.availableForBooking} onChange={() => toggleAvailable(s)} />
+                    <Toggle checked={s.availableForBooking} onChange={() => toggleAvailable(s)} aria-label={`Доступность: ${s.staffUser?.fullName ?? ''}`} />
                   </label>
                 </div>
               ))}

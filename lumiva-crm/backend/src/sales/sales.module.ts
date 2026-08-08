@@ -15,6 +15,8 @@ import { SalesImportController } from './sales-import.controller';
 import { SalesImportService } from './sales-import.service';
 import { AutomationsModule } from '../automations/automations.module';
 import { LeadsModule } from '../leads/leads.module';
+import { AuditLogModule } from '../audit-log/audit-log.module';
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
   imports: [
@@ -28,6 +30,8 @@ import { LeadsModule } from '../leads/leads.module';
     CustomFieldsModule,
     forwardRef(() => AutomationsModule),
     forwardRef(() => LeadsModule),
+    AuditLogModule,
+    RbacModule,
   ],
   controllers: [SalesController, SalesImportController],
   providers: [SalesService, SalesImportService],

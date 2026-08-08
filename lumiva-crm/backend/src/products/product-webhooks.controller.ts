@@ -39,6 +39,11 @@ export class ProductWebhooksController {
     return this.service.regenerateSecret(user.tenantId, id);
   }
 
+  @Get(':id/deliveries')
+  listDeliveries(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.listDeliveries(user.tenantId, id);
+  }
+
   @Delete(':id')
   @RequirePermission('products_manage_fields', 'delete')
   remove(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {

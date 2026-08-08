@@ -10,7 +10,6 @@ type SubnavKey =
   | 'services'
   | 'availability'
   | 'analytics'
-  | 'templates'
   | 'logs'
   | 'roles'
   | 'settings';
@@ -57,11 +56,6 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
       <path d="M3 3v18h18" /><path d="M7 15l4-5 3 3 5-7" />
     </svg>
   ),
-  templates: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-      <rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" />
-    </svg>
-  ),
   logs: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
       <path d="M4 4h16v16H4z" /><path d="M8 9h8" /><path d="M8 13h8" /><path d="M8 17h5" />
@@ -91,7 +85,6 @@ export const BookingsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
     { key: 'services', label: 'Услуги', path: '/bookings/services' },
     { key: 'availability', label: 'Расписание', path: '/bookings/availability' },
     { key: 'analytics', label: 'Аналитика', path: '/bookings/analytics' },
-    { key: 'templates', label: 'Шаблоны', path: '/bookings/templates' },
     { key: 'logs', label: 'Логи', path: '/bookings/logs' },
     { key: 'roles', label: 'Роли и доступ', path: '/staff/permissions' },
     { key: 'settings', label: 'Настройки', path: '/bookings/settings' },

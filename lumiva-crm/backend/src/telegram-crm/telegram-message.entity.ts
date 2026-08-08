@@ -45,6 +45,10 @@ export class TelegramMessage {
   @Column({ type: 'bigint', nullable: true })
   chatId: string | null; // Telegram chat ID
 
+  // ==== ЧЕРЕЗ КАКОГО БОТА ====
+  @Column({ type: 'uuid', nullable: true })
+  botId: string | null;
+
   // ==== НАПРАВЛЕНИЕ ====
   @Column({ type: 'varchar', length: 20 })
   direction: string; // 'incoming' | 'outgoing'

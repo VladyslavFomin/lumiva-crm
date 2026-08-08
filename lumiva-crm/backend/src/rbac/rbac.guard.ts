@@ -32,7 +32,10 @@ export class RbacGuard implements CanActivate {
       const resource = required.resource as PermissionKey;
       
       // Для новых модулей разрешаем доступ по умолчанию
-      const newModules = ['contacts', 'companies', 'tools_automation', 'custom_objects', 'email', 'telegram'];
+      // 'contacts'/'companies' removed 2026-08-05: verified zero explicit deny-rows exist in
+      // production for either key, so enforcing them for real can't lock anyone out today — see
+      // [[lumiva_rbac_granularity_normalization]] memory for the audit that confirmed this.
+      const newModules = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
       if (newModules.includes(resource)) {
         // Для owner всегда разрешаем
         if (user.role === 'owner') {
@@ -65,7 +68,10 @@ export class RbacGuard implements CanActivate {
 
     for (const perm of perms) {
       // Для новых модулей разрешаем доступ по умолчанию
-      const newModules = ['contacts', 'companies', 'tools_automation', 'custom_objects', 'email', 'telegram'];
+      // 'contacts'/'companies' removed 2026-08-05: verified zero explicit deny-rows exist in
+      // production for either key, so enforcing them for real can't lock anyone out today — see
+      // [[lumiva_rbac_granularity_normalization]] memory for the audit that confirmed this.
+      const newModules = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
       if (newModules.includes(perm)) {
         // Для owner всегда разрешаем
         if (user.role === 'owner') {

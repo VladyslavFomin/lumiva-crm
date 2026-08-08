@@ -13,13 +13,18 @@ export class BillingController {
     return this.billing.getCatalog();
   }
 
+  @Get('plan-features')
+  async planFeatures() {
+    return this.billing.getPlanFeatureUnlocks();
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('checkout-ai-addon')
   async createAiAddon(
     @CurrentUser() user: CurrentUserPayload,
     @Body()
     body: {
-      kind: 'ai_prepaid' | 'storage_pack';
+      kind: 'ai_prepaid' | 'storage_pack' | 'telephony_addon';
       successUrl: string;
       cancelUrl: string;
     },
@@ -50,6 +55,18 @@ export class BillingController {
       period: body.period || 'month',
       successUrl: body.successUrl,
       cancelUrl: body.cancelUrl,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('portal-session')
+  async createPortal(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { returnUrl: string },
+  ) {
+    return this.billing.createPortalSession({
+      tenantId: user?.tenantId,
+      returnUrl: body.returnUrl,
     });
   }
 

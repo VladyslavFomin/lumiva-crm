@@ -32,6 +32,8 @@ import { SalesModule } from './sales/sales.module';
 import { SalesChannelsModule } from './sales-channels/sales-channels.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { WhatsappWebhookModule } from './integrations/whatsapp/whatsapp-webhook.module';
+import { WhatsappCrmModule } from './whatsapp-crm/whatsapp-crm.module';
+import { TelephonyModule } from './telephony/telephony.module';
 import { AmocrmInboundWebhookModule } from './integrations/amocrm/amocrm-inbound-webhook.module';
 import { WordpressCf7InboundWebhookModule } from './integrations/wordpress-cf7/wordpress-cf7-inbound-webhook.module';
 import { ZapierMakeInboundModule } from './integrations/zapier-make/zapier-make-inbound.module';
@@ -42,6 +44,7 @@ import { ShopifyInboundModule } from './integrations/shopify/shopify-inbound.mod
 import { WooCommerceInboundModule } from './integrations/woocommerce/woocommerce-inbound.module';
 import { ApiTokensModule } from './api-tokens/api-tokens.module';
 import { MarketingModule } from './marketing/marketing.module';
+import { MarketingBroadcastsModule } from './marketing-broadcasts/marketing-broadcasts.module';
 import { SmmModule } from './smm/smm.module';
 import { CustomObjectsModule } from './custom-objects/custom-objects.module';
 import { WorkspaceAreasModule } from './workspace-areas/workspace-areas.module';
@@ -57,6 +60,14 @@ import { BillingModule } from './billing/billing.module';
 import { AiModule } from './ai/ai.module';
 import { AiEmployeesModule } from './ai-employees/ai-employees.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { BiDashboardModule } from './bi-dashboard/bi-dashboard.module';
+import { OnboardingModule } from './onboarding/onboarding.module';
+import { CalendarModule } from './calendar/calendar.module';
+import { ExportModule } from './export/export.module';
+import { PortalModule } from './portal/portal.module';
+import { HelpdeskModule } from './helpdesk/helpdesk.module';
+import { EsignModule } from './esign/esign.module';
+import { AuditLogModule } from './audit-log/audit-log.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SmsModule } from './sms/sms.module';
 import { DeduplicationModule } from './deduplication/deduplication.module';
@@ -259,6 +270,14 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     TenantsModule,
     UsersModule,
     DashboardModule,
+    BiDashboardModule,
+    OnboardingModule,
+    CalendarModule,
+    ExportModule,
+    PortalModule,
+    HelpdeskModule,
+    EsignModule,
+    AuditLogModule,
     AuthModule,
     LeadsModule,
     ContactsModule,
@@ -276,6 +295,8 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     SalesModule,
     SalesChannelsModule,
     IntegrationsModule,
+    WhatsappCrmModule,
+    TelephonyModule,
     WhatsappWebhookModule,
     AmocrmInboundWebhookModule,
     WordpressCf7InboundWebhookModule,
@@ -291,6 +312,7 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     HotelsModule,
     WorkspaceAreasModule,
     MarketingModule,
+    MarketingBroadcastsModule,
     ApiTokensModule,
     SmmModule,
     PublicModule,

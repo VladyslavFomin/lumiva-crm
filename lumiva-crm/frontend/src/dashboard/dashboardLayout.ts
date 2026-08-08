@@ -31,6 +31,9 @@ export const DASHBOARD_EXTRA_WIDGET_IDS = [
   'projects-analytics',
   'leads-analytics',
   'sales-analytics',
+  'products-analytics',
+  'bookings-analytics',
+  'hotels-analytics',
 ] as const;
 
 export const ALL_DASHBOARD_WIDGET_IDS = [
@@ -119,6 +122,9 @@ function defaultLayout(): DashboardLayoutState {
       'projects-analytics': 'lg',
       'leads-analytics': 'lg',
       'sales-analytics': 'lg',
+      'products-analytics': 'lg',
+      'bookings-analytics': 'lg',
+      'hotels-analytics': 'lg',
       funnel_today: 'md',
       lead_sources_week: 'md',
       recent_deals: 'md',
@@ -147,6 +153,9 @@ function defaultHeightForWidgetId(id: string): number {
     'projects-analytics': 220,
     'leads-analytics': 220,
     'sales-analytics': 220,
+    'products-analytics': 240,
+    'bookings-analytics': 240,
+    'hotels-analytics': 240,
     funnel_today: 280,
     lead_sources_week: 260,
     recent_deals: 320,

@@ -133,6 +133,34 @@ export class Tenant {
   @Column({ type: 'text', nullable: true })
   stripeAuxLastSessionId: string | null;
 
+  /** Постоянный Stripe Customer id — для чекаута и Customer Portal (способы оплаты) */
+  @Column({ type: 'text', nullable: true })
+  stripeCustomerId: string | null;
+
+  /**
+   * IP-телефония — платный добавок поверх любого тарифа (не входит ни в один план по умолчанию,
+   * поэтому НЕ участвует в plan-entitlements/COMPONENT_MIN_PLAN — тот механизм считает "не задано
+   * явно" как "разрешено по тарифу", что здесь означало бы бесплатный доступ). Включается либо
+   * вручную из pl1, либо автоматически вебхуком Stripe при успешной оплате чек-аута
+   * `telephony_addon`.
+   */
+  @Column({ type: 'boolean', default: false })
+  telephonyAddonEnabled: boolean;
+
+  /** Set once the new-tenant setup wizard is completed or explicitly skipped. Null = still pending
+   * (backfilled to createdAt for tenants that predate the wizard — see migration Onboarding1781500000000). */
+  @Column({ type: 'timestamptz', nullable: true })
+  onboardingCompletedAt: Date | null;
+
+  /** Set once the "load example data" wizard step has run — makes seeding idempotent. */
+  @Column({ type: 'timestamptz', nullable: true })
+  sampleDataSeededAt: Date | null;
+
+  /** Last Stripe `invoice.payment_failed` for this tenant's telephony addon subscription — the
+   * main plan is prepaid one-time Checkout, not a Stripe Subscription, so it never raises this. */
+  @Column({ type: 'timestamptz', nullable: true })
+  lastPaymentFailedAt: Date | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

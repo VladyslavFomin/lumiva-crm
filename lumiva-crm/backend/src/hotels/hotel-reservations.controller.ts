@@ -48,7 +48,7 @@ export class HotelReservationsController {
   @Post()
   @RequirePermission('hotels_manage_reservations', 'write')
   create(@CurrentUser() user: CurrentUserPayload, @Body() dto: any) {
-    return this.reservations.create(user.tenantId, dto);
+    return this.reservations.create(user.tenantId, dto, user.userId ?? user.id ?? user.sub);
   }
 
   @Get(':id')
@@ -63,13 +63,13 @@ export class HotelReservationsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: any,
   ) {
-    return this.reservations.update(user.tenantId, id, dto);
+    return this.reservations.update(user.tenantId, id, dto, user.userId ?? user.id ?? user.sub);
   }
 
   @Delete(':id')
   @RequirePermission('hotels_manage_reservations', 'delete')
   remove(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
-    return this.reservations.remove(user.tenantId, id);
+    return this.reservations.remove(user.tenantId, id, user.userId ?? user.id ?? user.sub);
   }
 
   @Post(':id/check-in')
