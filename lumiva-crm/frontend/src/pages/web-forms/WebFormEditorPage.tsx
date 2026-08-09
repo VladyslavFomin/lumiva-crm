@@ -3,14 +3,19 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { fetchSites, type Site } from '../../api/sites';
+import { fetchProductCategories, type ProductCategory } from '../../api/products';
+import { fetchHotels, type Hotel } from '../../api/hotels';
+import { fetchBookingServices, type BookingServiceItem } from '../../api/bookings';
 import {
   createEmbedForm,
   fetchEmbedForm,
   fetchEmbedTemplateList,
   postEmbedPreviewToken,
   updateEmbedForm,
+  EMBED_FORM_KINDS,
   type EmbedFieldConfigItem,
   type EmbedFieldType,
+  type EmbedFormKind,
   type EmbedFormRow,
 } from '../../api/embedForms';
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../../utils/withTimeout';
@@ -114,6 +119,31 @@ const FIELD_TYPE_LABELS: Record<EmbedFieldType, string> = {
   file: 'Файл',
   checkbox_consent: 'Согласие',
   messaging: 'Мессенджер',
+  product_cart: 'Товары (корзина)',
+  service_booking: 'Услуга и время',
+  hotel_booking: 'Отель и даты',
+};
+
+const KIND_META: Record<EmbedFormKind, { label: string; description: string; fieldType?: EmbedFieldType; fieldLabel?: string }> = {
+  lead: { label: 'Заявка (лид)', description: 'Классическая форма — заполненные поля попадают в CRM как лид.' },
+  product_order: {
+    label: 'Заказ товаров',
+    description: 'Клиент выбирает товары из вашего каталога — заказ попадает в Продажи.',
+    fieldType: 'product_cart',
+    fieldLabel: 'Товары',
+  },
+  booking: {
+    label: 'Запись на услугу',
+    description: 'Клиент выбирает услугу и время — заявка попадает в Бронирования.',
+    fieldType: 'service_booking',
+    fieldLabel: 'Услуга и время',
+  },
+  hotel_reservation: {
+    label: 'Бронирование отеля',
+    description: 'Клиент выбирает отель, номер и даты — бронь попадает в Систему резервации.',
+    fieldType: 'hotel_booking',
+    fieldLabel: 'Отель и даты',
+  },
 };
 
 const TEMPLATE_LABELS: Record<string, string> = {
@@ -249,8 +279,12 @@ export const WebFormEditorPage: React.FC = () => {
 
   const [sites, setSites] = useState<Site[]>([]);
   const [templateKeys, setTemplateKeys] = useState<string[]>([]);
+  const [productCategories, setProductCategories] = useState<ProductCategory[]>([]);
+  const [hotelsList, setHotelsList] = useState<Hotel[]>([]);
+  const [bookingServicesList, setBookingServicesList] = useState<BookingServiceItem[]>([]);
   const [createSiteId, setCreateSiteId] = useState('');
   const [createTemplate, setCreateTemplate] = useState('contact');
+  const [createKind, setCreateKind] = useState<EmbedFormKind>('lead');
   const [createName, setCreateName] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -324,6 +358,11 @@ export const WebFormEditorPage: React.FC = () => {
       .catch(() => {
         // ignore
       });
+    // Для sourceFilter составных полей (product_cart/service_booking/hotel_booking) — не
+    // критично, если модуль не подключён тенанту, тогда просто пустой список без ошибок в UI.
+    fetchProductCategories().then(setProductCategories).catch(() => {});
+    fetchHotels().then(setHotelsList).catch(() => {});
+    fetchBookingServices().then(setBookingServicesList).catch(() => {});
   }, [createSiteId]);
 
   useEffect(() => {
@@ -425,6 +464,17 @@ export const WebFormEditorPage: React.FC = () => {
     });
   };
 
+  const addKindField = (fieldType: EmbedFieldType, label: string) => {
+    setFieldConfig((fc) => {
+      const used = new Set(fc.fields.map((f) => f.key));
+      let key = fieldType === 'product_cart' ? 'cart' : fieldType === 'service_booking' ? 'booking' : 'stay';
+      let n = 1;
+      while (used.has(key)) key = `${key}_${n++}`;
+      const next: EmbedFieldConfigItem = { id: newFieldId(), type: fieldType, key, label, required: true, colSpan: 2 };
+      return { ...fc, fields: [next, ...fc.fields] };
+    });
+  };
+
   const removeField = (id: string) => {
     if (fieldConfig.fields.length < 2) {
       return;
@@ -478,7 +528,8 @@ export const WebFormEditorPage: React.FC = () => {
     try {
       const f = await createEmbedForm({
         siteId: createSiteId,
-        templateKey: createTemplate,
+        templateKey: createKind === 'lead' ? createTemplate : undefined,
+        kind: createKind,
         name: createName.trim(),
       });
       navigate(`/web-forms/${f.id}`, { replace: true });
@@ -607,6 +658,29 @@ export const WebFormEditorPage: React.FC = () => {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Тип формы
+              </label>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {EMBED_FORM_KINDS.map((k) => {
+                  const active = createKind === k;
+                  const meta = KIND_META[k];
+                  return (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setCreateKind(k)}
+                      className={`rounded-2xl border p-4 text-left transition ${active ? 'border-[#222] bg-[#222] text-white shadow-lg' : 'border-slate-200 bg-white text-[#222] hover:border-slate-400 hover:shadow-sm'}`}
+                    >
+                      <div className="text-sm font-semibold">{meta.label}</div>
+                      <p className={`mt-2 text-xs leading-5 ${active ? 'text-white/75' : 'text-slate-500'}`}>{meta.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            {createKind === 'lead' && (
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
                 {t('crm.embedForms.create.template')}
               </label>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -630,6 +704,7 @@ export const WebFormEditorPage: React.FC = () => {
                 })}
               </div>
             </div>
+            )}
             <button
               type="button"
               disabled={creating || !sites.length}
@@ -799,6 +874,21 @@ export const WebFormEditorPage: React.FC = () => {
                   </button>
                 ))}
               </div>
+              {row && row.kind !== 'lead' && KIND_META[row.kind].fieldType &&
+                !fieldConfig.fields.some((f) => f.type === KIND_META[row.kind].fieldType) && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-amber-800">
+                    В форме нет блока «{KIND_META[row.kind].fieldLabel}» — без него клиент не сможет ничего выбрать.
+                  </p>
+                  <button
+                    type="button"
+                    className="lv-embed-btn text-xs shrink-0"
+                    onClick={() => addKindField(KIND_META[row.kind].fieldType!, KIND_META[row.kind].fieldLabel!)}
+                  >
+                    Добавить блок
+                  </button>
+                </div>
+              )}
               <div className="space-y-3 mt-4">
                 {fieldConfig.fields.map((f, idx) => (
                   <div key={f.id} className="lv-embed-field-card">
@@ -860,6 +950,78 @@ export const WebFormEditorPage: React.FC = () => {
                           </div>
                         ))}
                         <button type="button" className="lv-embed-btn text-xs" onClick={() => updateField(f.id, { options: [...(f.options || []), { value: `v_${Date.now().toString(36)}`, label: t('crm.embedForms.editorUi.newOption') }] })}>{t('crm.embedForms.editorUi.addOption')}</button>
+                      </div>
+                    )}
+                    {f.type === 'product_cart' && (
+                      <div className="sm:col-span-2 space-y-2">
+                        <span className="lv-embed-lbl">Какие категории товаров показывать (пусто — все опубликованные)</span>
+                        <div className="flex flex-wrap gap-2">
+                          {productCategories.map((c) => {
+                            const ids = f.sourceFilter?.categoryIds || [];
+                            const on = ids.includes(c.id);
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                className={`rounded-full border px-3 py-1 text-xs ${on ? 'border-[#222] bg-[#222] text-white' : 'border-slate-200 text-slate-600'}`}
+                                onClick={() => updateField(f.id, {
+                                  sourceFilter: { ...f.sourceFilter, categoryIds: on ? ids.filter((x) => x !== c.id) : [...ids, c.id] },
+                                })}
+                              >
+                                {c.name}
+                              </button>
+                            );
+                          })}
+                          {!productCategories.length && <span className="text-xs text-slate-400">Категорий пока нет</span>}
+                        </div>
+                      </div>
+                    )}
+                    {f.type === 'service_booking' && (
+                      <div className="sm:col-span-2 space-y-2">
+                        <span className="lv-embed-lbl">Какие услуги показывать (пусто — все активные)</span>
+                        <div className="flex flex-wrap gap-2">
+                          {bookingServicesList.map((s) => {
+                            const ids = f.sourceFilter?.serviceIds || [];
+                            const on = ids.includes(s.id);
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                className={`rounded-full border px-3 py-1 text-xs ${on ? 'border-[#222] bg-[#222] text-white' : 'border-slate-200 text-slate-600'}`}
+                                onClick={() => updateField(f.id, {
+                                  sourceFilter: { ...f.sourceFilter, serviceIds: on ? ids.filter((x) => x !== s.id) : [...ids, s.id] },
+                                })}
+                              >
+                                {s.name}
+                              </button>
+                            );
+                          })}
+                          {!bookingServicesList.length && <span className="text-xs text-slate-400">Услуг пока нет</span>}
+                        </div>
+                      </div>
+                    )}
+                    {f.type === 'hotel_booking' && (
+                      <div className="sm:col-span-2 space-y-2">
+                        <span className="lv-embed-lbl">Какие отели показывать (пусто — все активные)</span>
+                        <div className="flex flex-wrap gap-2">
+                          {hotelsList.map((h) => {
+                            const ids = f.sourceFilter?.hotelIds || [];
+                            const on = ids.includes(h.id);
+                            return (
+                              <button
+                                key={h.id}
+                                type="button"
+                                className={`rounded-full border px-3 py-1 text-xs ${on ? 'border-[#222] bg-[#222] text-white' : 'border-slate-200 text-slate-600'}`}
+                                onClick={() => updateField(f.id, {
+                                  sourceFilter: { ...f.sourceFilter, hotelIds: on ? ids.filter((x) => x !== h.id) : [...ids, h.id] },
+                                })}
+                              >
+                                {h.name}
+                              </button>
+                            );
+                          })}
+                          {!hotelsList.length && <span className="text-xs text-slate-400">Отелей пока нет</span>}
+                        </div>
                       </div>
                     )}
                     {['number', 'range', 'guests', 'rating'].includes(f.type) ? (

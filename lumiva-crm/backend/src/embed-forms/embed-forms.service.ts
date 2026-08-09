@@ -14,18 +14,28 @@ import { join, extname, basename } from 'path';
 import { EmbedForm } from './embed-form.entity';
 import { EmbedFormUpload } from './embed-form-upload.entity';
 import { Site } from '../sites/site.entity';
+import { Tenant } from '../tenants/tenant.entity';
 import { CreateEmbedFormDto } from './dto/create-embed-form.dto';
 import { UpdateEmbedFormDto } from './dto/update-embed-form.dto';
 import {
   EMBED_TEMPLATE_KEYS,
   getDefaultDesignClone,
+  getKindDefaultTemplateKey,
+  getKindSeedFieldConfig,
   getTemplateFieldConfig,
+  isFormKind,
   isTemplateKey,
   type EmbedFieldConfigItem,
+  type EmbedFormKind,
 } from './embed-form-templates';
 import { isOriginAllowedForPublicEmbed } from './embed-origin.util';
 import { signEmbedPreviewToken, verifyEmbedPreviewToken } from './embed-preview-token.util';
 import { LeadsService } from '../leads/leads.service';
+import { ProductsService } from '../products/products.service';
+import { SalesService } from '../sales/sales.service';
+import { ReservationsService } from '../bookings/reservations.service';
+import { BookingsCatalogService } from '../bookings/bookings-catalog.service';
+import { HotelsPublicStorefrontService } from '../hotels/hotels-public-storefront.service';
 import { getUploadsRoot } from '../common/uploads-root.util';
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
@@ -59,7 +69,13 @@ export class EmbedFormsService {
     @InjectRepository(EmbedForm) private formsRepo: Repository<EmbedForm>,
     @InjectRepository(EmbedFormUpload) private uploadsRepo: Repository<EmbedFormUpload>,
     @InjectRepository(Site) private sitesRepo: Repository<Site>,
+    @InjectRepository(Tenant) private tenantsRepo: Repository<Tenant>,
     private readonly leadsService: LeadsService,
+    private readonly productsService: ProductsService,
+    private readonly salesService: SalesService,
+    private readonly reservationsService: ReservationsService,
+    private readonly bookingsCatalogService: BookingsCatalogService,
+    private readonly hotelsPublicStorefrontService: HotelsPublicStorefrontService,
     config: ConfigService,
   ) {
     this.jwtSecret = config.get<string>('JWT_SECRET') || process.env.JWT_SECRET || 'unsafe';
@@ -112,15 +128,24 @@ export class EmbedFormsService {
   }
 
   async create(tenantId: string, dto: CreateEmbedFormDto) {
-    if (!isTemplateKey(dto.templateKey)) {
-      throw new BadRequestException('Invalid templateKey');
-    }
+    const kind: EmbedFormKind = dto.kind && isFormKind(dto.kind) ? dto.kind : 'lead';
     const site = await this.sitesRepo.findOne({
       where: { id: dto.siteId, tenantId, status: 'active' } as any,
     });
     if (!site) throw new BadRequestException('Site not found for tenant');
 
-    const fieldConfig = getTemplateFieldConfig(dto.templateKey);
+    let fieldConfig: unknown;
+    let templateKey: string;
+    if (kind === 'lead') {
+      if (!dto.templateKey || !isTemplateKey(dto.templateKey)) {
+        throw new BadRequestException('Invalid templateKey');
+      }
+      fieldConfig = getTemplateFieldConfig(dto.templateKey);
+      templateKey = dto.templateKey;
+    } else {
+      fieldConfig = getKindSeedFieldConfig(kind);
+      templateKey = getKindDefaultTemplateKey(kind);
+    }
     const design = getDefaultDesignClone();
     const publicId = await this.genPublicId();
 
@@ -129,7 +154,8 @@ export class EmbedFormsService {
       siteId: site.id,
       name: safePlain(dto.name, 200),
       publicId,
-      templateKey: dto.templateKey,
+      templateKey,
+      kind,
       fieldConfig: fieldConfig as any,
       design,
       published: false,
@@ -268,10 +294,17 @@ export class EmbedFormsService {
         throw new NotFoundException('Form not found');
       }
     }
+    let clientKey: string | undefined;
+    if (f.kind !== 'lead') {
+      const tenant = await this.tenantsRepo.findOne({ where: { id: f.tenantId } });
+      clientKey = tenant?.clientKey || undefined;
+    }
     return {
       publicId: f.publicId,
       name: f.name,
       templateKey: f.templateKey,
+      kind: f.kind,
+      clientKey,
       fieldConfig: f.fieldConfig,
       design: f.design,
       honeypotField: f.honeypotField,
@@ -347,6 +380,12 @@ export class EmbedFormsService {
         if (!fileIds.length && spec.required) {
           throw new BadRequestException(`Field ${spec.key} (file) required`);
         }
+        continue;
+      }
+      if (spec.type === 'product_cart' || spec.type === 'service_booking' || spec.type === 'hotel_booking') {
+        // Составные поля несут готовый выбор клиента (корзина / услуга+время / отель+номер+даты) —
+        // сама заявка/заказ/бронь создаётся один раз ниже, после сбора всех полей формы, по kind.
+        parsed[spec.key] = body[spec.id];
         continue;
       }
       const raw = body[spec.id];
@@ -454,9 +493,136 @@ export class EmbedFormsService {
       return { ok: true, accepted: true, preview: true };
     }
 
+    const result = await this.submitToTarget(f, fields, parsed, referer);
+
+    if (fileIds.length) {
+      await this.uploadsRepo.delete({ id: In(fileIds) });
+    }
+
+    return { ok: true, accepted: true, ...result };
+  }
+
+  /** Контакты клиента по role (customer_name/email/phone), с фолбэком на key==='name'/'email'/
+   * 'phone' — для форм, где role почему-то не проставлен (например ручное редактирование). */
+  private resolveContact(fields: EmbedFieldConfigItem[], parsed: Record<string, unknown>) {
+    const byRole = (role: EmbedFieldConfigItem['role']) => fields.find((f) => f.role === role);
+    const nameField = byRole('customer_name') || fields.find((f) => f.key === 'name');
+    const emailField = byRole('customer_email') || fields.find((f) => f.key === 'email');
+    const phoneField = byRole('customer_phone') || fields.find((f) => f.key === 'phone');
+    return {
+      name: nameField ? String(parsed[nameField.key] ?? '') : '',
+      email: emailField ? String(parsed[emailField.key] ?? '') : '',
+      phone: phoneField ? String(parsed[phoneField.key] ?? '') : '',
+    };
+  }
+
+  /** Ветвление по kind — единственное место, где сабмит формы превращается в реальную сущность
+   * CRM. 'lead' сохраняет старое поведение один-в-один; остальные три переиспользуют ровно те же
+   * сервисы, что и тестовая витрина /store на pl1.lumiva-ui (SalesService.createFromStorefront,
+   * ReservationsService.create, HotelsPublicStorefrontService.createReservationForTenant) —
+   * никакой новой логики создания заказа/брони здесь не пишется. */
+  private async submitToTarget(
+    f: EmbedForm,
+    fields: EmbedFieldConfigItem[],
+    parsed: Record<string, unknown>,
+    referer: string | undefined,
+  ): Promise<{ leadId?: string; orderCode?: string; reservationId?: string; bookingCode?: string }> {
+    if (f.kind === 'product_order') {
+      const cartField = fields.find((x) => x.type === 'product_cart');
+      const cart = cartField ? (parsed[cartField.key] as { items?: { sku: string; qty: number }[] } | undefined) : undefined;
+      const items = Array.isArray(cart?.items) ? cart!.items : [];
+      if (!items.length) throw new BadRequestException('Корзина пуста');
+      const contact = this.resolveContact(fields, parsed);
+      if (!contact.name) throw new BadRequestException('Укажите имя');
+
+      let currency = 'EUR';
+      const resolvedItems = await Promise.all(
+        items.map(async (item) => {
+          const qty = Math.max(1, Math.trunc(Number(item.qty) || 1));
+          const { product } = await this.productsService.getPublicCatalogProductForTenant(f.tenantId, String(item.sku));
+          currency = product.currency || currency;
+          return { productId: product.id, sku: product.sku || String(item.sku), name: product.name, qty, unitPrice: Number(product.price) || 0 };
+        }),
+      );
+      const sale = await this.salesService.createFromStorefront(f.tenantId, {
+        items: resolvedItems,
+        currency,
+        customerName: contact.name,
+        customerEmail: contact.email || undefined,
+        customerPhone: contact.phone || undefined,
+      });
+      return { orderCode: sale.externalOrderNo ?? undefined };
+    }
+
+    if (f.kind === 'booking') {
+      const bookingField = fields.find((x) => x.type === 'service_booking');
+      const booking = bookingField
+        ? (parsed[bookingField.key] as { serviceId?: string; startAt?: string; endAt?: string } | undefined)
+        : undefined;
+      if (!booking?.serviceId || !booking?.startAt || !booking?.endAt) {
+        throw new BadRequestException('Не выбрана услуга или время');
+      }
+      const services = await this.bookingsCatalogService.listServices(f.tenantId);
+      const service = services.find((s) => s.id === booking.serviceId);
+      if (!service) throw new BadRequestException('Услуга не найдена');
+      // Услуга не всегда привязана к конкретному филиалу в реальных данных — тогда берём первый
+      // филиал тенанта (та же простая политика по умолчанию, что уже выбрана для /store).
+      let locationId = service.locationIds?.[0];
+      if (!locationId) {
+        const locations = await this.bookingsCatalogService.listLocations(f.tenantId);
+        locationId = locations[0]?.id;
+      }
+      if (!locationId) throw new BadRequestException('У тенанта не настроен ни один филиал');
+      const contact = this.resolveContact(fields, parsed);
+      if (!contact.name) throw new BadRequestException('Укажите имя');
+
+      const reservation = await this.reservationsService.create(
+        f.tenantId,
+        {
+          locationId,
+          serviceId: booking.serviceId,
+          startAt: booking.startAt,
+          endAt: booking.endAt,
+          customerName: contact.name,
+          customerPhone: contact.phone || undefined,
+          customerEmail: contact.email || undefined,
+          source: 'website',
+        },
+        null,
+      );
+      return { reservationId: reservation.id };
+    }
+
+    if (f.kind === 'hotel_reservation') {
+      const stayField = fields.find((x) => x.type === 'hotel_booking');
+      const stay = stayField
+        ? (parsed[stayField.key] as
+            | { hotelId?: string; roomTypeId?: string; occupancyTypeId?: string; checkIn?: string; checkOut?: string; pax?: number }
+            | undefined)
+        : undefined;
+      if (!stay?.hotelId || !stay?.roomTypeId || !stay?.occupancyTypeId || !stay?.checkIn || !stay?.checkOut) {
+        throw new BadRequestException('Не выбран отель, номер или даты');
+      }
+      const contact = this.resolveContact(fields, parsed);
+      if (!contact.name || !contact.email) throw new BadRequestException('Укажите имя и email');
+
+      const reservation = await this.hotelsPublicStorefrontService.createReservationForTenant(f.tenantId, {
+        hotelId: stay.hotelId,
+        roomTypeId: stay.roomTypeId,
+        occupancyTypeId: stay.occupancyTypeId,
+        checkIn: stay.checkIn,
+        checkOut: stay.checkOut,
+        guestName: contact.name,
+        guestEmail: contact.email,
+        guestPhone: contact.phone || undefined,
+        pax: stay.pax,
+      });
+      return { bookingCode: reservation.bookingCode ?? undefined };
+    }
+
     const lead = await this.leadsService.createFromEmbedForm({
       tenantId: f.tenantId,
-      siteId: site.id,
+      siteId: f.siteId,
       formId: f.id,
       publicId: f.publicId,
       formName: f.name,
@@ -464,12 +630,7 @@ export class EmbedFormsService {
       referer: referer || null,
       fieldValues: parsed,
     });
-
-    if (fileIds.length) {
-      await this.uploadsRepo.delete({ id: In(fileIds) });
-    }
-
-    return { ok: true, accepted: true, leadId: lead.id };
+    return { leadId: lead.id };
   }
 
   /**

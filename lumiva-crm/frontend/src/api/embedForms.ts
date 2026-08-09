@@ -28,7 +28,16 @@ export type EmbedFieldType =
   | 'promo_code'
   | 'file'
   | 'checkbox_consent'
-  | 'messaging';
+  | 'messaging'
+  /** Составные "живые" поля — мини-виджет с реальными данными тенанта, а не простой инпут.
+   * Ровно одно такое поле на форму соответствующего kind (см. EmbedFormKind). */
+  | 'product_cart'
+  | 'service_booking'
+  | 'hotel_booking';
+
+/** Куда попадает сабмит формы — независимо от косметического templateKey. */
+export const EMBED_FORM_KINDS = ['lead', 'product_order', 'booking', 'hotel_reservation'] as const;
+export type EmbedFormKind = (typeof EMBED_FORM_KINDS)[number];
 
 export interface EmbedFieldConfigItem {
   id: string;
@@ -53,6 +62,10 @@ export interface EmbedFieldConfigItem {
   }[];
   /** 2 = полная ширина, 1 = половина (два поля в ряд) */
   colSpan?: 1 | 2;
+  /** Для kind !== 'lead': какое контактное поле это. */
+  role?: 'customer_name' | 'customer_email' | 'customer_phone';
+  /** Только для составных полей — сужает список до конкретных категорий/отелей/услуг тенанта. */
+  sourceFilter?: { categoryIds?: string[]; hotelIds?: string[]; serviceIds?: string[] };
 }
 
 export interface EmbedFormFieldConfig {
@@ -71,6 +84,7 @@ export interface EmbedFormRow {
   name: string;
   publicId: string;
   templateKey: string;
+  kind: EmbedFormKind;
   fieldConfig: EmbedFormFieldConfig;
   design: Record<string, unknown>;
   published: boolean;
@@ -96,7 +110,8 @@ export async function fetchEmbedForm(id: string): Promise<EmbedFormRow> {
 
 export async function createEmbedForm(body: {
   siteId: string;
-  templateKey: string;
+  templateKey?: string;
+  kind?: EmbedFormKind;
   name: string;
 }): Promise<EmbedFormRow> {
   return api.post<EmbedFormRow>('/embed-forms', body);
@@ -135,6 +150,10 @@ export interface PublicEmbedConfig {
   publicId: string;
   name: string;
   templateKey: string;
+  kind: EmbedFormKind;
+  /** Только для kind !== 'lead' — публичный идентификатор тенанта, нужен составным полям
+   * (product_cart/service_booking/hotel_booking) для похода в /public/catalog|booking|hotels/*. */
+  clientKey?: string;
   fieldConfig: EmbedFormFieldConfig;
   design: Record<string, unknown>;
   honeypotField: string;
@@ -143,8 +162,10 @@ export interface PublicEmbedConfig {
   siteLabel?: string | null;
 }
 
-/** Публичные ручки embed: без JWT (и без перехвата 401 сессии CRM). */
-async function publicJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** Публичные ручки embed: без JWT (и без перехвата 401 сессии CRM). Экспортируется — тем же
+ * приёмом пользуются api/publicCatalog.ts/publicBooking.ts/publicHotels.ts для составных полей
+ * (product_cart/service_booking/hotel_booking) на публичной странице формы. */
+export async function publicJson<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, { ...init, cache: 'no-store' });
   const text = await res.text();
   let data: unknown;
@@ -196,6 +217,9 @@ export async function submitPublicEmbed(
     accepted?: boolean;
     preview?: boolean;
     leadId?: string;
+    orderCode?: string;
+    reservationId?: string;
+    bookingCode?: string;
     silent?: boolean;
   }>(`/public/embed/${encodeURIComponent(publicId)}/submit`, {
     method: 'POST',

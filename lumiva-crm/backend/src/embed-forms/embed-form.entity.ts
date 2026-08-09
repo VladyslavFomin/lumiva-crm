@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Site } from '../sites/site.entity';
 import { Tenant } from '../tenants/tenant.entity';
+import { EmbedFormKind } from './embed-form-templates';
 
 @Entity('embed_forms')
 @Index(['tenantId', 'siteId'])
@@ -43,6 +44,11 @@ export class EmbedForm {
 
   @Column({ name: 'template_key', type: 'varchar', length: 64 })
   templateKey!: string;
+
+  /** Куда попадает сабмит — 'lead' (по умолчанию, старое поведение) или один из трёх продуктовых
+   * kind. Неизменяем после создания, как и templateKey. */
+  @Column({ type: 'varchar', length: 24, default: 'lead' })
+  kind!: EmbedFormKind;
 
   @Column({ name: 'field_config', type: 'jsonb' })
   fieldConfig!: Record<string, unknown>;

@@ -20,6 +20,7 @@ import PanelLoginPage from "./pages/PanelLoginPage";
 import ModulesPage from "./pages/ModulesPage";
 import ComponentsPage from "./pages/ComponentsPage";
 import BillingMonitorPage from "./pages/BillingMonitorPage";
+import StoreRoutes from "./pages/store/StoreRoutes";
 import { isPanelAuthed, clearPanelSession } from "./auth/panelSession";
 
 const PanelProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
@@ -247,6 +248,7 @@ const AppShell: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 const App: React.FC = () => {
   const location = useLocation();
   const isLogin = location.pathname === "/panel-login";
+  const isStore = location.pathname.startsWith("/store");
 
   // Для /panel-login показываем только экран логина, без сайдбара
   if (isLogin) {
@@ -256,6 +258,12 @@ const App: React.FC = () => {
         <Route path="*" element={<Navigate to="/panel-login" replace />} />
       </Routes>
     );
+  }
+
+  // Тестовая витрина (/store/*) — публичная, без авторизации и без AppShell админки
+  // (см. текущий план "Test storefront").
+  if (isStore) {
+    return <StoreRoutes />;
   }
 
   // Основные маршруты панели

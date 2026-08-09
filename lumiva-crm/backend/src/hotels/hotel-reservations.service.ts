@@ -70,12 +70,13 @@ export interface HotelReservationInput {
   discountPct?: string;
   status?: HotelReservationStatus;
   paidStatus?: HotelReservationPaidStatus;
-  source?: 'manual' | 'import';
+  source?: 'manual' | 'import' | 'website';
   depositAmount?: string;
   earlyCheckIn?: boolean;
   lateCheckOut?: boolean;
   notes?: string | null;
   guests?: HotelReservationGuest[];
+  bookingCode?: string | null;
 }
 
 const PRICE_FIELDS = ['costPerNight', 'ppPerNight', 'grossPerNight', 'discountPct'] as const;
@@ -192,6 +193,7 @@ export class HotelReservationsService {
       lateCheckOut: dto.lateCheckOut ?? false,
       notes: dto.notes ?? null,
       guests: dto.guests ?? [],
+      bookingCode: dto.bookingCode ?? null,
     });
     this.computeTotals(row);
     const saved = await this.repo.save(row);

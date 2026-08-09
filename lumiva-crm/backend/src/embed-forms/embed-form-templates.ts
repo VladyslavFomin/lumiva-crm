@@ -16,6 +16,13 @@ export const EMBED_TEMPLATE_KEYS = [
 
 export type EmbedTemplateKey = (typeof EMBED_TEMPLATE_KEYS)[number];
 
+/** Куда попадает сабмит формы — независимо от косметического templateKey (см. submit() в
+ * embed-forms.service.ts). 'lead' — поведение не менялось никогда, остальные три введены для
+ * реальных продуктовых форм (Товары/Бронирования/Система резервации), в отличие от тестовой
+ * витрины /store на pl1.lumiva-ui. */
+export const EMBED_FORM_KINDS = ['lead', 'product_order', 'booking', 'hotel_reservation'] as const;
+export type EmbedFormKind = (typeof EMBED_FORM_KINDS)[number];
+
 export type EmbedFieldType =
   | 'text'
   | 'email'
@@ -43,7 +50,13 @@ export type EmbedFieldType =
   | 'promo_code'
   | 'file'
   | 'checkbox_consent'
-  | 'messaging';
+  | 'messaging'
+  /** Составные "живые" поля — не простой инпут, а мини-виджет с реальными данными тенанта
+   * (каталог/услуги/отели), см. submit()'s kind-branching и PublicEmbedFormPage.tsx. Ровно одно
+   * такое поле на форму соответствующего kind. */
+  | 'product_cart'
+  | 'service_booking'
+  | 'hotel_booking';
 
 export interface EmbedFieldConfigItem {
   id: string;
@@ -71,9 +84,15 @@ export interface EmbedFieldConfigItem {
   colSpan?: 1 | 2;
   /** Сообщение валидации (RU) — фронт может подменить i18n */
   validationHint?: string;
+  /** Для kind !== 'lead': какое контактное поле это — submit() ищет по role в первую очередь,
+   * с фолбэком на key==='name'/'phone'/'email' для устойчивости. */
+  role?: 'customer_name' | 'customer_email' | 'customer_phone';
+  /** Только для составных полей (product_cart/service_booking/hotel_booking) — сужает список
+   * до конкретных категорий/отелей/услуг тенанта; пусто/не задано = показывать всё публичное. */
+  sourceFilter?: { categoryIds?: string[]; hotelIds?: string[]; serviceIds?: string[] };
 }
 
-type EmbedFormFieldConfig = {
+export type EmbedFormFieldConfig = {
   fields: EmbedFieldConfigItem[];
   steps?: { id: string; title: string; description?: string }[];
   settings?: Record<string, unknown>;
@@ -569,6 +588,63 @@ const templates: Record<EmbedTemplateKey, { fieldConfig: EmbedFormFieldConfig }>
 
 export function isTemplateKey(s: string): s is EmbedTemplateKey {
   return (EMBED_TEMPLATE_KEYS as readonly string[]).includes(s);
+}
+
+export function isFormKind(s: string): s is EmbedFormKind {
+  return (EMBED_FORM_KINDS as readonly string[]).includes(s);
+}
+
+/** Служебные contact-поля, общие для всех трёх продуктовых kind — по одному экземпляру. */
+function contactFields(stepId?: string): EmbedFieldConfigItem[] {
+  return [
+    { id: mkId('name'), type: 'text', key: 'name', label: 'Имя', required: true, stepId, colSpan: 1, role: 'customer_name' },
+    { id: mkId('phone'), type: 'tel', key: 'phone', label: 'Телефон', required: true, stepId, colSpan: 1, role: 'customer_phone' },
+    { id: mkId('email'), type: 'email', key: 'email', label: 'E-mail', required: false, stepId, role: 'customer_email' },
+    { id: mkId('consent'), type: 'checkbox_consent', key: 'consent', label: 'Согласие на обработку персональных данных', required: true, stepId },
+  ];
+}
+
+const kindSeeds: Record<Exclude<EmbedFormKind, 'lead'>, { fieldConfig: EmbedFormFieldConfig; templateKey: string }> = {
+  product_order: {
+    templateKey: 'product_order_widget',
+    fieldConfig: {
+      settings: { submitText: 'Оформить заказ' },
+      fields: [
+        { id: mkId('cart'), type: 'product_cart', key: 'cart', label: 'Товары', required: true },
+        ...contactFields(),
+      ],
+    },
+  },
+  booking: {
+    templateKey: 'booking_widget',
+    fieldConfig: {
+      settings: { submitText: 'Записаться' },
+      fields: [
+        { id: mkId('booking'), type: 'service_booking', key: 'booking', label: 'Услуга и время', required: true },
+        ...contactFields(),
+      ],
+    },
+  },
+  hotel_reservation: {
+    templateKey: 'hotel_reservation_widget',
+    fieldConfig: {
+      settings: { submitText: 'Забронировать' },
+      fields: [
+        { id: mkId('stay'), type: 'hotel_booking', key: 'stay', label: 'Отель и даты', required: true },
+        ...contactFields(),
+      ],
+    },
+  },
+};
+
+/** Стартовый fieldConfig для kind !== 'lead' — templateKey игнорируется полностью (в отличие от
+ * getTemplateFieldConfig, здесь нет выбора пользователем варианта раскладки на этапе создания). */
+export function getKindSeedFieldConfig(kind: Exclude<EmbedFormKind, 'lead'>): EmbedFormFieldConfig {
+  return JSON.parse(JSON.stringify(kindSeeds[kind].fieldConfig)) as EmbedFormFieldConfig;
+}
+
+export function getKindDefaultTemplateKey(kind: Exclude<EmbedFormKind, 'lead'>): string {
+  return kindSeeds[kind].templateKey;
 }
 
 export function getTemplateFieldConfig(

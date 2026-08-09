@@ -39,6 +39,7 @@ import { HotelsRoomPricingImportService } from './hotels-room-pricing-import.ser
 import { HotelRoomUnitsService } from './hotel-room-units.service';
 import { HotelAvailabilityService } from './hotel-availability.service';
 import { HotelFrontDeskService } from './hotel-frontdesk.service';
+import { HotelsPublicStorefrontService } from './hotels-public-storefront.service';
 
 import { HotelsController } from './hotels.controller';
 import { HotelAnalyticsController } from './hotel-analytics.controller';
@@ -50,11 +51,13 @@ import { HotelsPricingImportController } from './hotels-pricing-import.controlle
 import { HotelsRoomPricingImportController } from './hotels-room-pricing-import.controller';
 import { HotelsInfoImportController } from './hotels-info-import.controller';
 import { HotelFeedController } from './hotel-feed.controller';
+import { HotelsPublicStorefrontController } from './hotels-public-storefront.controller';
 
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { MailModule } from '../mail/mail.module';
+import { TenantsModule } from '../tenants/tenants.module';
 
 @Module({
   imports: [
@@ -85,6 +88,7 @@ import { MailModule } from '../mail/mail.module';
     forwardRef(() => AutomationsModule),
     AuditLogModule,
     MailModule,
+    TenantsModule,
   ],
   controllers: [
     // Order matters: HotelReservationsController's bare `GET hotels/reservations` must be
@@ -100,6 +104,7 @@ import { MailModule } from '../mail/mail.module';
     HotelsRoomPricingImportController,
     HotelsInfoImportController,
     HotelFeedController,
+    HotelsPublicStorefrontController,
     HotelsController,
   ],
   providers: [
@@ -119,6 +124,7 @@ import { MailModule } from '../mail/mail.module';
     HotelRoomUnitsService,
     HotelAvailabilityService,
     HotelFrontDeskService,
+    HotelsPublicStorefrontService,
   ],
   exports: [
     HotelReservationsService,
@@ -126,6 +132,7 @@ import { MailModule } from '../mail/mail.module';
     HotelAnalyticsService,
     HotelsPricingService,
     HotelRoomTypesService,
+    HotelsPublicStorefrontService,
   ],
 })
 export class HotelsModule {}

@@ -7,6 +7,9 @@ import {
   type PublicEmbedConfig,
   type EmbedFieldConfigItem,
 } from '../../api/embedForms';
+import { ProductCartField } from './embed-fields/ProductCartField';
+import { ServiceBookingField } from './embed-fields/ServiceBookingField';
+import { HotelBookingField } from './embed-fields/HotelBookingField';
 
 function designNum(d: Record<string, unknown>, k: string, def: number): number {
   const n = Number(d[k]);
@@ -56,6 +59,7 @@ export const PublicEmbedFormPage: React.FC = () => {
   const [fileBusy, setFileBusy] = useState(false);
   const [attachmentIds, setAttachmentIds] = useState<string[]>([]);
   const [activeStepIndex, setActiveStepIndex] = useState(0);
+  const [resultCode, setResultCode] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!publicId) return;
@@ -167,6 +171,7 @@ export const PublicEmbedFormPage: React.FC = () => {
         setDone(true);
         return;
       }
+      setResultCode(res.orderCode || res.bookingCode || null);
       setDone(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Submit failed');
@@ -209,6 +214,11 @@ export const PublicEmbedFormPage: React.FC = () => {
               ? 'Превью: форма валидна, лид в CRM не создаётся.'
               : 'Спасибо! Заявка отправлена.')}
         </p>
+        {resultCode && (
+          <p className="text-sm mt-2" style={{ color: d['textColor'] as string }}>
+            Код: <strong>{resultCode}</strong>
+          </p>
+        )}
       </div>
     );
   }
@@ -464,6 +474,27 @@ export const PublicEmbedFormPage: React.FC = () => {
                 <p className="text-[11px] text-slate-500 mt-1">
                   PDF, DOC, DOCX · до 12 МБ
                 </p>
+              </div>
+            );
+          }
+          if (field.type === 'product_cart' && config.clientKey) {
+            return (
+              <div key={field.id} style={colWrap(field)}>
+                <ProductCartField field={field} clientKey={config.clientKey} design={d} onChange={(v) => setField(field.id, v)} />
+              </div>
+            );
+          }
+          if (field.type === 'service_booking' && config.clientKey) {
+            return (
+              <div key={field.id} style={colWrap(field)}>
+                <ServiceBookingField field={field} clientKey={config.clientKey} design={d} onChange={(v) => setField(field.id, v)} />
+              </div>
+            );
+          }
+          if (field.type === 'hotel_booking' && config.clientKey) {
+            return (
+              <div key={field.id} style={colWrap(field)}>
+                <HotelBookingField field={field} clientKey={config.clientKey} design={d} onChange={(v) => setField(field.id, v)} />
               </div>
             );
           }

@@ -2357,6 +2357,21 @@ export class ProductsService {
     return tenant.id;
   }
 
+  /** Публичная обёртка над `resolveTenantByClientKey` — для контроллеров вне этого сервиса
+   *  (например, публичного оформления заказа), которым нужен tenantId по тому же clientKey. */
+  async resolvePublicTenantId(clientKey: string): Promise<string> {
+    return this.resolveTenantByClientKey(clientKey);
+  }
+
+  /** Активные категории тенанта для публичной витрины (тестовый сторфронт на pl1). */
+  async listPublicCategories(clientKey: string) {
+    const tenantId = await this.resolveTenantByClientKey(clientKey);
+    return this.categories.find({
+      where: { tenantId, isActive: true },
+      order: { order: 'ASC', name: 'ASC' },
+    });
+  }
+
   /**
    * Убирает поля, которые не должны утекать в анонимную витрину без токена. `customFields`
    * намеренно оставлены — это как раз то, что клиент показывает на карточке товара на внешнем
@@ -2373,13 +2388,17 @@ export class ProductsService {
     return !product.siteIds || product.siteIds.includes(siteId);
   }
 
-  async listPublicCatalog(clientKey: string, siteId?: string) {
+  async listPublicCatalog(clientKey: string, siteId?: string, categoryId?: string) {
     const tenantId = await this.resolveTenantByClientKey(clientKey);
+    const where: FindOptionsWhere<Product> = {
+      tenantId,
+      isDeleted: false,
+      status: 'active',
+      isPubliclyVisible: true,
+    };
+    if (categoryId) where.categoryId = categoryId;
     const items = (
-      await this.products.find({
-        where: { tenantId, isDeleted: false, status: 'active', isPubliclyVisible: true },
-        order: { name: 'ASC' },
-      })
+      await this.products.find({ where, order: { name: 'ASC' } })
     ).filter((p) => this.matchesSite(p, siteId));
     const productIds = items.map((p) => p.id);
     const allVariants = productIds.length
@@ -2399,6 +2418,12 @@ export class ProductsService {
 
   async getPublicCatalogProduct(clientKey: string, externalIdOrSku: string, siteId?: string) {
     const tenantId = await this.resolveTenantByClientKey(clientKey);
+    return this.getPublicCatalogProductForTenant(tenantId, externalIdOrSku, siteId);
+  }
+
+  /** Та же логика, что getPublicCatalogProduct, но без clientKey→tenantId резолва — для
+   * вызывающих, у кого tenantId уже есть (например embed-forms.service.ts's submit()). */
+  async getPublicCatalogProductForTenant(tenantId: string, externalIdOrSku: string, siteId?: string) {
     const product =
       (await this.products.findOne({
         where: { tenantId, sku: externalIdOrSku, isDeleted: false, status: 'active', isPubliclyVisible: true },

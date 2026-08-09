@@ -16,6 +16,7 @@ import { ProductsService } from './products.service';
 import { ProductsController } from './products.controller';
 import { ProductsPublicController } from './products-public.controller';
 import { ProductsPublicCatalogController } from './products-public-catalog.controller';
+import { ProductsPublicOrdersController } from './products-public-orders.controller';
 import { ProductsFeedController } from './products-feed.controller';
 import { ProductWebhooksController } from './product-webhooks.controller';
 import { ProductWebhooksService } from './product-webhooks.service';
@@ -31,6 +32,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { SitesModule } from '../sites/sites.module';
 import { AutomationsModule } from '../automations/automations.module';
+import { SalesModule } from '../sales/sales.module';
 
 @Module({
   imports: [
@@ -60,6 +62,7 @@ import { AutomationsModule } from '../automations/automations.module';
     RbacModule,
     SitesModule,
     AutomationsModule,
+    SalesModule,
   ],
   controllers: [
     // ВАЖНО: ProductWebhooksController и ProductsAnalyticsController — раньше ProductsController.
@@ -73,6 +76,7 @@ import { AutomationsModule } from '../automations/automations.module';
     ProductsController,
     ProductsPublicController,
     ProductsPublicCatalogController,
+    ProductsPublicOrdersController,
     ProductsFeedController,
   ],
   providers: [ProductsService, ApiTokenGuard, ProductWebhooksService, ProductsAnalyticsService],

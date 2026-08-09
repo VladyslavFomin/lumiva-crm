@@ -16,7 +16,7 @@ export type HotelReservationStatus =
 
 export type HotelReservationPaidStatus = 'full' | 'partial' | 'none' | 'refunded';
 
-export type HotelReservationSource = 'manual' | 'import';
+export type HotelReservationSource = 'manual' | 'import' | 'website';
 
 export interface HotelReservationPayment {
   id: string;
@@ -124,6 +124,11 @@ export class HotelReservation {
 
   @Column({ type: 'varchar', length: 16, default: 'manual' })
   source: HotelReservationSource;
+
+  /** Short human-readable code for the public storefront's "look up my reservation by code +
+   * email" flow — only set for reservations created via that flow (source:'website'). */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  bookingCode: string | null;
 
   @Column({ type: 'timestamptz', nullable: true })
   checkedInAt: Date | null;

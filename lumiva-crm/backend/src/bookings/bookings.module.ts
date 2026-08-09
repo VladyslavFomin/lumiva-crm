@@ -26,6 +26,7 @@ import { ReservationsImportService } from './reservations-import.service';
 
 import { BookingsController } from './bookings.controller';
 import { BookingsPublicController } from './bookings-public.controller';
+import { BookingsPublicStorefrontController } from './bookings-public-storefront.controller';
 import { BookingWaitlistController } from './booking-waitlist.controller';
 import { BookingAnalyticsController } from './booking-analytics.controller';
 import { BookingLogsController } from './booking-logs.controller';
@@ -36,6 +37,7 @@ import { ApiTokenGuard } from '../api-tokens/api-token.guard';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
+import { TenantsModule } from '../tenants/tenants.module';
 
 @Module({
   imports: [
@@ -57,10 +59,12 @@ import { AutomationsModule } from '../automations/automations.module';
     NotificationsModule,
     RbacModule,
     forwardRef(() => AutomationsModule),
+    TenantsModule,
   ],
   controllers: [
     BookingsController,
     BookingsPublicController,
+    BookingsPublicStorefrontController,
     BookingWaitlistController,
     BookingAnalyticsController,
     BookingLogsController,

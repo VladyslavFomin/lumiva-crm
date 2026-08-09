@@ -12,8 +12,11 @@ import {
   IsNull,
   SelectQueryBuilder,
 } from 'typeorm';
+import { randomBytes } from 'crypto';
 
 import { Sale } from './sale.entity';
+import { Lead } from '../leads/lead.entity';
+import { Contact } from '../contacts/contact.entity';
 import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
 import { IntegrationKind } from '../integrations/integration-kind.enum';
@@ -53,6 +56,12 @@ export class SalesService {
 
     @InjectRepository(AnalyticsPreset)
     private readonly presetsRepo: Repository<AnalyticsPreset>,
+
+    @InjectRepository(Lead)
+    private readonly leadsRepo: Repository<Lead>,
+
+    @InjectRepository(Contact)
+    private readonly contactsRepo: Repository<Contact>,
 
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
@@ -1323,5 +1332,125 @@ export class SalesService {
       createdAt: s.createdAt,
     }));
     return { sales };
+  }
+
+  /* ---------- публичный тестовый сторфронт (Товары на pl1) ---------- */
+
+  /**
+   * Находит Contact по телефону/email (приоритет — телефон), создаёт при отсутствии; затем
+   * находит/создаёт Lead, привязанный к контакту. Копия `ReservationsService.resolveLeadAndContact`
+   * (bookings/reservations.service.ts) — тот же приём уже намеренно продублирован под Bookings,
+   * здесь под Sales по тому же принципу: модули не должны тянуть друг друга за такой мелкий кусок.
+   */
+  private async resolveLeadAndContactForOrder(
+    tenantId: string,
+    input: { name?: string | null; phone?: string | null; email?: string | null },
+  ): Promise<{ leadId: string; contactId: string }> {
+    const phone = input.phone?.trim() || null;
+    const email = input.email?.trim().toLowerCase() || null;
+    const name = input.name?.trim() || null;
+
+    let contact = phone
+      ? await this.contactsRepo.findOne({ where: { tenantId, phone } })
+      : null;
+    if (!contact && email) {
+      contact = await this.contactsRepo.findOne({ where: { tenantId, email } });
+    }
+    if (!contact) {
+      contact = await this.contactsRepo.save(
+        this.contactsRepo.create({
+          tenantId,
+          fullName: name,
+          firstName: name,
+          phone,
+          email,
+          status: 'active',
+        }),
+      );
+    }
+
+    let lead = await this.leadsRepo.findOne({
+      where: { tenantId, contactId: contact.id },
+      order: { createdAt: 'DESC' },
+    });
+    if (!lead) {
+      lead = await this.leadsRepo.save(
+        this.leadsRepo.create({
+          tenantId,
+          contactId: contact.id,
+          name: name || contact.fullName,
+          phone,
+          email,
+          status: 'new',
+          source: 'storefront',
+        }),
+      );
+    }
+
+    return { leadId: lead.id, contactId: contact.id };
+  }
+
+  private async generateOrderCode(): Promise<string> {
+    for (let attempt = 0; attempt < 10; attempt++) {
+      const code = `ORD-${randomBytes(4).toString('hex').toUpperCase()}`;
+      const existing = await this.saleRepo.findOne({ where: { externalOrderNo: code } });
+      if (!existing) return code;
+    }
+    throw new Error('Не удалось сгенерировать уникальный код заказа');
+  }
+
+  /** Создаёт заказ из тестовой публичной витрины (корзина товаров → Sale). */
+  async createFromStorefront(
+    tenantId: string,
+    dto: {
+      items: Array<{ productId: string; sku: string; name: string; qty: number; unitPrice: number }>;
+      currency: string;
+      customerName: string;
+      customerEmail?: string;
+      customerPhone?: string;
+    },
+  ): Promise<Sale> {
+    const amount = dto.items.reduce((sum, i) => sum + i.qty * i.unitPrice, 0);
+    const { leadId, contactId } = await this.resolveLeadAndContactForOrder(tenantId, {
+      name: dto.customerName,
+      phone: dto.customerPhone,
+      email: dto.customerEmail,
+    });
+    const externalOrderNo = await this.generateOrderCode();
+
+    const sale = this.saleRepo.create({
+      tenantId,
+      leadId,
+      contactId,
+      externalOrderNo,
+      guestName: dto.customerName,
+      amount,
+      currency: dto.currency,
+      status: 'new',
+      saleDate: new Date(),
+      customFields: { items: dto.items, customerEmail: dto.customerEmail ?? null, customerPhone: dto.customerPhone ?? null },
+    });
+    const saved = await this.saleRepo.save(sale);
+
+    try {
+      await this.automationsService.triggerAutomation(tenantId, TriggerEvent.SALE_CREATED, {
+        entityType: 'sale',
+        entityId: saved.id,
+        sale: saved,
+      });
+    } catch {
+      // автоматизации не должны блокировать оформление заказа
+    }
+
+    return saved;
+  }
+
+  async findStorefrontOrder(tenantId: string, code: string, email: string): Promise<Sale> {
+    const sale = await this.saleRepo.findOne({ where: { tenantId, externalOrderNo: code } });
+    const orderEmail = (sale?.customFields as any)?.customerEmail?.toLowerCase?.();
+    if (!sale || !orderEmail || orderEmail !== email.trim().toLowerCase()) {
+      throw new NotFoundException('Заказ не найден');
+    }
+    return sale;
   }
 }

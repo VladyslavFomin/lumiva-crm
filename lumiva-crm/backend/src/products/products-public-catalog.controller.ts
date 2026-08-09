@@ -13,9 +13,18 @@ import { ProductsService } from './products.service';
 export class ProductsPublicCatalogController {
   constructor(private readonly service: ProductsService) {}
 
+  @Get(':clientKey/categories')
+  listCategories(@Param('clientKey') clientKey: string) {
+    return this.service.listPublicCategories(clientKey);
+  }
+
   @Get(':clientKey/products')
-  list(@Param('clientKey') clientKey: string, @Query('site') site?: string) {
-    return this.service.listPublicCatalog(clientKey, site);
+  list(
+    @Param('clientKey') clientKey: string,
+    @Query('site') site?: string,
+    @Query('category') category?: string,
+  ) {
+    return this.service.listPublicCatalog(clientKey, site, category);
   }
 
   @Get(':clientKey/products/:externalIdOrSku')

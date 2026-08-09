@@ -7,6 +7,8 @@ import { AnalyticsPreset } from './sales-analytics-preset.entity';
 import { SalesImportSession } from './sales-import-session.entity';
 import { SalesChannel } from '../sales-channels/sales-channel.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
+import { Lead } from '../leads/lead.entity';
+import { Contact } from '../contacts/contact.entity';
 import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
 
 import { SalesService } from './sales.service';
@@ -26,6 +28,8 @@ import { RbacModule } from '../rbac/rbac.module';
       IntegrationConnection, // ← чтобы был IntegrationConnectionRepository
       AnalyticsPreset,
       SalesImportSession,
+      Lead,
+      Contact,
     ]),
     CustomFieldsModule,
     forwardRef(() => AutomationsModule),

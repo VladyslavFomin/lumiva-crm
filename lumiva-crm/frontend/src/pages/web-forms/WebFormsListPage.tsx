@@ -6,9 +6,17 @@ import {
   deleteEmbedForm,
   fetchEmbedForms,
   type EmbedFormRow,
+  type EmbedFormKind,
 } from '../../api/embedForms';
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../../utils/withTimeout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
+
+const KIND_BADGE: Record<EmbedFormKind, { label: string; className: string } | null> = {
+  lead: null,
+  product_order: { label: 'Заказ товаров', className: 'bg-amber-50 text-amber-700 border-amber-200' },
+  booking: { label: 'Запись на услугу', className: 'bg-sky-50 text-sky-700 border-sky-200' },
+  hotel_reservation: { label: 'Бронирование отеля', className: 'bg-violet-50 text-violet-700 border-violet-200' },
+};
 
 export const WebFormsListPage: React.FC = () => {
   const { t } = useTranslation();
@@ -118,8 +126,17 @@ export const WebFormsListPage: React.FC = () => {
                       >
                         {r.name}
                       </button>
-                      <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
-                        {r.templateKey}
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <span className="text-[11px] text-slate-500 line-clamp-1">
+                          {r.templateKey}
+                        </span>
+                        {KIND_BADGE[r.kind] && (
+                          <span
+                            className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${KIND_BADGE[r.kind]!.className}`}
+                          >
+                            {KIND_BADGE[r.kind]!.label}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-600 hidden sm:table-cell">
