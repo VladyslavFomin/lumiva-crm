@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { CrmShellModal } from '../../components/ui/CrmShellModal';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import { EmailComposeWindow } from './EmailComposeWindow';
 import { EmailFolderModal } from './EmailFolderModal';
 import { EmailMoveToFolderModal } from './EmailMoveToFolderModal';
@@ -293,6 +294,7 @@ function EmailCheckbox({
 
 export const EmailInboxPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const [searchParams] = useSearchParams();
   const accountDeepLink = searchParams.get('accountId') || '';
   const messageDeepLink = searchParams.get('messageId') || '';
@@ -352,8 +354,6 @@ export const EmailInboxPage: React.FC = () => {
     null | { kind: 'create'; parentId: string | null } | { kind: 'rename'; folder: EmailFolder }
   >(null);
   const [folderModalBusy, setFolderModalBusy] = useState(false);
-  const [folderDeleteTarget, setFolderDeleteTarget] = useState<EmailFolder | null>(null);
-  const [messageDeleteIds, setMessageDeleteIds] = useState<string[] | null>(null);
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [moveTargetIds, setMoveTargetIds] = useState<string[]>([]);
 
@@ -820,19 +820,15 @@ export const EmailInboxPage: React.FC = () => {
     await loadMessages();
   };
 
-  const openBulkDeleteMessages = () => {
-    if (selectedIds.size === 0) return;
-    setMessageDeleteIds([...selectedIds]);
-  };
-
-  const openDetailDeleteMessage = () => {
-    if (!detail) return;
-    setMessageDeleteIds([detail.id]);
-  };
-
-  const confirmDeleteMessages = async () => {
-    const ids = messageDeleteIds;
-    if (!ids?.length) return;
+  const deleteMessages = async (ids: string[]) => {
+    if (!ids.length) return;
+    const ok = await showConfirm(t('crm.email.inbox.deleteMessagesConfirm', { count: ids.length }), {
+      title: t('crm.email.inbox.deleteMessagesTitle'),
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     for (const id of ids) {
       try {
         await deleteEmailMessage(id);
@@ -840,7 +836,6 @@ export const EmailInboxPage: React.FC = () => {
         /* ignore */
       }
     }
-    setMessageDeleteIds(null);
     setSelectedIds((prev) => {
       const n = new Set(prev);
       for (const id of ids) n.delete(id);
@@ -852,6 +847,16 @@ export const EmailInboxPage: React.FC = () => {
     }
     rangeAnchorRef.current = null;
     await loadMessages();
+  };
+
+  const openBulkDeleteMessages = () => {
+    if (selectedIds.size === 0) return;
+    void deleteMessages([...selectedIds]);
+  };
+
+  const openDetailDeleteMessage = () => {
+    if (!detail) return;
+    void deleteMessages([detail.id]);
   };
 
   const bulkMarkUnread = async () => {
@@ -988,11 +993,16 @@ export const EmailInboxPage: React.FC = () => {
     }
   };
 
-  const confirmDeleteFolder = async () => {
-    if (!folderDeleteTarget) return;
+  const deleteFolder = async (folder: EmailFolder) => {
+    const ok = await showConfirm(t('crm.email.inbox.deleteFolderConfirm'), {
+      title: t('crm.email.inbox.deleteFolder'),
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
-      await deleteEmailFolder(folderDeleteTarget.id);
-      setFolderDeleteTarget(null);
+      await deleteEmailFolder(folder.id);
       await loadFolders();
       await loadMessages();
     } catch {
@@ -1171,7 +1181,7 @@ export const EmailInboxPage: React.FC = () => {
                 <button type="button" className={FOLDER_ACTION} onClick={() => setFolderModal({ kind: 'rename', folder: f })}>
                   {t('crm.email.inbox.renameFolder')}
                 </button>
-                <button type="button" className={FOLDER_ACTION_DANGER} onClick={() => setFolderDeleteTarget(f)}>
+                <button type="button" className={FOLDER_ACTION_DANGER} onClick={() => void deleteFolder(f)}>
                   {t('crm.email.inbox.deleteFolder')}
                 </button>
               </div>
@@ -1761,30 +1771,6 @@ export const EmailInboxPage: React.FC = () => {
         onPick={(fid) => bulkMoveToFolder(fid)}
         folderLabel={folderLabel}
         folderRowIcon={folderRowIcon}
-      />
-
-      <CrmShellModal
-        open={!!folderDeleteTarget}
-        title={t('crm.email.inbox.deleteFolder')}
-        message={t('crm.email.inbox.deleteFolderConfirm')}
-        variant="error"
-        cancelLabel={t('crm.common.cancel')}
-        confirmLabel={t('crm.common.delete')}
-        confirmTone="danger"
-        onClose={() => setFolderDeleteTarget(null)}
-        onConfirm={() => void confirmDeleteFolder()}
-      />
-
-      <CrmShellModal
-        open={!!messageDeleteIds?.length}
-        title={t('crm.email.inbox.deleteMessagesTitle')}
-        message={t('crm.email.inbox.deleteMessagesConfirm', { count: messageDeleteIds?.length ?? 0 })}
-        variant="error"
-        cancelLabel={t('crm.common.cancel')}
-        confirmLabel={t('crm.common.delete')}
-        confirmTone="danger"
-        onClose={() => setMessageDeleteIds(null)}
-        onConfirm={() => void confirmDeleteMessages()}
       />
 
       <CrmShellModal

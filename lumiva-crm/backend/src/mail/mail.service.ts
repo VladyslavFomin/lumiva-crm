@@ -12,6 +12,8 @@ export interface MailSendOptions {
   /** Base64-encoded content — required (not a Buffer) so an attachment survives BullMQ's JSON
    * serialization through Redis when queued. */
   attachments?: Array<{ filename: string; content: string }>;
+  replyTo?: string;
+  messageId?: string;
 }
 
 @Injectable()
@@ -68,6 +70,8 @@ export class MailService {
         to: opts.to,
         subject: opts.subject,
         html: opts.html,
+        replyTo: opts.replyTo,
+        messageId: opts.messageId,
         attachments: opts.attachments?.map((a) => ({
           filename: a.filename,
           content: a.content,
@@ -82,6 +86,43 @@ export class MailService {
         `Mail send failed to ${opts.to}: ${opts.subject}`,
         (err as Error).stack || String(err),
       );
+    }
+  }
+
+  /**
+   * Sends synchronously (bypasses the BullMQ queue) and never swallows the error —
+   * callers that need a deterministic sent/failed result for the UI (e.g. Sales Panel)
+   * should use this instead of `sendMail`/`sendMailDirect`.
+   */
+  async sendMailNow(
+    opts: MailSendOptions,
+  ): Promise<{ ok: true; messageId: string } | { ok: false; error: string }> {
+    const from = process.env.MAIL_FROM || '"Lumiva CRM" <no-reply@lumiva.agency>';
+    try {
+      const info = await this.transporter.sendMail({
+        from,
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+        replyTo: opts.replyTo,
+        messageId: opts.messageId,
+        attachments: opts.attachments?.map((a) => ({
+          filename: a.filename,
+          content: a.content,
+          encoding: 'base64' as const,
+        })),
+      });
+      this.logger.log(
+        `Mail sent to ${opts.to}: ${opts.subject} (messageId=${info.messageId})`,
+      );
+      return { ok: true, messageId: info.messageId };
+    } catch (err) {
+      const message = (err as Error).message || String(err);
+      this.logger.error(
+        `Mail send failed to ${opts.to}: ${opts.subject}`,
+        (err as Error).stack || message,
+      );
+      return { ok: false, error: message };
     }
   }
 

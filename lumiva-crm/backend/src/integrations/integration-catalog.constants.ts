@@ -27,6 +27,12 @@ export const THIRD_PARTY_CATALOG_IDS = [
   'lumiva_client_cabinet',
   /** Онлайн-чат Lumiva (WordPress / Lumiva Wizard) — переключатель модуля тенанта */
   'lumiva_online_chat',
+  /** iyzico — приём онлайн-платежей (Турция) */
+  'iyzico',
+  /** PayTR — приём онлайн-платежей (Турция) */
+  'paytr',
+  /** ЮKassa — приём онлайн-платежей (Россия) */
+  'yookassa',
 ] as const;
 
 export type ThirdPartyCatalogId = (typeof THIRD_PARTY_CATALOG_IDS)[number];
@@ -54,6 +60,9 @@ export const CATALOG_ID_TO_ENV_SUFFIX: Record<string, string> = {
   google_sheets: 'GOOGLE_SHEETS',
   lumiva_client_cabinet: 'LUMIVA_CLIENT_CABINET',
   lumiva_online_chat: 'LUMIVA_ONLINE_CHAT',
+  iyzico: 'IYZICO',
+  paytr: 'PAYTR',
+  yookassa: 'YOOKASSA',
 };
 
 export function isThirdPartyCatalogId(id: string): id is ThirdPartyCatalogId {

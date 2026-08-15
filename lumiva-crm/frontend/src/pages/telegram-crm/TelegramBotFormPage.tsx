@@ -380,7 +380,7 @@ export const TelegramBotFormPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleDeleteRecipient(r.id)}
-                      className="btn-icon-danger"
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       title="Удалить получателя"
                     >
                       <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

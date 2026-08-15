@@ -19,6 +19,7 @@ import {
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { AutomationPanel } from '../../components/AutomationPanel';
 import { ViewNameModal } from '../../components/ViewNameModal';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   createLeadsCustomView,
   deleteLeadsCustomView,
@@ -54,6 +55,7 @@ function resolveLocale(lang: string) {
 
 export const LeadsListPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const locale = resolveLocale(i18n.language);
   const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -925,8 +927,14 @@ export const LeadsListPage: React.FC = () => {
     );
   };
 
-  const deleteCustomGroup = (groupId: string) => {
-    if (!window.confirm(t('crm.leads.list.customGroups.deleteConfirm'))) return;
+  const deleteCustomGroup = async (groupId: string) => {
+    const ok = await showConfirm(t('crm.leads.list.customGroups.deleteConfirm'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setCustomGroups((prev) => prev.filter((group) => group.id !== groupId));
     setLeadGroupMap((prev) => {
       const next: Record<string, string> = {};
@@ -1786,9 +1794,17 @@ export const LeadsListPage: React.FC = () => {
                     <button
                       type="button"
                       className="lv-st-popover-item"
-                      onClick={() => {
-                        setCustomViews((prev) => deleteLeadsCustomView(prev, activeCustomView.id));
+                      style={{ color: '#9a1f31' }}
+                      onClick={async () => {
                         setViewsMenuOpen(false);
+                        const ok = await showConfirm(t('crm.leads.board.deleteViewConfirm', { defaultValue: 'Удалить вид? Действие необратимо.' }), {
+                          title: 'Удаление',
+                          confirmLabel: 'Удалить',
+                          cancelLabel: 'Отмена',
+                          danger: true,
+                        });
+                        if (!ok) return;
+                        setCustomViews((prev) => deleteLeadsCustomView(prev, activeCustomView.id));
                         navigate('/leads');
                       }}
                     >
@@ -1944,7 +1960,7 @@ export const LeadsListPage: React.FC = () => {
                       <button type="button" className="lv-tb-btn" style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => renameCustomGroup(group.id)}>
                         {t('crm.leads.list.customGroups.renameShort')}
                       </button>
-                      <button type="button" className="lv-tb-btn" style={{ padding: '2px 6px', fontSize: 10, color: '#b91c1c' }} onClick={() => deleteCustomGroup(group.id)}>
+                      <button type="button" className="lv-tb-btn" style={{ padding: '2px 6px', fontSize: 10, color: '#9a1f31' }} onClick={() => void deleteCustomGroup(group.id)}>
                         {t('crm.leads.list.customGroups.deleteShort')}
                       </button>
                     </div>

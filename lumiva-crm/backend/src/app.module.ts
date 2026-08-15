@@ -54,6 +54,7 @@ import { HotelsModule } from './hotels/hotels.module';
 import { PublicModule } from './public/public.module';
 import { PlatformAdminModule } from './platform-admin/platform-admin.module';
 import { DemoRequestsModule } from './demo-requests/demo-requests.module';
+import { SalesPanelModule } from './sales-panel/sales-panel.module';
 import { PlatformSettingsModule } from './platform-settings/platform-settings.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { BillingModule } from './billing/billing.module';
@@ -75,6 +76,8 @@ import { DeduplicationModule } from './deduplication/deduplication.module';
 // --- CCP
 import { CcpModule } from './modules/ccp/ccp.module';
 import { EmbedFormsModule } from './embed-forms/embed-forms.module';
+import { PaymentsModule } from './payments/payments.module';
+import { Payment } from './payments/payment.entity';
 
 // --- Chat ---
 import { OnlineChatModule } from './online-chat/online-chat.module';
@@ -140,6 +143,11 @@ import { PlatformAdminUser } from './platform-admin/admin-user.entity';
 import { MailModule } from './mail/mail.module';
 import { DemoRequest } from './demo-requests/demo-request.entity';
 import { PlatformSettings } from './platform-settings/platform-settings.entity';
+import { SalesProspect } from './sales-panel/sales-prospect.entity';
+import { SalesInvitation } from './sales-panel/sales-invitation.entity';
+import { SalesApiUsage } from './sales-panel/sales-api-usage.entity';
+import { SalesReplyPollState } from './sales-panel/sales-reply-poll-state.entity';
+import { SalesEmailTemplate } from './sales-panel/sales-email-template.entity';
 import { UserSession } from './auth/user-session.entity';
 import { TenantStorageFile } from './tenants/tenant-storage-file.entity';
 import { EmbedForm } from './embed-forms/embed-form.entity';
@@ -244,6 +252,11 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
         PlatformAdminUser,
         DemoRequest,
         PlatformSettings,
+        SalesProspect,
+        SalesInvitation,
+        SalesApiUsage,
+        SalesReplyPollState,
+        SalesEmailTemplate,
 
         // online chat
         ChatSession,
@@ -262,6 +275,7 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
         AiAgentReport,
         EmbedForm,
         EmbedFormUpload,
+        Payment,
       ],
       synchronize: false,
     }),
@@ -318,6 +332,7 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     PublicModule,
     PlatformAdminModule,
     DemoRequestsModule,
+    SalesPanelModule,
     PlatformSettingsModule,
     TelegramModule,
     BillingModule,
@@ -327,6 +342,7 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     CcpModule,
     MailModule,
     EmbedFormsModule,
+    PaymentsModule,
     NotificationsModule,
     SmsModule,
     DeduplicationModule,

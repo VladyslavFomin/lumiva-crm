@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { fetchSites, type Site } from '../../api/sites';
@@ -19,12 +19,12 @@ import {
   type EmbedFormRow,
 } from '../../api/embedForms';
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../../utils/withTimeout';
-import './WebFormEditorPage.css';
+import './WebForms.css';
 import { EmbedSwitch } from './embed-editor/EmbedSwitch';
 import { EmbedColorField } from './embed-editor/EmbedColorField';
 import { EmbedDesignPreview } from './embed-editor/EmbedDesignPreview';
 
-const DEFAULT_DESIGN: Record<string, unknown> = {
+export const DEFAULT_DESIGN: Record<string, unknown> = {
   fontFamily:
     'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   fontSizePx: 15,
@@ -61,7 +61,7 @@ type LogicRule = {
   targetFieldId: string;
 };
 
-const ADDABLE_FIELD_TYPES: EmbedFieldType[] = [
+export const ADDABLE_FIELD_TYPES: EmbedFieldType[] = [
   'text',
   'email',
   'url',
@@ -91,7 +91,7 @@ const ADDABLE_FIELD_TYPES: EmbedFieldType[] = [
   'messaging',
 ];
 
-const FIELD_TYPE_LABELS: Record<EmbedFieldType, string> = {
+export const FIELD_TYPE_LABELS: Record<EmbedFieldType, string> = {
   text: 'Текст',
   email: 'E-mail',
   url: 'URL',
@@ -124,7 +124,7 @@ const FIELD_TYPE_LABELS: Record<EmbedFieldType, string> = {
   hotel_booking: 'Отель и даты',
 };
 
-const KIND_META: Record<EmbedFormKind, { label: string; description: string; fieldType?: EmbedFieldType; fieldLabel?: string }> = {
+export const KIND_META: Record<EmbedFormKind, { label: string; description: string; fieldType?: EmbedFieldType; fieldLabel?: string }> = {
   lead: { label: 'Заявка (лид)', description: 'Классическая форма — заполненные поля попадают в CRM как лид.' },
   product_order: {
     label: 'Заказ товаров',
@@ -146,7 +146,7 @@ const KIND_META: Record<EmbedFormKind, { label: string; description: string; fie
   },
 };
 
-const TEMPLATE_LABELS: Record<string, string> = {
+export const TEMPLATE_LABELS: Record<string, string> = {
   contact: 'Форма обращения',
   callback: 'Обратный звонок',
   consultation: 'Консультация',
@@ -160,7 +160,7 @@ const TEMPLATE_LABELS: Record<string, string> = {
   audit: 'Аудит сайта / маркетинга',
 };
 
-const TEMPLATE_META: Record<string, { description: string; badge: string }> = {
+export const TEMPLATE_META: Record<string, { description: string; badge: string }> = {
   contact: { badge: 'Lead', description: 'Классическая заявка с именем, контактами и сообщением.' },
   callback: { badge: 'Call', description: 'Быстрая форма обратного звонка с выбором удобного времени.' },
   consultation: { badge: 'Sales', description: 'Запрос консультации для услуг, CRM, разработки и маркетинга.' },
@@ -174,7 +174,7 @@ const TEMPLATE_META: Record<string, { description: string; badge: string }> = {
   audit: { badge: 'Audit', description: 'Заявка на аудит сайта, рекламы, аналитики или UX.' },
 };
 
-const VISUAL_PRESETS: Array<{
+export const VISUAL_PRESETS: Array<{
   key: string;
   name: string;
   description: string;
@@ -273,6 +273,7 @@ export const WebFormEditorPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { formId } = useParams<{ formId: string }>();
+  const [searchParams] = useSearchParams();
   const isNew = formId === 'new';
   /** Редактирование: есть id, и это не маршрут /new. Без id не крутим вечный лоадер. */
   const isEdit = Boolean(formId && !isNew);
@@ -284,7 +285,10 @@ export const WebFormEditorPage: React.FC = () => {
   const [bookingServicesList, setBookingServicesList] = useState<BookingServiceItem[]>([]);
   const [createSiteId, setCreateSiteId] = useState('');
   const [createTemplate, setCreateTemplate] = useState('contact');
-  const [createKind, setCreateKind] = useState<EmbedFormKind>('lead');
+  const [createKind, setCreateKind] = useState<EmbedFormKind>(() => {
+    const k = searchParams.get('kind');
+    return k && (EMBED_FORM_KINDS as readonly string[]).includes(k) ? (k as EmbedFormKind) : 'lead';
+  });
   const [createName, setCreateName] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -610,117 +614,103 @@ export const WebFormEditorPage: React.FC = () => {
   if (isNew) {
     return (
       <MainLayout>
-        <div className="max-w-5xl mx-auto px-4 py-8 text-[#222]">
-          <p className="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-1">
-            {t('crm.embedForms.kicker')}
-          </p>
-          <h1 className="text-2xl font-semibold text-[#222] mb-2">
-            {t('crm.embedForms.create.title')}
-          </h1>
-          <p className="text-sm text-slate-600 mb-6">{t('crm.embedForms.create.hint')}</p>
+        <div className="lv-embed-page w-full min-w-0 max-w-none px-2 sm:px-4 md:px-6 lg:px-8 py-6 md:py-8 pb-16">
+          <div className="lv-embed-setup">
+            <button type="button" onClick={() => navigate('/web-forms')} className="lv-embed-back">
+              ← {t('crm.embedForms.create.back')}
+            </button>
+            <div className="lv-embed-kicker"><span className="dot" />{t('crm.embedForms.kicker')}</div>
+            <h1>{t('crm.embedForms.create.title')}</h1>
+            <p className="lv-embed-sub" style={{ marginTop: 6 }}>{t('crm.embedForms.create.hint')}</p>
 
-          {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm px-3 py-2 mb-4">
-              {error}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {t('crm.embedForms.create.name')}
-              </label>
-              <input
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                placeholder={t('crm.embedForms.create.namePh')}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {t('crm.embedForms.create.site')}
-              </label>
-              <select
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                value={createSiteId}
-                onChange={(e) => setCreateSiteId(e.target.value)}
-              >
-                {sites.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name || s.domain}
-                  </option>
-                ))}
-              </select>
-              {!sites.length && (
-                <p className="text-xs text-amber-700 mt-1">{t('crm.embedForms.create.noSites')}</p>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Тип формы
-              </label>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {EMBED_FORM_KINDS.map((k) => {
-                  const active = createKind === k;
-                  const meta = KIND_META[k];
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setCreateKind(k)}
-                      className={`rounded-2xl border p-4 text-left transition ${active ? 'border-[#222] bg-[#222] text-white shadow-lg' : 'border-slate-200 bg-white text-[#222] hover:border-slate-400 hover:shadow-sm'}`}
-                    >
-                      <div className="text-sm font-semibold">{meta.label}</div>
-                      <p className={`mt-2 text-xs leading-5 ${active ? 'text-white/75' : 'text-slate-500'}`}>{meta.description}</p>
-                    </button>
-                  );
-                })}
+            {error && (
+              <div className="rounded-lg border border-red-200 bg-red-50 text-red-800 text-sm px-3 py-2 mt-4">
+                {error}
               </div>
-            </div>
-            {createKind === 'lead' && (
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {t('crm.embedForms.create.template')}
-              </label>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {templateKeys.map((k) => {
-                  const active = createTemplate === k;
-                  const meta = TEMPLATE_META[k] || { badge: 'Form', description: 'Готовый шаблон формы для сайта.' };
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setCreateTemplate(k)}
-                      className={`rounded-2xl border p-4 text-left transition ${active ? 'border-[#222] bg-[#222] text-white shadow-lg' : 'border-slate-200 bg-white text-[#222] hover:border-slate-400 hover:shadow-sm'}`}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="text-sm font-semibold">{TEMPLATE_LABELS[k] || t(`crm.embedForms.templates.${k}`)}</div>
-                        <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${active ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'}`}>{meta.badge}</span>
-                      </div>
-                      <p className={`mt-2 text-xs leading-5 ${active ? 'text-white/75' : 'text-slate-500'}`}>{meta.description}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
             )}
-            <button
-              type="button"
-              disabled={creating || !sites.length}
-              onClick={create}
-              className="w-full rounded-lg py-2.5 text-sm font-semibold text-white"
-              style={{ background: '#222' }}
-            >
-              {creating ? t('crm.embedForms.create.creating') : t('crm.embedForms.create.submit')}
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/web-forms')}
-              className="w-full text-sm text-slate-600 hover:text-[#222]"
-            >
-              {t('crm.embedForms.create.back')}
-            </button>
+
+            <div className="lv-embed-setup-card">
+              <div className="lv-embed-field">
+                <label className="lv-embed-lbl">{t('crm.embedForms.create.name')}</label>
+                <input
+                  className="lv-embed-inp max-w-none"
+                  value={createName}
+                  onChange={(e) => setCreateName(e.target.value)}
+                  placeholder={t('crm.embedForms.create.namePh')}
+                />
+              </div>
+              <div className="lv-embed-field">
+                <label className="lv-embed-lbl">{t('crm.embedForms.create.site')}</label>
+                <select
+                  className="lv-embed-inp max-w-none"
+                  value={createSiteId}
+                  onChange={(e) => setCreateSiteId(e.target.value)}
+                >
+                  {sites.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name || s.domain}
+                    </option>
+                  ))}
+                </select>
+                {!sites.length && (
+                  <p className="text-xs text-amber-700 mt-1">{t('crm.embedForms.create.noSites')}</p>
+                )}
+              </div>
+              <div className="lv-embed-field">
+                <label className="lv-embed-lbl">{t('crm.embedForms.create.kind')}</label>
+                <div className="lv-embed-kind-pick">
+                  {EMBED_FORM_KINDS.map((k) => {
+                    const meta = KIND_META[k];
+                    return (
+                      <div
+                        key={k}
+                        className={'lv-embed-pick-card' + (createKind === k ? ' is-active' : '')}
+                        onClick={() => setCreateKind(k)}
+                      >
+                        <div className="nm">{meta.label}</div>
+                        <div className="desc">{meta.description}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              {createKind === 'lead' && (
+                <div className="lv-embed-field">
+                  <label className="lv-embed-lbl">{t('crm.embedForms.create.template')}</label>
+                  <div className="lv-embed-tpl-pick">
+                    {templateKeys.map((k) => {
+                      const meta = TEMPLATE_META[k] || { badge: 'Form', description: 'Готовый шаблон формы для сайта.' };
+                      return (
+                        <div
+                          key={k}
+                          className={'lv-embed-tpl-card' + (createTemplate === k ? ' is-active' : '')}
+                          onClick={() => setCreateTemplate(k)}
+                        >
+                          <div className="lv-embed-tpl-top">
+                            <div style={{ fontSize: 13, fontWeight: 600 }}>{TEMPLATE_LABELS[k] || t(`crm.embedForms.templates.${k}`)}</div>
+                            <span className="lv-embed-tpl-badge">{meta.badge}</span>
+                          </div>
+                          <div className="desc">{meta.description}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              <div className="lv-embed-setup-actions">
+                <button
+                  type="button"
+                  disabled={creating || !sites.length}
+                  onClick={create}
+                  className="lv-embed-btn lv-embed-btn--primary"
+                >
+                  {creating ? t('crm.embedForms.create.creating') : t('crm.embedForms.create.submit')}
+                </button>
+                <button type="button" onClick={() => navigate('/web-forms')} className="lv-embed-btn">
+                  {t('crm.embedForms.create.back')}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </MainLayout>
@@ -904,7 +894,7 @@ export const WebFormEditorPage: React.FC = () => {
                         </div>
                         <button type="button" className="lv-embed-ico" onClick={() => moveField(f.id, -1)} disabled={idx === 0}>↑</button>
                         <button type="button" className="lv-embed-ico" onClick={() => moveField(f.id, 1)} disabled={idx >= fieldConfig.fields.length - 1}>↓</button>
-                        <button type="button" className="lv-embed-ico" onClick={() => removeField(f.id)} disabled={fieldConfig.fields.length < 2}>×</button>
+                        <button type="button" className="lv-embed-ico" style={{ color: '#9a1f31', borderColor: '#f0c8cf' }} onClick={() => removeField(f.id)} disabled={fieldConfig.fields.length < 2}>×</button>
                       </div>
                     </div>
                     <div>
@@ -1082,7 +1072,7 @@ export const WebFormEditorPage: React.FC = () => {
                         />
                         <button
                           type="button"
-                          className="lv-embed-btn text-xs"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors"
                           onClick={() => setFieldConfig((fc) => ({
                             ...fc,
                             steps: (fc.steps || []).filter((s) => s.id !== step.id),
@@ -1187,7 +1177,7 @@ export const WebFormEditorPage: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    className="mt-3 text-xs font-semibold text-rose-600"
+                    className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors"
                     onClick={() => setFieldConfig((fc) => ({ ...fc, logic: (fc.logic || []).filter((r) => r.id !== rule.id) }))}
                   >
                     Удалить правило

@@ -87,7 +87,7 @@ const LocationModal: React.FC<{
 };
 
 export const BookingLocationsPage: React.FC = () => {
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [locations, setLocations] = useState<BookingLocation[]>([]);
   const [stats, setStats] = useState<LocationStatsRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -117,9 +117,16 @@ export const BookingLocationsPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (location: BookingLocation) => {
+    const ok = await showConfirm(`Удалить локацию «${location.name}»? Действие необратимо.`, {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
-      await deleteBookingLocation(id);
+      await deleteBookingLocation(location.id);
       load();
     } catch (e: any) {
       showAlert(e.message || 'Не удалось удалить локацию', { variant: 'error' });
@@ -192,9 +199,8 @@ export const BookingLocationsPage: React.FC = () => {
                     <td><span className="bk-badge confirmed">{l.status === 'active' ? 'Активна' : l.status}</span></td>
                     <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right', color: 'var(--fg-3)' }}>
                       <button
-                        className="btn btn-sm"
-                        style={{ border: 0, color: '#cc2f47' }}
-                        onClick={() => handleDelete(l.id)}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        onClick={() => handleDelete(l)}
                       >
                         <Ic d={BK_ICON.trash} size={13} />
                       </button>

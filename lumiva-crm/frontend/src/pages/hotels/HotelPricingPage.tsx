@@ -402,7 +402,7 @@ export const HotelPricingPage: React.FC = () => {
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ cursor: 'pointer' }} onClick={() => setEditingGroupId(g.id)} title="Переименовать группу">{g.name}</span>
                         <button
-                          style={{ background: 'none', border: 'none', color: 'inherit', opacity: 0.6, cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
+                          style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
                           title="Удалить группу рынков"
                           onClick={() => removeMarketGroupAndRefresh(g)}
                         >

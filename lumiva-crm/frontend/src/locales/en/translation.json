@@ -1,5 +1,13 @@
 {
   "crm": {
+    "pay": {
+      "result": {
+        "successTitle": "Payment successful",
+        "successSubtitle": "Thank you! We've received your payment — the seller will be in touch soon.",
+        "failTitle": "Payment failed",
+        "failSubtitle": "The payment wasn't completed. Please try again or contact the seller."
+      }
+    },
     "header": {
       "realtime": "Real-time · connected",
       "openMenu": "Open menu",
@@ -667,6 +675,7 @@
       "telegramInbox": "Telegram · Inbox",
       "whatsappInbox": "WhatsApp · Inbox",
       "toolsWebForms": "Site forms",
+      "toolsWebFormsSettings": "Web form settings",
       "chat": "Chat",
       "helpdesk": "Helpdesk",
       "esign": "E-signature",
@@ -1172,6 +1181,7 @@
         "name": "Name in CRM",
         "namePh": "e.g. main page lead",
         "site": "Site (domain for origin check)",
+        "kind": "Form type",
         "template": "Template",
         "noSites": "Add a site under Marketing → SEO to bind the form to a domain.",
         "creating": "Creating…",
@@ -2923,6 +2933,29 @@
         "on_hold": "On hold",
         "failed": "Failed"
       },
+      "paymentLink": {
+        "openButton": "Send invoice",
+        "title": "Payment link",
+        "subtitle": "Amount due: {{amount}} {{currency}}. The buyer pays by card on the provider's secure page.",
+        "form": {
+          "buyerName": "Buyer name",
+          "buyerEmail": "Email",
+          "buyerPhone": "Phone",
+          "city": "City",
+          "address": "Address"
+        },
+        "createButton": "Create payment link",
+        "creating": "Creating…",
+        "linkReadyHint": "Send this link to the buyer any way you like (email, WhatsApp, Telegram, SMS).",
+        "waitingHint": "The status updates automatically once the buyer pays.",
+        "copy": "Copy",
+        "copied": "Copied",
+        "paid": "Paid! The deal status has been updated.",
+        "errors": {
+          "missing": "Fill in the buyer's name, email, city and address",
+          "create": "Could not create the payment link"
+        }
+      },
       "details": {
         "title": "Order {{id}}…",
         "titleWithOrder": "Order #{{orderNo}}",
@@ -2947,6 +2980,7 @@
         "orderContentsHint": "Summary from the CRM plus store data when synced.",
         "orderContentsFromCrm": "In CRM",
         "orderContentsFromStore": "Store (WooCommerce)",
+        "orderContentsFromStorefront": "Storefront / site form",
         "managementIntro": "Assignees, lead, and notes are saved with the button below (order status is in the summary above).",
         "subsections": {
           "status": "Status",
@@ -2959,6 +2993,7 @@
         "wooOrder": {
           "sectionTitle": "WooCommerce order data",
           "hint": "Values from the store order REST response (total_tax, total, line_items, etc.).",
+          "storefrontHint": "Cart contents saved when the order was placed via the storefront/site form.",
           "currency": "Currency",
           "itemsHeading": "Line items",
           "colProduct": "Item",
@@ -3822,6 +3857,11 @@
       "wooSectionSubtitle": "Store URL and API keys (read access is enough). Manage sync on the Connections tab.",
       "wooChannelsHint": "Sales channels are configured separately: link the store to CRM metrics there.",
       "wooChannelsLink": "Sales channels",
+      "managedElsewhereHint": "Configured in a separate CRM section.",
+      "oauthNotConfigured": "OAuth not configured on the server",
+      "smsManagedLink": "Open “Telephony”",
+      "emailManagedLink": "Open “Email”",
+      "telegramManagedLink": "Open “Telegram”",
       "marketingSetup": "Set up",
       "marketingOpenTab": "Marketing tab",
       "marketingModalTitle": "Configure {{name}}",
@@ -3849,6 +3889,20 @@
         "oauthCallback": {
           "connected": "Google Calendar connected.",
           "error": "Google Calendar connection failed."
+        }
+      },
+      "outlookCalendar": {
+        "oauthTitle": "Outlook / Microsoft 365",
+        "oauthSubtitle": "Sign in with Microsoft — the refresh token is stored in CRM. Lead calendar meetings sync with Outlook.",
+        "oauthUsesPrimaryCalendar": "Your default Outlook calendar is used — you do not need to enter a calendar ID.",
+        "oauthNameLabel": "Name in CRM (optional)",
+        "oauthConnect": "Connect with Microsoft",
+        "reconnectMicrosoft": "Update Microsoft access",
+        "oauthBusy": "Redirecting to Microsoft…",
+        "oauthStartError": "Could not start Microsoft sign-in",
+        "oauthCallback": {
+          "connected": "Outlook Calendar connected.",
+          "error": "Outlook Calendar connection failed."
         }
       },
       "marketingModalPanelLead": "Connection and list",
@@ -4026,6 +4080,51 @@
         "errors": {
           "noKey": "Please enter an API key",
           "create": "Failed to create OpenAI connection"
+        }
+      },
+      "iyzico": {
+        "title": "Connect iyzico",
+        "subtitle": "Accept online card payments (Turkey) via iyzico Checkout Form",
+        "guideHint": "Find your API key and Secret key in the iyzico merchant panel (merchant.iyzipay.com → Settings → API Keys). For testing without a real account, use the sandbox keys from iyzico's docs.",
+        "form": {
+          "apiKey": "API key",
+          "secretKey": "Secret key",
+          "sandbox": "Sandbox (test) mode",
+          "name": "Connection name"
+        },
+        "errors": {
+          "missing": "Enter the API key and Secret key",
+          "create": "Could not save the iyzico connection"
+        }
+      },
+      "yookassa": {
+        "title": "Connect YooKassa",
+        "subtitle": "Accept online card payments (Russia) via the YooKassa Payment API",
+        "guideHint": "Find your shopId and Secret key in the YooKassa merchant panel (yookassa.ru/my → Settings → API keys). Important: also set the notification URL there (Integration → HTTP notifications) to https://crm.lumiva.agency/v1/payments/yookassa/callback — without it payments won't be confirmed automatically.",
+        "form": {
+          "shopId": "shopId",
+          "secretKey": "Secret key",
+          "name": "Connection name"
+        },
+        "errors": {
+          "missing": "Enter the shopId and Secret key",
+          "create": "Could not save the YooKassa connection"
+        }
+      },
+      "paytr": {
+        "title": "Connect PayTR",
+        "subtitle": "Accept online card payments (Turkey) via the PayTR iFrame API",
+        "guideHint": "Find your Merchant ID, Merchant key and Merchant salt in the PayTR panel (panel.paytr.com → Mağaza Ayarları → Bilgilerim). Important: also set the notification URL there (Bildirim URL) to https://crm.lumiva.agency/v1/payments/paytr/callback — without it payments won't be confirmed automatically.",
+        "form": {
+          "merchantId": "Merchant ID",
+          "merchantKey": "Merchant key",
+          "merchantSalt": "Merchant salt",
+          "testMode": "Test mode",
+          "name": "Connection name"
+        },
+        "errors": {
+          "missing": "Enter the Merchant ID, Merchant key and Merchant salt",
+          "create": "Could not save the PayTR connection"
         }
       },
       "onec": {
@@ -5656,6 +5755,12 @@
             "linkLabel": "Marketing · integrations",
             "nextStep": "Integrations → Marketing: enter your Property ID and currency, sign in with Google; manage sync on the Marketing tab."
           },
+          "yandex_metrika": {
+            "name": "Yandex Metrica",
+            "description": "Yandex Metrica counter in Marketing: counter number and goals.",
+            "linkLabel": "Marketing · integrations",
+            "nextStep": "Integrations → Marketing: add your Yandex Metrica counter number and (optionally) goals."
+          },
           "meta_ads": {
             "name": "Meta Ads",
             "description": "Marketing API calls from scenarios. Account summaries in Marketing.",
@@ -5667,6 +5772,24 @@
             "description": "Store credentials for future scenarios. No native “1C” step yet.",
             "linkLabel": "",
             "nextStep": "For now: “Call webhook” to your 1C HTTP bridge. Native step planned."
+          },
+          "iyzico": {
+            "name": "iyzico",
+            "description": "Accept online card payments (Turkey): a payment link for a sale, and checkout on the storefront.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "paytr": {
+            "name": "PayTR",
+            "description": "Accept online card payments (Turkey): a payment link for a sale, and checkout on the storefront.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "yookassa": {
+            "name": "YooKassa",
+            "description": "Accept online card payments (Russia): a payment link for a sale, and checkout on the storefront.",
+            "linkLabel": "",
+            "nextStep": ""
           },
           "sap": {
             "name": "SAP / ERP",

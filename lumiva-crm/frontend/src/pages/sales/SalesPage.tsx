@@ -30,6 +30,7 @@ import { SalesStatusPillSelect } from './SalesStatusPillSelect';
 import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
 import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
 import { normalizeMarketingDisplayCurrency } from '../marketing/marketingDisplayCurrencyStorage';
+import { saleStorefrontProductName } from '../../utils/saleOrderDisplay';
 
 /* ─────────────────────────────── */
 /* Локальные типы для фильтров     */
@@ -52,17 +53,17 @@ type SalesListResponse = {
   pageSize: number;
 };
 
-/** Числовой ID заказа на стороне WP/Woo (без UUID CRM). */
-function saleWpNumericId(sale: Sale): string | null {
-  const on = sale.externalOrderNo?.trim();
-  if (on && /^\d+$/.test(on)) return on;
-  const ext = sale.externalId?.trim();
-  if (ext && /^\d+$/.test(ext)) return ext;
-  return null;
-}
-
 const UUID_LIKE =
   /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+
+/** ID заказа у источника (WP/Woo — числовой; тестовая витрина/embed-формы — код ORD-XXXXXXXX), без UUID CRM. */
+function saleWpNumericId(sale: Sale): string | null {
+  const on = sale.externalOrderNo?.trim();
+  if (on && !UUID_LIKE.test(on)) return on;
+  const ext = sale.externalId?.trim();
+  if (ext && !UUID_LIKE.test(ext)) return ext;
+  return null;
+}
 
 function looksUuidLike(s: string): boolean {
   return UUID_LIKE.test(s.trim());
@@ -517,7 +518,8 @@ export const SalesPage: React.FC = () => {
 
     const { site: channelSite, integration: channelIntegration } =
       saleChannelLines(sale, channels);
-    const productName = sale.hotel || t('crm.sales.common.empty');
+    const productName =
+      sale.hotel || saleStorefrontProductName(sale) || t('crm.sales.common.empty');
     const marketLabel = sale.market;
     const clientName =
       sale.guestName || sale.agentName || t('crm.sales.common.empty');

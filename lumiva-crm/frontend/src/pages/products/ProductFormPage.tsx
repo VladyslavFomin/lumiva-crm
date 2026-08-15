@@ -320,6 +320,7 @@ export const ProductFormPage: React.FC = () => {
     const ok = await showConfirm(t('crm.products.list.deleteConfirm'), {
       title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
       confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
       danger: true,
     });
     if (!ok) return;
@@ -454,7 +455,12 @@ export const ProductFormPage: React.FC = () => {
 
   const handleVariantDelete = async (variantId: string) => {
     if (!id) return;
-    const ok = await showConfirm(t('crm.products.list.deleteConfirm'));
+    const ok = await showConfirm(t('crm.products.list.deleteConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await deleteProductVariant(id, variantId);
@@ -497,7 +503,7 @@ export const ProductFormPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleDelete}
-                  style={{ padding: '8px 16px', fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: '#fff', color: '#9a1f31', cursor: 'pointer' }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {t('crm.products.form.actions.delete')}
                 </button>
@@ -1213,7 +1219,7 @@ export const ProductFormPage: React.FC = () => {
                                   <button
                                     type="button"
                                     onClick={() => handleVariantDelete(v.id)}
-                                    style={{ fontSize: 11, color: '#9a1f31', background: 'none', border: 'none', cursor: 'pointer' }}
+                                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                                   >
                                     {t('crm.products.form.actions.delete')}
                                   </button>

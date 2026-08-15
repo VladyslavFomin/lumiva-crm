@@ -339,6 +339,13 @@ export const EsignPage: React.FC = () => {
   };
 
   const handleDeleteTemplate = async (id: string) => {
+    const ok = await showConfirm('Удалить шаблон? Действие необратимо.', {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteEsignTemplate(id);
       loadTemplates();

@@ -15,6 +15,7 @@ const CATALOG_TO_SLUG: Record<string, string> = {
   make: 'make',
   google_ads: 'googleads',
   google_analytics: 'googleanalytics',
+  yandex_metrika: 'yandexmetrika',
   meta_ads: 'meta',
   '1c': '1c',
   sap: 'sap',
@@ -30,6 +31,9 @@ const CATALOG_TO_SLUG: Record<string, string> = {
   stripe: 'stripe',
   wordpress_cf7: 'wordpress',
   google_sheets: 'googlesheets',
+  iyzico: 'iyzico',
+  paytr: 'paytr',
+  yookassa: 'yookassa',
   lumiva_client_cabinet: 'wordpress',
   lumiva_online_chat: 'rocketdotchat',
 };

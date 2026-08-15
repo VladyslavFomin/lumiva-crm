@@ -18,6 +18,7 @@ import ScenariosPage from '../pages/public/ScenariosPage';
 import ApiPage from '../pages/public/ApiPage';
 import ApiDocsPage from '../pages/public/ApiDocsPage';
 import IntegrationsPage from '../pages/public/IntegrationsPage';
+import { PaymentResultPage } from '../pages/public/PaymentResultPage';
 import SolutionsPage from '../pages/public/SolutionsPage';
 import AnalyticsPage from '../pages/public/AnalyticsPage';
 import MarketingPage from '../pages/public/MarketingPage';
@@ -207,6 +208,7 @@ import { WorkspaceAreaHomePage } from '../pages/workspace/WorkspaceAreaHomePage'
 import { WorkspaceGanttViewPage } from '../pages/workspace/WorkspaceGanttViewPage';
 import { WebFormsListPage } from '../pages/web-forms/WebFormsListPage';
 import { WebFormEditorPage } from '../pages/web-forms/WebFormEditorPage';
+import { WebFormsSettingsPage } from '../pages/web-forms/WebFormsSettingsPage';
 import { PublicEmbedFormPage } from '../pages/public-embed/PublicEmbedFormPage';
 import {
   AiEmployeeProfilePage,
@@ -291,6 +293,7 @@ export const AppRouter: React.FC = () => {
         <Route path="/api-integration" element={<ApiPage />} />
         <Route path="/api-integration/docs" element={<ApiDocsPage />} />
         <Route path="/integrations" element={<IntegrationsPage />} />
+        <Route path="/pay/result" element={<PaymentResultPage />} />
         <Route path="/solutions" element={<SolutionsPage />} />
         <Route path="/solutions/analytics" element={<AnalyticsPage />} />
         <Route path="/solutions/marketing" element={<MarketingPage />} />
@@ -1408,6 +1411,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <WebFormsListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/web-forms/settings"
+          element={
+            <ProtectedRoute>
+              <WebFormsSettingsPage />
             </ProtectedRoute>
           }
         />

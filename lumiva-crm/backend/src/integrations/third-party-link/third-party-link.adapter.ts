@@ -16,6 +16,9 @@ import { OpenAiApiService } from '../openai/openai-api.service';
 import { OneCApiService } from '../onec/onec-api.service';
 import { SapApiService } from '../sap/sap-api.service';
 import { JiraApiService } from '../jira/jira-api.service';
+import { IyzicoApiService } from '../iyzico/iyzico-api.service';
+import { PaytrApiService } from '../paytr/paytr-api.service';
+import { YookassaApiService } from '../yookassa/yookassa-api.service';
 import type {
   SalesIntegrationAdapter,
   SyncResult,
@@ -37,7 +40,7 @@ type ThirdPartyConfig = {
   accountEmail?: string;
   /** Google Calendar / Outlook (Graph): id календаря */
   calendarId?: string;
-  /** Google Calendar: refresh token после OAuth платформы */
+  /** Google Calendar / Outlook: refresh token после OAuth платформы */
   oauthRefreshToken?: string;
   /** Подпись в списке подключений */
   label?: string;
@@ -108,6 +111,9 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
     private readonly oneCApi: OneCApiService,
     private readonly sapApi: SapApiService,
     private readonly jiraApi: JiraApiService,
+    private readonly iyzicoApi: IyzicoApiService,
+    private readonly paytrApi: PaytrApiService,
+    private readonly yookassaApi: YookassaApiService,
   ) {}
 
   async testConnection(entity: IntegrationConnection): Promise<TestConnectionResult> {
@@ -212,6 +218,104 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
           ok: true,
           message:
             'Google Calendar: доступ проверен. Встречи из карточек лидов синхронизируются с выбранным календарём; кнопка «Синхронизировать» подтягивает изменения из Google.',
+        };
+      } catch (e) {
+        return { ok: false, message: (e as Error).message };
+      }
+    }
+
+    if (cfg.catalogId === 'outlook') {
+      const oauthRt =
+        typeof cfg.oauthRefreshToken === 'string' ? cfg.oauthRefreshToken.trim() : '';
+      const tok = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+      if (!oauthRt && tok.length < 8) {
+        return {
+          ok: false,
+          message:
+            'Microsoft 365 / Outlook: подключитесь через кнопку «Войти в Microsoft» в CRM или вставьте OAuth access token в поле API token.',
+        };
+      }
+      try {
+        const resolved = await this.outlookCalendar.resolveAccessFromConfig({
+          apiToken: cfg.apiToken,
+          oauthRefreshToken: oauthRt || undefined,
+          calendarId: cfg.calendarId,
+        });
+        if (!resolved) {
+          return {
+            ok: false,
+            message: 'Microsoft 365 / Outlook: не удалось получить access token',
+          };
+        }
+        await this.outlookCalendar.verifyCalendarAccess(resolved.accessToken);
+        return {
+          ok: true,
+          message:
+            'Microsoft 365 / Outlook: доступ проверен. Встречи из карточек лидов синхронизируются с выбранным календарём.',
+        };
+      } catch (e) {
+        return { ok: false, message: (e as Error).message };
+      }
+    }
+
+    if (cfg.catalogId === 'iyzico') {
+      const apiKey = typeof cfg.apiKey === 'string' ? cfg.apiKey.trim() : '';
+      const secretKey = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+      if (!apiKey || !secretKey) {
+        return { ok: false, message: 'iyzico: укажите API key и Secret key' };
+      }
+      try {
+        await this.iyzicoApi.verifyAccess({
+          apiKey,
+          secretKey,
+          sandbox: (cfg as { sandbox?: boolean }).sandbox !== false,
+        });
+        return {
+          ok: true,
+          message: 'iyzico: доступ проверен. Кнопка «Выставить счёт» на карточке сделки создаёт ссылку на оплату.',
+        };
+      } catch (e) {
+        return { ok: false, message: (e as Error).message };
+      }
+    }
+
+    if (cfg.catalogId === 'paytr') {
+      const merchantId = typeof cfg.apiKey === 'string' ? cfg.apiKey.trim() : '';
+      const merchantKey = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+      const merchantSalt =
+        typeof cfg.webhookInboundSecret === 'string' ? cfg.webhookInboundSecret.trim() : '';
+      if (!merchantId || !merchantKey || !merchantSalt) {
+        return { ok: false, message: 'PayTR: укажите Merchant ID, Merchant key и Merchant salt' };
+      }
+      try {
+        await this.paytrApi.verifyAccess({
+          merchantId,
+          merchantKey,
+          merchantSalt,
+          testMode: (cfg as { sandbox?: boolean }).sandbox !== false,
+        });
+        return {
+          ok: true,
+          message:
+            'PayTR: доступ проверен. Не забудьте указать URL уведомлений в личном кабинете PayTR (см. подсказку при подключении).',
+        };
+      } catch (e) {
+        return { ok: false, message: (e as Error).message };
+      }
+    }
+
+    if (cfg.catalogId === 'yookassa') {
+      const shopId = typeof cfg.apiKey === 'string' ? cfg.apiKey.trim() : '';
+      const secretKey = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+      if (!shopId || !secretKey) {
+        return { ok: false, message: 'ЮKassa: укажите shopId и Secret key' };
+      }
+      try {
+        await this.yookassaApi.verifyAccess({ shopId, secretKey });
+        return {
+          ok: true,
+          message:
+            'ЮKassa: доступ проверен. Не забудьте указать URL уведомлений в личном кабинете ЮKassa (см. подсказку при подключении).',
         };
       } catch (e) {
         return { ok: false, message: (e as Error).message };
@@ -416,17 +520,6 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
               'WhatsApp: токен и Phone number ID проверены через Graph API.' +
               hookHint +
               verifyHint,
-          };
-        } catch (e) {
-          return { ok: false, message: (e as Error).message };
-        }
-      }
-      if (cfg.catalogId === 'outlook') {
-        try {
-          await this.outlookCalendar.verifyCalendarAccess(token);
-          return {
-            ok: true,
-            message: 'Microsoft 365 / Outlook: токен проверен (доступ к календарю /me/calendar)',
           };
         } catch (e) {
           return { ok: false, message: (e as Error).message };

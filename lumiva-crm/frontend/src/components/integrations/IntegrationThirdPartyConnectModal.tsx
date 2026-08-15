@@ -16,6 +16,7 @@ import {
   generateCf7Secret,
 } from './WordpressCf7ConnectGuide';
 import { GoogleCalendarOAuthHubModal } from './GoogleCalendarOAuthHubModal';
+import { OutlookCalendarOAuthHubModal } from './OutlookCalendarOAuthHubModal';
 
 export type GoogleSheetConnectImportTarget = 'leads' | 'workspace' | 'projects' | 'sales';
 
@@ -56,6 +57,9 @@ const THIRD_PARTY_IDS = new Set([
   'google_sheets',
   'lumiva_client_cabinet',
   'lumiva_online_chat',
+  'iyzico',
+  'paytr',
+  'yookassa',
 ]);
 
 export function isHubThirdPartyConnectCatalogId(id: string): boolean {
@@ -189,6 +193,12 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
   if (catalogId === 'google_calendar') {
     return (
       <GoogleCalendarOAuthHubModal open={open} onClose={onClose} />
+    );
+  }
+
+  if (catalogId === 'outlook') {
+    return (
+      <OutlookCalendarOAuthHubModal open={open} onClose={onClose} />
     );
   }
 
@@ -1112,26 +1122,6 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
               />
               <p className="mt-1 text-[10px] text-slate-500 leading-snug">
                 {t('crm.automations.panel.integrations.connectAmocrmWebhookSecretHint')}
-              </p>
-            </div>
-          )}
-          {(catalogId === 'google_calendar' || catalogId === 'outlook') && (
-            <div>
-              <label className="mb-1 block text-[11px] text-slate-600">
-                {catalogId === 'outlook'
-                  ? t('crm.automations.panel.integrations.connectOutlookCalendarId')
-                  : t('crm.automations.panel.integrations.connectGoogleCalendarId')}
-              </label>
-              <input
-                value={draft.calendarId}
-                onChange={(e) => setDraft((d) => ({ ...d, calendarId: e.target.value }))}
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
-                placeholder={catalogId === 'outlook' ? '' : 'primary'}
-              />
-              <p className="mt-1 text-[10px] text-slate-500">
-                {catalogId === 'outlook'
-                  ? t('crm.automations.panel.integrations.connectOutlookCalendarIdHint')
-                  : t('crm.automations.panel.integrations.connectGoogleCalendarIdHint')}
               </p>
             </div>
           )}

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { CrmShellModal } from '../../components/ui/CrmShellModal';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   createUtmTemplate,
   fetchUtmTemplates,
@@ -42,6 +43,7 @@ const inputClass =
 
 export const UtmsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const [form, setForm] = useState<UtmFormState>(defaultForm);
   const [templates, setTemplates] = useState<MarketingUtmTemplate[]>([]);
   const [loading, setLoading] = useState(false);
@@ -52,7 +54,6 @@ export const UtmsPage: React.FC = () => {
     message: string;
     variant?: 'info' | 'error';
   } | null>(null);
-  const [pendingDeleteTpl, setPendingDeleteTpl] = useState<MarketingUtmTemplate | null>(null);
   /** Если задан — кнопка «Сохранить» обновляет этот шаблон, а не создаёт новый */
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [copyDone, setCopyDone] = useState(false);
@@ -246,13 +247,14 @@ export const UtmsPage: React.FC = () => {
     setForm({ ...defaultForm });
   };
 
-  const onDeleteTemplate = (tpl: MarketingUtmTemplate) => {
-    setPendingDeleteTpl(tpl);
-  };
-
-  const confirmDeleteTemplate = async () => {
-    const tpl = pendingDeleteTpl;
-    if (!tpl) return;
+  const onDeleteTemplate = async (tpl: MarketingUtmTemplate) => {
+    const ok = await showConfirm(t('crm.marketingUtms.confirmDelete', { name: tpl.name }), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteUtmTemplate(tpl.id);
       setTemplates((prev) => prev.filter((x) => x.id !== tpl.id));
@@ -260,10 +262,8 @@ export const UtmsPage: React.FC = () => {
         setEditingTemplateId(null);
         setForm((f) => ({ ...f, nameForTemplate: '' }));
       }
-      setPendingDeleteTpl(null);
     } catch (e: any) {
       console.error(e);
-      setPendingDeleteTpl(null);
       setNotice({
         title: t('crm.common.modalError'),
         message: e?.message || t('crm.marketingUtms.errors.deleteTemplate'),
@@ -599,8 +599,8 @@ export const UtmsPage: React.FC = () => {
                         </button>
                         <button
                           type="button"
-                          onClick={() => onDeleteTemplate(tpl)}
-                          className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-[10px] text-rose-600 transition hover:bg-rose-50"
+                          onClick={() => void onDeleteTemplate(tpl)}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           {t('crm.marketingUtms.actions.deleteTemplate')}
                         </button>
@@ -622,19 +622,6 @@ export const UtmsPage: React.FC = () => {
         onClose={() => setNotice(null)}
       />
 
-      <CrmShellModal
-        open={!!pendingDeleteTpl}
-        title={t('crm.common.modalConfirm')}
-        message={
-          pendingDeleteTpl
-            ? t('crm.marketingUtms.confirmDelete', { name: pendingDeleteTpl.name })
-            : ''
-        }
-        cancelLabel={t('crm.common.cancel')}
-        confirmLabel={t('crm.common.delete')}
-        onClose={() => setPendingDeleteTpl(null)}
-        onConfirm={() => void confirmDeleteTemplate()}
-      />
     </MainLayout>
   );
 };

@@ -286,7 +286,7 @@
 .period-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0}
 .period-chip{display:inline-flex;align-items:center;gap:8px;padding:6px 8px 6px 12px;border:1px solid var(--line-2);border-radius:9px;background:#fff;font-size:12px;font-family:var(--ff-mono)}
 .period-chip button{border:none;background:var(--bg-muted);color:var(--fg-3);width:18px;height:18px;border-radius:50%;cursor:pointer;font-size:12px;line-height:1;display:flex;align-items:center;justify-content:center}
-.period-chip button:hover{background:#fdecea;color:#c0392b}
+.period-chip button:hover{background:#fbecef;color:#9a1f31}
 .period-add-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border:1.5px dashed var(--line-2);border-radius:9px;background:transparent;color:var(--fg-3);font-size:12.5px;cursor:pointer}
 .period-add-btn:hover{border-color:var(--ink);color:var(--ink)}
 .period-editor{position:absolute;top:calc(100% + 8px);left:0;background:#fff;border:1px solid var(--line-2);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.12);padding:16px;width:280px;z-index:50}

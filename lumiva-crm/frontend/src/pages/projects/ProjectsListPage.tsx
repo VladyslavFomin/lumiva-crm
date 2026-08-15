@@ -33,6 +33,7 @@ import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspace
 import { WorkspaceCrmEntityMultiField } from '../../components/workspace/WorkspaceCrmEntityMultiField';
 import { parseCrmEntityIdsFromCell } from '../../workspace/workspaceCrmEntityIds';
 import { getFixedPopoverLayout, type FixedPopoverLayout } from '../../utils/tablePopoverFixedPosition';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   assigneeEntryDisplayLabel,
   normalizeAssigneesToStaffIds,
@@ -183,6 +184,7 @@ export const ProjectsListPage: React.FC = () => {
   }, []);
 
   const navigate = useNavigate();
+  const { showConfirm } = useAlertModal();
   const activeViewId = searchParams.get('view');
   const activeCustomView = useMemo(() => {
     if (!activeViewId) return null;

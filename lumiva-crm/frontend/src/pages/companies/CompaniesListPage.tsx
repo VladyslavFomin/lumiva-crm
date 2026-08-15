@@ -82,6 +82,7 @@ export const CompaniesListPage: React.FC = () => {
     const ok = await showConfirm(t('crm.companies.list.deleteConfirm'), {
       title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
       confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
       danger: true,
     });
     if (!ok) return;
@@ -331,7 +332,7 @@ export const CompaniesListPage: React.FC = () => {
               type="button"
               onClick={(e) => handleDelete(company.id, e)}
               className="lv-tb-btn"
-              style={{ fontSize: 10, padding: '4px 8px', color: '#b91c1c', borderColor: '#fecaca' }}
+              style={{ fontSize: 10, padding: '4px 8px', color: '#9a1f31', borderColor: '#f0c8cf' }}
             >
               {t('crm.companies.list.delete')}
             </button>
@@ -555,7 +556,7 @@ export const CompaniesListPage: React.FC = () => {
                       </button>
                       <button
                         onClick={(e) => handleDelete(company.id, e)}
-                        className="text-red-400 hover:text-red-300 text-[10px] px-2 py-1 hover:bg-red-950/30 rounded-lg transition-colors"
+                        className="text-[#9a1f31] hover:bg-[#fbecef] text-[10px] px-2 py-1 rounded-lg transition-colors"
                       >
                         {t('crm.companies.list.delete')}
                       </button>

@@ -69,7 +69,7 @@ function executionActionSummary(row: AutomationExecution, t: TFunction) {
 
 export const AutomationsPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -285,7 +285,13 @@ export const AutomationsPage: React.FC = () => {
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!confirm(t('crm.automations.list.deleteConfirm'))) return;
+    const ok = await showConfirm(t('crm.automations.list.deleteConfirm'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteAutomation(id);
       setAutomations((prev) => prev.filter((a) => a.id !== id));
@@ -767,7 +773,7 @@ export const AutomationsPage: React.FC = () => {
                                   fontSize: 12,
                                   background: 'none',
                                   border: 'none',
-                                  color: (item as any).danger ? '#dc2626' : INK,
+                                  color: (item as any).danger ? '#9a1f31' : INK,
                                   cursor: 'pointer',
                                   borderTop: `1px solid ${LINE3}`,
                                 }}

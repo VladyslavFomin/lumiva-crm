@@ -17,7 +17,7 @@ const maskToken = (token: string) => {
 };
 
 export const ApiTokensPage: React.FC = () => {
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [tokens, setTokens] = useState<ApiTokenRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -68,7 +68,13 @@ export const ApiTokensPage: React.FC = () => {
   };
 
   const handleDelete = async (t: ApiTokenRecord) => {
-    if (!window.confirm(`Удалить токен «${t.name}»? Действие необратимо.`)) return;
+    const ok = await showConfirm(`Удалить токен «${t.name}»? Действие необратимо.`, {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteApiToken(t.id);
       load();
@@ -214,7 +220,11 @@ export const ApiTokensPage: React.FC = () => {
                         <button type="button" className="btn btn-sm" onClick={() => handleToggleActive(t)}>
                           {t.isActive ? 'Отозвать' : 'Восстановить'}
                         </button>
-                        <button type="button" className="btn btn-sm" onClick={() => handleDelete(t)}>
+                        <button
+                          type="button"
+                          className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                          onClick={() => handleDelete(t)}
+                        >
                           Удалить
                         </button>
                       </td>

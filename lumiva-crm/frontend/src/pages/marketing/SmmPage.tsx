@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   fetchSmmProfiles,
   fetchSmmStats,
@@ -84,6 +85,7 @@ const FollowersTooltip: React.FC<any> = ({ active, payload, label, locale }) => 
 
 export const SmmPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const locale = getLocale();
   const periodLabel: Record<PeriodPreset, string> = {
     '7d': t('crm.marketingSmm.periods.7d'),
@@ -440,7 +442,7 @@ export const SmmPage: React.FC = () => {
           <button
             type="button"
             onClick={() => handleDeleteProfile(p)}
-            className="rounded-lg border border-neutral-200 px-2 py-1 text-[10px] text-neutral-600 transition hover:border-neutral-300 hover:bg-neutral-50"
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {t('crm.marketingSmm.profiles.delete')}
           </button>
@@ -942,9 +944,16 @@ export const SmmPage: React.FC = () => {
   };
 
   const handleDeleteProfile = async (p: SmmProfile) => {
-    if (!window.confirm(t('crm.marketingSmm.profiles.confirmDelete', { platform: platformLabel(p.platform), handle: p.handle }))) {
-      return;
-    }
+    const ok = await showConfirm(
+      t('crm.marketingSmm.profiles.confirmDelete', { platform: platformLabel(p.platform), handle: p.handle }),
+      {
+        title: 'Удаление',
+        confirmLabel: 'Удалить',
+        cancelLabel: 'Отмена',
+        danger: true,
+      },
+    );
+    if (!ok) return;
     try {
       await deleteSmmProfile(p.id);
       setProfiles((prev) => prev.filter((x) => x.id !== p.id));

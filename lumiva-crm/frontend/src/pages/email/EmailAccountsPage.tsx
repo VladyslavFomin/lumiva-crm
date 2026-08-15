@@ -16,9 +16,11 @@ import {
 } from '../../api/email';
 import { CrmShellModal } from '../../components/ui/CrmShellModal';
 import { EmailRichEditor } from './EmailRichEditor';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 export const EmailAccountsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const [accounts, setAccounts] = useState<EmailAccount[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +29,6 @@ export const EmailAccountsPage: React.FC = () => {
     message: string;
     variant?: 'info' | 'error';
   } | null>(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [oauthBusy, setOauthBusy] = useState<'gmail' | 'outlook' | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [ingestionOpenId, setIngestionOpenId] = useState<string | null>(null);
@@ -158,19 +159,18 @@ export const EmailAccountsPage: React.FC = () => {
 
   const handleCreate = () => navigate('/email/accounts/new');
   const handleEdit = (id: string) => navigate(`/email/accounts/${id}`);
-  const handleDelete = (id: string) => {
-    setPendingDeleteId(id);
-  };
-
-  const confirmDelete = async () => {
-    const id = pendingDeleteId;
-    if (!id) return;
+  const handleDelete = async (id: string) => {
+    const ok = await showConfirm(t('crm.email.accounts.deleteConfirm'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteEmailAccount(id);
       setAccounts((prev) => prev.filter((a) => a.id !== id));
-      setPendingDeleteId(null);
     } catch (err: any) {
-      setPendingDeleteId(null);
       setNotice({
         title: t('crm.common.modalError'),
         message: err.message || t('crm.email.accounts.errors.deleteFailed'),
@@ -265,7 +265,7 @@ export const EmailAccountsPage: React.FC = () => {
   const pillPrimary =
     'rounded-full border border-lumiva-accent bg-lumiva-accent px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-lumiva-accent-soft';
   const pillSoftRose =
-    'rounded-full border border-rose-300 bg-rose-50 px-2.5 py-1 text-[10px] font-bold text-rose-950 shadow-none transition hover:border-rose-400 hover:bg-rose-100';
+    'inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-2.5 py-1 text-[10px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors';
   const pillSync =
     'rounded-full border border-sky-200 bg-white px-2.5 py-1 text-[10px] font-semibold text-sky-900 shadow-sm transition hover:border-sky-300 hover:bg-sky-50 disabled:opacity-50';
 
@@ -514,17 +514,6 @@ export const EmailAccountsPage: React.FC = () => {
         message={notice?.message || ''}
         variant={notice?.variant === 'error' ? 'error' : 'info'}
         onClose={() => setNotice(null)}
-      />
-
-      <CrmShellModal
-        open={!!pendingDeleteId}
-        title={t('crm.common.modalConfirm')}
-        message={t('crm.email.accounts.deleteConfirm')}
-        cancelLabel={t('crm.common.cancel')}
-        confirmLabel={t('crm.common.delete')}
-        confirmTone="danger"
-        onClose={() => setPendingDeleteId(null)}
-        onConfirm={() => void confirmDelete()}
       />
     </MainLayout>
   );

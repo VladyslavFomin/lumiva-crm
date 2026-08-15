@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   createProjectsCustomView,
   copyProjectsCustomView,
@@ -98,6 +99,7 @@ export const ProjectsViewsBar: React.FC<Props> = ({
   projectCount,
 }) => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const [viewsState, setViewsState] = useState<ProjectsViewsState>(() =>
     loadProjectsViewsState(),
   );
@@ -286,12 +288,18 @@ export const ProjectsViewsBar: React.FC<Props> = ({
     setMenuTabId(null);
   };
 
-  const deleteActive = (targetTabId?: string) => {
+  const deleteActive = async (targetTabId?: string) => {
     const targetTab = tabItems.find((tab) => tab.id === (targetTabId || activeTabId)) || null;
     if (!targetTab || targetTab.isBase) return;
     const targetCustomView = viewsById.get(targetTab.id) || null;
     if (!targetCustomView) return;
-    if (!window.confirm(t('crm.projects.viewsBar.confirm.deleteCurrentView'))) return;
+    const ok = await showConfirm(t('crm.projects.viewsBar.confirm.deleteCurrentView'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setViewsState((prev) => deleteProjectsCustomView(prev, targetCustomView.id));
     onOpenView(targetCustomView.type);
     setMenuTabId(null);
@@ -386,7 +394,7 @@ export const ProjectsViewsBar: React.FC<Props> = ({
             {t('crm.projects.viewsBar.menu.copyTab')}
           </button>
           {!!menuTabId && tabItems.find((tab) => tab.id === menuTabId && !tab.isBase) && (
-            <button type="button" onClick={() => deleteActive(menuTabId || undefined)} className="w-full text-left px-2 py-1.5 text-[11px] rounded-lg text-rose-600 hover:bg-rose-50">
+            <button type="button" onClick={() => void deleteActive(menuTabId || undefined)} className="w-full text-left px-2 py-1.5 text-[11px] rounded-lg text-[#9a1f31] hover:bg-[#fbecef]">
               {t('crm.projects.viewsBar.menu.deleteTab')}
             </button>
           )}

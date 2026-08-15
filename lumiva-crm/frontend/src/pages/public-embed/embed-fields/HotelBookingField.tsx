@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { fetchPublicHotel, searchPublicHotels, type PublicHotelDetail, type PublicHotelSearchResult } from '../../../api/publicHotels';
 import type { EmbedFieldConfigItem } from '../../../api/embedForms';
+import { checkMark, compositeTokens, fieldLabelStyle, hintStyle, inputStyle, optionCardStyle, primaryButtonStyle } from './compositeFieldStyles';
 
 export interface HotelBookingValue {
   hotelId: string;
@@ -39,6 +40,7 @@ export const HotelBookingField: React.FC<{
   const [hasSearched, setHasSearched] = useState(false);
 
   const allowed = field.sourceFilter?.hotelIds;
+  const t = compositeTokens(d);
 
   useEffect(() => {
     // Список отелей идёт из результатов поиска на широком диапазоне дат — переиспользуем /search
@@ -90,75 +92,61 @@ export const HotelBookingField: React.FC<{
 
   const selectedRoomType = useMemo(() => detail?.roomTypes.find((r) => r.id === roomTypeId), [detail, roomTypeId]);
 
-  const border = String(d.borderColor || '#e5e7eb');
-  const radius = Number(d.borderRadiusPx || 8);
-  const accent = String(d.accentColor || '#2563eb');
-  const inputStyle: React.CSSProperties = {
-    background: String(d.fieldBackground || '#f9fafb'),
-    border: `1px solid ${border}`,
-    color: d.textColor as string,
-    borderRadius: radius,
-    padding: Number(d.fieldPaddingPx || 12),
-    boxSizing: 'border-box',
-  };
-
   return (
     <div style={{ width: '100%' }}>
-      <div style={{ fontWeight: Number(d.labelWeight) || 600, fontSize: 13, marginBottom: 8 }}>
-        {field.label}
-      </div>
+      <div style={fieldLabelStyle(d)}>{field.label}</div>
 
-      <select style={{ ...inputStyle, width: '100%', marginBottom: 8 }} value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
+      <select style={{ ...inputStyle(d), marginBottom: 10 }} value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
         {hotels.map((h) => (
           <option key={h.id} value={h.id}>{h.name}</option>
         ))}
       </select>
-      {!hotels.length && <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Нет доступных отелей</div>}
+      {!hotels.length && <div style={hintStyle(d)}>Нет доступных отелей</div>}
 
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-        <input type="date" style={{ ...inputStyle, flex: '1 1 120px' }} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
-        <input type="date" style={{ ...inputStyle, flex: '1 1 120px' }} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
-        <input type="number" min={1} style={{ ...inputStyle, width: 70 }} value={pax} onChange={(e) => setPax(Math.max(1, Number(e.target.value) || 1))} />
-        <button
-          type="button"
-          onClick={search}
-          disabled={searching || !hotelId}
-          style={{ borderRadius: 999, padding: '0 16px', fontSize: 13, fontWeight: 600, background: accent, color: '#fff', border: 'none' }}
-        >
-          {searching ? '…' : 'Найти'}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <label style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>Заезд</span>
+          <input type="date" style={inputStyle(d)} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
+        </label>
+        <label style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>Выезд</span>
+          <input type="date" style={inputStyle(d)} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
+        </label>
+        <label style={{ width: 72, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>Гостей</span>
+          <input type="number" min={1} style={inputStyle(d)} value={pax} onChange={(e) => setPax(Math.max(1, Number(e.target.value) || 1))} />
+        </label>
+        <button type="button" onClick={search} disabled={searching || !hotelId} style={primaryButtonStyle(d, searching || !hotelId)}>
+          {searching ? 'Ищем…' : 'Найти'}
         </button>
       </div>
 
       {results.length > 0 && (
-        <div style={{ display: 'grid', gap: 8, marginBottom: 8 }}>
-          {results.map((r) => (
-            <button
-              key={r.roomTypeId}
-              type="button"
-              onClick={() => setRoomTypeId(r.roomTypeId)}
-              style={{
-                textAlign: 'left',
-                border: `1px solid ${roomTypeId === r.roomTypeId ? accent : border}`,
-                borderRadius: radius,
-                padding: 10,
-                background: roomTypeId === r.roomTypeId ? String(d.fieldBackground || '#f9fafb') : 'transparent',
-              }}
-            >
-              <div style={{ fontSize: 13, fontWeight: 500 }}>{r.roomTypeName}</div>
-              <div style={{ fontSize: 12, color: '#94a3b8' }}>от {r.pricePerNight} {r.currency}/ночь · {r.nights} ноч. · {r.total} {r.currency}</div>
-            </button>
-          ))}
+        <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
+          {results.map((r) => {
+            const selected = roomTypeId === r.roomTypeId;
+            return (
+              <button key={r.roomTypeId} type="button" onClick={() => setRoomTypeId(r.roomTypeId)} style={optionCardStyle(d, selected)}>
+                <span style={checkMark(d, selected)}>{selected ? '✓' : ''}</span>
+                <span style={{ display: 'grid', gap: 2, textAlign: 'left', flex: 1, minWidth: 0 }}>
+                  <span style={{ fontWeight: 650, color: t.text, fontSize: 13 }}>{r.roomTypeName}</span>
+                  <span style={{ fontSize: 11.5, opacity: 0.65, color: t.text }}>от {r.pricePerNight} {r.currency}/ночь · {r.nights} ноч.</span>
+                </span>
+                <span style={{ fontWeight: 700, color: t.text, fontSize: 13, whiteSpace: 'nowrap' }}>{r.total} {r.currency}</span>
+              </button>
+            );
+          })}
         </div>
       )}
       {!searching && !hasSearched && results.length === 0 && detail && (
-        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>Нажмите «Найти», чтобы увидеть свободные номера</div>
+        <div style={hintStyle(d)}>Нажмите «Найти», чтобы увидеть свободные номера</div>
       )}
       {!searching && hasSearched && results.length === 0 && (
-        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>На эти даты свободных номеров нет</div>
+        <div style={hintStyle(d)}>На эти даты свободных номеров нет</div>
       )}
 
       {selectedRoomType && selectedRoomType.occupancyTypes.length > 0 && (
-        <select style={inputStyle} value={occupancyTypeId} onChange={(e) => setOccupancyTypeId(e.target.value)}>
+        <select style={inputStyle(d)} value={occupancyTypeId} onChange={(e) => setOccupancyTypeId(e.target.value)}>
           <option value="">Выберите размещение</option>
           {selectedRoomType.occupancyTypes.map((o) => (
             <option key={o.id} value={o.id}>{o.label}</option>

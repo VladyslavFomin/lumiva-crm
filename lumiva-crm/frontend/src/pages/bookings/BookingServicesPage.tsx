@@ -141,7 +141,7 @@ const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; 
 };
 
 export const BookingServicesPage: React.FC = () => {
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [services, setServices] = useState<BookingServiceItem[]>([]);
   const [staff, setStaff] = useState<BookingStaffProfile[]>([]);
   const [category, setCategory] = useState('Все');
@@ -164,9 +164,16 @@ export const BookingServicesPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (service: BookingServiceItem) => {
+    const ok = await showConfirm(`Удалить услугу «${service.name}»? Действие необратимо.`, {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
-      await deleteBookingService(id);
+      await deleteBookingService(service.id);
       load();
     } catch (e: any) {
       showAlert(e.message || 'Не удалось удалить услугу', { variant: 'error' });
@@ -234,7 +241,10 @@ export const BookingServicesPage: React.FC = () => {
                   <td style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>{staffNames(s.staffUserIds)}</td>
                   <td><span className={s.active ? 'bk-badge confirmed' : 'bk-badge no_show'}>{s.active ? 'Активна' : 'Скрыта'}</span></td>
                   <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right' }}>
-                    <button className="btn btn-sm" style={{ border: 0, color: '#cc2f47' }} onClick={() => handleDelete(s.id)}>
+                    <button
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      onClick={() => handleDelete(s)}
+                    >
                       <Ic d={BK_ICON.trash} size={13} />
                     </button>
                   </td>

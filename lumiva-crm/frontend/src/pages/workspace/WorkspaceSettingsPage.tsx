@@ -755,7 +755,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
                       onClick={() =>
                         setDraftStatuses((prev) => prev.filter((_, i) => i !== index))
                       }
-                      className="ml-1 h-7 w-7 rounded-full border border-rose-200 text-rose-500 transition-colors hover:bg-rose-50"
+                      className="ml-1 inline-flex items-center justify-center w-7 h-7 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       title={t('crm.workspace.settings.deleteStatus')}
                     >
                       ×

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchPublicServices, type PublicBookingService } from '../../../api/publicBooking';
 import type { EmbedFieldConfigItem } from '../../../api/embedForms';
+import { compositeTokens, fieldLabelStyle, hintStyle, inputStyle } from './compositeFieldStyles';
 
 export interface ServiceBookingValue {
   serviceId: string;
@@ -19,6 +20,7 @@ export const ServiceBookingField: React.FC<{
   const [services, setServices] = useState<PublicBookingService[]>([]);
   const [serviceId, setServiceId] = useState('');
   const [date, setDate] = useState('');
+  const t = compositeTokens(d);
 
   const allowed = field.sourceFilter?.serviceIds;
 
@@ -48,26 +50,12 @@ export const ServiceBookingField: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceId, date, services]);
 
-  const border = String(d.borderColor || '#e5e7eb');
-  const radius = Number(d.borderRadiusPx || 8);
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    background: String(d.fieldBackground || '#f9fafb'),
-    border: `1px solid ${border}`,
-    color: d.textColor as string,
-    borderRadius: radius,
-    padding: Number(d.fieldPaddingPx || 12),
-    boxSizing: 'border-box',
-  };
-
   const selected = services.find((s) => s.id === serviceId);
 
   return (
     <div style={{ width: '100%' }}>
-      <div style={{ fontWeight: Number(d.labelWeight) || 600, fontSize: 13, marginBottom: 8 }}>
-        {field.label}
-      </div>
-      <select style={{ ...inputStyle, marginBottom: 8 }} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
+      <div style={fieldLabelStyle(d)}>{field.label}</div>
+      <select style={{ ...inputStyle(d), marginBottom: selected ? 6 : 10 }} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
         {services.map((s) => (
           <option key={s.id} value={s.id}>
             {s.name} · {s.durationMinutes} мин · {s.price} {s.currency}
@@ -75,12 +63,17 @@ export const ServiceBookingField: React.FC<{
         ))}
       </select>
       {selected && (
-        <div style={{ fontSize: 12, color: '#94a3b8', marginBottom: 8 }}>
-          {selected.durationMinutes} мин, {selected.price} {selected.currency}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 9px', background: t.field, border: `1px solid ${t.border}`, color: t.text }}>
+            {selected.durationMinutes} мин
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 9px', background: t.field, border: `1px solid ${t.border}`, color: t.text }}>
+            {selected.price} {selected.currency}
+          </span>
         </div>
       )}
-      <input type="datetime-local" style={inputStyle} value={date} onChange={(e) => setDate(e.target.value)} />
-      {!services.length && <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 6 }}>Нет доступных услуг</div>}
+      <input type="datetime-local" style={inputStyle(d)} value={date} onChange={(e) => setDate(e.target.value)} />
+      {!services.length && <div style={hintStyle(d)}>Нет доступных услуг</div>}
     </div>
   );
 };

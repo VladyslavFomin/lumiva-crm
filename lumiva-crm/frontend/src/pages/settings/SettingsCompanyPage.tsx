@@ -1034,7 +1034,11 @@ export const SettingsCompanyPage: React.FC = () => {
                               <td className="mono">{new Date(f.createdAt).toLocaleString(locale)}</td>
                               <td>
                                 {data?.canDeleteTenantStorage ? (
-                                  <button type="button" onClick={() => void handleStorageDelete(f.id)} className="st-link-action danger">
+                                  <button
+                                    type="button"
+                                    onClick={() => void handleStorageDelete(f.id)}
+                                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                  >
                                     {t('crm.settings.company.storage.delete')}
                                   </button>
                                 ) : (

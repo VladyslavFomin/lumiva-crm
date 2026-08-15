@@ -74,3 +74,54 @@ export function extractWooOrderSummary(rawPayload: unknown): WooOrderSummary | n
 
   return { currency, lines, totalTax, total };
 }
+
+type StorefrontOrderItem = {
+  name?: unknown;
+  qty?: unknown;
+  unitPrice?: unknown;
+};
+
+/**
+ * Сводка для заказов первого порядка (тестовая витрина pl1, product_order embed-форма) —
+ * там нет rawPayload/line_items Woo, состав корзины лежит в sale.customFields.items
+ * (SalesService.createFromStorefront), формат {sku, name, qty, unitPrice}.
+ */
+export function extractStorefrontOrderSummary(
+  customFields: unknown,
+  currency: string | null | undefined,
+  amount: number | null | undefined,
+): WooOrderSummary | null {
+  const cf =
+    customFields && typeof customFields === 'object'
+      ? (customFields as Record<string, unknown>)
+      : null;
+  const rawItems = cf?.items;
+  if (!Array.isArray(rawItems) || !rawItems.length) return null;
+
+  const lines: WooOrderLineRow[] = rawItems
+    .filter((x): x is StorefrontOrderItem => x !== null && typeof x === 'object')
+    .map((item) => {
+      const qty =
+        typeof item.qty === 'number'
+          ? item.qty
+          : Number(item.qty) || 0;
+      const unitPrice =
+        typeof item.unitPrice === 'number'
+          ? item.unitPrice
+          : Number(item.unitPrice) || 0;
+      return {
+        name: typeof item.name === 'string' && item.name.trim() ? item.name : '—',
+        quantity: qty,
+        lineTotal: formatMoney(qty * unitPrice),
+      };
+    });
+
+  if (!lines.length) return null;
+
+  return {
+    currency: currency ? currency.toUpperCase() : null,
+    lines,
+    totalTax: null,
+    total: formatMoney(amount ?? null),
+  };
+}

@@ -107,7 +107,7 @@ const FieldRow: React.FC<{
           </span>
         )}
         <div className="px-field-row-actions" onClick={(e) => e.stopPropagation()}>
-          <button type="button" className="danger" title={t('crm.products.form.actions.delete') || ''} onClick={onDelete}>
+          <button type="button" className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title={t('crm.products.form.actions.delete') || ''} onClick={onDelete}>
             <TrashIcon />
           </button>
         </div>
@@ -213,7 +213,7 @@ const FieldRow: React.FC<{
                         }}
                       />
                       <div className="px-opt-row-actions">
-                        <button type="button" onClick={() => saveOptions(options.filter((_, idx) => idx !== i))}>
+                        <button type="button" className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onClick={() => saveOptions(options.filter((_, idx) => idx !== i))}>
                           <TrashIcon />
                         </button>
                       </div>
@@ -327,7 +327,7 @@ const RepeaterSubFieldsEditor: React.FC<{
               <option value="number">{t('crm.products.fieldTypes.types.number')}</option>
             </select>
             <div className="px-opt-row-actions">
-              <button type="button" onClick={() => onChange(subFields.filter((_, idx) => idx !== i))}>
+              <button type="button" className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onClick={() => onChange(subFields.filter((_, idx) => idx !== i))}>
                 <TrashIcon />
               </button>
             </div>
@@ -552,7 +552,12 @@ export const ProductFieldTypesPage: React.FC = () => {
     setCollapsed((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
 
   const handleDeleteField = async (id: string) => {
-    const ok = await showConfirm(t('crm.products.fieldTypes.deleteConfirm'));
+    const ok = await showConfirm(t('crm.products.fieldTypes.deleteConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await deleteProductFieldDef(id);

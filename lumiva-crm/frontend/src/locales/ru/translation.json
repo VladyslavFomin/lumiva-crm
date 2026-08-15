@@ -447,6 +447,14 @@
     }
   },
   "crm": {
+    "pay": {
+      "result": {
+        "successTitle": "Оплата прошла успешно",
+        "successSubtitle": "Спасибо! Мы получили платёж, продавец скоро свяжется с вами.",
+        "failTitle": "Оплата не прошла",
+        "failSubtitle": "Платёж не был завершён. Попробуйте ещё раз или свяжитесь с продавцом."
+      }
+    },
     "header": {
       "realtime": "Реальное время · подключено",
       "openMenu": "Открыть меню",
@@ -707,6 +715,7 @@
       "telegramInbox": "Telegram · Диалоги",
       "whatsappInbox": "WhatsApp · Диалоги",
       "toolsWebForms": "Формы для сайта",
+      "toolsWebFormsSettings": "Настройки веб-форм",
       "settingsCompany": "Настройки компании",
       "settingsApi": "API и интеграции",
       "apiTokens": "API-токены",
@@ -1163,6 +1172,7 @@
         "name": "Название в CRM",
         "namePh": "Напр. заявка с главной",
         "site": "Сайт (домен для проверки origin)",
+        "kind": "Тип формы",
         "template": "Шаблон",
         "noSites": "Добавьте сайт: Маркетинг → SEO, чтобы привязать форму к домену.",
         "creating": "Создаём…",
@@ -4292,6 +4302,11 @@
       "wooSectionSubtitle": "Адрес магазина и ключи API (достаточно прав на чтение). Управление синхронизацией — во вкладке «Подключения».",
       "wooChannelsHint": "Каналы продаж настраиваются отдельно: там магазин сопоставляется с показателями в CRM.",
       "wooChannelsLink": "Каналы продаж",
+      "managedElsewhereHint": "Настраивается в отдельном разделе CRM.",
+      "oauthNotConfigured": "OAuth не настроен на сервере",
+      "smsManagedLink": "Открыть «Телефония»",
+      "emailManagedLink": "Открыть «Почта»",
+      "telegramManagedLink": "Открыть «Telegram»",
       "marketingSetup": "Настроить",
       "marketingOpenTab": "Вкладка «Маркетинг»",
       "marketingModalTitle": "Настройка: {{name}}",
@@ -4319,6 +4334,20 @@
         "oauthCallback": {
           "connected": "Google Calendar подключён.",
           "error": "Не удалось завершить подключение Google Calendar."
+        }
+      },
+      "outlookCalendar": {
+        "oauthTitle": "Outlook / Microsoft 365",
+        "oauthSubtitle": "Войдите в Microsoft — токен сохранится в CRM. Встречи из календаря лидов синхронизируются с Outlook.",
+        "oauthUsesPrimaryCalendar": "Используется ваш основной календарь Outlook (отдельный ID календаря указывать не нужно).",
+        "oauthNameLabel": "Название в CRM (необязательно)",
+        "oauthConnect": "Подключить через Microsoft",
+        "reconnectMicrosoft": "Обновить доступ Microsoft",
+        "oauthBusy": "Переход к Microsoft…",
+        "oauthStartError": "Не удалось начать вход в Microsoft",
+        "oauthCallback": {
+          "connected": "Outlook Calendar подключён.",
+          "error": "Не удалось завершить подключение Outlook Calendar."
         }
       },
       "marketingModalPanelLead": "Подключение и список",
@@ -4496,6 +4525,51 @@
         "errors": {
           "noKey": "Введите API ключ",
           "create": "Не удалось создать подключение OpenAI"
+        }
+      },
+      "iyzico": {
+        "title": "Подключить iyzico",
+        "subtitle": "Приём онлайн-платежей картой (Турция) через Checkout Form iyzico",
+        "guideHint": "API key и Secret key — в личном кабинете iyzico (merchant.iyzipay.com → Ayarlar → API Anahtarları). Для теста без реального аккаунта используйте sandbox-ключи из документации iyzico.",
+        "form": {
+          "apiKey": "API key",
+          "secretKey": "Secret key",
+          "sandbox": "Тестовый режим (sandbox)",
+          "name": "Название подключения"
+        },
+        "errors": {
+          "missing": "Укажите API key и Secret key",
+          "create": "Не удалось сохранить подключение iyzico"
+        }
+      },
+      "yookassa": {
+        "title": "Подключить ЮKassa",
+        "subtitle": "Приём онлайн-платежей картой (Россия) через ЮKassa Payment API",
+        "guideHint": "shopId и Secret key — в личном кабинете ЮKassa (yookassa.ru/my → Настройки → API-ключи). Важно: там же в разделе «Интеграция → HTTP-уведомления» укажите https://crm.lumiva.agency/v1/payments/yookassa/callback — без него платежи не будут подтверждаться автоматически.",
+        "form": {
+          "shopId": "shopId",
+          "secretKey": "Secret key",
+          "name": "Название подключения"
+        },
+        "errors": {
+          "missing": "Укажите shopId и Secret key",
+          "create": "Не удалось сохранить подключение ЮKassa"
+        }
+      },
+      "paytr": {
+        "title": "Подключить PayTR",
+        "subtitle": "Приём онлайн-платежей картой (Турция) через PayTR iFrame API",
+        "guideHint": "Merchant ID, Merchant key и Merchant salt — в личном кабинете PayTR (panel.paytr.com → Mağaza Ayarları → Bilgilerim). Важно: там же в поле «Bildirim URL» укажите https://crm.lumiva.agency/v1/payments/paytr/callback — без него платежи не будут подтверждаться автоматически.",
+        "form": {
+          "merchantId": "Merchant ID",
+          "merchantKey": "Merchant key",
+          "merchantSalt": "Merchant salt",
+          "testMode": "Тестовый режим",
+          "name": "Название подключения"
+        },
+        "errors": {
+          "missing": "Укажите Merchant ID, Merchant key и Merchant salt",
+          "create": "Не удалось сохранить подключение PayTR"
         }
       },
       "onec": {
@@ -5843,6 +5917,12 @@
             "linkLabel": "Маркетинг · интеграции",
             "nextStep": "Интеграции → Маркетинг: укажите Property ID и валюту, затем войдите в Google; список и синк — на вкладке «Маркетинг»."
           },
+          "yandex_metrika": {
+            "name": "Яндекс.Метрика",
+            "description": "Счётчик Яндекс.Метрики в маркетинге: номер счётчика и цели.",
+            "linkLabel": "Маркетинг · интеграции",
+            "nextStep": "Интеграции → Маркетинг: добавьте счётчик Яндекс.Метрики — номер и (опционально) цели."
+          },
           "meta_ads": {
             "name": "Meta Ads",
             "description": "Вызовы Marketing API из сценариев. Сводки по кабинетам — в маркетинге.",
@@ -5854,6 +5934,24 @@
             "description": "Сохранение учётных данных для будущих сценариев. Готового шага «1С» пока нет.",
             "linkLabel": "",
             "nextStep": "Сейчас: «Вызвать Webhook» на ваш HTTP-шлюз к 1С. Нативный шаг — в планах."
+          },
+          "iyzico": {
+            "name": "iyzico",
+            "description": "Приём онлайн-платежей картой (Турция): ссылка на оплату для сделки и оплата на витрине.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "paytr": {
+            "name": "PayTR",
+            "description": "Приём онлайн-платежей картой (Турция): ссылка на оплату для сделки и оплата на витрине.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "yookassa": {
+            "name": "ЮKassa",
+            "description": "Приём онлайн-платежей картой (Россия): ссылка на оплату для сделки и оплата на витрине.",
+            "linkLabel": "",
+            "nextStep": ""
           },
           "sap": {
             "name": "SAP / ERP",
@@ -7585,6 +7683,29 @@
         "on_hold": "На удержании",
         "failed": "Ошибка"
       },
+      "paymentLink": {
+        "openButton": "Выставить счёт",
+        "title": "Счёт на оплату",
+        "subtitle": "К оплате: {{amount}} {{currency}}. Покупатель оплатит картой на защищённой странице провайдера.",
+        "form": {
+          "buyerName": "Имя покупателя",
+          "buyerEmail": "Email",
+          "buyerPhone": "Телефон",
+          "city": "Город",
+          "address": "Адрес"
+        },
+        "createButton": "Создать ссылку на оплату",
+        "creating": "Создаём…",
+        "linkReadyHint": "Отправьте эту ссылку покупателю любым удобным способом (email, WhatsApp, Telegram, SMS).",
+        "waitingHint": "Статус обновится автоматически, как только покупатель оплатит.",
+        "copy": "Копировать",
+        "copied": "Скопировано",
+        "paid": "Оплачено! Статус сделки обновлён.",
+        "errors": {
+          "missing": "Заполните имя, email, город и адрес покупателя",
+          "create": "Не удалось создать ссылку на оплату"
+        }
+      },
       "details": {
         "title": "Заказ {{id}}…",
         "titleWithOrder": "Заказ №{{orderNo}}",
@@ -7609,6 +7730,7 @@
         "orderContentsHint": "Сводка из CRM и данные из магазина (при синхронизации).",
         "orderContentsFromCrm": "В CRM",
         "orderContentsFromStore": "Магазин (WooCommerce)",
+        "orderContentsFromStorefront": "Витрина / форма на сайте",
         "managementIntro": "Ответственные, лид и заметки сохраняются кнопкой внизу (статус заказа — в сводке выше).",
         "subsections": {
           "status": "Статус",
@@ -7621,6 +7743,7 @@
         "wooOrder": {
           "sectionTitle": "Данные заказа WooCommerce",
           "hint": "Значения из ответа REST API заказа в магазине (поля total_tax, total, line_items и др.).",
+          "storefrontHint": "Состав корзины, сохранённый при оформлении заказа с витрины/формы на сайте.",
           "currency": "Валюта",
           "itemsHeading": "Товары и услуги в заказе",
           "colProduct": "Наименование",

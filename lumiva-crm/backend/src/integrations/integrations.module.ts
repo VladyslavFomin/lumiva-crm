@@ -31,10 +31,14 @@ import { IntegrationHubCatalogService } from './catalog/integration-hub-catalog.
 import { GoogleSheetsSyncModule } from './google-sheets/google-sheets-sync.module';
 import { Lead } from '../leads/lead.entity';
 import { GoogleCalendarOAuthService } from './google-calendar/google-calendar-oauth.service';
+import { OutlookCalendarOAuthService } from './outlook/outlook-calendar-oauth.service';
 import { OpenAiApiService } from './openai/openai-api.service';
 import { OneCApiService } from './onec/onec-api.service';
 import { SapApiService } from './sap/sap-api.service';
 import { JiraApiService } from './jira/jira-api.service';
+import { IyzicoApiService } from './iyzico/iyzico-api.service';
+import { PaytrApiService } from './paytr/paytr-api.service';
+import { YookassaApiService } from './yookassa/yookassa-api.service';
 
 // сущности из других модулей
 import { Sale } from '../sales/sale.entity';
@@ -86,10 +90,14 @@ import { LeadsModule } from '../leads/leads.module';
     LegacyHttpInboundCleanupService,
     IntegrationHubCatalogService,
     GoogleCalendarOAuthService,
+    OutlookCalendarOAuthService,
     OpenAiApiService,
     OneCApiService,
     SapApiService,
     JiraApiService,
+    IyzicoApiService,
+    PaytrApiService,
+    YookassaApiService,
   ],
   controllers: [IntegrationsController],
   exports: [IntegrationsService, JiraApiService],

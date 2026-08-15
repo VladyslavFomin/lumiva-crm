@@ -380,6 +380,7 @@ export const ProductDetailPage: React.FC = () => {
     const ok = await showConfirm(t('crm.products.list.deleteConfirm'), {
       title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
       confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
       danger: true,
     });
     if (!ok) return;
@@ -526,7 +527,7 @@ export const ProductDetailPage: React.FC = () => {
                 <button type="button" className="aib ghost sm" onClick={handleDuplicate}>
                   <Icon d={I.copy} size={13} />{t('crm.products.form.actions.duplicate')}
                 </button>
-                <button type="button" className="aib ghost sm" onClick={handleDelete}>
+                <button type="button" className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors" onClick={handleDelete}>
                   <Icon d={I.trash} size={13} />
                 </button>
                 <button type="button" className="aib sm" onClick={startEdit}>

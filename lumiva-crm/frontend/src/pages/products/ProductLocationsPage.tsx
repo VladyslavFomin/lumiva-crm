@@ -101,7 +101,12 @@ export const ProductLocationsPage: React.FC = () => {
   };
 
   const handleDelete = async (loc: ProductLocation) => {
-    const ok = await showConfirm(t('crm.products.locations.deleteConfirm'), { danger: true });
+    const ok = await showConfirm(t('crm.products.locations.deleteConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await deleteProductLocation(loc.id);

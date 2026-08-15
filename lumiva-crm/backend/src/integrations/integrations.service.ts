@@ -1589,6 +1589,7 @@ export class IntegrationsService {
       apiToken?: string;
       accountEmail?: string;
       calendarId?: string;
+      oauthRefreshToken?: string;
     };
     try {
       cfg = JSON.parse(entity.configJson) as {
@@ -1596,17 +1597,62 @@ export class IntegrationsService {
         apiToken?: string;
         accountEmail?: string;
         calendarId?: string;
+        oauthRefreshToken?: string;
       };
     } catch {
       return null;
     }
     if (cfg.catalogId !== 'outlook') return null;
-    const accessToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
-    const fromField =
-      typeof cfg.calendarId === 'string' ? cfg.calendarId.trim() : '';
-    const calendarGraphId = fromField.length > 0 ? fromField : null;
-    if (!accessToken) return null;
-    return { accessToken, calendarGraphId };
+    return this.outlookCalendar.resolveAccessFromConfig({
+      apiToken: cfg.apiToken,
+      oauthRefreshToken: cfg.oauthRefreshToken,
+      calendarId: cfg.calendarId,
+    });
+  }
+
+  async createOutlookCalendarOAuthConnection(
+    tenantId: string,
+    params: { name: string; calendarId: string; oauthRefreshToken: string },
+  ): Promise<IntegrationConnectionDto> {
+    const cal = (params.calendarId || '').trim();
+    return this.createForTenant(tenantId, {
+      name: params.name.trim() || 'Outlook Calendar',
+      kind: 'third_party_link',
+      config: {
+        catalogId: 'outlook',
+        ...(cal ? { calendarId: cal } : {}),
+        oauthRefreshToken: params.oauthRefreshToken.trim(),
+        calendarOAuth: true,
+        authMode: 'oauth',
+      },
+      isEnabled: true,
+    });
+  }
+
+  async patchOutlookCalendarOAuthTokens(
+    tenantId: string,
+    integrationId: string,
+    oauthRefreshToken: string,
+  ): Promise<IntegrationConnectionDto> {
+    const entity = await this.repo.findOne({
+      where: { id: integrationId, tenantId, isDeleted: false } as any,
+    });
+    if (!entity || entity.kind !== 'third_party_link' || !entity.configJson) {
+      throw new NotFoundException('Подключение не найдено');
+    }
+    let cfg: Record<string, unknown>;
+    try {
+      cfg = JSON.parse(entity.configJson) as Record<string, unknown>;
+    } catch {
+      throw new BadRequestException('Некорректный config подключения');
+    }
+    if (String(cfg.catalogId) !== 'outlook') {
+      throw new BadRequestException('Подключение не является Outlook Calendar');
+    }
+    cfg.oauthRefreshToken = oauthRefreshToken.trim();
+    cfg.calendarOAuth = true;
+    cfg.authMode = 'oauth';
+    return this.updateForTenant(tenantId, integrationId, { config: cfg });
   }
 
   async createOutlookCalendarEventRaw(

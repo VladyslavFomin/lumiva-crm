@@ -263,7 +263,12 @@ export const ProductWebhooksPage: React.FC = () => {
   };
 
   const handleDelete = async (wh: ProductWebhook) => {
-    const ok = await showConfirm(t('crm.products.form.actions.delete'), { danger: true });
+    const ok = await showConfirm('Удалить вебхук? Действие необратимо.', {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await deleteProductWebhook(wh.id);

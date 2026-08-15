@@ -7,9 +7,11 @@ import {
   unarchiveProject,
 } from '../../api/projects';
 import type { Project } from './projectTypes';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 export const ProjectsArchivePage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +47,13 @@ export const ProjectsArchivePage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
+    const ok = await showConfirm('Удалить проект? Действие необратимо.', {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
@@ -126,7 +135,7 @@ export const ProjectsArchivePage: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDelete(p.id)}
-                            className="btn-danger btn-secondary-sm"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             {t('crm.projects.list.bulk.delete')}
                           </button>

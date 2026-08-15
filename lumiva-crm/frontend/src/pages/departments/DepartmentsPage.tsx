@@ -145,7 +145,7 @@ const DepartmentCard: React.FC<DepartmentCardProps> = ({
           {!isRoot && (
             <button
               onClick={() => onDelete(department.id)}
-              className="px-4 py-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors font-semibold"
+              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors"
             >
               {t('crm.departments.delete')}
             </button>
@@ -233,7 +233,7 @@ const DepartmentLevel: React.FC<DepartmentLevelProps> = ({
 
 export const DepartmentsPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const navigate = useNavigate();
   const [departments, setDepartments] = useState<Department[]>([]);
   const [allStaff, setAllStaff] = useState<StaffUser[]>([]);
@@ -264,7 +264,13 @@ export const DepartmentsPage: React.FC = () => {
   const handleCreate = () => navigate('/app/departments/new');
   const handleEdit = (id: string) => navigate(`/app/departments/${id}`);
   const handleDelete = async (id: string) => {
-    if (!confirm(t('crm.departments.deleteConfirm'))) return;
+    const ok = await showConfirm(t('crm.departments.deleteConfirm'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteDepartment(id);
       await loadData();

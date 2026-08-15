@@ -8,17 +8,14 @@ import {
   restoreProject,
 } from '../../api/projects';
 import type { Project } from './projectTypes';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 export const ProjectsTrashPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [confirmState, setConfirmState] = useState<
-    | { mode: 'single'; project: Project }
-    | { mode: 'all' }
-    | null
-  >(null);
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
@@ -50,20 +47,36 @@ export const ProjectsTrashPage: React.FC = () => {
       setError(e.message || t('crm.projects.errors.loadFailed'));
     }
   };
-  const handlePermanentDelete = async (id: string) => {
+  const handlePermanentDelete = async (project: Project) => {
+    const ok = await showConfirm(
+      t('crm.projects.trash.confirm.singleDescription', { name: project.name }),
+      {
+        title: t('crm.projects.trash.confirm.singleTitle'),
+        confirmLabel: t('crm.projects.trash.actions.deletePermanently'),
+        cancelLabel: t('crm.common.cancel'),
+        danger: true,
+      },
+    );
+    if (!ok) return;
     try {
       setActionLoading(true);
-      await permanentlyDeleteProject(id);
-      setProjects((prev) => prev.filter((p) => p.id !== id));
+      await permanentlyDeleteProject(project.id);
+      setProjects((prev) => prev.filter((p) => p.id !== project.id));
     } catch (e: any) {
       console.error(e);
       setError(e.message || t('crm.projects.errors.loadFailed'));
     } finally {
       setActionLoading(false);
-      setConfirmState(null);
     }
   };
   const handleEmptyTrash = async () => {
+    const ok = await showConfirm(t('crm.projects.trash.confirm.emptyDescription'), {
+      title: t('crm.projects.trash.confirm.emptyTitle'),
+      confirmLabel: t('crm.projects.trash.actions.emptyTrash'),
+      cancelLabel: t('crm.common.cancel'),
+      danger: true,
+    });
+    if (!ok) return;
     try {
       setActionLoading(true);
       await emptyProjectsTrash();
@@ -73,7 +86,6 @@ export const ProjectsTrashPage: React.FC = () => {
       setError(e.message || t('crm.projects.errors.loadFailed'));
     } finally {
       setActionLoading(false);
-      setConfirmState(null);
     }
   };
 
@@ -91,7 +103,7 @@ export const ProjectsTrashPage: React.FC = () => {
         <div className="flex justify-end">
           <button
             type="button"
-            onClick={() => setConfirmState({ mode: 'all' })}
+            onClick={() => void handleEmptyTrash()}
             disabled={!projects.length || actionLoading}
             className="btn-danger btn-secondary-sm disabled:opacity-50"
           >
@@ -158,7 +170,7 @@ export const ProjectsTrashPage: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setConfirmState({ mode: 'single', project: p })}
+                            onClick={() => void handlePermanentDelete(p)}
                             className="btn-danger btn-secondary-sm"
                           >
                             {t('crm.projects.trash.actions.deletePermanently')}
@@ -183,60 +195,6 @@ export const ProjectsTrashPage: React.FC = () => {
           )}
         </div>
       </div>
-      {confirmState && (
-        <div className="modal-overlay">
-          <div className="modal-panel p-6 max-w-lg w-full">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-[#111827]">
-                  {confirmState.mode === 'all'
-                    ? t('crm.projects.trash.confirm.emptyTitle')
-                    : t('crm.projects.trash.confirm.singleTitle')}
-                </div>
-                <div className="mt-1 text-xs text-text-secondary">
-                  {confirmState.mode === 'all'
-                    ? t('crm.projects.trash.confirm.emptyDescription')
-                    : t('crm.projects.trash.confirm.singleDescription', {
-                        name: confirmState.project.name,
-                      })}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setConfirmState(null)}
-                className="text-text-tertiary hover:text-[#111827] text-xl leading-none"
-              >
-                ×
-              </button>
-            </div>
-
-            <div className="mt-5 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setConfirmState(null)}
-                className="btn-secondary"
-                disabled={actionLoading}
-              >
-                {t('crm.common.cancel')}
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  confirmState.mode === 'all'
-                    ? handleEmptyTrash()
-                    : handlePermanentDelete(confirmState.project.id)
-                }
-                className="btn-danger disabled:opacity-50"
-                disabled={actionLoading}
-              >
-                {actionLoading
-                  ? t('crm.projects.trash.confirm.deleting')
-                  : t('crm.projects.trash.actions.deletePermanently')}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </MainLayout>
   );
 };

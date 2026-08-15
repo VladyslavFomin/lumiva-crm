@@ -9,6 +9,7 @@ export interface TelephonyConfigDto {
   voiceNumber: string | null;
   forwardToNumbers: string[];
   isEnabled: boolean;
+  inboundWebhookUrl: string | null;
 }
 
 export interface SaveTelephonyConfigDto {

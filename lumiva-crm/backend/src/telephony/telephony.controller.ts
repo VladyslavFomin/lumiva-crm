@@ -18,7 +18,12 @@ export class TelephonyController {
   async getConfig(@CurrentUser() user: CurrentUserPayload) {
     const config = await this.telephony.getConfig(user.tenantId);
     if (!config) return null;
-    return { ...config, authToken: config.authToken ? '••••••••' : null };
+    const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+    return {
+      ...config,
+      authToken: config.authToken ? '••••••••' : null,
+      inboundWebhookUrl: base ? `${base}/v1/webhooks/telephony/inbound/${user.tenantId}` : null,
+    };
   }
 
   @Patch('config')

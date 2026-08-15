@@ -280,6 +280,10 @@ export class PlatformSettingsService {
     );
     const metaCfg = await this.getMetaOAuthConfig();
     const platformMetaOauthReady = Boolean(metaCfg.appId && metaCfg.appSecret);
+    const platformMicrosoftOauthReady = Boolean(
+      (process.env.MICROSOFT_OAUTH_CLIENT_ID || process.env.OUTLOOK_OAUTH_CLIENT_ID || '').trim() &&
+        (process.env.MICROSOFT_OAUTH_CLIENT_SECRET || process.env.OUTLOOK_OAUTH_CLIENT_SECRET || '').trim(),
+    );
 
     const googleCatalogIds = new Set([
       'google_ads',
@@ -305,6 +309,9 @@ export class PlatformSettingsService {
       }
       if (catalogId === 'meta_ads') {
         oauthReady = oauthReady || platformMetaOauthReady;
+      }
+      if (catalogId === 'outlook') {
+        oauthReady = oauthReady || platformMicrosoftOauthReady;
       }
       out[catalogId] = { oauthReady };
     }

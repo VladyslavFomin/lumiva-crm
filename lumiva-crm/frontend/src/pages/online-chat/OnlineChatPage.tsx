@@ -21,7 +21,7 @@ const POLL_MS_BG = 5000;
 
 const OnlineChatPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -98,7 +98,12 @@ const OnlineChatPage: React.FC = () => {
 
   const handleDelete = async () => {
     if (!selectedId) return;
-    const ok = window.confirm(t('crm.chat.confirmDelete'));
+    const ok = await showConfirm(t('crm.chat.confirmDelete'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
     if (!ok) return;
     try {
       await deleteChatSession(selectedId);
@@ -409,8 +414,8 @@ const OnlineChatPage: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    onClick={handleDelete}
-                    className="text-[11px] text-rose-600 hover:text-rose-700"
+                    onClick={() => void handleDelete()}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-2.5 py-1 text-[11px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors"
                   >
                     {t('crm.chat.delete')}
                   </button>

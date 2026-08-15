@@ -1337,7 +1337,7 @@ function ConfigDrawer({
                 {selectedTableColumns.map((key) => (
                   <div key={key} className="flex items-center justify-between rounded-xl border border-[#dbe4f0] bg-white px-3 py-2 text-sm">
                     <span className="truncate text-[#34435a]">{fieldLabel(fields, key)}</span>
-                    <button type="button" className="text-[#8ea0bb] hover:text-rose-600" onClick={() => onChange({ ...block, tableColumns: selectedTableColumns.filter((item) => item !== key) })}>Удалить</button>
+                    <button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-2.5 py-1 text-[11px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors" onClick={() => onChange({ ...block, tableColumns: selectedTableColumns.filter((item) => item !== key) })}>Удалить</button>
                   </div>
                 ))}
                 {!selectedTableColumns.length && <div className="text-sm text-[#8ea0bb]">Дополнительные колонки не выбраны</div>}
@@ -1356,7 +1356,7 @@ function ConfigDrawer({
               <div key={filter.id} className="rounded-2xl border border-[#dbe4f0] bg-white p-4">
                 <div className="mb-2 flex items-center justify-between">
                   <span className="text-sm uppercase tracking-[0.2em] text-[#8ea0bb]">Условие {index + 1}</span>
-                  <button type="button" className="text-sm text-[#8ea0bb] hover:text-rose-600" onClick={() => updateFilters((block.filters || []).filter((item) => item.id !== filter.id))}>Удалить</button>
+                  <button type="button" className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-2.5 py-1 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors" onClick={() => updateFilters((block.filters || []).filter((item) => item.id !== filter.id))}>Удалить</button>
                 </div>
                 <label className="block">
                   <span className="text-sm text-[#64748b]">Срез условия</span>

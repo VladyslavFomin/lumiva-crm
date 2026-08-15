@@ -148,6 +148,7 @@ export const ProductsListPage: React.FC = () => {
     const ok = await showConfirm(t('crm.products.list.deleteConfirm'), {
       title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
       confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
       danger: true,
     });
     if (!ok) return;

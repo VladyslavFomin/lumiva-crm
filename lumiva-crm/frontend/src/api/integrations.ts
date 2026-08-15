@@ -312,6 +312,16 @@ export async function startGoogleCalendarOAuth(body: {
   return api.post<{ url: string }>('/integrations/google-calendar/oauth/start', body);
 }
 
+export async function startOutlookCalendarOAuth(body: {
+  intent: 'create' | 'reconnect';
+  redirectPath?: string;
+  integrationId?: string;
+  name?: string;
+  calendarId?: string;
+}): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/integrations/outlook-calendar/oauth/start', body);
+}
+
 export type GoogleCalendarEventSnapshotAttendee = {
   email?: string;
   displayName?: string;

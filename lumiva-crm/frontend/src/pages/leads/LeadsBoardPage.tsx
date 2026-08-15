@@ -12,6 +12,7 @@ import {
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { ViewNameModal } from '../../components/ViewNameModal';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   createLeadsCustomView,
   deleteLeadsCustomView,
@@ -47,6 +48,7 @@ const STATUS_ACCENT: Record<string, string> = {
 
 export const LeadsBoardPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const locale = resolveLocale(i18n.language);
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -402,9 +404,17 @@ export const LeadsBoardPage: React.FC = () => {
                     <button
                       type="button"
                       className="lv-st-popover-item"
-                      onClick={() => {
-                        setCustomViews((prev) => deleteLeadsCustomView(prev, activeCustomView.id));
+                      style={{ color: '#9a1f31' }}
+                      onClick={async () => {
                         setViewsMenuOpen(false);
+                        const ok = await showConfirm(t('crm.leads.board.deleteViewConfirm', { defaultValue: 'Удалить вид? Действие необратимо.' }), {
+                          title: 'Удаление',
+                          confirmLabel: 'Удалить',
+                          cancelLabel: 'Отмена',
+                          danger: true,
+                        });
+                        if (!ok) return;
+                        setCustomViews((prev) => deleteLeadsCustomView(prev, activeCustomView.id));
                         navigate('/leads/board');
                       }}
                     >

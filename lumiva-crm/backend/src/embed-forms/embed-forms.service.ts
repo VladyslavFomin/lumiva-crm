@@ -270,7 +270,7 @@ export class EmbedFormsService {
   getPreviewToken(tenantId: string, id: string, userId: string) {
     return this.getForTenant(tenantId, id).then((f) => {
       return {
-        token: signEmbedPreviewToken(f.publicId, userId, this.jwtSecret, 900),
+        token: signEmbedPreviewToken(f.publicId, userId, this.jwtSecret, 3600),
         expiresIn: 900,
         publicId: f.publicId,
       };

@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
 import { fetchLeads, updateLead, deleteLead, type Lead, type LeadStatus } from '../../api/leads';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const statusStyles: Record<LeadStatus, string> = {
   'Новый клиент': 'bg-rose-500/15 text-rose-600 border-rose-500/30',
@@ -14,6 +15,7 @@ const statusStyles: Record<LeadStatus, string> = {
 
 export const LeadsTrashPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const locale = i18n.language?.startsWith('en')
     ? 'en-US'
     : i18n.language?.startsWith('tr')
@@ -60,6 +62,13 @@ export const LeadsTrashPage: React.FC = () => {
   };
 
   const hardDelete = async (lead: Lead) => {
+    const ok = await showConfirm('Удалить лид навсегда? Это действие необратимо.', {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setLeads((prev) => prev.filter((l) => l.id !== lead.id));
     await deleteLead(lead.id).catch(() => null);
   };
@@ -124,7 +133,7 @@ export const LeadsTrashPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => hardDelete(lead)}
-                        className="btn-danger btn-secondary-sm"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {t('crm.leads.trash.actions.delete')}
                       </button>

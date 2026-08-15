@@ -213,6 +213,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
     const ok = await showConfirm(t('crm.companies.tasks.deleteConfirm'), {
       title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
       confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
       danger: true,
     });
     if (!ok) return;
@@ -451,7 +452,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
                           </button>
                           <button
                             onClick={(e) => handleDeleteTask(task.id, e)}
-                            className="text-red-400 hover:text-red-300 text-[10px]"
+                            className="text-[#9a1f31] hover:bg-[#fbecef] rounded text-[10px]"
                             title={t('crm.companies.tasks.delete')}
                           >
                             ×

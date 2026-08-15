@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { ccpApi, type CcpClient, type CcpSite } from '../../api/ccp';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 function cx(...c: Array<string | false | undefined | null>) {
   return c.filter(Boolean).join(' ');
@@ -34,6 +35,7 @@ const emptyForm: SiteForm = { siteUrl: '', wpRestBase: '', wpToken: '', isActive
 type SiteStat = { clientCount: number; investedEur: number; investedUsd: number };
 
 export default function ClientAccountSitesPage() {
+  const { showConfirm } = useAlertModal();
   const [sites, setSites]       = useState<CcpSite[]>([]);
   const [clients, setClients]   = useState<CcpClient[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -143,7 +145,13 @@ export default function ClientAccountSitesPage() {
 
   const deleteSite = async (site: CcpSite) => {
     const label = site.siteHost || site.siteUrl || site.id;
-    if (!window.confirm(`Удалить сайт?\n\n${label}\n\nДанные клиентов не удалятся.`)) return;
+    const ok = await showConfirm(`Удалить сайт «${label}»? Данные клиентов не удалятся.`, {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setSaving(true); setError(''); setMessage('');
     try {
       await ccpApi.deleteSite(site.id);
@@ -410,7 +418,7 @@ export default function ClientAccountSitesPage() {
                           type="button"
                           disabled={saving}
                           onClick={() => deleteSite(site)}
-                          className="h-7 px-2.5 rounded-[7px] border border-[#f5c5cd] cd-mono text-[10px] font-medium text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-50 transition-colors"
+                          className="h-7 px-2.5 rounded-[7px] border border-[#f0c8cf] cd-mono text-[10px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 transition-colors"
                         >
                           Удалить
                         </button>

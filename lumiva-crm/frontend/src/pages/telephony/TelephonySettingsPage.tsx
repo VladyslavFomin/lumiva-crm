@@ -11,6 +11,7 @@ import {
 } from '../../api/telephony';
 import { createAiAddonCheckoutSession } from '../../api/client';
 import { fetchSmsConfig, saveSmsConfig, deleteSmsConfig, type SmsConfigDto, type SmsProvider } from '../../api/sms';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import './telephony-design.css';
 
 interface SmsProviderDef {
@@ -47,6 +48,7 @@ const SMS_PROVIDERS: SmsProviderDef[] = [
 ];
 
 export const TelephonySettingsPage: React.FC = () => {
+  const { showConfirm } = useAlertModal();
   // ─── Telephony (Twilio Voice) ─────────────────────────────────────────────
   const [addonEnabled, setAddonEnabled] = useState<boolean | null>(null);
   const [includedInPlan, setIncludedInPlan] = useState(false);
@@ -156,7 +158,13 @@ export const TelephonySettingsPage: React.FC = () => {
   };
 
   const handleDeleteTelephony = async () => {
-    if (!confirm('Отключить телефонию? Звонки станут недоступны.')) return;
+    const ok = await showConfirm('Отключить телефонию? Звонки станут недоступны.', {
+      title: 'Отключение',
+      confirmLabel: 'Отключить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteTelephonyConfig();
       setTelConfig(null);
@@ -184,7 +192,13 @@ export const TelephonySettingsPage: React.FC = () => {
   };
 
   const handleDeleteSms = async () => {
-    if (!confirm('Удалить настройки SMS? Отправка сообщений станет недоступна.')) return;
+    const ok = await showConfirm('Удалить настройки SMS? Отправка сообщений станет недоступна.', {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setSmsDeleting(true);
     try {
       await deleteSmsConfig();
@@ -245,7 +259,7 @@ export const TelephonySettingsPage: React.FC = () => {
                 </div>
                 <div className="provider-status">
                   {telConfig && <span className="bk-badge confirmed">{telConfig.isEnabled ? 'Активен' : 'Отключён'}</span>}
-                  {telConfig && <button className="btn btn-sm" onClick={handleDeleteTelephony}>Отключить</button>}
+                  {telConfig && <button className="btn btn-sm" style={{ color: '#9a1f31', borderColor: '#f0c8cf' }} onClick={handleDeleteTelephony}>Отключить</button>}
                 </div>
               </div>
 
@@ -274,6 +288,19 @@ export const TelephonySettingsPage: React.FC = () => {
                 <div className="tel-num-row" style={{ background: 'var(--bg-muted)', border: 'none' }}>
                   <span style={{ fontSize: 11.5 }}>Запись звонков и транскрипция (Whisper) включены автоматически — хранение записей 3 года.</span>
                 </div>
+
+                {telConfig?.inboundWebhookUrl && (
+                  <div>
+                    <p style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>Приём входящих звонков</p>
+                    <p style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
+                      Вставьте в консоли Twilio: номер телефона → раздел «Voice» → «A call comes in» → Webhook (HTTP POST).
+                      Без этого шага исходящие звонки из CRM будут работать, а входящие на этот номер — нет.
+                    </p>
+                    <code style={{ display: 'block', background: 'var(--bg-muted)', border: '1px solid var(--line-2)', borderRadius: 8, padding: '8px 10px', fontSize: 11, wordBreak: 'break-all' }}>
+                      {telConfig.inboundWebhookUrl}
+                    </code>
+                  </div>
+                )}
 
                 {telError && <p style={{ fontSize: 11.5, color: '#cc2f47' }}>{telError}</p>}
                 {telSuccess && <p style={{ fontSize: 11.5, color: '#1f8a5e' }}>Настройки сохранены</p>}
@@ -305,7 +332,7 @@ export const TelephonySettingsPage: React.FC = () => {
                   </div>
                   <div className="provider-status">
                     <span className="bk-badge confirmed">{smsConfig.isEnabled ? 'Активен' : 'Отключён'}</span>
-                    <button className="btn btn-sm" onClick={handleDeleteSms} disabled={smsDeleting}>{smsDeleting ? 'Удаление…' : 'Отключить'}</button>
+                    <button className="btn btn-sm" style={{ color: '#9a1f31', borderColor: '#f0c8cf' }} onClick={handleDeleteSms} disabled={smsDeleting}>{smsDeleting ? 'Удаление…' : 'Отключить'}</button>
                   </div>
                 </div>
               )}

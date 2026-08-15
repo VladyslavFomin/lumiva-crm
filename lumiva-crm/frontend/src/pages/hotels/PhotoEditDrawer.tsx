@@ -225,7 +225,7 @@ export const PhotoEditDrawer: React.FC<{
           )}
         </div>
         <div className="bk-modal-foot" style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <button className="btn" style={{ color: '#c0392b' }} onClick={handleDelete}>Удалить фото</button>
+          <button className="btn" style={{ color: '#9a1f31' }} onClick={handleDelete}>Удалить фото</button>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="btn" onClick={onClose}>Отмена</button>
             <button className="btn btn-primary" disabled={saving} onClick={applyAndSave}>

@@ -23,7 +23,7 @@ const STATUS_BADGE: Record<BroadcastStatus, string> = {
 export const BroadcastsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [items, setItems] = useState<MarketingBroadcast[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +53,13 @@ export const BroadcastsPage: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t('crm.marketingBroadcasts.list.confirmDelete'))) return;
+    const ok = await showConfirm(t('crm.marketingBroadcasts.list.confirmDelete'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteBroadcast(id);
       await load();
@@ -132,7 +138,10 @@ export const BroadcastsPage: React.FC = () => {
                           <button className="text-xs text-[#111827] hover:underline" onClick={() => navigate(`/marketing/broadcasts/${b.id}`)}>
                             {t('crm.marketingBroadcasts.list.edit')}
                           </button>
-                          <button className="text-xs text-status-error hover:underline" onClick={() => handleDelete(b.id)}>
+                          <button
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            onClick={() => handleDelete(b.id)}
+                          >
                             {t('crm.marketingBroadcasts.list.delete')}
                           </button>
                         </>

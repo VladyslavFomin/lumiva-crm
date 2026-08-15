@@ -12,7 +12,7 @@ const ACCENT = '#222222';
 
 export const EmailTemplatesPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +40,13 @@ export const EmailTemplatesPage: React.FC = () => {
     navigate(`/app/marketing/email-templates/new?preset=${encodeURIComponent(presetId)}`);
   const handleEdit = (id: string) => navigate(`/app/marketing/email-templates/${id}`);
   const handleDelete = async (id: string) => {
-    if (!confirm(t('crm.emailTemplates.list.deleteConfirm'))) return;
+    const ok = await showConfirm(t('crm.emailTemplates.list.deleteConfirm'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteEmailTemplate(id);
       setTemplates(templates.filter((x) => x.id !== id));
@@ -195,7 +201,7 @@ export const EmailTemplatesPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleDelete(template.id)}
-                      className="rounded-xl px-3 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+                      className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {t('crm.emailTemplates.list.delete')}
                     </button>

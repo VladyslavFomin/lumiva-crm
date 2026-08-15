@@ -33,6 +33,7 @@ import { RbacModule } from '../rbac/rbac.module';
 import { SitesModule } from '../sites/sites.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { SalesModule } from '../sales/sales.module';
+import { PaymentsModule } from '../payments/payments.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { SalesModule } from '../sales/sales.module';
     SitesModule,
     AutomationsModule,
     SalesModule,
+    PaymentsModule,
   ],
   controllers: [
     // ВАЖНО: ProductWebhooksController и ProductsAnalyticsController — раньше ProductsController.

@@ -8,7 +8,7 @@ import { useAlertModal } from '../../contexts/AlertModalContext';
 
 export const TelegramBotsPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const [bots, setBots] = useState<TelegramBot[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,13 @@ export const TelegramBotsPage: React.FC = () => {
   const handleCreate = () => navigate('/app/telegram/bots/new');
   const handleEdit = (id: string) => navigate(`/app/telegram/bots/${id}`);
   const handleDelete = async (id: string) => {
-    if (!confirm(t('crm.telegram.bots.deleteConfirm'))) return;
+    const ok = await showConfirm(t('crm.telegram.bots.deleteConfirm'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       await deleteTelegramBot(id);
       setBots(bots.filter((b) => b.id !== id));
@@ -141,7 +147,7 @@ export const TelegramBotsPage: React.FC = () => {
                     </button>
                     <button
                       onClick={() => handleDelete(bot.id)}
-                      className="btn-icon-danger"
+                      className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                       title={t('crm.telegram.bots.delete')}
                     >
                       <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

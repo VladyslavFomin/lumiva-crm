@@ -382,8 +382,7 @@ export const ContactsListPage: React.FC = () => {
           <button
             type="button"
             onClick={(e) => handleDelete(contact.id, e)}
-            className="lv-tb-btn"
-            style={{ fontSize: 10, padding: '4px 8px', color: '#b91c1c', borderColor: '#fecaca' }}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {t('crm.contacts.list.delete')}
           </button>
@@ -769,8 +768,7 @@ export const ContactsListPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        className="lv-tb-btn"
-                        style={{ padding: '2px 6px', fontSize: 10, color: '#b91c1c' }}
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         onClick={() => deleteCustomGroup(group.id)}
                       >
                         {t('crm.contacts.list.groups.deleteShort')}

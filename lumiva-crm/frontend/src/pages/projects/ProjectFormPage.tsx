@@ -6,6 +6,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { useTranslation } from 'react-i18next';
 import { CalendarEntryModal } from '../../components/CalendarEntryModal';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/email';
 
 import {
@@ -165,6 +166,7 @@ export const ProjectFormPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const viewFromQuery = searchParams.get('view');
+  const { showConfirm } = useAlertModal();
 
   const [project, setProject] = useState<Project>(createEmptyProject());
   const [loading, setLoading] = useState<boolean>(!isNew);
@@ -1039,7 +1041,13 @@ export const ProjectFormPage: React.FC = () => {
       navigate('/projects');
       return;
     }
-    if (!window.confirm(t('crm.projects.detail.confirmDelete'))) return;
+    const ok = await showConfirm(t('crm.projects.detail.confirmDelete'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
 
     setSaving(true);
     setError(null);
@@ -1552,16 +1560,7 @@ export const ProjectFormPage: React.FC = () => {
                   type="button"
                   onClick={handleDelete}
                   disabled={saving}
-                  style={{
-                    padding: '7px 14px',
-                    fontSize: 12,
-                    borderRadius: 8,
-                    border: '1px solid #fecaca',
-                    background: '#fff',
-                    color: '#ef4444',
-                    cursor: 'pointer',
-                    opacity: saving ? 0.65 : 1,
-                  }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {t('crm.projects.detail.actions.delete')}
                 </button>

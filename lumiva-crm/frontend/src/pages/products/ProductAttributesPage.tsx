@@ -46,7 +46,12 @@ export const ProductAttributesPage: React.FC = () => {
   };
 
   const handleDeleteAttribute = async (id: string) => {
-    const ok = await showConfirm(t('crm.products.attributes.deleteConfirm'));
+    const ok = await showConfirm(t('crm.products.attributes.deleteConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await deleteProductAttribute(id);
@@ -69,7 +74,12 @@ export const ProductAttributesPage: React.FC = () => {
   };
 
   const handleRemoveValue = async (attrId: string, valueId: string) => {
-    const ok = await showConfirm(t('crm.products.attributes.deleteValueConfirm'));
+    const ok = await showConfirm(t('crm.products.attributes.deleteValueConfirm'), {
+      title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
+      danger: true,
+    });
     if (!ok) return;
     try {
       await removeProductAttributeValue(attrId, valueId);
@@ -117,7 +127,7 @@ export const ProductAttributesPage: React.FC = () => {
                   <div className="t">{attr.name}</div>
                   <button
                     type="button"
-                    className="aib danger sm"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     onClick={() => handleDeleteAttribute(attr.id)}
                   >
                     {t('crm.products.form.actions.delete')}

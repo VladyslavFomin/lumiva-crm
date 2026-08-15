@@ -6,7 +6,9 @@ import {
   fetchIntegration,
   fetchIntegrations,
   fetchIntegrationHubCatalog,
+  fetchIntegrationOauthReadiness,
   startGoogleCalendarOAuth,
+  startOutlookCalendarOAuth,
   syncIntegration,
   testIntegration,
   updateIntegration,
@@ -19,7 +21,7 @@ import {
   type MarketingIntegrationRow,
 } from '../../api/marketing';
 import { IntegrationBrandIcon } from '../automations/IntegrationBrandIcon';
-import { integrationCatalogName } from '../automations/integrationsCatalog';
+import { integrationCatalogDescription, integrationCatalogName } from '../automations/integrationsCatalog';
 import { IntegrationConnectionCard } from '../../components/integrations/IntegrationConnectionCard';
 import { IntegrationConnectionTestSyncActions } from '../../components/integrations/IntegrationConnectionTestSyncActions';
 import { MarketingIntegrationSetupModal } from '../../components/integrations/MarketingIntegrationSetupModal';
@@ -37,6 +39,9 @@ import { OpenAiConnectModal } from '../../components/integrations/OpenAiConnectM
 import { OneCConnectModal } from '../../components/integrations/OneCConnectModal';
 import { SapConnectModal } from '../../components/integrations/SapConnectModal';
 import { JiraConnectModal } from '../../components/integrations/JiraConnectModal';
+import { IyzicoConnectModal } from '../../components/integrations/IyzicoConnectModal';
+import { PaytrConnectModal } from '../../components/integrations/PaytrConnectModal';
+import { YookassaConnectModal } from '../../components/integrations/YookassaConnectModal';
 import {
   MarketingIntegrationsPanel,
   type MarketingIntegrationProviderKey,
@@ -225,6 +230,12 @@ export const IntegrationsHubPage: React.FC = () => {
   const [googleCalendarOAuthBusyId, setGoogleCalendarOAuthBusyId] = useState<
     string | null
   >(null);
+  const [outlookCalendarOAuthBusyId, setOutlookCalendarOAuthBusyId] = useState<
+    string | null
+  >(null);
+  const [oauthReadiness, setOauthReadiness] = useState<
+    Record<string, { oauthReady: boolean }>
+  >({});
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
   const [marketingModal, setMarketingModal] = useState<{
@@ -242,14 +253,16 @@ export const IntegrationsHubPage: React.FC = () => {
       setError(null);
     }
     try {
-      const [cat, conn, mkt] = await Promise.all([
+      const [cat, conn, mkt, readiness] = await Promise.all([
         fetchIntegrationHubCatalog(),
         fetchIntegrations(),
         fetchMarketingIntegrations().catch(() => [] as MarketingIntegrationRow[]),
+        fetchIntegrationOauthReadiness().catch(() => ({}) as Record<string, { oauthReady: boolean }>),
       ]);
       setCatalog(Array.isArray(cat) ? cat : []);
       setConnections(Array.isArray(conn) ? conn : []);
       setMarketingRows(Array.isArray(mkt) ? mkt : []);
+      setOauthReadiness(readiness && typeof readiness === 'object' ? readiness : {});
     } catch (e) {
       if (!quiet) {
         setError((e as Error)?.message || t('crm.integrationsHub.loadError'));
@@ -267,13 +280,15 @@ export const IntegrationsHubPage: React.FC = () => {
     const ads = searchParams.get('googleAdsOAuth');
     const ga4 = searchParams.get('ga4OAuth');
     const gcal = searchParams.get('googleCalendarOAuth');
-    if (!ads && !ga4 && !gcal) return;
+    const ocal = searchParams.get('outlookCalendarOAuth');
+    if (!ads && !ga4 && !gcal && !ocal) return;
     setSearchParams(
       (prev) => {
         const n = new URLSearchParams(prev);
         if (ads) n.delete('googleAdsOAuth');
         if (ga4) n.delete('ga4OAuth');
         if (gcal) n.delete('googleCalendarOAuth');
+        if (ocal) n.delete('outlookCalendarOAuth');
         return n;
       },
       { replace: true },
@@ -298,6 +313,12 @@ export const IntegrationsHubPage: React.FC = () => {
       refresh = true;
     } else if (gcal === 'error') {
       pushMsg('crm.integrationsHub.googleCalendar.oauthCallback.error');
+    }
+    if (ocal === 'connected') {
+      pushMsg('crm.integrationsHub.outlookCalendar.oauthCallback.connected');
+      refresh = true;
+    } else if (ocal === 'error') {
+      pushMsg('crm.integrationsHub.outlookCalendar.oauthCallback.error');
     }
     if (refresh) {
       setMarketingPanelRefreshSignal((x) => x + 1);
@@ -389,6 +410,25 @@ export const IntegrationsHubPage: React.FC = () => {
       } catch (e: unknown) {
         setGoogleCalendarOAuthBusyId(null);
         setActionMsg((e as Error)?.message || t('crm.integrationsHub.googleCalendar.oauthStartError'));
+      }
+    },
+    [t],
+  );
+
+  const handleOutlookCalendarReconnect = useCallback(
+    async (connectionId: string) => {
+      setActionMsg(null);
+      setOutlookCalendarOAuthBusyId(connectionId);
+      try {
+        const { url } = await startOutlookCalendarOAuth({
+          intent: 'reconnect',
+          integrationId: connectionId,
+          redirectPath: '/integrations-hub?tab=connections',
+        });
+        window.location.assign(url);
+      } catch (e: unknown) {
+        setOutlookCalendarOAuthBusyId(null);
+        setActionMsg((e as Error)?.message || t('crm.integrationsHub.outlookCalendar.oauthStartError'));
       }
     },
     [t],
@@ -500,11 +540,24 @@ export const IntegrationsHubPage: React.FC = () => {
     const isConnected = n > 0;
     const caps = capabilityChips(entry.capabilities);
     const name = integrationCatalogName(entry.id, t);
+    const description = integrationCatalogDescription(entry.id, t);
     const brandColor = CATALOG_BRAND_COLORS[entry.id];
     const showThirdPartyConnect =
       entry.id !== 'woocommerce' &&
       !marketingProvider &&
       isHubThirdPartyConnectCatalogId(entry.id);
+    const oauthNotReady =
+      entry.capabilities.oauthPlatformSupported &&
+      oauthReadiness[entry.id] !== undefined &&
+      !oauthReadiness[entry.id].oauthReady;
+    const managedElsewhere: { label: string; to: string } | null =
+      entry.id === 'sms'
+        ? { label: t('crm.integrationsHub.smsManagedLink'), to: '/app/telephony/sms' }
+        : entry.id === 'email'
+          ? { label: t('crm.integrationsHub.emailManagedLink'), to: '/app/email/accounts' }
+          : entry.id === 'telegram'
+            ? { label: t('crm.integrationsHub.telegramManagedLink'), to: '/app/telegram' }
+            : null;
 
     const lcClass = entry.lifecycle === 'live'
       ? 'text-[#1f8a5e] border-[#c5e3d2] bg-[#eaf4ee]'
@@ -539,6 +592,14 @@ export const IntegrationsHubPage: React.FC = () => {
                   {t('crm.integrationsHub.connectedCount', { count: n })}
                 </span>
               ) : null}
+              {oauthNotReady ? (
+                <span
+                  title={t('crm.integrationsHub.oauthNotConfigured')}
+                  className="text-[9px] font-semibold text-[#9a5b00] bg-[#fff3de] border border-[#f0d9a8] rounded-full px-2 py-[3px] shrink-0"
+                >
+                  {t('crm.integrationsHub.oauthNotConfigured')}
+                </span>
+              ) : null}
             </div>
             <div className="font-mono text-[10px] text-[#888] mt-0.5 tracking-[0.02em]">
               {entry.id.replace(/_/g, ' ')}
@@ -547,8 +608,8 @@ export const IntegrationsHubPage: React.FC = () => {
         </div>
 
         {/* Description */}
-        {entry.description ? (
-          <p className="text-[12.5px] text-[#555] leading-[1.5] mt-3 flex-1">{entry.description}</p>
+        {description ? (
+          <p className="text-[12.5px] text-[#555] leading-[1.5] mt-3 flex-1">{description}</p>
         ) : null}
 
         {/* Tags: modules + capabilities */}
@@ -603,6 +664,14 @@ export const IntegrationsHubPage: React.FC = () => {
                   </button>
                 ) : null}
               </>
+            ) : null}
+            {managedElsewhere ? (
+              <Link
+                to={managedElsewhere.to}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#222] text-white text-[12px] font-medium rounded-lg transition hover:bg-black"
+              >
+                {managedElsewhere.label}
+              </Link>
             ) : null}
             {marketingProvider ? (
               <>
@@ -1020,6 +1089,22 @@ export const IntegrationsHubPage: React.FC = () => {
                                 : t('crm.integrationsHub.googleCalendar.reconnectGoogle')}
                             </button>
                           )}
+                          {c.linkCatalogId === 'outlook' && (
+                            <button
+                              type="button"
+                              disabled={
+                                outlookCalendarOAuthBusyId === c.id ||
+                                testingId === c.id ||
+                                syncingId === c.id
+                              }
+                              onClick={() => void handleOutlookCalendarReconnect(c.id)}
+                              className="w-full rounded-lg border border-[#e7e7e7] bg-white px-3 py-2 text-[11px] font-medium text-[#222] hover:bg-[#fafafa] disabled:opacity-50"
+                            >
+                              {outlookCalendarOAuthBusyId === c.id
+                                ? t('crm.integrationsHub.outlookCalendar.oauthBusy')
+                                : t('crm.integrationsHub.outlookCalendar.reconnectMicrosoft')}
+                            </button>
+                          )}
                           {c.linkCatalogId === 'google_sheets' && (
                             <button
                               type="button"
@@ -1096,6 +1181,22 @@ export const IntegrationsHubPage: React.FC = () => {
                               {googleCalendarOAuthBusyId === c.id
                                 ? t('crm.integrationsHub.googleCalendar.oauthBusy')
                                 : t('crm.integrationsHub.googleCalendar.reconnectGoogle')}
+                            </button>
+                          )}
+                          {c.linkCatalogId === 'outlook' && (
+                            <button
+                              type="button"
+                              disabled={
+                                outlookCalendarOAuthBusyId === c.id ||
+                                testingId === c.id ||
+                                syncingId === c.id
+                              }
+                              onClick={() => void handleOutlookCalendarReconnect(c.id)}
+                              className="w-full rounded-lg border border-[#e7e7e7] bg-white px-3 py-2 text-[11px] font-medium text-[#222] hover:bg-[#fafafa] disabled:opacity-50"
+                            >
+                              {outlookCalendarOAuthBusyId === c.id
+                                ? t('crm.integrationsHub.outlookCalendar.oauthBusy')
+                                : t('crm.integrationsHub.outlookCalendar.reconnectMicrosoft')}
                             </button>
                           )}
                           <IntegrationConnectionTestSyncActions
@@ -1185,6 +1286,24 @@ export const IntegrationsHubPage: React.FC = () => {
         />
       ) : connectCatalogId === 'jira' ? (
         <JiraConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : connectCatalogId === 'iyzico' ? (
+        <IyzicoConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : connectCatalogId === 'paytr' ? (
+        <PaytrConnectModal
+          open
+          onClose={() => setConnectCatalogId(null)}
+          onCreated={() => void load({ quiet: true })}
+        />
+      ) : connectCatalogId === 'yookassa' ? (
+        <YookassaConnectModal
           open
           onClose={() => setConnectCatalogId(null)}
           onCreated={() => void load({ quiet: true })}

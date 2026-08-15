@@ -17,6 +17,7 @@ import {
   type SalesChannel,
 } from '../../api/salesChannels';
 import { getLocale } from '../../i18n/utils';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import { integrationCatalogName } from '../automations/integrationsCatalog';
 import { useWorkspaceStyleColumnDrag } from '../../components/table/useWorkspaceStyleColumnDrag';
 
@@ -69,7 +70,6 @@ function isSalesRelatedIntegration(conn: IntegrationConnectionDto): boolean {
 }
 
 const actionBtnClass = 'btn-secondary btn-secondary-sm disabled:opacity-50';
-const actionBtnDangerClass = 'btn-danger btn-secondary-sm disabled:opacity-50';
 
 type WooEditFormState = {
   name: string;
@@ -110,6 +110,7 @@ type IntegrationModalPayload = {
 
 export const SalesIntegrationsPage: React.FC = () => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const locale = getLocale();
   const navigate = useNavigate();
   const [connections, setConnections] = useState<IntegrationConnectionDto[]>([]);
@@ -506,7 +507,7 @@ export const SalesIntegrationsPage: React.FC = () => {
                 type="button"
                 onClick={() => void handleDelete(conn)}
                 disabled={deletingId === conn.id}
-                className={actionBtnDangerClass}
+                className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {deletingId === conn.id
                   ? t('crm.salesIntegrations.common.deleting')
@@ -542,13 +543,16 @@ export const SalesIntegrationsPage: React.FC = () => {
   };
 
   const handleDelete = async (conn: IntegrationConnectionDto) => {
-    if (
-      !window.confirm(
-        t('crm.salesIntegrations.deleteConfirm', { name: conn.name }),
-      )
-    ) {
-      return;
-    }
+    const ok = await showConfirm(
+      t('crm.salesIntegrations.deleteConfirm', { name: conn.name }),
+      {
+        title: 'Удаление',
+        confirmLabel: 'Удалить',
+        cancelLabel: 'Отмена',
+        danger: true,
+      },
+    );
+    if (!ok) return;
     setDeletingId(conn.id);
     try {
       await deleteIntegration(conn.id);

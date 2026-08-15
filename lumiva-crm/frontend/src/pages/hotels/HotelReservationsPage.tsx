@@ -387,7 +387,7 @@ export const HotelReservationsPage: React.FC = () => {
                         type="button"
                         onClick={() => handleRemovePayment(p.id)}
                         title="Удалить платёж"
-                        style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', display: 'flex' }}
+                        style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', display: 'flex' }}
                       >
                         <Ic d={HTL_ICON.x} size={12} />
                       </button>
@@ -805,7 +805,7 @@ const ReservationModal: React.FC<{
                   type="button"
                   onClick={() => removeGuestRow(g.id)}
                   title="Удалить гостя"
-                  style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', display: 'flex' }}
+                  style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', display: 'flex' }}
                 >
                   <Ic d={HTL_ICON.x} size={13} />
                 </button>

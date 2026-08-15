@@ -209,6 +209,15 @@ const ClientAccountsPage: React.FC = () => {
   const [clients, setClients] = useState<CcpClient[]>([]);
   const [selected, setSelected] = useState<CcpClient | null>(null);
 
+  const [vw, setVw] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1200));
+  useEffect(() => {
+    const fn = () => setVw(window.innerWidth);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+  const isLg = vw >= 1024;
+  const mobileDetailOpen = !isLg && Boolean(selected);
+
   const [txns, setTxns] = useState<CcpTxn[]>([]);
   const [transfers, setTransfers] = useState<CcpTransfer[]>([]);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -528,7 +537,7 @@ const ClientAccountsPage: React.FC = () => {
   return (
     <MainLayout>
       {/* ── Page header ── */}
-      <div className="mb-5 flex items-end justify-between gap-4">
+      <div className="mb-5 flex flex-col items-start gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="w-[6px] h-[6px] rounded-full bg-[#222]" />
@@ -601,10 +610,19 @@ const ClientAccountsPage: React.FC = () => {
       </div>
 
       {/* ── Master-detail shell ── */}
-      <div className="grid gap-4 h-auto min-h-0 lg:h-[calc(100vh-210px)] lg:min-h-[560px]" style={{ gridTemplateColumns: '340px 1fr' }}>
+      <div
+        className="grid gap-4 h-auto min-h-0 lg:h-[calc(100vh-210px)] lg:min-h-[560px]"
+        style={{ gridTemplateColumns: isLg ? '340px 1fr' : '1fr' }}
+      >
 
         {/* ── LEFT — client list ── */}
-        <div className="rounded-[14px] border border-[#e7e7e7] bg-white overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 210px)' }}>
+        <div
+          className={cx(
+            'rounded-[14px] border border-[#e7e7e7] bg-white overflow-hidden flex-col',
+            mobileDetailOpen ? 'hidden lg:flex' : 'flex'
+          )}
+          style={{ maxHeight: 'calc(100vh - 210px)' }}
+        >
           {/* List header */}
           <div className="p-4 border-b border-[#f0f0f0]">
             <div>
@@ -738,7 +756,13 @@ const ClientAccountsPage: React.FC = () => {
         </div>
 
         {/* ── RIGHT — detail panel ── */}
-        <div className="rounded-[14px] border border-[#e7e7e7] bg-white overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 210px)' }}>
+        <div
+          className={cx(
+            'rounded-[14px] border border-[#e7e7e7] bg-white overflow-hidden flex-col',
+            mobileDetailOpen ? 'flex' : 'hidden lg:flex'
+          )}
+          style={{ maxHeight: 'calc(100vh - 210px)' }}
+        >
           {!selected ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-[#888]">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-[#b5b5b5]"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="17" cy="14" r="1.4" fill="currentColor"/></svg>
@@ -749,7 +773,16 @@ const ClientAccountsPage: React.FC = () => {
               {/* Sticky header */}
               <div className="border-b border-[#f0f0f0] bg-white">
                 <div className="px-5 pt-4 pb-3 flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 w-full lg:w-auto">
+                    {!isLg && (
+                      <button
+                        type="button"
+                        onClick={() => setSelected(null)}
+                        className="mb-2 inline-flex items-center rounded-full border border-[#e7e7e7] bg-white px-3 py-1.5 text-[12px] font-medium text-[#444] hover:bg-[#fafafa] transition-colors"
+                      >
+                        ← Назад
+                      </button>
+                    )}
                     <div className="cd-display text-[18px] font-semibold text-[#222] tracking-[-0.02em] truncate">
                       {(selected as any).name || (selected as any).email}
                     </div>
@@ -775,7 +808,7 @@ const ClientAccountsPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-2 flex-wrap w-full lg:w-auto lg:flex-shrink-0">
                     <Link
                       to={`/app/client-accounts/${(selected as any).id}/analytics`}
                       className="rounded-[8px] border border-[#e7e7e7] bg-white px-3 py-1.5 text-[12px] font-medium text-[#444] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
@@ -816,13 +849,13 @@ const ClientAccountsPage: React.FC = () => {
                 </div>
 
                 {/* Tabs */}
-                <div className="px-5 pb-3 flex items-center gap-1.5">
+                <div className="px-5 pb-3 flex items-center gap-1.5 overflow-x-auto">
                   {(['overview', 'txns', 'transfers'] as Tab[]).map((tabKey) => (
                     <button
                       key={tabKey}
                       onClick={() => setTab(tabKey)}
                       className={cx(
-                        'flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-medium border transition-all',
+                        'flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12px] font-medium border transition-all flex-shrink-0',
                         tab === tabKey
                           ? 'bg-[#222] border-[#222] text-white'
                           : 'bg-white border-[#e7e7e7] text-[#555] hover:border-[#ccc] hover:bg-[#fafafa]'
@@ -874,8 +907,8 @@ const ClientAccountsPage: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {/* EUR account card */}
                       <div className="rounded-[12px] border border-[#e7e7e7] bg-white p-5" style={{ borderTop: '3px solid #1f1f1f' }}>
-                        <div className="flex items-start justify-between gap-3 mb-4">
-                          <div>
+                        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                          <div className="min-w-0">
                             <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Счёт · EUR</div>
                             <div className="mt-2">
                               {editing ? (
@@ -897,9 +930,9 @@ const ClientAccountsPage: React.FC = () => {
                               </div>
                             )}
                           </div>
-                          <div className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2 text-right flex-shrink-0">
+                          <div className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2 text-right max-w-full">
                             <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em]">Счёт №</div>
-                            <div className="mt-0.5 cd-mono text-[11px] font-semibold text-[#222]">{accEurNumber || '—'}</div>
+                            <div className="mt-0.5 cd-mono text-[11px] font-semibold text-[#222] break-all">{accEurNumber || '—'}</div>
                           </div>
                         </div>
                         <div className="border-t border-[#f0f0f0] pt-4 space-y-3">
@@ -934,8 +967,8 @@ const ClientAccountsPage: React.FC = () => {
 
                       {/* USD account card */}
                       <div className="rounded-[12px] border border-[#e7e7e7] bg-white p-5" style={{ borderTop: '3px solid #1f8a5e' }}>
-                        <div className="flex items-start justify-between gap-3 mb-4">
-                          <div>
+                        <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+                          <div className="min-w-0">
                             <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Счёт · USD</div>
                             <div className="mt-2">
                               {editing ? (
@@ -957,9 +990,9 @@ const ClientAccountsPage: React.FC = () => {
                               </div>
                             )}
                           </div>
-                          <div className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2 text-right flex-shrink-0">
+                          <div className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2 text-right max-w-full">
                             <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em]">Счёт №</div>
-                            <div className="mt-0.5 cd-mono text-[11px] font-semibold text-[#222]">{accUsdNumber || '—'}</div>
+                            <div className="mt-0.5 cd-mono text-[11px] font-semibold text-[#222] break-all">{accUsdNumber || '—'}</div>
                           </div>
                         </div>
                         <div className="border-t border-[#f0f0f0] pt-4 space-y-3">

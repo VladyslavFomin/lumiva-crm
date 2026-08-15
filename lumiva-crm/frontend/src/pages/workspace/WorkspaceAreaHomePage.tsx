@@ -17,6 +17,7 @@ import { NAV_ICON_MAP, type NavIconKey } from '../../components/layout/NavSideba
 import { parseEnabledViews } from '../../workspace/workspaceEnabledViews';
 import { readRecentWorkspaceTables, touchRecentWorkspaceTable } from '../../workspace/workspaceRecentTables';
 import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type TabKey = 'recent' | 'content' | 'permissions';
 
@@ -37,8 +38,8 @@ export const WorkspaceAreaHomePage: React.FC = () => {
   const [savingName, setSavingName] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [iconPicker, setIconPicker] = useState(false);
-  const [deleteAreaOpen, setDeleteAreaOpen] = useState(false);
   const [deletingArea, setDeletingArea] = useState(false);
+  const { showConfirm } = useAlertModal();
 
   const load = useCallback(async () => {
     if (!areaId || !/^[0-9a-f-]{36}$/i.test(areaId)) return;
@@ -137,13 +138,19 @@ export const WorkspaceAreaHomePage: React.FC = () => {
 
   const confirmDeleteArea = async () => {
     if (!area) return;
+    const ok = await showConfirm(t('crm.workspace.area.deleteAreaConfirm', { name: area.name }), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setDeletingArea(true);
     try {
       await deleteWorkspaceArea(area.id);
       navigate('/workspace');
     } finally {
       setDeletingArea(false);
-      setDeleteAreaOpen(false);
     }
   };
 
@@ -286,8 +293,9 @@ export const WorkspaceAreaHomePage: React.FC = () => {
                 {area && area.slug !== 'main' && (
                   <button
                     type="button"
-                    onClick={() => setDeleteAreaOpen(true)}
-                    className="rounded-xl border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-700 shadow-sm hover:bg-rose-50"
+                    disabled={deletingArea}
+                    onClick={() => void confirmDeleteArea()}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {t('crm.workspace.area.deleteArea')}
                   </button>
@@ -466,41 +474,6 @@ export const WorkspaceAreaHomePage: React.FC = () => {
           onClose={() => setIntegrationsOpen(false)}
           onSaved={(next) => setArea(next)}
         />
-      )}
-
-      {deleteAreaOpen && area && (
-        <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4">
-          <button
-            type="button"
-            className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
-            aria-label="Close"
-            onClick={() => !deletingArea && setDeleteAreaOpen(false)}
-          />
-          <div className="relative z-10 w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-semibold text-slate-900">{t('crm.workspace.area.deleteArea')}</h3>
-            <p className="mt-2 text-sm text-slate-600">
-              {t('crm.workspace.area.deleteAreaConfirm', { name: area.name })}
-            </p>
-            <div className="mt-6 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={deletingArea}
-                onClick={() => setDeleteAreaOpen(false)}
-                className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-              >
-                {t('crm.common.cancel')}
-              </button>
-              <button
-                type="button"
-                disabled={deletingArea}
-                onClick={() => void confirmDeleteArea()}
-                className="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50"
-              >
-                {deletingArea ? '…' : t('crm.workspace.area.deleteArea')}
-              </button>
-            </div>
-          </div>
-        </div>
       )}
     </MainLayout>
   );

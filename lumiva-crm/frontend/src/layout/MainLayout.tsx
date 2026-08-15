@@ -1074,6 +1074,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             matchPaths: ['/app/web-forms', '/web-forms'],
           },
           {
+            label: t('crm.nav.toolsWebFormsSettings'),
+            path: '/app/web-forms/settings',
+            matchPaths: ['/app/web-forms/settings', '/web-forms/settings'],
+          },
+          {
             label: t('crm.nav.integrationsHub'),
             path: '/app/integrations-hub',
             matchPaths: ['/app/integrations-hub', '/integrations-hub'],

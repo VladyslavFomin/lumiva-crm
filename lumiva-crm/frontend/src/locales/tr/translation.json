@@ -1,5 +1,13 @@
 {
   "crm": {
+    "pay": {
+      "result": {
+        "successTitle": "Ödeme başarılı",
+        "successSubtitle": "Teşekkürler! Ödemenizi aldık, satıcı yakında sizinle iletişime geçecek.",
+        "failTitle": "Ödeme başarısız",
+        "failSubtitle": "Ödeme tamamlanamadı. Lütfen tekrar deneyin veya satıcıyla iletişime geçin."
+      }
+    },
     "header": {
       "realtime": "Gerçek zamanlı · bağlı",
       "openMenu": "Menüyü aç",
@@ -726,6 +734,7 @@
       "telegramInbox": "Telegram · Gelen Kutusu",
       "whatsappInbox": "WhatsApp · Gelen Kutusu",
       "toolsWebForms": "Site formları",
+      "toolsWebFormsSettings": "Web form ayarları",
       "chat": "Sohbet",
       "helpdesk": "Destek merkezi",
       "esign": "E-imza",
@@ -1231,6 +1240,7 @@
         "name": "CRM içinde ad",
         "namePh": "ör. ana sayfa talebi",
         "site": "Site (origin doğrulaması)",
+        "kind": "Form türü",
         "template": "Şablon",
         "noSites": "Pazarlama → SEO altında site ekleyin.",
         "creating": "Oluşturuluyor…",
@@ -2237,6 +2247,11 @@
       "wooSectionSubtitle": "Mağaza adresi ve API anahtarları (okuma yetkisi yeterli). Senkron yönetimi «Bağlantılar» sekmesinde.",
       "wooChannelsHint": "Satış kanalları ayrı yapılandırılır: mağazayı CRM metrikleriyle eşleştirin.",
       "wooChannelsLink": "Satış kanalları",
+      "managedElsewhereHint": "CRM’de ayrı bir bölümde yapılandırılır.",
+      "oauthNotConfigured": "OAuth sunucuda yapılandırılmamış",
+      "smsManagedLink": "«Telefon» sekmesini aç",
+      "emailManagedLink": "«E-posta» sekmesini aç",
+      "telegramManagedLink": "«Telegram» sekmesini aç",
       "marketingSetup": "Yapılandır",
       "marketingOpenTab": "«Pazarlama» sekmesi",
       "marketingModalTitle": "Yapılandırma: {{name}}",
@@ -2264,6 +2279,20 @@
         "oauthCallback": {
           "connected": "Google Calendar bağlandı.",
           "error": "Google Calendar bağlantısı tamamlanamadı."
+        }
+      },
+      "outlookCalendar": {
+        "oauthTitle": "Outlook / Microsoft 365",
+        "oauthSubtitle": "Microsoft ile oturum açın — yenileme anahtarı CRM’de saklanır. Lider takvimindeki görüşmeler Outlook ile senkron olur.",
+        "oauthUsesPrimaryCalendar": "Varsayılan Outlook takviminiz kullanılır — ayrı takvim kimliği girmeniz gerekmez.",
+        "oauthNameLabel": "CRM’de görünen ad (isteğe bağlı)",
+        "oauthConnect": "Microsoft ile bağlan",
+        "reconnectMicrosoft": "Microsoft erişimini güncelle",
+        "oauthBusy": "Microsoft’a yönlendiriliyor…",
+        "oauthStartError": "Microsoft oturumu başlatılamadı",
+        "oauthCallback": {
+          "connected": "Outlook Calendar bağlandı.",
+          "error": "Outlook Calendar bağlantısı tamamlanamadı."
         }
       },
       "marketingModalPanelLead": "Bağlantı ve liste",
@@ -2441,6 +2470,51 @@
         "errors": {
           "noKey": "Lütfen API anahtarı girin",
           "create": "OpenAI bağlantısı oluşturulamadı"
+        }
+      },
+      "iyzico": {
+        "title": "iyzico Bağla",
+        "subtitle": "iyzico Checkout Form ile online kart ödemesi alın (Türkiye)",
+        "guideHint": "API key ve Secret key iyzico üye iş yeri panelinde (merchant.iyzipay.com → Ayarlar → API Anahtarları). Gerçek hesap olmadan test için iyzico dokümantasyonundaki sandbox anahtarlarını kullanabilirsiniz.",
+        "form": {
+          "apiKey": "API key",
+          "secretKey": "Secret key",
+          "sandbox": "Test modu (sandbox)",
+          "name": "Bağlantı adı"
+        },
+        "errors": {
+          "missing": "API key ve Secret key girin",
+          "create": "iyzico bağlantısı kaydedilemedi"
+        }
+      },
+      "yookassa": {
+        "title": "YooKassa Bağla",
+        "subtitle": "YooKassa Payment API ile online kart ödemesi alın (Rusya)",
+        "guideHint": "shopId ve Secret key YooKassa panelinde (yookassa.ru/my → Ayarlar → API anahtarları). Önemli: aynı yerden (Entegrasyon → HTTP bildirimleri) https://crm.lumiva.agency/v1/payments/yookassa/callback adresini girin — girilmezse ödemeler otomatik onaylanmaz.",
+        "form": {
+          "shopId": "shopId",
+          "secretKey": "Secret key",
+          "name": "Bağlantı adı"
+        },
+        "errors": {
+          "missing": "shopId ve Secret key girin",
+          "create": "YooKassa bağlantısı kaydedilemedi"
+        }
+      },
+      "paytr": {
+        "title": "PayTR Bağla",
+        "subtitle": "PayTR iFrame API ile online kart ödemesi alın (Türkiye)",
+        "guideHint": "Merchant ID, Merchant key ve Merchant salt PayTR panelinde (panel.paytr.com → Mağaza Ayarları → Bilgilerim). Önemli: aynı yerden Bildirim URL alanına https://crm.lumiva.agency/v1/payments/paytr/callback adresini girin — girilmezse ödemeler otomatik onaylanmaz.",
+        "form": {
+          "merchantId": "Merchant ID",
+          "merchantKey": "Merchant key",
+          "merchantSalt": "Merchant salt",
+          "testMode": "Test modu",
+          "name": "Bağlantı adı"
+        },
+        "errors": {
+          "missing": "Merchant ID, Merchant key ve Merchant salt girin",
+          "create": "PayTR bağlantısı kaydedilemedi"
         }
       },
       "onec": {
@@ -3788,6 +3862,12 @@
             "linkLabel": "Pazarlama · entegrasyonlar",
             "nextStep": "Entegrasyonlar → Pazarlama: Property ID ve para birimini girin, Google ile oturum açın; senkron «Pazarlama» sekmesinde."
           },
+          "yandex_metrika": {
+            "name": "Yandex Metrica",
+            "description": "Pazarlamada Yandex Metrica sayacı: sayaç numarası ve hedefler.",
+            "linkLabel": "Pazarlama · entegrasyonlar",
+            "nextStep": "Entegrasyonlar → Pazarlama: Yandex Metrica sayaç numarasını (ve isteğe bağlı hedefleri) ekleyin."
+          },
           "meta_ads": {
             "name": "Meta Ads",
             "description": "Senaryolardan Marketing API. Özetler pazarlamada.",
@@ -3797,6 +3877,24 @@
           "1c": {
             "name": "1C:Enterprise",
             "description": "Gelecek senaryolar için kimlik bilgisi saklama.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "iyzico": {
+            "name": "iyzico",
+            "description": "Kartla online ödeme alın (Türkiye): satış için ödeme linki ve vitrinde ödeme.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "paytr": {
+            "name": "PayTR",
+            "description": "Kartla online ödeme alın (Türkiye): satış için ödeme linki ve vitrinde ödeme.",
+            "linkLabel": "",
+            "nextStep": ""
+          },
+          "yookassa": {
+            "name": "YooKassa",
+            "description": "Kartla online ödeme alın (Rusya): satış için ödeme linki ve vitrinde ödeme.",
             "linkLabel": "",
             "nextStep": ""
           },
@@ -4931,6 +5029,29 @@
         "on_hold": "Ödeme bekleniyor",
         "failed": "Başarısız"
       },
+      "paymentLink": {
+        "openButton": "Ödeme linki gönder",
+        "title": "Ödeme linki",
+        "subtitle": "Ödenecek tutar: {{amount}} {{currency}}. Alıcı, sağlayıcının güvenli sayfasında kartla öder.",
+        "form": {
+          "buyerName": "Alıcı adı",
+          "buyerEmail": "E-posta",
+          "buyerPhone": "Telefon",
+          "city": "Şehir",
+          "address": "Adres"
+        },
+        "createButton": "Ödeme linki oluştur",
+        "creating": "Oluşturuluyor…",
+        "linkReadyHint": "Bu linki alıcıya istediğiniz kanaldan gönderin (e-posta, WhatsApp, Telegram, SMS).",
+        "waitingHint": "Alıcı ödeme yaptığında durum otomatik güncellenir.",
+        "copy": "Kopyala",
+        "copied": "Kopyalandı",
+        "paid": "Ödendi! Satış durumu güncellendi.",
+        "errors": {
+          "missing": "Alıcının adını, e-postasını, şehrini ve adresini girin",
+          "create": "Ödeme linki oluşturulamadı"
+        }
+      },
       "details": {
         "title": "Sipariş {{id}}…",
         "titleWithOrder": "Sipariş №{{orderNo}}",
@@ -4955,6 +5076,7 @@
         "orderContentsHint": "CRM özeti ve senkronize mağaza verisi.",
         "orderContentsFromCrm": "CRM'de",
         "orderContentsFromStore": "Mağaza (WooCommerce)",
+        "orderContentsFromStorefront": "Vitrin / site formu",
         "managementIntro": "Sorumlular, lead ve notlar alttaki düğme ile kaydedilir (sipariş durumu yukarıdaki özette).",
         "subsections": {
           "status": "Durum",
@@ -4967,6 +5089,7 @@
         "wooOrder": {
           "sectionTitle": "WooCommerce sipariş verisi",
           "hint": "Mağaza siparişi REST yanıtından alanlar (total_tax, total, line_items vb.).",
+          "storefrontHint": "Vitrin/site formu üzerinden sipariş verilirken kaydedilen sepet içeriği.",
           "currency": "Para birimi",
           "itemsHeading": "Sipariş satırları",
           "colProduct": "Ürün",

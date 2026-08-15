@@ -41,8 +41,8 @@
 .px-scope .btn-primary:hover{background:#000}
 .px-scope .btn-ghost{border-color:transparent;background:none}
 .px-scope .btn-ghost:hover{border-color:var(--line-2)}
-.px-scope .btn-danger{color:#cc2f47;border-color:#f0c8cf}
-.px-scope .btn-danger:hover{background:#fbecef;border-color:#cc2f47}
+.px-scope .btn-danger{color:#9a1f31;border-color:#f0c8cf}
+.px-scope .btn-danger:hover{background:#fbecef;border-color:#9a1f31}
 
 /* hero */
 .px-scope .esn-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:4px}
@@ -153,7 +153,7 @@
 .px-scope .ds-template:hover .use{color:var(--ink)}
 .px-scope .ds-template .del{position:absolute;top:12px;right:12px;width:22px;height:22px;border-radius:6px;border:1px solid var(--line-2);background:#fff;color:var(--fg-3);display:none;align-items:center;justify-content:center}
 .px-scope .ds-template:hover .del{display:flex}
-.px-scope .ds-template .del:hover{border-color:#cc2f47;color:#cc2f47}
+.px-scope .ds-template .del:hover{border-color:#9a1f31;color:#9a1f31;background:#fbecef}
 .px-scope .ds-template-add{border:1px dashed var(--line-2);border-radius:10px;padding:16px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--fg-3);min-height:110px;transition:border-color .12s,color .12s}
 .px-scope .ds-template-add:hover{border-color:var(--ink);color:var(--ink)}
 

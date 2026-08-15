@@ -210,7 +210,7 @@ const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: H
               type="button"
               onClick={() => handleRemove(u)}
               title="Удалить номер"
-              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--fg-3)', display: 'flex' }}
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#9a1f31', display: 'flex' }}
             >
               <Ic d={HTL_ICON.x} size={10} />
             </button>
@@ -362,7 +362,7 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
                   <Ic d={HTL_ICON.pencil} size={14} />
                 </button>
                 <button
-                  style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer' }}
                   title="Удалить"
                   onClick={() => handleDelete(r)}
                 >
@@ -533,7 +533,7 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
                       <span className="mkt-flag">{m.code.toUpperCase()}</span>
                       <span style={{ cursor: 'pointer' }} onClick={() => setEditingMarketId(m.id)} title="Переименовать">{m.name}</span>
                       <button
-                        style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
+                        style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
                         title="Удалить рынок"
                         onClick={() => removeMarket(m)}
                       >
@@ -798,7 +798,7 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
                 ))}
                 <td>
                   <button
-                    style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer' }}
+                    style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer' }}
                     title="Удалить"
                     onClick={() => removeRow(item)}
                   >
@@ -1157,7 +1157,7 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
             ) : (
               <span onDoubleClick={(e) => { e.stopPropagation(); setEditingCatId(c.id); }} title="Двойной клик — переименовать">{c.name}</span>
             )}
-            <button onClick={(e) => { e.stopPropagation(); removeCat(c); }} title="Удалить категорию">×</button>
+            <button onClick={(e) => { e.stopPropagation(); removeCat(c); }} title="Удалить категорию" style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
           </div>
         ))}
         {showAddCat ? (
@@ -1358,7 +1358,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
             </a>
           )}
           <button
-            style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer' }}
+            style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer' }}
             onClick={() => removeLink(i)}
             title="Удалить"
             disabled={savingLinks}

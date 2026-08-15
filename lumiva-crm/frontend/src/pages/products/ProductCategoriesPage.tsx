@@ -210,6 +210,7 @@ export const ProductCategoriesPage: React.FC = () => {
     const ok = await showConfirm(t('crm.products.categories.deleteConfirm'), {
       title: t('crm.confirmModal.deleteTitle', { defaultValue: 'Удаление' }),
       confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
       danger: true,
     });
     if (!ok) return;
@@ -243,7 +244,7 @@ export const ProductCategoriesPage: React.FC = () => {
           <button type="button" title={t('crm.products.categories.duplicateButton') || ''}>
             <Icon d={I.copy} size={13} />
           </button>
-          <button type="button" className="danger" title={t('crm.products.form.actions.delete') || ''} onClick={() => handleDelete(c.id)}>
+          <button type="button" className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors" title={t('crm.products.form.actions.delete') || ''} onClick={() => handleDelete(c.id)}>
             <Icon d={I.trash} size={13} />
           </button>
         </div>

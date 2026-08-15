@@ -1,5 +1,5 @@
 // src/pages/sales/SaleDetailsPage.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { translateSaleStatus } from './saleStatusI18n';
@@ -23,10 +23,17 @@ import {
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { MainLayout } from '../../layout/MainLayout';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import { SalePaymentLinkModal } from './SalePaymentLinkModal';
 import { getLocale } from '../../i18n/utils';
-import { saleOrderDisplayNumber } from '../../utils/saleOrderDisplay';
+import {
+  saleOrderDisplayNumber,
+  saleStorefrontProductName,
+} from '../../utils/saleOrderDisplay';
 import { extractSaleProductUrl } from '../../utils/saleLinks';
-import { extractWooOrderSummary } from '../../utils/wooOrderSummary';
+import {
+  extractWooOrderSummary,
+  extractStorefrontOrderSummary,
+} from '../../utils/wooOrderSummary';
 
 /** Поля записи Sale, не выводимые в «Дополнительные поля»: дубли шапки / продукта / формы или служебные ключи. */
 const SALE_DETAIL_GRID_HIDDEN_KEYS = new Set([
@@ -95,6 +102,7 @@ export const SaleDetailsPage: React.FC = () => {
   const [customFieldsError, setCustomFieldsError] = useState<string | null>(null);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
 
   useEffect(() => {
     fetchStaff()
@@ -102,30 +110,42 @@ export const SaleDetailsPage: React.FC = () => {
       .catch((err) => console.error(err));
   }, []);
 
+  const reload = useCallback(
+    (opts?: { quiet?: boolean }) => {
+      if (!id) return;
+      if (!opts?.quiet) {
+        setLoading(true);
+        setError(null);
+      }
+
+      fetchSaleDetail(id)
+        .then((res) => {
+          setData(res);
+
+          const sale = res.sale || {};
+
+          const initialStatus =
+            (sale.status as SaleStatus | undefined) ?? 'new';
+          setFormStatus(initialStatus);
+
+          setFormNotes((sale.notes as string) || '');
+          setFormLeadId((sale.leadId as string) || '');
+          setFormCustomFields((sale.customFields as Record<string, any>) || {});
+        })
+        .catch((e: any) => {
+          console.error(e);
+          if (!opts?.quiet) setError(e.message || t('crm.sales.details.errors.load'));
+        })
+        .finally(() => {
+          if (!opts?.quiet) setLoading(false);
+        });
+    },
+    [id, t],
+  );
+
   useEffect(() => {
-    if (!id) return;
-    setLoading(true);
-    setError(null);
-
-    fetchSaleDetail(id)
-      .then((res) => {
-        setData(res);
-
-        const sale = res.sale || {};
-
-        const initialStatus =
-          (sale.status as SaleStatus | undefined) ?? 'new';
-        setFormStatus(initialStatus);
-
-        setFormNotes((sale.notes as string) || '');
-        setFormLeadId((sale.leadId as string) || '');
-        setFormCustomFields((sale.customFields as Record<string, any>) || {});
-      })
-      .catch((e: any) => {
-        console.error(e);
-        setError(e.message || t('crm.sales.details.errors.load'));
-      })
-      .finally(() => setLoading(false));
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, t]);
 
   useEffect(() => {
@@ -226,9 +246,15 @@ export const SaleDetailsPage: React.FC = () => {
     (sale.guestName as string | undefined) ||
     null;
 
+  // Товары заказа с тестовой витрины/embed-формы (нет sale.hotel, состав лежит в customFields.items)
+  const storefrontItemNames = useMemo(
+    () => saleStorefrontProductName(sale),
+    [sale.customFields],
+  );
+
   // Продукт
   const productName =
-    (sale.hotel as string | undefined) || null;
+    (sale.hotel as string | undefined) || storefrontItemNames || null;
 
   const wpOrderNoForDisplay = saleOrderDisplayNumber(sale as Record<string, unknown>);
 
@@ -266,6 +292,23 @@ export const SaleDetailsPage: React.FC = () => {
     () => extractWooOrderSummary(sale.rawPayload),
     [sale.rawPayload],
   );
+
+  const storefrontOrderSummary = useMemo(
+    () =>
+      extractStorefrontOrderSummary(
+        sale.customFields,
+        (sale.currency as string | undefined) ?? null,
+        typeof sale.amount === 'number' ? sale.amount : Number(sale.amount) || null,
+      ),
+    [sale.customFields, sale.currency, sale.amount],
+  );
+
+  // У заказа может быть только один источник состава корзины: либо Woo rawPayload, либо
+  // customFields.items с витрины/embed-формы — они никогда не сосуществуют на одной продаже.
+  const orderItemsSummary = wooOrderSummary || storefrontOrderSummary;
+  const orderItemsSummaryLabel = wooOrderSummary
+    ? t('crm.sales.details.orderContentsFromStore')
+    : t('crm.sales.details.orderContentsFromStorefront');
 
   const wooAmountDisplay = (amount: string | null) => {
     if (amount == null || amount === '') return t('crm.sales.common.empty');
@@ -778,6 +821,17 @@ export const SaleDetailsPage: React.FC = () => {
                       </a>
                     </div>
                   ) : null}
+                  {amount != null && amount > 0 ? (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => setPaymentLinkOpen(true)}
+                        className="btn-secondary btn-secondary-sm"
+                      >
+                        {t('crm.sales.paymentLink.openButton')}
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Клиент */}
@@ -798,8 +852,8 @@ export const SaleDetailsPage: React.FC = () => {
               </div>
             </section>
 
-            {/* Содержимое заказа: сводка CRM и данные Woo */}
-            {(wooOrderSummary ||
+            {/* Содержимое заказа: сводка CRM и данные магазина (Woo или витрина/embed-форма) */}
+            {(orderItemsSummary ||
               productName ||
               wpOrderNoForDisplay !== '—' ||
               productUrl) && (
@@ -868,21 +922,23 @@ export const SaleDetailsPage: React.FC = () => {
                     </div>
                   )}
 
-                  {wooOrderSummary &&
+                  {orderItemsSummary &&
                   (productName ||
                     wpOrderNoForDisplay !== '—' ||
                     productUrl) ? (
                     <div className="h-px bg-border-default" aria-hidden />
                   ) : null}
 
-                  {wooOrderSummary && (
+                  {orderItemsSummary && (
                     <div className="space-y-3">
                       <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                        {t('crm.sales.details.orderContentsFromStore')}
+                        {orderItemsSummaryLabel}
                       </h3>
                       <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-4">
                         <p className="text-[10px] text-slate-600 leading-snug">
-                          {t('crm.sales.details.wooOrder.hint')}
+                          {wooOrderSummary
+                            ? t('crm.sales.details.wooOrder.hint')
+                            : t('crm.sales.details.wooOrder.storefrontHint')}
                         </p>
 
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -891,7 +947,7 @@ export const SaleDetailsPage: React.FC = () => {
                               {t('crm.sales.details.wooOrder.currency')}
                             </div>
                             <div className="text-slate-900 font-semibold tabular-nums">
-                              {wooOrderSummary.currency ?? t('crm.sales.common.empty')}
+                              {orderItemsSummary.currency ?? t('crm.sales.common.empty')}
                             </div>
                           </div>
                           <div>
@@ -899,7 +955,7 @@ export const SaleDetailsPage: React.FC = () => {
                               {t('crm.sales.details.wooOrder.totalTax')}
                             </div>
                             <div className="text-slate-900 tabular-nums">
-                              {wooAmountDisplay(wooOrderSummary.totalTax)}
+                              {wooAmountDisplay(orderItemsSummary.totalTax)}
                             </div>
                           </div>
                           <div>
@@ -907,12 +963,12 @@ export const SaleDetailsPage: React.FC = () => {
                               {t('crm.sales.details.wooOrder.orderTotal')}
                             </div>
                             <div className="text-slate-900 font-semibold tabular-nums">
-                              {wooAmountDisplay(wooOrderSummary.total)}
+                              {wooAmountDisplay(orderItemsSummary.total)}
                             </div>
                           </div>
                         </div>
 
-                        {wooOrderSummary.lines.length > 0 && (
+                        {orderItemsSummary.lines.length > 0 && (
                           <div>
                             <div className="text-[11px] font-medium text-slate-700 mb-2">
                               {t('crm.sales.details.wooOrder.itemsHeading')}
@@ -933,7 +989,7 @@ export const SaleDetailsPage: React.FC = () => {
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {wooOrderSummary.lines.map((line, idx) => (
+                                  {orderItemsSummary.lines.map((line, idx) => (
                                     <tr
                                       key={`${idx}-${line.name}`}
                                       className="border-b border-slate-100 last:border-0"
@@ -1310,6 +1366,17 @@ export const SaleDetailsPage: React.FC = () => {
           }
         />
       )}
+      {id && amount != null ? (
+        <SalePaymentLinkModal
+          open={paymentLinkOpen}
+          saleId={id}
+          amount={amount}
+          currency={currency}
+          defaultBuyerName={clientName || ''}
+          onClose={() => setPaymentLinkOpen(false)}
+          onPaid={() => reload({ quiet: true })}
+        />
+      ) : null}
     </MainLayout>
   );
 };

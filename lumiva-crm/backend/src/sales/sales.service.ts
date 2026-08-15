@@ -1399,6 +1399,32 @@ export class SalesService {
     throw new Error('Не удалось сгенерировать уникальный код заказа');
   }
 
+  /**
+   * Канал "Витрина и формы на сайте" для заказов, оформленных напрямую (тестовая витрина
+   * pl1, product_order/booking embed-формы) — без него Sale не проходит `applyListedSalesOnlyJoin`
+   * (список/статистика продаж требуют активный канал) и заказ выглядит как "потерянный".
+   * `integrationId: 'storefront'` — стабильный маркер для поиска уже созданного канала,
+   * не завязанный на (переименовываемое пользователем) название.
+   */
+  private async resolveDirectSalesChannel(tenantId: string, currency: string): Promise<SalesChannel> {
+    const existing = await this.channelRepo.findOne({
+      where: { tenantId, integrationId: 'storefront', isDeleted: false } as any,
+    });
+    if (existing) return existing;
+
+    const channel = this.channelRepo.create({
+      tenantId,
+      name: 'Витрина и формы на сайте',
+      type: 'direct',
+      integrationId: 'storefront',
+      integrationName: 'Витрина и формы на сайте',
+      currency: currency || 'EUR',
+      isEnabled: true,
+      isDeleted: false,
+    } as any);
+    return this.channelRepo.save(channel) as unknown as Promise<SalesChannel>;
+  }
+
   /** Создаёт заказ из тестовой публичной витрины (корзина товаров → Sale). */
   async createFromStorefront(
     tenantId: string,
@@ -1417,11 +1443,13 @@ export class SalesService {
       email: dto.customerEmail,
     });
     const externalOrderNo = await this.generateOrderCode();
+    const channel = await this.resolveDirectSalesChannel(tenantId, dto.currency);
 
     const sale = this.saleRepo.create({
       tenantId,
       leadId,
       contactId,
+      channelId: channel.id,
       externalOrderNo,
       guestName: dto.customerName,
       amount,

@@ -34,7 +34,7 @@ interface TaskWithProject extends ProjectTask {
 
 export const StaffProfilePage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
+  const { showAlert, showConfirm } = useAlertModal();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
@@ -290,7 +290,13 @@ export const StaffProfilePage: React.FC = () => {
 
   const handleDeleteStaff = async () => {
   if (!staff || !isOwner) return;
-  if (!window.confirm(t('crm.staff.profile.deleteConfirm'))) {
+  const ok = await showConfirm(t('crm.staff.profile.deleteConfirm'), {
+    title: 'Удаление',
+    confirmLabel: 'Удалить',
+    cancelLabel: 'Отмена',
+    danger: true,
+  });
+  if (!ok) {
     return;
   }
 
@@ -608,7 +614,7 @@ export const StaffProfilePage: React.FC = () => {
                           <button
                             type="button"
                             onClick={handleDeleteStaff}
-                            className="btn-danger btn-secondary-sm"
+                            className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                           >
                             {t('crm.staff.profile.delete')}
                           </button>

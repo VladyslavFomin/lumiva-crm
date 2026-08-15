@@ -1628,7 +1628,7 @@ export const DashboardPage: React.FC = () => {
                 />
                 <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-neutral-100 pt-5">
                   <button type="button" onClick={() => { removeWidgetBlock(widgetEditId); setWidgetEditOpen(false); setWidgetEditId(null); }}
-                    className="rounded-xl border border-rose-300/80 bg-rose-50 px-3.5 py-2 text-[12px] font-medium text-rose-800 hover:bg-rose-100">
+                    className="rounded-xl border border-[#f0c8cf] bg-[#fbecef] px-3.5 py-2 text-[12px] font-medium text-[#9a1f31] hover:bg-[#f7d8dd]">
                     {t('crm.dashboard.widgets.deleteBlock')}
                   </button>
                   <div className="flex items-center gap-2">

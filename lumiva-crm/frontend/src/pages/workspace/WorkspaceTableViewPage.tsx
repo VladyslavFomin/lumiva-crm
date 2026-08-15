@@ -5,6 +5,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import '../projects/ProjectsListPage.css';
 import { ApiError } from '../../api/client';
 import { MainLayout } from '../../layout/MainLayout';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   createCustomObjectField,
   createCustomObjectRecord,
@@ -142,10 +143,6 @@ type Subitem = {
   values: Record<string, any>;
 };
 
-type DeleteDialogState =
-  | { kind: 'column'; field: CustomObjectField }
-  | { kind: 'group'; groupTitle: string; itemCount: number };
-
 /** Позиция выпадашки owner/multiselect в viewport (для портала в body) */
 type ActiveMultiCellState = {
   recordId: string;
@@ -156,6 +153,7 @@ type ActiveMultiCellState = {
 
 export const WorkspaceTableViewPage: React.FC = () => {
   const { t, i18n } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const navigate = useNavigate();
   const { objectId = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -338,7 +336,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
     recordId: string;
     subitemId: string;
   } | null>(null);
-  const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [rowMenuRecordId, setRowMenuRecordId] = useState<string | null>(null);
   const [bulkTargetGroup, setBulkTargetGroup] = useState('');
@@ -1482,6 +1479,16 @@ export const WorkspaceTableViewPage: React.FC = () => {
   };
 
   const deleteRow = async (recordId: string) => {
+    const ok = await showConfirm(
+      `Удалить запись? ${t('crm.workspace.table.deleteIrreversible')}`,
+      {
+        title: t('crm.workspace.table.deleteConfirm'),
+        confirmLabel: t('crm.workspace.table.bulkDelete'),
+        cancelLabel: t('crm.workspace.table.cancel'),
+        danger: true,
+      },
+    );
+    if (!ok) return;
     await deleteCustomObjectRecord(objectId, recordId);
     await loadRecords();
   };
@@ -1500,7 +1507,13 @@ export const WorkspaceTableViewPage: React.FC = () => {
 
   const handleClearTable = async () => {
     if (!objectId) return;
-    if (!window.confirm(t('crm.workspace.table.clearAllConfirm'))) return;
+    const ok = await showConfirm(t('crm.workspace.table.clearAllConfirm'), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setBulkProcessing(true);
     setActionError(null);
     try {
@@ -1516,6 +1529,16 @@ export const WorkspaceTableViewPage: React.FC = () => {
 
   const bulkDeleteRows = async () => {
     if (selectedIds.size === 0) return;
+    const ok = await showConfirm(
+      `Удалить ${selectedIds.size} записей? ${t('crm.workspace.table.deleteIrreversible')}`,
+      {
+        title: t('crm.workspace.table.deleteConfirm'),
+        confirmLabel: t('crm.workspace.table.bulkDelete'),
+        cancelLabel: t('crm.workspace.table.cancel'),
+        danger: true,
+      },
+    );
+    if (!ok) return;
     setBulkProcessing(true);
     try {
       await Promise.all(Array.from(selectedIds).map((id) => deleteCustomObjectRecord(objectId, id)));
@@ -1830,25 +1853,40 @@ export const WorkspaceTableViewPage: React.FC = () => {
     await reloadAll();
   };
 
+  const deleteColumn = async (field: CustomObjectField) => {
+    const ok = await showConfirm(`${t('crm.workspace.table.deleteColumnConfirm', { label: field.label })} ${t('crm.workspace.table.deleteIrreversible')}`, {
+      title: t('crm.workspace.table.deleteConfirm'),
+      confirmLabel: t('crm.workspace.table.bulkDelete'),
+      cancelLabel: t('crm.workspace.table.cancel'),
+      danger: true,
+    });
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      await deleteCustomObjectField(objectId, field.id);
+      await reloadAll();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const deleteGroup = async (groupTitle: string) => {
     const groupRecords = groupedRecords.find((g) => g.title === groupTitle)?.items || [];
     if (!groupRecords.length) return;
-    setDeleteDialog({ kind: 'group', groupTitle, itemCount: groupRecords.length });
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteDialog) return;
+    const ok = await showConfirm(
+      `${t('crm.workspace.table.deleteGroupConfirm', { title: groupTitle, count: groupRecords.length })} ${t('crm.workspace.table.deleteIrreversible')}`,
+      {
+        title: t('crm.workspace.table.deleteConfirm'),
+        confirmLabel: t('crm.workspace.table.bulkDelete'),
+        cancelLabel: t('crm.workspace.table.cancel'),
+        danger: true,
+      },
+    );
+    if (!ok) return;
     setDeleting(true);
     try {
-      if (deleteDialog.kind === 'column') {
-        await deleteCustomObjectField(objectId, deleteDialog.field.id);
-        await reloadAll();
-      } else {
-        const groupRecords = groupedRecords.find((g) => g.title === deleteDialog.groupTitle)?.items || [];
-        await Promise.all(groupRecords.map((record) => deleteCustomObjectRecord(objectId, record.id)));
-        await loadRecords();
-      }
-      setDeleteDialog(null);
+      await Promise.all(groupRecords.map((record) => deleteCustomObjectRecord(objectId, record.id)));
+      await loadRecords();
     } finally {
       setDeleting(false);
     }
@@ -3023,7 +3061,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                 onClick={() => void handleClearTable()}
                 disabled={bulkProcessing || loading}
                 className="lv-tb-btn"
-                style={{ borderColor: '#fecaca', color: '#b91c1c' }}
+                style={{ borderColor: '#f0c8cf', color: '#9a1f31' }}
               >
                 {t('crm.workspace.table.clearAllButton')}
               </button>
@@ -3307,7 +3345,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                   onClick={() => void bulkDeleteRows()}
                   disabled={bulkProcessing}
                   className="lv-tb-btn px-2 py-1 text-xs disabled:opacity-60"
-                  style={{ borderColor: '#fecaca', color: '#b91c1c' }}
+                  style={{ borderColor: '#f0c8cf', color: '#9a1f31' }}
                 >
                   {bulkProcessing ? t('crm.workspace.table.deleting') : t('crm.workspace.table.bulkDelete')}
                 </button>
@@ -3487,10 +3525,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setDeleteDialog({ kind: 'column', field });
+                                    void deleteColumn(field);
                                     setColumnMenuState(null);
                                   }}
-                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center justify-center gap-2"
+                                  className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-[#fbecef] text-[#9a1f31] flex items-center justify-center gap-2"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4 shrink-0">
                                     <path d="M3 6h18" />
@@ -3789,7 +3827,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   void deleteRow(record.id);
                                                   setRowMenuRecordId(null);
                                                 }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-[#9a1f31] hover:bg-[#fbecef]"
                                               >
                                                 {t('crm.workspace.table.deleteRow')}
                                               </button>
@@ -4027,7 +4065,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                       <button
                                                         type="button"
                                                         onClick={() => void deleteSubitem(record, subitem.id)}
-                                                        className="mx-auto block text-[11px] text-rose-500 hover:text-rose-600"
+                                                        className="mx-auto block text-[11px] text-[#9a1f31] hover:text-[#9a1f31] hover:bg-[#fbecef] rounded"
                                                       >
                                                         {t('crm.workspace.table.bulkDelete')}
                                                       </button>
@@ -4232,7 +4270,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                             type="button"
                             onClick={() => void deleteGroup(group.title)}
                             disabled={incompleteDataset}
-                            className="h-6 w-6 rounded-full text-rose-500 hover:bg-rose-50 opacity-0 group-hover/header:opacity-100 transition-opacity disabled:opacity-30 disabled:pointer-events-none border-0 bg-transparent cursor-pointer"
+                            className="h-6 w-6 rounded-full text-[#9a1f31] hover:bg-[#fbecef] opacity-0 group-hover/header:opacity-100 transition-opacity disabled:opacity-30 disabled:pointer-events-none border-0 bg-transparent cursor-pointer"
                             title={
                               incompleteDataset
                                 ? t('crm.workspace.table.deleteGroupDisabledPaged')
@@ -4455,10 +4493,10 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                       <button
                                         type="button"
                                         onClick={() => {
-                                          setDeleteDialog({ kind: 'column', field });
+                                          void deleteColumn(field);
                                           setColumnMenuState(null);
                                         }}
-                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-rose-50 text-rose-600 flex items-center justify-center gap-2"
+                                        className="w-full text-center text-xs px-2 py-1.5 rounded-lg hover:bg-[#fbecef] text-[#9a1f31] flex items-center justify-center gap-2"
                                       >
                                         <svg
                                           xmlns="http://www.w3.org/2000/svg"
@@ -4713,7 +4751,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                   void deleteRow(record.id);
                                                   setRowMenuRecordId(null);
                                                 }}
-                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-rose-600 hover:bg-rose-50"
+                                                className="w-full text-center text-xs px-2 py-1.5 rounded-lg text-[#9a1f31] hover:bg-[#fbecef]"
                                               >
                                                 {t('crm.workspace.table.deleteRow')}
                                               </button>
@@ -4976,7 +5014,7 @@ export const WorkspaceTableViewPage: React.FC = () => {
                                                       <button
                                                         type="button"
                                                         onClick={() => void deleteSubitem(record, subitem.id)}
-                                                        className="mx-auto block text-[11px] text-rose-500 hover:text-rose-600"
+                                                        className="mx-auto block text-[11px] text-[#9a1f31] hover:text-[#9a1f31] hover:bg-[#fbecef] rounded"
                                                       >
                                                         {t('crm.workspace.table.bulkDelete')}
                                                       </button>
@@ -5273,65 +5311,6 @@ export const WorkspaceTableViewPage: React.FC = () => {
           crmProjectOptions={crmProjectList}
           crmCompanyOptions={crmCompanyList}
         />
-
-        {deleteDialog && (
-          <div className="fixed inset-0 z-50">
-            <div
-              className="absolute inset-0 bg-black/40 backdrop-blur-[1px]"
-              onClick={() => {
-                if (!deleting) setDeleteDialog(null);
-              }}
-            />
-            <div className="absolute left-1/2 top-1/2 w-full max-w-lg -translate-x-1/2 -translate-y-1/2 modal-panel p-6">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-status-error-bg text-status-error">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    className="h-5 w-5"
-                  >
-                    <path d="M12 9v4" />
-                    <path d="M12 17h.01" />
-                    <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.72 3h16.92a2 2 0 0 0 1.72-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-lg font-semibold text-[#111827]">{t('crm.workspace.table.deleteConfirm')}</h3>
-                  <p className="mt-1 text-sm text-text-secondary">
-                    {deleteDialog.kind === 'column'
-                      ? t('crm.workspace.table.deleteColumnConfirm', { label: deleteDialog.field.label })
-                      : t('crm.workspace.table.deleteGroupConfirm', {
-                          title: deleteDialog.groupTitle,
-                          count: deleteDialog.itemCount,
-                        })}
-                  </p>
-                  <p className="mt-2 text-xs text-text-tertiary">{t('crm.workspace.table.deleteIrreversible')}</p>
-                </div>
-              </div>
-              <div className="mt-6 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDeleteDialog(null)}
-                  disabled={deleting}
-                  className="btn-secondary disabled:opacity-60"
-                >
-                  {t('crm.workspace.table.cancel')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void confirmDelete()}
-                  disabled={deleting}
-                  className="btn-danger disabled:opacity-60"
-                >
-                  {deleting ? t('crm.workspace.table.deleting') : t('crm.workspace.table.bulkDelete')}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
 
         {showEditField && editingField && (
           <div className="fixed inset-0 z-50">

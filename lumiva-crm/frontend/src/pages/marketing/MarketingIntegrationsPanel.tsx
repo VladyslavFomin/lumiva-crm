@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   createMarketingIntegration,
   deleteMarketingIntegration,
@@ -157,6 +158,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   listRefreshSignal = 0,
 }) => {
   const { t } = useTranslation();
+  const { showConfirm } = useAlertModal();
   const embedded = variant === 'embedded';
   const modal = variant === 'modal';
   const [list, setList] = useState<MarketingIntegrationRow[]>([]);
@@ -678,7 +680,13 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   };
 
   const onDelete = async (row: MarketingIntegrationRow) => {
-    if (!window.confirm(t('crm.marketingIntegrations.confirmDelete', { name: row.name }))) return;
+    const ok = await showConfirm(t('crm.marketingIntegrations.confirmDelete', { name: row.name }), {
+      title: 'Удаление',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
+    if (!ok) return;
     setDeletingId(row.id);
     setError(null);
     try {
@@ -900,7 +908,7 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                         type="button"
                         disabled={isDeleting}
                         onClick={() => onDelete(row)}
-                        className="w-[34px] h-[34px] border border-[#e7e7e7] rounded-lg bg-white text-[#555] flex items-center justify-center hover:border-red-400 hover:text-red-500 disabled:opacity-40"
+                        className="inline-flex items-center justify-center w-[34px] h-[34px] rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                         title="Удалить"
                       >
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 7h16"/><path d="M9 7V4h6v3"/><path d="M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg>

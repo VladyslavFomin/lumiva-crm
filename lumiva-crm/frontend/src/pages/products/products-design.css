@@ -59,7 +59,7 @@
 .px-scope .aib.ghost{background:#fff;color:var(--ink);border-color:var(--line-2)}
 .px-scope .aib.ghost:hover{border-color:var(--ink);background:#fff}
 .px-scope .aib.sm{padding:7px 12px;font-size:12px}
-.px-scope .aib.danger{background:#fff;color:#cc2f47;border-color:#f0c8cf}
+.px-scope .aib.danger{background:#fff;color:#9a1f31;border-color:#f0c8cf}
 .px-scope .aib.danger:hover{background:#fbecef}
 
 /* ---- toolbar search / icon button (lightweight local version of cabinet.css primitives) ---- */
@@ -97,7 +97,7 @@
 .px-scope .px-kpi .v .u{font-size:12px;color:var(--fg-3);font-weight:500;margin-left:2px}
 .px-scope .px-kpi .d{font-family:var(--ff-mono);font-size:10px;color:var(--fg-3);margin-top:6px}
 .px-scope .px-kpi .d.warn{color:#c08319}
-.px-scope .px-kpi .d.bad{color:#cc2f47}
+.px-scope .px-kpi .d.bad{color:#9a1f31}
 
 .px-scope .px-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
 
@@ -131,7 +131,7 @@
 @media (hover:none){.px-scope .px-row-actions{opacity:1}}
 .px-scope .px-row-actions button{width:26px;height:26px;border:0;background:none;color:var(--fg-3);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
 .px-scope .px-row-actions button:hover{background:var(--bg-soft);color:var(--ink)}
-.px-scope .px-row-actions button.danger:hover{color:#cc2f47;background:#fbecef}
+.px-scope .px-row-actions button.danger:hover{color:#9a1f31;background:#fbecef}
 
 .px-scope .pr-badge{display:inline-flex;align-items:center;gap:5px;font-family:var(--ff-mono);font-size:9px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid}
 .px-scope .pr-badge.active{color:#1f8a5e;border-color:#c5e3d2;background:#eaf4ee}
@@ -176,7 +176,7 @@
 .px-scope .px-field-row-actions{display:flex;gap:2px}
 .px-scope .px-field-row-actions button{width:26px;height:26px;border:0;background:none;color:var(--fg-3);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
 .px-scope .px-field-row-actions button:hover{background:var(--bg-soft);color:var(--ink)}
-.px-scope .px-field-row-actions button.danger:hover{color:#cc2f47;background:#fbecef}
+.px-scope .px-field-row-actions button.danger:hover{color:#9a1f31;background:#fbecef}
 
 .px-scope .px-field-detail{border-top:1px solid var(--line-2);padding:16px;background:var(--bg-muted)}
 .px-scope .px-fd-row{display:grid;grid-template-columns:180px 1fr;gap:16px;padding:11px 0;border-bottom:1px solid var(--line-3);align-items:flex-start}
@@ -237,7 +237,7 @@
 .px-scope .pr-kpi .v .u{font-size:12px;color:var(--fg-3);font-weight:500;margin-left:2px}
 .px-scope .pr-kpi .d{font-family:var(--ff-mono);font-size:10px;color:var(--fg-3);margin-top:6px}
 .px-scope .pr-kpi .d.warn{color:#c08319}
-.px-scope .pr-kpi .d.bad{color:#cc2f47}
+.px-scope .pr-kpi .d.bad{color:#9a1f31}
 
 .px-scope .pr-body{display:grid;grid-template-columns:260px 1fr;gap:18px;align-items:start}
 @media (max-width:960px){.px-scope .pr-body{grid-template-columns:1fr}}
@@ -290,7 +290,7 @@
 .px-scope .pr-stockbar .track{flex:1;height:5px;background:var(--line-3);border-radius:3px;overflow:hidden}
 .px-scope .pr-stockbar .track span{display:block;height:100%;border-radius:3px;background:var(--ink)}
 .px-scope .pr-stockbar.low .track span{background:#c08319}
-.px-scope .pr-stockbar.out .track span{background:#cc2f47}
+.px-scope .pr-stockbar.out .track span{background:#9a1f31}
 .px-scope .pr-stockbar .n{font-family:var(--ff-mono);font-size:11px;color:var(--ink);min-width:26px;text-align:right}
 .px-scope .pr-cat-tag{font-family:var(--ff-mono);font-size:10.5px;color:var(--fg-2);padding:3px 8px;border:1px solid var(--line-2);border-radius:6px;background:var(--bg-muted);display:inline-flex;align-items:center;gap:5px}
 .px-scope .pr-cat-tag .sw{width:6px;height:6px;border-radius:2px}
@@ -308,7 +308,7 @@
 .px-scope .pr-gcard .price{font-family:var(--ff-display);font-size:15px;font-weight:600;color:var(--ink);letter-spacing:-0.015em}
 .px-scope .pr-gcard .stock{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:0.02em;color:var(--fg-3)}
 .px-scope .pr-gcard .stock.low{color:#c08319}
-.px-scope .pr-gcard .stock.out{color:#cc2f47}
+.px-scope .pr-gcard .stock.out{color:#9a1f31}
 
 /* category color modal */
 .px-scope .pr-cat-modal-back{position:fixed;inset:0;background:rgba(20,20,20,0.42);backdrop-filter:blur(4px);z-index:70;display:flex;align-items:center;justify-content:center;animation:pxFade .15s ease}
@@ -348,7 +348,7 @@
 .px-scope .wh-move-item .d{color:var(--ink)}
 .px-scope .wh-move-item .qty{font-family:var(--ff-mono);font-weight:600}
 .px-scope .wh-move-item .qty.in{color:#1f8a5e}
-.px-scope .wh-move-item .qty.out{color:#cc2f47}
+.px-scope .wh-move-item .qty.out{color:#9a1f31}
 
 /* ============================================
    BULK ACTION BAR (bottom-fixed, catalog)
@@ -399,7 +399,7 @@
 .px-scope .an-list-row .val{font-family:var(--ff-mono);font-size:11.5px;color:var(--fg-2);flex-shrink:0}
 .px-scope .an-list-row .qty{font-family:var(--ff-mono);font-size:11px;flex-shrink:0;padding:2px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--fg-2)}
 .px-scope .an-list-row .qty.warn{color:#c08319;border-color:#f0d9a8;background:#fbf2dc}
-.px-scope .an-list-row .qty.bad{color:#cc2f47;border-color:#f0c8cf;background:#fbecef}
+.px-scope .an-list-row .qty.bad{color:#9a1f31;border-color:#f0c8cf;background:#fbecef}
 
 /* ============================================
    ANALYTICS BUILDER (drag/drop конструктор дашборда — "как в Продажах", свой движок)
@@ -430,7 +430,7 @@
 .px-scope .pxb-block.editing .pxb-block-actions{display:flex}
 .px-scope .pxb-block-actions button{width:24px;height:24px;border:0;background:none;color:var(--fg-3);border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:background .12s,color .12s}
 .px-scope .pxb-block-actions button:hover{background:var(--bg-soft);color:var(--ink)}
-.px-scope .pxb-block-actions button.danger:hover{color:#cc2f47;background:#fbecef}
+.px-scope .pxb-block-actions button.danger:hover{color:#9a1f31;background:#fbecef}
 .px-scope .pxb-block-body{flex:1;min-height:0;padding:4px 14px 14px;overflow:auto}
 .px-scope .pxb-resize{position:absolute;background:transparent;z-index:5}
 .px-scope .pxb-resize.r{top:0;right:-4px;width:8px;height:100%;cursor:ew-resize}
@@ -532,7 +532,7 @@
 .px-scope .pd-price-row{display:flex;align-items:baseline;gap:10px;padding:16px 18px;flex-wrap:wrap}
 .px-scope .pd-price-row .cur{font-family:var(--ff-display);font-size:30px;font-weight:600;letter-spacing:-0.025em;color:var(--ink)}
 .px-scope .pd-price-row .old{font-family:var(--ff-mono);font-size:14px;color:var(--fg-4);text-decoration:line-through}
-.px-scope .pd-price-row .disc{font-family:var(--ff-mono);font-size:10.5px;font-weight:600;letter-spacing:0.04em;color:#cc2f47;background:#fbecef;border:1px solid #f0c8cf;padding:2px 7px;border-radius:6px}
+.px-scope .pd-price-row .disc{font-family:var(--ff-mono);font-size:10.5px;font-weight:600;letter-spacing:0.04em;color:#9a1f31;background:#fbecef;border:1px solid #f0c8cf;padding:2px 7px;border-radius:6px}
 .px-scope .pd-price-edit{display:flex;flex-wrap:wrap;gap:14px;padding:16px 18px}
 .px-scope .pd-price-edit .f{flex:1 1 120px;min-width:0}
 .px-scope .pd-price-edit label{display:block;font-family:var(--ff-mono);font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--fg-3);margin-bottom:5px}
@@ -569,7 +569,7 @@
 .px-scope .pd-stock-bar{height:7px;background:var(--line-3);border-radius:4px;overflow:hidden;position:relative}
 .px-scope .pd-stock-bar .fill{height:100%;background:var(--ink);border-radius:4px}
 .px-scope .pd-stock-bar.low .fill{background:#c08319}
-.px-scope .pd-stock-bar.out .fill{background:#cc2f47}
+.px-scope .pd-stock-bar.out .fill{background:#9a1f31}
 .px-scope .pd-stock-bar-lbl{display:flex;justify-content:space-between;font-family:var(--ff-mono);font-size:10.5px;color:var(--fg-3);margin-top:7px}
 
 /* ============================================

@@ -38,6 +38,8 @@ import type {
 } from './google-sheets/google-sheets-sync.service';
 import { GoogleCalendarOAuthStartDto } from './dto/google-calendar-oauth-start.dto';
 import { GoogleCalendarOAuthService } from './google-calendar/google-calendar-oauth.service';
+import { OutlookCalendarOAuthStartDto } from './dto/outlook-calendar-oauth-start.dto';
+import { OutlookCalendarOAuthService } from './outlook/outlook-calendar-oauth.service';
 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
@@ -52,6 +54,7 @@ export class IntegrationsController {
     private readonly integrationHubCatalog: IntegrationHubCatalogService,
     private readonly googleSheetsSync: GoogleSheetsSyncService,
     private readonly googleCalendarOAuth: GoogleCalendarOAuthService,
+    private readonly outlookCalendarOAuth: OutlookCalendarOAuthService,
   ) {}
 
   /**
@@ -247,6 +250,60 @@ export class IntegrationsController {
     }
     try {
       const path = await this.googleCalendarOAuth.completeRedirect(
+        code.trim(),
+        state.trim(),
+      );
+      const rel = path.startsWith('/') ? path : `/${path}`;
+      return res.redirect(`${frontend}${rel}`);
+    } catch {
+      return fail();
+    }
+  }
+
+  /**
+   * OAuth Outlook / Microsoft 365 Calendar (scope Calendars.ReadWrite). Зарегистрируйте redirect в Azure AD:
+   * `{PUBLIC_API_URL}/v1/integrations/outlook-calendar/oauth/callback`
+   */
+  @Post('outlook-calendar/oauth/start')
+  @UseGuards(JwtAuthGuard)
+  async outlookCalendarOauthStart(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: OutlookCalendarOAuthStartDto,
+  ): Promise<{ url: string }> {
+    const tenantId = user.tenantId;
+    if (!tenantId) {
+      throw new BadRequestException('No tenant in auth payload');
+    }
+    const uid = String(user.userId || user.id || user.sub || '').trim();
+    if (!uid) {
+      throw new BadRequestException('No user id in auth payload');
+    }
+    const url = await this.outlookCalendarOAuth.buildAuthorizeUrl(tenantId, uid, body);
+    return { url };
+  }
+
+  /**
+   * Публичный callback Microsoft (без JWT): целостность через подписанный state.
+   */
+  @Get('outlook-calendar/oauth/callback')
+  async outlookCalendarOauthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') oauthError: string | undefined,
+    @Res() res: Response,
+  ) {
+    const frontend = (
+      process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
+    ).replace(/\/$/, '');
+    const fail = () =>
+      res.redirect(
+        `${frontend}/integrations-hub?tab=connections&outlookCalendarOAuth=error`,
+      );
+    if (oauthError || !code?.trim() || !state?.trim()) {
+      return fail();
+    }
+    try {
+      const path = await this.outlookCalendarOAuth.completeRedirect(
         code.trim(),
         state.trim(),
       );

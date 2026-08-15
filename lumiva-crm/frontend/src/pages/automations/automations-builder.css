@@ -76,8 +76,8 @@
 .ab-root .ab-btn-primary { background: var(--ink); color: #fff; border-color: var(--ink); }
 .ab-root .ab-btn-primary:hover { background: #000; border-color: #000; }
 .ab-root .ab-btn-sm { padding: 6px 12px; font-size: 12px; }
-.ab-root .ab-btn-danger { color: #cc2f47; border-color: #fcc; }
-.ab-root .ab-btn-danger:hover { background: #fff5f5; border-color: #cc2f47; }
+.ab-root .ab-btn-danger { color: #9a1f31; border-color: #f0c8cf; }
+.ab-root .ab-btn-danger:hover { background: #fbecef; border-color: #9a1f31; }
 
 /* ============================================================
    TOP STRIP
@@ -304,7 +304,7 @@
   justify-content: center; transition: background .12s, color .12s;
 }
 .flow-step-actions button:hover { background: var(--bg-soft); color: var(--ink); }
-.flow-step-actions button.danger:hover { color: #cc2f47; }
+.flow-step-actions button.danger:hover { color: #9a1f31; background: #fbecef; }
 .flow-connector {
   height: 36px; width: 2px; position: relative;
   display: flex; flex-direction: column; align-items: center; justify-content: center;

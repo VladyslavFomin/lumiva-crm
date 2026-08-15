@@ -425,7 +425,7 @@ export const HotelRoomPricingPage: React.FC = () => {
                           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
                             <span style={{ cursor: 'pointer' }} onClick={() => setEditingLabelId(row.id)} title="Переименовать">{row.label}</span>
                             <button
-                              style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
+                              style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
                               title="Удалить строку"
                               onClick={() => removeOccupancyRow(row)}
                             >
