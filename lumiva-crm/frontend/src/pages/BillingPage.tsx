@@ -59,10 +59,11 @@ const FEATURE_LABELS: Record<string, { ru: string; en: string; tr: string }> = {
 
 const DEFAULT_PLANS: BillingCatalogPlan[] = [];
 
-export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | null }> = ({
-  embedded = false,
-  currentPlan,
-}) => {
+export const BillingPage: React.FC<{
+  embedded?: boolean;
+  currentPlan?: string | null;
+  trialEndsAt?: string | null;
+}> = ({ embedded = false, currentPlan, trialEndsAt }) => {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -73,11 +74,14 @@ export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | 
   const [loadingPlan, setLoadingPlan] = React.useState<PlanCode | null>(null);
   const [portalLoading, setPortalLoading] = React.useState(false);
   const [ownPlan, setOwnPlan] = React.useState<string | null | undefined>(currentPlan);
+  const [ownTrialEndsAt, setOwnTrialEndsAt] = React.useState<string | null | undefined>(trialEndsAt);
   const [featureUnlocks, setFeatureUnlocks] = React.useState<Record<PlanCode, string[]> | null>(null);
   const [status, setStatus] = React.useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(
     null,
   );
   const resolvedPlan = normalizePlanCode(currentPlan !== undefined ? currentPlan : ownPlan);
+  const resolvedTrialEndsAt = trialEndsAt !== undefined ? trialEndsAt : ownTrialEndsAt;
+  const isTrialActive = !!resolvedTrialEndsAt && new Date(resolvedTrialEndsAt).getTime() > Date.now();
   const sessionId = params.get('session_id');
   const cancelled = params.get('cancelled');
   const renew = params.get('renew') === '1';
@@ -113,6 +117,7 @@ export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | 
           footer: 'Lumiva CRM billing and renewals',
           recommended: 'Recommended',
           currentPlanBadge: 'Your current plan',
+          keepPlan: 'Keep this plan',
           upgradeTo: 'Upgrade',
           downgradeTo: 'Switch to this plan',
           paymentMethods: 'Payment methods',
@@ -143,6 +148,7 @@ export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | 
             footer: 'Lumiva CRM faturalandırma ve yenilemeler',
             recommended: 'Önerilen',
             currentPlanBadge: 'Mevcut planınız',
+            keepPlan: 'Bu planı koru',
             upgradeTo: 'Yükselt',
             downgradeTo: 'Bu plana geç',
             paymentMethods: 'Ödeme yöntemleri',
@@ -172,6 +178,7 @@ export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | 
             footer: 'Lumiva CRM · биллинг и продления',
             recommended: 'Рекомендуем',
             currentPlanBadge: 'Ваш текущий план',
+            keepPlan: 'Оставить этот план',
             upgradeTo: 'Улучшить',
             downgradeTo: 'Перейти на этот план',
             paymentMethods: 'Способы оплаты',
@@ -231,7 +238,10 @@ export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | 
     if (currentPlan !== undefined) return; // передано снаружи — не подтягиваем сами
     if (!getAccessToken()) return;
     fetchCompanySettings({ skipUnauthorizedRedirect: true })
-      .then((data) => setOwnPlan(data.plan))
+      .then((data) => {
+        setOwnPlan(data.plan);
+        setOwnTrialEndsAt(data.trialEndsAt ?? null);
+      })
       .catch(() => {
         // неавторизован / не удалось — просто не подсвечиваем текущий план
       });
@@ -488,7 +498,7 @@ export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | 
                   </li>
                 ))}
               </ul>
-              {isCurrent ? (
+              {isCurrent && !isTrialActive ? (
                 <div
                   className={`mt-8 w-full rounded-xl border border-emerald-200 bg-emerald-50 text-center font-semibold text-emerald-700 ${
                     embedded ? 'px-4 py-2.5 text-sm' : 'px-4 py-3 text-sm'
@@ -511,7 +521,9 @@ export const BillingPage: React.FC<{ embedded?: boolean; currentPlan?: string | 
                 >
                   {loadingPlan === plan.code
                     ? text.loading
-                    : isUpgrade
+                    : isCurrent
+                      ? text.keepPlan
+                      : isUpgrade
                       ? text.upgradeTo
                       : isDowngrade
                         ? text.downgradeTo

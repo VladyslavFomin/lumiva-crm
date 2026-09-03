@@ -29,6 +29,7 @@ export interface CompanySettings {
   plan: string;
   apiEnabled?: boolean;
   activeUntil: string | null;
+  trialEndsAt?: string | null;
   ownerName?: string | null;
   ownerEmail?: string | null;
   notes?: string | null;

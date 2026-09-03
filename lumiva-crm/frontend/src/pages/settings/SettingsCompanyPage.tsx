@@ -723,7 +723,7 @@ export const SettingsCompanyPage: React.FC = () => {
                   <div className="st-billing-hint">{t('crm.settings.company.billing.hint')}</div>
                 </div>
 
-                <BillingPage embedded currentPlan={data.plan} />
+                <BillingPage embedded currentPlan={data.plan} trialEndsAt={data.trialEndsAt} />
               </div>
             )}
 
