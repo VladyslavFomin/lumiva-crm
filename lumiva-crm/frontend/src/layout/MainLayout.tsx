@@ -7,6 +7,7 @@ import {
   isBillingLocked,
   getStoredTenantName,
   updateStoredTenantName,
+  getTrialDaysLeft,
   SESSION_USER_UPDATED_EVENT,
 } from '../auth/session';
 import { WorkspaceSidebarBlock } from '../components/layout/WorkspaceSidebarBlock';
@@ -31,14 +32,16 @@ import {
   normalizeAssigneesToStaffIds,
   toggleTaskAssigneeIds,
 } from '../pages/projects/taskAssignees';
+import { isTextMentioning } from '../pages/projects/mentions';
 import { fetchStaffPermissions, fetchUserPermissions, type PermissionKey, type RolePermissionMatrix, type UserPermissionMatrix } from '../api/rbac';
 import { fetchTenantComponents, type TenantComponent } from '../api/tenants';
 import { fetchCustomObject } from '../api/customObjects';
+import { fetchPendingApprovals } from '../api/automations';
 import {
   fetchCompanySettings,
   TENANT_BRANDING_EVENT,
 } from '../api/settings';
-import { resolvePublicAssetUrl } from '../api/client';
+import { resolvePublicAssetUrl, readForbiddenNotice, clearForbiddenNotice, persistForbiddenNotice } from '../api/client';
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/withTimeout';
 import { AiAssistantPanel } from '../components/ai/AiAssistantPanel';
 import { AiAssistantTriggerIcon } from '../components/ai/AiAssistantTriggerIcon';
@@ -67,9 +70,9 @@ interface MainLayoutProps {
   fullBleed?: boolean;
 }
 
-type NavChild = { label: string; path: string; matchPaths?: string[] };
-type NavSectionId = 'main' | 'clients' | 'tools' | 'management';
-type NavCountBadge = 'leads' | 'projects' | 'chat';
+type NavChild = { label: string; path: string; matchPaths?: string[]; countBadge?: NavCountBadge };
+type NavSectionId = 'main' | 'clients' | 'communications' | 'bookings' | 'sales' | 'marketing' | 'tools' | 'management';
+type NavCountBadge = 'leads' | 'projects' | 'chat' | 'approvals';
 type NavItem = {
   label: string;
   path: string;
@@ -80,7 +83,8 @@ type NavItem = {
   matchPaths?: string[];
 };
 
-const NAV_SECTION_ORDER: NavSectionId[] = ['main', 'clients', 'tools', 'management'];
+const NAV_SECTION_ORDER: NavSectionId[] = ['main', 'clients', 'bookings', 'sales', 'communications', 'marketing', 'tools', 'management'];
+const COLLAPSIBLE_NAV_SECTIONS: NavSectionId[] = ['clients', 'bookings', 'sales', 'marketing', 'tools', 'management'];
 
 function normalizeLayoutPath(pathname: string): string {
   if (pathname.startsWith('/app/')) return pathname.slice(4);
@@ -148,18 +152,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const { t, i18n } = useTranslation();
   const [, bumpSessionUser] = useReducer((n: number) => n + 1, 0);
   const user = getStoredUser();
-  const staffRoleLabel = useMemo(() => {
-    const raw = String(user?.role ?? 'owner').toLowerCase();
-    const key = `crm.staff.roles.${raw}`;
-    if (i18n.exists(key)) return t(key);
-    return String(user?.role ?? 'owner');
-  }, [user?.role, i18n, t]);
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [unreadChats, setUnreadChats] = useState(0);
   const [navLeadCount, setNavLeadCount] = useState<number | null>(null);
   const [navProjectCount, setNavProjectCount] = useState<number | null>(null);
+  const [pendingApprovalsCount, setPendingApprovalsCount] = useState(0);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsPreviewOpen, setNotificationsPreviewOpen] = useState(false);
   const [helpdeskQuickRequestOpen, setHelpdeskQuickRequestOpen] = useState(false);
@@ -177,6 +176,39 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     }>
   >([]);
   const [staff, setStaff] = useState<StaffUser[]>([]);
+  const DISMISSED_MENTIONS_KEY = 'lumiva_dismissed_mentions';
+  const [dismissedMentions, setDismissedMentions] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(DISMISSED_MENTIONS_KEY);
+      return raw ? new Set(JSON.parse(raw)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const dismissMention = (key: string) => {
+    setDismissedMentions((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      try {
+        localStorage.setItem(DISMISSED_MENTIONS_KEY, JSON.stringify(Array.from(next)));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+  const [commentMentions, setCommentMentions] = useState<
+    Array<{
+      entityKind: 'project' | 'lead';
+      projectId: string;
+      projectName: string;
+      leadId?: string;
+      commentId: string;
+      text: string;
+      author: string;
+      createdAt: string;
+    }>
+  >([]);
   const [notificationsLoading, setNotificationsLoading] = useState(false);
   const [openAssigneeMenuId, setOpenAssigneeMenuId] = useState<string | null>(null);
   const [notificationsTab, setNotificationsTab] = useState<
@@ -194,16 +226,28 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const [roleMatrix, setRoleMatrix] = useState<RolePermissionMatrix | null>(null);
   const [userMatrix, setUserMatrix] = useState<UserPermissionMatrix | null>(null);
   const [permsLoaded, setPermsLoaded] = useState(false);
+  const [staffLoaded, setStaffLoaded] = useState(false);
   const [tenantComponents, setTenantComponents] = useState<TenantComponent[]>([]);
   const [componentsLoaded, setComponentsLoaded] = useState(false);
   const billingLocked = isBillingLocked();
-  
+  const trialDaysLeft = getTrialDaysLeft();
+  const [trialBannerDismissed, setTrialBannerDismissed] = useState(false);
+  const [forbiddenNotice, setForbiddenNotice] = useState<{ path: string; ts: number } | null>(
+    () => readForbiddenNotice(),
+  );
+  useEffect(() => {
+    if (forbiddenNotice) clearForbiddenNotice();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Используем useRef для хранения флага загрузки, чтобы он не сбрасывался при ре-рендерах
   const componentsLoadedRef = useRef<{ userId: string | null; loaded: boolean }>({ userId: null, loaded: false });
   const loadingInProgressRef = useRef(false);
 
   /** Подменю: явное сворачивание стрелкой (иначе activeRoot снова раскрывает раздел) */
   const [sectionExpanded, setSectionExpanded] = useState<Record<string, boolean>>({});
+  /** Категории меню (аккордеон): null — не трогали (открыта категория активной страницы), 'none' — явно всё свёрнуто */
+  const [expandedCategory, setExpandedCategory] = useState<NavSectionId | 'none' | null>(null);
   const SIDEBAR_COLLAPSED_KEY = 'lumiva_sidebar_rail_v1';
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     try {
@@ -359,6 +403,27 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     };
   }, []);
 
+  // Поллинг шагов автоматизаций, ожидающих подтверждения
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const items = await fetchPendingApprovals();
+        if (!alive) return;
+        setPendingApprovalsCount(items.length);
+      } catch {
+        if (!alive) return;
+        setPendingApprovalsCount(0);
+      }
+    };
+    void load();
+    const timer = window.setInterval(load, 30000);
+    return () => {
+      alive = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
   /** Счётчики лидов / проектов для бейджей в меню */
   useEffect(() => {
     let alive = true;
@@ -387,20 +452,26 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
 
   const normalize = (value?: string | null) =>
     (value ?? '').toString().trim().toLowerCase();
-  const extractMentions = (text: string) => {
-    const matches = text.matchAll(/@([\p{L}\p{N}._-]+)/gu);
-    const result: string[] = [];
-    for (const match of matches) {
-      if (match[1]) result.push(match[1]);
-    }
-    return result;
-  };
+  const currentStaff = useMemo(
+    () => staff.find((u) => u.id === user?.id || u.email === user?.email),
+    [staff, user],
+  );
+  // currentStaff.role — свежая запись из /staff-users, а не user.role из localStorage,
+  // который фиксируется на момент логина и не меняется, пока сотрудник не перезайдёт (см.
+  // canAccess() ниже — тот же принцип). Без этого шапка показывала старую роль ("Продажи")
+  // ещё долго после того, как владелец сменил сотруднику роль на "Менеджер".
+  const staffRoleLabel = useMemo(() => {
+    const raw = String(currentStaff?.role ?? user?.role ?? 'owner').toLowerCase();
+    const key = `crm.staff.roles.${raw}`;
+    if (i18n.exists(key)) return t(key);
+    return raw;
+  }, [currentStaff?.role, user?.role, i18n, t]);
   const currentLabels = useMemo(
     () =>
-      [user?.name, user?.email]
+      [user?.name, user?.email, currentStaff?.fullName]
         .filter(Boolean)
         .map((v) => normalize(v as string)),
-    [user],
+    [user, currentStaff],
   );
   const statusOptions: ProjectTask['status'][] = [
     'К выполнению',
@@ -432,11 +503,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const loadTaskNotifications = async () => {
     setNotificationsLoading(true);
     try {
-      const [projectsRes, staffUsers] = await Promise.all([
+      const [projectsRes, staffUsers, leadsForMentions] = await Promise.all([
         fetchProjects(),
         fetchStaff(),
+        fetchLeadsList().catch(() => []),
       ]);
       setStaff(staffUsers);
+      const freshStaff = staffUsers.find((u) => u.id === user?.id || u.email === user?.email);
+      const freshLabels = [user?.name, user?.email, freshStaff?.fullName]
+        .filter(Boolean)
+        .map((v) => normalize(v as string));
       const detailed = await Promise.all(
         projectsRes.items.map((p) => fetchProject(p.id).catch(() => p)),
       );
@@ -450,6 +526,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         isDone: boolean;
         project: Project;
       }> = [];
+      const mentionedComments: Array<{
+        entityKind: 'project' | 'lead';
+        projectId: string;
+        projectName: string;
+        leadId?: string;
+        commentId: string;
+        text: string;
+        author: string;
+        createdAt: string;
+      }> = [];
       detailed.forEach((project) => {
         const cached = readProjectTasksCache(project.id);
         const source =
@@ -459,11 +545,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         projectsByIdRef.current[project.id] = project as Project;
         source.forEach((task) => {
           const assignees = (task.assignees || []).map((a) => normalize(a));
-          const mentions = extractMentions(task.title || '').map((m) =>
-            normalize(m),
-          );
-          const isAssigned = assignees.some((a) => currentLabels.includes(a));
-          const isMentioned = mentions.some((m) => currentLabels.includes(m));
+          const isAssigned = assignees.some((a) => freshLabels.includes(a));
+          const isMentioned = isTextMentioning(task.title || '', freshLabels);
           const isDone = isDoneStatus(task.status);
           result.push({
             projectId: project.id,
@@ -476,10 +559,39 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             project,
           });
         });
+        (project.comments || []).forEach((c) => {
+          if (!isTextMentioning(c.text || '', freshLabels)) return;
+          mentionedComments.push({
+            entityKind: 'project',
+            projectId: project.id,
+            projectName: project.name,
+            commentId: c.id,
+            text: c.text,
+            author: c.author,
+            createdAt: c.createdAt,
+          });
+        });
+      });
+      leadsForMentions.forEach((lead) => {
+        (lead.comments || []).forEach((c) => {
+          if (!isTextMentioning(c.text || '', freshLabels)) return;
+          mentionedComments.push({
+            entityKind: 'lead',
+            projectId: '',
+            projectName: lead.name || lead.email || lead.phone || t('crm.leads.calendar.fallbacks.lead', 'Лид'),
+            leadId: lead.id,
+            commentId: c.id,
+            text: c.text,
+            author: c.author,
+            createdAt: c.createdAt,
+          });
+        });
       });
       setTaskNotifications(result);
+      setCommentMentions(mentionedComments);
     } catch {
       setTaskNotifications([]);
+      setCommentMentions([]);
     } finally {
       setNotificationsLoading(false);
     }
@@ -489,6 +601,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     const base = taskNotifications.filter((item) => {
       if (notificationsTab === 'assigned' && !item.isAssigned) return false;
       if (notificationsTab === 'mentioned' && !item.isMentioned) return false;
+      if (
+        notificationsTab === 'mentioned' &&
+        dismissedMentions.has(`task:${item.taskId}`)
+      )
+        return false;
       if (filterProjectId && item.projectId !== filterProjectId) return false;
       if (filterStatus && item.task.status !== filterStatus) return false;
       return true;
@@ -512,7 +629,19 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     filterProjectId,
     filterStatus,
     currentLabels,
+    dismissedMentions,
   ]);
+
+  // Упоминания в комментариях проектов — отдельно от задач: своего статуса/приоритета
+  // у комментария нет, поэтому фильтр по статусу к ним не применяем.
+  const filteredCommentMentions = useMemo(() => {
+    if (notificationsTab === 'assigned' || notificationsTab === 'system') return [];
+    return commentMentions.filter(
+      (item) =>
+        (!filterProjectId || item.projectId === filterProjectId) &&
+        !dismissedMentions.has(`comment:${item.commentId}`),
+    );
+  }, [commentMentions, notificationsTab, filterProjectId, dismissedMentions]);
 
   const systemNotificationLink = (notification: InAppNotification): string | null => {
     const meta = notification.meta && typeof notification.meta === 'object' ? notification.meta : {};
@@ -526,6 +655,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (meta.type === 'email.message_received') return 'Почта';
     if (meta.type === 'email.calendar_invite_received') return 'Встреча';
     if (meta.type === 'helpdesk.ticket') return 'Хэлпдеск';
+    if (meta.type === 'automation.approval_pending') return 'Автоматизация';
+    if (meta.type === 'lead.assigned') return 'Лид';
+    if (meta.type === 'project.assigned') return 'Проект';
+    if (meta.type === 'company.assigned') return 'Компания';
+    if (meta.type === 'company_task.assigned') return 'Задача';
+    if (meta.type === 'reservation.assigned') return 'Бронь';
     return 'Система';
   };
 
@@ -622,7 +757,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     const target =
       projectsByIdRef.current[projectId] ?? (await fetchProject(projectId));
     writeProjectTasksCache(projectId, nextTasks);
-    await updateProject({ ...target, tasks: nextTasks }, { includeEmptyTasks: true });
+    // target can come from a cached notifications snapshot (projectsByIdRef, refreshed on its
+    // own schedule) rather than the live project — excludeStatus so this global, always-mounted
+    // widget (present on every page) never has a chance to silently overwrite a status change
+    // made elsewhere with a stale cached value.
+    await updateProject({ ...target, tasks: nextTasks }, { includeEmptyTasks: true, excludeStatus: true });
     tasksByProjectRef.current[projectId] = nextTasks;
     projectsByIdRef.current[projectId] = {
       ...target,
@@ -702,6 +841,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   };
 
   // загрузка матрицы прав (для не-owner)
+  //
+  // Зависимость — user?.id/user?.role (примитивы), а НЕ сам объект user: getStoredUser()
+  // делает JSON.parse(localStorage...) заново на каждый рендер MainLayout, так что user — новая
+  // ссылка каждый раз, даже когда содержимое не изменилось. С [user] в зависимостях этот эффект
+  // запускался на КАЖДЫЙ рендер: fetch → setRoleMatrix/setUserMatrix (тоже новые ссылки от
+  // JSON-ответа) → ре-рендер → user снова новая ссылка → эффект снова — бесконечный цикл
+  // повторных запросов без остановки. Sам по себе он не рвал данные (alive-guard не даёт устаревшему
+  // ответу перезаписать состояние), но заливал бэкенд и очередь запросов браузера постоянными
+  // дублями — отсюда и ощущение «то работает, то нет» при проверке ролей.
   useEffect(() => {
     if (!user || user.role === 'owner') {
       setPermsLoaded(true);
@@ -729,7 +877,38 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     return () => {
       alive = false;
     };
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role]);
+
+  // Свежий список сотрудников — единственный источник currentStaff (свежая роль/id для
+  // canAccess(), см. комментарий там). Раньше `staff` заполнялся ТОЛЬКО как побочный эффект
+  // открытия панели уведомлений (loadTaskNotifications) — то есть почти всегда оставался
+  // пустым, currentStaff был undefined, и canAccess() молча откатывался на user?.role —
+  // роль, зафиксированную в localStorage/сессии на момент логина. После смены роли сотруднику
+  // (владелец меняет Продажи → Менеджер и т.п.) это давало «доступы как у старой роли» для всей
+  // сессии, пока сотрудник случайно не откроет колокольчик уведомлений. Грузим здесь явно, на
+  // каждую смену пользователя.
+  useEffect(() => {
+    if (!user || user.role === 'owner') {
+      setStaffLoaded(true);
+      return;
+    }
+    let alive = true;
+    fetchStaff()
+      .then((list) => {
+        if (alive) setStaff(list);
+      })
+      .catch(() => {
+        /* оставляем staff как есть — canAccess() безопасно откатится на user?.role */
+      })
+      .finally(() => {
+        if (alive) setStaffLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role]);
 
   // загрузка компонентов тенанта - только один раз при монтировании или смене пользователя
   useEffect(() => {
@@ -857,7 +1036,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.projects'),
         path: '/projects',
         icon: 'projects',
-        section: 'clients',
+        section: 'main',
         countBadge: 'projects',
         matchPaths: ['/app/projects'],
         children: [
@@ -875,10 +1054,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.sales'),
         path: '/app/sales',
         icon: 'sales',
-        section: 'clients',
+        section: 'sales',
         children: [
           { label: t('crm.nav.sales'), path: '/app/sales' },
           { label: t('crm.nav.salesAnalytics'), path: '/app/sales/analytics' },
+          { label: t('crm.nav.salesPayments'), path: '/app/sales/payments' },
           { label: t('crm.nav.salesChannels'), path: '/app/sales/channels' },
           { label: t('crm.nav.salesIntegrations'), path: '/app/sales/integrations' },
           { label: t('crm.nav.salesImport'), path: '/app/sales/import' },
@@ -889,7 +1069,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.products'),
         path: '/app/products',
         icon: 'products',
-        section: 'clients',
+        section: 'sales',
         matchPaths: ['/app/products', '/products'],
         children: [
           { label: t('crm.nav.productsList'), path: '/app/products' },
@@ -905,7 +1085,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.booking'),
         path: '/bookings',
         icon: 'calendar',
-        section: 'clients',
+        section: 'bookings',
         matchPaths: ['/app/bookings'],
         children: [
           { label: t('crm.nav.bookingOverview'), path: '/bookings' },
@@ -925,7 +1105,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.hotels'),
         path: '/hotels',
         icon: 'calendar',
-        section: 'clients',
+        section: 'bookings',
         matchPaths: ['/app/hotels'],
         children: [
           { label: t('crm.nav.hotelsOverview'), path: '/hotels' },
@@ -954,7 +1134,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.mail'),
         path: '/app/email/inbox',
         icon: 'mail',
-        section: 'clients',
+        section: 'communications',
         matchPaths: [
           '/app/email',
           '/email',
@@ -971,7 +1151,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.chat'),
         path: '/app/chat',
         icon: 'chat',
-        section: 'clients',
+        section: 'communications',
         countBadge: 'chat',
       },
 
@@ -979,21 +1159,21 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.helpdesk'),
         path: '/helpdesk',
         icon: 'invoice',
-        section: 'clients',
+        section: 'communications',
       },
 
       {
         label: t('crm.nav.esign'),
         path: '/esign',
         icon: 'invoice',
-        section: 'clients',
+        section: 'communications',
       },
 
       {
         label: t('crm.nav.telephony'),
         path: '/app/telephony',
         icon: 'chat',
-        section: 'clients',
+        section: 'communications',
         matchPaths: ['/app/telephony', '/telephony', '/app/sms', '/sms'],
         children: [
           { label: t('crm.nav.telephonyCalls'), path: '/app/telephony' },
@@ -1007,7 +1187,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         label: t('crm.nav.marketing'),
         path: '/app/marketing',
         icon: 'marketing',
-        section: 'tools',
+        section: 'marketing',
         children: [
           { label: t('crm.nav.marketingTraffic'), path: '/app/marketing/traffic' },
           { label: t('crm.nav.marketingCampaigns'), path: '/app/marketing/campaigns' },
@@ -1067,6 +1247,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             label: t('crm.nav.pendingApprovals'),
             path: '/app/automations/pending-approvals',
             matchPaths: ['/app/automations/pending-approvals', '/automations/pending-approvals'],
+            countBadge: 'approvals',
           },
           {
             label: t('crm.nav.toolsWebForms'),
@@ -1218,30 +1399,41 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (p.startsWith('/web-forms')) return 'tools_automation';
     if (p.startsWith('/integrations-hub')) return 'tools_automation';
     if (p.startsWith('/email')) return 'email';
-    if (p.startsWith('/telegram')) return 'chat';
-    if (p.startsWith('/whatsapp')) return 'chat';
+    if (p.startsWith('/telegram')) return 'telegram';
+    if (p.startsWith('/whatsapp')) return 'whatsapp';
     if (p.startsWith('/chat')) return 'chat';
     if (p.startsWith('/online-chat')) return 'chat';
+    if (p.startsWith('/helpdesk')) return 'helpdesk';
+    if (p.startsWith('/esign')) return 'esign';
+    if (p.startsWith('/client-accounts')) return 'client_accounts';
     if (p.startsWith('/analytics')) return 'analytics';
     if (p.startsWith('/bi')) return 'analytics';
-    if (p.startsWith('/sales')) return 'analytics';
+    if (p.startsWith('/sales')) return 'sales';
     if (p.startsWith('/marketing')) return 'marketing';
     if (p.startsWith('/workspace')) return 'custom_objects';
     if (p.startsWith('/products')) return 'products';
     if (p.startsWith('/bookings')) return 'bookings';
     if (p.startsWith('/hotels')) return 'hotels';
-    if (p.startsWith('/sms')) return 'chat';
-    if (p.startsWith('/telephony')) return 'chat';
+    if (p.startsWith('/sms')) return 'telephony';
+    if (p.startsWith('/telephony')) return 'telephony';
     if (p.startsWith('/contacts/duplicates')) return 'settings';
     return null;
   };
 
   const canAccess = (perm: PermissionKey | null) => {
     if (!perm) return true;
-    if (user?.role === 'owner') return true;
 
-    const userId = user?.id || user?.userId || user?.sub;
-    const rawRole = user?.role;
+    // Роль из localStorage фиксируется на момент логина и не обновляется, пока сотрудник не
+    // перезайдёт — после смены роли (Менеджер → Продажи и т.п.) это давало ложное «прав нет,
+    // хотя они уже выданы» в навигации. currentStaff — свежая запись из /staff-users
+    // (перезапрашивается при каждой загрузке layout), берём роль из неё, если она есть.
+    const freshRole = currentStaff?.role ?? user?.role;
+    if (freshRole === 'owner') return true;
+
+    // userMatrix ключуется id из /staff-users (staff_users.id), а не users.id из localStorage —
+    // это тот же id, которым владелец выбирает сотрудника на вкладке «Индивидуальные права».
+    const userId = currentStaff?.id;
+    const rawRole = freshRole;
     const matrixRole: StaffRole | null =
       typeof rawRole === 'string' &&
       (
@@ -1261,10 +1453,35 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     // Если матрица прав ещё не загружена — разрешаем доступ (избегаем мигания)
     if (!roleMatrix) return true;
 
+    // Индивидуальное разрешение/запрет для конкретного сотрудника побеждает роль в обе стороны —
+    // если owner явно запретил этому человеку раздел, роль его больше не открывает, и наоборот.
+    const override = userId && userMatrix ? userMatrix[userId]?.[perm] : undefined;
+    if (override !== undefined) return override;
+
     const rolePerms = matrixRole ? roleMatrix[matrixRole] ?? [] : [];
-    const userPerms = userId && userMatrix ? userMatrix[userId] ?? [] : [];
-    return rolePerms.includes(perm) || userPerms.includes(perm);
+    return rolePerms.includes(perm);
   };
+
+  // Тот же критерий, что скрывает пункт меню, применённый к ТЕКУЩЕМУ пути — если сотруднику
+  // нельзя видеть раздел в меню, прямой переход по ссылке на него тоже не должен открывать
+  // страницу (и, тем более, слать её собственные API-запросы, которые вернут сырой 403).
+  const currentRoutePerm = permissionForPath(location.pathname);
+  const currentRouteComponentKey = componentKeyForPath(location.pathname);
+  const routeAllowed =
+    isComponentEnabled(currentRouteComponentKey) && canAccess(currentRoutePerm);
+
+  useEffect(() => {
+    // staffLoaded — иначе currentStaff ещё undefined (staff=[] не успел прийти) и canAccess()
+    // на секунду откатывается на user?.role из localStorage/сессии — при быстрой навигации между
+    // двумя обычными страницами (а не с Главной, где есть время на фоновую загрузку) это давало
+    // ложное «нет доступа» и редирект, хотя реальные права уже были верными.
+    if (!permsLoaded || !componentsLoaded || !staffLoaded) return;
+    if (routeAllowed) return;
+    if (location.pathname === '/dashboard') return;
+    persistForbiddenNotice(location.pathname);
+    navigate('/dashboard', { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeAllowed, permsLoaded, componentsLoaded, staffLoaded, location.pathname]);
 
   const filteredNav = NAV.map((item) => {
     // Проверка компонента
@@ -1309,6 +1526,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         return t('crm.sidebar.sectionMain');
       case 'clients':
         return t('crm.sidebar.sectionClients');
+      case 'communications':
+        return t('crm.sidebar.sectionCommunications');
+      case 'bookings':
+        return t('crm.sidebar.sectionBookings');
+      case 'sales':
+        return t('crm.sidebar.sectionSales');
+      case 'marketing':
+        return t('crm.sidebar.sectionMarketing');
       case 'tools':
         return t('crm.sidebar.sectionTools');
       case 'management':
@@ -1324,13 +1549,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     compact: boolean,
   ): React.ReactNode => {
     if (!item.countBadge) return null;
-    if (item.countBadge === 'chat') {
-      if (unreadChats <= 0) return null;
-      const txt = unreadChats > 99 ? '99+' : String(unreadChats);
+    if (item.countBadge === 'chat' || item.countBadge === 'approvals') {
+      const count = item.countBadge === 'chat' ? unreadChats : pendingApprovalsCount;
+      if (count <= 0) return null;
+      const txt = count > 99 ? '99+' : String(count);
       if (compact) {
         return (
           <span className="absolute -right-1 -top-0.5 min-w-[16px] h-4 px-0.5 rounded-full bg-rose-500 text-[9px] font-bold text-white flex items-center justify-center leading-none border-2 border-[#fafafa] z-10">
-            {unreadChats > 9 ? '9+' : txt}
+            {count > 9 ? '9+' : txt}
           </span>
         );
       }
@@ -1365,12 +1591,36 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     );
   };
 
+  const renderChildBadge = (child: NavChild): React.ReactNode => {
+    if (child.countBadge !== 'approvals') return null;
+    if (pendingApprovalsCount <= 0) return null;
+    return (
+      <span className="ml-auto shrink-0 min-h-5 min-w-5 px-1 rounded-md text-[11px] font-semibold tabular-nums flex items-center justify-center bg-rose-500 text-white">
+        {pendingApprovalsCount > 99 ? '99+' : pendingApprovalsCount}
+      </span>
+    );
+  };
+
   const pathname = location.pathname;
   const scored = filteredNav
     .map((item) => ({ item, score: itemMatchScore(pathname, item) }))
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score);
-  const activeRoot = scored[0]?.item ?? filteredNav[0] ?? NAV[0];
+  /**
+   * У Workspace нет обычного пункта в NAV (вместо него отдельный блок
+   * WorkspaceAreaSwitcher/WorkspaceSidebarBlock под меню), поэтому scored
+   * всегда пуст на /workspace/* — без этого фолбэка activeRoot тихо
+   * откатывался на NAV[0] (Главная), путая и заголовок, и подсветку меню.
+   */
+  const isWorkspacePath = normalizeLayoutPath(pathname).startsWith('/workspace');
+  const workspaceVirtualNavItem: NavItem = {
+    label: t('crm.workspace.area.homeTitle'),
+    path: '/workspace',
+    icon: 'folder',
+    section: 'main',
+  };
+  const activeRoot =
+    scored[0]?.item ?? (isWorkspacePath ? workspaceVirtualNavItem : filteredNav[0] ?? NAV[0]);
 
   const isSectionOpen = (path: string) => {
     if (Object.prototype.hasOwnProperty.call(sectionExpanded, path)) {
@@ -1384,6 +1634,19 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
       const defaultOpen = activeRoot?.path === path;
       const current = path in prev ? prev[path] : defaultOpen;
       return { ...prev, [path]: !current };
+    });
+  };
+
+  /** Категория (группа меню), открытая по умолчанию: та, где находится текущая страница */
+  const defaultOpenCategory: NavSectionId | null =
+    activeRoot && COLLAPSIBLE_NAV_SECTIONS.includes(activeRoot.section) ? activeRoot.section : null;
+  const openCategoryId: NavSectionId | null =
+    expandedCategory === null ? defaultOpenCategory : expandedCategory === 'none' ? null : expandedCategory;
+
+  const toggleCategory = (id: NavSectionId) => {
+    setExpandedCategory((prev) => {
+      const current = prev === null ? defaultOpenCategory : prev === 'none' ? null : prev;
+      return current === id ? 'none' : id;
     });
   };
 
@@ -1424,51 +1687,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
 
   const sidebarTenantName = tenantNameDisplay ?? getStoredTenantName();
 
-  const isCrmShellPath = (pathname: string): boolean => {
-    if (pathname.startsWith('/app')) return true;
-    const roots = [
-      '/dashboard',
-      '/workspace',
-      '/leads',
-      '/contacts',
-      '/companies',
-      '/projects',
-      '/sales',
-      '/marketing',
-      '/automations',
-      '/ai-employees',
-      '/email',
-      '/telegram',
-      '/settings',
-      '/staff',
-      '/departments',
-      '/profile',
-      '/chat',
-      '/client-accounts',
-      '/billing',
-      '/forbidden',
-    ];
-    return roots.some((r) => pathname === r || pathname.startsWith(`${r}/`));
-  };
-
-  // редирект на forbidden если нет доступа или компонент отключен
-  useEffect(() => {
-    if (!componentsLoaded || !permsLoaded) return;
-
-    if (isCrmShellPath(location.pathname)) {
-      const componentKey = componentKeyForPath(location.pathname);
-      if (!isComponentEnabled(componentKey)) {
-        navigate('/forbidden', { replace: true });
-        return;
-      }
-
-      const perm = permissionForPath(location.pathname);
-      if (!canAccess(perm)) {
-        navigate('/forbidden', { replace: true });
-      }
-    }
-  }, [location.pathname, permsLoaded, componentsLoaded, tenantComponents]);
-
   return (
     <div className="h-full flex bg-lumiva-bg text-lumiva-accent">
       {/* SIDEBAR — только на md+ (узкий режим: только иконки + кнопка на грани) */}
@@ -1503,7 +1721,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
 
         {/* Навигация (desktop) + рабочие области сразу под пунктами меню (общий скролл) */}
         <nav className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug pr-0.5 text-neutral-800">
-          {(!componentsLoaded || !permsLoaded) ? (
+          {(!componentsLoaded || !permsLoaded || !staffLoaded) ? (
             // Показываем скелетон загрузки вместо меню
             <div className="space-y-2">
               {[1, 2, 3, 4, 5].map((i) => (
@@ -1515,17 +1733,36 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             </div>
           ) : (
             <>
-            {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => (
+            {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => {
+              const isCollapsible = COLLAPSIBLE_NAV_SECTIONS.includes(sectionId);
+              const isCategoryOpen = !isCollapsible || openCategoryId === sectionId;
+              return (
               <div key={sectionId} className={sectionIdx > 0 ? 'mt-1' : ''}>
                 {!sidebarCollapsed && (
-                  <div
-                    className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
-                      sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
-                    }`}
-                  >
-                    {navSectionTitle(sectionId)}
-                  </div>
+                  isCollapsible ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleCategory(sectionId)}
+                      title={isCategoryOpen ? t('crm.sidebar.collapseCategory') : t('crm.sidebar.expandCategory')}
+                      className={`w-full flex items-center justify-between gap-1 px-2.5 rounded-md text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100/70 transition-colors ${
+                        sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                      }`}
+                      aria-expanded={isCategoryOpen}
+                    >
+                      <span>{navSectionTitle(sectionId)}</span>
+                      <NavChevronDown expanded={isCategoryOpen} />
+                    </button>
+                  ) : (
+                    <div
+                      className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
+                        sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                      }`}
+                    >
+                      {navSectionTitle(sectionId)}
+                    </div>
+                  )
                 )}
+                {(sidebarCollapsed || isCategoryOpen) && (
                 <div className="space-y-0.5">
                   {secItems.map((item) => {
             const hasChildren = !!item.children?.length;
@@ -1594,7 +1831,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                         onClick={(event) => handleNavClick(event, child.path)}
                         className={() =>
                           [
-                            'block text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
+                            'flex items-center gap-2 text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
                             matchesNavPath(pathname, child.path)
                               ? 'bg-[#f0f0f0] text-neutral-900 font-medium'
                               : 'text-neutral-600 hover:bg-neutral-100',
@@ -1602,6 +1839,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                         }
                       >
                         {child.label}
+                        {renderChildBadge(child)}
                       </NavLink>
                     ))}
                   </div>
@@ -1610,8 +1848,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
             );
                   })}
                 </div>
+                )}
               </div>
-            ))}
+              );
+            })}
 
           {canOpenWorkspace && (
             <div className="mt-2 min-w-0 border-t border-neutral-200/90 pt-3">
@@ -1931,6 +2171,48 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           </div>
         </header>
 
+        {trialDaysLeft !== null && !billingLocked && !trialBannerDismissed && (
+          <div className="flex items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-3 py-2 text-xs md:px-6">
+            <span className="font-medium text-amber-900">
+              {t('crm.trial.banner', { count: trialDaysLeft })}
+            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => navigate('/settings?tab=billing')}
+                className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 font-medium text-amber-900 hover:bg-amber-100 transition-colors"
+              >
+                {t('crm.trial.cta')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setTrialBannerDismissed(true)}
+                aria-label={t('crm.trial.dismiss')}
+                className="text-amber-700 hover:text-amber-900"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
+        {forbiddenNotice && (
+          <div className="flex items-center justify-between gap-3 border-b border-rose-200 bg-rose-50 px-3 py-2 text-xs md:px-6">
+            <span className="text-rose-800">
+              <span className="font-medium">{t('crm.errors.accessDeniedTitle')}.</span>{' '}
+              {t('crm.errors.accessDeniedText')}
+            </span>
+            <button
+              type="button"
+              onClick={() => setForbiddenNotice(null)}
+              aria-label={t('crm.trial.dismiss')}
+              className="shrink-0 text-rose-700 hover:text-rose-900"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
         {notificationsOpen && (
           <div className="fixed inset-0 z-[3000]">
             <div
@@ -2134,11 +2416,52 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                     {t('crm.notifications.loading')}
                   </div>
                 )}
-                {!notificationsLoading && filteredNotifications.length === 0 && (
-                  <div className="text-xs text-slate-500">
-                    {t('crm.notifications.empty')}
+                {!notificationsLoading &&
+                  filteredNotifications.length === 0 &&
+                  filteredCommentMentions.length === 0 && (
+                    <div className="text-xs text-slate-500">
+                      {t('crm.notifications.empty')}
+                    </div>
+                  )}
+                {filteredCommentMentions.map((item) => (
+                  <div
+                    key={`comment-${item.entityKind}-${item.projectId || item.leadId}-${item.commentId}`}
+                    className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm cursor-pointer hover:border-slate-300"
+                    onClick={() =>
+                      navigate(
+                        item.entityKind === 'lead'
+                          ? `/leads/${item.leadId}`
+                          : `/projects/${item.projectId}?tab=comments`,
+                      )
+                    }
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[11px] text-slate-500">
+                          {t('crm.notifications.commentMention', 'Упоминание в комментарии')}
+                        </div>
+                        <div className="mt-1 text-sm text-slate-800 line-clamp-2">{item.text}</div>
+                        <div className="mt-1 inline-flex items-center gap-2 text-[11px] text-slate-500">
+                          <span className="inline-flex items-center rounded-full border border-slate-200 px-2 py-0.5">
+                            {item.projectName}
+                          </span>
+                          <span>{item.author} · {item.createdAt}</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        title={t('crm.notifications.dismiss', 'Скрыть')}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismissMention(`comment:${item.commentId}`);
+                        }}
+                        className="shrink-0 h-6 w-6 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                      >
+                        ×
+                      </button>
+                    </div>
                   </div>
-                )}
+                ))}
                 {filteredNotifications.map((item) => (
                   <div
                     key={`${item.projectId}-${item.taskId}`}
@@ -2160,8 +2483,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                           )}
                         </div>
                       </div>
-                      <div className="text-[11px] text-slate-500">
-                        {progressValue(item.project)}%
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-[11px] text-slate-500">
+                          {progressValue(item.project)}%
+                        </div>
+                        {notificationsTab === 'mentioned' && (
+                          <button
+                            type="button"
+                            title={t('crm.notifications.dismiss', 'Скрыть')}
+                            onClick={() => dismissMention(`task:${item.taskId}`)}
+                            className="h-6 w-6 flex items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                          >
+                            ×
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-600">
@@ -2312,7 +2647,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
 
               {/* Навигация (mobile) + workspace под меню */}
               <nav className="flex-1 min-h-0 overflow-y-auto text-[14px] leading-snug text-neutral-800">
-                {(!componentsLoaded || !permsLoaded) ? (
+                {(!componentsLoaded || !permsLoaded || !staffLoaded) ? (
                   // Показываем скелетон загрузки вместо меню
                   <div className="space-y-2">
                     {[1, 2, 3, 4, 5].map((i) => (
@@ -2324,15 +2659,34 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                   </div>
                 ) : (
                   <>
-                  {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => (
+                  {groupedNav.map(({ id: sectionId, items: secItems }, sectionIdx) => {
+                    const isCollapsible = COLLAPSIBLE_NAV_SECTIONS.includes(sectionId);
+                    const isCategoryOpen = !isCollapsible || openCategoryId === sectionId;
+                    return (
                     <div key={sectionId} className={sectionIdx > 0 ? 'mt-1' : ''}>
-                      <div
-                        className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
-                          sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
-                        }`}
-                      >
-                        {navSectionTitle(sectionId)}
-                      </div>
+                      {isCollapsible ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleCategory(sectionId)}
+                          title={isCategoryOpen ? t('crm.sidebar.collapseCategory') : t('crm.sidebar.expandCategory')}
+                          className={`w-full flex items-center justify-between gap-1 px-2.5 rounded-md text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100/70 transition-colors ${
+                            sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                          }`}
+                          aria-expanded={isCategoryOpen}
+                        >
+                          <span>{navSectionTitle(sectionId)}</span>
+                          <NavChevronDown expanded={isCategoryOpen} />
+                        </button>
+                      ) : (
+                        <div
+                          className={`px-2.5 text-[11px] font-medium uppercase tracking-[0.12em] text-neutral-500 ${
+                            sectionIdx === 0 ? 'pt-0.5 pb-1.5' : 'pt-4 pb-1.5'
+                          }`}
+                        >
+                          {navSectionTitle(sectionId)}
+                        </div>
+                      )}
+                      {isCategoryOpen && (
                       <div className="space-y-0.5">
                   {secItems.map((item) => {
                     const hasChildren = !!item.children?.length;
@@ -2396,7 +2750,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                                 }
                                 className={() =>
                                   [
-                                    'block text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
+                                    'flex items-center gap-2 text-[13px] px-2.5 py-1.5 rounded-lg transition-colors',
                                     matchesNavPath(pathname, child.path)
                                       ? 'bg-[#f0f0f0] text-neutral-900 font-medium'
                                       : 'text-neutral-600 hover:bg-neutral-100',
@@ -2404,6 +2758,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                                 }
                               >
                                 {child.label}
+                                {renderChildBadge(child)}
                               </NavLink>
                             ))}
                           </div>
@@ -2412,8 +2767,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
                     );
                   })}
                       </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
 
                   {canOpenWorkspace && (
                     <div className="pt-3 mt-2 border-t border-slate-200">
@@ -2469,12 +2826,13 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         )}
 
         <main
-          className={`flex-1 min-w-0 overflow-y-auto bg-gradient-to-b from-white via-lumiva-bg to-lumiva-bg ${
+          className={`flex-1 min-w-0 overflow-y-auto overflow-x-hidden bg-gradient-to-b from-white via-lumiva-bg to-lumiva-bg ${
             fullBleed ? 'px-0 py-0' : 'px-3 md:px-6 py-4 md:py-6'
           }`}
         >
-          {(!componentsLoaded || !permsLoaded) ? (
-            // Показываем загрузку вместо контента
+          {(!componentsLoaded || !permsLoaded || !staffLoaded || !routeAllowed) ? (
+            // Показываем загрузку вместо контента (в т.ч. пока routeAllowed=false ведёт на /dashboard —
+            // страница без доступа не должна успеть смонтироваться и выстрелить своими запросами)
             <div className="flex items-center justify-center h-full">
               <div className="text-center">
                 <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-lumiva-accent border-r-transparent"></div>

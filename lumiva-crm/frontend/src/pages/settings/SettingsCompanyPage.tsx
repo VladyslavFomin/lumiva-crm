@@ -1,7 +1,7 @@
 // src/pages/settings/SettingsCompanyPage.tsx
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
 import { BillingPage } from '../BillingPage';
 import {
@@ -144,10 +144,15 @@ function formatBytes(n: number): string {
 export const SettingsCompanyPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const user = getStoredUser();
   const isOwner = (user?.role || '').toLowerCase() === 'owner';
 
-  const [tab, setTab] = useState<TabId>('general');
+  const VALID_TABS: TabId[] = ['general', 'billing', 'sessions', 'invites', 'storage'];
+  const requestedTab = searchParams.get('tab') as TabId | null;
+  const [tab, setTab] = useState<TabId>(
+    requestedTab && VALID_TABS.includes(requestedTab) ? requestedTab : 'general',
+  );
   const [data, setData] = useState<CompanySettings | null>(null);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
