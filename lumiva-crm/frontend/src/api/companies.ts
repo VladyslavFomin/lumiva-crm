@@ -1,10 +1,13 @@
 // src/api/companies.ts
 import { api } from './client';
+import type { LegalRequisiteItem } from '../legal/legalRequisites';
 
 export interface Company {
   id: string;
   tenantId: string;
   name: string;
+  legalName: string | null;
+  taxId: string | null;
   email: string | null;
   phone: string | null;
   website: string | null;
@@ -19,12 +22,15 @@ export interface Company {
   assignedTo: string | null;
   status: string;
   customFields: Record<string, any> | null;
+  legalRequisites: LegalRequisiteItem[] | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CreateCompanyDto {
   name: string;
+  legalName?: string;
+  taxId?: string;
   email?: string;
   phone?: string;
   website?: string;
@@ -39,6 +45,7 @@ export interface CreateCompanyDto {
   assignedTo?: string;
   status?: string;
   customFields?: Record<string, any>;
+  legalRequisites?: LegalRequisiteItem[];
 }
 
 export interface UpdateCompanyDto extends Partial<CreateCompanyDto> {}

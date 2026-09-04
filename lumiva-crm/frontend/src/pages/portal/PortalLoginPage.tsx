@@ -1,9 +1,11 @@
 // src/pages/portal/PortalLoginPage.tsx
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { requestPortalMagicLink } from '../../api/portal';
 
 export const PortalLoginPage: React.FC = () => {
+  const { t } = useTranslation();
   const { clientKey = '' } = useParams<{ clientKey: string }>();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,7 +21,7 @@ export const PortalLoginPage: React.FC = () => {
       await requestPortalMagicLink(clientKey, email.trim());
       setSent(true);
     } catch (err: any) {
-      setError(err?.message || 'Не удалось отправить ссылку для входа');
+      setError(err?.message || t('crm.portal.login.sendError'));
     } finally {
       setLoading(false);
     }
@@ -28,18 +30,17 @@ export const PortalLoginPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl shadow-[0_24px_70px_rgba(17,24,39,0.12)] p-6 md:p-8">
-        <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">Личный кабинет</div>
-        <h1 className="text-2xl font-semibold text-lumiva-accent mb-3">Вход</h1>
+        <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">{t('crm.portal.login.kicker')}</div>
+        <h1 className="text-2xl font-semibold text-lumiva-accent mb-3">{t('crm.portal.login.title')}</h1>
 
         {sent ? (
           <div className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-3 leading-relaxed">
-            Если такой email есть в нашей базе, мы отправили на него ссылку для входа. Проверьте
-            почту — ссылка действует 15 минут.
+            {t('crm.portal.login.sentMessage')}
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-sm text-slate-600 leading-relaxed">
-              Введите email, указанный при работе с нами — пришлём ссылку для входа, без пароля.
+              {t('crm.portal.login.intro')}
             </p>
             <input
               type="email"
@@ -59,7 +60,7 @@ export const PortalLoginPage: React.FC = () => {
               disabled={loading}
               className="w-full inline-flex items-center justify-center rounded-xl bg-lumiva-accent hover:bg-lumiva-accent-soft transition-all px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {loading ? 'Отправляем…' : 'Прислать ссылку для входа'}
+              {loading ? t('crm.portal.login.sendingBtn') : t('crm.portal.login.sendBtn')}
             </button>
           </form>
         )}

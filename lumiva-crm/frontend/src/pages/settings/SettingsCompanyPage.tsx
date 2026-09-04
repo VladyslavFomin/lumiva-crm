@@ -12,6 +12,8 @@ import {
   notifyTenantBrandingUpdated,
   type CompanySettings,
 } from '../../api/settings';
+import { LegalRequisitesEditor } from '../../legal/LegalRequisitesEditor';
+import type { LegalRequisiteItem } from '../../legal/legalRequisites';
 import {
   fetchStaff,
   updateStaffUser,
@@ -170,6 +172,9 @@ export const SettingsCompanyPage: React.FC = () => {
   const [uiLanguage, setUiLanguage] = useState<string | ''>('');
   const [aiWrapperEmailTemplateId, setAiWrapperEmailTemplateId] =
     useState<string>('');
+  const [documentRequisites, setDocumentRequisites] = useState('');
+  const [documentManagerName, setDocumentManagerName] = useState('');
+  const [legalRequisites, setLegalRequisites] = useState<LegalRequisiteItem[]>([]);
   const [emailTemplates, setEmailTemplates] = useState<EmailTemplate[]>([]);
   const [emailTemplatesLoading, setEmailTemplatesLoading] = useState(false);
   const [emailTemplatesError, setEmailTemplatesError] = useState<string | null>(
@@ -221,6 +226,9 @@ export const SettingsCompanyPage: React.FC = () => {
         );
         setUiLanguage(settings.uiLanguage || '');
         setAiWrapperEmailTemplateId(settings.aiWrapperEmailTemplateId ?? '');
+        setDocumentRequisites(settings.documentRequisites ?? '');
+        setDocumentManagerName(settings.documentManagerName ?? '');
+        setLegalRequisites(settings.legalRequisites ?? []);
         if (settings.name?.trim()) {
           updateStoredTenantName(settings.name.trim());
         }
@@ -345,9 +353,15 @@ export const SettingsCompanyPage: React.FC = () => {
         aiWrapperEmailTemplateId: aiWrapperEmailTemplateId.trim()
           ? aiWrapperEmailTemplateId.trim()
           : null,
+        documentRequisites: documentRequisites.trim() || null,
+        documentManagerName: documentManagerName.trim() || null,
+        legalRequisites,
       });
       setData(updated);
       setAiWrapperEmailTemplateId(updated.aiWrapperEmailTemplateId ?? '');
+      setDocumentRequisites(updated.documentRequisites ?? '');
+      setDocumentManagerName(updated.documentManagerName ?? '');
+      setLegalRequisites(updated.legalRequisites ?? []);
       setLogoUrl(
         normalizeLogoUrl(updated.logoUrl) ?? updated.logoUrl ?? '',
       );
@@ -646,7 +660,31 @@ export const SettingsCompanyPage: React.FC = () => {
                       {emailTemplatesError && (
                         <p className="ai-hint" style={{ color: '#cc2f47' }}>{emailTemplatesError}</p>
                       )}
+                      <p className="ai-hint">{t('crm.settings.company.fields.aiWrapperTemplateHint')}</p>
                     </div>
+                    </div>
+
+                    <div className="ai-field-row" style={{ marginBottom: 14 }}>
+                      <div className="ai-field" style={{ margin: 0, flex: 2 }}>
+                        <label className="ai-label">{t('crm.settings.company.fields.legalRequisites')}</label>
+                        <LegalRequisitesEditor
+                          value={legalRequisites}
+                          onChange={setLegalRequisites}
+                          disabled={!isOwner}
+                          hint={t('crm.settings.company.fields.legalRequisitesHint')}
+                        />
+                      </div>
+                      <div className="ai-field" style={{ margin: 0 }}>
+                        <label className="ai-label">{t('crm.settings.company.fields.documentManagerName')}</label>
+                        <input
+                          className="ai-input"
+                          value={documentManagerName}
+                          onChange={(e) => setDocumentManagerName(e.target.value)}
+                          disabled={!isOwner}
+                          placeholder={t('crm.settings.company.fields.documentManagerNamePlaceholder')}
+                        />
+                        <p className="ai-hint">{t('crm.settings.company.fields.documentManagerNameHint')}</p>
+                      </div>
                     </div>
 
                     {isOwner && (

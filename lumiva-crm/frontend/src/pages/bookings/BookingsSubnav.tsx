@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 type SubnavKey =
   | 'overview'
@@ -75,19 +76,20 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
 
 export const BookingsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const items: Array<{ key: SubnavKey; label: string; path: string }> = [
-    { key: 'overview', label: 'Обзор', path: '/bookings' },
-    { key: 'reservations', label: 'Брони', path: '/bookings/reservations' },
-    { key: 'waitlist', label: 'Лист ожидания', path: '/bookings/waitlist' },
-    { key: 'resources', label: 'Кабинеты', path: '/bookings/resources' },
-    { key: 'locations', label: 'Локации', path: '/bookings/locations' },
-    { key: 'services', label: 'Услуги', path: '/bookings/services' },
-    { key: 'availability', label: 'Расписание', path: '/bookings/availability' },
-    { key: 'analytics', label: 'Аналитика', path: '/bookings/analytics' },
-    { key: 'logs', label: 'Логи', path: '/bookings/logs' },
-    { key: 'roles', label: 'Роли и доступ', path: '/staff/permissions' },
-    { key: 'settings', label: 'Настройки', path: '/bookings/settings' },
+    { key: 'overview', label: t('crm.bookings.nav.overview'), path: '/bookings' },
+    { key: 'reservations', label: t('crm.bookings.nav.reservations'), path: '/bookings/reservations' },
+    { key: 'waitlist', label: t('crm.bookings.nav.waitlist'), path: '/bookings/waitlist' },
+    { key: 'resources', label: t('crm.bookings.nav.resources'), path: '/bookings/resources' },
+    { key: 'locations', label: t('crm.bookings.nav.locations'), path: '/bookings/locations' },
+    { key: 'services', label: t('crm.bookings.nav.services'), path: '/bookings/services' },
+    { key: 'availability', label: t('crm.bookings.nav.availability'), path: '/bookings/availability' },
+    { key: 'analytics', label: t('crm.bookings.nav.analytics'), path: '/bookings/analytics' },
+    { key: 'logs', label: t('crm.bookings.nav.logs'), path: '/bookings/logs' },
+    { key: 'roles', label: t('crm.bookings.nav.roles'), path: '/staff/permissions' },
+    { key: 'settings', label: t('crm.bookings.nav.settings'), path: '/bookings/settings' },
   ];
 
   return (

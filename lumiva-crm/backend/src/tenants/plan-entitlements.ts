@@ -138,6 +138,13 @@ export function isTelephonyIncludedInPlan(plan?: string | null): boolean {
   return normalizeTenantPlan(plan) === 'ultimate';
 }
 
+/** Custom domain (white-label URL) is an Ultimate-only perk, configured by us on request — not
+ * self-service. Same shape as isTelephonyIncludedInPlan: not part of COMPONENT_KEYS/MIN_PLAN
+ * since that table expresses "min plan and above," not "only this exact tier." */
+export function isCustomDomainIncludedInPlan(plan?: string | null): boolean {
+  return normalizeTenantPlan(plan) === 'ultimate';
+}
+
 export function isModuleAllowedByPlan(moduleKey: string, plan?: string | null) {
   const normalizedPlan = normalizeTenantPlan(plan);
   const minPlan = MODULE_MIN_PLAN[moduleKey] || 'standard';
@@ -192,6 +199,15 @@ export function isComponentAllowedByPlan(componentKey: string, plan?: string | n
   return isPlanAllowed(normalizedPlan, minPlan);
 }
 
+/**
+ * Ключи, недоступные текущему тарифу, сознательно НЕ попадают в `next` (а не пишутся как
+ * `false`) — иначе это "false" застревает в БД как будто админ выключил их вручную, и при
+ * следующем повышении тарифа компонент/модуль так и остаётся выключенным, хотя тариф уже его
+ * разрешает. Отсутствие ключа при чтении (getTenantComponents/getTenantModules,
+ * isComponentAllowedByPlan/isModuleAllowedByPlan) трактуется как "не разрешено" ровно так же,
+ * как явный false — поведение для потребителей не меняется, меняется только то, что переживает
+ * следующий пересчёт при смене тарифа.
+ */
 function buildState(
   keys: readonly string[],
   current: Record<string, boolean> | null | undefined,
@@ -199,11 +215,7 @@ function buildState(
 ) {
   const next: Record<string, boolean> = {};
   for (const key of keys) {
-    const allowed = isAllowed(key);
-    if (!allowed) {
-      next[key] = false;
-      continue;
-    }
+    if (!isAllowed(key)) continue;
     if (typeof current?.[key] === 'boolean') {
       next[key] = current[key];
     } else {

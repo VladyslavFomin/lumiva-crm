@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 type SubnavKey = 'calls' | 'sms' | 'analytics' | 'settings';
 
@@ -29,12 +30,13 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
 
 export const TelephonySubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const items: Array<{ key: SubnavKey; label: string; path: string }> = [
-    { key: 'calls', label: 'Звонки', path: '/telephony' },
-    { key: 'sms', label: 'SMS', path: '/telephony/sms' },
-    { key: 'analytics', label: 'Аналитика', path: '/telephony/analytics' },
-    { key: 'settings', label: 'Настройки', path: '/telephony/settings' },
+    { key: 'calls', label: t('crm.telephony.nav.calls'), path: '/telephony' },
+    { key: 'sms', label: t('crm.telephony.nav.sms'), path: '/telephony/sms' },
+    { key: 'analytics', label: t('crm.telephony.nav.analytics'), path: '/telephony/analytics' },
+    { key: 'settings', label: t('crm.telephony.nav.settings'), path: '/telephony/settings' },
   ];
 
   return (

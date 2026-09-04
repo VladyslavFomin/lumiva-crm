@@ -50,6 +50,8 @@ import {
   parseWorkspaceColumnBindingV1,
   type WorkspaceColumnBindingV1,
 } from './workspace-column-binding';
+import { WorkspaceAreaMembersService } from '../workspace-areas/workspace-area-members.service';
+import { WorkspaceAreaActivityLogService } from '../workspace-areas/workspace-area-activity-log.service';
 
 export interface ImportPreviewResponse {
   importId: string;
@@ -86,7 +88,46 @@ export class CustomObjectsService {
     private readonly importRepo: Repository<CustomObjectImportSession>,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
+    private readonly workspaceAreaMembers: WorkspaceAreaMembersService,
+    private readonly activityLog: WorkspaceAreaActivityLogService,
   ) {}
+
+  /** JWT identity is `users.id` (login), not `staff_users.id` — resolve the real staff
+   * record the same way the area-access guard and ReservationsService.findActingStaffUserId
+   * do (externalId first, then email). Returns null for logins with no staff directory row
+   * (e.g. an owner-only tenant) — callers treat that as "no stampable/checkable identity". */
+  private async resolveActorStaffId(
+    tenantId: string,
+    actor?: { loginUserId?: string; email?: string },
+  ): Promise<string | null> {
+    if (!actor?.loginUserId && !actor?.email) return null;
+    return this.workspaceAreaMembers.resolveStaffUserId(tenantId, {
+      loginUserId: actor.loginUserId,
+      email: actor.email,
+    });
+  }
+
+  /** own_rows_only может писать только собственные строки — остальные роли уже отфильтрованы
+   * гардом на уровне контроллера. Системные вызовы (automations, AI, синки) без actorStaffId
+   * пропускаются без проверки — они не проходят через контроллер вовсе. */
+  private async assertCanWriteRecord(
+    tenantId: string,
+    obj: CustomObject,
+    record: CustomObjectRecord,
+    actorStaffId?: string | null,
+  ): Promise<void> {
+    if (!actorStaffId || !obj.workspaceAreaId) return;
+    const role = await this.workspaceAreaMembers.resolveEffectiveRole(
+      tenantId,
+      obj.workspaceAreaId,
+      actorStaffId,
+      undefined,
+    );
+    if (role !== 'own_rows_only') return;
+    if (record.createdByUserId !== actorStaffId) {
+      throw new ForbiddenException('Можно изменять только свои строки');
+    }
+  }
 
   private slugify(input: string) {
     return String(input || '')
@@ -738,6 +779,16 @@ export class CustomObjectsService {
       );
     }
     await this.createDefaultViews(tenantId, created.id, fields);
+    await this.activityLog.log(
+      tenantId,
+      created.workspaceAreaId,
+      'table_created',
+      `Создана таблица «${created.name}»`,
+      getWorkspaceTableKind(created.meta as Record<string, any>) === 'board'
+        ? 'Основная таблица'
+        : 'Таблица данных',
+      { relatedObjectId: created.id },
+    );
     return created;
   }
 
@@ -911,11 +962,12 @@ export class CustomObjectsService {
     fieldId: string,
     dto: UpdateCustomObjectFieldDto,
   ) {
-    await this.getObject(tenantId, objectId);
+    const obj = await this.getObject(tenantId, objectId);
     const field = await this.fieldRepo.findOne({
       where: { id: fieldId, tenantId, objectId },
     });
     if (!field) throw new NotFoundException('Field not found');
+    let renamedKey: { oldKey: string; newKey: string } | null = null;
     if (dto.key !== undefined) {
       const newKey = this.slugify(dto.key).replace(/-/g, '_');
       const clash = await this.fieldRepo.findOne({
@@ -924,6 +976,7 @@ export class CustomObjectsService {
       if (clash && clash.id !== field.id) {
         throw new BadRequestException('Field key already exists');
       }
+      if (newKey !== field.key) renamedKey = { oldKey: field.key, newKey };
       field.key = newKey;
     }
     if (dto.label !== undefined) field.label = dto.label;
@@ -932,8 +985,31 @@ export class CustomObjectsService {
     if (dto.options !== undefined) field.options = dto.options || null;
     if (dto.order !== undefined) field.order = dto.order;
     if (dto.isActive !== undefined) field.isActive = dto.isActive;
+    const prevBinding = parseWorkspaceColumnBindingV1(field.meta);
     if (dto.meta !== undefined) field.meta = dto.meta || null;
-    return this.fieldRepo.save(field);
+    const nextBinding = parseWorkspaceColumnBindingV1(field.meta);
+    const saved = await this.fieldRepo.save(field);
+    if (renamedKey) {
+      // Иначе значение молча "теряется" под старым ключом в jsonb blob'е — колонка
+      // выглядит пустой для всех существующих записей после переименования.
+      await this.recordRepo.query(
+        `UPDATE custom_object_records
+         SET values = (values - $1) || jsonb_build_object($2::text, values -> $1)
+         WHERE "tenantId" = $3 AND "objectId" = $4 AND values ? $1`,
+        [renamedKey.oldKey, renamedKey.newKey, tenantId, objectId],
+      );
+    }
+    if (JSON.stringify(prevBinding) !== JSON.stringify(nextBinding)) {
+      await this.activityLog.log(
+        tenantId,
+        obj.workspaceAreaId,
+        'mapping_change',
+        `Изменена связь колонки «${saved.label}»`,
+        nextBinding ? `Режим: ${nextBinding.mode}` : 'Связь удалена',
+        { relatedObjectId: objectId },
+      );
+    }
+    return saved;
   }
 
   async deleteField(tenantId: string, objectId: string, fieldId: string) {
@@ -943,6 +1019,13 @@ export class CustomObjectsService {
     });
     if (!field) throw new NotFoundException('Field not found');
     await this.fieldRepo.remove(field);
+    // Тот же класс бага, что у смены key (см. updateField выше) — иначе значение остаётся
+    // в jsonb "values" всех записей таблицы навсегда, невидимым мусором.
+    await this.recordRepo.query(
+      `UPDATE custom_object_records SET values = values - $1
+       WHERE "tenantId" = $2 AND "objectId" = $3 AND values ? $1`,
+      [field.key, tenantId, objectId],
+    );
     return { ok: true };
   }
 
@@ -1393,6 +1476,7 @@ export class CustomObjectsService {
     tenantId: string,
     objectId: string,
     dto: CreateCustomObjectRecordDto,
+    actor?: { loginUserId?: string; email?: string },
   ) {
     await this.getObject(tenantId, objectId);
     const fields = await this.listFields(tenantId, objectId);
@@ -1405,6 +1489,7 @@ export class CustomObjectsService {
       undefined,
       tenantId,
     );
+    const actorStaffId = await this.resolveActorStaffId(tenantId, actor);
     const created = await this.recordRepo.save(
       this.recordRepo.create({
         tenantId,
@@ -1412,6 +1497,7 @@ export class CustomObjectsService {
         externalId: dto.externalId || null,
         values: normalizedValues,
         meta: dto.meta || null,
+        createdByUserId: actorStaffId,
       }),
     );
     await this.triggerRecordEvent(tenantId, objectId, created, 'created');
@@ -1432,6 +1518,7 @@ export class CustomObjectsService {
       duplicateKeyTargetField?: string | null;
       skipDuplicates?: boolean;
     },
+    actor?: { loginUserId?: string; email?: string },
   ): Promise<{
     created: CustomObjectRecord[];
     skipped: Array<{ recordId: string; reason: string }>;
@@ -1544,10 +1631,15 @@ export class CustomObjectsService {
           pushedAt: new Date().toISOString(),
         };
 
-        const row = await this.createRecord(tenantId, targetObjectId, {
-          values: incoming,
-          meta: { [WORKSPACE_DATA_LINK_META_KEY]: linkMeta },
-        });
+        const row = await this.createRecord(
+          tenantId,
+          targetObjectId,
+          {
+            values: incoming,
+            meta: { [WORKSPACE_DATA_LINK_META_KEY]: linkMeta },
+          },
+          actor,
+        );
         created.push(row);
       } catch (e: any) {
         errors.push({
@@ -1556,6 +1648,18 @@ export class CustomObjectsService {
         });
       }
     }
+
+    const actorStaffId = await this.resolveActorStaffId(tenantId, actor);
+    await this.activityLog.log(
+      tenantId,
+      targetObj.workspaceAreaId,
+      'push',
+      `Перенесено ${created.length} строк в «${targetObj.name}»`,
+      `Источник: «${sourceObj.name}»${skipped.length ? `, пропущено дублей: ${skipped.length}` : ''}${
+        errors.length ? `, ошибок: ${errors.length}` : ''
+      }`,
+      { relatedObjectId: targetObjectId, actorUserId: actorStaffId },
+    );
 
     return { created, skipped, errors };
   }
@@ -1586,13 +1690,16 @@ export class CustomObjectsService {
     objectId: string,
     recordId: string,
     dto: UpdateCustomObjectRecordDto,
+    actor?: { loginUserId?: string; email?: string },
   ) {
-    await this.getObject(tenantId, objectId);
+    const obj = await this.getObject(tenantId, objectId);
     const fields = await this.listFields(tenantId, objectId);
     const record = await this.recordRepo.findOne({
       where: { id: recordId, tenantId, objectId },
     });
     if (!record) throw new NotFoundException('Record not found');
+    const actorStaffId = await this.resolveActorStaffId(tenantId, actor);
+    await this.assertCanWriteRecord(tenantId, obj, record, actorStaffId);
     const previousStatus = record.values?.status;
 
     const hasPatch =
@@ -1691,13 +1798,20 @@ export class CustomObjectsService {
     return saved;
   }
 
-  async deleteRecord(tenantId: string, objectId: string, recordId: string) {
-    await this.getObject(tenantId, objectId);
+  async deleteRecord(
+    tenantId: string,
+    objectId: string,
+    recordId: string,
+    actor?: { loginUserId?: string; email?: string },
+  ) {
+    const obj = await this.getObject(tenantId, objectId);
     const fields = await this.listFields(tenantId, objectId);
     const record = await this.recordRepo.findOne({
       where: { id: recordId, tenantId, objectId },
     });
     if (!record) throw new NotFoundException('Record not found');
+    const actorStaffId = await this.resolveActorStaffId(tenantId, actor);
+    await this.assertCanWriteRecord(tenantId, obj, record, actorStaffId);
     for (const f of fields) {
       if (f.type !== 'file') continue;
       const v = record.values?.[f.key];
@@ -2141,8 +2255,16 @@ export class CustomObjectsService {
       order: { createdAt: 'ASC' },
     });
     const totalRecords = records.length;
+    // Раньше ключ поля "статус" был захардкожен как буквально "status" — ничто в
+    // создании таблиц не гарантирует такой key (поле типа status/select может называться
+    // как угодно, напр. "stage"), из-за чего отчёт молча показывал только "without_status".
+    // Ищем реальное status-поле по типу, а не по имени; select — как более слабый фолбэк.
+    const fields = await this.fieldRepo.find({ where: { tenantId, objectId } });
+    const statusField =
+      fields.find((f) => f.type === 'status') ?? fields.find((f) => f.type === 'select');
+    const statusKey = statusField?.key || 'status';
     const byStatus = records.reduce<Record<string, number>>((acc, rec) => {
-      const key = String(rec.values?.status || 'without_status');
+      const key = String(rec.values?.[statusKey] || 'without_status');
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {});
@@ -2326,7 +2448,7 @@ export class CustomObjectsService {
   }
 
   async applyImport(tenantId: string, objectId: string, payload: ImportApplyPayload) {
-    await this.getObject(tenantId, objectId);
+    const obj = await this.getObject(tenantId, objectId);
     const fields = await this.listFields(tenantId, objectId);
     const session = await this.importRepo.findOne({
       where: { id: payload.importId, tenantId, objectId },
@@ -2427,6 +2549,14 @@ export class CustomObjectsService {
       errors: errors.slice(0, 200),
     };
     await this.importRepo.save(session);
+    await this.activityLog.log(
+      tenantId,
+      obj.workspaceAreaId,
+      'import',
+      `Импорт «${session.originalFileName}»`,
+      `Создано: ${created}, обновлено: ${updated}, пропущено: ${skipped}${errors.length ? `, ошибок: ${errors.length}` : ''}`,
+      { relatedObjectId: objectId },
+    );
     return {
       ok: true,
       created,

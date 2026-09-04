@@ -1,6 +1,7 @@
 // src/pages/leads/LeadsArchivePage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useTranslation } from 'react-i18next';
 import { fetchLeads, updateLead, deleteLead, type Lead, type LeadStatus } from '../../api/leads';
 import { useAlertModal } from '../../contexts/AlertModalContext';
@@ -82,6 +83,7 @@ export const LeadsArchivePage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="leadsArchive" />
       <div className="space-y-4">
         <div>
           <h1 className="page-title">

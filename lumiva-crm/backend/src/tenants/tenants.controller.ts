@@ -6,9 +6,11 @@ import {
   Delete,
   ForbiddenException,
   Get,
+  NotFoundException,
   Param,
   Patch,
   Post,
+  Query,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -41,6 +43,23 @@ export class TenantsController {
   @Get()
   async getTenants() {
     return this.tenantsService.findAll();
+  }
+
+  /**
+   * Резолвинг тенанта по кастомному домену — вызывается страницей логина CRM при заходе не с
+   * crm.lumiva.agency, чтобы подставить clientKey автоматически. Публичный (без JWT): нужен
+   * до аутентификации, отдаёт только сам slug, ничего чувствительного.
+   */
+  @Get('by-domain')
+  async getByDomain(@Query('host') host?: string) {
+    if (!host) {
+      throw new BadRequestException('host обязателен');
+    }
+    const clientKey = await this.tenantsService.findClientKeyByCustomDomain(host);
+    if (!clientKey) {
+      throw new NotFoundException('Домен не настроен');
+    }
+    return { clientKey };
   }
 
   // ---- Получить настройки компании ----

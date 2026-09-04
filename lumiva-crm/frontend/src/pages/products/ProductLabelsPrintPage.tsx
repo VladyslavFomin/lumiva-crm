@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { ProductBarcodePreview } from './ProductBarcodePreview';
 import type { Product } from '../../api/products';
 
@@ -56,6 +57,9 @@ export const ProductLabelsPrintPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <div className="no-print">
+        <PageHelpButton topic="productLabels" />
+      </div>
       <style>{`
         @media print {
           .no-print { display: none !important; }

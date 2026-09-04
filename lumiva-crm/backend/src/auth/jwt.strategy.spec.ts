@@ -15,7 +15,7 @@ const makeTenant = (overrides: Partial<Tenant> = {}): Tenant =>
   ({ id: 'tenant-1', clientKey: 'test', status: 'active', activeUntil: null, ...overrides } as Tenant);
 
 const makeUser = (overrides: Partial<User> = {}): User =>
-  ({ id: 'user-1', tenantId: 'tenant-1', email: 'admin@test.com', status: 'active', ...overrides } as User);
+  ({ id: 'user-1', tenantId: 'tenant-1', email: 'admin@test.com', status: 'active', role: 'owner', ...overrides } as User);
 
 const validSession = { id: 'session-1', userId: 'user-1', tenantId: 'tenant-1' };
 
@@ -67,6 +67,31 @@ describe('JwtStrategy', () => {
       expect(result.userId).toBe('user-1');
       expect(result.tenantId).toBe('tenant-1');
       expect(result.role).toBe('owner');
+    });
+
+    it('uses the CURRENT role from the DB, not the role embedded in the JWT at login time — a', async () => {
+      // role change (owner demotes a manager to viewer, say) must take effect immediately on the
+      // person's existing session, not only after they log back in and get a fresh token.
+      tenantRepo.findOne.mockResolvedValue(makeTenant());
+      userSessions.findActiveById.mockResolvedValue(validSession);
+      userRepo.findOne.mockResolvedValue(makeUser({ role: 'viewer' }));
+      staffRepo.findOne.mockResolvedValue(null);
+
+      // Token was issued while this user was still 'owner'.
+      const result = await strategy.validate({ ...validPayload, role: 'owner' });
+
+      expect(result.role).toBe('viewer');
+    });
+
+    it('attaches staffUserId from the matching staff_users row (not users.id)', async () => {
+      tenantRepo.findOne.mockResolvedValue(makeTenant());
+      userSessions.findActiveById.mockResolvedValue(validSession);
+      userRepo.findOne.mockResolvedValue(makeUser());
+      staffRepo.findOne.mockResolvedValue({ id: 'staff-user-99', isActive: true });
+
+      const result = await strategy.validate(validPayload);
+
+      expect(result.staffUserId).toBe('staff-user-99');
     });
 
     // ─── Tenant isolation ─────────────────────────────────────────────────

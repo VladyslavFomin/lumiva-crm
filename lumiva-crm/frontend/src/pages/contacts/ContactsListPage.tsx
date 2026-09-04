@@ -1,6 +1,8 @@
 // src/pages/contacts/ContactsListPage.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { LottieIcon } from '../../components/LottieIcon';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -563,6 +565,7 @@ export const ContactsListPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="contacts" />
       <div
         className="lv-pt w-full pb-8 min-w-0"
         style={{
@@ -615,6 +618,11 @@ export const ContactsListPage: React.FC = () => {
             className="rounded-[10px] border p-8 text-center"
             style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
           >
+            {!search && (
+              <div className="flex justify-center mb-1">
+                <LottieIcon name="add-plus" size={64} />
+              </div>
+            )}
             <div className="text-[12px] text-[var(--fg-3)]">
               {search ? t('crm.contacts.list.notFound') : t('crm.contacts.list.empty')}
             </div>
@@ -781,7 +789,7 @@ export const ContactsListPage: React.FC = () => {
 
             <div className="lv-proj-wrap">
             <div className="lv-proj-scroll">
-              <table className="lv-proj-table lv-leads-table min-w-[900px]">
+              <table className="lv-proj-table lv-leads-table lv-contacts-table min-w-[1368px]">
                 <thead>
                   <tr>
                     <th className="lv-col-check">
@@ -823,6 +831,7 @@ export const ContactsListPage: React.FC = () => {
                             isDragging ? 'lv-col-dragging' : '',
                             isDropTarget ? 'lv-col-drop-target' : '',
                             contactColClass(col.id),
+                            `col-${col.id}`,
                           ]
                             .filter(Boolean)
                             .join(' ')}
@@ -928,10 +937,8 @@ export const ContactsListPage: React.FC = () => {
                                   <td
                                     key={col.id}
                                     className={[
-                                      ['manager', 'lead', 'group', 'actions'].includes(col.id)
-                                        ? 'lv-td-popover'
-                                        : '',
                                       contactColClass(col.id),
+                                      `col-${col.id}`,
                                     ]
                                       .filter(Boolean)
                                       .join(' ')}

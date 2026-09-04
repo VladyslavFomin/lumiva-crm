@@ -109,8 +109,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const user: CurrentUserPayload = {
       userId: payload.sub,
       tenantId: payload.tenantId,
-      role: payload.role,
+      // Свежая роль из БД, а не из токена: иначе после смены роли сотрудника (owner меняет
+      // Менеджера на Продажи и т.п.) все проверки доступа продолжают использовать СТАРУЮ роль
+      // до тех пор, пока сотрудник не перелогинится — именно это давало эффект «то открывается,
+      // то нет»: права в БД уже новые, а бэкенд на каждый запрос проверял их по роли из токена,
+      // выданного при входе под старой ролью.
+      role: dbUser.role,
       email: dbUser.email?.trim() || payload.email,
+      // Индивидуальные права (staff_user_permissions) ключуются id из staff_users, а не users —
+      // см. комментарий в CurrentUserPayload.
+      staffUserId: staff?.id ?? null,
+      sessionId: session.id,
     };
 
     Logger.debug(`JWT validate user = ${JSON.stringify(user)}`, 'JwtStrategy');

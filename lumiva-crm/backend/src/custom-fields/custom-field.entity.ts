@@ -29,6 +29,7 @@ export enum FieldType {
   PHONE = 'phone',
   DATE = 'date',
   DATETIME = 'datetime',
+  DATERANGE = 'daterange',
   BOOLEAN = 'boolean',
   SELECT = 'select',
   MULTISELECT = 'multiselect',

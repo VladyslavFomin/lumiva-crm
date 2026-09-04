@@ -100,6 +100,7 @@ export class CustomFieldsService {
       defaultValue: dto.defaultValue || null,
       order: dto.order || 0,
       isActive: dto.isActive !== undefined ? dto.isActive : true,
+      meta: dto.meta ?? null,
     });
 
     return this.repo.save(field);
@@ -143,9 +144,20 @@ export class CustomFieldsService {
     if (dto.defaultValue !== undefined) field.defaultValue = dto.defaultValue || null;
     if (dto.order !== undefined) field.order = dto.order;
     if (dto.isActive !== undefined) field.isActive = dto.isActive;
+    if (dto.meta !== undefined) field.meta = dto.meta ?? null;
 
     return this.repo.save(field);
   }
+
+  // entityType -> реальная таблица + имя tenant-колонки (crm_projects — единственная с
+  // tenant_id вместо tenantId, у остальных четырёх — camelCase).
+  private static readonly ENTITY_TABLE: Record<EntityType, { table: string; tenantCol: string }> = {
+    [EntityType.CONTACT]: { table: 'contacts', tenantCol: '"tenantId"' },
+    [EntityType.COMPANY]: { table: 'companies', tenantCol: '"tenantId"' },
+    [EntityType.LEAD]: { table: 'leads', tenantCol: '"tenantId"' },
+    [EntityType.SALE]: { table: 'sales', tenantCol: '"tenantId"' },
+    [EntityType.PROJECT]: { table: 'crm_projects', tenantCol: 'tenant_id' },
+  };
 
   /**
    * Удалить кастомное поле
@@ -153,6 +165,17 @@ export class CustomFieldsService {
   async delete(tenantId: string, id: string): Promise<void> {
     const field = await this.findOne(tenantId, id);
     await this.repo.remove(field);
+    // Иначе значение по этому ключу остаётся в jsonb-блобе customFields у всех
+    // существующих записей навсегда — бессрочный, невидимый мусор (а при повторном создании
+    // поля с тем же key — неожиданно "всплывающие" старые значения).
+    const target = CustomFieldsService.ENTITY_TABLE[field.entityType as EntityType];
+    if (target) {
+      await this.repo.query(
+        `UPDATE ${target.table} SET "customFields" = "customFields" - $1
+         WHERE ${target.tenantCol} = $2 AND "customFields" ? $1`,
+        [field.key, tenantId],
+      );
+    }
   }
 
   /**

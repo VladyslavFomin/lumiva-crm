@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Toggle } from '../../components/ui';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
@@ -62,24 +64,26 @@ const PeriodEditor: React.FC<{
   onSave: (startDate: string, endDate: string) => void;
   onCancel: () => void;
 }> = ({ initial, onSave, onCancel }) => {
+  const { t } = useTranslation();
   const [start, setStart] = useState(initial?.startDate || '');
   const [end, setEnd] = useState(initial?.endDate || '');
   return (
     <div className="period-editor">
-      <div style={{ fontSize: 13, fontWeight: 600 }}>{initial ? 'Изменить период' : 'Новый период'}</div>
+      <div style={{ fontSize: 13, fontWeight: 600 }}>{initial ? t('crm.hotels.pricing.periodEditor.editTitle') : t('crm.hotels.pricing.periodEditor.newTitle')}</div>
       <div className="row2">
-        <div><label>Начало</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></div>
-        <div><label>Конец</label><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
+        <div><label>{t('crm.hotels.pricing.periodEditor.startLabel')}</label><input type="date" value={start} onChange={(e) => setStart(e.target.value)} /></div>
+        <div><label>{t('crm.hotels.pricing.periodEditor.endLabel')}</label><input type="date" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
       </div>
       <div className="period-editor-foot">
-        <button className="btn btn-sm" style={{ flex: 1 }} onClick={onCancel}>Отмена</button>
-        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => start && end && onSave(start, end)}>Сохранить</button>
+        <button className="btn btn-sm" style={{ flex: 1 }} onClick={onCancel}>{t('crm.hotels.pricing.periodEditor.cancel')}</button>
+        <button className="btn btn-primary btn-sm" style={{ flex: 1 }} onClick={() => start && end && onSave(start, end)}>{t('crm.hotels.pricing.periodEditor.save')}</button>
       </div>
     </div>
   );
 };
 
 export const HotelPricingPage: React.FC = () => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [hotelId, setHotelId] = useState('');
@@ -103,7 +107,7 @@ export const HotelPricingPage: React.FC = () => {
         setHotels(h);
         if (h.length) setHotelId(h[0].id);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить отели', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.error'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -114,7 +118,7 @@ export const HotelPricingPage: React.FC = () => {
         setRoomTypes(rts);
         if (rts.length) setRoomTypeId(rts[0].id);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить типы номеров', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.roomTypesError'), { variant: 'error' }));
     loadMarketGroups(hotelId);
     loadPeriods(hotelId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -123,15 +127,15 @@ export const HotelPricingPage: React.FC = () => {
   const loadMarketGroups = (hId: string) => {
     fetchMarketGroups(hId)
       .then(setMarketGroups)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить группы рынков', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.marketGroupsError'), { variant: 'error' }));
   };
 
   const addMarketGroup = () => {
-    const name = window.prompt('Название группы рынков (например, Batı Avrupa)');
+    const name = window.prompt(t('crm.hotels.pricing.addGroupPrompt'));
     if (!name || !name.trim()) return;
     createMarketGroup(hotelId, name.trim())
       .then(() => loadMarketGroups(hotelId))
-      .catch((e) => showAlert(e.message || 'Не удалось добавить группу', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.addGroupError'), { variant: 'error' }));
   };
 
   const renameMarketGroup = (id: string, name: string) => {
@@ -141,14 +145,14 @@ export const HotelPricingPage: React.FC = () => {
     }
     updateMarketGroup(id, name.trim())
       .then(() => loadMarketGroups(hotelId))
-      .catch((e) => showAlert(e.message || 'Не удалось переименовать группу', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.renameGroupError'), { variant: 'error' }))
       .finally(() => setEditingGroupId(null));
   };
 
   const removeMarketGroupAndRefresh = async (group: HotelMarketGroup) => {
-    const ok = await showConfirm(`Удалить группу рынков «${group.name}»? Все цены по этой группе будут удалены.`, {
-      title: 'Удалить группу рынков',
-      confirmLabel: 'Удалить',
+    const ok = await showConfirm(t('crm.hotels.pricing.deleteGroupBody', { name: group.name }), {
+      title: t('crm.hotels.pricing.deleteGroupTitle'),
+      confirmLabel: t('crm.hotels.pricing.deleteGroupConfirm'),
       danger: true,
     });
     if (!ok) return;
@@ -157,7 +161,7 @@ export const HotelPricingPage: React.FC = () => {
         loadMarketGroups(hotelId);
         if (roomTypeId && visibleDays.length) fetchDailyRates(roomTypeId, visibleDays).then(setRows);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось удалить группу', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.deleteGroupError'), { variant: 'error' }));
   };
 
   const loadPeriods = (hId: string) => {
@@ -166,7 +170,7 @@ export const HotelPricingPage: React.FC = () => {
         setPeriods(p);
         setSelectedPeriods(p.map((x) => x.id));
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить периоды', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.periodsError'), { variant: 'error' }));
   };
 
   const visibleDays = useMemo(() => {
@@ -193,10 +197,10 @@ export const HotelPricingPage: React.FC = () => {
     }
     fetchDailyRates(roomTypeId, visibleDays)
       .then(setRows)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить цены', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.ratesError'), { variant: 'error' }));
     fetchStopSaleDates(roomTypeId, visibleDays)
       .then(setStoppedDates)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить стоп-даты', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.stopDatesError'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomTypeId, visibleDays.join(',')]);
 
@@ -205,7 +209,7 @@ export const HotelPricingPage: React.FC = () => {
     const stopped = !stoppedDates.includes(date);
     setStopSaleDate(roomTypeId, date, stopped)
       .then(() => setStoppedDates((prev) => (stopped ? [...prev, date] : prev.filter((d) => d !== date))))
-      .catch((e) => showAlert(e.message || 'Не удалось изменить стоп-продажу', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.toggleStopError'), { variant: 'error' }));
   };
 
   const addPeriod = (startDate: string, endDate: string) => {
@@ -214,7 +218,7 @@ export const HotelPricingPage: React.FC = () => {
         setEditing(null);
         loadPeriods(hotelId);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось создать период', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.createPeriodError'), { variant: 'error' }));
   };
   const savePeriod = (id: string, startDate: string, endDate: string) => {
     updatePricingPeriod(id, { startDate, endDate })
@@ -222,12 +226,12 @@ export const HotelPricingPage: React.FC = () => {
         setEditing(null);
         loadPeriods(hotelId);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить период', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.savePeriodError'), { variant: 'error' }));
   };
   const removePeriod = (id: string) => {
     deletePricingPeriod(id)
       .then(() => loadPeriods(hotelId))
-      .catch((e) => showAlert(e.message || 'Не удалось удалить период', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.removePeriodError'), { variant: 'error' }));
   };
   const toggleSelected = (id: string) =>
     setSelectedPeriods((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -236,7 +240,7 @@ export const HotelPricingPage: React.FC = () => {
     const dto: any = { [field]: val };
     upsertDailyRate(roomTypeId, marketGroupId, date, dto)
       .then(() => fetchDailyRates(roomTypeId, visibleDays).then(setRows))
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить цену', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.saveCellError'), { variant: 'error' }));
   };
 
   useEffect(() => {
@@ -316,18 +320,19 @@ export const HotelPricingPage: React.FC = () => {
     if (!updates.length) return;
     Promise.all(updates.map((u) => upsertDailyRate(roomTypeId, u.roomGroupId, u.date, { [u.field]: u.value } as any)))
       .then(() => fetchDailyRates(roomTypeId, visibleDays).then(setRows))
-      .catch((err) => showAlert(err.message || 'Не удалось вставить данные', { variant: 'error' }));
+      .catch((err) => showAlert(err.message || t('crm.hotels.pricing.pasteError'), { variant: 'error' }));
   };
 
   return (
     <MainLayout>
+      <PageHelpButton topic="hotelPricing" />
       <div className="px-scope">
         <HotelsSubnav active="pricing" />
         <div className="htl-hero">
           <div>
-            <div className="kicker"><span className="dot" />ЦЕНА ЗА ЧЕЛОВЕКА / НОЧЬ · ПОДНЕВНО</div>
-            <h1>Цены по рынкам продаж</h1>
-            <p className="sub">Периоды ниже — это фильтр диапазона дат для отображения. В таблице каждая дата — отдельная строка, с ценой на человека за ночь по каждому рынку.</p>
+            <div className="kicker"><span className="dot" />{t('crm.hotels.pricing.kicker')}</div>
+            <h1>{t('crm.hotels.pricing.title')}</h1>
+            <p className="sub">{t('crm.hotels.pricing.subtitle')}</p>
           </div>
           <div className="htl-hero-r io-toolbar">
             <select value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
@@ -336,38 +341,37 @@ export const HotelPricingPage: React.FC = () => {
             <select value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)}>
               {roomTypes.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
-            <button className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />Импорт Excel</button>
+            <button className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.pricing.importBtn')}</button>
           </div>
         </div>
 
         <div style={{ fontSize: 11.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em', marginTop: 16 }}>
-          Диапазоны дат для отображения
+          {t('crm.hotels.pricing.periodsLabel')}
         </div>
         <div className="period-toolbar">
           {periods.map((p) => (
             <div key={p.id} className="period-chip" style={{ opacity: selectedPeriods.includes(p.id) ? 1 : 0.4, position: 'relative' }}>
               <input type="checkbox" checked={selectedPeriods.includes(p.id)} onChange={() => toggleSelected(p.id)} style={{ margin: 0 }} />
               <span onClick={() => setEditing(p.id)} style={{ cursor: 'pointer' }}>{fmtDate(p.startDate)} – {fmtDate(p.endDate)}</span>
-              <button onClick={() => removePeriod(p.id)} title="Удалить диапазон">×</button>
+              <button onClick={() => removePeriod(p.id)} title={t('crm.hotels.pricing.removePeriodTitle')}>×</button>
               {editing === p.id && (
                 <PeriodEditor initial={p} onCancel={() => setEditing(null)} onSave={(s, e) => savePeriod(p.id, s, e)} />
               )}
             </div>
           ))}
           <div style={{ position: 'relative' }}>
-            <button className="period-add-btn" onClick={() => setEditing('new')}><Ic d={HTL_ICON.plus} size={13} />Добавить диапазон</button>
+            <button className="period-add-btn" onClick={() => setEditing('new')}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.pricing.addPeriod')}</button>
             {editing === 'new' && <PeriodEditor onCancel={() => setEditing(null)} onSave={addPeriod} />}
           </div>
         </div>
 
         <div style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
-          <b style={{ color: 'var(--ink)' }}>{hotels.find((h) => h.id === hotelId)?.name}</b> · {roomTypes.find((r) => r.id === roomTypeId)?.name} · цена указана{' '}
-          <b style={{ color: 'var(--ink)' }}>на 1 человека за ночь</b> · показано дат: <b style={{ color: 'var(--ink)' }}>{visibleDays.length}</b>
+          <b style={{ color: 'var(--ink)' }}>{hotels.find((h) => h.id === hotelId)?.name}</b> · {roomTypes.find((r) => r.id === roomTypeId)?.name}{' '}
+          {t('crm.hotels.pricing.summaryLine', { perPerson: t('crm.hotels.pricing.perPersonPerNight'), count: visibleDays.length })}
         </div>
 
         <div style={{ fontSize: 11, color: 'var(--fg-3)', margin: '8px 0 4px' }}>
-          Выделите ячейки мышью (или Shift+клик) — Ctrl+C копирует, Ctrl+V вставляет сразу в несколько ячеек, как в Excel.
-          Первая колонка (дата) закреплена при горизонтальной прокрутке.
+          {t('crm.hotels.pricing.hint')}
         </div>
         <div className="ppt-wrap" style={{ marginTop: 4 }} onKeyDown={handleGridKeyDown} onPaste={handleGridPaste}>
           <table className="ppt-table">
@@ -379,12 +383,12 @@ export const HotelPricingPage: React.FC = () => {
                     className="btn btn-sm"
                     style={{ marginLeft: 8, padding: '2px 8px', fontSize: 10.5, fontWeight: 500, textTransform: 'none', verticalAlign: 'middle' }}
                     onClick={addMarketGroup}
-                    title="Добавить группу рынков"
+                    title={t('crm.hotels.pricing.addMarketGroupTitle')}
                   >
-                    <Ic d={HTL_ICON.plus} size={11} />Рынок
+                    <Ic d={HTL_ICON.plus} size={11} />{t('crm.hotels.pricing.addMarketGroupBtn')}
                   </button>
                 </th>
-                <th rowSpan={2} style={{ width: 54 }}>Стоп</th>
+                <th rowSpan={2} style={{ width: 54 }}>{t('crm.hotels.pricing.stopColHeader')}</th>
                 {marketGroups.map((g) => (
                   <th key={g.id} colSpan={5}>
                     {editingGroupId === g.id ? (
@@ -400,10 +404,10 @@ export const HotelPricingPage: React.FC = () => {
                       />
                     ) : (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ cursor: 'pointer' }} onClick={() => setEditingGroupId(g.id)} title="Переименовать группу">{g.name}</span>
+                        <span style={{ cursor: 'pointer' }} onClick={() => setEditingGroupId(g.id)} title={t('crm.hotels.pricing.renameGroupTitle')}>{g.name}</span>
                         <button
                           style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
-                          title="Удалить группу рынков"
+                          title={t('crm.hotels.pricing.removeGroupTitle')}
                           onClick={() => removeMarketGroupAndRefresh(g)}
                         >
                           ×
@@ -423,7 +427,7 @@ export const HotelPricingPage: React.FC = () => {
             </thead>
             <tbody>
               {rows.length === 0 && (
-                <tr><td colSpan={2 + marketGroups.length * 5} style={{ padding: 24, color: 'var(--fg-3)' }}>Нет выбранных диапазонов — отметьте один выше или добавьте новый.</td></tr>
+                <tr><td colSpan={2 + marketGroups.length * 5} style={{ padding: 24, color: 'var(--fg-3)' }}>{t('crm.hotels.pricing.noRangesSelected')}</td></tr>
               )}
               {rows.map((row, rowIdx) => {
                 const isStopped = stoppedDates.includes(row.date);
@@ -431,13 +435,13 @@ export const HotelPricingPage: React.FC = () => {
                 <tr key={row.date} className={isStopped ? 'ppt-stopped' : undefined}>
                   <td className="periyot">
                     {fmtDate(row.date)}
-                    {isStopped && <span className="ppt-stop-badge">СТОП</span>}
+                    {isStopped && <span className="ppt-stop-badge">{t('crm.hotels.pricing.stopBadge')}</span>}
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     <Toggle
                       checked={isStopped}
                       onChange={() => toggleStopSaleDate(row.date)}
-                      aria-label={`Стоп-продажа на ${row.date} (все рынки)`}
+                      aria-label={t('crm.hotels.pricing.stopSaleAria', { date: row.date })}
                     />
                   </td>
                   {marketGroups.map((group, groupIdx) => {
@@ -478,9 +482,9 @@ export const HotelPricingPage: React.FC = () => {
         </div>
 
         <div style={{ marginTop: 14, padding: '12px 16px', border: '1px solid var(--line-2)', borderRadius: 12, background: '#fff', fontSize: 11.5, color: 'var(--fg-3)', lineHeight: 1.6 }}>
-          <b style={{ color: 'var(--ink)' }}>Bütçe</b> — себестоимость на человека/ночь · <b style={{ color: 'var(--ink)' }}>PP Ort.</b> — средняя фактическая цена за период ·{' '}
-          <b style={{ color: 'var(--ink)' }}>Brüt</b> — желаемая (целевая) цена до скидки · <b style={{ color: 'var(--ink)' }}>İndirim</b> — скидка рынка ·{' '}
-          <b style={{ color: 'var(--ink)' }}>Net</b> — итоговая цена клиенту на эту дату.
+          <b style={{ color: 'var(--ink)' }}>Bütçe</b> — {t('crm.hotels.pricing.legend.budget')} · <b style={{ color: 'var(--ink)' }}>PP Ort.</b> — {t('crm.hotels.pricing.legend.ppAvg')} ·{' '}
+          <b style={{ color: 'var(--ink)' }}>Brüt</b> — {t('crm.hotels.pricing.legend.gross')} · <b style={{ color: 'var(--ink)' }}>İndirim</b> — {t('crm.hotels.pricing.legend.discount')} ·{' '}
+          <b style={{ color: 'var(--ink)' }}>Net</b> — {t('crm.hotels.pricing.legend.net')}
         </div>
       </div>
 
@@ -505,6 +509,7 @@ const PricingImportModal: React.FC<{
   onClose: () => void;
   onDone: () => void;
 }> = ({ hotelId, roomTypeId, onClose, onDone }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [preview, setPreview] = useState<HotelPricingImportPreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -514,7 +519,7 @@ const PricingImportModal: React.FC<{
     setBusy(true);
     previewPricingImport(file)
       .then(setPreview)
-      .catch((e) => showAlert(e.message || 'Не удалось прочитать файл', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.importModal.readError'), { variant: 'error' }))
       .finally(() => setBusy(false));
   };
 
@@ -523,7 +528,7 @@ const PricingImportModal: React.FC<{
     setBusy(true);
     applyPricingImport({ importId: preview.importId, hotelId, roomTypeId })
       .then(setResult)
-      .catch((e) => showAlert(e.message || 'Не удалось применить импорт', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricing.importModal.applyError'), { variant: 'error' }))
       .finally(() => setBusy(false));
   };
 
@@ -532,41 +537,41 @@ const PricingImportModal: React.FC<{
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="bk-modal-head">
-          <h3>Импорт цен из Excel</h3>
+          <h3>{t('crm.hotels.pricing.importModal.title')}</h3>
           <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
         <div className="bk-modal-body">
           {!preview && !result && (
             <div style={{ border: '1.5px dashed var(--line-2)', borderRadius: 12, padding: '28px 20px', textAlign: 'center', color: 'var(--fg-3)' }}>
               <Ic d={HTL_ICON.download} size={22} style={{ margin: '0 auto 10px' }} />
-              <div style={{ fontSize: 13, marginBottom: 4 }}>Загрузите .xlsx с ценами по датам</div>
-              <div style={{ fontSize: 11.5 }}>Формат: одна дата на строку (Tarih/Дата), рынки группами колонок — "&lt;Группа&gt; Bütçe/Brüt/İndirim"</div>
+              <div style={{ fontSize: 13, marginBottom: 4 }}>{t('crm.hotels.pricing.importModal.dropHint')}</div>
+              <div style={{ fontSize: 11.5 }}>{t('crm.hotels.pricing.importModal.formatHint')}</div>
               <label className="btn btn-sm" style={{ marginTop: 14, display: 'inline-flex', cursor: 'pointer' }}>
-                Выбрать файл
+                {t('crm.hotels.pricing.importModal.chooseFile')}
                 <input type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
               </label>
             </div>
           )}
           {preview && !result && (
             <div style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
-              Найдено {preview.totalRows} строк, дата определена как «{preview.suggestedMapping.date || '—'}». Колонки рынков сопоставляются автоматически по названию группы.
+              {t('crm.hotels.pricing.importModal.foundRows', { count: preview.totalRows, date: preview.suggestedMapping.date || '—' })}
             </div>
           )}
           {result && (
             <div>
-              <div style={{ fontSize: 13, marginBottom: 8 }}>Обновлено <b>{result.created}</b> значений из {result.total} строк.</div>
+              <div style={{ fontSize: 13, marginBottom: 8 }}>{t('crm.hotels.pricing.importModal.updatedPrefix')} <b>{result.created}</b> {t('crm.hotels.pricing.importModal.updatedSuffix', { total: result.total })}</div>
               {result.errors.length > 0 && (
                 <div style={{ maxHeight: 200, overflowY: 'auto', fontSize: 12, color: '#cc2f47' }}>
-                  {result.errors.map((e, i) => <div key={i}>Строка {e.row}: {e.message}</div>)}
+                  {result.errors.map((e, i) => <div key={i}>{t('crm.hotels.pricing.importModal.rowError', { row: e.row, message: e.message })}</div>)}
                 </div>
               )}
             </div>
           )}
         </div>
         <div className="bk-modal-foot">
-          <button className="btn" onClick={onClose}>{result ? 'Закрыть' : 'Отмена'}</button>
-          {preview && !result && <button className="btn btn-primary" disabled={busy} onClick={handleApply}><Ic d={HTL_ICON.check} size={14} />Загрузить</button>}
-          {result && <button className="btn btn-primary" onClick={onDone}>Готово</button>}
+          <button className="btn" onClick={onClose}>{result ? t('crm.hotels.pricing.importModal.close') : t('crm.hotels.pricing.importModal.cancel')}</button>
+          {preview && !result && <button className="btn btn-primary" disabled={busy} onClick={handleApply}><Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.pricing.importModal.upload')}</button>}
+          {result && <button className="btn btn-primary" onClick={onDone}>{t('crm.hotels.pricing.importModal.done')}</button>}
         </div>
       </div>
     </div>

@@ -1,16 +1,16 @@
 // src/pages/portal/PortalTicketDetailPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchPortalTicket, replyToPortalTicket, type PortalTicket, type TicketMessage } from '../../api/portal';
 
-const STATUS_LABEL: Record<string, string> = {
-  open: 'Открыт',
-  pending: 'В обработке',
-  resolved: 'Решён',
-  closed: 'Закрыт',
-};
+const STATUS_KEYS = ['open', 'pending', 'resolved', 'closed'];
 
 export const PortalTicketDetailPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
+  const statusLabel = (status: string) => (STATUS_KEYS.includes(status) ? t(`crm.portal.ticketStatus.${status}`) : status);
+
   const { clientKey = '', ticketId = '' } = useParams<{ clientKey: string; ticketId: string }>();
   const navigate = useNavigate();
   const [ticket, setTicket] = useState<PortalTicket | null>(null);
@@ -26,7 +26,7 @@ export const PortalTicketDetailPage: React.FC = () => {
         setTicket(res.ticket);
         setMessages(res.messages);
       })
-      .catch((e: any) => setError(e?.message || 'Не удалось загрузить обращение'))
+      .catch((e: any) => setError(e?.message || t('crm.portal.ticketDetail.loadError')))
       .finally(() => setLoading(false));
   };
 
@@ -45,14 +45,14 @@ export const PortalTicketDetailPage: React.FC = () => {
       setReply('');
       load();
     } catch (e: any) {
-      setError(e?.message || 'Не удалось отправить сообщение');
+      setError(e?.message || t('crm.portal.ticketDetail.sendError'));
     } finally {
       setSending(false);
     }
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">Загрузка…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">{t('crm.portal.ticketDetail.loading')}</div>;
   }
 
   return (
@@ -63,7 +63,7 @@ export const PortalTicketDetailPage: React.FC = () => {
           onClick={() => navigate(`/portal/${clientKey}/tickets`)}
           className="text-xs text-slate-400 hover:text-slate-600"
         >
-          ← Все обращения
+          {t('crm.portal.ticketDetail.backToTickets')}
         </button>
 
         {error && (
@@ -75,7 +75,7 @@ export const PortalTicketDetailPage: React.FC = () => {
             <div className="flex items-center justify-between">
               <h1 className="text-xl font-semibold text-lumiva-accent">{ticket.subject}</h1>
               <span className="text-xs font-medium px-2 py-1 rounded-lg bg-slate-100 text-slate-600">
-                {STATUS_LABEL[ticket.status] || ticket.status}
+                {statusLabel(ticket.status)}
               </span>
             </div>
 
@@ -88,7 +88,7 @@ export const PortalTicketDetailPage: React.FC = () => {
                   }`}
                 >
                   <div className="text-[11px] text-slate-400 mb-1">
-                    {m.authorName} · {new Date(m.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    {m.authorName} · {new Date(m.createdAt).toLocaleString(dateLocale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
                   </div>
                   <div className="whitespace-pre-wrap">{m.text}</div>
                 </div>
@@ -100,7 +100,7 @@ export const PortalTicketDetailPage: React.FC = () => {
                 type="text"
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
-                placeholder="Написать сообщение…"
+                placeholder={t('crm.portal.ticketDetail.replyPlaceholder')}
                 className="flex-1 rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-lumiva-accent"
               />
               <button
@@ -108,7 +108,7 @@ export const PortalTicketDetailPage: React.FC = () => {
                 disabled={sending}
                 className="inline-flex items-center justify-center rounded-xl bg-lumiva-accent hover:bg-lumiva-accent-soft px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {sending ? '…' : 'Отправить'}
+                {sending ? '…' : t('crm.portal.ticketDetail.sendBtn')}
               </button>
             </form>
           </>

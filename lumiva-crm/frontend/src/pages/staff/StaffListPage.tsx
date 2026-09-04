@@ -7,16 +7,21 @@ import { MainLayout } from '../../layout/MainLayout';
 
 import {
   fetchStaff,
-  createStaffUser,
+  inviteStaffMember,
   deactivateStaffUser,
   activateStaffUser,
   updateStaffRole,
-  updateStaffDepartment,
+  updateStaffUser,
   type StaffUser,
   type StaffRole,
 } from '../../api/staff';
+import { fetchDepartments, type Department } from '../../api/departments';
 
 import { adminProvisionUser } from '../../api/users';
+import { getStoredUser } from '../../auth/session';
+import { LottieIcon } from '../../components/LottieIcon';
+import '../projects/ProjectsListPage.css';
+import './staff-list-design.css';
 
 type DialogKind = 'info' | 'confirm';
 
@@ -32,14 +37,17 @@ export const StaffListPage: React.FC = () => {
   const navigate = useNavigate();
 
   const [items, setItems] = useState<StaffUser[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const isOwner = (getStoredUser()?.role || '').toLowerCase() === 'owner';
 
   // создание нового пользователя
   const [creating, setCreating] = useState(false);
   const [newFullName, setNewFullName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newDept, setNewDept] = useState('');
+  const [newDepartmentId, setNewDepartmentId] = useState('');
   const [newRole, setNewRole] = useState<StaffRole>('manager');
 
   // inline-редактирование
@@ -66,10 +74,11 @@ export const StaffListPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    fetchStaff()
-      .then((data) => {
+    Promise.all([fetchStaff(), fetchDepartments()])
+      .then(([staffRows, deptRows]) => {
         if (!alive) return;
-        setItems(data);
+        setItems(staffRows);
+        setDepartments(deptRows);
       })
       .catch((e: any) => {
         if (!alive) return;
@@ -86,25 +95,31 @@ export const StaffListPage: React.FC = () => {
     };
   }, []);
 
-  // ---------- СОЗДАНИЕ ----------
+  // ---------- СОЗДАНИЕ (реальное приглашение по email) ----------
   const handleCreate = async () => {
     if (!newFullName.trim() || !newEmail.trim()) return;
     setCreating(true);
     setError(null);
 
     try {
-      const u = await createStaffUser({
+      const u = await inviteStaffMember({
         fullName: newFullName.trim(),
         email: newEmail.trim(),
-        department: newDept.trim() || undefined,
         role: newRole,
+        departmentId: newDepartmentId || null,
       });
 
       setItems((prev) => [...prev, u]);
 
+      setDialog({
+        kind: 'info',
+        title: t('crm.staff.dialogs.inviteSent.title'),
+        message: t('crm.staff.dialogs.inviteSent.message', { email: u.email }),
+      });
+
       setNewFullName('');
       setNewEmail('');
-      setNewDept('');
+      setNewDepartmentId('');
       setNewRole('manager');
     } catch (e: any) {
       console.error(e);
@@ -170,13 +185,16 @@ export const StaffListPage: React.FC = () => {
     }
   };
 
-  // ---------- ОТДЕЛ ----------
-  const handleSaveDept = async (id: string, department: string) => {
+  // ---------- ОТДЕЛ (из справочника /departments) ----------
+  const handleSaveDept = async (id: string, departmentId: string) => {
     try {
-      await updateStaffDepartment(id, department);
-      setItems((prev) =>
-        prev.map((u) => (u.id === id ? { ...u, department } : u)),
-      );
+      const nextId = departmentId || null;
+      const dept = nextId ? departments.find((d) => d.id === nextId) : null;
+      const updated = await updateStaffUser(id, {
+        departmentId: nextId,
+        department: dept?.name ?? null,
+      });
+      setItems((prev) => prev.map((u) => (u.id === id ? updated : u)));
     } catch (e: any) {
       console.error(e);
       setError(e.message || t('crm.staff.errors.department'));
@@ -260,24 +278,34 @@ export const StaffListPage: React.FC = () => {
               value={newFullName}
               onChange={(e) => setNewFullName(e.target.value)}
               placeholder={t('crm.staff.create.fullName')}
+              disabled={!isOwner}
               className="base-input"
             />
             <input
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder={t('crm.staff.create.email')}
+              disabled={!isOwner}
               className="base-input"
             />
-            <input
-              value={newDept}
-              onChange={(e) => setNewDept(e.target.value)}
-              placeholder={t('crm.staff.create.department')}
+            <select
+              value={newDepartmentId}
+              onChange={(e) => setNewDepartmentId(e.target.value)}
+              disabled={!isOwner}
               className="base-input"
-            />
+            >
+              <option value="">{t('crm.staff.create.departmentPlaceholder')}</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
 
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value as StaffRole)}
+              disabled={!isOwner}
               className="base-input"
             >
               {Object.entries(roleLabels).map(([k, v]) => (
@@ -290,29 +318,37 @@ export const StaffListPage: React.FC = () => {
             <button
               type="button"
               onClick={handleCreate}
-              disabled={creating}
+              disabled={creating || !isOwner}
               className="btn-primary"
             >
               {creating ? t('crm.staff.create.creating') : t('crm.staff.create.submit')}
             </button>
           </div>
+
+          {!isOwner && (
+            <div className="text-[11px] text-slate-400">
+              {t('crm.staff.create.ownerOnly')}
+            </div>
+          )}
         </div>
 
         {/* Таблица */}
-        <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm">
-          {loading ? (
+        {loading ? (
+          <div className="bg-white border border-slate-200 rounded-3xl p-4 shadow-sm">
             <div className="text-xs text-slate-400">{t('crm.staff.loading')}</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-[820px] w-full text-xs border-separate border-spacing-y-1">
-              <thead className="text-slate-500">
+          </div>
+        ) : (
+          <div className="lv-proj-wrap">
+            <div className="lv-proj-scroll">
+              <table className="lv-proj-table lv-staff-table min-w-[820px]">
+              <thead>
                 <tr>
-                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.name')}</th>
-                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.email')}</th>
-                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.department')}</th>
-                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.role')}</th>
-                  <th className="px-3 py-1 text-left">{t('crm.staff.table.headers.status')}</th>
-                  <th className="px-3 py-1 text-right">{t('crm.staff.table.headers.actions')}</th>
+                  <th><span className="lv-th-inner">{t('crm.staff.table.headers.name')}</span></th>
+                  <th><span className="lv-th-inner">{t('crm.staff.table.headers.email')}</span></th>
+                  <th><span className="lv-th-inner">{t('crm.staff.table.headers.department')}</span></th>
+                  <th><span className="lv-th-inner">{t('crm.staff.table.headers.role')}</span></th>
+                  <th><span className="lv-th-inner">{t('crm.staff.table.headers.status')}</span></th>
+                  <th className="text-right"><span className="lv-th-inner justify-end">{t('crm.staff.table.headers.actions')}</span></th>
                 </tr>
               </thead>
 
@@ -320,38 +356,40 @@ export const StaffListPage: React.FC = () => {
                 {items.map((u) => (
                   <tr
                     key={u.id}
-                    className="hover:bg-slate-50 cursor-pointer"
+                    className="lv-proj-row"
                     onClick={() => navigate(`/app/staff/${u.id}/profile`)}
                   >
                     {/* Сотрудник */}
-                    <td className="px-3 py-1.5">
-                      <div className="flex items-center gap-2">
+                    <td>
+                      <div className="lv-cell-name">
                         {renderAvatar(u)}
-                        <div>
-                          <div className="text-[13px]">{u.fullName}</div>
-                          <div className="text-[10px] text-slate-500">
-                            {t('crm.staff.table.id', { id: u.id.slice(0, 8) })}
-                          </div>
+                        <div className="min-w-0">
+                          <div className="lv-name-text">{u.fullName}</div>
                         </div>
                       </div>
                     </td>
 
                     {/* Email */}
-                    <td className="px-3 py-1.5 text-slate-700">{u.email}</td>
+                    <td className="text-slate-700">{u.email}</td>
 
-                    {/* Отдел (inline) */}
-                    <td className="px-3 py-1.5 text-slate-300">
-                      {editDeptId === u.id ? (
-                        <input
-                          defaultValue={u.department || ''}
+                    {/* Отдел (inline, из справочника /departments, только владелец) */}
+                    <td className="text-slate-300">
+                      {isOwner && editDeptId === u.id ? (
+                        <select
+                          defaultValue={u.departmentId || ''}
                           onClick={(e) => e.stopPropagation()}
-                          onBlur={(e) =>
-                            handleSaveDept(u.id, e.target.value.trim())
-                          }
+                          onBlur={(e) => handleSaveDept(u.id, e.target.value)}
                           autoFocus
                           className="px-2 py-1 rounded border border-slate-200 bg-white text-slate-800 text-xs outline-none"
-                        />
-                      ) : (
+                        >
+                          <option value="">{t('crm.staff.create.departmentPlaceholder')}</option>
+                          {departments.map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : isOwner ? (
                         <button
                           className="text-slate-600 hover:text-slate-900"
                           onClick={(e) => {
@@ -359,14 +397,20 @@ export const StaffListPage: React.FC = () => {
                             setEditDeptId(u.id);
                           }}
                         >
-                          {u.department || t('crm.staff.common.empty')}
+                          {departments.find((d) => d.id === u.departmentId)?.name ||
+                            u.department ||
+                            t('crm.staff.common.empty')}
                         </button>
+                      ) : (
+                        departments.find((d) => d.id === u.departmentId)?.name ||
+                        u.department ||
+                        t('crm.staff.common.empty')
                       )}
                     </td>
 
-                    {/* Роль (inline) */}
-                    <td className="px-3 py-1.5 text-slate-700">
-                      {editRoleId === u.id ? (
+                    {/* Роль (inline, только владелец компании — см. staff-users.controller.ts) */}
+                    <td className="text-slate-700">
+                      {isOwner && editRoleId === u.id ? (
                         <select
                           defaultValue={u.role}
                           onClick={(e) => e.stopPropagation()}
@@ -385,7 +429,7 @@ export const StaffListPage: React.FC = () => {
                             </option>
                           ))}
                         </select>
-                      ) : (
+                      ) : isOwner ? (
                         <button
                           className="text-slate-600 hover:text-slate-900"
                           onClick={(e) => {
@@ -395,11 +439,13 @@ export const StaffListPage: React.FC = () => {
                         >
                           {roleLabels[u.role]}
                         </button>
+                      ) : (
+                        roleLabels[u.role]
                       )}
                     </td>
 
                     {/* Статус */}
-                    <td className="px-3 py-1.5">
+                    <td>
                       {u.isActive ? (
                         <span className="badge-active">{t('crm.staff.status.active')}</span>
                       ) : (
@@ -408,7 +454,7 @@ export const StaffListPage: React.FC = () => {
                     </td>
 
                     {/* Действия */}
-                    <td className="px-3 py-1.5 text-right space-x-3">
+                    <td className="text-right space-x-3">
                       <button
                         className="text-[11px] text-emerald-600 hover:text-emerald-700"
                         onClick={(e) => handleResetPassword(u, e)}
@@ -416,7 +462,7 @@ export const StaffListPage: React.FC = () => {
                         {t('crm.staff.actions.resetPassword')}
                       </button>
 
-                      {u.isActive ? (
+                      {!isOwner ? null : u.isActive ? (
                         <button
                           className="text-[11px] text-rose-600 hover:text-rose-700"
                           onClick={(e) => handleDeactivate(u.id, e)}
@@ -437,19 +483,27 @@ export const StaffListPage: React.FC = () => {
 
                 {!items.length && (
                   <tr>
-                    <td
-                      colSpan={6}
-                      className="px-3 py-3 text-center text-[12px] text-slate-500"
-                    >
-                      {t('crm.staff.empty')}
+                    <td colSpan={6} className="text-center text-[12px] text-slate-500">
+                      <div className="flex flex-col items-center gap-1 py-6">
+                        <LottieIcon name="team-connect" size={72} />
+                        <span>{t('crm.staff.empty')}</span>
+                      </div>
                     </td>
                   </tr>
                 )}
               </tbody>
-            </table>
+              </table>
             </div>
-          )}
-        </div>
+            <div className="lv-proj-foot">
+              <div className="lv-proj-foot-stats">
+                <span>
+                  <span className="lbl">{t('crm.staff.table.footerTotal')}:</span>{' '}
+                  <strong>{items.length}</strong>
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* POPUP-ДИАЛОГ */}
         {dialog && (

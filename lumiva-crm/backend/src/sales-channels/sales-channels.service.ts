@@ -27,6 +27,7 @@ export class SalesChannelsService {
   private toDto(
     ch: SalesChannel,
     integration?: IntegrationConnection | null,
+    salesAgg?: { count: number; amount: number; currency: string | null } | null,
   ): SalesChannelDto {
 
     // API KEY TAIL — хвост consumerKey
@@ -57,9 +58,13 @@ export class SalesChannelsService {
       isEnabled: ch.isEnabled,
       isDeleted: ch.isDeleted,
 
-      totalSalesCount: integration?.totalSalesCount ?? 0,
-      totalSalesAmount: integration?.totalSalesAmount ?? 0,
-      currency: integration?.currency ?? (ch as any).currency ?? 'EUR',
+      // Продажи считаем напрямую по таблице sales (channel_id), а не только
+      // по кэшу integration_connections — у direct-каналов (витрина/формы
+      // сайта) связанной интеграции нет вовсе, и кэш там всегда пустой.
+      totalSalesCount: salesAgg?.count ?? integration?.totalSalesCount ?? 0,
+      totalSalesAmount: salesAgg?.amount ?? integration?.totalSalesAmount ?? 0,
+      currency:
+        salesAgg?.currency ?? integration?.currency ?? (ch as any).currency ?? 'EUR',
 
       lastSyncAt: integration?.lastSyncAt ?? null,
       lastSyncStatus: integration?.lastSyncStatus ?? 'never',
@@ -67,6 +72,36 @@ export class SalesChannelsService {
 
       apiKeyTail,  // ←🔥 Новое поле
     };
+  }
+
+  // ─────────────────────────────────────────────
+  // Живые агрегаты продаж по каналам (COUNT/SUM из sales)
+  // ─────────────────────────────────────────────
+  private async loadSalesAggregates(
+    tenantId: string,
+    channelIds: string[],
+  ): Promise<Map<string, { count: number; amount: number; currency: string | null }>> {
+    const map = new Map<string, { count: number; amount: number; currency: string | null }>();
+    if (!channelIds.length) return map;
+
+    const rows = await this.saleRepo
+      .createQueryBuilder('s')
+      .select('s.channel_id', 'channelId')
+      .addSelect('COUNT(*)', 'cnt')
+      .addSelect('COALESCE(SUM(s.amount),0)', 'sum')
+      .where('s.tenantId = :tenantId', { tenantId })
+      .andWhere('s.channel_id IN (:...channelIds)', { channelIds })
+      .groupBy('s.channel_id')
+      .getRawMany<{ channelId: string; cnt: string; sum: string }>();
+
+    for (const row of rows) {
+      map.set(row.channelId, {
+        count: Number(row.cnt ?? 0),
+        amount: Number(row.sum ?? 0),
+        currency: null,
+      });
+    }
+    return map;
   }
 
   // маленький хелпер для одного канала
@@ -108,13 +143,18 @@ async findAllForTenant(tenantId: string): Promise<SalesChannelDto[]> {
     byIntegrationId.set(integ.id, integ);
   }
 
+  const salesAggByChannel = await this.loadSalesAggregates(
+    tenantId,
+    channels.map((ch) => ch.id),
+  );
+
   return channels.map((ch) => {
     const integration =
       (ch.integrationId && byIntegrationId.get(ch.integrationId)) ||
       byChannelId.get(ch.id) ||
       null;
 
-    return this.toDto(ch, integration);
+    return this.toDto(ch, integration, salesAggByChannel.get(ch.id) ?? null);
   });
 }
 
@@ -130,18 +170,16 @@ async toggleEnabledForTenant(
   const saved = await this.repo.save(ch);
 
   const integration = await this.findIntegrationForChannel(saved, tenantId);
-  return this.toDto(saved, integration);
+  const salesAgg = await this.loadSalesAggregates(tenantId, [saved.id]);
+  return this.toDto(saved, integration, salesAgg.get(saved.id) ?? null);
 }
 
 async softDeleteForTenant(tenantId: string, id: string): Promise<void> {
   const ch = await this.repo.findOne({ where: { id, tenantId } as any });
   if (!ch) return;
 
-  await this.saleRepo.delete({
-    tenantId,
-    channelId: id,
-  } as any);
-
+  // Не трогаем Sale-записи по этому каналу — isDeleted уже исключает их из всех списков
+  // (inner join на канал), а физическое удаление раньше безвозвратно стирало историю продаж.
   ch.isDeleted = true;
   ch.isEnabled = false;
   await this.repo.save(ch);

@@ -11,7 +11,10 @@ export type AuditLogEntityType =
   | 'project'
   | 'reservation'
   | 'hotel_reservation'
-  | 'product';
+  | 'product'
+  | 'rbac_role'
+  | 'rbac_user'
+  | 'user_security';
 
 export interface AuditLogChange {
   field: string;

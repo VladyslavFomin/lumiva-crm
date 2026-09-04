@@ -71,4 +71,20 @@ export class LeadActivityService {
       // relations убираем, используем userEmail / userName из самой таблицы
     });
   }
+
+  /** Кол-во комментариев на лид (для бейджа сообщений в канбане) — одним групповым запросом. */
+  async getCommentsCountByTenant(tenantId: string): Promise<Record<string, number>> {
+    const rows = await this.repo
+      .createQueryBuilder('a')
+      .select('a.leadId', 'leadId')
+      .addSelect('COUNT(*)', 'count')
+      .where('a.tenantId = :tenantId', { tenantId })
+      .andWhere("a.type = 'comment'")
+      .groupBy('a.leadId')
+      .getRawMany<{ leadId: string; count: string }>();
+    return rows.reduce<Record<string, number>>((acc, row) => {
+      acc[row.leadId] = Number(row.count) || 0;
+      return acc;
+    }, {});
+  }
 }

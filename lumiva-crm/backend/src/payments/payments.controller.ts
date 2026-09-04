@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -12,11 +13,13 @@ import type { Request, Response } from 'express';
 
 import { PaymentsService } from './payments.service';
 import { CreateSalePaymentLinkDto } from './dto/create-sale-payment-link.dto';
-import type { PaymentDto } from './payment.dto';
+import type { PaymentDto, PaymentListItemDto, PaymentsAnalyticsDto } from './payment.dto';
 import { getClientIp } from '../common/client-ip.util';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 
 @Controller('payments')
 export class PaymentsController {
@@ -40,6 +43,46 @@ export class PaymentsController {
       dto,
       getClientIp(req) || '0.0.0.0',
     );
+  }
+
+  /**
+   * Список платежей (таблица «Платежи» в разделе Продажи), с фильтрами.
+   * GET /v1/payments
+   */
+  @Get()
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('sales', 'read')
+  async listPayments(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('status') status?: string,
+    @Query('provider') provider?: string,
+    @Query('source') source?: string,
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ): Promise<{ items: PaymentListItemDto[]; total: number }> {
+    return this.svc.listPayments(user.tenantId, {
+      status,
+      provider,
+      source,
+      search,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      offset: offset ? parseInt(offset, 10) : undefined,
+    });
+  }
+
+  /**
+   * Аналитика платежей: успешные/неуспешные, по провайдерам, динамика.
+   * GET /v1/payments/analytics
+   */
+  @Get('analytics')
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('sales', 'read')
+  async getPaymentsAnalytics(
+    @CurrentUser() user: CurrentUserPayload,
+    @Query('days') days?: string,
+  ): Promise<PaymentsAnalyticsDto> {
+    return this.svc.getPaymentsAnalytics(user.tenantId, days ? parseInt(days, 10) : undefined);
   }
 
   /**

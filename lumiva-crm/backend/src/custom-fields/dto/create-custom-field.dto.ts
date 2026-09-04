@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsInt,
   IsArray,
+  IsObject,
   MaxLength,
   Min,
 } from 'class-validator';
@@ -54,6 +55,12 @@ export class CreateCustomFieldDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  // Произвольные доп-настройки поля (напр. { source: 'lead' | 'company' } —
+  // откуда брать значение для email/phone вместо ручного ввода).
+  @IsOptional()
+  @IsObject()
+  meta?: Record<string, any>;
 }
 
 

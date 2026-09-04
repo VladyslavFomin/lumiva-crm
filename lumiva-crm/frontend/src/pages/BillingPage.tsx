@@ -3,12 +3,15 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
   confirmCheckoutSession,
+  confirmProviderCheckout,
   createCheckoutSession,
   createPortalSession,
   fetchBillingCatalog,
   fetchBillingPlanFeatures,
   type BillingCatalogPlan,
 } from '../api/client';
+
+const YOOKASSA_PENDING_CHECKOUT_KEY = 'lumiva_pending_billing_checkout';
 import { fetchCompanySettings } from '../api/settings';
 import { getAccessToken, markBillingUnlocked } from '../auth/session';
 import { setAppLanguage } from '../i18n';
@@ -84,6 +87,8 @@ export const BillingPage: React.FC<{
   const isTrialActive = !!resolvedTrialEndsAt && new Date(resolvedTrialEndsAt).getTime() > Date.now();
   const sessionId = params.get('session_id');
   const cancelled = params.get('cancelled');
+  const providerParam = params.get('provider');
+  const providerStatus = params.get('status');
   const renew = params.get('renew') === '1';
   const preferredPlan = params.get('plan') as PlanCode | null;
   const isPreferredPlan =
@@ -279,6 +284,63 @@ export const BillingPage: React.FC<{
       );
   }, [sessionId, navigate]);
 
+  React.useEffect(() => {
+    if (providerParam !== 'iyzico') return;
+    // iyzico уже подтвердил и активировал тариф на сервере до редиректа сюда — здесь только
+    // показываем результат, никакого дополнительного API-вызова не требуется.
+    if (providerStatus === 'paid') {
+      markBillingUnlocked();
+      setStatus({ type: 'success', text: 'Оплата подтверждена, тариф активирован.' });
+      setTimeout(() => navigate('/app', { replace: true }), 800);
+    } else {
+      setStatus({
+        type: 'error',
+        text: 'Платеж не подтвержден. Проверьте оплату и попробуйте еще раз.',
+      });
+    }
+  }, [providerParam, providerStatus, navigate]);
+
+  React.useEffect(() => {
+    if (providerParam !== 'yookassa') return;
+    let ref: string | null = null;
+    try {
+      const raw = window.sessionStorage.getItem(YOOKASSA_PENDING_CHECKOUT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.provider === 'yookassa' && parsed?.ref) ref = parsed.ref;
+      }
+    } catch {
+      // sessionStorage недоступен (приватный режим и т.п.) — ref останется null
+    }
+    if (!ref) {
+      setStatus({
+        type: 'error',
+        text: 'Не удалось автоматически подтвердить оплату (например, если вы вернулись в другой вкладке). Если оплата прошла, обновите страницу через минуту — тариф активируется по вебхуку, либо обратитесь в поддержку.',
+      });
+      return;
+    }
+    confirmProviderCheckout({ provider: 'yookassa', ref })
+      .then((res) => {
+        window.sessionStorage.removeItem(YOOKASSA_PENDING_CHECKOUT_KEY);
+        if (!res.ok) {
+          setStatus({
+            type: 'error',
+            text: 'Платеж не подтвержден. Проверьте оплату и попробуйте еще раз.',
+          });
+          return;
+        }
+        markBillingUnlocked();
+        setStatus({ type: 'success', text: 'Оплата подтверждена, тариф активирован.' });
+        setTimeout(() => navigate('/app', { replace: true }), 800);
+      })
+      .catch((e) =>
+        setStatus({
+          type: 'error',
+          text: e?.message || 'Не удалось подтвердить оплату. Вы можете повторить попытку.',
+        }),
+      );
+  }, [providerParam, navigate]);
+
   const startCheckout = async (plan: PlanCode) => {
     try {
       setLoadingPlan(plan);
@@ -292,7 +354,17 @@ export const BillingPage: React.FC<{
         cancelUrl: `${origin}${returnBasePath}?cancelled=1${renew ? '&renew=1' : ''}`,
       });
       if (!data.url) {
-        throw new Error('Stripe checkout URL is empty');
+        throw new Error('Checkout URL is empty');
+      }
+      if (data.provider === 'yookassa' && data.ref) {
+        try {
+          window.sessionStorage.setItem(
+            YOOKASSA_PENDING_CHECKOUT_KEY,
+            JSON.stringify({ provider: 'yookassa', ref: data.ref }),
+          );
+        } catch {
+          // sessionStorage недоступен — confirm-эффект просто попросит подождать вебхук
+        }
       }
       window.location.href = data.url;
     } catch (e: any) {

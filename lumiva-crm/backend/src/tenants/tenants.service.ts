@@ -2,6 +2,7 @@
 import {
   Injectable,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
   Logger,
 } from '@nestjs/common';
@@ -15,11 +16,7 @@ import { StaffUsersService } from '../staff/staff-users.service';
 import type { StaffRole } from '../staff/staff-user.entity';
 import { UpdateTenantSettingsDto } from './dto/update-tenant-settings.dto';
 import { MailService } from '../mail/mail.service';
-import { ApiToken } from '../api-tokens/api-token.entity';
-import { User } from '../users/user.entity';
 import { Site } from '../sites/site.entity';
-import { Lead } from '../leads/lead.entity';
-import { StaffUser } from '../staff/staff-user.entity';
 import { TenantLogsService } from './tenant-logs.service';
 import { getTenantBlockReason } from './tenant-status.util';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
@@ -28,6 +25,7 @@ import {
   buildPlanEntitlements,
   COMPONENT_KEYS,
   isComponentAllowedByPlan,
+  isCustomDomainIncludedInPlan,
   isModuleAllowedByPlan,
   isTenantModuleEnabled,
   MODULE_KEYS,
@@ -131,9 +129,13 @@ export class TenantsService {
       plan: tenant.plan,
       apiEnabled: tenant.apiEnabled,
       activeUntil: tenant.activeUntil,
+      trialEndsAt: tenant.trialEndsAt,
       ownerName: tenant.ownerName,
       ownerEmail: tenant.ownerEmail,
       notes: tenant.notes,
+      documentRequisites: tenant.documentRequisites,
+      documentManagerName: tenant.documentManagerName,
+      legalRequisites: tenant.legalRequisites ?? [],
       createdAt: tenant.createdAt,
       updatedAt: tenant.updatedAt,
       storageUsedBytes: used,
@@ -240,6 +242,9 @@ export class TenantsService {
 
     if (patch.plan !== undefined) {
       tenant.plan = patch.plan;
+      // Осознанный выбор тарифа — если тенант был на триале, он больше не актуален (иначе
+      // tenant-trial.scheduler.ts мог бы позже откатить именно этот выбор на free_locked).
+      tenant.trialEndsAt = null;
     }
     this.applyPlanEntitlements(tenant);
 
@@ -263,6 +268,20 @@ export class TenantsService {
 
     if (patch.notes !== undefined) {
       tenant.notes = patch.notes || null;
+    }
+
+    if (patch.documentRequisites !== undefined) {
+      tenant.documentRequisites = patch.documentRequisites ? patch.documentRequisites.trim() : null;
+    }
+
+    if (patch.documentManagerName !== undefined) {
+      tenant.documentManagerName = patch.documentManagerName ? patch.documentManagerName.trim() : null;
+    }
+
+    if (patch.legalRequisites !== undefined) {
+      tenant.legalRequisites = Array.isArray(patch.legalRequisites)
+        ? patch.legalRequisites.filter((it) => it && it.value && String(it.value).trim())
+        : null;
     }
 
     if (patch.aiWrapperEmailTemplateId !== undefined) {
@@ -480,6 +499,7 @@ export class TenantsService {
       ownerName?: string | null;
       ownerEmail?: string | null;
       notes?: string | null;
+      paymentProvider?: 'stripe' | 'yookassa' | 'iyzico' | null;
     },
   ) {
     const tenant = await this.repo.findOne({ where: { id } });
@@ -501,6 +521,9 @@ export class TenantsService {
     }
     if (patch.plan !== undefined) {
       tenant.plan = patch.plan as any;
+      // pl1-админ явно назначил тариф — если тенант был на триале, снимаем метку, иначе
+      // tenant-trial.scheduler.ts мог бы позже откатить это ручное назначение на free_locked.
+      tenant.trialEndsAt = null;
     }
     this.applyPlanEntitlements(tenant);
     if (typeof patch.apiEnabled === 'boolean') {
@@ -519,6 +542,9 @@ export class TenantsService {
     }
     if (patch.notes !== undefined) {
       tenant.notes = patch.notes;
+    }
+    if (patch.paymentProvider !== undefined) {
+      tenant.paymentProvider = patch.paymentProvider;
     }
 
     await this.repo.save(tenant);
@@ -546,11 +572,97 @@ export class TenantsService {
   }
 
   /**
-   * Удаление тенанта
+   * Записать запрошенный кастомный домен тенанта (из pl1) и перевести в pending — реальный
+   * выпуск сертификата/vhost делает scripts/provision-tenant-domain.sh вручную, он же по
+   * итогу вызовет markCustomDomainActive/Failed.
    */
-    /**
-   * Удаление тенанта вместе со всеми связанными данными
-   * (staff_users, users, sites, leads, api_tokens).
+  async setTenantCustomDomain(id: string, customDomain: string | null) {
+    const tenant = await this.repo.findOne({ where: { id } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+
+    if (customDomain === null) {
+      tenant.customDomain = null;
+      tenant.customDomainStatus = 'none';
+      tenant.customDomainError = null;
+      return this.repo.save(tenant);
+    }
+
+    if (!isCustomDomainIncludedInPlan(tenant.plan)) {
+      throw new ForbiddenException(
+        'Кастомный домен доступен только на тарифе Ultimate',
+      );
+    }
+
+    const normalized = customDomain.trim().toLowerCase();
+    if (!/^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/.test(normalized)) {
+      throw new BadRequestException('Некорректный домен');
+    }
+
+    const existing = await this.repo.findOne({ where: { customDomain: normalized } });
+    if (existing && existing.id !== id) {
+      throw new BadRequestException('Этот домен уже используется другим тенантом');
+    }
+
+    tenant.customDomain = normalized;
+    tenant.customDomainStatus = 'pending';
+    tenant.customDomainError = null;
+    return this.repo.save(tenant);
+  }
+
+  /** Вызывается провижининг-скриптом (или вручную из pl1) после успешного выпуска vhost+сертификата. */
+  async markCustomDomainActive(id: string) {
+    const tenant = await this.repo.findOne({ where: { id } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+    tenant.customDomainStatus = 'active';
+    tenant.customDomainError = null;
+    return this.repo.save(tenant);
+  }
+
+  /** Вызывается провижининг-скриптом при ошибке certbot/nginx — причина видна в pl1. */
+  async markCustomDomainFailed(id: string, error: string) {
+    const tenant = await this.repo.findOne({ where: { id } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant not found');
+    }
+    tenant.customDomainStatus = 'failed';
+    tenant.customDomainError = error;
+    return this.repo.save(tenant);
+  }
+
+  /**
+   * Публичный резолвинг тенанта по хосту запроса — используется страницей логина CRM, чтобы
+   * на кастомном домене клиента подставить его clientKey автоматически. Отдаёт результат
+   * только для доменов в статусе active, независимо от того, заблокирован ли сам тенант
+   * (блокировку логин всё равно проверит по clientKey при попытке входа).
+   */
+  async findClientKeyByCustomDomain(host: string): Promise<string | null> {
+    const normalized = host.trim().toLowerCase();
+    const tenant = await this.repo.findOne({
+      where: { customDomain: normalized, customDomainStatus: 'active' },
+    });
+    return tenant?.clientKey ?? null;
+  }
+
+  /**
+   * Удаление тенанта вместе со всеми связанными данными.
+   *
+   * Большинство доменных таблиц (40+) каскадно удаляются сами при `DELETE FROM tenants`,
+   * поскольку их `tenant_id`/`tenantId` FK объявлен с `ON DELETE CASCADE`. Но часть таблиц
+   * этого не делает — либо потому что их FK на tenants исторически создан без ON DELETE
+   * CASCADE (crm_projects/crm_project_activities/crm_staff_users — исправлено миграцией
+   * 20260901130000, но чиним и здесь на случай, если миграция ещё не накатана), либо потому
+   * что они блокируют удаление СВЯЗАННЫХ таблиц ещё до того, как дело доходит до самого
+   * tenants: sales.lead_id/contact_id/project_id/channel_id и
+   * crm_project_activities.project_id указывают на leads/contacts/crm_projects/sales_channels
+   * без ON DELETE CASCADE, а staff_users.department_id и departments.manager_id образуют
+   * взаимную (циклическую) ссылку друг на друга. Раньше эта функция знала только про 5
+   * таблиц из ранней версии схемы (staff_users/api_tokens/leads/sites/users) — с тех пор
+   * появилось множество модулей (Sales/Projects/Departments и т.д.), и удаление тенанта с
+   * реальными данными стабильно падало 500-й из-за FK-ограничений в этих новых таблицах.
    */
   async platformDeleteTenant(id: string) {
     const tenant = await this.repo.findOne({ where: { id } });
@@ -561,47 +673,80 @@ export class TenantsService {
     this.logger.log(`Deleting tenant ${id} (${tenant.clientKey}) with cascade…`);
 
     await this.repo.manager.transaction(async (em) => {
-      // staff_users
-      await em
-        .createQueryBuilder()
-        .delete()
-        .from(StaffUser)
-        .where('tenantId = :id', { id })
-        .execute();
+      // Разрываем циклическую ссылку staff_users.department_id <-> departments.manager_id —
+      // иначе ни одну из двух таблиц не удалить первой без нарушения FK на другой.
+      await em.query(`UPDATE staff_users SET department_id = NULL WHERE tenant_id = $1`, [id]);
+      await em.query(`UPDATE departments SET manager_id = NULL WHERE tenant_id = $1`, [id]);
 
-      // api_tokens
-      await em
-        .createQueryBuilder()
-        .delete()
-        .from(ApiToken)
-        .where('tenantId = :id', { id })
-        .execute();
+      // Освобождаем project_tables от ссылки crm_projects.table_id (NO ACTION).
+      await em.query(`UPDATE crm_projects SET table_id = NULL WHERE tenant_id = $1`, [id]);
 
-      // leads
-      await em
-        .createQueryBuilder()
-        .delete()
-        .from(Lead)
-        .where('tenantId = :id', { id })
-        .execute();
+      // Продажи — лист графа зависимостей (на них никто не ссылается), но сами они
+      // ссылаются на leads/contacts/crm_projects/sales_channels без ON DELETE CASCADE —
+      // удаляем их первыми, иначе не удалить ни один из этих четырёх типов записей.
+      await em.query(`DELETE FROM sales WHERE "tenantId" = $1`, [id]);
 
-      // sites
-      await em
-        .createQueryBuilder()
-        .delete()
-        .from(Site)
-        .where('tenantId = :id', { id })
-        .execute();
+      // Активность по проектам ссылается на crm_projects без каскада — сначала она.
+      await em.query(`DELETE FROM crm_project_activities WHERE tenant_id = $1`, [id]);
+      await em.query(`DELETE FROM crm_projects WHERE tenant_id = $1`, [id]);
 
-      // users
-      await em
-        .createQueryBuilder()
-        .delete()
-        .from(User)
-        .where('tenantId = :id', { id })
-        .execute();
+      // Легаси/неиспользуемая таблица с прямым (без каскада) FK на tenants — если в ней
+      // остались строки для этого тенанта, DELETE FROM tenants упадёт.
+      await em.query(`DELETE FROM crm_staff_users WHERE tenant_id = $1`, [id]);
 
-      // сам tenant
+      // Таблицы без собственного FK на tenants вообще — каскад от tenants их не заденет,
+      // удаляем явно (project_tables уже свободна от ссылок из crm_projects выше;
+      // sales_channels уже свободна от ссылок из sales выше).
+      await em.query(`DELETE FROM project_tables WHERE "tenantId" = $1`, [id]);
+      await em.query(`DELETE FROM sales_channels WHERE "tenantId" = $1`, [id]);
+
+      // Универсальная зачистка (аудит 2026-09-02): раньше здесь заканчивался захардкоженный
+      // список из нескольких таблиц, который приходилось вручную дополнять при каждом новом
+      // модуле — и он стабильно отставал: на момент аудита нашлось ~100 таблиц с колонкой
+      // tenantId/tenant_id, у которых НЕТ вообще никакого FK на tenants (ни каскадного, ни
+      // обычного) — Bookings/Hotels/Products/Marketing/WhatsApp/Telephony/Esign/Helpdesk/AI/
+      // Payments и другие целые модули. Вместо ещё одного ручного списка — рантайм-обнаружение
+      // ВСЕХ таблиц с такой колонкой через information_schema и удаление их строк для этого
+      // тенанта с повторными проходами: каждая попытка — в своём SAVEPOINT (Postgres/TypeORM
+      // поддерживают вложенные транзакции через SAVEPOINT), поэтому FK-ошибка на одной таблице
+      // не обрушивает всю операцию — просто откладываем её на следующий проход, когда табицы,
+      // от которых она зависела, уже опустеют. Само собой чинит порядок между модулями и не
+      // требует, чтобы кто-то помнил дополнить список при добавлении новой таблицы в будущем.
+      const tenantColumns: { table_name: string; column_name: string }[] = await em.query(
+        `SELECT table_name, column_name FROM information_schema.columns
+         WHERE table_schema = 'public' AND column_name IN ('tenantId', 'tenant_id')
+           AND table_name <> 'tenants'`,
+      );
+      let remaining = tenantColumns.map((c) => ({ table: c.table_name, column: c.column_name }));
+      const lastError: Record<string, string> = {};
+      let previousCount = -1;
+      while (remaining.length > 0 && remaining.length !== previousCount) {
+        previousCount = remaining.length;
+        const stillRemaining: typeof remaining = [];
+        for (const t of remaining) {
+          try {
+            await em.transaction(async (em2) => {
+              await em2.query(`DELETE FROM "${t.table}" WHERE "${t.column}" = $1`, [id]);
+            });
+          } catch (err: any) {
+            lastError[t.table] = err?.message || String(err);
+            stillRemaining.push(t);
+          }
+        }
+        remaining = stillRemaining;
+      }
+      if (remaining.length > 0) {
+        throw new Error(
+          `platformDeleteTenant: не удалось очистить ${remaining.length} таблиц(у) ` +
+            `(неразрешимая FK-зависимость): ${remaining
+              .map((t) => `${t.table} — ${lastError[t.table]}`)
+              .join('; ')}`,
+        );
+      }
+
+      // Сам тенант — всё остальное (то немногое, что реально каскадируется через ON DELETE
+      // CASCADE на tenant_id/tenantId FK) удалится автоматически; всё остальное уже пусто
+      // после зачистки выше.
       await em
         .createQueryBuilder()
         .delete()
@@ -690,6 +835,7 @@ export class TenantsService {
       plan: tenant.plan ?? null,
       apiEnabled: tenant.apiEnabled ?? null,
       activeUntil: tenant.activeUntil ?? null,
+      trialEndsAt: tenant.trialEndsAt ?? null,
       ownerName: tenant.ownerName ?? null,
       ownerEmail: tenant.ownerEmail ?? null,
     };

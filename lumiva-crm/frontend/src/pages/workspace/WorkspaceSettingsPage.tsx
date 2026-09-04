@@ -2,8 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import './WorkspaceArea.css';
+import { WsAreaBar } from '../../components/workspace/WsAreaBar';
 import {
+  clearCustomObjectRecords,
   createCustomObjectField,
+  deleteCustomObject,
+  deleteCustomObjectField,
   fetchCustomObjectAnalytics,
   fetchCustomObjectFields,
   fetchCustomObjects,
@@ -13,9 +18,24 @@ import {
   type CustomObjectField,
   type CustomObjectFieldType,
 } from '../../api/customObjects';
-import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import {
+  fetchWorkspaceArea,
+  fetchWorkspaceAreaMembers,
+  fetchWorkspaceAreas,
+  type WorkspaceArea,
+} from '../../api/workspaceAreas';
+import type { WorkspaceAreaMember, WorkspaceAreaRole } from '../../workspace/workspaceAreaRole';
+import {
+  getWorkspaceTableKind,
+} from '../../workspace/workspaceTableKind';
 import { WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY } from '../../workspace/workspaceRecordLink';
 import { WORKSPACE_ENTITY_REF_KEY } from '../../workspace/workspaceEntityRef';
+import {
+  parseWorkspaceColumnBindingV1,
+  WORKSPACE_COLUMN_BINDING_META_KEY,
+  type WorkspaceColumnBindingV1,
+} from '../../workspace/workspaceColumnBinding';
+import { parseEnabledViews, type ExtraWorkspaceViewKey } from '../../workspace/workspaceEnabledViews';
 import {
   WORKSPACE_STATUS_COLOR_PRESETS,
   WORKSPACE_STATUS_DEFAULT_COLOR,
@@ -25,6 +45,15 @@ import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs'
 import { NAV_ICON_MAP, type NavIconKey } from '../../components/layout/NavSidebarIcons';
 
 const WORKSPACE_NAV_ICON_KEYS = Object.keys(NAV_ICON_MAP) as NavIconKey[];
+const ROLES: WorkspaceAreaRole[] = ['owner', 'editor', 'reader', 'own_rows_only'];
+type AccessOverride = WorkspaceAreaRole | 'none' | '';
+const BIND_MODES: WorkspaceColumnBindingV1['mode'][] = [
+  'from_pushed_source',
+  'lookup_by_key',
+  'pick_from_data',
+  'cached_snapshot',
+  'rollup',
+];
 
 const FIELD_TYPES: CustomObjectFieldType[] = [
   'text',
@@ -37,6 +66,8 @@ const FIELD_TYPES: CustomObjectFieldType[] = [
   'multiselect',
   'file',
 ];
+
+const VIEW_TOGGLES: ExtraWorkspaceViewKey[] = ['kanban', 'calendar', 'gantt', 'analytics'];
 
 const STATUS_COLOR_PRESETS = [...WORKSPACE_STATUS_COLOR_PRESETS];
 const FALLBACK_STATUSES = [
@@ -59,23 +90,16 @@ const normalizeOptionValue = (value: string) =>
     .replace(/[^a-z0-9_а-яё-]/gi, '');
 const hashString = (input: string) =>
   input.split('').reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 997, 7);
-const pickTextColorForBg = (hex: string) => {
-  const normalized = String(hex || '').replace('#', '');
-  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return '#0f172a';
-  const int = Number.parseInt(normalized, 16);
-  const r = (int >> 16) & 255;
-  const g = (int >> 8) & 255;
-  const b = int & 255;
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? '#0f172a' : '#ffffff';
-};
 
 type StatusOption = { value: string; label: string; color: string };
+type Section = 'fields' | 'bindings' | 'statuses' | 'views' | 'access' | 'danger';
 
 export const WorkspaceSettingsPage: React.FC = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { objectId = '' } = useParams();
+  const [section, setSection] = useState<Section>('fields');
+  const [objectName, setObjectName] = useState('');
   const [fields, setFields] = useState<CustomObjectField[]>([]);
   const [objectMeta, setObjectMeta] = useState<Record<string, any> | null>(null);
   const [analytics, setAnalytics] = useState<{
@@ -86,6 +110,7 @@ export const WorkspaceSettingsPage: React.FC = () => {
   const [label, setLabel] = useState('');
   const [type, setType] = useState<string>('text');
   const [saving, setSaving] = useState(false);
+  const [reorderBusy, setReorderBusy] = useState(false);
   const [draftStatuses, setDraftStatuses] = useState<StatusOption[]>([]);
   const [newStatusLabel, setNewStatusLabel] = useState('');
   const [savingStatuses, setSavingStatuses] = useState(false);
@@ -93,30 +118,66 @@ export const WorkspaceSettingsPage: React.FC = () => {
   const [cardTitleField, setCardTitleField] = useState('');
   const [clientField, setClientField] = useState('');
   const [cardExtraFields, setCardExtraFields] = useState<string[]>([]);
-  const [extrasOpen, setExtrasOpen] = useState(false);
   const [savingCardSettings, setSavingCardSettings] = useState(false);
   const [cardSettingsError, setCardSettingsError] = useState<string | null>(null);
   const [navIconKey, setNavIconKey] = useState<NavIconKey | ''>('');
-  const [savingNavIcon, setSavingNavIcon] = useState(false);
+  const [viewsEnabled, setViewsEnabled] = useState<Record<ExtraWorkspaceViewKey, boolean>>({
+    kanban: false,
+    calendar: false,
+    gantt: false,
+    analytics: false,
+  });
   const [areaWorkspaceObjects, setAreaWorkspaceObjects] = useState<CustomObject[]>([]);
   const [linkedDataObjectIds, setLinkedDataObjectIds] = useState<string[]>([]);
   const [savingDataSources, setSavingDataSources] = useState(false);
+  const [area, setArea] = useState<WorkspaceArea | null>(null);
+  const [allAreas, setAllAreas] = useState<WorkspaceArea[]>([]);
+  const [moveToAreaId, setMoveToAreaId] = useState('');
+  const [movingArea, setMovingArea] = useState(false);
+
+  const [bindEditingKey, setBindEditingKey] = useState('');
+  const [bindMode, setBindMode] = useState<WorkspaceColumnBindingV1['mode']>('from_pushed_source');
+  const [bindSourceField, setBindSourceField] = useState('');
+  const [bindDataObjectId, setBindDataObjectId] = useState('');
+  const [bindBoardMatch, setBindBoardMatch] = useState('');
+  const [bindDataMatch, setBindDataMatch] = useState('');
+  const [bindDataDisplay, setBindDataDisplay] = useState('');
+  const [bindDataField, setBindDataField] = useState('');
+  const [bindGroupBy, setBindGroupBy] = useState('');
+  const [bindValueField, setBindValueField] = useState('');
+  const [bindAggregate, setBindAggregate] = useState<'sum' | 'count' | 'avg' | 'min' | 'max'>('sum');
+  const [savingBinding, setSavingBinding] = useState(false);
+
+  const [members, setMembers] = useState<WorkspaceAreaMember[]>([]);
+  const [accessDraft, setAccessDraft] = useState<Record<string, AccessOverride>>({});
+  const [savingAccess, setSavingAccess] = useState(false);
+
+  const [clearBusy, setClearBusy] = useState(false);
+  const [clearConfirmInput, setClearConfirmInput] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState('');
 
   const load = async () => {
-    const [fieldItems, stats, objects] = await Promise.all([
+    const [fieldItems, stats, objects, workspaceAreaList] = await Promise.all([
       fetchCustomObjectFields(objectId),
       fetchCustomObjectAnalytics(objectId),
       fetchCustomObjects().catch(() => []),
+      fetchWorkspaceAreas().catch(() => []),
     ]);
     setFields(fieldItems);
     setAnalytics(stats);
+    setAllAreas(workspaceAreaList);
     const object = objects.find((item) => item.id === objectId);
     const meta = (object?.meta as Record<string, any> | null) || null;
     setObjectMeta(meta);
+    setObjectName(object?.name || '');
+    setMoveToAreaId(object?.workspaceAreaId || '');
     const wIcon = meta?.workspaceNavIcon;
     setNavIconKey(
       typeof wIcon === 'string' && wIcon in NAV_ICON_MAP ? (wIcon as NavIconKey) : '',
     );
+    const ev = parseEnabledViews(meta);
+    setViewsEnabled({ kanban: ev.kanban, calendar: ev.calendar, gantt: ev.gantt, analytics: ev.analytics });
     const titleFallback =
       fieldItems.find((field) => field.key === 'name')?.key ||
       fieldItems.find((field) => field.key === 'title')?.key ||
@@ -135,12 +196,25 @@ export const WorkspaceSettingsPage: React.FC = () => {
           .filter(Boolean)
       : [];
     setCardExtraFields(extra);
-    let areaList: CustomObject[] = [];
+    const overrides = meta?.roleOverrides;
+    setAccessDraft(
+      overrides && typeof overrides === 'object' && !Array.isArray(overrides)
+        ? (overrides as Record<string, AccessOverride>)
+        : {},
+    );
+    let workspaceObjects: CustomObject[] = [];
     const wid = object?.workspaceAreaId;
     if (wid) {
-      areaList = await fetchCustomObjects(wid);
+      workspaceObjects = await fetchCustomObjects(wid);
+      fetchWorkspaceArea(wid).then(setArea).catch(() => setArea(null));
+      fetchWorkspaceAreaMembers(wid)
+        .then(setMembers)
+        .catch(() => setMembers([]));
+    } else {
+      setArea(null);
+      setMembers([]);
     }
-    setAreaWorkspaceObjects(areaList);
+    setAreaWorkspaceObjects(workspaceObjects);
     const rawLinked = meta?.[WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY];
     setLinkedDataObjectIds(
       Array.isArray(rawLinked)
@@ -252,6 +326,18 @@ export const WorkspaceSettingsPage: React.FC = () => {
     [fields],
   );
 
+  const boundFields = useMemo(
+    () =>
+      fields
+        .map((f) => ({ field: f, binding: parseWorkspaceColumnBindingV1(f.meta) }))
+        .filter((x): x is { field: CustomObjectField; binding: WorkspaceColumnBindingV1 } => Boolean(x.binding)),
+    [fields],
+  );
+  const unboundFields = useMemo(
+    () => fields.filter((f) => !parseWorkspaceColumnBindingV1(f.meta)),
+    [fields],
+  );
+
   useEffect(() => {
     if (savingStatuses) return;
     setDraftStatuses(derivedStatusOptions);
@@ -282,6 +368,33 @@ export const WorkspaceSettingsPage: React.FC = () => {
       await load();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const toggleFieldRequired = async (f: CustomObjectField) => {
+    await updateCustomObjectField(objectId, f.id, { required: !f.required });
+    await load();
+  };
+
+  const deleteField = async (f: CustomObjectField) => {
+    await deleteCustomObjectField(objectId, f.id);
+    await load();
+  };
+
+  const moveField = async (id: string, dir: 'up' | 'down') => {
+    const sorted = [...fields].sort((a, b) => a.order - b.order);
+    const idx = sorted.findIndex((f) => f.id === id);
+    const j = dir === 'up' ? idx - 1 : idx + 1;
+    if (idx < 0 || j < 0 || j >= sorted.length) return;
+    const a = sorted[idx];
+    const b = sorted[j];
+    setReorderBusy(true);
+    try {
+      await updateCustomObjectField(objectId, a.id, { order: b.order });
+      await updateCustomObjectField(objectId, b.id, { order: a.order });
+      await load();
+    } finally {
+      setReorderBusy(false);
     }
   };
 
@@ -378,13 +491,14 @@ export const WorkspaceSettingsPage: React.FC = () => {
     }
   };
 
-  const saveCardViewSettings = async () => {
+  const saveViewsAndCard = async () => {
     if (!objectId) return;
     setSavingCardSettings(true);
     setCardSettingsError(null);
     try {
-      const nextMeta = {
+      const nextMeta: Record<string, unknown> = {
         ...(objectMeta || {}),
+        enabledViews: ['table', ...VIEW_TOGGLES.filter((k) => viewsEnabled[k])],
         kanban: {
           ...((objectMeta || {}).kanban || {}),
           cardTitleField: cardTitleField || '',
@@ -394,6 +508,8 @@ export const WorkspaceSettingsPage: React.FC = () => {
             .filter(Boolean),
         },
       };
+      if (navIconKey) nextMeta.workspaceNavIcon = navIconKey;
+      else delete nextMeta.workspaceNavIcon;
       await updateCustomObject(objectId, { meta: nextMeta });
       setObjectMeta(nextMeta);
     } catch (e: any) {
@@ -420,460 +536,752 @@ export const WorkspaceSettingsPage: React.FC = () => {
     }
   };
 
-  const saveWorkspaceNavIcon = async () => {
-    if (!objectId) return;
-    setSavingNavIcon(true);
-    setCardSettingsError(null);
+  const resetBindForm = () => {
+    setBindEditingKey('');
+    setBindMode('from_pushed_source');
+    setBindSourceField('');
+    setBindDataObjectId('');
+    setBindBoardMatch('');
+    setBindDataMatch('');
+    setBindDataDisplay('');
+    setBindDataField('');
+    setBindGroupBy('');
+    setBindValueField('');
+    setBindAggregate('sum');
+  };
+
+  const startEditBinding = (f: CustomObjectField, b: WorkspaceColumnBindingV1) => {
+    setBindEditingKey(f.key);
+    setBindMode(b.mode);
+    setBindSourceField(b.mode === 'from_pushed_source' ? b.sourceFieldKey : '');
+    setBindDataObjectId(
+      b.mode === 'lookup_by_key' || b.mode === 'pick_from_data' || b.mode === 'rollup'
+        ? b.dataObjectId
+        : '',
+    );
+    setBindBoardMatch(b.mode === 'lookup_by_key' || b.mode === 'rollup' ? b.boardMatchFieldKey : '');
+    setBindDataMatch(b.mode === 'lookup_by_key' ? b.dataMatchFieldKey : '');
+    setBindDataDisplay(b.mode === 'lookup_by_key' ? b.dataDisplayFieldKey : '');
+    setBindDataField(b.mode === 'pick_from_data' ? b.dataFieldKey : '');
+    setBindGroupBy(b.mode === 'rollup' ? b.groupByFieldKey : '');
+    setBindValueField(b.mode === 'rollup' ? b.valueFieldKey : '');
+    setBindAggregate(b.mode === 'rollup' ? b.aggregate : 'sum');
+  };
+
+  const removeBinding = async (f: CustomObjectField) => {
+    const nextMeta = { ...(f.meta || {}) } as Record<string, unknown>;
+    delete nextMeta[WORKSPACE_COLUMN_BINDING_META_KEY];
+    await updateCustomObjectField(objectId, f.id, { meta: nextMeta });
+    await load();
+  };
+
+  const saveBinding = async () => {
+    const f = fields.find((x) => x.key === bindEditingKey);
+    if (!f) return;
+    let binding: WorkspaceColumnBindingV1 | null = null;
+    if (bindMode === 'from_pushed_source' && bindSourceField.trim()) {
+      binding = { version: 1, mode: 'from_pushed_source', sourceFieldKey: bindSourceField.trim() };
+    } else if (
+      bindMode === 'lookup_by_key' &&
+      bindDataObjectId &&
+      bindBoardMatch.trim() &&
+      bindDataMatch.trim() &&
+      bindDataDisplay.trim()
+    ) {
+      binding = {
+        version: 1,
+        mode: 'lookup_by_key',
+        dataObjectId: bindDataObjectId,
+        boardMatchFieldKey: bindBoardMatch.trim(),
+        dataMatchFieldKey: bindDataMatch.trim(),
+        dataDisplayFieldKey: bindDataDisplay.trim(),
+      };
+    } else if (bindMode === 'pick_from_data' && bindDataObjectId && bindDataField.trim()) {
+      binding = {
+        version: 1,
+        mode: 'pick_from_data',
+        dataObjectId: bindDataObjectId,
+        dataFieldKey: bindDataField.trim(),
+      };
+    } else if (bindMode === 'cached_snapshot') {
+      binding = { version: 1, mode: 'cached_snapshot' };
+    } else if (
+      bindMode === 'rollup' &&
+      bindDataObjectId &&
+      bindBoardMatch.trim() &&
+      bindGroupBy.trim() &&
+      bindValueField.trim()
+    ) {
+      binding = {
+        version: 1,
+        mode: 'rollup',
+        dataObjectId: bindDataObjectId,
+        boardMatchFieldKey: bindBoardMatch.trim(),
+        groupByFieldKey: bindGroupBy.trim(),
+        valueFieldKey: bindValueField.trim(),
+        aggregate: bindAggregate,
+      };
+    }
+    if (!binding) return;
+    setSavingBinding(true);
     try {
-      const nextMeta: Record<string, unknown> = { ...(objectMeta || {}) };
-      if (navIconKey) nextMeta.workspaceNavIcon = navIconKey;
-      else delete nextMeta.workspaceNavIcon;
-      await updateCustomObject(objectId, { meta: nextMeta });
-      setObjectMeta(nextMeta as Record<string, any>);
-    } catch (e: any) {
-      setCardSettingsError(e?.message || t('crm.workspace.settings.failedSaveCard'));
+      await updateCustomObjectField(objectId, f.id, {
+        meta: { ...(f.meta || {}), [WORKSPACE_COLUMN_BINDING_META_KEY]: binding },
+      });
+      resetBindForm();
+      await load();
     } finally {
-      setSavingNavIcon(false);
+      setSavingBinding(false);
     }
   };
 
+  const moveToArea = async () => {
+    if (!moveToAreaId) return;
+    setMovingArea(true);
+    try {
+      await updateCustomObject(objectId, { workspaceAreaId: moveToAreaId });
+      await load();
+    } finally {
+      setMovingArea(false);
+    }
+  };
+
+  const saveAccess = async () => {
+    setSavingAccess(true);
+    try {
+      const cleaned: Record<string, AccessOverride> = {};
+      Object.entries(accessDraft).forEach(([staffId, role]) => {
+        if (role) cleaned[staffId] = role;
+      });
+      const nextMeta: Record<string, unknown> = { ...(objectMeta || {}) };
+      if (Object.keys(cleaned).length) nextMeta.roleOverrides = cleaned;
+      else delete nextMeta.roleOverrides;
+      await updateCustomObject(objectId, { meta: nextMeta });
+      setObjectMeta(nextMeta as Record<string, any>);
+    } finally {
+      setSavingAccess(false);
+    }
+  };
+
+  const clearRows = async () => {
+    if (clearConfirmInput.trim() !== objectName) return;
+    setClearBusy(true);
+    try {
+      await clearCustomObjectRecords(objectId);
+      setClearConfirmInput('');
+      await load();
+    } finally {
+      setClearBusy(false);
+    }
+  };
+
+  const deleteTable = async () => {
+    if (deleteConfirmInput.trim() !== objectName) return;
+    setDeleteBusy(true);
+    try {
+      await deleteCustomObject(objectId);
+      navigate(area ? `/workspace/areas/${area.id}` : '/workspace/areas');
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const SIDE_ITEMS: { key: Section; label: string; icon: NavIconKey }[] = [
+    { key: 'fields', label: t('crm.workspace.tableSettings.sectionFields'), icon: 'table' },
+    { key: 'bindings', label: t('crm.workspace.tableSettings.sectionBindings'), icon: 'analytics' },
+    { key: 'statuses', label: t('crm.workspace.tableSettings.sectionStatuses'), icon: 'chat' },
+    { key: 'views', label: t('crm.workspace.tableSettings.sectionViews'), icon: 'kanban' },
+    { key: 'access', label: t('crm.workspace.tableSettings.sectionAccess'), icon: 'contacts' },
+  ];
+
   return (
     <MainLayout>
-      <div className="max-w-[120rem] mx-auto space-y-4">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.settings.title')}</h1>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(`/workspace/${objectId}/import`)}
-              className="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white hover:bg-slate-50"
-            >
+      <div
+        className="ws-page w-full min-w-0"
+        style={{
+          marginLeft: -24,
+          marginRight: -24,
+          paddingLeft: 24,
+          paddingRight: 24,
+          width: 'calc(100% + 48px)',
+        }}
+      >
+        {area && (
+          <WsAreaBar
+            areaId={area.id}
+            areaName={area.name}
+            areaIconKey={area.iconKey}
+            current={objectName}
+            kind={getWorkspaceTableKind(objectMeta as Record<string, unknown> | null)}
+          />
+        )}
+        <div className="page-head">
+          <div>
+            <h1>
+              {t('crm.workspace.tableSettings.title')} <span style={{ color: 'var(--fg-4)', fontWeight: 400 }}>·</span>{' '}
+              <span style={{ color: 'var(--fg-3)', fontWeight: 500 }}>{objectName}</span>
+            </h1>
+            <div className="sub">{t('crm.workspace.tableSettings.subtitle')}</div>
+          </div>
+          <div className="page-head-actions">
+            <button type="button" className="tb-icon-btn" onClick={() => navigate(`/workspace/${objectId}/import`)}>
               {t('crm.workspace.settings.importData')}
             </button>
-            <button
-              type="button"
-              onClick={() => navigate(`/workspace/${objectId}/table`)}
-              className="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white hover:bg-slate-50"
-            >
+            <button type="button" className="tb-icon-btn" onClick={() => navigate(`/workspace/${objectId}/table`)}>
               {t('crm.workspace.settings.openTable')}
             </button>
           </div>
         </div>
+
         <WorkspaceViewTabs objectId={objectId} active="settings" />
 
-        {isBoardTable && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
-              {t('crm.workspace.settings.dataSourcesKicker')}
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900 mt-1">
-              {t('crm.workspace.settings.dataSourcesTitle')}
-            </h2>
-            <p className="text-sm text-slate-500 mb-4">{t('crm.workspace.settings.dataSourcesHint')}</p>
-            {dataTablesInArea.length === 0 ? (
-              <p className="text-sm text-slate-500">{t('crm.workspace.settings.dataSourcesEmpty')}</p>
-            ) : (
-              <ul className="space-y-2 mb-4">
-                {dataTablesInArea.map((tbl) => (
-                  <li
-                    key={tbl.id}
-                    className="flex flex-wrap items-center gap-3 text-sm text-slate-800"
-                  >
-                    <label className="inline-flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={linkedDataObjectIds.includes(tbl.id)}
-                        onChange={() => {
-                          setLinkedDataObjectIds((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(tbl.id)) next.delete(tbl.id);
-                            else next.add(tbl.id);
-                            return Array.from(next);
-                          });
-                        }}
-                        className="rounded border-slate-300"
-                      />
-                      <span>{tbl.name}</span>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/workspace/${tbl.id}/table`)}
-                      className="text-xs text-sky-700 underline"
-                    >
-                      {t('crm.workspace.settings.dataSourcesOpen')}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-            <button
-              type="button"
-              onClick={() => void saveLinkedDataSources()}
-              disabled={savingDataSources}
-              className="px-3 py-2 rounded-xl border border-slate-300 text-sm bg-white hover:bg-slate-50 disabled:opacity-50"
-            >
-              {savingDataSources ? t('crm.workspace.settings.saving') : t('crm.workspace.settings.dataSourcesSave')}
-            </button>
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-            <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">
-                {t('crm.workspace.settings.workspaceNavIconKicker')}
-              </div>
-              <h2 className="text-lg font-semibold text-slate-900 mt-1">
-                {t('crm.workspace.settings.workspaceNavIconTitle')}
-              </h2>
-              <p className="text-sm text-slate-500">{t('crm.workspace.settings.workspaceNavIconHint')}</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => void saveWorkspaceNavIcon()}
-              disabled={savingNavIcon}
-              className="px-3 py-2 rounded-xl bg-lumiva-accent text-white text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 hover:bg-lumiva-accent-soft hover:shadow-md disabled:opacity-60"
-            >
-              {savingNavIcon ? t('crm.workspace.settings.saving') : t('crm.workspace.settings.saveWorkspaceNavIcon')}
-            </button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setNavIconKey('')}
-              className={`rounded-lg border px-2 py-1.5 text-xs ${
-                !navIconKey
-                  ? 'border-sky-500 bg-sky-50 text-sky-900'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              {t('crm.workspace.settings.workspaceNavIconDefault')}
-            </button>
-            {WORKSPACE_NAV_ICON_KEYS.map((k) => {
-              const Ic = NAV_ICON_MAP[k];
-              const active = navIconKey === k;
+        <div className="ws-cols">
+          <div className="ws-side">
+            {SIDE_ITEMS.map((it) => {
+              const Icon = NAV_ICON_MAP[it.icon];
+              if (it.key === 'bindings' && !isBoardTable) return null;
               return (
                 <button
-                  key={k}
+                  key={it.key}
                   type="button"
-                  title={k}
-                  onClick={() => setNavIconKey(k)}
-                  className={`flex h-9 w-9 items-center justify-center rounded-lg border transition-colors ${
-                    active
-                      ? 'border-sky-500 bg-sky-50 text-sky-800'
-                      : 'border-slate-200 text-slate-600 hover:bg-slate-50'
-                  }`}
+                  className={section === it.key ? 'on' : ''}
+                  onClick={() => setSection(it.key)}
                 >
-                  <Ic className="!h-4 !w-4" />
+                  <Icon className="!h-[14px] !w-[14px]" />
+                  {it.label}
                 </button>
               );
             })}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-            <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{t('crm.workspace.settings.kanbanCards')}</div>
-              <h2 className="text-lg font-semibold text-slate-900 mt-1">{t('crm.workspace.settings.cardMapping')}</h2>
-              <p className="text-sm text-slate-500">
-                {t('crm.workspace.settings.cardMappingHintShort')}
-              </p>
-            </div>
+            <div className="gt">{t('crm.workspace.areaSettings.dangerGroup')}</div>
             <button
               type="button"
-              onClick={saveCardViewSettings}
-              disabled={savingCardSettings}
-              className="px-3 py-2 rounded-xl bg-lumiva-accent text-white text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 hover:bg-lumiva-accent-soft hover:shadow-md disabled:opacity-60"
+              className={section === 'danger' ? 'on' : ''}
+              onClick={() => setSection('danger')}
+              style={section !== 'danger' ? { color: '#9c2338' } : undefined}
             >
-              {savingCardSettings ? t('crm.workspace.settings.saving') : t('crm.workspace.settings.saveCardMapping')}
+              <NAV_ICON_MAP.tools className="!h-[14px] !w-[14px]" />
+              {t('crm.workspace.areaSettings.sectionDanger')}
             </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
-              <div className="text-xs uppercase tracking-[0.14em] text-slate-500 mb-1">{t('crm.workspace.settings.cardTitleField')}</div>
-              <select
-                value={cardTitleField}
-                onChange={(e) => setCardTitleField(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              >
-                <option value="">{t('crm.workspace.settings.selectTitleField')}</option>
-                {selectorOptions.map((option) => (
-                  <option key={`title-${option.value}`} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3">
-              <div className="text-xs uppercase tracking-[0.14em] text-slate-500 mb-1">{t('crm.workspace.settings.clientField')}</div>
-              <select
-                value={clientField}
-                onChange={(e) => setClientField(e.target.value)}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm bg-white"
-              >
-                <option value="">{t('crm.workspace.settings.noClientLabel')}</option>
-                {selectorOptions.map((option) => (
-                  <option key={`client-${option.value}`} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <div className="relative mt-2">
-                <button
-                  type="button"
-                  onClick={() => setExtrasOpen((prev) => !prev)}
-                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  {cardExtraFields.length
-                    ? t('crm.workspace.settings.additionalFieldsCount', {
-                        count: cardExtraFields.length,
-                      })
-                    : t('crm.workspace.settings.additionalFields')}
-                </button>
-                {extrasOpen && (
-                  <div className="absolute z-30 mt-1 w-full max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-                    <div className="space-y-1">
-                      {selectorOptions.map((option) => {
-                        const checked = cardExtraFields.includes(option.value);
-                        return (
-                          <label
-                            key={`extra-${option.value}`}
-                            className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm transition-colors cursor-pointer ${
-                              checked ? 'bg-slate-100 text-slate-900' : 'text-slate-700 hover:bg-slate-50'
-                            }`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() =>
-                                setCardExtraFields((prev) =>
-                                  checked
-                                    ? prev.filter((key) => key !== option.value)
-                                    : [...prev, option.value],
-                                )
-                              }
-                              className="h-4 w-4 rounded border-slate-300"
-                            />
-                            <span className="truncate">{option.label}</span>
-                          </label>
-                        );
-                      })}
+
+          <div>
+            {section === 'fields' && (
+              <div className="ws-sec">
+                <div className="ws-sec-head">
+                  <div>
+                    <h2>{t('crm.workspace.tableSettings.sectionFields')}</h2>
+                    <div className="s">{t('crm.workspace.tableSettings.fieldsHint')}</div>
+                  </div>
+                </div>
+                <div className="ws-sec-body">
+                  {[...fields].sort((a, b) => a.order - b.order).map((f, i, arr) => (
+                    <div className="ws-fieldrow" key={f.id}>
+                      <span className="drag">⋮⋮</span>
+                      <span>
+                        <span className="lb">{f.label}</span>
+                        <span className="kk">{f.key}</span>
+                      </span>
+                      <span className="ty">{f.type}</span>
+                      <span>
+                        {parseWorkspaceColumnBindingV1(f.meta) ? (
+                          <span className="ws-mode">{t('crm.workspace.tableSettings.bound')}</span>
+                        ) : (
+                          <span className="ty">{t('crm.workspace.tableSettings.manualEntry')}</span>
+                        )}
+                      </span>
+                      <span style={{ display: 'flex', gap: 4 }}>
+                        <button type="button" className="tb-icon-btn" disabled={reorderBusy || i === 0} onClick={() => void moveField(f.id, 'up')}>
+                          ↑
+                        </button>
+                        <button type="button" className="tb-icon-btn" disabled={reorderBusy || i === arr.length - 1} onClick={() => void moveField(f.id, 'down')}>
+                          ↓
+                        </button>
+                        <button type="button" className="tb-icon-btn" onClick={() => void toggleFieldRequired(f)}>
+                          {f.required ? t('crm.workspace.tableSettings.required') : t('crm.workspace.tableSettings.optional')}
+                        </button>
+                        <button type="button" className="tb-icon-btn" onClick={() => void deleteField(f)} title={t('crm.workspace.settings.deleteStatus')}>
+                          <NAV_ICON_MAP.tools className="!h-[12px] !w-[12px]" />
+                        </button>
+                      </span>
+                    </div>
+                  ))}
+                  {fields.length === 0 && <div className="ws-note">{t('crm.workspace.settings.noFieldsYet')}</div>}
+                </div>
+                <div className="ws-sec-foot" style={{ flexWrap: 'wrap' }}>
+                  <input
+                    value={key}
+                    onChange={(e) => setKey(e.target.value)}
+                    placeholder={t('crm.workspace.settings.fieldKeyPlaceholder')}
+                    className="ws-input"
+                    style={{ width: 140 }}
+                  />
+                  <input
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    placeholder={t('crm.workspace.settings.fieldLabelPlaceholder')}
+                    className="ws-input"
+                    style={{ width: 160 }}
+                  />
+                  <select value={type} onChange={(e) => setType(e.target.value)} className="ws-input" style={{ width: 150 }}>
+                    <optgroup label={t('crm.workspace.table.fieldTypeGroupBasic')}>
+                      {FIELD_TYPES.map((ft) => (
+                        <option key={ft} value={ft}>
+                          {ft}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label={t('crm.workspace.table.fieldTypeGroupCrm')}>
+                      <option value="crm_lead">{t('crm.workspace.table.fieldTypeCrmLead')}</option>
+                      <option value="crm_project">{t('crm.workspace.table.fieldTypeCrmProject')}</option>
+                      <option value="crm_company">{t('crm.workspace.table.fieldTypeCrmCompany')}</option>
+                    </optgroup>
+                  </select>
+                  <span className="sp" />
+                  <button type="button" className="btn btn-primary btn-sm" disabled={saving} onClick={() => void handleAddField()}>
+                    {saving ? '…' : t('crm.workspace.settings.addField')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {section === 'bindings' && isBoardTable && (
+              <>
+                <div className="ws-sec">
+                  <div className="ws-sec-head">
+                    <div>
+                      <h2>{t('crm.workspace.tableSettings.sectionBindings')}</h2>
+                      <div className="s">{t('crm.workspace.tableSettings.bindingsHint')}</div>
                     </div>
                   </div>
-                )}
-              </div>
-            </div>
-          </div>
-          {cardSettingsError && (
-            <div className="mt-2 text-xs text-rose-600">{cardSettingsError}</div>
-          )}
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3 mb-3">
-            <div>
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{t('crm.workspace.settings.statusSection')}</div>
-              <h2 className="text-lg font-semibold text-slate-900 mt-1">{t('crm.workspace.settings.statusStructure')}</h2>
-              <p className="text-sm text-slate-500">
-                {t('crm.workspace.settings.statusHint')}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={saveStatusStructure}
-              disabled={savingStatuses}
-              className="px-3 py-2 rounded-xl bg-lumiva-accent text-white text-sm font-medium transition-all duration-200 hover:-translate-y-0.5 hover:bg-lumiva-accent-soft hover:shadow-md disabled:opacity-60"
-            >
-              {savingStatuses ? t('crm.workspace.settings.saving') : t('crm.workspace.settings.saveStructure')}
-            </button>
-          </div>
-
-          <div className="space-y-2">
-            {draftStatuses.map((status, index) => (
-              <div
-                key={status.value}
-                className="group rounded-xl border border-slate-200 bg-gradient-to-br from-white to-slate-50/60 px-2 py-2 transition-all duration-200 hover:border-slate-300 hover:shadow-sm"
-              >
-                <div className="grid grid-cols-[24px_24px_minmax(80px,120px)_minmax(0,1fr)_auto] items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => moveDraftStatus(index, -1)}
-                    disabled={index === 0}
-                    className="h-6 w-6 rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-40"
-                    title={t('crm.workspace.settings.moveUp')}
-                  >
-                    ↑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => moveDraftStatus(index, 1)}
-                    disabled={index === draftStatuses.length - 1}
-                    className="h-6 w-6 rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-100 disabled:opacity-40"
-                    title={t('crm.workspace.settings.moveDown')}
-                  >
-                    ↓
-                  </button>
-                  <span className="truncate text-[11px] text-slate-500">{status.value}</span>
-                  <input
-                    value={status.label}
-                    onChange={(e) =>
-                      setDraftStatuses((prev) =>
-                        prev.map((item, i) =>
-                          i === index ? { ...item, label: e.target.value } : item,
-                        ),
-                      )
-                    }
-                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                  />
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {STATUS_COLOR_PRESETS.map((preset) => {
-                      const isActive = status.color === preset;
-                      return (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() =>
-                            setDraftStatuses((prev) =>
-                              prev.map((item, i) =>
-                                i === index ? { ...item, color: preset } : item,
-                              ),
-                            )
-                          }
-                          className={`h-6 w-6 rounded-full border-2 transition-all duration-200 ${
-                            isActive
-                              ? 'scale-110 border-slate-500 shadow-[0_0_0_2px_rgba(100,116,139,0.25)]'
-                              : 'border-slate-200/80 shadow-sm hover:scale-105 hover:border-slate-300'
-                          }`}
-                          style={{ backgroundColor: preset }}
-                          title={preset}
-                        />
-                      );
-                    })}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setDraftStatuses((prev) => prev.filter((_, i) => i !== index))
-                      }
-                      className="ml-1 inline-flex items-center justify-center w-7 h-7 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                      title={t('crm.workspace.settings.deleteStatus')}
-                    >
-                      ×
+                  <div className="ws-sec-body" style={{ padding: boundFields.length ? 0 : 16 }}>
+                    {boundFields.length === 0 && <div className="ws-note">{t('crm.workspace.tableSettings.noBindings')}</div>}
+                    {boundFields.length > 0 && (
+                      <table className="ws-bind">
+                        <thead>
+                          <tr>
+                            <th>{t('crm.workspace.areaSettings.capabilityCol')}</th>
+                            <th>{t('crm.workspace.table.columnBindingSection')}</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {boundFields.map(({ field: f, binding }) => (
+                            <tr key={f.id}>
+                              <td>
+                                <span className="col">{f.label}</span> <span className="key">{f.key}</span>
+                              </td>
+                              <td>
+                                <span className="ws-mode">{bindModeLabel(t, binding.mode)}</span>
+                              </td>
+                              <td style={{ textAlign: 'right' }}>
+                                <button type="button" className="tb-icon-btn" onClick={() => startEditBinding(f, binding)}>
+                                  {t('crm.common.edit', { defaultValue: 'Изменить' })}
+                                </button>{' '}
+                                <button type="button" className="tb-icon-btn" onClick={() => void removeBinding(f)}>
+                                  <NAV_ICON_MAP.tools className="!h-[12px] !w-[12px]" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                  <div className="ws-sec-foot" style={{ flexWrap: 'wrap', gap: 10 }}>
+                    <select className="ws-input" value={bindEditingKey} onChange={(e) => {
+                      const f = fields.find((x) => x.key === e.target.value);
+                      const b = f ? parseWorkspaceColumnBindingV1(f.meta) : null;
+                      if (f && b) startEditBinding(f, b);
+                      else { resetBindForm(); setBindEditingKey(e.target.value); }
+                    }} style={{ width: 200 }}>
+                      <option value="">{t('crm.workspace.table.columnBindingPickBoardKey')}</option>
+                      {[...unboundFields, ...boundFields.map((x) => x.field)].map((f) => (
+                        <option key={f.id} value={f.key}>{f.label}</option>
+                      ))}
+                    </select>
+                    <select className="ws-input" value={bindMode} onChange={(e) => setBindMode(e.target.value as WorkspaceColumnBindingV1['mode'])} style={{ width: 190 }}>
+                      {BIND_MODES.map((m) => (
+                        <option key={m} value={m}>{bindModeLabel(t, m)}</option>
+                      ))}
+                    </select>
+                    {bindMode === 'from_pushed_source' && (
+                      <input className="ws-input" style={{ width: 160 }} placeholder={t('crm.workspace.table.columnBindingSourceField')} value={bindSourceField} onChange={(e) => setBindSourceField(e.target.value)} />
+                    )}
+                    {(bindMode === 'lookup_by_key' || bindMode === 'pick_from_data' || bindMode === 'rollup') && (
+                      <select className="ws-input" style={{ width: 160 }} value={bindDataObjectId} onChange={(e) => setBindDataObjectId(e.target.value)}>
+                        <option value="">{t('crm.workspace.table.columnBindingDataTable')}</option>
+                        {dataTablesInArea.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </select>
+                    )}
+                    {bindMode === 'lookup_by_key' && (
+                      <>
+                        <input className="ws-input" style={{ width: 130 }} placeholder={t('crm.workspace.table.columnBindingBoardKey')} value={bindBoardMatch} onChange={(e) => setBindBoardMatch(e.target.value)} />
+                        <input className="ws-input" style={{ width: 130 }} placeholder={t('crm.workspace.table.columnBindingDataMatch')} value={bindDataMatch} onChange={(e) => setBindDataMatch(e.target.value)} />
+                        <input className="ws-input" style={{ width: 130 }} placeholder={t('crm.workspace.table.columnBindingDataDisplay')} value={bindDataDisplay} onChange={(e) => setBindDataDisplay(e.target.value)} />
+                      </>
+                    )}
+                    {bindMode === 'pick_from_data' && (
+                      <input className="ws-input" style={{ width: 160 }} placeholder={t('crm.workspace.table.columnBindingPickFromDataField')} value={bindDataField} onChange={(e) => setBindDataField(e.target.value)} />
+                    )}
+                    {bindMode === 'rollup' && (
+                      <>
+                        <input className="ws-input" style={{ width: 130 }} placeholder={t('crm.workspace.table.columnBindingBoardKey')} value={bindBoardMatch} onChange={(e) => setBindBoardMatch(e.target.value)} />
+                        <input className="ws-input" style={{ width: 130 }} placeholder={t('crm.workspace.table.columnBindingGroupBy')} value={bindGroupBy} onChange={(e) => setBindGroupBy(e.target.value)} />
+                        <input className="ws-input" style={{ width: 130 }} placeholder={t('crm.workspace.table.columnBindingValueField')} value={bindValueField} onChange={(e) => setBindValueField(e.target.value)} />
+                        <select className="ws-input" style={{ width: 110 }} value={bindAggregate} onChange={(e) => setBindAggregate(e.target.value as typeof bindAggregate)}>
+                          <option value="sum">{t('crm.workspace.table.columnBindingAggSum')}</option>
+                          <option value="count">{t('crm.workspace.table.columnBindingAggCount')}</option>
+                          <option value="avg">{t('crm.workspace.table.columnBindingAggAvg')}</option>
+                          <option value="min">{t('crm.workspace.table.columnBindingAggMin')}</option>
+                          <option value="max">{t('crm.workspace.table.columnBindingAggMax')}</option>
+                        </select>
+                      </>
+                    )}
+                    <span className="sp" />
+                    <button type="button" className="btn btn-primary btn-sm" disabled={!bindEditingKey || savingBinding} onClick={() => void saveBinding()}>
+                      {savingBinding ? '…' : t('crm.workspace.tableSettings.saveBinding')}
                     </button>
                   </div>
                 </div>
-                <div
-                  className="mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-slate-900/8 shadow-sm"
-                  style={{ backgroundColor: status.color, color: pickTextColorForBg(status.color) }}
-                >
-                  {t('crm.workspace.settings.statusPreview', { label: status.label || status.value })}
+
+                <div className="ws-sec">
+                  <div className="ws-sec-head">
+                    <div>
+                      <h2>{t('crm.workspace.settings.dataSourcesTitle')}</h2>
+                      <div className="s">{t('crm.workspace.settings.dataSourcesHint')}</div>
+                    </div>
+                  </div>
+                  <div className="ws-sec-body">
+                    {dataTablesInArea.length === 0 && <div className="ws-note">{t('crm.workspace.settings.dataSourcesEmpty')}</div>}
+                    {dataTablesInArea.map((tbl) => (
+                      <label key={tbl.id} className="ws-check" style={{ marginBottom: 6, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={linkedDataObjectIds.includes(tbl.id)}
+                          onChange={() => {
+                            setLinkedDataObjectIds((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(tbl.id)) next.delete(tbl.id);
+                              else next.add(tbl.id);
+                              return Array.from(next);
+                            });
+                          }}
+                        />
+                        {tbl.name}
+                      </label>
+                    ))}
+                  </div>
+                  <div className="ws-sec-foot">
+                    <span className="sp" />
+                    <button type="button" className="btn btn-primary btn-sm" disabled={savingDataSources} onClick={() => void saveLinkedDataSources()}>
+                      {savingDataSources ? '…' : t('crm.workspace.settings.dataSourcesSave')}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {section === 'statuses' && (
+              <div className="ws-sec">
+                <div className="ws-sec-head">
+                  <div>
+                    <h2>{t('crm.workspace.tableSettings.sectionStatuses')}</h2>
+                    <div className="s">{t('crm.workspace.settings.statusHint')}</div>
+                  </div>
+                </div>
+                <div className="ws-sec-body">
+                  {draftStatuses.map((status, index) => (
+                    <div className="ws-strow" key={status.value}>
+                      <span className="ord">{String(index + 1).padStart(2, '0')}</span>
+                      <span className="sw" style={{ background: status.color }} />
+                      <input
+                        className="ws-input"
+                        value={status.label}
+                        onChange={(e) =>
+                          setDraftStatuses((prev) => prev.map((item, i) => (i === index ? { ...item, label: e.target.value } : item)))
+                        }
+                      />
+                      <input className="ws-input" value={status.value} readOnly style={{ width: 120, fontFamily: 'var(--ws-ff-mono)', fontSize: 11 }} />
+                      <button type="button" className="tb-icon-btn" onClick={() => moveDraftStatus(index, -1)} disabled={index === 0}>↑</button>
+                      <button type="button" className="tb-icon-btn" onClick={() => moveDraftStatus(index, 1)} disabled={index === draftStatuses.length - 1}>↓</button>
+                      <button type="button" className="tb-icon-btn" onClick={() => setDraftStatuses((prev) => prev.filter((_, i) => i !== index))}>×</button>
+                    </div>
+                  ))}
+                  <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                    <input
+                      className="ws-input"
+                      style={{ flex: 1 }}
+                      value={newStatusLabel}
+                      onChange={(e) => setNewStatusLabel(e.target.value)}
+                      placeholder={t('crm.workspace.settings.newStatusPlaceholder')}
+                    />
+                    <button type="button" className="tb-icon-btn" onClick={addDraftStatus}>{t('crm.workspace.settings.addStatus')}</button>
+                  </div>
+                  {statusError && <p className="ws-note" style={{ color: '#9c2338', marginTop: 8 }}>{statusError}</p>}
+                </div>
+                <div className="ws-sec-foot">
+                  <span className="ws-note">{t('crm.workspace.settings.deleteStatus')}</span>
+                  <span className="sp" />
+                  <button type="button" className="btn btn-primary btn-sm" disabled={savingStatuses} onClick={() => void saveStatusStructure()}>
+                    {savingStatuses ? '…' : t('crm.workspace.settings.saveStructure')}
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
+            )}
 
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            <input
-              value={newStatusLabel}
-              onChange={(e) => setNewStatusLabel(e.target.value)}
-              placeholder={t('crm.workspace.settings.newStatusPlaceholder')}
-              className="w-full sm:w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={addDraftStatus}
-              className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              {t('crm.workspace.settings.addStatus')}
-            </button>
-            {statusError && <span className="text-xs text-rose-600">{statusError}</span>}
+            {section === 'views' && (
+              <>
+                <div className="ws-sec">
+                  <div className="ws-sec-head">
+                    <div>
+                      <h2>{t('crm.workspace.tableSettings.sectionViews')}</h2>
+                      <div className="s">{t('crm.workspace.newTable.viewsHint')}</div>
+                    </div>
+                  </div>
+                  <div className="ws-sec-body" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className="ws-tog">
+                      <button className="sw on" disabled />
+                      <span><span style={{ fontWeight: 500 }}>{t('crm.workspace.views.table')}</span></span>
+                    </div>
+                    {VIEW_TOGGLES.map((v) => (
+                      <div className="ws-tog" key={v}>
+                        <button
+                          type="button"
+                          className={`sw${viewsEnabled[v] ? ' on' : ''}`}
+                          onClick={() => setViewsEnabled((prev) => ({ ...prev, [v]: !prev[v] }))}
+                        />
+                        <span>
+                          <span style={{ fontWeight: 500 }}>{t(`crm.workspace.views.${v}`)}</span>
+                          <span className="h">{t(`crm.workspace.newTable.views.${v}Hint`)}</span>
+                        </span>
+                        <span className="sp" />
+                        {viewsEnabled[v] && (
+                          <a className="tb-icon-btn" href={`/workspace/${objectId}/${v}`}>{t('crm.workspace.areasList.open')}</a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="ws-sec">
+                  <div className="ws-sec-head">
+                    <div>
+                      <h2>{t('crm.workspace.settings.cardMapping')}</h2>
+                      <div className="s">{t('crm.workspace.settings.cardMappingHintShort')}</div>
+                    </div>
+                  </div>
+                  <div className="ws-sec-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                    <div className="ws-grid2">
+                      <div className="ws-field">
+                        <label>{t('crm.workspace.settings.cardTitleField')}</label>
+                        <select className="ws-input" value={cardTitleField} onChange={(e) => setCardTitleField(e.target.value)}>
+                          <option value="">{t('crm.workspace.settings.selectTitleField')}</option>
+                          {selectorOptions.map((o) => <option key={`t-${o.value}`} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                      <div className="ws-field">
+                        <label>{t('crm.workspace.settings.clientField')}</label>
+                        <select className="ws-input" value={clientField} onChange={(e) => setClientField(e.target.value)}>
+                          <option value="">{t('crm.workspace.settings.noClientLabel')}</option>
+                          {selectorOptions.map((o) => <option key={`c-${o.value}`} value={o.value}>{o.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.settings.additionalFields')}</label>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {selectorOptions.filter((o) => o.value !== cardTitleField && o.value !== clientField).map((o) => {
+                          const checked = cardExtraFields.includes(o.value);
+                          return (
+                            <button
+                              key={`e-${o.value}`}
+                              type="button"
+                              className={`ws-badge${checked ? ' board' : ''}`}
+                              style={{ cursor: 'pointer' }}
+                              onClick={() =>
+                                setCardExtraFields((prev) => (checked ? prev.filter((k) => k !== o.value) : [...prev, o.value]))
+                              }
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.settings.workspaceNavIconTitle')}</label>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        <button type="button" className={`ws-pick${!navIconKey ? ' on' : ''}`} style={{ flex: '0 0 auto', padding: 9, justifyContent: 'center' }} onClick={() => setNavIconKey('')}>
+                          {t('crm.workspace.settings.workspaceNavIconDefault')}
+                        </button>
+                        {WORKSPACE_NAV_ICON_KEYS.map((k) => {
+                          const Ic = NAV_ICON_MAP[k];
+                          return (
+                            <button key={k} type="button" title={k} className={`ws-pick${navIconKey === k ? ' on' : ''}`} style={{ flex: '0 0 auto', padding: 9, justifyContent: 'center' }} onClick={() => setNavIconKey(k)}>
+                              <Ic className="!h-[14px] !w-[14px]" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="ws-sec-foot">
+                    {cardSettingsError && <span className="ws-note" style={{ color: '#9c2338' }}>{cardSettingsError}</span>}
+                    <span className="sp" />
+                    <button type="button" className="btn btn-primary btn-sm" disabled={savingCardSettings} onClick={() => void saveViewsAndCard()}>
+                      {savingCardSettings ? '…' : t('crm.workspace.settings.save')}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {section === 'access' && (
+              <div className="ws-sec">
+                <div className="ws-sec-head">
+                  <div>
+                    <h2>{t('crm.workspace.tableSettings.sectionAccess')}</h2>
+                    <div className="s">{t('crm.workspace.tableSettings.accessHint')}</div>
+                  </div>
+                </div>
+                <div className="ws-sec-body">
+                  {members.map((m) => (
+                    <div className="ws-mrow" key={m.id}>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="nm">{m.staffUser?.fullName || m.staffUser?.email || '—'}</span>
+                        <div className="ml">{t(`crm.workspace.areaSettings.roles.${m.role}`)} {t('crm.workspace.tableSettings.inArea')}</div>
+                      </span>
+                      <span className="sp" />
+                      <select
+                        className="ws-input"
+                        style={{ width: 190 }}
+                        value={accessDraft[m.staffUserId] || ''}
+                        onChange={(e) => setAccessDraft((prev) => ({ ...prev, [m.staffUserId]: e.target.value as AccessOverride }))}
+                      >
+                        <option value="">{t('crm.workspace.tableSettings.asInArea')}</option>
+                        {ROLES.map((r) => (
+                          <option key={r} value={r}>{t(`crm.workspace.areaSettings.roles.${r}`)}</option>
+                        ))}
+                        <option value="none">{t('crm.workspace.tableSettings.noAccess')}</option>
+                      </select>
+                    </div>
+                  ))}
+                  {members.length === 0 && <div className="ws-note">{t('crm.workspace.areaSettings.noMembers')}</div>}
+                </div>
+                <div className="ws-sec-foot">
+                  <span className="sp" />
+                  <button type="button" className="btn btn-primary btn-sm" disabled={savingAccess} onClick={() => void saveAccess()}>
+                    {savingAccess ? '…' : t('crm.workspace.settings.save')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {section === 'danger' && (
+              <>
+                <div className="ws-sec">
+                  <div className="ws-sec-head">
+                    <div>
+                      <h2>{t('crm.workspace.tableSettings.moveAreaTitle')}</h2>
+                      <div className="s">{t('crm.workspace.tableSettings.moveAreaHint')}</div>
+                    </div>
+                  </div>
+                  <div className="ws-sec-body">
+                    <select className="ws-input" value={moveToAreaId} onChange={(e) => setMoveToAreaId(e.target.value)}>
+                      {allAreas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="ws-sec-foot">
+                    <span className="sp" />
+                    <button type="button" className="btn btn-sm" disabled={movingArea || !moveToAreaId || moveToAreaId === area?.id} onClick={() => void moveToArea()}>
+                      {movingArea ? '…' : t('crm.workspace.tableSettings.moveAreaBtn')}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="ws-sec">
+                  <div className="ws-sec-head">
+                    <div>
+                      <h2>{t('crm.workspace.tableSettings.clearRowsTitle')}</h2>
+                      <div className="s">{t('crm.workspace.tableSettings.clearRowsHint')}</div>
+                    </div>
+                  </div>
+                  <div className="ws-sec-body">
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.areaSettings.deleteConfirmLabel')}</label>
+                      <input className="ws-input" value={clearConfirmInput} onChange={(e) => setClearConfirmInput(e.target.value)} placeholder={objectName} />
+                    </div>
+                  </div>
+                  <div className="ws-sec-foot">
+                    <span className="sp" />
+                    <button type="button" className="tb-icon-btn" disabled={clearBusy || clearConfirmInput.trim() !== objectName} onClick={() => void clearRows()}>
+                      {clearBusy ? '…' : t('crm.workspace.tableSettings.clearRowsBtn')}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="ws-sec danger">
+                  <div className="ws-sec-head">
+                    <div>
+                      <h2>{t('crm.workspace.tableSettings.deleteTableTitle')}</h2>
+                      <div className="s">{t('crm.workspace.tableSettings.deleteTableHint')}</div>
+                    </div>
+                  </div>
+                  <div className="ws-sec-body">
+                    <div className="ws-field">
+                      <label>{t('crm.workspace.areaSettings.deleteConfirmLabel')}</label>
+                      <input className="ws-input" value={deleteConfirmInput} onChange={(e) => setDeleteConfirmInput(e.target.value)} placeholder={objectName} />
+                    </div>
+                  </div>
+                  <div className="ws-sec-foot">
+                    <span className="sp" />
+                    <button
+                      type="button"
+                      className="tb-icon-btn"
+                      style={{ borderColor: '#f0d3d8', color: '#9c2338' }}
+                      disabled={deleteBusy || deleteConfirmInput.trim() !== objectName}
+                      onClick={() => void deleteTable()}
+                    >
+                      {deleteBusy ? '…' : t('crm.workspace.tableSettings.deleteTableBtn')}
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
         {analytics && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{t('crm.workspace.settings.records')}</div>
-              <div className="text-2xl font-semibold text-slate-900 mt-1">{analytics.totalRecords}</div>
+          <div className="ws-kpi" style={{ marginTop: 18 }}>
+            <div className="c">
+              <div className="k">{t('crm.workspace.settings.records')}</div>
+              <div className="v">{analytics.totalRecords}</div>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 md:col-span-2">
-              <div className="text-xs uppercase tracking-[0.16em] text-slate-500 mb-2">{t('crm.workspace.settings.byStatus')}</div>
-              <div className="flex flex-wrap gap-2">
-                {Object.entries(analytics.byStatus).map(([k, v]) => (
-                  <span
-                    key={k}
-                    className="px-2 py-1 rounded-full border border-slate-200 text-xs text-slate-700"
-                  >
-                    {k}: {v}
-                  </span>
-                ))}
-                {Object.keys(analytics.byStatus).length === 0 && (
-                  <span className="text-sm text-slate-500">{t('crm.workspace.settings.noStatusData')}</span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-4">
-          <div className="text-sm font-semibold text-slate-800 mb-3">{t('crm.workspace.settings.fields')}</div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
-            <input
-              value={key}
-              onChange={(e) => setKey(e.target.value)}
-              placeholder={t('crm.workspace.settings.fieldKeyPlaceholder')}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder={t('crm.workspace.settings.fieldLabelPlaceholder')}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <select
-              value={type}
-              onChange={(e) => setType(e.target.value)}
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            >
-              <optgroup label={t('crm.workspace.table.fieldTypeGroupBasic')}>
-                {FIELD_TYPES.map((ft) => (
-                  <option key={ft} value={ft}>
-                    {ft}
-                  </option>
-                ))}
-              </optgroup>
-              <optgroup label={t('crm.workspace.table.fieldTypeGroupCrm')}>
-                <option value="crm_lead">{t('crm.workspace.table.fieldTypeCrmLead')}</option>
-                <option value="crm_project">{t('crm.workspace.table.fieldTypeCrmProject')}</option>
-                <option value="crm_company">{t('crm.workspace.table.fieldTypeCrmCompany')}</option>
-              </optgroup>
-            </select>
-            <button
-              type="button"
-              onClick={handleAddField}
-              disabled={saving}
-              className="rounded-lg bg-lumiva-accent text-white text-sm px-3 py-2 disabled:opacity-60"
-            >
-              {t('crm.workspace.settings.addField')}
-            </button>
-          </div>
-          <div className="space-y-2">
-            {fields.map((f) => (
-              <div
-                key={f.id}
-                className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-sm flex items-center justify-between"
-              >
-                <span>
-                  {f.label} <span className="text-slate-400">({f.key})</span>
-                </span>
-                <span className="text-xs uppercase tracking-[0.14em] text-slate-500">{f.type}</span>
+            {Object.entries(analytics.byStatus).slice(0, 3).map(([k, v]) => (
+              <div className="c" key={k}>
+                <div className="k">{k}</div>
+                <div className="v">{v}</div>
               </div>
             ))}
-            {fields.length === 0 && <div className="text-sm text-slate-500">{t('crm.workspace.settings.noFieldsYet')}</div>}
           </div>
-        </div>
+        )}
       </div>
     </MainLayout>
   );
 };
 
+function bindModeLabel(t: (key: string, opts?: any) => string, mode: WorkspaceColumnBindingV1['mode']): string {
+  switch (mode) {
+    case 'from_pushed_source':
+      return t('crm.workspace.table.columnBindingPushed');
+    case 'lookup_by_key':
+      return t('crm.workspace.table.columnBindingLookup');
+    case 'pick_from_data':
+      return t('crm.workspace.table.columnBindingPickFromData');
+    case 'rollup':
+      return t('crm.workspace.table.columnBindingRollup');
+    case 'cached_snapshot':
+    default:
+      return t('crm.workspace.area.bindModeCachedSnapshot');
+  }
+}

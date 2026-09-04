@@ -3,8 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IntegrationConnection } from '../integration-connection.entity';
 import { LeadsService } from '../../leads/leads.service';
-import { NotesService } from '../../notes/notes.service';
-import { EntityType, NoteType } from '../../notes/dto/create-note.dto';
+import { JiraLinkService } from './jira-link.service';
 
 type JiraCfg = {
   catalogId?: string;
@@ -69,7 +68,7 @@ export class JiraInboundService {
     @InjectRepository(IntegrationConnection)
     private readonly connectionRepo: Repository<IntegrationConnection>,
     private readonly leadsService: LeadsService,
-    private readonly notesService: NotesService,
+    private readonly jiraLink: JiraLinkService,
   ) {}
 
   extractToken(headers: Record<string, string | string[] | undefined>, query: Record<string, string | string[] | undefined>): string {
@@ -154,35 +153,42 @@ export class JiraInboundService {
       }
     }
 
+    const noteContent = lines.join('\n');
+    const noteTitle = `Jira: ${issueKey}`;
+
+    // Issue уже привязан к какому-то лиду/сделке/проекту (создан из CRM или предыдущим
+    // событием этого же вебхука) — обновляем статус и пишем заметку туда, не плодим новый лид.
+    const existing = await this.jiraLink.findAndUpdateStatus(entity.tenantId, issueKey, {
+      status: issueStatus || undefined,
+      note: noteContent,
+      noteTitle,
+    });
+    if (existing) {
+      return { ok: true };
+    }
+
     const source = cfg.defaultLeadSource || 'jira';
     const reporterEmail = reporter?.emailAddress ?? '';
     const reporterName = reporter?.displayName ?? '';
 
-    // Create or update lead
+    // Новая задача Jira, которую CRM ещё не видела — заводим лид и сразу привязываем issue к нему,
+    // чтобы следующие события (issue_updated, комментарии и т.п.) обновляли этот же лид.
     const lead = await this.leadsService.createForTenant(entity.tenantId, {
       name: (reporterName || issueKey).slice(0, 250),
       email: reporterEmail ? reporterEmail.slice(0, 250) : undefined,
       source,
       status: 'new',
-      meta: { integrationConnectionId: entity.id, catalogId: 'jira', jiraKey: issueKey, jiraEvent: event },
+      meta: { integrationConnectionId: entity.id, catalogId: 'jira', jiraEvent: event },
     });
 
-    try {
-      await this.notesService.create(
-        entity.tenantId,
-        {
-          entityType: EntityType.LEAD,
-          entityId: lead.id,
-          content: lines.join('\n'),
-          title: `Jira: ${issueKey}`,
-          type: NoteType.NOTE,
-        },
-        undefined,
-        'integration:jira',
-      );
-    } catch (e) {
-      this.log.error(`Jira note: ${(e as Error).message}`);
-    }
+    const browseUrl = cfg.jiraUrl ? `${cfg.jiraUrl.replace(/\/$/, '')}/browse/${issueKey}` : issue.self || '';
+    await this.jiraLink.attach(
+      entity.tenantId,
+      'lead',
+      lead.id,
+      { key: issueKey, url: browseUrl, connectionId: entity.id, status: issueStatus || null },
+      noteContent,
+    );
 
     return { ok: true };
   }

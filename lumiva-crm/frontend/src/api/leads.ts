@@ -1,6 +1,23 @@
 // src/api/leads.ts
 import { api } from './client';
 
+export interface LeadTask {
+  id: string;
+  title: string;
+  done: boolean;
+  deadline: string | null;
+}
+
+export interface LeadComment {
+  id: string;
+  author: string;
+  createdAt: string;
+  text: string;
+  mentions?: string[];
+  parentId?: string | null;
+  likedBy?: string[];
+}
+
 export type LeadStatusCode = 'new' | 'in_progress' | 'waiting' | 'won' | 'lost';
 
 // То, как показываем статусы в UI
@@ -51,6 +68,33 @@ export interface LeadDto {
   contactId: string | null;
   companyId: string | null;
   meta: any;
+  amount: string;
+  currency: string;
+  tasks: LeadTask[] | null;
+  comments?: LeadComment[] | null;
+  commentsCount?: number;
+  createdAt: string;
+  updatedAt: string;
+  /** Вычислено на бэке для текущего пользователя — см. LeadAccessService. */
+  myAccessTier?: LeadAccessTier | 'none';
+  canViewAnalytics?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canReassign?: boolean;
+}
+
+// ===== Доступ к лидам (LeadAccessGrant) =====
+
+export type LeadAccessScopeType = 'source' | 'all';
+export type LeadAccessTier = 'viewer' | 'analyst' | 'editor' | 'owner';
+
+export interface LeadAccessGrant {
+  id: string;
+  tenantId: string;
+  staffUserId: string;
+  scopeType: LeadAccessScopeType;
+  scopeValue: string | null;
+  tier: LeadAccessTier;
   createdAt: string;
   updatedAt: string;
 }
@@ -79,8 +123,21 @@ export interface Lead {
   contactId?: string | null;
   companyId?: string | null;
   meta?: any;
+  /** Сумма сделки в валюте лида. */
+  amount: number;
+  currency: string;
+  /** Лёгкий чек-лист шагов — прогресс и «следующий шаг» на карточке канбана. */
+  tasks: LeadTask[];
+  comments: LeadComment[];
+  commentsCount: number;
   createdAt: string;
   updatedAt: string;
+  /** Вычислено на бэке для текущего пользователя — см. LeadAccessService. */
+  myAccessTier: LeadAccessTier | 'none';
+  canViewAnalytics: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canReassign: boolean;
 }
 
 // ===== История лида (LeadActivity) =====
@@ -160,8 +217,20 @@ function mapLeadDtoToLead(dto: LeadDto): Lead {
     contactId: dto.contactId ?? null,
     companyId: dto.companyId ?? null,
     meta,
+    amount: Number(dto.amount ?? 0),
+    currency: dto.currency || 'TRY',
+    tasks: dto.tasks ?? [],
+    comments: dto.comments ?? [],
+    commentsCount: dto.commentsCount ?? 0,
     createdAt: dto.createdAt,
     updatedAt: dto.updatedAt,
+    // Бэк decorate()-ит каждый лид, попавший в ответ /leads*; если поля вдруг
+    // отсутствуют — не блокируем UI зря, реальная проверка всё равно на бэке.
+    myAccessTier: dto.myAccessTier ?? 'owner',
+    canViewAnalytics: dto.canViewAnalytics ?? true,
+    canEdit: dto.canEdit ?? true,
+    canDelete: dto.canDelete ?? true,
+    canReassign: dto.canReassign ?? true,
   };
 }
 
@@ -181,6 +250,10 @@ export interface LeadPayload {
   companyId?: string | null;
   customFields?: Record<string, any> | null;
   meta?: any;
+  amount?: number;
+  currency?: string;
+  tasks?: LeadTask[];
+  comments?: LeadComment[];
 }
 
 function buildLeadRequestBody(payload: LeadPayload) {
@@ -203,6 +276,10 @@ function buildLeadRequestBody(payload: LeadPayload) {
   if (payload.customFields !== undefined)
     body.customFields = payload.customFields;
   if (payload.meta !== undefined) body.meta = payload.meta;
+  if (payload.amount !== undefined) body.amount = String(payload.amount);
+  if (payload.currency !== undefined) body.currency = payload.currency;
+  if (payload.tasks !== undefined) body.tasks = payload.tasks;
+  if (payload.comments !== undefined) body.comments = payload.comments;
 
   if (payload.status !== undefined) {
     const code = STATUS_REVERSE[payload.status] ?? 'new';
@@ -261,6 +338,34 @@ export async function updateLeadStatus(
   const code = STATUS_REVERSE[status] ?? 'new';
   const dto = await api.patch<LeadDto>(`/leads/${id}`, { status: code });
   return mapLeadDtoToLead(dto);
+}
+
+export interface ConvertLeadPayload {
+  companyName?: string;
+  taxId?: string;
+  industry?: string;
+  size?: string;
+  position?: string;
+  city?: string;
+  telegram?: string;
+  linkedin?: string;
+  markWon?: boolean;
+}
+
+export interface ConvertLeadResult {
+  lead: LeadDto;
+  contact: { id: string; fullName?: string | null } & Record<string, any>;
+  company: ({ id: string; name?: string | null } & Record<string, any>) | null;
+  contactCreated: boolean;
+  companyCreated: boolean;
+}
+
+export async function convertLead(
+  id: string,
+  payload: ConvertLeadPayload,
+): Promise<{ lead: Lead; contact: ConvertLeadResult['contact']; company: ConvertLeadResult['company']; contactCreated: boolean; companyCreated: boolean }> {
+  const result = await api.post<ConvertLeadResult>(`/leads/${id}/convert`, payload);
+  return { ...result, lead: mapLeadDtoToLead(result.lead) };
 }
 
 export async function fetchLeadsList(): Promise<Lead[]> {
@@ -488,5 +593,24 @@ export async function importLeadsWithMapping(
   columnMapping: Record<string, string>,
 ): Promise<CsvImportResult> {
   return api.post<CsvImportResult>('/leads/import', { csvData, columnMapping });
+}
+
+// ===== Доступ к лидам (grants) — только для пользователей с полным доступом =====
+
+export async function fetchLeadAccessGrants(): Promise<LeadAccessGrant[]> {
+  return api.get<LeadAccessGrant[]>('/leads/access-grants');
+}
+
+export async function createLeadAccessGrant(payload: {
+  staffUserId: string;
+  scopeType: LeadAccessScopeType;
+  scopeValue?: string | null;
+  tier: LeadAccessTier;
+}): Promise<LeadAccessGrant> {
+  return api.post<LeadAccessGrant>('/leads/access-grants', payload);
+}
+
+export async function deleteLeadAccessGrant(grantId: string): Promise<void> {
+  await api.delete(`/leads/access-grants/${grantId}`);
 }
 

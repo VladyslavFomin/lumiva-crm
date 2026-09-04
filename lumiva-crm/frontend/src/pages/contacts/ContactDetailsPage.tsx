@@ -1,6 +1,7 @@
 // src/pages/contacts/ContactDetailsPage.tsx
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchContact, type Contact } from '../../api/contacts';
 import { fetchCompany, type Company } from '../../api/companies';
@@ -158,6 +159,7 @@ export const ContactDetailsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="contactCard" />
       <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between gap-3 rounded-[14px] border border-[#e7e7e7] bg-white p-5">
@@ -293,6 +295,14 @@ export const ContactDetailsPage: React.FC = () => {
                     <div className="text-[13px] text-[#444]">
                       {[contact.city, contact.country].filter(Boolean).join(', ')}
                     </div>
+                  </div>
+                )}
+                {typeof contact.customFields?.passport === 'string' && contact.customFields.passport.trim() && (
+                  <div>
+                    <div className="text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-1.5">
+                      {t('crm.contacts.form.fields.passport')}
+                    </div>
+                    <div className="text-[13px] text-[#444]">{contact.customFields.passport}</div>
                   </div>
                 )}
                 {contact.linkedin && (

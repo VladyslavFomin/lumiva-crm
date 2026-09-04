@@ -1,6 +1,7 @@
 // src/pages/analytics/CompaniesAnalyticsPage.tsx
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchAllCompaniesAnalytics, type AllCompaniesAnalytics } from '../../api/companies';
@@ -102,6 +103,7 @@ export const CompaniesAnalyticsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="companiesAnalytics" />
       <div className="space-y-4">
         {/* Заголовок */}
         <div className="flex items-center justify-between gap-3">

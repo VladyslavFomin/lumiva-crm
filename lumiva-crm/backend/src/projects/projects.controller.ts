@@ -5,6 +5,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Delete,
@@ -23,6 +24,10 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { RbacGuard } from '../rbac/rbac.guard';
 import { RequirePermission } from '../rbac/require-permission.decorator';
+import { RbacService } from '../rbac/rbac.service';
+import { ProjectTablesService } from '../project-tables/project-tables.service';
+import { ProjectTableAccessGuard } from '../project-tables/project-table-access.guard';
+import { RequireTableRole } from '../project-tables/require-table-role.decorator';
 
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
@@ -32,20 +37,32 @@ import { User } from '../users/user.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 
 @Controller('projects')
-@UseGuards(JwtAuthGuard, RbacGuard)
+@UseGuards(JwtAuthGuard, RbacGuard, ProjectTableAccessGuard)
 @RequirePermission('projects', 'read')
 export class ProjectsController {
   private readonly logger = new Logger(ProjectsController.name);
 
   constructor(
     private readonly projectsService: ProjectsService,
+    private readonly projectTablesService: ProjectTablesService,
 
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
 
     @InjectRepository(StaffUser)
     private readonly staffRepo: Repository<StaffUser>,
+
+    private readonly rbac: RbacService,
   ) {}
+
+  /** Проект принадлежит основной ("Таблица") таблице тенанта — тогда действует старая
+   * логика ownerUserIds/isProjectMine. На приватных таблицах эту проверку не делаем:
+   * доступ уже ограничен ProjectTableAccessGuard по членству в таблице. */
+  private async isDefaultTable(tenantId: string, tableId: string | null | undefined): Promise<boolean> {
+    if (!tableId) return true;
+    const main = await this.projectTablesService.ensureDefaultTable(tenantId);
+    return tableId === main.id;
+  }
 
   /** Находим staff-профиль для текущего JWT пользователя */
   private async getCurrentStaff(
@@ -134,6 +151,7 @@ export class ProjectsController {
 
   // ================== GET /projects ==================
   @Get()
+  @RequireTableRole('owner', 'editor', 'reader')
   async list(
     @CurrentUser() user: CurrentUserPayload,
     @Query('status') status?: string,
@@ -143,11 +161,16 @@ export class ProjectsController {
     @Query('deleted') deleted?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
+    @Query('tableId') tableId?: string,
   ) {
     const { tenantId, role } = user;
 
+    const main = await this.projectTablesService.ensureDefaultTable(tenantId);
+    const effectiveTableId = tableId || main.id;
+
     const raw = await this.projectsService.findAllForTenant({
       tenantId,
+      tableId: effectiveTableId,
       status: status as any,
       leadId,
       q,
@@ -157,6 +180,12 @@ export class ProjectsController {
       limit: limit ? Number(limit) : undefined,
       offset: offset ? Number(offset) : undefined,
     });
+
+    // Приватная (не основная) таблица: доступ уже проверен ProjectTableAccessGuard —
+    // любой участник таблицы видит все её проекты, без пофильтровки по ownerUserIds.
+    if (effectiveTableId !== main.id) {
+      return raw;
+    }
 
     // owner видит всё
     if (role === 'owner') {
@@ -176,15 +205,20 @@ export class ProjectsController {
 
   // ================== GET /projects/:id ==================
   @Get(':id')
+  @RequireTableRole('owner', 'editor', 'reader')
   async getOne(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const { tenantId, role } = user;
 
     const project = await this.projectsService.findOneForTenant(tenantId, id);
     if (!project) {
       throw new NotFoundException('Project not found');
+    }
+
+    if (!(await this.isDefaultTable(tenantId, project.tableId))) {
+      return project;
     }
 
     if (role === 'owner') {
@@ -201,14 +235,19 @@ export class ProjectsController {
 
   // ================== POST /projects ==================
   @Post()
+  @RequireTableRole('owner', 'editor')
   async create(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateProjectDto,
   ) {
     const { tenantId, role } = user;
-    const canCreateRoles = ['owner', 'manager', 'sales'];
-
-    if (!canCreateRoles.includes(role as any)) {
+    const canCreate = await this.rbac.canForUser(
+      tenantId,
+      (user as any).staffUserId || '',
+      role as any,
+      'projects_manage',
+    );
+    if (!canCreate) {
       throw new ForbiddenException('Недостаточно прав для создания проекта');
     }
 
@@ -253,22 +292,60 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id ==================
   @Patch(':id')
+  @RequireTableRole('owner', 'editor')
   async update(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateProjectDto,
   ) {
     const { tenantId, role } = user;
-    const canEditRoles = ['owner', 'manager', 'sales'];
-
-    if (!canEditRoles.includes(role as any)) {
+    const canEdit = await this.rbac.canForUser(tenantId, (user as any).staffUserId || '', role as any, 'projects_manage');
+    if (!canEdit) {
       throw new ForbiddenException('Недостаточно прав для изменения проекта');
+    }
+
+    // Отдельные granular-права поверх общего доступа к редактированию проекта. Владелец компании
+    // всегда проходит (canForUser сразу true для role='owner').
+    if (dto.amount !== undefined) {
+      const canEditAmount = await this.rbac.canForUser(
+        tenantId,
+        (user as any).staffUserId || '',
+        role as any,
+        'projects_edit_amount',
+      );
+      if (!canEditAmount) {
+        throw new ForbiddenException('Недостаточно прав для изменения суммы проекта');
+      }
+    }
+    const triesToReassignOwner =
+      dto.ownerUserId !== undefined || dto.ownerUserIds !== undefined || dto.ownerName !== undefined;
+    if (triesToReassignOwner) {
+      // Без явной настройки в «Правах доступа» доступно только владельцу компании — как и было
+      // раньше (жёсткий hardcode "только role==='owner'"), просто теперь это настраиваемо, а не
+      // зашито намертво, и отказ явный (403), а не молчаливое игнорирование полей.
+      const canEditOwner = await this.rbac.canForUser(
+        tenantId,
+        (user as any).staffUserId || '',
+        role as any,
+        'projects_edit_owner',
+      );
+      if (!canEditOwner) {
+        throw new ForbiddenException('Недостаточно прав для смены ответственного по проекту');
+      }
     }
 
     const project = await this.projectsService.findOneForTenant(tenantId, id);
 
+    if (!(await this.isDefaultTable(tenantId, project.tableId))) {
+      // приватная таблица: доступ уже проверен ProjectTableAccessGuard
+      return this.projectsService.updateForTenant(tenantId, id, dto, {
+        userId: (user as any).userId,
+        email: (user as any).email,
+        name: (user as any).name ?? (user as any).email,
+      });
+    }
+
     if (role === 'owner') {
-      // владелец может менять всё, включая владельца проекта
       return this.projectsService.updateForTenant(tenantId, id, dto, {
         userId: (user as any).userId,
         email: (user as any).email,
@@ -282,17 +359,6 @@ export class ProjectsController {
       throw new ForbiddenException('Можно изменять только свои проекты');
     }
 
-    // и не можем перепривязывать проект на кого-то другого
-    if (dto.ownerUserId !== undefined) {
-      delete (dto as any).ownerUserId;
-    }
-    if (dto.ownerUserIds !== undefined) {
-      delete (dto as any).ownerUserIds;
-    }
-    if (dto.ownerName !== undefined) {
-      delete (dto as any).ownerName;
-    }
-
     return this.projectsService.updateForTenant(tenantId, id, dto, {
       userId: (user as any).userId,
       email: (user as any).email,
@@ -302,21 +368,22 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/status ==================
   @Patch(':id/status')
+  @RequireTableRole('owner', 'editor')
   async changeStatus(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: ChangeStatusDto,
   ) {
     const { tenantId, role } = user;
-    const canEditRoles = ['owner', 'manager', 'sales'];
-
-    if (!canEditRoles.includes(role as any)) {
+    const canEdit = await this.rbac.canForUser(tenantId, (user as any).staffUserId || '', role as any, 'projects_manage');
+    if (!canEdit) {
       throw new ForbiddenException('Недостаточно прав для изменения статуса');
     }
 
     const project = await this.projectsService.findOneForTenant(tenantId, id);
+    const isDefault = await this.isDefaultTable(tenantId, project.tableId);
 
-    if (role !== 'owner') {
+    if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
       if (!this.isProjectMine(project, staff)) {
         throw new ForbiddenException(
@@ -339,20 +406,21 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/archive ==================
   @Patch(':id/archive')
+  @RequireTableRole('owner', 'editor')
   async archive(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const { tenantId, role } = user;
-    const canEditRoles = ['owner', 'manager', 'sales'];
-
-    if (!canEditRoles.includes(role as any)) {
+    const canEdit = await this.rbac.canForUser(tenantId, (user as any).staffUserId || '', role as any, 'projects_manage');
+    if (!canEdit) {
       throw new ForbiddenException('Недостаточно прав для архивирования проекта');
     }
 
     const project = await this.projectsService.findOneForTenant(tenantId, id);
+    const isDefault = await this.isDefaultTable(tenantId, project.tableId);
 
-    if (role !== 'owner') {
+    if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
       if (!this.isProjectMine(project, staff)) {
         throw new ForbiddenException(
@@ -370,20 +438,21 @@ export class ProjectsController {
 
   // ================== PATCH /projects/:id/unarchive ==================
   @Patch(':id/unarchive')
+  @RequireTableRole('owner', 'editor')
   async unarchive(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const { tenantId, role } = user;
-    const canEditRoles = ['owner', 'manager', 'sales'];
-
-    if (!canEditRoles.includes(role as any)) {
+    const canEdit = await this.rbac.canForUser(tenantId, (user as any).staffUserId || '', role as any, 'projects_manage');
+    if (!canEdit) {
       throw new ForbiddenException('Недостаточно прав для разархивирования проекта');
     }
 
     const project = await this.projectsService.findOneForTenant(tenantId, id);
+    const isDefault = await this.isDefaultTable(tenantId, project.tableId);
 
-    if (role !== 'owner') {
+    if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
       if (!this.isProjectMine(project, staff)) {
         throw new ForbiddenException(
@@ -404,7 +473,7 @@ export class ProjectsController {
   @RequirePermission('projects_manage_trash', 'delete')
   async delete(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const { tenantId } = user;
 
@@ -421,7 +490,7 @@ export class ProjectsController {
   @RequirePermission('projects_manage_trash', 'write')
   async restore(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const { tenantId } = user;
 
@@ -437,7 +506,7 @@ export class ProjectsController {
   @RequirePermission('projects_manage_trash', 'delete')
   async permanentDelete(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const { tenantId } = user;
 
@@ -455,13 +524,15 @@ export class ProjectsController {
 
   // ================== GET /projects/:id/activities ==================
   @Get(':id/activities')
+  @RequireTableRole('owner', 'editor', 'reader')
   async activities(
     @CurrentUser() user: CurrentUserPayload,
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
   ) {
     const { tenantId, role } = user;
     const project = await this.projectsService.findOneForTenant(tenantId, id);
-    if (role !== 'owner') {
+    const isDefault = await this.isDefaultTable(tenantId, project.tableId);
+    if (isDefault && role !== 'owner') {
       const staff = await this.getCurrentStaff(user);
       if (!this.isProjectMine(project, staff)) {
         throw new ForbiddenException('Недостаточно прав для просмотра истории');

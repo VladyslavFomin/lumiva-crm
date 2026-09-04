@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BlurModal } from './BlurModal';
 import { IntegrationBrandIcon } from '../../pages/automations/IntegrationBrandIcon';
-import { createIntegration } from '../../api/integrations';
-import { useAlertModal } from '../../contexts/AlertModalContext';
+import { createIntegration, startSlackOAuth } from '../../api/integrations';
 
 type Props = { open: boolean; onClose: () => void; onCreated: () => void; };
 type Tab = 'outbound' | 'inbound' | 'done';
@@ -19,7 +18,6 @@ function generateToken(): string {
 
 export const SlackConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
   const [tab, setTab] = useState<Tab>('outbound');
   const [form, setForm] = useState({
     name: '',
@@ -29,15 +27,31 @@ export const SlackConnectModal: React.FC<Props> = ({ open, onClose, onCreated })
   });
   const [saving, setSaving] = useState(false);
   const [inboundUrl, setInboundUrl] = useState<string | null>(null);
+  const [oauthBusy, setOauthBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSlackOAuth = async () => {
+    setOauthBusy(true);
+    setError(null);
+    try {
+      const { url } = await startSlackOAuth({ redirectPath: '/integrations-hub?tab=connections' });
+      window.location.assign(url);
+    } catch (e) {
+      setOauthBusy(false);
+      setError(e instanceof Error ? e.message : t('crm.integrationsHub.slack.oauth.startError'));
+    }
+  };
 
   const reset = () => {
     setForm({ name: '', webhookUrl: '', inboundToken: generateToken(), defaultLeadSource: 'slack' });
     setTab('outbound');
     setInboundUrl(null);
+    setError(null);
   };
   const handleClose = () => { reset(); onClose(); };
 
   const handleCreate = async () => {
+    setError(null);
     setSaving(true);
     try {
       const conn = await createIntegration({
@@ -54,7 +68,7 @@ export const SlackConnectModal: React.FC<Props> = ({ open, onClose, onCreated })
       setTab('done');
       onCreated();
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : t('crm.integrationsHub.slack.errors.create'), { variant: 'error' });
+      setError(e instanceof Error ? e.message : t('crm.integrationsHub.slack.errors.create'));
     } finally {
       setSaving(false);
     }
@@ -73,7 +87,7 @@ export const SlackConnectModal: React.FC<Props> = ({ open, onClose, onCreated })
   );
 
   return (
-    <BlurModal open={open} onClose={handleClose}>
+    <BlurModal open={open} onClose={handleClose} size="sm">
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center gap-3">
           <IntegrationBrandIcon catalogId="slack" label="Slack" size={36} />
@@ -90,8 +104,23 @@ export const SlackConnectModal: React.FC<Props> = ({ open, onClose, onCreated })
           </div>
         )}
 
+        {error && <p className="mb-3 text-[11px] text-rose-600">{error}</p>}
+
         {tab === 'outbound' && (
           <div className="space-y-4">
+            <button
+              type="button"
+              disabled={oauthBusy}
+              onClick={() => void handleSlackOAuth()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#4A154B] px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {oauthBusy ? t('crm.integrationsHub.slack.oauth.busy') : t('crm.integrationsHub.slack.oauth.connect')}
+            </button>
+            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+              <div className="h-px flex-1 bg-slate-200" />
+              {t('crm.integrationsHub.slack.oauth.or')}
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
             <div className="rounded-xl border border-slate-100 bg-slate-50 p-4 text-xs text-slate-700 space-y-2">
               <p className="font-semibold text-slate-900">{t('crm.integrationsHub.slack.outbound.guideTitle')}</p>
               <ol className="list-decimal list-inside space-y-1.5">

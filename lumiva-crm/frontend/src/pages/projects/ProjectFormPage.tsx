@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useTranslation } from 'react-i18next';
 import { CalendarEntryModal } from '../../components/CalendarEntryModal';
 import { useAlertModal } from '../../contexts/AlertModalContext';
@@ -11,13 +12,14 @@ import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/emai
 
 import {
   PROJECT_CATEGORIES,
-  PROJECT_TAGS,
   createEmptyProject,
   type Project,
   type ProjectStatus,
   type ProjectTask,
   type ProjectComment,
   type ProjectTaskChecklistItem,
+  type ProjectFileLink,
+  type ProjectFileProvider,
 } from './projectTypes';
 
 import {
@@ -26,22 +28,31 @@ import {
   updateProject,
   deleteProject,
   fetchProjectActivities,
+  changeProjectStatus,
   type ProjectActivity,
 } from '../../api/projects';
 import { fetchLeadsList, type Lead } from '../../api/leads';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { getStoredUser } from '../../auth/session';
+import { usePermission } from '../../hooks/usePermission';
 import { fetchCompanies, type Company } from '../../api/companies';
+import { fetchContacts, type Contact } from '../../api/contacts';
+import './ProjectDetail.css';
+import { StatusPill, Card, Field, DotsMenu } from './ProjectDetailParts';
 import {
   fetchCustomFields,
   type CustomField,
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import { DateFieldPicker } from '../../components/DateFieldPicker';
+import { JiraIssueLinkPanel } from '../../components/integrations/JiraIssueLinkPanel';
 import {
   readProjectTasksCache,
   writeProjectTasksCache,
 } from './projectTasksCache';
-import { appendProjectToCustomView } from './projectsViewsStore';
+import { useProjectStatuses } from './useProjectStatuses';
+import { useProjectTagDefinitions } from './useProjectTagDefinitions';
+import { useProjectCurrencyDefinitions } from './useProjectCurrencyDefinitions';
 import {
   isTaskAssigneeSelected,
   normalizeAssigneesToStaffIds,
@@ -49,6 +60,7 @@ import {
   taskAssigneesMatchNormalizedLabels,
   toggleTaskAssigneeIds,
 } from './taskAssignees';
+import { isTextMentioning, splitTextWithMentions } from './mentions';
 
 const generateId = (prefix: string) => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -147,25 +159,23 @@ const inpCls =
   'w-full px-3 py-2.5 text-sm rounded-xl border border-neutral-200 bg-white outline-none focus:border-neutral-400 transition-colors placeholder:text-neutral-400 text-neutral-900';
 const lblCls = 'block text-[10px] font-semibold uppercase tracking-[0.12em] mb-1.5';
 
-const PROJECT_STATUS_DOT: Record<string, string> = {
-  Новый: '#2563eb',
-  'В работе': '#ea580c',
-  'На проверке': '#d97706',
-  Заморожен: '#64748b',
-  Закрыт: '#64748b',
-  Выиграно: '#16a34a',
-  Проиграно: '#dc2626',
-};
-
 export const ProjectFormPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const locale = resolveLocale(i18n.language);
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
+  // На создании оба гейта неактуальны — сумму/владельца указывает тот, кто вообще может
+  // создать проект (projects_manage), проверено бэкендом на POST /projects.
+  // Хуки должны вызываться безусловно (иначе после создания isNew:true -> false
+  // ломает порядок хуков и валит React #311), поэтому isNew применяется уже к результату.
+  const canEditAmountPermission = usePermission('projects_edit_amount');
+  const canEditOwnerPermission = usePermission('projects_edit_owner');
+  const canEditAmount = isNew || canEditAmountPermission;
+  const canEditOwner = isNew || canEditOwnerPermission;
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const viewFromQuery = searchParams.get('view');
+  const tableFromQuery = searchParams.get('table');
   const { showConfirm } = useAlertModal();
 
   const [project, setProject] = useState<Project>(createEmptyProject());
@@ -203,6 +213,10 @@ export const ProjectFormPage: React.FC = () => {
   const [staff, setStaff] = useState<StaffUser[]>([]);
   // Компании для отображения
   const [companies, setCompanies] = useState<Company[]>([]);
+  // Контакты для селекта "Контакт"
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [tab, setTab] = useState<'props' | 'tasks' | 'comments' | 'history'>('props');
+  const [editName, setEditName] = useState(false);
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   const [customFieldsLoading, setCustomFieldsLoading] = useState(false);
   const [customFieldsError, setCustomFieldsError] = useState<string | null>(null);
@@ -213,10 +227,125 @@ export const ProjectFormPage: React.FC = () => {
     return Array.from(keys);
   }, [project.customFields]);
 
+  // ---------------- Файлы (ссылки на ТЗ / смету / договор и т.д.) ----------------
+  const [fileAddOpen, setFileAddOpen] = useState(false);
+  const [fileAddStep, setFileAddStep] = useState<'provider' | 'form'>('provider');
+  const [fileAddProvider, setFileAddProvider] = useState<ProjectFileProvider>('other');
+  const [fileAddLabel, setFileAddLabel] = useState('');
+  const [fileAddUrl, setFileAddUrl] = useState('');
+  const fileAddRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!fileAddOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (fileAddRef.current && !fileAddRef.current.contains(e.target as Node)) setFileAddOpen(false);
+    };
+    window.addEventListener('mousedown', handleClick);
+    return () => window.removeEventListener('mousedown', handleClick);
+  }, [fileAddOpen]);
+
+  // Список ссылок для отображения: новый массив files + старая одиночная запись (для совместимости)
+  const displayedFiles: ProjectFileLink[] = useMemo(() => {
+    const list = project.files ?? [];
+    if (list.length === 0 && project.briefFileUrl) {
+      return [{
+        id: '__legacy__',
+        label: project.briefFileName || project.briefFileUrl,
+        url: project.briefFileUrl,
+        provider: 'other',
+        createdAt: project.createdAt || '',
+      }];
+    }
+    return list;
+  }, [project.files, project.briefFileName, project.briefFileUrl, project.createdAt]);
+
+  const openFileAdd = () => {
+    setFileAddStep('provider');
+    setFileAddProvider('other');
+    setFileAddLabel('');
+    setFileAddUrl('');
+    setFileAddOpen(true);
+  };
+
+  const chooseFileProvider = (provider: ProjectFileProvider) => {
+    setFileAddProvider(provider);
+    setFileAddStep('form');
+  };
+
+  const submitFileAdd = () => {
+    const url = fileAddUrl.trim();
+    if (!url) return;
+    const label = fileAddLabel.trim() || url;
+    const newLink: ProjectFileLink = {
+      id: `f${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      label,
+      url,
+      provider: fileAddProvider,
+      createdAt: new Date().toISOString(),
+    };
+    setProject((prev) => ({
+      ...prev,
+      files: [...(prev.files ?? []), newLink],
+      // once the new list is used, the legacy single-file fields are no longer the source of truth
+      briefFileName: prev.files?.length ? prev.briefFileName : null,
+      briefFileUrl: prev.files?.length ? prev.briefFileUrl : null,
+    }));
+    setFileAddOpen(false);
+  };
+
+  const removeFileLink = (id: string) => {
+    if (id === '__legacy__') {
+      setProject((prev) => ({ ...prev, briefFileName: null, briefFileUrl: null }));
+      return;
+    }
+    setProject((prev) => ({ ...prev, files: (prev.files ?? []).filter((f) => f.id !== id) }));
+  };
+
+  const FILE_PROVIDERS: Array<{ id: ProjectFileProvider; label: string; icon: React.ReactNode }> = [
+    {
+      id: 'google_drive',
+      label: 'Google Drive',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
+          <path fill="#00ac47" d="M17.5 4 4 27.5l6.9 12L24.4 16z" />
+          <path fill="#ffba00" d="M17.5 4h13l13 23.5H30.5z" />
+          <path fill="#0066da" d="M10.9 39.5 4 27.5h27l6.9 12z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'onedrive',
+      label: 'OneDrive',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden>
+          <path fill="#1490df" d="M11 22.5A8.5 8.5 0 0 0 12 39.4h26.5A7.6 7.6 0 0 0 40 24.7 9.7 9.7 0 0 0 21.3 20 8.5 8.5 0 0 0 11 22.5z" />
+        </svg>
+      ),
+    },
+    {
+      id: 'other',
+      label: 'Другое',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#555" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M9 17H7a5 5 0 0 1 0-10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8" />
+        </svg>
+      ),
+    },
+  ];
+
+  const fileProviderIcon = (provider: ProjectFileProvider, size = 16) => {
+    const opt = FILE_PROVIDERS.find((p) => p.id === provider) || FILE_PROVIDERS[2];
+    return <span style={{ display: 'inline-flex', width: size, height: size, flexShrink: 0 }}>{opt.icon}</span>;
+  };
+
   // ---------------- Задачи и комментарии ----------------
   const [tasks, setTasks] = useState<ProjectTask[]>([]);
   const [comments, setComments] = useState<ProjectComment[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
   const [activities, setActivities] = useState<ProjectActivity[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [activitiesError, setActivitiesError] = useState<string | null>(null);
@@ -224,7 +353,9 @@ export const ProjectFormPage: React.FC = () => {
   const [mentionTargets, setMentionTargets] = useState<ProjectComment[]>([]);
   const projectRef = useRef<Project>(project);
   const commentsRef = useRef<ProjectComment[]>(comments);
+  const tasksRef = useRef<ProjectTask[]>([]);
   const lastTasksSnapshotRef = useRef<string>('');
+  const lastCommentsSnapshotRef = useRef<string>('');
   const saveSeqRef = useRef(0);
 
   // Поля для "Новой задачи" в верхней строке
@@ -254,6 +385,22 @@ export const ProjectFormPage: React.FC = () => {
     }),
     [t],
   );
+  const { statuses: statusDefs, colorFor: statusColorFor } = useProjectStatuses();
+  const availableStatuses: ProjectStatus[] = statusDefs.length
+    ? statusDefs.map((s) => s.value)
+    : PROJECT_STATUSES;
+  const statusPillOptions = availableStatuses.map((st) => ({
+    value: st,
+    label: statusLabels[st] ?? st,
+    color: statusColorFor(st),
+  }));
+  const { tags: tagDefs, colorFor: tagColorFor } = useProjectTagDefinitions();
+  const { currencies: currencyDefs, defaultCode: defaultCurrencyCode } = useProjectCurrencyDefinitions();
+  useEffect(() => {
+    if (!isNew || !currencyDefs.length) return;
+    setProject((prev) => (prev.currency === 'EUR' ? { ...prev, currency: defaultCurrencyCode() } : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isNew, currencyDefs]);
   const taskStatusLabels = useMemo<Record<ProjectTask['status'], string>>(
     () => ({
       'К выполнению': t('crm.projects.detail.tasks.status.todo'),
@@ -286,27 +433,70 @@ export const ProjectFormPage: React.FC = () => {
     [t],
   );
   const activityFieldLabels = useMemo<Record<string, string>>(
-    () => ({
-      name: t('crm.projects.detail.fields.name'),
-      description: t('crm.projects.detail.fields.description'),
-      amount: t('crm.projects.detail.fields.amount'),
-      currency: t('crm.projects.detail.fields.currency'),
-      status: t('crm.projects.detail.fields.status'),
-      category: t('crm.projects.detail.fields.category'),
-      ownerName: t('crm.projects.detail.fields.owner'),
-      ownerUserId: t('crm.projects.detail.fields.owner'),
-      leadId: t('crm.projects.detail.fields.leadName'),
-      companyId: t('crm.projects.detail.fields.company'),
-      contactId: t('crm.projects.detail.fields.contact'),
-      briefFileName: t('crm.projects.detail.files.title'),
-      briefFileUrl: t('crm.projects.detail.files.urlPlaceholder'),
-      tags: t('crm.projects.detail.fields.tags'),
-      ownerUserIds: t('crm.projects.detail.history.managerField'),
-      tasks: t('crm.projects.detail.history.fields.tasks'),
-      'customFields.projectNotes': t('crm.projects.detail.notes.title'),
-    }),
-    [t],
+    () => {
+      const map: Record<string, string> = {
+        name: t('crm.projects.detail.fields.name'),
+        description: t('crm.projects.detail.fields.description'),
+        amount: t('crm.projects.detail.fields.amount'),
+        currency: t('crm.projects.detail.fields.currency'),
+        status: t('crm.projects.detail.fields.status'),
+        category: t('crm.projects.detail.fields.category'),
+        ownerName: t('crm.projects.detail.fields.owner'),
+        ownerUserId: t('crm.projects.detail.fields.owner'),
+        leadId: t('crm.projects.detail.fields.leadName'),
+        companyId: t('crm.projects.detail.fields.company'),
+        contactId: t('crm.projects.detail.fields.contact'),
+        briefFileName: t('crm.projects.detail.files.title'),
+        briefFileUrl: t('crm.projects.detail.files.urlPlaceholder'),
+        tags: t('crm.projects.detail.fields.tags'),
+        ownerUserIds: t('crm.projects.detail.history.managerField'),
+        tasks: t('crm.projects.detail.history.fields.tasks'),
+        'customFields.projectNotes': t('crm.projects.detail.notes.title'),
+      };
+      // Ключи кастомных полей резолвим динамически по схеме — не хардкодить каждый ключ.
+      customFields.forEach((field) => {
+        map[`customFields.${field.key}`] = field.label;
+      });
+      return map;
+    },
+    [t, customFields],
   );
+  const formatCustomFieldHistoryValue = (key: string, value: unknown): string => {
+    if (value === null || value === undefined || value === '') {
+      return t('crm.projects.common.emptyValue');
+    }
+    const schema = customFields.find((f) => f.key === key);
+    if (!schema) return formatHistoryValue(value);
+    if (schema.type === 'boolean') {
+      return value === true || value === 'true'
+        ? t('crm.projects.list.boolean.yes', 'Да')
+        : t('crm.projects.list.boolean.no', 'Нет');
+    }
+    if (schema.type === 'select') {
+      const opt = schema.options?.find((o) => o.value === String(value));
+      return opt?.label ?? String(value);
+    }
+    if (schema.type === 'multiselect') {
+      const arr = Array.isArray(value) ? value : [value];
+      return arr
+        .map((v) => schema.options?.find((o) => o.value === String(v))?.label ?? String(v))
+        .join(', ');
+    }
+    if (schema.type === 'daterange' && typeof value === 'object') {
+      const rv = value as { start?: string; end?: string | null };
+      const fmt = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(locale);
+      if (rv.start && rv.end) return `${fmt(rv.start)} – ${fmt(rv.end)}`;
+      if (rv.start) return `${t('crm.projects.list.datePicker.from', 'с')} ${fmt(rv.start)}`;
+      return formatHistoryValue(value);
+    }
+    if (schema.type === 'date') {
+      return new Date(`${value}T00:00:00`).toLocaleDateString(locale);
+    }
+    if (schema.type === 'datetime') {
+      return new Date(String(value)).toLocaleString(locale);
+    }
+    return formatHistoryValue(value);
+  };
   const formatHistoryValue = (value: unknown) => {
     if (value === null || value === undefined || value === '') {
       return t('crm.projects.common.emptyValue');
@@ -315,7 +505,9 @@ export const ProjectFormPage: React.FC = () => {
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
-  const user = getStoredUser();
+  // getStoredUser() parses localStorage fresh every call — memoize so downstream
+  // useMemo/useCallback/useEffect chains (mentions tracking) get a stable reference.
+  const user = useMemo(() => getStoredUser(), []);
   const normalizeUser = (value?: string | null) =>
     (value ?? '').toString().trim().toLowerCase();
   const currentStaff = useMemo(
@@ -329,31 +521,30 @@ export const ProjectFormPage: React.FC = () => {
         .map((v) => normalizeUser(v as string)),
     [user, currentStaff],
   );
-  const extractMentions = (text: string) => {
+  const extractMentions = useCallback((text: string) => {
     const matches = text.matchAll(/@([\p{L}\p{N}._-]+)/gu);
     const result: string[] = [];
     for (const match of matches) {
       if (match[1]) result.push(match[1]);
     }
     return result;
-  };
-  const renderMentions = (text: string) => {
-    const parts = text.split(/(@[\p{L}\p{N}._-]+)/gu);
-    return parts.map((part, idx) => {
-      if (part.startsWith('@')) {
-        return (
-          <span key={`${part}-${idx}`} className="text-sky-600 font-medium">
-            {part}
-          </span>
-        );
-      }
-      return <span key={`${part}-${idx}`}>{part}</span>;
-    });
-  };
-  const isMentioned = (mentions: string[]) => {
-    const normalizedMentions = mentions.map((m) => normalizeUser(m));
-    return normalizedMentions.some((m) => currentLabels.includes(m));
-  };
+  }, []);
+  const renderMentions = (text: string) =>
+    splitTextWithMentions(text, staff).map((part, idx) =>
+      part.mention ? (
+        <span key={`m-${idx}`} className="text-sky-600 font-medium">
+          {part.text}
+        </span>
+      ) : (
+        <span key={`t-${idx}`}>{part.text}</span>
+      ),
+    );
+  // Сравниваем "@<полное ФИО или email>" подстрокой, а не токенизацией по пробелу —
+  // иначе "@Иван Петров" обрежется на первом слове и никогда не совпадёт с ФИО целиком.
+  const isMentioned = useCallback(
+    (text: string) => isTextMentioning(text, currentLabels),
+    [currentLabels],
+  );
   const projectOwnerNames = useMemo(() => {
     const ownerIds = project.ownerUserIds?.length
       ? project.ownerUserIds
@@ -462,6 +653,24 @@ export const ProjectFormPage: React.FC = () => {
   const tasksCompletionPercent = tasks.length
     ? Math.round((tasksDoneCount / tasks.length) * 100)
     : 0;
+  const nearestDeadlineTask = useMemo(() => {
+    const withDeadline = tasks.filter((task) => !isDoneStatus(task.status) && task.deadline);
+    if (!withDeadline.length) return null;
+    return [...withDeadline].sort(
+      (a, b) => new Date(a.deadline as string).getTime() - new Date(b.deadline as string).getTime(),
+    )[0];
+  }, [tasks]);
+  const isTaskDeadlineLate = (task: ProjectTask) =>
+    Boolean(task.deadline) && !isDoneStatus(task.status) && new Date(task.deadline as string).getTime() < Date.now();
+  const selectedContact = useMemo(
+    () => (project.contactId ? contacts.find((c) => c.id === project.contactId) || null : null),
+    [contacts, project.contactId],
+  );
+  const linkedCompany = useMemo(() => {
+    if (project.companyId) return companies.find((c) => c.id === project.companyId) || null;
+    const lead = project.leadId ? allLeads.find((l) => l.id === project.leadId) : null;
+    return lead?.companyId ? companies.find((c) => c.id === lead.companyId) || null : null;
+  }, [companies, allLeads, project.companyId, project.leadId]);
   const resolveAssignees = (task: ProjectTask) =>
     (task.assignees || []).map(
       (entry) => resolveStaffForAssigneeEntry(staff, entry) || entry,
@@ -500,19 +709,11 @@ export const ProjectFormPage: React.FC = () => {
     }),
     [t],
   );
-  const tagLabels = useMemo<Record<string, string>>(
-    () => ({
-      CRM: t('crm.projects.tags.crm'),
-      IT: t('crm.projects.tags.it'),
-      WEB: t('crm.projects.tags.web'),
-      SEO: t('crm.projects.tags.seo'),
-      SMM: t('crm.projects.tags.smm'),
-      ADS: t('crm.projects.tags.ads'),
-    }),
-    [t],
-  );
 
   const formatHistoryFieldValue = (field: string, value: unknown) => {
+    if (field.startsWith('customFields.')) {
+      return formatCustomFieldHistoryValue(field.slice('customFields.'.length), value);
+    }
     if (field === 'ownerUserIds') {
       const ids = Array.isArray(value)
         ? value.map((v) => String(v).trim()).filter(Boolean)
@@ -552,7 +753,7 @@ export const ProjectFormPage: React.FC = () => {
             .split(/[,;]+/)
             .map((s) => s.trim())
             .filter(Boolean);
-      return parts.map((p) => tagLabels[p] ?? p).join(', ');
+      return parts.join(', ');
     }
     return formatHistoryValue(value);
   };
@@ -592,6 +793,7 @@ export const ProjectFormPage: React.FC = () => {
         >
           <input
             type="checkbox"
+            className="lv-checkbox-input"
             checked={Boolean(value)}
             onChange={(e) => setCustomFieldValue(field, e.target.checked)}
           />
@@ -667,6 +869,53 @@ export const ProjectFormPage: React.FC = () => {
       );
     }
 
+    if (field.type === 'date' || field.type === 'datetime' || field.type === 'daterange') {
+      return (
+        <div key={field.id}>
+          {label}
+          <DateFieldPicker
+            type={field.type}
+            value={value ?? null}
+            onChange={(next) => setCustomFieldValue(field, next)}
+            placeholder={field.placeholder || undefined}
+          />
+        </div>
+      );
+    }
+
+    // email/phone привязанные к лиду/компании (meta.source) — то же значение, что и в таблице,
+    // только для чтения: вводить его вручную тут не нужно, оно всегда из привязанной записи.
+    if ((field.type === 'email' || field.type === 'phone') && (field.meta?.source === 'lead' || field.meta?.source === 'company')) {
+      const lead = field.meta.source === 'lead' && project.leadId ? allLeads.find((l) => l.id === project.leadId) : null;
+      const computed =
+        (field.meta.source === 'lead'
+          ? (field.type === 'email' ? lead?.email : lead?.phone)
+          : (field.type === 'email' ? linkedCompany?.email : linkedCompany?.phone)) || '';
+      return (
+        <div key={field.id}>
+          {label}
+          <div className={inpCls + ' bg-neutral-50 text-neutral-500 cursor-default'}>
+            {computed || t('crm.projects.common.emptyValue')}
+          </div>
+        </div>
+      );
+    }
+
+    // email/phone без явного источника и url — те же данные, что и в таблице проектов: если
+    // значение ещё не задано вручную, подставляем реальные данные проекта (лид/компания/файлы)
+    // вместо пустого поля — дублировать их отдельным вводом незачем. Поле остаётся редактируемым:
+    // подстановка — это только отображение, в customFields она не пишется, пока пользователь сам
+    // не отредактирует поле.
+    let autoValue: string | undefined;
+    if (field.type === 'email') autoValue = project.leadEmail || linkedCompany?.email || undefined;
+    else if (field.type === 'phone') {
+      const lead = project.leadId ? allLeads.find((l) => l.id === project.leadId) : null;
+      autoValue = lead?.phone || linkedCompany?.phone || undefined;
+    } else if (field.type === 'url') {
+      autoValue = project.files?.[0]?.url || undefined;
+    }
+    const effectiveValue = value ?? autoValue ?? '';
+
     const inputType =
       field.type === 'number'
         ? 'number'
@@ -674,20 +923,16 @@ export const ProjectFormPage: React.FC = () => {
           ? 'email'
           : field.type === 'phone'
             ? 'tel'
-            : field.type === 'date'
-              ? 'date'
-              : field.type === 'datetime'
-                ? 'datetime-local'
-                : field.type === 'url'
-                  ? 'url'
-                  : 'text';
+            : field.type === 'url'
+              ? 'url'
+              : 'text';
 
     return (
       <div key={field.id}>
         {label}
         <input
           type={inputType}
-          value={value ?? ''}
+          value={field.type === 'number' ? (value ?? '') : effectiveValue}
           onChange={(e) => {
             const next =
               field.type === 'number'
@@ -735,6 +980,10 @@ export const ProjectFormPage: React.FC = () => {
   useEffect(() => {
     commentsRef.current = comments;
   }, [comments]);
+
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
   
   useEffect(() => {
     let alive = true;
@@ -746,6 +995,7 @@ export const ProjectFormPage: React.FC = () => {
       setTasks(normalizedTasks);
       setComments(empty.comments || []);
       lastTasksSnapshotRef.current = JSON.stringify(normalizedTasks);
+      lastCommentsSnapshotRef.current = JSON.stringify(empty.comments || []);
       setLoading(false);
     } else {
       setLoading(true);
@@ -763,6 +1013,7 @@ export const ProjectFormPage: React.FC = () => {
           writeProjectTasksCache(p.id, normalizedTasks);
           lastTasksSnapshotRef.current = JSON.stringify(normalizedTasks);
           setComments(p.comments || []);
+          lastCommentsSnapshotRef.current = JSON.stringify(p.comments || []);
         })
         .catch((e: any) => {
           if (!alive) return;
@@ -775,13 +1026,19 @@ export const ProjectFormPage: React.FC = () => {
         });
     }
 
-    // параллельно — список лидов, сотрудников и компаний
-    Promise.all([fetchLeadsList(), fetchStaff(), fetchCompanies({ limit: 100 })])
-      .then(([leads, users, companiesRes]) => {
+    // параллельно — список лидов, сотрудников, компаний и контактов
+    Promise.all([
+      fetchLeadsList(),
+      fetchStaff(),
+      fetchCompanies({ limit: 100 }),
+      fetchContacts({ limit: 500 }),
+    ])
+      .then(([leads, users, companiesRes, contactsRes]) => {
         if (!alive) return;
         setAllLeads(leads.filter((lead) => !Boolean(lead.meta?.deleted)));
         setStaff(users);
         setCompanies(companiesRes.items);
+        setContacts(contactsRes.items);
       })
       .catch((e) => {
         if (!alive) return;
@@ -883,14 +1140,12 @@ export const ProjectFormPage: React.FC = () => {
       // ignore
     }
     const targets = comments.filter((c) => {
-      const mentions = c.mentions ?? extractMentions(c.text || '');
-      if (!mentions.length) return false;
-      if (!isMentioned(mentions)) return false;
+      if (!isMentioned(c.text || '')) return false;
       return !seen.includes(c.id);
     });
     setMentionTargets(targets);
     setShowMentionsHint(targets.length > 0);
-  }, [comments, extractMentions, isMentioned, isNew, project.id]);
+  }, [comments, isMentioned, isNew, project.id]);
 
   useEffect(() => {
     const handleClick = (event: MouseEvent) => {
@@ -964,10 +1219,7 @@ export const ProjectFormPage: React.FC = () => {
 
       let saved: Project;
       if (isNew) {
-        saved = await createProject(payload);
-        if (viewFromQuery && saved.id) {
-          appendProjectToCustomView(viewFromQuery, saved.id);
-        }
+        saved = await createProject(payload, { tableId: tableFromQuery || undefined });
       } else {
         saved = await updateProject(payload, {
           includeEmptyTasks: true,
@@ -977,8 +1229,11 @@ export const ProjectFormPage: React.FC = () => {
       setProject(withLeadPresentation(saved, payload));
       const resolvedTasks = normalizeTasks(resolveSavedTasks(saved.tasks, tasks));
       setTasks(resolvedTasks);
+      // keep the auto-save debounce from re-PATCHing immediately after this manual save
+      lastTasksSnapshotRef.current = JSON.stringify(resolvedTasks);
       writeProjectTasksCache(saved.id, resolvedTasks);
       setComments(saved.comments || []);
+      lastCommentsSnapshotRef.current = JSON.stringify(saved.comments || []);
       if (isNew) {
         navigate(`/projects/${saved.id}`);
         showSuccess(t('crm.projects.detail.messages.created'));
@@ -993,9 +1248,33 @@ export const ProjectFormPage: React.FC = () => {
     }
   };
 
+  // Статус меняется мгновенно (как на канбан-доске), а не только при клике на общий "Сохранить" —
+  // раньше StatusPill только обновлял локальный state, и если пользователь не нажимал "Сохранить"
+  // отдельно, смена статуса выглядела так, будто она вообще не применяется.
+  const handleStatusChange = async (value: string) => {
+    if (isNew || !project.id || project.id === 'new') {
+      setProject((prev) => ({ ...prev, status: value as ProjectStatus }));
+      return;
+    }
+    const prevStatus = project.status;
+    if (prevStatus === value) return;
+    setProject((prev) => ({ ...prev, status: value as ProjectStatus }));
+    try {
+      const updated = await changeProjectStatus(project.id, value as ProjectStatus);
+      setProject((prev) => ({ ...prev, status: updated.status }));
+    } catch (e: any) {
+      console.error(e);
+      setProject((prev) => ({ ...prev, status: prevStatus }));
+      setError(e.message || t('crm.projects.detail.errors.saveFailed'));
+    }
+  };
+
   const persistTasks = useCallback(
     async (nextTasks: ProjectTask[], snapshot: string) => {
       if (isNew || saving) return;
+      // projectRef can briefly lag behind the just-created project's real id right after
+      // handleSave() navigates away from /projects/new — never PATCH against the "new" placeholder.
+      if (!projectRef.current.id || projectRef.current.id === 'new') return;
       const payload: Project = {
         ...projectRef.current,
         tasks: nextTasks,
@@ -1006,6 +1285,7 @@ export const ProjectFormPage: React.FC = () => {
         const saved = await updateProject(payload, {
           includeEmptyTasks: true,
           includeEmptyComments: true,
+          excludeStatus: true,
         });
         if (saveSeqRef.current !== seq) return;
         if (lastTasksSnapshotRef.current !== snapshot) {
@@ -1016,7 +1296,9 @@ export const ProjectFormPage: React.FC = () => {
         const normalized = normalizeTasks(resolved);
         setTasks(normalized);
         writeProjectTasksCache(saved.id, normalized);
-        setComments(saved.comments || commentsRef.current);
+        const nextComments = saved.comments || commentsRef.current;
+        setComments(nextComments);
+        lastCommentsSnapshotRef.current = JSON.stringify(nextComments);
       } catch (e: any) {
         console.error(e);
         setError(e.message || t('crm.projects.detail.errors.saveFailed'));
@@ -1076,11 +1358,6 @@ export const ProjectFormPage: React.FC = () => {
       }
     };
 
-  const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value as ProjectStatus;
-    setProject((prev) => ({ ...prev, status: value }));
-  };
-
   const toggleTag = (tag: string) => {
     setProject((prev) => {
       const exists = prev.tags.includes(tag);
@@ -1108,6 +1385,11 @@ export const ProjectFormPage: React.FC = () => {
       leadName: lead ? lead.name : null,
       leadEmail: lead ? lead.email : null,
     }));
+  };
+
+  const handleContactChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const contactId = e.target.value || null;
+    setProject((prev) => ({ ...prev, contactId }));
   };
 
   const setOwnerIds = (selectedIds: string[]) => {
@@ -1220,15 +1502,6 @@ export const ProjectFormPage: React.FC = () => {
     });
   };
 
-  const updateTaskDeadline =
-    (taskId: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-      const value = e.target.value || null;
-      const target = tasks.find((task) => task.id === taskId);
-      if (!target || !canEditTask(target)) return;
-      setTasks((prev) =>
-        prev.map((t) => (t.id === taskId ? { ...t, deadline: value } : t)),
-      );
-    };
 
   const removeTask = (taskId: string) => {
     const target = tasks.find((task) => task.id === taskId);
@@ -1337,7 +1610,7 @@ export const ProjectFormPage: React.FC = () => {
     const mentions = extractMentions(newComment.trim());
     const c: ProjectComment = {
       id: `cm${Date.now()}`,
-      author: t('crm.projects.detail.fallbacks.user'),
+      author: currentStaff?.fullName || user?.name || user?.email || t('crm.projects.detail.fallbacks.user'),
       createdAt: new Date().toLocaleString(locale),
       text: newComment.trim(),
       mentions,
@@ -1345,6 +1618,67 @@ export const ProjectFormPage: React.FC = () => {
     setComments((prev) => [c, ...prev]);
     setNewComment('');
   };
+
+  const addReply = (parentId: string) => {
+    if (!replyText.trim()) return;
+    const mentions = extractMentions(replyText.trim());
+    const c: ProjectComment = {
+      id: `cm${Date.now()}`,
+      author: currentStaff?.fullName || user?.name || user?.email || t('crm.projects.detail.fallbacks.user'),
+      createdAt: new Date().toLocaleString(locale),
+      text: replyText.trim(),
+      mentions,
+      parentId,
+    };
+    setComments((prev) => [...prev, c]);
+    setReplyText('');
+    setReplyingToId(null);
+  };
+
+  const toggleCommentLike = (commentId: string) => {
+    const me = currentStaff?.id || user?.id || user?.email;
+    if (!me) return;
+    setComments((prev) =>
+      prev.map((c) => {
+        if (c.id !== commentId) return c;
+        const likedBy = c.likedBy || [];
+        return {
+          ...c,
+          likedBy: likedBy.includes(me)
+            ? likedBy.filter((id) => id !== me)
+            : [...likedBy, me],
+        };
+      }),
+    );
+  };
+
+  // Автосохранение комментариев (новый комментарий/ответ/лайк) — независимо от задач,
+  // иначе они сохраняются только при следующем сохранении проекта. Снапшот выставляется
+  // при загрузке (см. lastCommentsSnapshotRef.current = ... рядом с каждым setComments
+  // из сети), поэтому здесь мы не пере-инициализируем его лениво — иначе первая же
+  // загрузка реальных комментариев с сервера воспринималась бы как "изменение".
+  useEffect(() => {
+    if (isNew || loading) return;
+    const snapshot = JSON.stringify(comments);
+    if (snapshot === lastCommentsSnapshotRef.current) return;
+    const timer = window.setTimeout(() => {
+      lastCommentsSnapshotRef.current = snapshot;
+      if (!projectRef.current.id || projectRef.current.id === 'new') return;
+      updateProject(
+        { ...projectRef.current, tasks: tasksRef.current, comments },
+        { includeEmptyTasks: true, includeEmptyComments: true, excludeStatus: true },
+      )
+        .then((saved) => {
+          const nextComments = saved.comments || comments;
+          lastCommentsSnapshotRef.current = JSON.stringify(nextComments);
+          setComments(nextComments);
+        })
+        .catch((e: any) => {
+          console.error(e);
+        });
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [comments, isNew, loading]);
 
   const handleBack = () => {
     navigate('/projects');
@@ -1408,12 +1742,11 @@ export const ProjectFormPage: React.FC = () => {
     marginBottom: 6,
   };
 
-  const statusDot = PROJECT_STATUS_DOT[project.status] ?? FG3;
-
   // ---------------- Рендер ----------------
 
   return (
     <MainLayout>
+      <PageHelpButton topic="projectCard" />
       {successMessage && (
         <div className="fixed top-4 right-4 z-[9999] flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs text-emerald-700 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1426,190 +1759,266 @@ export const ProjectFormPage: React.FC = () => {
         </div>
       )}
 
-      <div style={{ fontFamily: FF, color: INK }}>
-        {/* header — как на странице лида */}
-        <div style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 20, marginBottom: 28 }}>
-          <button
-            type="button"
-            onClick={handleBack}
-            style={{
-              fontFamily: FM,
-              fontSize: 11,
-              color: FG3,
-              letterSpacing: '0.06em',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          >
-            ← {t('crm.projects.detail.back')}
-          </button>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              marginTop: 10,
-              gap: 12,
-              flexWrap: 'wrap',
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontFamily: FM,
-                  fontSize: 10,
-                  color: FG4,
-                  letterSpacing: '0.12em',
-                  textTransform: 'uppercase',
-                }}
-              >
-                {isNew
-                  ? t('crm.projects.detail.titleNew')
-                  : `${t('crm.projects.detail.idKicker')} · ${String(id || '').slice(0, 8).toUpperCase()}`}
+      <div className="pd-wrap">
+        {/* header */}
+        <div className="pd-head">
+          <div className="pd-head-main">
+            <button type="button" className="pd-kick" onClick={handleBack}>
+              <span className="bar" style={{ background: statusColorFor(project.status) }} />
+              {isNew
+                ? t('crm.projects.detail.titleNew')
+                : `${t('crm.projects.detail.back')} / ${t('crm.projects.detail.idKicker')} ${String(id || '').slice(0, 8).toUpperCase()}`}
+            </button>
+            <div className="pd-title">
+              {editName ? (
+                <input
+                  className="pd-title-input"
+                  autoFocus
+                  value={project.name}
+                  onChange={handleChange('name')}
+                  onBlur={() => setEditName(false)}
+                  onKeyDown={(e) => e.key === 'Enter' && setEditName(false)}
+                />
+              ) : (
+                <h1 onClick={() => setEditName(true)}>
+                  {project.name || t('crm.projects.detail.fallbacks.untitled')}
+                </h1>
+              )}
+              <StatusPill
+                big
+                value={project.status}
+                label={statusLabels[project.status] ?? project.status}
+                color={statusColorFor(project.status)}
+                options={statusPillOptions}
+                onChange={handleStatusChange}
+              />
+            </div>
+            <div className="pd-sub">
+              {project.category && <span>{categoryLabels[project.category] ?? project.category}</span>}
+              {project.category && <span className="dot" />}
+              {linkedCompany && (
+                <>
+                  <span>
+                    {t('crm.projects.detail.fields.company')}{' '}
+                    <a
+                      href={`/companies/${linkedCompany.id}`}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigate(`/companies/${linkedCompany.id}`);
+                      }}
+                    >
+                      {linkedCompany.name}
+                    </a>
+                  </span>
+                  <span className="dot" />
+                </>
+              )}
+              {project.leadName && (
+                <>
+                  <span>
+                    {t('crm.projects.detail.fields.leadName')} {project.leadName}
+                  </span>
+                  <span className="dot" />
+                </>
+              )}
+              {!isNew && project.createdAt && (
+                <span>
+                  {t('crm.projects.detail.fields.createdAt')} {project.createdAt}
+                </span>
+              )}
+            </div>
+            {loading && (
+              <div style={{ fontFamily: FM, fontSize: 11, color: FG4, marginTop: 8 }}>
+                {t('crm.projects.detail.loading')}
               </div>
-              <h1
-                style={{
-                  fontFamily: FF,
-                  fontSize: 26,
-                  fontWeight: 500,
-                  letterSpacing: '-0.02em',
-                  color: INK,
-                  marginTop: 6,
-                  lineHeight: 1.1,
-                }}
-              >
-                {project.name || t('crm.projects.detail.fallbacks.untitled')}
-              </h1>
+            )}
+            {showMentionsHint && mentionTargets.length > 0 && (
               <div
                 style={{
+                  marginTop: 10,
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: 6,
-                  marginTop: 8,
-                  padding: '4px 10px',
-                  borderRadius: 999,
+                  gap: 8,
+                  padding: '8px 12px',
+                  borderRadius: 12,
                   border: `1px solid ${LINE}`,
                   background: BG_MUTED,
-                  fontSize: 12,
+                  fontSize: 11,
                   color: FG2,
                 }}
               >
-                <span
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: statusDot,
-                    flexShrink: 0,
-                  }}
-                />
-                {statusLabels[project.status]}
-              </div>
-              {loading && (
-                <div style={{ fontFamily: FM, fontSize: 11, color: FG4, marginTop: 8 }}>
-                  {t('crm.projects.detail.loading')}
-                </div>
-              )}
-              {showMentionsHint && mentionTargets.length > 0 && (
-                <div
-                  style={{
-                    marginTop: 10,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    padding: '8px 12px',
-                    borderRadius: 12,
-                    border: `1px solid ${LINE}`,
-                    background: BG_MUTED,
-                    fontSize: 11,
-                    color: FG2,
-                  }}
-                >
-                  <span aria-hidden>🔔</span>
-                  {t('crm.projects.detail.mentions.notice', {
-                    count: mentionTargets.length,
-                  })}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const key = `project_mentions_seen_${project.id}`;
-                      const seen = mentionTargets.map((c) => c.id);
-                      localStorage.setItem(key, JSON.stringify(seen));
-                      setShowMentionsHint(false);
-                    }}
-                    style={{
-                      fontFamily: FM,
-                      fontSize: 10,
-                      color: FG3,
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    {t('crm.projects.detail.mentions.ok')}
-                  </button>
-                </div>
-              )}
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              {!isNew && (
+                <span aria-hidden>🔔</span>
+                {t('crm.projects.detail.mentions.notice', {
+                  count: mentionTargets.length,
+                })}
                 <button
                   type="button"
-                  onClick={handleDelete}
-                  disabled={saving}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => {
+                    const key = `project_mentions_seen_${project.id}`;
+                    const seen = mentionTargets.map((c) => c.id);
+                    localStorage.setItem(key, JSON.stringify(seen));
+                    setShowMentionsHint(false);
+                  }}
+                  style={{
+                    fontFamily: FM,
+                    fontSize: 10,
+                    color: FG3,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                  }}
                 >
-                  {t('crm.projects.detail.actions.delete')}
+                  {t('crm.projects.detail.mentions.ok')}
                 </button>
-              )}
+              </div>
+            )}
+          </div>
+          <div className="pd-head-actions">
+            {!isNew && project.updatedAt && (
+              <span className="pd-saved">
+                {t('crm.projects.detail.fields.updatedAt', 'Изменено')} {project.updatedAt}
+              </span>
+            )}
+            {!isNew && (
               <button
                 type="button"
-                onClick={() => setCustomFieldsOpen(true)}
-                style={{
-                  padding: '7px 14px',
-                  fontSize: 12,
-                  borderRadius: 8,
-                  border: `1px solid ${LINE}`,
-                  background: '#fff',
-                  color: FG2,
-                  cursor: 'pointer',
-                }}
+                className="btn btn-sm"
+                onClick={() =>
+                  navigate(`/projects/board${tableFromQuery ? `?table=${tableFromQuery}` : ''}`)
+                }
               >
-                {t('crm.projects.detail.customFields.configure')}
+                {t('crm.projects.detail.actions.toBoard', 'В канбан')}
               </button>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                style={{
-                  padding: '8px 20px',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  borderRadius: 8,
-                  border: `1px solid ${INK}`,
-                  background: INK,
-                  color: '#fff',
-                  cursor: 'pointer',
-                  opacity: saving ? 0.65 : 1,
-                }}
-              >
-                {saving
-                  ? t('crm.projects.detail.actions.saving')
-                  : t('crm.projects.detail.actions.save')}
-              </button>
-            </div>
+            )}
+            <button type="button" className="btn btn-sm btn-primary" onClick={handleSave} disabled={saving}>
+              {saving
+                ? t('crm.projects.detail.actions.saving')
+                : t('crm.projects.detail.actions.save')}
+            </button>
+            <DotsMenu
+              items={[
+                {
+                  key: 'fields',
+                  label: t('crm.projects.detail.customFields.configure'),
+                  onClick: () => setCustomFieldsOpen(true),
+                },
+                ...(!isNew
+                  ? [
+                      {
+                        key: 'delete',
+                        label: t('crm.projects.detail.actions.delete'),
+                        onClick: handleDelete,
+                        danger: true,
+                      },
+                    ]
+                  : []),
+              ]}
+            />
           </div>
         </div>
 
         {!loading && (
-          <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px] gap-8 items-start">
-            {/* ——— ЛЕВАЯ КОЛОНКА ——— */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
+          <>
+            {/* metric strip */}
+            <div className="pd-strip">
+              <div className="pd-metric">
+                <div className="l">{t('crm.projects.detail.metrics.budget')}</div>
+                <div className="v">
+                  <input
+                    type="number"
+                    className={'amt-input' + (canEditAmount ? '' : ' opacity-50 cursor-not-allowed')}
+                    value={project.amount || ''}
+                    onChange={handleChange('amount')}
+                    disabled={!canEditAmount}
+                    title={canEditAmount ? undefined : t('crm.projects.detail.fields.amountNoPermission') || undefined}
+                  />
+                  <span className="cur">{project.currency || 'EUR'}</span>
+                </div>
+              </div>
+              <div className="pd-metric">
+                <div className="l">{t('crm.projects.detail.metrics.taskProgress')}</div>
+                <div className="v">
+                  {tasksCompletionPercent}%<small>{tasksDoneCount} / {tasks.length}</small>
+                </div>
+                <div className="pd-bar">
+                  <i style={{ width: `${tasksCompletionPercent}%` }} />
+                </div>
+              </div>
+              <div className="pd-metric">
+                <div className="l">{t('crm.projects.detail.metrics.urgency')}</div>
+                <div className="v" style={{ fontSize: 16 }}>
+                  {projectPriority === 'Высокий'
+                    ? t('crm.projects.detail.priority.highUrgency')
+                    : projectPriority === 'Низкий'
+                      ? t('crm.projects.detail.priority.lowUrgency')
+                      : t('crm.projects.detail.priority.normalUrgency')}
+                </div>
+                <div className="pd-urg">
+                  {(['Низкий', 'Обычный', 'Высокий'] as const).map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      className={projectPriority === u ? 'on' : undefined}
+                      onClick={() =>
+                        setProject((prev) => ({
+                          ...prev,
+                          customFields: { ...(prev.customFields ?? {}), priority: u },
+                        }))
+                      }
+                    >
+                      {u === 'Высокий'
+                        ? t('crm.projects.detail.priority.highUrgency')
+                        : u === 'Низкий'
+                          ? t('crm.projects.detail.priority.lowUrgency')
+                          : t('crm.projects.detail.priority.normalUrgency')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="pd-metric">
+                <div className="l">{t('crm.projects.detail.metrics.nearestDeadline', 'Ближайший дедлайн')}</div>
+                <div className="v" style={{ fontSize: 16 }}>
+                  {nearestDeadlineTask
+                    ? new Date(nearestDeadlineTask.deadline as string).toLocaleDateString(locale)
+                    : '—'}
+                </div>
+                {nearestDeadlineTask && (
+                  <div className="pd-sub" style={{ marginTop: 6, fontSize: 11.5 }}>
+                    {nearestDeadlineTask.title}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* tabs */}
+            <div className="pd-tabs">
+              {(
+                [
+                  ['props', t('crm.projects.detail.tabs.props', 'Свойства'), null],
+                  ['tasks', t('crm.projects.detail.tabs.tasks'), tasks.length],
+                  ['comments', t('crm.projects.detail.tabs.comments'), comments.length],
+                  ['history', t('crm.projects.detail.tabs.history'), activities.length],
+                ] as const
+              ).map(([id, label, n]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={tab === id ? 'pd-tab on' : 'pd-tab'}
+                  onClick={() => setTab(id)}
+                >
+                  {label}
+                  {n != null && <span className="n">{n}</span>}
+                </button>
+              ))}
+            </div>
+
+          <div className="pd-body">
+            <div style={{ minWidth: 0 }}>
+            {tab === 'props' && (
+              <>
               {/* Название в форме */}
-              <div>
+              <div style={{ marginBottom: 20 }}>
                 <label className={lblCls} style={{ color: FG3 }}>
                   {t('crm.projects.detail.fields.name')}
                 </label>
@@ -1621,278 +2030,145 @@ export const ProjectFormPage: React.FC = () => {
                 />
               </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {/* Лид */}
-            <div className="space-y-2">
-              <label className={lblCls} style={{ color: FG3 }}>
-                {t('crm.projects.detail.fields.lead')}
-              </label>
-              <select
-                value={project.leadId || ''}
-                onChange={handleLeadChange}
-                className={inpCls}
-              >
-                <option value="">
-                  {t('crm.projects.detail.fields.leadEmpty')}
-                </option>
-                {allLeads.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {(l.name || t('crm.projects.detail.fields.leadNameFallback')) +
-                      (l.email ? ` · ${l.email}` : '')}
-                  </option>
-                ))}
-              </select>
+              {!isNew && project.id && (
+                <div style={{ marginBottom: 20 }}>
+                  <JiraIssueLinkPanel entityType="project" entityId={project.id} defaultSummary={project.name} />
+                </div>
+              )}
 
-              <input
-                value={project.leadName || ''}
-                onChange={(e) =>
-                  setProject((prev) => ({
-                    ...prev,
-                    leadName: e.target.value || null,
-                  }))
-                }
-                placeholder={t('crm.projects.detail.fields.leadName')}
-                className={inpCls}
-              />
-              <input
-                value={project.leadEmail || ''}
-                onChange={(e) =>
-                  setProject((prev) => ({
-                    ...prev,
-                    leadEmail: e.target.value || null,
-                  }))
-                }
-                placeholder={t('crm.projects.detail.fields.leadEmail')}
-                className={inpCls}
-              />
-            </div>
-
-            {/* Описание */}
-            <div>
-              <label className={lblCls} style={{ color: FG3 }}>
-                {t('crm.projects.detail.fields.description')}
-              </label>
-              <textarea
-                value={project.description}
-                onChange={handleChange('description')}
-                placeholder={t('crm.projects.detail.fields.description')}
-                rows={4}
-                className={inpCls + ' resize-y min-h-[100px]'}
-              />
-            </div>
-
-            {/* Компания (только для чтения, через лид) */}
-            {project.leadId && (() => {
-              const lead = allLeads.find((l) => l.id === project.leadId);
-              const company = lead?.companyId
-                ? companies.find((c) => c.id === lead.companyId)
-                : null;
-              return company ? (
-                <div>
-                  <label className={lblCls} style={{ color: FG3 }}>
-                    {t('crm.projects.detail.fields.company')}
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={company.name}
-                      readOnly
-                      className={inpCls + ' flex-1 opacity-70 cursor-not-allowed bg-neutral-50'}
-                    />
+          <Card title={t('crm.projects.detail.tabs.props', 'Свойства')}>
+            <div className="pd-fields">
+              <Field label={t('crm.projects.detail.fields.description')} wide>
+                <textarea
+                  value={project.description}
+                  onChange={handleChange('description')}
+                  placeholder={t('crm.projects.detail.fields.description')}
+                  className="pd-area"
+                />
+              </Field>
+              <Field label={t('crm.projects.detail.fields.category')}>
+                <select value={project.category || ''} onChange={handleCategoryChange} className="pd-select">
+                  <option value="">{t('crm.projects.detail.fields.category')}</option>
+                  {PROJECT_CATEGORIES.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {categoryLabels[cat] ?? cat}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={t('crm.projects.detail.fields.currency')}>
+                <select
+                  value={project.currency || 'EUR'}
+                  onChange={(e) => setProject((prev) => ({ ...prev, currency: e.target.value }))}
+                  className="pd-select"
+                >
+                  {(currencyDefs.length ? currencyDefs.map((c) => c.code) : [project.currency || 'EUR']).map(
+                    (code) => (
+                      <option key={code} value={code}>
+                        {code}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </Field>
+              <Field label={t('crm.projects.detail.fields.lead')}>
+                <select value={project.leadId || ''} onChange={handleLeadChange} className="pd-select">
+                  <option value="">{t('crm.projects.detail.fields.leadEmpty')}</option>
+                  {allLeads.map((l) => (
+                    <option key={l.id} value={l.id}>
+                      {(l.name || t('crm.projects.detail.fields.leadNameFallback')) +
+                        (l.email ? ` · ${l.email}` : '')}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={t('crm.projects.detail.fields.leadEmail')}>
+                <input
+                  className="pd-input"
+                  value={project.leadEmail || ''}
+                  onChange={(e) =>
+                    setProject((prev) => ({ ...prev, leadEmail: e.target.value || null }))
+                  }
+                  placeholder={t('crm.projects.detail.fields.leadEmail')}
+                />
+              </Field>
+              <Field label={t('crm.projects.detail.fields.company')}>
+                {linkedCompany ? (
+                  <div className="pd-linkline">
+                    <span>{linkedCompany.name}</span>
                     <button
                       type="button"
-                      onClick={() => navigate(`/companies/${company.id}`)}
-                      style={{
-                        padding: '8px 14px',
-                        fontSize: 12,
-                        borderRadius: 8,
-                        border: `1px solid ${LINE}`,
-                        background: '#fff',
-                        color: FG2,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                      }}
+                      className="go"
+                      onClick={() => navigate(`/companies/${linkedCompany.id}`)}
                     >
                       {t('crm.projects.detail.fields.open')}
                     </button>
                   </div>
+                ) : (
+                  <span className="pd-empty">{t('crm.projects.common.emptyValue')}</span>
+                )}
+              </Field>
+              <Field label={t('crm.projects.detail.fields.contact')}>
+                <select value={project.contactId || ''} onChange={handleContactChange} className="pd-select">
+                  <option value="">{t('crm.projects.detail.fields.contactEmpty', 'Без контакта')}</option>
+                  {contacts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {(c.fullName || [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email) +
+                        (c.email ? ` · ${c.email}` : '')}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label={t('crm.projects.detail.fields.tags')} wide>
+                <div className="pd-chips">
+                  {tagDefs.map((tag) => {
+                    const active = project.tags.includes(tag.value);
+                    return (
+                      <button
+                        key={tag.id}
+                        type="button"
+                        onClick={() => toggleTag(tag.value)}
+                        className="pd-chip"
+                        style={
+                          active
+                            ? { background: tagColorFor(tag.value), color: '#fff', borderColor: tagColorFor(tag.value) }
+                            : undefined
+                        }
+                      >
+                        #{tag.value}
+                      </button>
+                    );
+                  })}
                 </div>
-              ) : null;
-            })()}
-
-            {/* Стоимость, дата, статус, категория, срочность */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-              <input
-                type="number"
-                value={project.amount || ''}
-                onChange={handleChange('amount')}
-                placeholder={t('crm.projects.detail.fields.amount')}
-                className={inpCls}
-              />
-              <input
-                value={project.createdAt}
-                onChange={handleChange('createdAt')}
-                placeholder={t('crm.projects.detail.fields.createdAt')}
-                className={inpCls}
-              />
-              <select
-                value={project.status}
-                onChange={handleStatusChange}
-                className={inpCls}
-              >
-                {PROJECT_STATUSES.map((st) => (
-                  <option key={st} value={st}>
-                    {statusLabels[st]}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={project.category || ''}
-                onChange={handleCategoryChange}
-                className={inpCls}
-              >
-                <option value="">
-                  {t('crm.projects.detail.fields.category')}
-                </option>
-                {PROJECT_CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {categoryLabels[cat] ?? cat}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={projectPriority}
-                onChange={(e) =>
-                  setProject((prev) => ({
-                    ...prev,
-                    customFields: {
-                      ...(prev.customFields ?? {}),
-                      priority: e.target.value as 'Обычный' | 'Высокий' | 'Низкий',
-                    },
-                  }))
-                }
-                className={inpCls}
-              >
-                <option value="Низкий">{t('crm.projects.detail.priority.lowUrgency')}</option>
-                <option value="Обычный">{t('crm.projects.detail.priority.normalUrgency')}</option>
-                <option value="Высокий">{t('crm.projects.detail.priority.highUrgency')}</option>
-              </select>
+              </Field>
             </div>
+          </Card>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-              <div
-                className="rounded-2xl p-3 space-y-2"
-                style={{ border: `1px solid ${LINE}`, background: BG_MUTED }}
-              >
-                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', color: FG3 }}>
-                  {t('crm.projects.detail.metrics.title')}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-xl px-3 py-2 bg-white" style={{ border: `1px solid ${LINE}` }}>
-                    <div className="text-[10px]" style={{ color: FG3 }}>
-                      {t('crm.projects.detail.metrics.budget')}
-                    </div>
-                    <div className="text-sm font-semibold" style={{ color: INK }}>
-                      {new Intl.NumberFormat(locale).format(Number(project.amount) || 0)}{' '}
-                      {project.currency || 'EUR'}
-                    </div>
-                  </div>
-                  <div className="rounded-xl px-3 py-2 bg-white" style={{ border: `1px solid ${LINE}` }}>
-                    <div className="text-[10px]" style={{ color: FG3 }}>
-                      {t('crm.projects.detail.metrics.taskProgress')}
-                    </div>
-                    <div className="text-sm font-semibold" style={{ color: INK }}>
-                      {tasksDoneCount}/{tasks.length} ({tasksCompletionPercent}%)
-                    </div>
-                  </div>
-                </div>
-                <div
-                  className="inline-flex items-center gap-2 rounded-full px-2 py-1 text-[11px] bg-white"
-                  style={{ border: `1px solid ${LINE}`, color: FG2 }}
-                >
-                  <span>{t('crm.projects.detail.metrics.urgency')}</span>
-                  <span
-                    className={
-                      projectPriority === 'Высокий'
-                        ? 'text-rose-600'
-                        : projectPriority === 'Низкий'
-                          ? 'text-emerald-600'
-                          : 'text-sky-600'
-                    }
-                  >
-                    {projectPriority}
-                  </span>
-                </div>
-                <div className="h-2 rounded-full overflow-hidden" style={{ background: LINE3 }}>
-                  <div
-                    className="h-full rounded-full bg-sky-500 transition-all"
-                    style={{ width: `${tasksCompletionPercent}%` }}
-                  />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className={lblCls} style={{ color: FG3 }}>
-                  {t('crm.projects.detail.notes.title')}
-                </label>
-                <textarea
-                  value={projectNotes}
-                  onChange={(e) =>
-                    setProject((prev) => ({
-                      ...prev,
-                      customFields: {
-                        ...(prev.customFields ?? {}),
-                        projectNotes: e.target.value,
-                      },
-                    }))
-                  }
-                  rows={5}
-                  placeholder={t('crm.projects.detail.notes.placeholder')}
-                  className={inpCls + ' resize-y min-h-[120px]'}
-                />
-              </div>
-            </div>
-
-            {/* Метки */}
-            <div className="space-y-2">
-              <label className={lblCls} style={{ color: FG3 }}>
-                {t('crm.projects.detail.fields.tags')}
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {PROJECT_TAGS.map((tag) => {
-                  const active = project.tags.includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => toggleTag(tag)}
-                      className={
-                        'px-2 py-0.5 rounded-full text-[11px] border ' +
-                        (active
-                          ? 'bg-rose-500 text-rose-50 border-rose-500'
-                          : 'bg-white text-neutral-700 border-neutral-200')
-                      }
-                    >
-                      #{tagLabels[tag] ?? tag}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+          <Card title={t('crm.projects.detail.notes.title')} hint={t('crm.projects.detail.notes.hint', 'видно только команде')} pad>
+            <textarea
+              className="pd-area"
+              style={{ minHeight: 96, border: `1px solid ${LINE}`, margin: 0, width: '100%' }}
+              value={projectNotes}
+              onChange={(e) =>
+                setProject((prev) => ({
+                  ...prev,
+                  customFields: { ...(prev.customFields ?? {}), projectNotes: e.target.value },
+                }))
+              }
+              placeholder={t('crm.projects.detail.notes.placeholder')}
+            />
+          </Card>
 
             {/* Кастомные поля */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className={lblCls} style={{ color: FG3 }}>
-                  {t('crm.projects.detail.customFields.title')}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setCustomFieldsOpen(true)}
-                  style={{ fontFamily: FM, fontSize: 10, color: FG3, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                >
+            <Card
+              title={t('crm.projects.detail.customFields.title')}
+              action={
+                <button type="button" className="btn btn-sm" onClick={() => setCustomFieldsOpen(true)}>
                   {t('crm.projects.detail.customFields.configure')}
                 </button>
-              </div>
+              }
+              pad
+            >
               {customFieldsError && (
                 <div className="text-[11px] text-red-600">
                   {customFieldsError}
@@ -1915,51 +2191,10 @@ export const ProjectFormPage: React.FC = () => {
                   )}
                 </div>
               )}
-            </div>
-
-            {/* Файлы (ТЗ / смета / договор) */}
-            <div className="space-y-2">
-              <label className={lblCls} style={{ color: FG3 }}>
-                {t('crm.projects.detail.files.title')}
-              </label>
-              <input
-                value={project.briefFileName || ''}
-                onChange={(e) =>
-                  setProject((prev) => ({
-                    ...prev,
-                    briefFileName: e.target.value || null,
-                  }))
-                }
-                placeholder={t('crm.projects.detail.files.namePlaceholder')}
-                className={inpCls}
-              />
-              <input
-                value={project.briefFileUrl || ''}
-                onChange={(e) =>
-                  setProject((prev) => ({
-                    ...prev,
-                    briefFileUrl: e.target.value || null,
-                  }))
-                }
-                placeholder={t('crm.projects.detail.files.urlPlaceholder')}
-                className={inpCls}
-              />
-            </div>
-          </div>
-
-              <div style={{ marginTop: 8, marginBottom: 12 }}>
-                <span
-                  style={{
-                    fontFamily: FM,
-                    fontSize: 10,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
-                    color: FG3,
-                  }}
-                >
-                  {t('crm.projects.detail.tabs.tasks')}
-                </span>
-              </div>
+            </Card>
+              </>
+            )}
+            {tab === 'tasks' && (
           <div
             className="rounded-3xl p-4 sm:p-5 space-y-4"
             style={{ border: `1px solid ${LINE}`, background: BG_MUTED }}
@@ -2032,6 +2267,7 @@ export const ProjectFormPage: React.FC = () => {
                         >
                           <input
                             type="checkbox"
+                            className="lv-checkbox-input"
                             checked={newTaskAssignees.includes(u.id)}
                             onChange={() =>
                               setNewTaskAssignees((prev) =>
@@ -2073,13 +2309,14 @@ export const ProjectFormPage: React.FC = () => {
                   <option value="Высокий">{taskPriorityLabels.Высокий}</option>
                   <option value="Низкий">{taskPriorityLabels.Низкий}</option>
                 </select>
-                <input
-                  type="date"
-                  value={newTaskDeadline}
-                  onChange={(e) => setNewTaskDeadline(e.target.value)}
-                  disabled={!isProjectOwner}
-                  className="rounded-lg border border-slate-300 bg-slate-200/90 px-3 py-2 text-[12px] text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-lumiva-accent/30 disabled:opacity-60"
-                />
+                <div style={{ width: 150 }}>
+                  <DateFieldPicker
+                    type="date"
+                    value={newTaskDeadline || null}
+                    onChange={(v) => setNewTaskDeadline((v as string) || '')}
+                    disabled={!isProjectOwner}
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={addTask}
@@ -2097,9 +2334,7 @@ export const ProjectFormPage: React.FC = () => {
                   const editable = canEditTask(task);
                   const assignees = resolveAssignees(task);
                   const done = isDoneStatus(task.status);
-                  const taskMentions = extractMentions(task.title || '');
-                  const hasMention =
-                    taskMentions.length > 0 && isMentioned(taskMentions);
+                  const hasMention = isMentioned(task.title || '');
                   const checklistTotal = task.checklist.length;
                   const checklistDone = task.checklist.filter((c) => c.done).length;
                   const taskCtl =
@@ -2302,6 +2537,7 @@ export const ProjectFormPage: React.FC = () => {
                                         >
                                           <input
                                             type="checkbox"
+                                            className="lv-checkbox-input"
                                             checked={isTaskAssigneeSelected(task.assignees, u)}
                                             onChange={() =>
                                               toggleTaskAssignee(task.id, u)
@@ -2358,15 +2594,20 @@ export const ProjectFormPage: React.FC = () => {
                               </span>
                             )}
                             {editable ? (
-                              <input
-                                draggable={false}
-                                type="date"
-                                value={task.deadline || ''}
-                                onChange={updateTaskDeadline(task.id)}
-                                className={taskCtl}
-                              />
+                              <div style={{ width: 150 }}>
+                                <DateFieldPicker
+                                  type="date"
+                                  value={task.deadline || null}
+                                  onChange={(v) => {
+                                    if (!canEditTask(task)) return;
+                                    setTasks((prev) =>
+                                      prev.map((t) => (t.id === task.id ? { ...t, deadline: (v as string) || null } : t)),
+                                    );
+                                  }}
+                                />
+                              </div>
                             ) : (
-                              <span className="text-[11px] text-slate-600">
+                              <span className={`pd-due${isTaskDeadlineLate(task) ? ' late' : ''}`}>
                                 {task.deadline
                                   ? new Date(task.deadline).toLocaleDateString(locale)
                                   : t('crm.projects.common.emptyValue')}
@@ -2417,7 +2658,7 @@ export const ProjectFormPage: React.FC = () => {
                                   draggable={false}
                                   checked={c.done}
                                   onChange={() => toggleChecklistDone(task.id, c.id)}
-                                  className="h-3.5 w-3.5 rounded border-slate-400 text-lumiva-accent"
+                                  className="lv-checkbox-input"
                                   disabled={!editable}
                                 />
                                 <input
@@ -2428,11 +2669,6 @@ export const ProjectFormPage: React.FC = () => {
                                   placeholder={t('crm.projects.detail.tasks.subtask')}
                                   disabled={!editable}
                                 />
-                                {c.done && (
-                                  <span className="shrink-0 text-[10px] text-slate-500">
-                                    {c.doneBy} · {c.doneAt}
-                                  </span>
-                                )}
                                 {editable && (
                                   <button
                                     type="button"
@@ -2460,40 +2696,29 @@ export const ProjectFormPage: React.FC = () => {
               )}
             </div>
           </div>
+            )}
 
-              <div style={{ marginTop: 24, marginBottom: 12 }}>
-                <span
-                  style={{
-                    fontFamily: FM,
-                    fontSize: 10,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
-                    color: FG3,
-                  }}
-                >
-                  {t('crm.projects.detail.tabs.comments')}
-                </span>
-              </div>
+            {tab === 'comments' && (
           <div
             className="rounded-3xl p-4 space-y-4"
             style={{ border: `1px solid ${LINE}`, background: '#fff' }}
           >
             <div className="space-y-3">
-              {comments.map((c) => (
-                <div
-                  key={c.id}
-                  className="rounded-2xl px-3 py-2 text-sm"
-                  style={{ border: `1px solid ${LINE}`, background: BG_MUTED, color: INK }}
-                >
-                  {(() => {
-                    const mentions = c.mentions ?? extractMentions(c.text || '');
+              {comments
+                .filter((c) => !c.parentId)
+                .map((c) => {
+                  const replies = comments.filter((r) => r.parentId === c.id);
+                  const me = currentStaff?.id || user?.id || user?.email || '';
+                  const liked = !!me && (c.likedBy || []).includes(me);
+                  const renderCommentBody = (comment: ProjectComment) => {
+                    const mentions = comment.mentions ?? extractMentions(comment.text || '');
                     return (
                       <>
                         <div className="text-[11px] mb-1" style={{ color: FG3 }}>
-                          {c.createdAt} · {c.author}
+                          {comment.createdAt} · {comment.author}
                         </div>
                         <div className="whitespace-pre-wrap text-[13px]">
-                          {renderMentions(c.text)}
+                          {renderMentions(comment.text)}
                         </div>
                         {mentions.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1 text-[11px]" style={{ color: FG3 }}>
@@ -2510,9 +2735,93 @@ export const ProjectFormPage: React.FC = () => {
                         )}
                       </>
                     );
-                  })()}
-                </div>
-              ))}
+                  };
+                  return (
+                    <div key={c.id}>
+                      <div
+                        className="rounded-2xl px-3 py-2 text-sm"
+                        style={{ border: `1px solid ${LINE}`, background: BG_MUTED, color: INK }}
+                      >
+                        {renderCommentBody(c)}
+                        <div className="mt-2 flex items-center gap-3 text-[11px]" style={{ color: FG3 }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleCommentLike(c.id)}
+                            className="inline-flex items-center gap-1"
+                            style={{ color: liked ? '#dc2626' : FG3, cursor: 'pointer' }}
+                          >
+                            <span aria-hidden>{liked ? '♥' : '♡'}</span>
+                            {(c.likedBy || []).length > 0 && (c.likedBy || []).length}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setReplyingToId((prev) => (prev === c.id ? null : c.id))
+                            }
+                            style={{ color: FG3, cursor: 'pointer' }}
+                          >
+                            {t('crm.projects.detail.comments.reply', 'Ответить')}
+                          </button>
+                        </div>
+                      </div>
+
+                      {replies.length > 0 && (
+                        <div className="mt-2 ml-5 space-y-2" style={{ borderLeft: `2px solid ${LINE}`, paddingLeft: 12 }}>
+                          {replies.map((r) => {
+                            const rLiked = !!me && (r.likedBy || []).includes(me);
+                            return (
+                              <div
+                                key={r.id}
+                                className="rounded-2xl px-3 py-2 text-sm"
+                                style={{ border: `1px solid ${LINE}`, background: '#fff', color: INK }}
+                              >
+                                {renderCommentBody(r)}
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCommentLike(r.id)}
+                                  className="mt-2 inline-flex items-center gap-1 text-[11px]"
+                                  style={{ color: rLiked ? '#dc2626' : FG3, cursor: 'pointer' }}
+                                >
+                                  <span aria-hidden>{rLiked ? '♥' : '♡'}</span>
+                                  {(r.likedBy || []).length > 0 && (r.likedBy || []).length}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {replyingToId === c.id && (
+                        <div className="mt-2 ml-5 flex gap-2">
+                          <input
+                            autoFocus
+                            value={replyText}
+                            onChange={(e) => setReplyText(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && addReply(c.id)}
+                            placeholder={t('crm.projects.detail.comments.replyPlaceholder', 'Ответ...')}
+                            className={inpCls + ' flex-1'}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addReply(c.id)}
+                            style={{
+                              padding: '6px 14px',
+                              fontSize: 12,
+                              fontWeight: 500,
+                              borderRadius: 8,
+                              border: `1px solid ${INK}`,
+                              background: INK,
+                              color: '#fff',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            {t('crm.projects.detail.actions.add')}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
               {comments.length === 0 && (
                 <div className="text-[11px] italic" style={{ color: FG4 }}>
@@ -2521,14 +2830,62 @@ export const ProjectFormPage: React.FC = () => {
               )}
             </div>
 
-            <div className="border-t pt-3 space-y-2" style={{ borderColor: LINE }}>
+            <div className="border-t pt-3 space-y-2 relative" style={{ borderColor: LINE }}>
               <textarea
+                ref={commentInputRef}
                 value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setNewComment(value);
+                  const caret = e.target.selectionStart ?? value.length;
+                  const before = value.slice(0, caret);
+                  const match = before.match(/@([\p{L}\p{N}._-]*)$/u);
+                  setMentionQuery(match ? match[1] : null);
+                }}
+                onBlur={() => window.setTimeout(() => setMentionQuery(null), 150)}
                 placeholder={t('crm.projects.detail.comments.newPlaceholder')}
                 rows={3}
                 className={inpCls + ' resize-y min-h-[80px]'}
               />
+              {mentionQuery !== null && (() => {
+                const q = mentionQuery.toLowerCase();
+                const matches = staff
+                  .filter((u) => u.fullName?.toLowerCase().includes(q))
+                  .slice(0, 6);
+                if (!matches.length) return null;
+                return (
+                  <div
+                    className="absolute z-20 mt-1 w-64 max-h-56 overflow-auto rounded-xl bg-white shadow-lg p-1"
+                    style={{ border: `1px solid ${LINE}`, top: '100%' }}
+                  >
+                    {matches.map((u) => (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => {
+                          const el = commentInputRef.current;
+                          const caret = el?.selectionStart ?? newComment.length;
+                          const before = newComment.slice(0, caret);
+                          const after = newComment.slice(caret);
+                          const replaced = before.replace(/@([\p{L}\p{N}._-]*)$/u, `@${u.fullName} `);
+                          const next = replaced + after;
+                          setNewComment(next);
+                          setMentionQuery(null);
+                          requestAnimationFrame(() => {
+                            el?.focus();
+                            const pos = replaced.length;
+                            el?.setSelectionRange(pos, pos);
+                          });
+                        }}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[12px] hover:bg-slate-50"
+                      >
+                        <span className="font-medium" style={{ color: INK }}>{u.fullName}</span>
+                        <span className="text-[10px]" style={{ color: FG4 }}>{u.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
               <button
                 type="button"
                 onClick={addComment}
@@ -2547,47 +2904,10 @@ export const ProjectFormPage: React.FC = () => {
               </button>
             </div>
 
-            <div className="border-t pt-3 space-y-2" style={{ borderColor: LINE }}>
-              <div className="text-xs" style={{ color: FG3 }}>
-                {t('crm.projects.detail.comments.draftTitle')}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  placeholder={t('crm.projects.detail.comments.draftPlaceholder')}
-                  className={inpCls + ' flex-1'}
-                />
-                <button
-                  type="button"
-                  style={{
-                    padding: '7px 14px',
-                    fontSize: 12,
-                    borderRadius: 8,
-                    border: `1px solid ${LINE}`,
-                    background: '#fff',
-                    color: FG2,
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {t('crm.projects.detail.actions.send')}
-                </button>
-              </div>
-            </div>
           </div>
+            )}
 
-              <div style={{ marginTop: 24, marginBottom: 12 }}>
-                <span
-                  style={{
-                    fontFamily: FM,
-                    fontSize: 10,
-                    letterSpacing: '0.12em',
-                    textTransform: 'uppercase',
-                    color: FG3,
-                  }}
-                >
-                  {t('crm.projects.detail.tabs.history')}
-                </span>
-              </div>
+            {tab === 'history' && (
           <div
             className="rounded-3xl p-4 space-y-4"
             style={{ border: `1px solid ${LINE}`, background: '#fff' }}
@@ -2701,10 +3021,10 @@ export const ProjectFormPage: React.FC = () => {
               })}
             </div>
           </div>
-
+            )}
             </div>
 
-            <div className="lg:sticky lg:top-6" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div className="pd-rail">
               <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
                 <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, marginBottom: 12 }}>
                   {t('crm.leads.form.sections.actionsTitle')}
@@ -2874,7 +3194,9 @@ export const ProjectFormPage: React.FC = () => {
                           <label className="flex items-center gap-1 text-[10px]" style={{ color: FG3 }}>
                             <input
                               type="checkbox"
+                              className="lv-checkbox-input"
                               checked={allChecked}
+                              disabled={!canEditOwner}
                               onChange={(e) =>
                                 toggleOwnerDepartment(group.department, e.target.checked)
                               }
@@ -2893,7 +3215,9 @@ export const ProjectFormPage: React.FC = () => {
                               >
                                 <input
                                   type="checkbox"
+                                  className="lv-checkbox-input"
                                   checked={checked}
+                                  disabled={!canEditOwner}
                                   onChange={(e) => toggleOwnerUser(u.id, e.target.checked)}
                                 />
                                 <span className="truncate">
@@ -2910,87 +3234,198 @@ export const ProjectFormPage: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
-                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3, marginBottom: 14 }}>
-                  {t('crm.leads.form.sections.timelineTitle')}
-                </div>
-                {isNew && (
-                  <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>
-                    {t('crm.leads.form.sections.projectsNeedSave')}
-                  </div>
-                )}
-                {!isNew && activitiesLoading && (
-                  <div style={{ fontSize: 11, color: FG4 }}>{t('crm.projects.detail.history.loading')}</div>
-                )}
-                {activitiesError && (
-                  <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 8 }}>{activitiesError}</div>
-                )}
-                {!isNew && !activitiesLoading && activities.length === 0 && (
-                  <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>
-                    {t('crm.projects.detail.history.empty')}
-                  </div>
-                )}
-                {!isNew && activities.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    {activities.slice(0, 12).map((activity) => {
-                      const label = activityLabels[activity.action] ?? activity.action;
-                      const actor =
-                        activity.actorName ||
-                        activity.actorEmail ||
-                        t('crm.projects.detail.fallbacks.user');
-                      return (
-                        <div
-                          key={activity.id}
-                          style={{ padding: '10px 0', borderBottom: `1px solid ${LINE3}` }}
+              <div className="pd-rail-card">
+                <h4>{t('crm.projects.detail.relations.title', 'Связи')}</h4>
+                <div className="pd-rail-body">
+                  <div className="pd-kv">
+                    <span className="k">{t('crm.projects.detail.fields.company')}</span>
+                    <span className="v">
+                      {linkedCompany ? (
+                        <a
+                          href={`/companies/${linkedCompany.id}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigate(`/companies/${linkedCompany.id}`);
+                          }}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 4, marginBottom: 3 }}>
-                            <span
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                fontSize: 10,
-                                background: BG_MUTED,
-                                border: `1px solid ${LINE}`,
-                                borderRadius: 999,
-                                padding: '2px 7px',
-                                color: FG2,
-                              }}
-                            >
-                              {label}
-                            </span>
-                            <span style={{ fontFamily: FM, fontSize: 9.5, color: FG4 }}>
-                              {new Date(activity.createdAt).toLocaleString(locale)}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: 11, color: FG3 }}>{actor}</div>
-                          {activity.action === 'status_change' &&
-                            activity.payload &&
-                            !historyValuesEqual(
-                              'status',
-                              (activity.payload as { from?: unknown }).from,
-                              (activity.payload as { to?: unknown }).to,
-                            ) && (
-                              <div style={{ fontSize: 11, color: FG3, marginTop: 2 }}>
-                                {formatHistoryFieldValue(
-                                  'status',
-                                  (activity.payload as { from?: unknown }).from,
-                                )}{' '}
-                                →{' '}
-                                {formatHistoryFieldValue(
-                                  'status',
-                                  (activity.payload as { to?: unknown }).to,
-                                )}
-                              </div>
-                            )}
-                        </div>
-                      );
-                    })}
+                          {linkedCompany.name}
+                        </a>
+                      ) : (
+                        t('crm.projects.common.emptyValue')
+                      )}
+                    </span>
                   </div>
-                )}
+                  <div className="pd-kv">
+                    <span className="k">{t('crm.projects.detail.fields.contact')}</span>
+                    <span className="v">
+                      {selectedContact ? (
+                        <a
+                          href={`/contacts/${selectedContact.id}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            navigate(`/contacts/${selectedContact.id}`);
+                          }}
+                        >
+                          {selectedContact.fullName ||
+                            [selectedContact.firstName, selectedContact.lastName].filter(Boolean).join(' ') ||
+                            selectedContact.email}
+                        </a>
+                      ) : (
+                        t('crm.projects.common.emptyValue')
+                      )}
+                    </span>
+                  </div>
+                  <div className="pd-kv">
+                    <span className="k">{t('crm.projects.detail.fields.lead')}</span>
+                    <span className="v">{project.leadName || t('crm.projects.common.emptyValue')}</span>
+                  </div>
+                  <div className="pd-kv">
+                    <span className="k">{t('crm.projects.detail.fields.leadEmail')}</span>
+                    <span className="v">{project.leadEmail || t('crm.projects.common.emptyValue')}</span>
+                  </div>
+                </div>
               </div>
+
+              <div className="pd-rail-card">
+                <h4>{t('crm.projects.detail.files.title')}</h4>
+                <div className="pd-rail-body" style={{ gap: 0 }}>
+                  {displayedFiles.map((f) => (
+                    <div key={f.id} className="pd-file">
+                      {fileProviderIcon(f.provider, 14)}
+                      <a
+                        href={f.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="nm"
+                        title={f.url}
+                      >
+                        {f.label}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => removeFileLink(f.id)}
+                        style={{ background: 'none', border: 0, color: FG4, cursor: 'pointer', flexShrink: 0 }}
+                        aria-label={t('crm.projects.detail.actions.remove')}
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
+                  <div className="relative" ref={fileAddRef} style={{ marginTop: 10 }}>
+                    <button type="button" className="pd-addrow" onClick={openFileAdd}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                      {t('crm.projects.detail.files.addLink', 'Добавить ссылку')}
+                    </button>
+                    {fileAddOpen && fileAddStep === 'provider' && (
+                      <div
+                        className="absolute z-30 mt-1.5 rounded-xl border bg-white p-1.5 shadow-lg"
+                        style={{ borderColor: LINE, left: 0, right: 0, width: 'auto' }}
+                      >
+                        {FILE_PROVIDERS.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => chooseFileProvider(p.id)}
+                            className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm text-neutral-800 hover:bg-neutral-50 transition-colors text-left"
+                          >
+                            {p.icon}
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {fileAddOpen && fileAddStep === 'form' && (
+                      <div
+                        className="absolute z-30 mt-1.5 rounded-xl border bg-white p-3 shadow-lg space-y-2"
+                        style={{ borderColor: LINE, left: 0, right: 0, width: 'auto' }}
+                      >
+                        <div className="flex items-center gap-2 text-xs font-medium text-neutral-600">
+                          <button
+                            type="button"
+                            onClick={() => setFileAddStep('provider')}
+                            className="text-neutral-400 hover:text-neutral-700"
+                            aria-label="Назад"
+                          >
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10 3.5L5 8l5 4.5" /></svg>
+                          </button>
+                          {fileProviderIcon(fileAddProvider)}
+                          {FILE_PROVIDERS.find((p) => p.id === fileAddProvider)?.label}
+                        </div>
+                        <input
+                          autoFocus
+                          value={fileAddUrl}
+                          onChange={(e) => setFileAddUrl(e.target.value)}
+                          placeholder={t('crm.projects.detail.files.urlPlaceholder', 'Ссылка на файл')}
+                          className={inpCls}
+                          onKeyDown={(e) => { if (e.key === 'Enter') submitFileAdd(); }}
+                        />
+                        <input
+                          value={fileAddLabel}
+                          onChange={(e) => setFileAddLabel(e.target.value)}
+                          placeholder={t('crm.projects.detail.files.namePlaceholder', 'Название (например, ТЗ по сайту)')}
+                          className={inpCls}
+                          onKeyDown={(e) => { if (e.key === 'Enter') submitFileAdd(); }}
+                        />
+                        <div className="flex justify-end gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setFileAddOpen(false)}
+                            className="text-xs text-neutral-500 hover:text-neutral-800 px-2 py-1.5"
+                          >
+                            {t('crm.common.cancel', 'Отмена')}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={submitFileAdd}
+                            disabled={!fileAddUrl.trim()}
+                            className="text-xs font-medium text-white bg-neutral-900 rounded-lg px-3 py-1.5 disabled:opacity-40"
+                          >
+                            {t('crm.common.add', 'Добавить')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pd-rail-card">
+                <h4>{t('crm.projects.detail.fields.tags')}</h4>
+                <div className="pd-rail-body">
+                  <div className="pd-chips">
+                    {project.tags.map((tag) => (
+                      <span key={tag} className="pd-chip">
+                        #{tag}
+                      </span>
+                    ))}
+                    {project.tags.length === 0 && (
+                      <span className="pd-empty">{t('crm.projects.common.emptyValue')}</span>
+                    )}
+                  </div>
+                  {!isNew && (
+                    <>
+                      <div className="pd-kv">
+                        <span className="k">{t('crm.projects.detail.fields.createdAt')}</span>
+                        <span className="v">{project.createdAt}</span>
+                      </div>
+                      {project.updatedAt && (
+                        <div className="pd-kv">
+                          <span className="k">{t('crm.projects.detail.fields.updatedAt', 'Изменено')}</span>
+                          <span className="v">{project.updatedAt}</span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
             </div>
           </div>
+          </>
         )}
       </div>
 

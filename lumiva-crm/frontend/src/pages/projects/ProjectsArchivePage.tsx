@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   deleteProject,
   fetchProjects,
@@ -65,6 +66,7 @@ export const ProjectsArchivePage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="projectsArchive" />
       <div className="space-y-4">
         <div>
           <h1 className="page-title">

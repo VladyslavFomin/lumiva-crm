@@ -1,7 +1,8 @@
 // src/pages/contacts/ContactFormPage.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
-import { useNavigate, useParams } from 'react-router-dom';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchContact, createContact, updateContact, type CreateContactDto } from '../../api/contacts';
 import { CompanySelect } from '../../components/CompanySelect';
@@ -34,14 +35,17 @@ const COUNTRY_OPTIONS = [
 export const ContactFormPage: React.FC = () => {
   const { t } = useTranslation();
   const { id } = useParams<{ id?: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const isNew = !id;
+  const prefilledCompanyId = searchParams.get('companyId') || '';
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [assignedUserIds, setAssignedUserIds] = useState<string[]>([]);
+  const [passport, setPassport] = useState('');
 
   const [form, setForm] = useState<CreateContactDto>({
     firstName: '',
@@ -49,7 +53,7 @@ export const ContactFormPage: React.FC = () => {
     email: '',
     phone: '',
     company: '',
-    companyId: '',
+    companyId: prefilledCompanyId,
     position: '',
     country: '',
     city: '',
@@ -77,6 +81,7 @@ export const ContactFormPage: React.FC = () => {
           (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0,
         );
         setAssignedUserIds(ids.length ? ids : c.assignedUserId ? [c.assignedUserId] : []);
+        setPassport(typeof c.customFields?.passport === 'string' ? c.customFields.passport : '');
         setForm({
           firstName: c.firstName || '',
           lastName: c.lastName || '',
@@ -145,6 +150,7 @@ export const ContactFormPage: React.FC = () => {
       const normalizedCountry = (form.country || '').trim().toUpperCase();
       const payload: CreateContactDto = {
         ...form,
+        companyId: form.companyId || undefined,
         country: normalizedCountry.length === 2 ? normalizedCountry : '',
         city: (form.city || '').trim(),
         assignedUserId: assignedUserIds[0] || undefined,
@@ -153,6 +159,7 @@ export const ContactFormPage: React.FC = () => {
           ...(form.customFields || {}),
           assignedUserIds,
           assignedToList: assignedNames,
+          passport: passport.trim() || undefined,
         },
       };
       if (id) {
@@ -182,6 +189,7 @@ export const ContactFormPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="contacts" />
       <div style={{ color: INK }}>
         {/* ── Header ───────────────────────────────────────────── */}
         <div style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 20, marginBottom: 28 }}>
@@ -202,6 +210,14 @@ export const ContactFormPage: React.FC = () => {
               </h1>
               {form.position && (
                 <div style={{ marginTop: 6, fontSize: 13, color: FG3 }}>{form.position}</div>
+              )}
+              {isNew && !prefilledCompanyId && (
+                <div style={{ marginTop: 8, fontSize: 12, color: FG3, maxWidth: 480 }}>
+                  {t('crm.contacts.form.newColdStartHint', {
+                    defaultValue:
+                      'Обычно контакт создаётся автоматически при конвертации лида в клиента. Создавайте вручную, если работа уже началась без лида.',
+                  })}
+                </div>
               )}
             </div>
             <button
@@ -304,6 +320,13 @@ export const ContactFormPage: React.FC = () => {
                   rows={2}
                   style={{ resize: 'vertical' }}
                 />
+              </div>
+
+              {/* Passport / ID */}
+              <div>
+                <label className={lblCls}>{t('crm.contacts.form.fields.passport')}</label>
+                <input className={inpCls} value={passport} onChange={(e) => setPassport(e.target.value)} placeholder={t('crm.contacts.form.fields.passportPlaceholder')} />
+                <p className="mt-1 text-[11px]" style={{ color: FG3 }}>{t('crm.contacts.form.fields.passportHint')}</p>
               </div>
             </div>
 

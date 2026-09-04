@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { CrmShellModal } from '../../components/ui/CrmShellModal';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
@@ -296,6 +297,7 @@ export const UtmsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="marketingUtms" />
       <div className="space-y-4 pb-8 md:space-y-6">
         <section
           className="rounded-2xl border bg-white px-5 py-5 shadow-sm md:px-7 md:py-6"

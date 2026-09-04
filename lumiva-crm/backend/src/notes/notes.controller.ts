@@ -78,7 +78,7 @@ export class NotesController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    return this.notesService.findOne(user.tenantId, id, user.id);
+    return this.notesService.findOne(user.tenantId, id, user.id || user.userId || user.sub);
   }
 
   @Post()
@@ -102,7 +102,7 @@ export class NotesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() dto: UpdateNoteDto,
   ) {
-    return this.notesService.update(user.tenantId, id, dto, user.id);
+    return this.notesService.update(user.tenantId, id, dto, user.id || user.userId || user.sub);
   }
 
   @Delete(':id')
@@ -111,7 +111,7 @@ export class NotesController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    await this.notesService.delete(user.tenantId, id, user.id);
+    await this.notesService.delete(user.tenantId, id, user.id || user.userId || user.sub);
     return { success: true };
   }
 }

@@ -16,7 +16,7 @@ function checkSource() {
   if (content.includes('ProjectsAnalyticsPage')) {
     fail('LeadsAnalyticsPageV2.tsx must keep the new standalone leads analytics design, not the old shared page.');
   }
-  if (!content.includes('Лиды — обзор')) {
+  if (!content.includes("t('crm.leadsAnalytics.page.title')")) {
     fail('LeadsAnalyticsPageV2.tsx missing the leads analytics header.');
   }
   if (!content.includes('MainLayout')) {

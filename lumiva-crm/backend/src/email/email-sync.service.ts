@@ -419,7 +419,6 @@ export class EmailSyncService {
             enabledViews: ['table', 'calendar'],
             kanban: { cardTitleField: 'title' },
             workspaceNavIcon: 'mail',
-            sidebarCategory: 'other',
           },
         }),
       );
@@ -432,15 +431,13 @@ export class EmailSyncService {
       if (
         meta.systemKey !== EMAIL_MEETINGS_SYSTEM_KEY ||
         nextEnabledViews.length !== enabledViews.length ||
-        meta.workspaceNavIcon !== 'mail' ||
-        meta.sidebarCategory !== 'other'
+        meta.workspaceNavIcon !== 'mail'
       ) {
         object.meta = {
           ...meta,
           systemKey: EMAIL_MEETINGS_SYSTEM_KEY,
           enabledViews: nextEnabledViews,
           workspaceNavIcon: 'mail',
-          sidebarCategory: 'other',
           kanban: {
             ...(meta.kanban && typeof meta.kanban === 'object' ? meta.kanban : {}),
             cardTitleField: 'title',

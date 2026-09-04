@@ -361,6 +361,21 @@ export class HotelReservationsService {
         where: { id: roomUnitId, tenantId, roomTypeId: row.roomTypeId, active: true },
       });
       if (!unit) throw new BadRequestException('Номер не найден или не принадлежит этому типу номера');
+
+      // Раньше проверка занятости номера была только на фронтенде (дизейбл в выпадающем
+      // списке по once-loaded списку броней) — прямой вызов API или гонка двух front-desk
+      // сессий могли заселить двух гостей в один номер на пересекающиеся даты.
+      const overlapping = await this.repo
+        .createQueryBuilder('r')
+        .where('r.tenantId = :tenantId', { tenantId })
+        .andWhere('r.roomUnitId = :roomUnitId', { roomUnitId })
+        .andWhere('r.id != :id', { id })
+        .andWhere('r.status IN (:...statuses)', { statuses: ['confirmed', 'pending', 'checked_in'] })
+        .andWhere('r.checkIn < :checkOut', { checkOut: row.checkOut })
+        .andWhere('r.checkOut > :checkIn', { checkIn: row.checkIn })
+        .getOne();
+      if (overlapping) throw new BadRequestException('Номер уже занят на эти даты другой бронью');
+
       row.roomUnitId = roomUnitId;
     }
 

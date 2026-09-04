@@ -402,6 +402,16 @@ export const WorkspaceAreaSwitcher: React.FC<Props> = ({ compact = false, active
               type="button"
               onClick={() => {
                 setOpen(false);
+                navigate('/workspace/areas');
+              }}
+              className="w-full rounded-lg border border-neutral-200/90 bg-neutral-50/80 px-3 py-2 text-left text-[12px] text-neutral-700 hover:bg-neutral-100/90"
+            >
+              {t('crm.workspace.area.allAreas', { defaultValue: 'Все области' })}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setOpen(false);
                 navigate('/integrations-hub?tab=catalog');
               }}
               className="w-full rounded-lg border border-neutral-200/90 bg-neutral-50/80 px-3 py-2 text-left text-[12px] text-neutral-700 hover:bg-neutral-100/90"

@@ -4,19 +4,13 @@ import { postAiEmailReplySuggest } from '../../api/ai';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { CrmShellModal } from '../../components/ui/CrmShellModal';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { EmailComposeWindow } from './EmailComposeWindow';
 import { EmailFolderModal } from './EmailFolderModal';
 import { EmailMoveToFolderModal } from './EmailMoveToFolderModal';
-import {
-  IconCalendar,
-  IconEuro,
-  IconFolder,
-  IconMail,
-  IconPencil,
-  SystemFolderIcon,
-} from './EmailOutlineIcons';
+import { SystemFolderIcon, IconFolder as OutlineIconFolder } from './EmailOutlineIcons';
 import {
   fetchEmailAccounts,
   fetchEmailMessages,
@@ -36,27 +30,18 @@ import {
   type EmailMessage,
   type EmailFolder,
 } from '../../api/email';
+import { Ic, NI } from './EmailInboxIcons';
+import './email-settings-design.css';
+import './email-inbox-design.css';
 
-const TEAL = '#45a094';
+const cx = (...a: Array<string | false | undefined | null>) => a.filter(Boolean).join(' ');
+
 const LS_FOLDER_W = 'lumiva-email-folder-w';
 const LS_LIST_W = 'lumiva-email-list-w';
 const LS_FOLD_COLLAPSE = 'lumiva-email-folders-collapsed';
 const MAILBOX_REFRESH_MS = 30_000;
 const MAILBOX_SYNC_MS = 120_000;
 const CALENDAR_BACKFILL_MS = 300_000;
-
-const leadBadgeClass =
-  'inline-flex items-center rounded-2xl px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:opacity-95';
-const leadBadgeStyle = { backgroundColor: TEAL, boxShadow: '0 6px 20px rgba(69,160,148,0.35)' };
-
-/** Пилюли: белый фон + чёрная обводка / акцент; hover — слегка slate-50 (не «серый снизу»). */
-const BTN_PRIMARY = 'btn-primary';
-const BTN_SECONDARY = 'btn-secondary';
-const BTN_SECONDARY_SM = 'btn-secondary-sm';
-const FOLDER_ACTION = 'btn-icon px-1.5 py-0.5 text-[9px] rounded-md';
-const FOLDER_ACTION_DANGER = 'btn-icon-danger px-1.5 py-0.5 text-[9px] rounded-md';
-const BTN_SECONDARY_LIGHT = 'btn-secondary';
-const BTN_GENTLE_ROSE = 'btn-danger';
 
 function readStoredInt(key: string, fallback: number, min: number, max: number): number {
   try {
@@ -75,6 +60,13 @@ function replySubject(original: string | null): string {
   return `Re: ${s}`;
 }
 
+function forwardSubject(original: string | null): string {
+  const s = (original || '').trim();
+  if (!s) return 'Fwd: ';
+  if (/^fwd:\s*/i.test(s)) return s;
+  return `Fwd: ${s}`;
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -91,17 +83,17 @@ function buildEmailMessageSrcDoc(html: string): string {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <base target="_blank" />
   <style>
-    html, body { margin: 0; background: #fff; color: #0f172a; }
+    html, body { margin: 0; background: #fff; color: #222; }
     body {
       padding: 12px;
-      font: 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font: 14px/1.55 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       overflow-wrap: anywhere;
     }
-    a { color: ${TEAL}; text-decoration: underline; }
+    a { color: #222; text-decoration: underline; }
     img, video, canvas, svg { max-width: 100%; height: auto; }
     table { max-width: 100%; border-collapse: collapse; }
     pre { white-space: pre-wrap; }
-    blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid #cbd5e1; color: #334155; }
+    blockquote { margin-left: 0; padding-left: 12px; border-left: 3px solid #e7e7e7; color: #555; }
   </style>
 </head>
 <body>${html}</body>
@@ -111,10 +103,19 @@ function buildEmailMessageSrcDoc(html: string): string {
 function replyInitialHtml(m: EmailMessage): string {
   const subj = escapeHtml(m.subject || '—');
   if (m.htmlBody && m.htmlBody.trim()) {
-    return `<p></p><p><br></p><hr/><p style="color:#94a3b8;font-size:12px">${subj}</p><blockquote style="margin:8px 0;padding-left:12px;border-left:2px solid #475569;color:#cbd5e1">${m.htmlBody}</blockquote>`;
+    return `<p></p><p><br></p><hr/><p style="color:#888;font-size:12px">${subj}</p><blockquote style="margin:8px 0;padding-left:12px;border-left:2px solid #e7e7e7;color:#555">${m.htmlBody}</blockquote>`;
   }
   const txt = escapeHtml((m.textBody || '').slice(0, 50_000));
-  return `<p></p><p><br></p><hr/><p style="color:#94a3b8">${subj}</p><pre style="white-space:pre-wrap;font-family:inherit;font-size:13px">${txt}</pre>`;
+  return `<p></p><p><br></p><hr/><p style="color:#888">${subj}</p><pre style="white-space:pre-wrap;font-family:inherit;font-size:13px">${txt}</pre>`;
+}
+
+function forwardInitialHtml(m: EmailMessage): string {
+  const meta = `Пересланное письмо<br/>От: ${escapeHtml(m.fromName ? `${m.fromName} <${m.from}>` : m.from)}<br/>Кому: ${escapeHtml((m.to || []).join(', '))}<br/>Тема: ${escapeHtml(m.subject || '—')}`;
+  if (m.htmlBody && m.htmlBody.trim()) {
+    return `<p></p><p><br></p><hr/><p style="color:#888;font-size:12px">${meta}</p><blockquote style="margin:8px 0;padding-left:12px;border-left:2px solid #e7e7e7;color:#555">${m.htmlBody}</blockquote>`;
+  }
+  const txt = escapeHtml((m.textBody || '').slice(0, 50_000));
+  return `<p></p><p><br></p><hr/><p style="color:#888">${meta}</p><pre style="white-space:pre-wrap;font-family:inherit;font-size:13px">${txt}</pre>`;
 }
 
 function orderedFolderTree(folders: EmailFolder[]): Array<{ f: EmailFolder; depth: number }> {
@@ -138,19 +139,47 @@ function orderedFolderTree(folders: EmailFolder[]): Array<{ f: EmailFolder; dept
   return out;
 }
 
-function MessageRowIcon({ m }: { m: EmailMessage }) {
-  const cn = 'h-4 w-4 shrink-0 text-slate-500';
-  if (m.meta && typeof m.meta === 'object' && (m.meta as { hasCalendarAttachment?: boolean }).hasCalendarAttachment) {
-    return <IconCalendar className={cn} />;
-  }
-  const subj = (m.subject || '').toLowerCase();
-  if (/оплат|платеж|payment|invoice|счёт|счет|eur|€|\beuro\b|usd|\$|цена|price/.test(subj)) {
-    return <IconEuro className={cn} />;
-  }
-  if (/заметк|note|напоминан|reminder|todo|задач|draft|черновик/.test(subj)) {
-    return <IconPencil className={cn} />;
-  }
-  return <IconMail className={cn} />;
+function dayBucket(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const startOfDay = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((startOfDay(now) - startOfDay(d)) / 86_400_000);
+  if (diffDays === 0) return 'Сегодня';
+  if (diffDays === 1) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+}
+
+function shortTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+
+function initialsOf(name: string | null | undefined, addr: string): string {
+  const src = (name || addr || '').trim();
+  if (!src) return '?';
+  const parts = src.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
+}
+
+function snippetOf(m: EmailMessage): string {
+  const raw = m.textBody || (m.htmlBody ? m.htmlBody.replace(/<[^>]*>/g, ' ') : '') || '';
+  return raw.replace(/\s+/g, ' ').trim().slice(0, 140);
+}
+
+function crmTag(m: EmailMessage): { cls: string; label: string } | null {
+  if (m.leadId) return { cls: 'lead', label: 'Лид' };
+  if (m.saleId) return { cls: 'deal', label: 'Сделка' };
+  if (m.companyId) return { cls: 'deal', label: 'Компания' };
+  if (m.contactId) return { cls: 'deal', label: 'Контакт' };
+  if (m.direction === 'incoming') return { cls: 'none', label: 'Нет в CRM' };
+  return null;
+}
+
+function fmtSize(bytes: number): string {
+  if (!Number.isFinite(bytes)) return '';
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
 }
 
 function formatInviteDate(raw: string | null | undefined): string {
@@ -171,76 +200,40 @@ function inviteStatusLabel(status: string | null | undefined): string {
 }
 
 function formatAutoRefreshTime(): string {
-  return new Date().toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-function CalendarInviteCard({
-  invite,
-  importError,
-}: {
-  invite: EmailCalendarInviteMeta;
-  importError?: string | null;
-}) {
+function CalendarInviteCard({ invite, importError }: { invite: EmailCalendarInviteMeta; importError?: string | null }) {
   const attendees = Array.isArray(invite.attendees) ? invite.attendees.filter(Boolean) : [];
   return (
-    <div className="mx-3 mb-2 mt-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-            Встреча из письма
-          </div>
-          <div className="mt-1 text-sm font-semibold text-slate-900">
-            {invite.title || 'Встреча'}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {invite.workspaceCalendarPath ? (
-            <Link
-              to={invite.workspaceCalendarPath}
-              className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
-            >
-              Открыть календарь
-            </Link>
-          ) : null}
-          {invite.workspaceTablePath ? (
-            <Link
-              to={invite.workspaceTablePath}
-              className="rounded-full border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100"
-            >
-              Открыть таблицу
-            </Link>
-          ) : null}
-        </div>
+    <div className="em-fs" style={{ border: '1px solid var(--line-2)', borderRadius: 11, padding: 12, background: 'var(--bg-muted)' }}>
+      <div className="in-crm" style={{ margin: 0, background: 'transparent', border: 0, padding: 0 }}>
+        <span className="l">Встреча из письма</span>
+        <span className="card"><Ic d={NI.cal} size={13} /><b>{invite.title || 'Встреча'}</b></span>
+        <span className="sp" />
+        {invite.workspaceCalendarPath ? (
+          <Link to={invite.workspaceCalendarPath} className="in-btn sm">Открыть календарь</Link>
+        ) : null}
+        {invite.workspaceTablePath ? (
+          <Link to={invite.workspaceTablePath} className="in-btn sm">Открыть таблицу</Link>
+        ) : null}
       </div>
-      <div className="mt-2 grid gap-1 text-[11px] text-slate-700 sm:grid-cols-2">
-        <div><span className="text-slate-500">Начало:</span> {formatInviteDate(invite.startAt)}</div>
-        <div><span className="text-slate-500">Окончание:</span> {formatInviteDate(invite.endAt)}</div>
-        <div><span className="text-slate-500">Место:</span> {invite.location || '—'}</div>
-        <div><span className="text-slate-500">Участников:</span> {(invite.attendeesCount ?? attendees.length) || '—'}</div>
-        <div><span className="text-slate-500">Статус:</span> {inviteStatusLabel(invite.status)}</div>
-        <div>
-          <span className="text-slate-500">Организатор:</span>{' '}
-          {invite.organizerName || invite.organizerEmail || '—'}
-        </div>
+      <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11.5, color: 'var(--fg-2)' }}>
+        <div><span style={{ color: 'var(--fg-3)' }}>Начало:</span> {formatInviteDate(invite.startAt)}</div>
+        <div><span style={{ color: 'var(--fg-3)' }}>Окончание:</span> {formatInviteDate(invite.endAt)}</div>
+        <div><span style={{ color: 'var(--fg-3)' }}>Место:</span> {invite.location || '—'}</div>
+        <div><span style={{ color: 'var(--fg-3)' }}>Участников:</span> {(invite.attendeesCount ?? attendees.length) || '—'}</div>
+        <div><span style={{ color: 'var(--fg-3)' }}>Статус:</span> {inviteStatusLabel(invite.status)}</div>
+        <div><span style={{ color: 'var(--fg-3)' }}>Организатор:</span> {invite.organizerName || invite.organizerEmail || '—'}</div>
       </div>
-      {attendees.length ? (
-        <div className="mt-2 break-words text-[11px] text-slate-600">
-          <span className="text-slate-500">Участники:</span> {attendees.join(', ')}
-        </div>
-      ) : null}
       {importError ? (
-        <div className="mt-2 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-700">
-          Встреча распознана, но не перенесена в таблицу: {importError}
-        </div>
+        <div className="em-hint" style={{ marginTop: 8 }}>Встреча распознана, но не перенесена в таблицу: {importError}</div>
       ) : null}
     </div>
   );
 }
 
-function EmailCheckbox({
+function RowCheckbox({
   checked,
   indeterminate,
   onClick,
@@ -258,33 +251,18 @@ function EmailCheckbox({
   const on = Boolean(checked || indeterminate);
   return (
     <label className="relative mt-0.5 inline-flex shrink-0 cursor-pointer select-none" title={title}>
-      <input
-        ref={ref}
-        type="checkbox"
-        checked={checked}
-        onChange={() => {}}
-        onClick={onClick}
-        className="sr-only"
-      />
+      <input ref={ref} type="checkbox" checked={checked} onChange={() => {}} onClick={onClick} className="sr-only" />
       <span
-        className={`flex h-[18px] w-[18px] items-center justify-center rounded-md border transition ${
-          on
-            ? 'border-lumiva-accent bg-lumiva-accent shadow-[0_0_0_1px_rgba(34,34,34,0.12)]'
-            : 'border-slate-300 bg-white hover:border-slate-500'
-        }`}
+        className={cx(
+          'flex h-[16px] w-[16px] items-center justify-center rounded-[5px] border transition',
+          on ? 'border-[#222] bg-[#222]' : 'border-[var(--line-2)] bg-white hover:border-[#888]',
+        )}
       >
         {indeterminate ? (
-          <span className="block h-0.5 w-2.5 rounded-sm bg-white" />
+          <span className="block h-0.5 w-2 rounded-sm bg-white" />
         ) : checked ? (
-          <svg viewBox="0 0 12 12" className="h-2.5 w-2.5 text-white" aria-hidden>
-            <path
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.5 6l2.5 2.5L9.5 3"
-            />
+          <svg viewBox="0 0 12 12" className="h-2 w-2 text-white" aria-hidden>
+            <path fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" d="M2.5 6l2.5 2.5L9.5 3" />
           </svg>
         ) : null}
       </span>
@@ -319,7 +297,7 @@ export const EmailInboxPage: React.FC = () => {
   const [calendarImportNotice, setCalendarImportNotice] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [readFilter, setReadFilter] = useState<'all' | 'unread' | 'read'>('all');
-  const [flagFilter, setFlagFilter] = useState<'all' | 'starred' | 'calendar' | 'leadless'>('all');
+  const [flagFilter, setFlagFilter] = useState<'all' | 'starred' | 'calendar' | 'leadless' | 'withCrm'>('all');
   const [fromFilter, setFromFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -339,7 +317,7 @@ export const EmailInboxPage: React.FC = () => {
 
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeMode, setComposeMode] = useState<'new' | 'reply'>('new');
+  const [composeMode, setComposeMode] = useState<'new' | 'reply' | 'forward'>('new');
   const [composeResetKey, setComposeResetKey] = useState(0);
   const [composeTo, setComposeTo] = useState('');
   const [composeSubject, setComposeSubject] = useState('');
@@ -445,6 +423,7 @@ export const EmailInboxPage: React.FC = () => {
       if (flagFilter === 'starred') query.starred = true;
       if (flagFilter === 'calendar') query.hasCalendarInvite = true;
       if (flagFilter === 'leadless') query.hasLead = false;
+      if (flagFilter === 'withCrm') query.hasLead = true;
       if (fromFilter.trim()) query.from = fromFilter.trim();
       if (dateFrom) query.dateFrom = `${dateFrom}T00:00:00.000Z`;
       if (dateTo) query.dateTo = `${dateTo}T23:59:59.999Z`;
@@ -524,15 +503,9 @@ export const EmailInboxPage: React.FC = () => {
     }
   }, []);
 
-  const selectedAccount = useMemo(
-    () => accounts.find((a) => a.id === accountId),
-    [accounts, accountId],
-  );
+  const selectedAccount = useMemo(() => accounts.find((a) => a.id === accountId), [accounts, accountId]);
 
-  const trashFolderId = useMemo(
-    () => folders.find((f) => f.systemKey === 'trash')?.id,
-    [folders],
-  );
+  const trashFolderId = useMemo(() => folders.find((f) => f.systemKey === 'trash')?.id, [folders]);
 
   const systemFoldersOrdered = useMemo(() => {
     const out: EmailFolder[] = [];
@@ -546,18 +519,13 @@ export const EmailInboxPage: React.FC = () => {
   const userFolderTree = useMemo(() => orderedFolderTree(folders.filter((f) => !f.systemKey)), [folders]);
 
   const folderRowIcon = useCallback(
-    (f: EmailFolder) => (
-      <SystemFolderIcon
-        systemKey={f.systemKey}
-        className={`h-5 w-5 shrink-0 ${f.systemKey ? 'text-slate-600' : 'text-slate-500'}`}
-      />
-    ),
+    (f: EmailFolder) => <SystemFolderIcon systemKey={f.systemKey} className="h-4 w-4 shrink-0" />,
     [],
   );
 
-  const allSelected =
-    messages.length > 0 && messages.every((m) => selectedIds.has(m.id));
+  const allSelected = messages.length > 0 && messages.every((m) => selectedIds.has(m.id));
   const someSelected = messages.some((m) => selectedIds.has(m.id)) && !allSelected;
+  const unreadInList = useMemo(() => messages.filter((m) => !m.isRead).length, [messages]);
 
   const folderLabel = useCallback(
     (f: EmailFolder) => {
@@ -568,6 +536,12 @@ export const EmailInboxPage: React.FC = () => {
     },
     [t],
   );
+
+  const currentFolderTitle = useMemo(() => {
+    if (!accountId) return 'Все письма';
+    const f = folders.find((x) => x.id === selectedFolderId);
+    return f ? folderLabel(f) : 'Все письма';
+  }, [accountId, folders, selectedFolderId, folderLabel]);
 
   const refreshVisibleMessages = useCallback(async () => {
     await loadMessages({ silent: true });
@@ -605,13 +579,7 @@ export const EmailInboxPage: React.FC = () => {
         else setSyncingId(null);
       }
     },
-    [
-      accounts,
-      autoSyncBusy,
-      loadAccounts,
-      loadFolders,
-      refreshVisibleMessages,
-    ],
+    [accounts, autoSyncBusy, loadAccounts, loadFolders, refreshVisibleMessages],
   );
 
   const handleSync = async (id: string) => {
@@ -626,9 +594,7 @@ export const EmailInboxPage: React.FC = () => {
       setMessages((prev) => prev.map((x) => (x.id === updated.id ? { ...x, meta: updated.meta } : x)));
       if (detail?.id === updated.id) setDetail(updated);
       setCalendarImportNotice(
-        updated.meta?.calendarInvite
-          ? 'Встреча перенесена в таблицу и календарь.'
-          : 'Письмо проверено, но встречу не удалось распознать.',
+        updated.meta?.calendarInvite ? 'Встреча перенесена в таблицу и календарь.' : 'Письмо проверено, но встречу не удалось распознать.',
       );
     } catch (e: any) {
       setCalendarImportNotice(e?.message || 'Не удалось перенести встречу.');
@@ -641,10 +607,7 @@ export const EmailInboxPage: React.FC = () => {
     setCalendarBackfillRunning(true);
     setCalendarImportNotice(null);
     try {
-      const result = await backfillEmailCalendarInvites({
-        accountId: accountId || undefined,
-        limit: 100,
-      });
+      const result = await backfillEmailCalendarInvites({ accountId: accountId || undefined, limit: 100 });
       setCalendarImportNotice(
         `Импорт встреч: обработано ${result.processed}, перенесено ${result.imported}, пропущено ${result.skipped}, ошибок ${result.failed}.`,
       );
@@ -677,21 +640,14 @@ export const EmailInboxPage: React.FC = () => {
   }, [accountId, refreshVisibleMessages]);
 
   useEffect(() => {
-    if (!accountId || (!selectedAccount?.hasOAuthTokens && !selectedAccount?.imapHost)) {
-      return;
-    }
+    if (!accountId || (!selectedAccount?.hasOAuthTokens && !selectedAccount?.imapHost)) return;
     const sync = () => {
       if (document.hidden) return;
       void runMailboxSync(accountId, { silent: true });
     };
     const timer = window.setInterval(sync, MAILBOX_SYNC_MS);
     return () => window.clearInterval(timer);
-  }, [
-    accountId,
-    runMailboxSync,
-    selectedAccount?.hasOAuthTokens,
-    selectedAccount?.imapHost,
-  ]);
+  }, [accountId, runMailboxSync, selectedAccount?.hasOAuthTokens, selectedAccount?.imapHost]);
 
   useEffect(() => {
     if (!accountId || !selectedAccount?.hasOAuthTokens) return;
@@ -700,14 +656,9 @@ export const EmailInboxPage: React.FC = () => {
       if (running || document.hidden) return;
       running = true;
       try {
-        const result = await backfillEmailCalendarInvites({
-          accountId,
-          limit: 100,
-        });
+        const result = await backfillEmailCalendarInvites({ accountId, limit: 100 });
         if (result.imported > 0) {
-          setCalendarImportNotice(
-            `Встречи обновлены автоматически: перенесено ${result.imported}.`,
-          );
+          setCalendarImportNotice(`Встречи обновлены автоматически: перенесено ${result.imported}.`);
           await refreshVisibleMessages();
         }
       } catch {
@@ -971,16 +922,39 @@ export const EmailInboxPage: React.FC = () => {
     setComposeOpen(true);
   };
 
+  const openReplyAll = () => {
+    if (!detail || detail.direction !== 'incoming') return;
+    const own = selectedAccount?.email?.toLowerCase();
+    const recipients = [detail.from, ...(detail.to || [])]
+      .filter(Boolean)
+      .filter((addr, i, arr) => arr.findIndex((x) => x.toLowerCase() === addr.toLowerCase()) === i)
+      .filter((addr) => addr.toLowerCase() !== own);
+    setComposeMode('reply');
+    setComposeTo(recipients.join(', '));
+    setComposeSubject(replySubject(detail.subject));
+    setComposeHtml(replyInitialHtml(detail));
+    setComposeLeadId(detail.leadId);
+    setComposeResetKey((k) => k + 1);
+    setComposeOpen(true);
+  };
+
+  const openForward = () => {
+    if (!detail) return;
+    setComposeMode('forward');
+    setComposeTo('');
+    setComposeSubject(forwardSubject(detail.subject));
+    setComposeHtml(forwardInitialHtml(detail));
+    setComposeLeadId(null);
+    setComposeResetKey((k) => k + 1);
+    setComposeOpen(true);
+  };
+
   const submitFolderModal = async (name: string) => {
     if (!accountId || !folderModal) return;
     setFolderModalBusy(true);
     try {
       if (folderModal.kind === 'create') {
-        await createEmailFolder({
-          accountId,
-          name,
-          parentId: folderModal.parentId,
-        });
+        await createEmailFolder({ accountId, name, parentId: folderModal.parentId });
       } else {
         await patchEmailFolder(folderModal.folder.id, { name });
       }
@@ -1023,11 +997,7 @@ export const EmailInboxPage: React.FC = () => {
     if (idx < 0 || j < 0 || j >= sibs.length) return;
     const next = [...sibs];
     [next[idx], next[j]] = [next[j], next[idx]];
-    const items = next.map((x, i) => ({
-      id: x.id,
-      sortOrder: i,
-      parentId: x.parentId ?? null,
-    }));
+    const items = next.map((x, i) => ({ id: x.id, sortOrder: i, parentId: x.parentId ?? null }));
     try {
       await reorderEmailFolders({ accountId, items });
       await loadFolders();
@@ -1042,10 +1012,7 @@ export const EmailInboxPage: React.FC = () => {
     const mid = e.dataTransfer.getData('messageId');
     const fid = e.dataTransfer.getData('folderId');
     if (mid && accountId) {
-      const dest =
-        targetFolderId === 'root'
-          ? folders.find((x) => x.systemKey === 'inbox')?.id
-          : targetFolderId;
+      const dest = targetFolderId === 'root' ? folders.find((x) => x.systemKey === 'inbox')?.id : targetFolderId;
       if (dest) await moveMessageToFolder(mid, dest);
       return;
     }
@@ -1063,268 +1030,85 @@ export const EmailInboxPage: React.FC = () => {
     }
   };
 
-  const folderAside = (narrow: boolean) => (
-    <aside
-      className={`flex min-h-0 flex-col border-slate-200 bg-white lg:border-r ${narrow ? 'max-h-[200px] lg:max-h-none' : ''} lg:rounded-l-2xl`}
-      style={narrow ? undefined : { width: folderW, flexShrink: 0 }}
-    >
-      <div className="flex shrink-0 items-center justify-between gap-1 border-b border-slate-200 px-2 py-2">
-        <div className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{t('crm.email.inbox.folders')}</div>
-        <button
-          type="button"
-          className="hidden rounded-lg px-1.5 py-0.5 text-[10px] text-slate-500 transition hover:bg-slate-100 hover:text-lumiva-accent lg:inline"
-          onClick={() => setFoldersCollapsed(true)}
-          title={t('crm.email.inbox.hideFolders')}
-        >
-          ◂
-        </button>
-      </div>
-      {!accountId ? (
-        <p className="px-2 py-2 text-[10px] text-slate-500">{t('crm.email.inbox.selectMailboxForFolders')}</p>
-      ) : (
-        <>
-          <div className="border-b border-slate-200 px-2 py-2">
-            <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wider text-slate-500">
-              {t('crm.email.inbox.standardFolders')}
-            </p>
-            <div className="space-y-1">
-              {systemFoldersOrdered.map((f) => (
-                <button
-                  key={f.id}
-                  type="button"
-                  onClick={() => setSelectedFolderId(f.id)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={(e) => void onFolderDrop(e, f.id)}
-                  className={`flex w-full items-center gap-2.5 rounded-xl border px-2.5 py-2 text-left text-xs font-medium transition ${
-                    selectedFolderId === f.id
-                      ? 'border-lumiva-accent bg-slate-100 text-lumiva-accent shadow-sm'
-                      : 'border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50'
-                  }`}
-                >
-                  <span
-                    className={`shrink-0 [&>svg]:h-[18px] [&>svg]:w-[18px] ${selectedFolderId === f.id ? 'text-lumiva-accent' : 'text-slate-600'}`}
-                    aria-hidden
-                  >
-                    <SystemFolderIcon systemKey={f.systemKey} />
-                  </span>
-                  <span className="truncate">{folderLabel(f)}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="border-b border-slate-200 px-2 py-2">
-            <div className="mb-1 flex items-center justify-between gap-1">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-500">{t('crm.email.inbox.myFolders')}</p>
-              <button
-                type="button"
-                onClick={() => setFolderModal({ kind: 'create', parentId: null })}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-medium text-slate-700 transition hover:border-lumiva-accent hover:bg-slate-50 hover:text-lumiva-accent"
-              >
-                + {t('crm.email.inbox.newFolder')}
-              </button>
-            </div>
-            <div
-              className="mt-1 rounded-lg border border-dashed border-slate-300 bg-slate-50/80 px-2 py-1.5 text-[9px] text-slate-500"
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => void onFolderDrop(e, 'root')}
-            >
-              {t('crm.email.inbox.dropFolderRoot')}
-            </div>
-          </div>
-        </>
-      )}
-      <div className="min-h-0 flex-1 overflow-y-auto bg-white px-1.5 py-1">
-        {accountId && folderLoading ? (
-          <div className="p-2 text-[10px] text-slate-500">{t('crm.email.inbox.load')}</div>
-        ) : null}
-        {accountId &&
-          !folderLoading &&
-          userFolderTree.map(({ f, depth }) => (
-            <div
-              key={f.id}
-              draggable
-              onDragStart={(e) => {
-                e.dataTransfer.setData('folderId', f.id);
-                e.dataTransfer.effectAllowed = 'move';
-              }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => void onFolderDrop(e, f.id)}
-              className={`group mb-1 rounded-xl border px-1 py-1 text-left text-[11px] transition ${
-                selectedFolderId === f.id
-                  ? 'border-slate-900/12 bg-slate-100'
-                  : 'border-transparent hover:border-slate-200 hover:bg-slate-50'
-              }`}
-              style={{ paddingLeft: 4 + depth * 12 }}
-            >
-              <button
-                type="button"
-                onClick={() => setSelectedFolderId(f.id)}
-                className={`flex w-full items-center gap-2 truncate text-left font-medium ${
-                  selectedFolderId === f.id ? 'text-lumiva-accent' : 'text-slate-800'
-                }`}
-              >
-                <span className="shrink-0 text-slate-600 [&>svg]:h-4 [&>svg]:w-4" aria-hidden>
-                  <IconFolder />
-                </span>
-                <span className="truncate">{f.name}</span>
-              </button>
-              <div className="mt-0.5 flex flex-wrap gap-0.5 pl-1">
-                <button type="button" className={FOLDER_ACTION} onClick={() => void reorderSibling(f.id, -1)}>
-                  {t('crm.email.inbox.folderUp')}
-                </button>
-                <button type="button" className={FOLDER_ACTION} onClick={() => void reorderSibling(f.id, 1)}>
-                  {t('crm.email.inbox.folderDown')}
-                </button>
-                <button type="button" className={FOLDER_ACTION} onClick={() => setFolderModal({ kind: 'create', parentId: f.id })}>
-                  {t('crm.email.inbox.newSubfolder')}
-                </button>
-                <button type="button" className={FOLDER_ACTION} onClick={() => setFolderModal({ kind: 'rename', folder: f })}>
-                  {t('crm.email.inbox.renameFolder')}
-                </button>
-                <button type="button" className={FOLDER_ACTION_DANGER} onClick={() => void deleteFolder(f)}>
-                  {t('crm.email.inbox.deleteFolder')}
-                </button>
-              </div>
-            </div>
-          ))}
-      </div>
-      {accountId ? (
-        <p className="shrink-0 border-t border-slate-200 bg-slate-50/90 px-2 py-1.5 text-[9px] text-slate-400">{t('crm.email.inbox.dropOnFolder')}</p>
-      ) : null}
-    </aside>
-  );
-
   const mobileDetailOpen = !isLg && Boolean(selectedId);
+  const anyOAuth = accounts.some((a) => a.hasOAuthTokens);
+  const hasActiveFilters = Boolean(search || readFilter !== 'all' || flagFilter !== 'all' || fromFilter || dateFrom || dateTo);
 
   return (
     <MainLayout>
-      <div className="mx-auto flex w-full max-w-[1680px] flex-col gap-3 px-0 sm:px-1">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold text-lumiva-accent">{t('crm.email.inbox.title')}</h1>
-            <p className="text-[11px] text-slate-500">{t('crm.email.inbox.subtitle')}</p>
+      <PageHelpButton topic="emailInbox" />
+      <div className="px-scope">
+        <div className="em-hero" style={{ marginBottom: 14 }}>
+          <div>
+            <div className="kicker">
+              <span className="dot" />
+              ПОЧТА · ВХОДЯЩИЕ
+            </div>
+            <h1>Входящие</h1>
+            <p className="sub">Письма со всех подключённых аккаунтов, связанные с контактами и сделками CRM</p>
           </div>
-          <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-            <button
-              type="button"
-              onClick={openNewCompose}
-              disabled={accounts.length === 0}
-              className={`inline-flex min-w-0 items-center justify-center gap-1.5 whitespace-nowrap ${BTN_PRIMARY}`}
-              title={t('crm.email.inbox.compose')}
-            >
-              <span className="text-sm leading-none">+</span>
-              {t('crm.email.inbox.compose')}
+          <div className="em-hero-r">
+            <button type="button" className="em-btn" onClick={() => void loadMessages()}>
+              <Ic d={NI.refresh} size={14} />
+              Обновить
             </button>
-            <Link to="/email" className={`inline-flex min-w-0 items-center justify-center whitespace-nowrap px-3 py-1.5 ${BTN_SECONDARY_LIGHT}`}>
-              {t('crm.email.accounts.title')}
-            </Link>
             <button
               type="button"
+              className="em-btn"
+              disabled={accounts.length === 0}
               onClick={() => setBulkSendOpen(true)}
-              disabled={accounts.length === 0}
-              className={`inline-flex min-w-0 items-center justify-center gap-1 whitespace-nowrap ${BTN_SECONDARY_LIGHT}`}
-              title="Send bulk email campaign"
+              title="Массовая рассылка"
             >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
-                <path d="M1 4l7 5 7-5" />
-                <rect x="1" y="4" width="14" height="10" rx="1.5" />
-              </svg>
-              Bulk Send
+              <Ic d={NI.send} size={14} />
+              Рассылка
             </button>
-            <button type="button" onClick={() => void loadMessages()} className={`min-w-0 whitespace-nowrap ${BTN_PRIMARY}`}>
-              {t('crm.email.inbox.refresh')}
+            <Link to="/email" className="em-btn">
+              <Ic d={NI.task} size={14} />
+              Настройки почты
+            </Link>
+            <button type="button" className="em-btn solid" disabled={accounts.length === 0} onClick={openNewCompose}>
+              <Ic d={NI.plus} size={14} />
+              Новое письмо
             </button>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 lg:flex lg:flex-wrap lg:items-center">
-          <select
-            value={accountId}
-            onChange={(e) => {
-              setAccountId(e.target.value);
-              setSelectedId(null);
-            }}
-            className="col-span-2 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-sm sm:col-span-3 lg:w-[300px] lg:max-w-[300px]"
-          >
-            <option value="">{t('crm.email.inbox.allMailboxes')}</option>
-            {accounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.email}
-                {a.hasOAuthTokens ? ' · OAuth' : ''}
-              </option>
-            ))}
-          </select>
+        <div className="in-top">
+          <div className="in-search">
+            <Ic d={NI.search} size={14} />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по отправителю, теме, тексту…" />
+          </div>
           {accountId && (selectedAccount?.hasOAuthTokens || selectedAccount?.imapHost) ? (
-            <button
-              type="button"
-              disabled={syncingId === accountId}
-              onClick={() => void handleSync(accountId)}
-              className="min-w-0 rounded-xl border border-sky-200 bg-white px-3 py-2 text-sky-800 shadow-sm transition hover:bg-sky-50 disabled:opacity-50"
-            >
-              {syncingId === accountId
-                ? t('crm.email.inbox.syncInProgress')
-                : selectedAccount?.hasOAuthTokens
-                  ? t('crm.email.accounts.syncNow')
-                  : 'Синхронизировать IMAP'}
+            <button type="button" className="in-btn sm" disabled={syncingId === accountId} onClick={() => void handleSync(accountId)}>
+              <Ic d={NI.refresh} size={12} />
+              {syncingId === accountId ? 'Синхронизация…' : 'Синхронизировать'}
             </button>
           ) : null}
-          {(accountId ? selectedAccount?.hasOAuthTokens : accounts.some((account) => account.hasOAuthTokens)) ? (
-            <button
-              type="button"
-              disabled={calendarBackfillRunning}
-              onClick={() => void handleBackfillCalendarInvites()}
-              className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-800 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
-            >
+          {(accountId ? selectedAccount?.hasOAuthTokens : anyOAuth) ? (
+            <button type="button" className="in-btn sm" disabled={calendarBackfillRunning} onClick={() => void handleBackfillCalendarInvites()}>
+              <Ic d={NI.cal} size={12} />
               {calendarBackfillRunning ? 'Переносим встречи…' : 'Перенести встречи'}
             </button>
           ) : null}
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по письмам"
-            className="col-span-2 min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm outline-none focus:border-slate-400 sm:col-span-1 lg:w-48"
-          />
-          <select
-            value={readFilter}
-            onChange={(e) => setReadFilter(e.target.value as typeof readFilter)}
-            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
-          >
+          <select className="em-in" style={{ width: 140 }} value={readFilter} onChange={(e) => setReadFilter(e.target.value as typeof readFilter)}>
             <option value="all">Все статусы</option>
             <option value="unread">Непрочитанные</option>
             <option value="read">Прочитанные</option>
           </select>
-          <select
-            value={flagFilter}
-            onChange={(e) => setFlagFilter(e.target.value as typeof flagFilter)}
-            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
-          >
+          <select className="em-in" style={{ width: 150 }} value={flagFilter} onChange={(e) => setFlagFilter(e.target.value as typeof flagFilter)}>
             <option value="all">Все письма</option>
+            <option value="withCrm">Связанные с CRM</option>
             <option value="starred">Со звездой</option>
             <option value="calendar">С приглашением</option>
             <option value="leadless">Без лида</option>
           </select>
-          <input
-            value={fromFilter}
-            onChange={(e) => setFromFilter(e.target.value)}
-            placeholder="Отправитель"
-            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm outline-none focus:border-slate-400 lg:w-40"
-          />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
-          />
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm"
-          />
-          {(search || readFilter !== 'all' || flagFilter !== 'all' || fromFilter || dateFrom || dateTo) ? (
+          <input className="em-in" style={{ width: 150 }} value={fromFilter} onChange={(e) => setFromFilter(e.target.value)} placeholder="Отправитель" />
+          <input className="em-in mono" style={{ width: 132 }} type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <input className="em-in mono" style={{ width: 132 }} type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          {hasActiveFilters ? (
             <button
               type="button"
-              className={`min-w-0 ${BTN_SECONDARY_LIGHT}`}
+              className="in-btn ghost sm"
               onClick={() => {
                 setSearch('');
                 setReadFilter('all');
@@ -1337,345 +1121,401 @@ export const EmailInboxPage: React.FC = () => {
               Сбросить
             </button>
           ) : null}
-          <span className="col-span-2 text-[10px] text-slate-500 sm:col-span-1 lg:col-span-1">
-            {autoSyncBusy
-              ? 'Автосинхронизация…'
-              : autoRefreshAt
-                ? `Автообновлено ${autoRefreshAt}`
-                : 'Автообновление каждые 30 сек'}
+          <span className="in-sp" />
+          <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, color: 'var(--fg-3)' }}>
+            {autoSyncBusy ? 'Автосинхронизация…' : autoRefreshAt ? `Обновлено ${autoRefreshAt}` : 'Автообновление каждые 30 сек'}
           </span>
-          {autoSyncError ? (
-            <span className="col-span-2 min-w-0 truncate text-[10px] text-rose-700 sm:col-span-1 lg:max-w-[260px]" title={autoSyncError}>
-              {autoSyncError}
-            </span>
-          ) : null}
         </div>
 
-        {error ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{error}</div>
-        ) : null}
-        {syncError ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800">{syncError}</div>
-        ) : null}
-        {calendarImportNotice ? (
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">{calendarImportNotice}</div>
-        ) : null}
+        {error ? <div className="em-err" style={{ marginBottom: 12 }}><Ic d={NI.spam} size={15} /><div className="b"><div className="t">{error}</div></div></div> : null}
+        {autoSyncError ? <div className="em-hint" style={{ marginBottom: 12 }}>{autoSyncError}</div> : null}
+        {calendarImportNotice ? <div className="em-info" style={{ marginBottom: 12 }}><Ic d={NI.cal} size={15} /><span>{calendarImportNotice}</span></div> : null}
 
-        {selectedIds.size > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 shadow-none">
-            <span className="font-medium text-slate-600">{t('crm.email.inbox.selectedCount', { count: selectedIds.size })}</span>
-            <button type="button" className={BTN_PRIMARY} onClick={() => void bulkMarkRead()}>
-              {t('crm.email.inbox.bulkMarkRead')}
-            </button>
-            <button type="button" className={BTN_SECONDARY_LIGHT} onClick={() => void bulkMarkUnread()}>
-              {t('crm.email.inbox.bulkUnread')}
-            </button>
-            <button type="button" className={BTN_SECONDARY_LIGHT} onClick={openMoveModalForSelection}>
-              {t('crm.email.inbox.moveToFolderAction')}
-            </button>
-            {trashFolderId ? (
-              <button type="button" className={BTN_GENTLE_ROSE} onClick={() => void bulkTrash()}>
-                {t('crm.email.inbox.bulkTrash')}
-              </button>
-            ) : null}
-            <button type="button" className={BTN_GENTLE_ROSE} onClick={openBulkDeleteMessages}>
-              {t('crm.email.inbox.deletePermanently')}
-            </button>
-            <button
-              type="button"
-              className={BTN_SECONDARY_LIGHT}
-              onClick={() => {
-                setSelectedIds(new Set());
-                rangeAnchorRef.current = null;
-              }}
-            >
-              {t('crm.email.inbox.clearSelection')}
-            </button>
-          </div>
-        ) : null}
+        <div className="in-wrap" style={{ display: 'flex' }}>
+          {isLg ? (
+            foldersCollapsed ? (
+              <div className="in-nav" style={{ width: 34, flexShrink: 0, padding: 6 }}>
+                <button type="button" className="in-ico sm" onClick={() => setFoldersCollapsed(false)} title="Показать папки" style={{ margin: '0 auto' }}>
+                  <span style={{ transform: 'rotate(180deg)', display: 'flex' }}><Ic d={NI.chevL} size={14} /></span>
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="in-nav" style={{ width: folderW, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 4px 8px' }}>
+                    <span className="in-nav-l" style={{ padding: 0 }}>Аккаунт</span>
+                    <button type="button" className="in-ico sm" onClick={() => setFoldersCollapsed(true)} title="Свернуть папки">
+                      <Ic d={NI.chevL} size={12} />
+                    </button>
+                  </div>
+                  <div className="in-acc-sel">
+                    <span className="l">Почтовый ящик</span>
+                    <select
+                      value={accountId}
+                      onChange={(e) => {
+                        setAccountId(e.target.value);
+                        setSelectedId(null);
+                      }}
+                    >
+                      <option value="">Все почтовые ящики</option>
+                      {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.email}
+                          {a.hasOAuthTokens ? ' · OAuth' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-        <div className="flex min-h-[560px] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white lg:h-[calc(100vh-180px)] lg:min-h-0">
-          <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-            {isLg && foldersCollapsed && accountId ? (
-              <div
-                className="flex w-full flex-row border-b border-slate-200 bg-white lg:w-11 lg:flex-col lg:border-b-0 lg:border-r lg:rounded-l-2xl"
-                style={{ flexShrink: 0 }}
-              >
+                  {!accountId ? (
+                    <p className="em-hint">Выберите почтовый ящик, чтобы увидеть папки.</p>
+                  ) : (
+                  <>
+                  <div className="in-nav-l">Папки</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {systemFoldersOrdered.map((f) => (
+                      <button
+                        key={f.id}
+                        className={cx('in-fold', selectedFolderId === f.id && 'on')}
+                        onClick={() => setSelectedFolderId(f.id)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => void onFolderDrop(e, f.id)}
+                      >
+                        <SystemFolderIcon systemKey={f.systemKey} className="h-[14px] w-[14px]" />
+                        <span className="t">{folderLabel(f)}</span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="in-nav-l" style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span>Мои папки</span>
+                    <button
+                      type="button"
+                      onClick={() => setFolderModal({ kind: 'create', parentId: null })}
+                      className="in-ico sm"
+                      title="Новая папка"
+                    >
+                      <Ic d={NI.plus} size={11} />
+                    </button>
+                  </div>
+                  {folderLoading ? (
+                    <div className="em-hint">Загрузка…</div>
+                  ) : (
+                    <div
+                      style={{ display: 'flex', flexDirection: 'column', gap: 1 }}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => void onFolderDrop(e, 'root')}
+                    >
+                      {userFolderTree.map(({ f, depth }) => (
+                        <div
+                          key={f.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData('folderId', f.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                          }}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => void onFolderDrop(e, f.id)}
+                          className="group"
+                          style={{ paddingLeft: depth * 12 }}
+                        >
+                          <button
+                            type="button"
+                            className={cx('in-fold', selectedFolderId === f.id && 'on')}
+                            onClick={() => setSelectedFolderId(f.id)}
+                          >
+                            <OutlineIconFolder className="h-[14px] w-[14px]" />
+                            <span className="t">{f.name}</span>
+                          </button>
+                          <div className="hidden gap-1 pl-2 group-hover:flex" style={{ marginTop: 1 }}>
+                            <button type="button" className="in-ico sm" title="Вверх" onClick={() => void reorderSibling(f.id, -1)}>↑</button>
+                            <button type="button" className="in-ico sm" title="Вниз" onClick={() => void reorderSibling(f.id, 1)}>↓</button>
+                            <button type="button" className="in-ico sm" title="Переименовать" onClick={() => setFolderModal({ kind: 'rename', folder: f })}>
+                              <Ic d={NI.draft} size={11} />
+                            </button>
+                            <button type="button" className="in-ico sm" title="Удалить" onClick={() => void deleteFolder(f)}>
+                              <Ic d={NI.trash} size={11} />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="em-hint" style={{ marginTop: 8 }}>Перетащите письмо или папку сюда</div>
+                  </>
+                  )}
+                </div>
+                <div
+                  role="separator"
+                  aria-label="resize folders"
+                  style={{ width: 6, flexShrink: 0, cursor: 'col-resize', background: 'var(--line-3)' }}
+                  onMouseDown={startResizeFolder}
+                />
+              </>
+            )
+          ) : null}
+
+          <div
+            className={cx(mobileDetailOpen ? 'hidden' : 'flex', 'in-list')}
+            style={isLg ? { width: listW, flexShrink: 0, flexDirection: 'column' } : { width: '100%', flexShrink: 0, flexDirection: 'column' }}
+          >
+            <div className="in-list-h">
+              <RowCheckbox
+                checked={allSelected && messages.length > 0}
+                indeterminate={someSelected}
+                onClick={(e) => {
+                  e.preventDefault();
+                  toggleSelectAll();
+                }}
+                title="Выбрать все"
+              />
+              <span className="t">{currentFolderTitle}</span>
+              <span className="n">{unreadInList > 0 ? `${unreadInList} непрочитанных` : `${total} всего`}</span>
+              <span className="sp" />
+              <div className="in-seg">
+                <button className={flagFilter !== 'withCrm' ? 'on' : ''} onClick={() => setFlagFilter('all')}>Все</button>
+                <button className={flagFilter === 'withCrm' ? 'on' : ''} onClick={() => setFlagFilter('withCrm')}>С CRM</button>
+              </div>
+            </div>
+
+            {selectedIds.size > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, padding: '8px 12px', borderBottom: '1px solid var(--line-3)', background: 'var(--bg-muted)' }}>
+                <span style={{ fontSize: 11, color: 'var(--fg-2)', alignSelf: 'center' }}>{selectedIds.size} выбрано</span>
+                <button type="button" className="in-btn sm" onClick={() => void bulkMarkRead()}>Прочитано</button>
+                <button type="button" className="in-btn sm" onClick={() => void bulkMarkUnread()}>Непрочитано</button>
+                <button type="button" className="in-btn sm" onClick={openMoveModalForSelection}>В папку</button>
+                {trashFolderId ? <button type="button" className="in-btn sm" onClick={() => void bulkTrash()}>В корзину</button> : null}
+                <button type="button" className="in-btn sm" style={{ color: '#b0233a' }} onClick={openBulkDeleteMessages}>Удалить</button>
                 <button
                   type="button"
-                  onClick={() => setFoldersCollapsed(false)}
-                  className="flex flex-1 items-center justify-center gap-1 py-2 text-[10px] font-medium text-slate-600 transition hover:bg-slate-100 hover:text-lumiva-accent lg:flex-none lg:py-3 lg:writing-mode-vertical"
-                  title={t('crm.email.inbox.showFolders')}
+                  className="in-btn ghost sm"
+                  onClick={() => {
+                    setSelectedIds(new Set());
+                    rangeAnchorRef.current = null;
+                  }}
                 >
-                  <span className="lg:hidden">{t('crm.email.inbox.showFolders')}</span>
-                  <span className="hidden lg:inline">▸</span>
+                  Снять выбор
                 </button>
               </div>
             ) : null}
 
-            {isLg && !foldersCollapsed && accountId ? (
-              <>
-                {folderAside(false)}
-                <button
-                  type="button"
-                  aria-label="resize folders"
-                  className="w-1.5 shrink-0 cursor-col-resize bg-slate-200/90 hover:bg-lumiva-accent/35"
-                  onMouseDown={startResizeFolder}
-                />
-              </>
-            ) : null}
-
-            <div
-              className={`${mobileDetailOpen ? 'hidden' : 'flex'} min-h-0 flex-col border-slate-200 lg:flex lg:border-r`}
-              style={isLg ? { width: listW, flexShrink: 0 } : { width: '100%', flexShrink: 0 }}
-            >
-              <div className="flex shrink-0 items-center gap-2 border-b border-slate-200 px-2 py-2">
-                <EmailCheckbox
-                  checked={allSelected && messages.length > 0}
-                  indeterminate={someSelected}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    toggleSelectAll();
-                  }}
-                  title={t('crm.email.inbox.selectAll')}
-                />
-                <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                  {total} · {loading ? t('crm.email.inbox.load') : ''}
-                </span>
-              </div>
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {!loading && messages.length === 0 ? (
-                  <div className="p-3 text-xs text-slate-500">{t('crm.email.inbox.empty')}</div>
-                ) : null}
-                {messages.map((m, index) => {
-                  const rowActive = selectedIds.has(m.id) || selectedId === m.id;
+            <div className="in-scroll">
+              {!loading && messages.length === 0 ? (
+                <div className="em-empty">
+                  <b>Писем нет</b>
+                  <p>{accountId ? 'В этой папке пока пусто.' : 'Подключите почтовый аккаунт, чтобы увидеть письма.'}</p>
+                </div>
+              ) : null}
+              {(() => {
+                let lastDay: string | null = null;
+                return messages.map((m, index) => {
+                  const bucket = dayBucket(m.date);
+                  const showDay = bucket !== lastDay;
+                  lastDay = bucket;
                   const unread = !m.isRead;
+                  const tag = crmTag(m);
+                  const hasClip = Boolean(m.attachments?.length) || Boolean(m.meta?.hasCalendarAttachment);
                   return (
-                  <div
-                    key={m.id}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('messageId', m.id);
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => setSelectedId(m.id)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        setSelectedId(m.id);
-                      }
-                    }}
-                    className={
-                      'flex w-full cursor-pointer items-start gap-2 border-b border-slate-100 px-3 py-3 text-left transition-colors lg:px-2 lg:py-2 ' +
-                      (rowActive
-                        ? 'bg-slate-100 hover:bg-slate-100'
-                        : 'hover:bg-slate-50')
-                    }
-                  >
-                    <EmailCheckbox
-                      checked={selectedIds.has(m.id)}
-                      onClick={(e) => onToggleRowSelect(m, index, e)}
-                      title={t('crm.email.inbox.toggleRow')}
-                    />
-                    <button
-                      type="button"
-                      onClick={(e) => void toggleStar(m, e)}
-                      className={`mt-0.5 shrink-0 text-base leading-none ${m.isStarred ? 'text-slate-900' : 'text-slate-400 hover:text-slate-700'}`}
-                      title={t('crm.email.inbox.star')}
-                    >
-                      {m.isStarred ? '★' : '☆'}
-                    </button>
-                    <span className="mt-0.5 flex w-5 shrink-0 justify-center" aria-hidden>
-                      <MessageRowIcon m={m} />
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            unread ? 'bg-lumiva-accent' : 'bg-transparent'
-                          }`}
-                          aria-hidden
-                        />
-                        <div
-                          className={`min-w-0 flex-1 truncate text-sm lg:text-xs ${
-                            unread ? 'font-bold text-slate-950' : 'font-medium text-slate-800'
-                          }`}
-                        >
-                          {m.subject || '—'}
+                    <React.Fragment key={m.id}>
+                      {showDay && <div className="in-day">{bucket}</div>}
+                      <div
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData('messageId', m.id);
+                          e.dataTransfer.effectAllowed = 'move';
+                        }}
+                        className={cx('in-item', (selectedIds.has(m.id) || selectedId === m.id) && 'sel', unread && 'unread')}
+                        style={{ gridTemplateColumns: '16px 28px minmax(0,1fr)' }}
+                        onClick={() => setSelectedId(m.id)}
+                      >
+                        <span style={{ marginTop: 2 }} onClick={(e) => e.stopPropagation()}>
+                          <RowCheckbox checked={selectedIds.has(m.id)} onClick={(e) => onToggleRowSelect(m, index, e)} title="Выбрать" />
+                        </span>
+                        <span className="in-av">{initialsOf(m.fromName, m.direction === 'incoming' ? m.from : (m.to || [])[0] || '')}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="in-r1">
+                            <button
+                              type="button"
+                              onClick={(e) => void toggleStar(m, e)}
+                              style={{ color: m.isStarred ? 'var(--ink)' : 'var(--fg-4)', lineHeight: 1, flexShrink: 0 }}
+                              title="Звезда"
+                            >
+                              <Ic d={NI.star} size={12} />
+                            </button>
+                            <span className="in-from">{m.direction === 'incoming' ? (m.fromName || m.from) : `Кому: ${(m.to || []).join(', ')}`}</span>
+                            {hasClip && <span className="in-clip"><Ic d={NI.clip} size={12} /></span>}
+                            <span className="in-time">{shortTime(m.date)}</span>
+                          </div>
+                          <div className="in-subj">{m.subject || '(без темы)'}</div>
+                          <div className="in-snip">{snippetOf(m)}</div>
+                          {tag && (
+                            <div className="in-tags">
+                              <span className={'in-tag ' + tag.cls}>{tag.label}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
-                      <div
-                        className={`mt-1 truncate pl-4 text-xs lg:text-[10px] ${
-                          unread ? 'font-semibold text-slate-900' : 'font-normal text-slate-500'
-                        }`}
-                      >
-                        {m.direction === 'incoming' ? m.from : m.to?.join(', ')}
-                      </div>
-                      <div
-                        className={`mt-1 pl-4 text-xs lg:text-[10px] ${
-                          unread ? 'font-semibold text-slate-900' : 'font-normal text-slate-500'
-                        }`}
-                      >
-                        {new Date(m.date).toLocaleString()}
-                      </div>
+                    </React.Fragment>
+                  );
+                });
+              })()}
+            </div>
+          </div>
+
+          {isLg ? (
+            <div
+              role="separator"
+              aria-label="resize list"
+              style={{ width: 6, flexShrink: 0, cursor: 'col-resize', background: 'var(--line-3)' }}
+              onMouseDown={startResizeList}
+            />
+          ) : null}
+
+          <div className={cx(!isLg && !selectedId && 'hidden', 'in-read')} style={{ flex: 1, minWidth: 0 }}>
+            {!detail ? (
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--fg-3)', fontSize: 13 }}>
+                {selectedId ? 'Загрузка…' : 'Выберите письмо'}
+              </div>
+            ) : (
+              <>
+                <div className="in-rh">
+                  {!isLg ? (
+                    <button type="button" className="in-btn sm" style={{ marginBottom: 10 }} onClick={() => setSelectedId(null)}>
+                      ← Назад
+                    </button>
+                  ) : null}
+                  <div className="in-rh-top">
+                    <button
+                      type="button"
+                      onClick={(e) => void toggleStar(detail, e)}
+                      style={{ color: detail.isStarred ? 'var(--ink)' : 'var(--fg-4)', flexShrink: 0 }}
+                      title="Звезда"
+                    >
+                      <Ic d={NI.star} size={17} />
+                    </button>
+                    <h2>{detail.subject || '(без темы)'}</h2>
+                    <div className="in-rh-acts">
+                      <button type="button" className="in-ico" title="В папку" onClick={openMoveModalForDetail}>
+                        <Ic d={NI.folder} size={14} />
+                      </button>
+                      {trashFolderId ? (
+                        <button type="button" className="in-ico" title="В корзину" onClick={() => void moveMessageToFolder(detail.id, trashFolderId)}>
+                          <Ic d={NI.arch} size={14} />
+                        </button>
+                      ) : null}
+                      <button type="button" className="in-ico" title="Удалить навсегда" onClick={openDetailDeleteMessage}>
+                        <Ic d={NI.trash} size={14} />
+                      </button>
                     </div>
                   </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {isLg ? (
-              <button
-                type="button"
-                aria-label="resize list"
-                className="w-1.5 shrink-0 cursor-col-resize bg-slate-200/90 hover:bg-slate-400/40"
-                onMouseDown={startResizeList}
-              />
-            ) : null}
-
-            <div className={`${!isLg && !selectedId ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-1 flex-col`}>
-              {!detail ? (
-                <div className="flex flex-1 items-center justify-center p-6 text-sm text-slate-500">
-                  {selectedId ? t('crm.email.inbox.load') : t('crm.email.inbox.selectMessage')}
-                </div>
-              ) : (
-                <div className="flex min-h-0 flex-1 flex-col">
-                  <div className="shrink-0 border-b border-slate-200 px-3 py-3 sm:px-4">
-                    {!isLg ? (
-                      <button
-                        type="button"
-                        onClick={() => setSelectedId(null)}
-                        className="mb-3 inline-flex items-center rounded-full border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800 transition hover:bg-slate-50"
-                      >
-                        ← Назад
+                  <div className="in-rh-meta">
+                    <div className="in-rh-who">
+                      <span className="av">{initialsOf(detail.fromName, detail.from)}</span>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="nm">{detail.direction === 'incoming' ? (detail.fromName || detail.from) : `Кому: ${(detail.to || []).join(', ')}`}</div>
+                        <div className="ad">{detail.direction === 'incoming' ? detail.from : detail.from}</div>
+                      </div>
+                    </div>
+                    <span className="in-sp" />
+                    <span className="in-time">{dayBucket(detail.date)}, {shortTime(detail.date)}</span>
+                  </div>
+                  <div className="em-row" style={{ marginTop: 12, flexWrap: 'wrap' }}>
+                    {detail.direction === 'incoming' ? (
+                      <button type="button" className="in-btn solid sm" disabled={accounts.length === 0} onClick={() => openReply()}>
+                        <Ic d={NI.reply} size={12} />
+                        Ответить
                       </button>
                     ) : null}
-                    <div className="flex items-start gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => void toggleStar(detail, e)}
-                        className={`shrink-0 text-xl ${detail.isStarred ? 'text-slate-900' : 'text-slate-400 hover:text-slate-700'}`}
-                        title={t('crm.email.inbox.star')}
-                      >
-                        {detail.isStarred ? '★' : '☆'}
+                    {detail.direction === 'incoming' ? (
+                      <button type="button" className="in-btn sm" disabled={accounts.length === 0} onClick={openReplyAll}>
+                        <Ic d={NI.replyAll} size={12} />
+                        Всем
                       </button>
-                      <h2 className="min-w-0 flex-1 text-sm font-semibold text-slate-900">{detail.subject || '—'}</h2>
-                    </div>
-                    <div className="mt-2 space-y-1 text-[11px] text-slate-600">
-                      <div>
-                        <span className="text-slate-500">From:</span> {detail.fromName ? `${detail.fromName} ` : ''}
-                        &lt;{detail.from}&gt;
-                      </div>
-                      <div>
-                        <span className="text-slate-500">To:</span> {detail.to?.join(', ')}
-                      </div>
-                      <div className="flex flex-wrap items-center gap-2 pt-2">
-                        {detail.direction === 'incoming' ? (
-                          <button
-                            type="button"
-                            onClick={() => openReply()}
-                            disabled={accounts.length === 0}
-                            className={`${BTN_SECONDARY} px-3 py-1 text-[11px]`}
-                          >
-                            {t('crm.email.inbox.reply')}
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={openMoveModalForDetail}
-                          className={`${BTN_SECONDARY} px-3 py-1 text-[11px]`}
-                        >
-                          {t('crm.email.inbox.moveToFolderAction')}
-                        </button>
-                        {trashFolderId ? (
-                          <button
-                            type="button"
-                            onClick={() => void moveMessageToFolder(detail.id, trashFolderId)}
-                            className={`${BTN_GENTLE_ROSE} px-3 py-1 text-[11px]`}
-                          >
-                            {t('crm.email.inbox.moveToTrash')}
-                          </button>
-                        ) : null}
-                        <button type="button" onClick={openDetailDeleteMessage} className={`${BTN_GENTLE_ROSE} px-3 py-1 text-[11px]`}>
-                          {t('crm.email.inbox.deletePermanently')}
-                        </button>
-                        {detail.leadId ? (
-                          <Link to={`/leads/${detail.leadId}`} className={leadBadgeClass} style={leadBadgeStyle}>
-                            {t('crm.email.inbox.openLead')}
-                          </Link>
-                        ) : null}
-                        {detail.meta?.hasCalendarAttachment ? (
-                          <span className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5 text-slate-700">
-                            {t('crm.email.inbox.calendarInvite')}
-                          </span>
-                        ) : null}
-                        {detail.meta?.hasCalendarAttachment && (!detail.meta.calendarInvite || detail.meta.calendarInviteImportError) ? (
-                          <button
-                            type="button"
-                            onClick={() => void handleImportCalendarInvite(detail.id)}
-                            disabled={calendarImportingId === detail.id}
-                            className="rounded-lg border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-800 transition hover:bg-slate-50 disabled:opacity-50"
-                          >
-                            {calendarImportingId === detail.id
-                              ? 'Переносим…'
-                              : detail.meta.calendarInviteImportError
-                                ? 'Повторить перенос'
-                                : 'Перенести в календарь'}
-                          </button>
-                        ) : null}
-                        {!detail.isRead ? (
-                          <button type="button" onClick={() => void handleMarkRead()} className={BTN_SECONDARY_SM}>
-                            {t('crm.email.inbox.markRead')}
-                          </button>
-                        ) : (
-                          <button type="button" onClick={() => void handleMarkUnread()} className={BTN_SECONDARY_SM}>
-                            {t('crm.email.inbox.markUnread')}
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                    ) : null}
+                    <button type="button" className="in-btn sm" disabled={accounts.length === 0} onClick={openForward}>
+                      <Ic d={NI.fwd} size={12} />
+                      Переслать
+                    </button>
+                    {!detail.isRead ? (
+                      <button type="button" className="in-btn sm" onClick={() => void handleMarkRead()}>Прочитано</button>
+                    ) : (
+                      <button type="button" className="in-btn sm" onClick={() => void handleMarkUnread()}>Непрочитано</button>
+                    )}
+                    {detail.meta?.hasCalendarAttachment && (!detail.meta.calendarInvite || detail.meta.calendarInviteImportError) ? (
+                      <button type="button" className="in-btn sm" disabled={calendarImportingId === detail.id} onClick={() => void handleImportCalendarInvite(detail.id)}>
+                        <Ic d={NI.cal} size={12} />
+                        {calendarImportingId === detail.id ? 'Переносим…' : detail.meta.calendarInviteImportError ? 'Повторить перенос' : 'В календарь'}
+                      </button>
+                    ) : null}
+                    <span className="in-sp" />
+                    {detail.leadId ? (
+                      <Link to={`/leads/${detail.leadId}`} className="in-tag lead" style={{ padding: '5px 10px' }}>
+                        <Ic d={NI.bolt} size={12} />
+                        Открыть лид
+                      </Link>
+                    ) : null}
                   </div>
+                </div>
+
+                <div className="in-rbody">
+                  {(detail.leadId || detail.contactId || detail.companyId || detail.saleId) && (
+                    <div className="in-crm">
+                      <span className="l">Связано</span>
+                      {detail.leadId && (
+                        <Link to={`/leads/${detail.leadId}`} className="card">
+                          <Ic d={NI.bolt} size={13} /><b>Лид</b>
+                        </Link>
+                      )}
+                      {detail.contactId && (
+                        <Link to={`/contacts/${detail.contactId}`} className="card">
+                          <Ic d={NI.user} size={13} /><b>Контакт</b>
+                        </Link>
+                      )}
+                      {detail.companyId && (
+                        <Link to={`/companies/${detail.companyId}`} className="card">
+                          <Ic d={NI.deal} size={13} /><b>Компания</b>
+                        </Link>
+                      )}
+                      {detail.saleId && (
+                        <Link to={`/sales/${detail.saleId}`} className="card">
+                          <Ic d={NI.deal} size={13} /><b>Сделка</b>
+                        </Link>
+                      )}
+                      <span className="sp" />
+                    </div>
+                  )}
+
                   {detail.meta?.calendarInvite ? (
-                    <CalendarInviteCard
-                      invite={detail.meta.calendarInvite}
-                      importError={detail.meta.calendarInviteImportError}
-                    />
+                    <div style={{ marginBottom: 16 }}>
+                      <CalendarInviteCard invite={detail.meta.calendarInvite} importError={detail.meta.calendarInviteImportError} />
+                    </div>
                   ) : null}
-                  {/* AI Reply Suggestions — incoming only */}
+
                   {detail.direction === 'incoming' && (
-                    <div className="mx-3 mb-2 mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">AI варианты ответа</span>
+                    <div className="em-fs" style={{ border: '1px solid var(--line-2)', borderRadius: 11, padding: 12, marginBottom: 16 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                        <span style={{ fontFamily: 'var(--ff-mono)', fontSize: 9.5, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--fg-3)' }}>
+                          AI варианты ответа
+                        </span>
                         <button
                           type="button"
                           disabled={aiReplySuggestLoading}
                           onClick={() => {
-                            if (aiReplySuggestions.length > 0) {
-                              setAiReplySuggestOpen(v => !v);
-                            } else {
-                              void fetchAiReplySuggestions(detail);
-                            }
+                            if (aiReplySuggestions.length > 0) setAiReplySuggestOpen((v) => !v);
+                            else void fetchAiReplySuggestions(detail);
                           }}
-                          className="text-[10px] font-semibold tracking-wide text-slate-700 transition hover:text-slate-950 disabled:opacity-50"
+                          className="in-btn ghost sm"
                         >
+                          <Ic d={NI.sparkle} size={12} />
                           {aiReplySuggestLoading ? 'Генерация…' : aiReplySuggestions.length > 0 ? (aiReplySuggestOpen ? 'Скрыть' : 'Показать') : 'Предложить ответ'}
                         </button>
                       </div>
                       {aiReplySuggestOpen && aiReplySuggestions.length > 0 && (
-                        <div className="mt-2 flex flex-col gap-2">
+                        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {aiReplySuggestions.map((s, i) => (
-                            <div key={i} className="flex items-start justify-between gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-2">
-                              <p className="flex-1 text-[12px] leading-relaxed text-slate-700">{s}</p>
-                              <button
-                                type="button"
-                                onClick={() => openReply(s)}
-                                className="shrink-0 rounded-md border border-slate-300 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-800 transition hover:bg-slate-50"
-                              >
-                                Ответить
-                              </button>
+                            <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', border: '1px solid var(--line-2)', borderRadius: 9, padding: '8px 10px', background: '#fff' }}>
+                              <p style={{ flex: 1, fontSize: 12, lineHeight: 1.5, color: 'var(--fg-1)', margin: 0 }}>{s}</p>
+                              <button type="button" className="in-btn sm" onClick={() => openReply(s)}>Ответить</button>
                             </div>
                           ))}
                         </div>
@@ -1683,32 +1523,45 @@ export const EmailInboxPage: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="min-h-0 flex-1 overflow-y-auto bg-white px-3 py-3 text-sm text-slate-900 sm:px-5 sm:py-4">
+                  <div className="in-rtext">
                     {detail.htmlBody ? (
                       <iframe
                         title={detail.subject || 'Email message'}
-                        className="h-full min-h-[420px] w-full rounded-xl border border-slate-200 bg-white"
+                        style={{ width: '100%', minHeight: 420, border: '1px solid var(--line-2)', borderRadius: 11, background: '#fff' }}
                         sandbox="allow-popups allow-popups-to-escape-sandbox"
                         referrerPolicy="no-referrer"
                         srcDoc={buildEmailMessageSrcDoc(detail.htmlBody)}
                       />
                     ) : (
-                      <pre className="w-full max-w-none whitespace-pre-wrap break-words font-sans text-sm">
-                        {detail.textBody || '—'}
-                      </pre>
+                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', fontFamily: 'inherit', fontSize: 13.5 }}>{detail.textBody || '—'}</pre>
                     )}
                   </div>
+
+                  {detail.attachments && detail.attachments.length > 0 ? (
+                    <div className="in-atts">
+                      {detail.attachments.map((a, i) =>
+                        a.url ? (
+                          <a key={i} href={a.url} target="_blank" rel="noreferrer" className="in-att">
+                            <Ic d={NI.file} size={16} />
+                            <span><b>{a.filename}</b><i>{fmtSize(a.size)}</i></span>
+                          </a>
+                        ) : (
+                          <span key={i} className="in-att" style={{ cursor: 'default' }}>
+                            <Ic d={NI.file} size={16} />
+                            <span><b>{a.filename}</b><i>{fmtSize(a.size)}</i></span>
+                          </span>
+                        ),
+                      )}
+                    </div>
+                  ) : null}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      <EmailBulkSendModal
-        open={bulkSendOpen}
-        onClose={() => setBulkSendOpen(false)}
-      />
+      <EmailBulkSendModal open={bulkSendOpen} onClose={() => setBulkSendOpen(false)} />
 
       <EmailComposeWindow
         open={composeOpen}
@@ -1732,30 +1585,22 @@ export const EmailInboxPage: React.FC = () => {
         type="button"
         onClick={openNewCompose}
         disabled={accounts.length === 0}
-        className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-xl border border-lumiva-accent bg-lumiva-accent text-xl font-light text-white shadow-lg transition hover:bg-lumiva-accent-soft disabled:hidden md:hidden"
-        aria-label={t('crm.email.inbox.compose')}
+        className="fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center rounded-xl border border-[#222] bg-[#222] text-xl font-light text-white shadow-lg transition hover:bg-black disabled:hidden md:hidden"
+        aria-label="Новое письмо"
       >
         +
       </button>
 
       <EmailFolderModal
         open={!!folderModal}
-        title={
-          folderModal?.kind === 'rename'
-            ? t('crm.email.inbox.folderModalRenameTitle')
-            : t('crm.email.inbox.folderModalCreateTitle')
-        }
+        title={folderModal?.kind === 'rename' ? t('crm.email.inbox.folderModalRenameTitle') : t('crm.email.inbox.folderModalCreateTitle')}
         initialName={folderModal?.kind === 'rename' ? folderModal.folder.name : ''}
         hint={
           folderModal?.kind === 'create' && folderModal.parentId
-            ? t('crm.email.inbox.folderModalSubfolderHint', {
-                name: folders.find((x) => x.id === folderModal.parentId)?.name || '—',
-              })
+            ? t('crm.email.inbox.folderModalSubfolderHint', { name: folders.find((x) => x.id === folderModal.parentId)?.name || '—' })
             : undefined
         }
-        submitLabel={
-          folderModal?.kind === 'rename' ? t('crm.common.save') : t('crm.email.inbox.folderModalCreateSubmit')
-        }
+        submitLabel={folderModal?.kind === 'rename' ? t('crm.common.save') : t('crm.email.inbox.folderModalCreateSubmit')}
         busy={folderModalBusy}
         onClose={() => setFolderModal(null)}
         onSubmit={submitFolderModal}
@@ -1773,13 +1618,7 @@ export const EmailInboxPage: React.FC = () => {
         folderRowIcon={folderRowIcon}
       />
 
-      <CrmShellModal
-        open={!!syncError}
-        title={t('crm.common.modalError')}
-        message={syncError || ''}
-        variant="error"
-        onClose={() => setSyncError(null)}
-      />
+      <CrmShellModal open={!!syncError} title={t('crm.common.modalError')} message={syncError || ''} variant="error" onClose={() => setSyncError(null)} />
     </MainLayout>
   );
 };

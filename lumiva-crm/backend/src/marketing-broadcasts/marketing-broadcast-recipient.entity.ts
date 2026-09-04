@@ -52,6 +52,12 @@ export class MarketingBroadcastRecipient {
   @Column({ type: 'text', nullable: true })
   lastError: string | null;
 
+  // Раньше любая временная ошибка отправки (сбой у почтового/SMS-провайдера) сразу и навсегда
+  // переводила получателя в 'failed' — без единой повторной попытки, и без ручного способа
+  // повторить. Теперь ограниченное число повторов с бэкоффом (см. processStepsForBroadcast).
+  @Column({ type: 'int', default: 0 })
+  retryCount: number;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

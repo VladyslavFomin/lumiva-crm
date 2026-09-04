@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchPublicCategories, fetchPublicProducts, type PublicCatalogCategory, type PublicCatalogProduct } from '../../../api/publicCatalog';
 import { resolvePublicAssetUrl } from '../../../api/client';
 import type { EmbedFieldConfigItem } from '../../../api/embedForms';
@@ -25,6 +26,8 @@ export const ProductCartField: React.FC<{
   design: Record<string, unknown>;
   onChange: (value: CartValue) => void;
 }> = ({ field, clientKey, design: d, onChange }) => {
+  const { t } = useTranslation();
+  const pc = (key: string, opts?: Record<string, unknown>) => t(`crm.embedFields.productCart.${key}`, opts as any) as string;
   const [categories, setCategories] = useState<PublicCatalogCategory[]>([]);
   const [products, setProducts] = useState<PublicCatalogProduct[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>('');
@@ -36,12 +39,14 @@ export const ProductCartField: React.FC<{
     fetchPublicCategories(clientKey)
       .then((rows) => setCategories(allowedCategoryIds?.length ? rows.filter((c) => allowedCategoryIds.includes(c.id)) : rows))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientKey]);
 
   useEffect(() => {
     fetchPublicProducts(clientKey, activeCategory || undefined)
       .then((rows) => setProducts(allowedCategoryIds?.length ? rows.filter((p) => p.categoryId && allowedCategoryIds.includes(p.categoryId)) : rows))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientKey, activeCategory]);
 
   useEffect(() => {
@@ -78,7 +83,7 @@ export const ProductCartField: React.FC<{
       {categories.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
           <button type="button" onClick={() => setActiveCategory('')} style={pillButtonStyle(d, !activeCategory)}>
-            Все
+            {pc('allCategoriesBtn')}
           </button>
           {categories.map((c) => (
             <button key={c.id} type="button" onClick={() => setActiveCategory(c.id)} style={pillButtonStyle(d, activeCategory === c.id)}>
@@ -99,12 +104,12 @@ export const ProductCartField: React.FC<{
               <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 2, color: d.textColor as string }}>{p.name}</div>
               <div style={{ fontSize: 12, marginBottom: 8, opacity: 0.7, color: d.textColor as string }}>{p.price} {p.currency}</div>
               <button type="button" onClick={() => addProduct(p)} style={{ ...primaryButtonStyle(d, false), width: '100%', padding: '6px 0', fontSize: 12 }}>
-                Добавить
+                {pc('addBtn')}
               </button>
             </div>
           );
         })}
-        {!products.length && <span style={{ fontSize: 12, color: '#94a3b8' }}>Нет доступных товаров</span>}
+        {!products.length && <span style={{ fontSize: 12, color: '#94a3b8' }}>{pc('noProducts')}</span>}
       </div>
 
       {lines.length > 0 && (
@@ -124,7 +129,7 @@ export const ProductCartField: React.FC<{
             </div>
           ))}
           <div style={{ textAlign: 'right', fontWeight: 700, fontSize: 13.5, marginTop: 8, paddingTop: 8, borderTop: `1px solid ${border}`, color: d.textColor as string }}>
-            Итого: {total.toFixed(2)} {currency}
+            {pc('totalLabel', { total: total.toFixed(2), currency })}
           </div>
         </div>
       )}

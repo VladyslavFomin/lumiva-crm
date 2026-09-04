@@ -11,6 +11,7 @@ import { PlatformSettingsModule } from '../platform-settings/platform-settings.m
 import { LeadsModule } from '../leads/leads.module';
 import { NotesModule } from '../notes/notes.module';
 import { ProjectsModule } from '../projects/projects.module';
+import { CustomFieldsModule } from '../custom-fields/custom-fields.module';
 import { MarketingModule } from '../marketing/marketing.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
 import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
@@ -23,6 +24,8 @@ import { WorkspaceAreasModule } from '../workspace-areas/workspace-areas.module'
 import { ProductsModule } from '../products/products.module';
 import { BookingsModule } from '../bookings/bookings.module';
 import { HotelsModule } from '../hotels/hotels.module';
+import { RbacModule } from '../rbac/rbac.module';
+import { ProjectTablesModule } from '../project-tables/project-tables.module';
 import { AiUsageLog } from './ai-usage-log.entity';
 import { AiMemoryChunk } from './ai-memory-chunk.entity';
 import { AiChatSession } from './ai-chat-session.entity';
@@ -33,6 +36,7 @@ import { AiAgentLog } from '../ai-employees/ai-agent-log.entity';
 import { AiAgentPermission } from '../ai-employees/ai-agent-permission.entity';
 import { AiQuotaService } from './ai-quota.service';
 import { AiOpenAiService } from './ai-openai.service';
+import { AiAnthropicService } from './ai-anthropic.service';
 import { AiToolsService } from './ai-tools.service';
 import { AiAssistantService } from './ai-assistant.service';
 import { AiController } from './ai.controller';
@@ -60,6 +64,7 @@ import { AiController } from './ai.controller';
     forwardRef(() => LeadsModule),
     NotesModule,
     ProjectsModule,
+    CustomFieldsModule,
     MarketingModule,
     IntegrationsModule,
     CustomObjectsModule,
@@ -72,11 +77,14 @@ import { AiController } from './ai.controller';
     ProductsModule,
     BookingsModule,
     HotelsModule,
+    RbacModule,
+    ProjectTablesModule,
   ],
   controllers: [AiController],
   providers: [
     AiQuotaService,
     AiOpenAiService,
+    AiAnthropicService,
     AiToolsService,
     AiAssistantService,
   ],

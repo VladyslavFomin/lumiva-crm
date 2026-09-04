@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { resolvePublicAssetUrl } from '../../api/client';
 import {
@@ -480,6 +481,7 @@ export const ProductFormPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="productCard" />
       <div style={{ color: INK }}>
         <div style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 20, marginBottom: 28 }}>
           <button

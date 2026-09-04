@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import axios, { type Method } from 'axios';
 
+import { PlatformSettingsService } from '../../platform-settings/platform-settings.service';
+
 const DEFAULT_BASE = 'https://api.hubapi.com';
 
 /**
@@ -9,6 +11,66 @@ const DEFAULT_BASE = 'https://api.hubapi.com';
  */
 @Injectable()
 export class HubspotApiService {
+  constructor(private readonly platformSettings: PlatformSettingsService) {}
+
+  async refreshAccessToken(params: {
+    clientId: string;
+    clientSecret: string;
+    refreshToken: string;
+  }): Promise<{ accessToken: string; expiresIn?: number }> {
+    const rt = params.refreshToken.trim();
+    if (!rt) throw new Error('HubSpot: пустой refresh token');
+    const body = new URLSearchParams({
+      grant_type: 'refresh_token',
+      client_id: params.clientId,
+      client_secret: params.clientSecret,
+      refresh_token: rt,
+    });
+    const res = await axios.post('https://api.hubapi.com/oauth/v1/token', body.toString(), {
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      timeout: 20000,
+      validateStatus: () => true,
+    });
+    if (res.status !== 200) {
+      const detail =
+        typeof res.data === 'object' && res.data !== null
+          ? JSON.stringify(res.data)
+          : String(res.data ?? '');
+      throw new Error(`HubSpot OAuth refresh: HTTP ${res.status} ${detail}`.slice(0, 500));
+    }
+    const accessToken = String(res.data?.access_token ?? '').trim();
+    if (!accessToken) {
+      throw new Error('HubSpot OAuth refresh: нет access_token в ответе');
+    }
+    const expiresIn =
+      typeof res.data?.expires_in === 'number' ? res.data.expires_in : undefined;
+    return { accessToken, expiresIn };
+  }
+
+  /**
+   * Access token из поля apiToken (ручной private app token) либо свежий через oauthRefreshToken
+   * (платформенный OAuth-клиент HubSpot) — тот же паттерн, что и Google Calendar.
+   */
+  async resolveAccessFromConfig(cfg: {
+    apiToken?: string;
+    oauthRefreshToken?: string;
+  }): Promise<string | null> {
+    const rt = typeof cfg.oauthRefreshToken === 'string' ? cfg.oauthRefreshToken.trim() : '';
+    if (rt) {
+      const { clientId, clientSecret } =
+        await this.platformSettings.getGenericIntegrationOAuthConfig('hubspot');
+      if (!clientId || !clientSecret) return null;
+      const { accessToken } = await this.refreshAccessToken({
+        clientId,
+        clientSecret,
+        refreshToken: rt,
+      });
+      return accessToken;
+    }
+    const tok = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+    return tok || null;
+  }
+
   normalizeBaseUrl(url?: string): string {
     const raw = url?.trim();
     if (!raw) return DEFAULT_BASE;

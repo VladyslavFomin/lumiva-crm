@@ -19,6 +19,7 @@ import { AutomationsModule } from '../automations/automations.module';
 import { LeadsModule } from '../leads/leads.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
 import { RbacModule } from '../rbac/rbac.module';
+import { DataVisibilityModule } from '../data-visibility/data-visibility.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RbacModule } from '../rbac/rbac.module';
     forwardRef(() => LeadsModule),
     AuditLogModule,
     RbacModule,
+    DataVisibilityModule,
   ],
   controllers: [SalesController, SalesImportController],
   providers: [SalesService, SalesImportService],

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   fetchEmailAccounts,
   fetchEmailTemplates,
@@ -14,16 +15,14 @@ interface Props {
 
 type Step = 'audience' | 'compose' | 'preview' | 'sent';
 
-const LEAD_STATUSES = [
-  { value: '', label: 'Any status' },
-  { value: 'new', label: 'New' },
-  { value: 'in_progress', label: 'In progress' },
-  { value: 'waiting', label: 'Waiting' },
-  { value: 'won', label: 'Won' },
-  { value: 'lost', label: 'Lost' },
-];
+const LEAD_STATUS_KEYS = ['', 'new', 'in_progress', 'waiting', 'won', 'lost'];
+const STEP_KEYS: Step[] = ['audience', 'compose', 'preview', 'sent'];
 
 export function EmailBulkSendModal({ open, onClose }: Props) {
+  const { t } = useTranslation();
+  const bs = (key: string, opts?: Record<string, unknown>) => t(`crm.email.bulkSend.${key}`, opts as any) as string;
+  const leadStatusLabel = (v: string) => bs(`leadStatuses.${v || 'any'}`);
+
   const [step, setStep] = useState<Step>('audience');
 
   // Audience
@@ -65,6 +64,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
     fetchEmailTemplates(true)
       .then((data) => setTemplates(data))
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   // When template is selected, fill subject + html
@@ -82,10 +82,11 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
       const doc = iframeRef.current.contentDocument;
       if (doc) {
         doc.open();
-        doc.write(html || '<p style="color:#888;font-family:sans-serif">No HTML content</p>');
+        doc.write(html || `<p style="color:#888;font-family:sans-serif">${bs('noContent')}</p>`);
         doc.close();
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [html, previewVisible]);
 
   const parseManualEmails = () =>
@@ -121,7 +122,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
       setResult(res);
       setStep('sent');
     } catch (e: any) {
-      setError(e?.message || 'Send failed');
+      setError(e?.message || bs('sendError'));
     } finally {
       setSending(false);
     }
@@ -168,12 +169,9 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
           }}
         >
           <div>
-            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>Bulk Email Send</h2>
+            <h2 style={{ margin: 0, fontSize: 17, fontWeight: 700 }}>{bs('title')}</h2>
             <p style={{ margin: 0, fontSize: 12, color: '#64748b', marginTop: 2 }}>
-              {step === 'audience' && 'Step 1: Choose audience'}
-              {step === 'compose' && 'Step 2: Compose message'}
-              {step === 'preview' && 'Step 3: Preview & send'}
-              {step === 'sent' && 'Done!'}
+              {bs(`stepHints.${step}`)}
             </p>
           </div>
           <button
@@ -202,7 +200,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
             borderBottom: '1px solid #e2e8f0',
           }}
         >
-          {(['audience', 'compose', 'preview', 'sent'] as Step[]).map((s, i) => (
+          {STEP_KEYS.map((s, i) => (
             <div
               key={s}
               style={{
@@ -215,7 +213,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                 cursor: 'default',
               }}
             >
-              {i + 1}. {s.charAt(0).toUpperCase() + s.slice(1)}
+              {i + 1}. {bs(`steps.${s}`)}
             </div>
           ))}
         </div>
@@ -226,11 +224,11 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
           {step === 'audience' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontWeight: 600, fontSize: 13 }}>Who to send to:</label>
+                <label style={{ fontWeight: 600, fontSize: 13 }}>{bs('audience.label')}</label>
                 {[
-                  { value: 'all', label: 'All leads with an email address' },
-                  { value: 'filter', label: 'Filter leads by source / status' },
-                  { value: 'manual', label: 'Enter email addresses manually' },
+                  { value: 'all', label: bs('audience.modeAll') },
+                  { value: 'filter', label: bs('audience.modeFilter') },
+                  { value: 'manual', label: bs('audience.modeManual') },
                 ].map((opt) => (
                   <label
                     key={opt.value}
@@ -262,11 +260,11 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                 >
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                      Source (optional)
+                      {bs('audience.sourceLabel')}
                     </label>
                     <input
                       type="text"
-                      placeholder="e.g. website, referral"
+                      placeholder={bs('audience.sourcePlaceholder')}
                       value={filterSource}
                       onChange={(e) => setFilterSource(e.target.value)}
                       style={{
@@ -280,7 +278,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                   </div>
                   <div>
                     <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                      Status (optional)
+                      {bs('audience.statusLabel')}
                     </label>
                     <select
                       value={filterStatus}
@@ -293,9 +291,9 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                         fontSize: 13,
                       }}
                     >
-                      {LEAD_STATUSES.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {s.label}
+                      {LEAD_STATUS_KEYS.map((s) => (
+                        <option key={s} value={s}>
+                          {leadStatusLabel(s)}
                         </option>
                       ))}
                     </select>
@@ -306,10 +304,10 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
               {audienceMode === 'manual' && (
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                    Email addresses (one per line, or comma-separated)
+                    {bs('audience.emailsLabel')}
                   </label>
                   <textarea
-                    placeholder="john@example.com&#10;jane@example.com"
+                    placeholder="ivan@example.com&#10;maria@example.com"
                     value={manualEmails}
                     onChange={(e) => setManualEmails(e.target.value)}
                     rows={5}
@@ -325,7 +323,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                   />
                   {manualEmails && (
                     <p style={{ fontSize: 11, color: '#64748b', marginTop: 4 }}>
-                      {parseManualEmails().length} valid email(s) detected
+                      {bs('audience.recognizedCountFormat', { count: parseManualEmails().length })}
                     </p>
                   )}
                 </div>
@@ -338,7 +336,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  Send from account
+                  {bs('compose.fromAccountLabel')}
                 </label>
                 <select
                   value={fromAccountId}
@@ -351,7 +349,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                     fontSize: 13,
                   }}
                 >
-                  <option value="">-- select account --</option>
+                  <option value="">{bs('compose.chooseAccountOption')}</option>
                   {accounts.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name ? `${a.name} <${a.email}>` : a.email}
@@ -362,7 +360,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  Template (optional)
+                  {bs('compose.templateLabel')}
                 </label>
                 <select
                   value={selectedTemplateId}
@@ -375,7 +373,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                     fontSize: 13,
                   }}
                 >
-                  <option value="">-- write custom message --</option>
+                  <option value="">{bs('compose.ownLetterOption')}</option>
                   {templates.map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.name}
@@ -386,16 +384,16 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
 
               <div>
                 <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
-                  Subject{' '}
+                  {bs('compose.subjectLabel')}{' '}
                   <span style={{ fontWeight: 400, color: '#94a3b8' }}>
-                    (use {'{{lead.firstName}}'}, {'{{lead.email}}'})
+                    {bs('compose.subjectVarsHintPrefix')}{'{{lead.firstName}}'}, {'{{lead.email}}'}{bs('compose.subjectVarsHintSuffix')}
                   </span>
                 </label>
                 <input
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Your subject line"
+                  placeholder={bs('compose.subjectPlaceholder')}
                   style={{
                     width: '100%',
                     border: '1px solid #e2e8f0',
@@ -411,9 +409,9 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                   style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}
                 >
                   <label style={{ fontSize: 12, fontWeight: 600 }}>
-                    HTML Body{' '}
+                    {bs('compose.htmlBodyLabel')}{' '}
                     <span style={{ fontWeight: 400, color: '#94a3b8' }}>
-                      (use {'{{lead.firstName}}'} etc.)
+                      {bs('compose.htmlBodyVarsHintPrefix')}{'{{lead.firstName}}'}{bs('compose.htmlBodyVarsHintSuffix')}
                     </span>
                   </label>
                   <button
@@ -429,7 +427,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                       color: '#334155',
                     }}
                   >
-                    {previewVisible ? 'Edit' : 'Preview'}
+                    {previewVisible ? bs('compose.editBtn') : bs('compose.previewBtn')}
                   </button>
                 </div>
 
@@ -438,7 +436,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                     value={html}
                     onChange={(e) => setHtml(e.target.value)}
                     rows={10}
-                    placeholder="<p>Hello {{lead.firstName}},</p><p>...</p>"
+                    placeholder={bs('compose.htmlPlaceholder')}
                     style={{
                       width: '100%',
                       border: '1px solid #e2e8f0',
@@ -452,7 +450,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                 ) : (
                   <iframe
                     ref={iframeRef}
-                    title="Email preview"
+                    title={bs('compose.previewTitle')}
                     style={{
                       width: '100%',
                       height: 260,
@@ -469,7 +467,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                   checked={trackOpens}
                   onChange={(e) => setTrackOpens(e.target.checked)}
                 />
-                Track email opens (1x1 tracking pixel)
+                {bs('compose.trackOpensLabel')}
               </label>
             </div>
           )}
@@ -485,34 +483,39 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                   padding: 16,
                 }}
               >
-                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>From account</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>{bs('preview.senderAccountLabel')}</div>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>
                   {accounts.find((a) => a.id === fromAccountId)?.email || fromAccountId}
                 </div>
 
-                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, marginTop: 12 }}>Audience</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, marginTop: 12 }}>{bs('preview.audienceLabel')}</div>
                 <div style={{ fontSize: 13 }}>
-                  {audienceMode === 'all' && 'All leads with email addresses'}
+                  {audienceMode === 'all' && bs('preview.audienceAll')}
                   {audienceMode === 'filter' &&
-                    `Leads filtered by ${[filterSource && `source="${filterSource}"`, filterStatus && `status="${filterStatus}"`].filter(Boolean).join(', ') || 'no filters'}`}
-                  {audienceMode === 'manual' && `${parseManualEmails().length} manual email(s)`}
+                    bs('preview.audienceFilterFormat', {
+                      filters: [
+                        filterSource && bs('preview.sourceFilterFormat', { value: filterSource }),
+                        filterStatus && bs('preview.statusFilterFormat', { value: filterStatus }),
+                      ].filter(Boolean).join(', ') || bs('preview.noFilters'),
+                    })}
+                  {audienceMode === 'manual' && bs('preview.audienceManualFormat', { count: parseManualEmails().length })}
                 </div>
 
-                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, marginTop: 12 }}>Subject</div>
-                <div style={{ fontSize: 13 }}>{subject || '(no subject)'}</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4, marginTop: 12 }}>{bs('preview.subjectLabel')}</div>
+                <div style={{ fontSize: 13 }}>{subject || bs('preview.noSubject')}</div>
 
                 {trackOpens && (
                   <div style={{ marginTop: 12, fontSize: 12, color: '#64748b' }}>
-                    Open tracking enabled
+                    {bs('preview.trackingEnabled')}
                   </div>
                 )}
               </div>
 
               <div>
-                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Email preview</div>
+                <div style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>{bs('preview.emailPreviewLabel')}</div>
                 <iframe
-                  title="Preview"
-                  srcDoc={html || '<p style="color:#aaa;font-family:sans-serif">No content</p>'}
+                  title={bs('preview.previewTitle')}
+                  srcDoc={html || `<p style="color:#aaa;font-family:sans-serif">${bs('noContent')}</p>`}
                   style={{
                     width: '100%',
                     height: 240,
@@ -545,17 +548,17 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
               <div style={{ fontSize: 40, marginBottom: 12 }}>
                 {result.failed === 0 ? '' : ''}
               </div>
-              <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>Campaign sent!</h3>
+              <h3 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 700 }}>{bs('sent.title')}</h3>
               <p style={{ margin: '0 0 4px', fontSize: 14, color: '#334155' }}>
-                <strong>{result.sent}</strong> email{result.sent !== 1 ? 's' : ''} sent successfully
+                {bs('sent.sentCountFormat', { count: result.sent })}
               </p>
               {result.failed > 0 && (
                 <p style={{ margin: '0 0 4px', fontSize: 13, color: '#dc2626' }}>
-                  {result.failed} failed to send
+                  {bs('sent.failedCountFormat', { count: result.failed })}
                 </p>
               )}
               <p style={{ margin: '16px 0 0', fontSize: 11, color: '#94a3b8' }}>
-                Job ID: {result.jobId}
+                {bs('sent.jobIdFormat', { id: result.jobId })}
               </p>
             </div>
           )}
@@ -589,7 +592,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                   fontSize: 13,
                 }}
               >
-                {step === 'audience' ? 'Cancel' : 'Back'}
+                {step === 'audience' ? bs('footer.cancelBtn') : bs('footer.backBtn')}
               </button>
 
               {step === 'preview' ? (
@@ -608,7 +611,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                     fontWeight: 600,
                   }}
                 >
-                  {sending ? 'Sending...' : 'Send campaign'}
+                  {sending ? bs('footer.sendingBtn') : bs('footer.sendBtn')}
                 </button>
               ) : (
                 <button
@@ -629,7 +632,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                     fontWeight: 600,
                   }}
                 >
-                  Next
+                  {bs('footer.nextBtn')}
                 </button>
               )}
             </>
@@ -649,7 +652,7 @@ export function EmailBulkSendModal({ open, onClose }: Props) {
                 marginLeft: 'auto',
               }}
             >
-              Close
+              {bs('footer.closeBtn')}
             </button>
           )}
         </div>

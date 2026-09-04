@@ -53,6 +53,23 @@ export class PlatformSettings {
   @Column({ type: 'jsonb', nullable: true })
   billingPlans: unknown[] | null;
 
+  /** Платформенные (не per-tenant!) реквизиты iyzico — для оплаты тарифа турецкими тенантами */
+  @Column({ name: 'iyzico_api_key', type: 'text', nullable: true })
+  iyzicoApiKey: string | null;
+
+  @Column({ name: 'iyzico_secret_key', type: 'text', nullable: true })
+  iyzicoSecretKey: string | null;
+
+  @Column({ name: 'iyzico_sandbox', type: 'boolean', default: true })
+  iyzicoSandbox: boolean;
+
+  /** Платформенные реквизиты ЮKassa — для оплаты тарифа российскими тенантами */
+  @Column({ name: 'yookassa_shop_id', type: 'text', nullable: true })
+  yookassaShopId: string | null;
+
+  @Column({ name: 'yookassa_secret_key', type: 'text', nullable: true })
+  yookassaSecretKey: string | null;
+
   /** OpenAI-compatible API key (platform-wide; не отдавать в CRM UI) */
   @Column({ type: 'text', nullable: true })
   openAiApiKey: string | null;

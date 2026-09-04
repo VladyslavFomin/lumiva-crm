@@ -17,6 +17,7 @@ import {
   YAxis,
 } from 'recharts';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   fetchMarketingTraffic,
   normalizeMarketingTrafficStats,
@@ -514,6 +515,7 @@ export const CampaignsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="marketingCampaigns" />
       <div className={`${marketingPageShell} space-y-5 md:space-y-6 pb-2`}>
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>

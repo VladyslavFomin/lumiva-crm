@@ -1,58 +1,167 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
-import { resolvePublicAssetUrl } from '../../api/client';
-import { fetchCustomObjects, type CustomObject } from '../../api/customObjects';
+import './WorkspaceArea.css';
+import { WsAreaBar } from '../../components/workspace/WsAreaBar';
+import {
+  fetchCustomObjects,
+  fetchCustomObjectFields,
+  fetchAllCustomObjectRecords,
+  fetchCustomObjectRecordsPage,
+  type CustomObject,
+  type CustomObjectField,
+} from '../../api/customObjects';
 import {
   fetchWorkspaceArea,
-  updateWorkspaceArea,
-  uploadWorkspaceAreaCover,
-  deleteWorkspaceArea,
   readWorkspaceIntegrationBindings,
+  fetchWorkspaceAreaMembers,
+  fetchWorkspaceAreaActivityLog,
+  workspaceBindingHasActiveIntegration,
   type WorkspaceArea,
+  type WorkspaceAreaActivityLogEntryDto,
+  type WorkspaceIntegrationBinding,
 } from '../../api/workspaceAreas';
+import { fetchIntegrations, type IntegrationConnectionDto } from '../../api/integrations';
+import { fetchMarketingIntegrations, type MarketingIntegrationRow } from '../../api/marketing';
+import type { WorkspaceAreaMember } from '../../workspace/workspaceAreaRole';
 import { WorkspaceAreaIntegrationsModal } from '../../components/workspace/WorkspaceAreaIntegrationsModal';
-import { NAV_ICON_MAP, type NavIconKey } from '../../components/layout/NavSidebarIcons';
+import { PushToBoardModal } from '../../components/workspace/PushToBoardModal';
+import { NAV_ICON_MAP, NavIconPlus, type NavIconKey } from '../../components/layout/NavSidebarIcons';
 import { parseEnabledViews } from '../../workspace/workspaceEnabledViews';
 import { readRecentWorkspaceTables, touchRecentWorkspaceTable } from '../../workspace/workspaceRecentTables';
 import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
-import { useAlertModal } from '../../contexts/AlertModalContext';
+import { WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY, getWorkspaceDataLink } from '../../workspace/workspaceRecordLink';
+import {
+  parseWorkspaceColumnBindingV1,
+  type WorkspaceColumnBindingV1,
+} from '../../workspace/workspaceColumnBinding';
+import { WorkspaceSourceIcon as SourceIcon } from '../../components/workspace/WorkspaceSourceIcon';
 
-type TabKey = 'recent' | 'content' | 'permissions';
+type TabKey = 'recent' | 'content' | 'sources' | 'bindings' | 'log';
 
-const ICON_KEYS = Object.keys(NAV_ICON_MAP) as NavIconKey[];
+function initials(name: string | undefined | null, fallback: string): string {
+  const n = (name || '').trim();
+  if (!n) return (fallback || '?').slice(0, 1).toUpperCase();
+  const parts = n.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return n.slice(0, 2).toUpperCase();
+}
+
+function linkedDataIds(o: CustomObject): string[] {
+  const raw = o.meta?.[WORKSPACE_LINKED_DATA_OBJECT_IDS_KEY];
+  return Array.isArray(raw) ? raw.map((x) => String(x)).filter((id) => /^[0-9a-f-]{36}$/i.test(id)) : [];
+}
+
+type BindRow = {
+  tableId: string;
+  tableName: string;
+  fieldKey: string;
+  fieldLabel: string;
+  mode: string;
+  summary: string;
+};
+
+function bindingSummary(b: WorkspaceColumnBindingV1, nameOf: (id: string) => string): string {
+  switch (b.mode) {
+    case 'from_pushed_source':
+      return b.sourceFieldKey;
+    case 'lookup_by_key':
+      return `${nameOf(b.dataObjectId)}: ${b.dataMatchFieldKey} = ${b.boardMatchFieldKey} → ${b.dataDisplayFieldKey}`;
+    case 'pick_from_data':
+      return `${nameOf(b.dataObjectId)}.${b.dataFieldKey}`;
+    case 'cached_snapshot':
+      return b.sourceLabel || '—';
+    case 'rollup':
+      return `${nameOf(b.dataObjectId)}: ${b.aggregate}(${b.valueFieldKey}) / ${b.groupByFieldKey}`;
+    default:
+      return '—';
+  }
+}
+
+const LOG_GLYPH: Record<string, string> = {
+  sync: '⟳',
+  import: '⇩',
+  push: '↑',
+  mapping_change: '⚙',
+  table_created: '+',
+  error: '!',
+};
 
 export const WorkspaceAreaHomePage: React.FC = () => {
   const { t } = useTranslation();
   const { areaId = '' } = useParams();
   const navigate = useNavigate();
+
   const [area, setArea] = useState<WorkspaceArea | null>(null);
   const [objects, setObjects] = useState<CustomObject[]>([]);
+  const [members, setMembers] = useState<WorkspaceAreaMember[]>([]);
+  const [connections, setConnections] = useState<IntegrationConnectionDto[]>([]);
+  const [marketingRows, setMarketingRows] = useState<MarketingIntegrationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<TabKey>('recent');
   const [integrationsOpen, setIntegrationsOpen] = useState(false);
-  const [nameDraft, setNameDraft] = useState('');
-  const [descDraft, setDescDraft] = useState('');
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [savingName, setSavingName] = useState(false);
-  const [coverUploading, setCoverUploading] = useState(false);
-  const [iconPicker, setIconPicker] = useState(false);
-  const [deletingArea, setDeletingArea] = useState(false);
-  const { showConfirm } = useAlertModal();
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const [dataRecordCounts, setDataRecordCounts] = useState<Record<string, number>>({});
+  /** dataObjectId -> { count, boardName } — сколько строк из этой таблицы данных уже передано и куда. */
+  const [pushedCounts, setPushedCounts] = useState<Record<string, { count: number; boardName: string }>>({});
+  const [pushLoadingId, setPushLoadingId] = useState<string | null>(null);
+  const [downloadLoadingId, setDownloadLoadingId] = useState<string | null>(null);
+  const [pushState, setPushState] = useState<{
+    sourceObjectId: string;
+    recordIds: string[];
+    sourceFields: CustomObjectField[];
+  } | null>(null);
+  const [logEntries, setLogEntries] = useState<WorkspaceAreaActivityLogEntryDto[] | null>(null);
+  const [logLoading, setLogLoading] = useState(false);
+  const [bindRows, setBindRows] = useState<BindRow[] | null>(null);
+  const [bindLoading, setBindLoading] = useState(false);
 
   const load = useCallback(async () => {
     if (!areaId || !/^[0-9a-f-]{36}$/i.test(areaId)) return;
     setLoading(true);
     try {
-      const [a, obs] = await Promise.all([
+      const [a, obs, mem, conn, mkt] = await Promise.all([
         fetchWorkspaceArea(areaId),
         fetchCustomObjects(areaId),
+        fetchWorkspaceAreaMembers(areaId).catch(() => [] as WorkspaceAreaMember[]),
+        fetchIntegrations().catch(() => [] as IntegrationConnectionDto[]),
+        fetchMarketingIntegrations().catch(() => [] as MarketingIntegrationRow[]),
       ]);
       setArea(a);
       setObjects(obs);
-      setNameDraft(a.name || '');
-      setDescDraft(a.description || '');
+      setMembers(mem);
+      setConnections(conn.filter((c) => !c.isDeleted && c.isEnabled));
+      setMarketingRows(Array.isArray(mkt) ? mkt : []);
+
+      const dataObjs = obs.filter((o) => getWorkspaceTableKind(o.meta) === 'data');
+      void Promise.all(
+        dataObjs.map((o) =>
+          fetchCustomObjectRecordsPage(o.id, { limit: 1 })
+            .then((r) => [o.id, r.total] as const)
+            .catch(() => [o.id, 0] as const),
+        ),
+      ).then((pairs) => setDataRecordCounts(Object.fromEntries(pairs)));
+
+      const boardObjs = obs.filter((o) => getWorkspaceTableKind(o.meta) === 'board');
+      void Promise.all(
+        boardObjs.map((board) =>
+          fetchAllCustomObjectRecords(board.id)
+            .then((records) => ({ board, records }))
+            .catch(() => ({ board, records: [] as Awaited<ReturnType<typeof fetchAllCustomObjectRecords>> })),
+        ),
+      ).then((results) => {
+        const next: Record<string, { count: number; boardName: string }> = {};
+        for (const { board, records } of results) {
+          for (const rec of records) {
+            const link = getWorkspaceDataLink(rec.meta as Record<string, unknown> | null);
+            if (!link) continue;
+            const key = link.sourceObjectId;
+            next[key] = { count: (next[key]?.count || 0) + 1, boardName: board.name };
+          }
+        }
+        setPushedCounts(next);
+      });
     } catch {
       setArea(null);
       setObjects([]);
@@ -65,10 +174,59 @@ export const WorkspaceAreaHomePage: React.FC = () => {
     void load();
   }, [load]);
 
-  const coverResolved = useMemo(
-    () => resolvePublicAssetUrl(area?.coverImageUrl || null),
-    [area?.coverImageUrl],
-  );
+  const loadLog = useCallback(async () => {
+    if (!areaId) return;
+    setLogLoading(true);
+    try {
+      setLogEntries(await fetchWorkspaceAreaActivityLog(areaId));
+    } catch {
+      setLogEntries([]);
+    } finally {
+      setLogLoading(false);
+    }
+  }, [areaId]);
+
+  useEffect(() => {
+    if (tab === 'log') void loadLog();
+  }, [tab, loadLog]);
+
+  const loadBindings = useCallback(async () => {
+    const boardObjs = objects.filter((o) => getWorkspaceTableKind(o.meta) === 'board');
+    if (!boardObjs.length) {
+      setBindRows([]);
+      return;
+    }
+    setBindLoading(true);
+    try {
+      const nameOf = (id: string) => objects.find((o) => o.id === id)?.name || id;
+      const perTable = await Promise.all(
+        boardObjs.map(async (o) => {
+          const fields = await fetchCustomObjectFields(o.id).catch(() => [] as CustomObjectField[]);
+          const rows: BindRow[] = [];
+          for (const f of fields) {
+            const b = parseWorkspaceColumnBindingV1(f.meta);
+            if (!b) continue;
+            rows.push({
+              tableId: o.id,
+              tableName: o.name,
+              fieldKey: f.key,
+              fieldLabel: f.label,
+              mode: b.mode,
+              summary: bindingSummary(b, nameOf),
+            });
+          }
+          return rows;
+        }),
+      );
+      setBindRows(perTable.flat());
+    } finally {
+      setBindLoading(false);
+    }
+  }, [objects]);
+
+  useEffect(() => {
+    if (tab === 'bindings') void loadBindings();
+  }, [tab, loadBindings]);
 
   const recentIds = useMemo(() => (areaId ? readRecentWorkspaceTables(areaId) : []), [areaId, objects]);
   const recentObjects = useMemo(() => {
@@ -76,81 +234,122 @@ export const WorkspaceAreaHomePage: React.FC = () => {
     return recentIds.map((id) => map.get(id)).filter(Boolean) as CustomObject[];
   }, [recentIds, objects]);
 
+  const bindings: WorkspaceIntegrationBinding[] = useMemo(
+    () => readWorkspaceIntegrationBindings(area?.meta),
+    [area?.meta],
+  );
+  const dataObjects = useMemo(
+    () => objects.filter((o) => getWorkspaceTableKind(o.meta) === 'data'),
+    [objects],
+  );
+  const boardObjects = useMemo(
+    () => objects.filter((o) => getWorkspaceTableKind(o.meta) === 'board'),
+    [objects],
+  );
+
   const AreaIcon = (area?.iconKey && NAV_ICON_MAP[area.iconKey as NavIconKey]) || NAV_ICON_MAP.folder;
-
-  const saveDescription = async () => {
-    if (!area) return;
-    const next = descDraft.trim();
-    if (next === (area.description || '').trim()) return;
-    setSavingProfile(true);
-    try {
-      const updated = await updateWorkspaceArea(area.id, {
-        description: next || null,
-      });
-      setArea(updated);
-    } finally {
-      setSavingProfile(false);
-    }
-  };
-
-  const saveName = async () => {
-    if (!area) return;
-    const next = nameDraft.trim();
-    if (!next || next === area.name) return;
-    setSavingName(true);
-    try {
-      const updated = await updateWorkspaceArea(area.id, { name: next });
-      setArea(updated);
-      setNameDraft(updated.name);
-    } catch {
-      setNameDraft(area.name);
-    } finally {
-      setSavingName(false);
-    }
-  };
-
-  const setAreaIcon = async (key: NavIconKey) => {
-    if (!area) return;
-    setIconPicker(false);
-    const updated = await updateWorkspaceArea(area.id, { iconKey: key });
-    setArea(updated);
-  };
-
-  const onCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = '';
-    if (!f || !area) return;
-    setCoverUploading(true);
-    try {
-      const updated = await uploadWorkspaceAreaCover(area.id, f);
-      setArea(updated);
-    } finally {
-      setCoverUploading(false);
-    }
-  };
 
   const openTable = (o: CustomObject) => {
     if (areaId) touchRecentWorkspaceTable(areaId, o.id);
     navigate(`/workspace/${o.id}/table`);
   };
 
-  const bindings = readWorkspaceIntegrationBindings(area?.meta);
-
-  const confirmDeleteArea = async () => {
-    if (!area) return;
-    const ok = await showConfirm(t('crm.workspace.area.deleteAreaConfirm', { name: area.name }), {
-      title: 'Удаление',
-      confirmLabel: 'Удалить',
-      cancelLabel: 'Отмена',
-      danger: true,
-    });
-    if (!ok) return;
-    setDeletingArea(true);
+  const openPushAll = async (o: CustomObject) => {
+    setPushLoadingId(o.id);
     try {
-      await deleteWorkspaceArea(area.id);
-      navigate('/workspace');
+      const [records, fields] = await Promise.all([
+        fetchAllCustomObjectRecords(o.id),
+        fetchCustomObjectFields(o.id),
+      ]);
+      setPushState({
+        sourceObjectId: o.id,
+        recordIds: records.map((r) => r.id),
+        sourceFields: fields.filter((f) => f.isActive),
+      });
     } finally {
-      setDeletingArea(false);
+      setPushLoadingId(null);
+    }
+  };
+
+  const downloadCsv = async (o: CustomObject) => {
+    setDownloadLoadingId(o.id);
+    try {
+      const [records, fields] = await Promise.all([
+        fetchAllCustomObjectRecords(o.id),
+        fetchCustomObjectFields(o.id),
+      ]);
+      const cols = fields.filter((f) => f.isActive).sort((a, b) => a.order - b.order);
+      const esc = (v: unknown) => {
+        const s = v === null || v === undefined ? '' : String(v);
+        return /[",;\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+      };
+      const lines = [
+        cols.map((f) => esc(f.label)).join(';'),
+        ...records.map((r) => cols.map((f) => esc(r.values?.[f.key])).join(';')),
+      ];
+      const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${o.name}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadLoadingId(null);
+    }
+  };
+
+  // ---- flow map: click-to-focus/dim across source / data / board lanes ----
+  const nodeId = (kind: 'source' | 'data' | 'board', id: string) => `${kind}:${id}`;
+
+  const related = useMemo(() => {
+    if (!focusId) return null;
+    const sep = focusId.indexOf(':');
+    const kind = focusId.slice(0, sep);
+    const id = focusId.slice(sep + 1);
+    const set = new Set<string>([focusId]);
+    if (kind === 'source') {
+      const b = bindings.find((x) => x.id === id);
+      if (b?.targetObjectId) {
+        set.add(nodeId('data', b.targetObjectId));
+        for (const board of boardObjects) {
+          if (linkedDataIds(board).includes(b.targetObjectId)) set.add(nodeId('board', board.id));
+        }
+      }
+    } else if (kind === 'data') {
+      for (const b of bindings) if (b.targetObjectId === id) set.add(nodeId('source', b.id));
+      for (const board of boardObjects) {
+        if (linkedDataIds(board).includes(id)) set.add(nodeId('board', board.id));
+      }
+    } else if (kind === 'board') {
+      const board = boardObjects.find((o) => o.id === id);
+      const linked = board ? linkedDataIds(board) : [];
+      for (const dId of linked) {
+        set.add(nodeId('data', dId));
+        for (const b of bindings) if (b.targetObjectId === dId) set.add(nodeId('source', b.id));
+      }
+    }
+    return set;
+  }, [focusId, bindings, boardObjects]);
+
+  const nodeClass = (id: string, extra = '') => {
+    let cls = `ws-node${extra ? ` ${extra}` : ''}`;
+    if (related) cls += related.has(id) ? ' on' : ' mute';
+    return cls;
+  };
+
+  const onNodeClick = (kind: 'source' | 'data' | 'board', id: string) => {
+    const fid = nodeId(kind, id);
+    if (focusId === fid) {
+      if (kind === 'source') {
+        setIntegrationsOpen(true);
+      } else {
+        const o = objects.find((x) => x.id === id);
+        if (o) openTable(o);
+      }
+      setFocusId(null);
+    } else {
+      setFocusId(fid);
     }
   };
 
@@ -172,297 +371,457 @@ export const WorkspaceAreaHomePage: React.FC = () => {
     );
   }
 
+  const visibleMembers = members.slice(0, 5);
+  const extraMembers = members.length - visibleMembers.length;
+
   return (
     <MainLayout>
-      <div className="w-full max-w-none -mx-3 md:-mx-6 px-0 pb-16">
-        <div className="border-b border-slate-200 bg-white shadow-sm">
-          <div
-            className="h-40 sm:h-48 w-full bg-slate-100 bg-cover bg-center relative"
-            style={{
-              backgroundImage: coverResolved
-                ? `url(${coverResolved})`
-                : 'linear-gradient(135deg,#14532d 0%,#166534 40%,#22c55e 100%)',
-            }}
+      <div className="ws-page max-w-6xl mx-auto">
+        {area && <WsAreaBar areaId={area.id} areaName={area.name} areaIconKey={area.iconKey} />}
+
+        <div className="ws-head">
+          <span className="ws-icon" style={{ background: area?.iconColor || undefined }}>
+            <AreaIcon className="!h-[20px] !w-[20px]" />
+          </span>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <h1>{area?.name}</h1>
+            {area?.description && <div className="desc">{area.description}</div>}
+          </div>
+          <div className="ws-people">
+            {visibleMembers.map((m) => (
+              <span className="a" key={m.id} title={m.staffUser?.fullName || m.staffUser?.email || ''}>
+                {initials(m.staffUser?.fullName, m.staffUser?.email || '?')}
+              </span>
+            ))}
+            {extraMembers > 0 && <span className="more">+{extraMembers}</span>}
+            <button
+              type="button"
+              className="tb-icon-btn"
+              style={{ marginLeft: 10 }}
+              onClick={() => navigate(`/workspace/areas/${areaId}/settings`)}
+            >
+              <NAV_ICON_MAP.settings className="!h-[13px] !w-[13px]" />
+              {t('crm.workspace.areasList.settings')}
+            </button>
+          </div>
+        </div>
+
+        <div className="toolbar">
+          <button type="button" className="btn btn-sm" onClick={() => setIntegrationsOpen(true)}>
+            {t('crm.workspace.area.integrations')}
+          </button>
+          <span className="toolbar-spacer" />
+          <button
+            type="button"
+            onClick={() => navigate(`/workspace/new?workspaceAreaId=${areaId}&finish=table&kind=data`)}
+            className="btn btn-sm"
           >
-            <div className="absolute inset-0 bg-gradient-to-t from-white/90 via-white/15 to-black/10 pointer-events-none" />
-            <div className="absolute top-3 right-3 z-20 flex flex-col items-end gap-1 pointer-events-none">
-              <div className="pointer-events-auto flex flex-col items-end gap-1">
-                <input
-                  id="workspace-area-cover-file"
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/gif"
-                  className="sr-only"
-                  onChange={(e) => void onCoverFile(e)}
-                  disabled={!area || coverUploading}
-                />
-                <label
-                  htmlFor="workspace-area-cover-file"
-                  className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/90 bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-md backdrop-blur transition hover:bg-white ${
-                    !area || coverUploading ? 'pointer-events-none opacity-50' : ''
-                  }`}
-                >
-                  {coverUploading
-                    ? '…'
-                    : area?.coverImageUrl
-                      ? t('crm.workspace.area.coverReplace')
-                      : t('crm.workspace.area.coverUploadButton')}
-                </label>
-                <p
-                  className={`max-w-[220px] text-right text-[10px] leading-tight drop-shadow ${
-                    coverResolved ? 'text-white/95' : 'text-white/90'
-                  }`}
-                >
-                  {t('crm.workspace.area.coverUploadHint')}
-                </p>
-              </div>
+            {t('crm.workspace.area.newDataTable')}
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate(`/workspace/new?workspaceAreaId=${areaId}&finish=table&kind=board`)}
+            className="btn btn-primary btn-sm"
+          >
+            {t('crm.workspace.area.newBoardTable')}
+          </button>
+        </div>
+
+        <div className="ws-map">
+          <div className="ws-lane">
+            <div className="ws-lane-head">
+              <span className="n">01</span>
+              <span className="t">{t('crm.workspace.area.mapSources')}</span>
+              <span className="c">{bindings.length}</span>
+            </div>
+            <div className="ws-lane-body">
+              {bindings.map((b) => {
+                const connected = workspaceBindingHasActiveIntegration(b, connections, marketingRows);
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className={nodeClass(nodeId('source', b.id))}
+                    onClick={() => onNodeClick('source', b.id)}
+                  >
+                    <span className="ico">
+                      <SourceIcon catalogKey={b.catalogKey} className="!h-[13px] !w-[13px]" />
+                    </span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span className="nm">{b.label}</span>
+                    </span>
+                    <span className={`st${connected ? '' : ' warn'}`} />
+                  </button>
+                );
+              })}
+              <button type="button" className="ws-node add" onClick={() => setIntegrationsOpen(true)}>
+                <NavIconPlus className="!h-3.5 !w-3.5" /> {t('crm.workspace.area.mapAddSource')}
+              </button>
             </div>
           </div>
-          <div className="px-4 sm:px-6 lg:px-8 pb-6 -mt-12 sm:-mt-14 relative">
-            <div className="flex flex-wrap items-end gap-4">
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setIconPicker((v) => !v)}
-                  className="flex h-16 w-16 sm:h-[72px] sm:w-[72px] items-center justify-center rounded-2xl text-2xl font-bold text-white shadow-lg ring-4 ring-white"
-                  style={{ backgroundColor: area?.iconColor || '#3b82f6' }}
-                  title={t('crm.workspace.area.iconLabel')}
-                >
-                  <AreaIcon className="!h-9 !w-9 text-white" />
-                </button>
-                {iconPicker && (
-                  <div className="absolute left-0 top-full z-30 mt-2 max-h-48 w-52 overflow-y-auto rounded-xl border border-slate-200 bg-white p-2 shadow-xl">
-                    <div className="grid grid-cols-4 gap-1">
-                      {ICON_KEYS.map((k) => {
-                        const Ic = NAV_ICON_MAP[k];
-                        return (
-                          <button
-                            key={k}
-                            type="button"
-                            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-100 hover:bg-slate-50 text-slate-700"
-                            onClick={() => void setAreaIcon(k)}
-                          >
-                            <Ic className="!h-4 !w-4" />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-              <div className="min-w-0 flex-1 pb-0.5">
-                <input
-                  className="w-full max-w-3xl border-0 border-b border-transparent bg-transparent text-2xl sm:text-3xl font-semibold tracking-tight text-[#222222] outline-none transition hover:border-slate-200 focus:border-slate-300 focus:ring-0"
-                  value={nameDraft}
-                  disabled={!area || savingName}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  onBlur={() => void saveName()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur();
-                    }
-                  }}
-                  placeholder={t('crm.workspace.area.namePlaceholder')}
-                />
-              </div>
-              <div className="flex flex-wrap gap-2 pb-0.5">
-                <button
-                  type="button"
-                  onClick={() => setIntegrationsOpen(true)}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#222222] shadow-sm hover:bg-slate-50"
-                >
-                  {t('crm.workspace.area.integrations')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(`/workspace/new?workspaceAreaId=${areaId}&finish=table&kind=board`)
-                  }
-                  className="btn-primary"
-                >
-                  {t('crm.workspace.area.newBoardTable')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    navigate(`/workspace/new?workspaceAreaId=${areaId}&finish=table&kind=data`)
-                  }
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-[#222222] shadow-sm hover:bg-slate-50"
-                >
-                  {t('crm.workspace.area.newDataTable')}
-                </button>
-                {area && area.slug !== 'main' && (
-                  <button
-                    type="button"
-                    disabled={deletingArea}
-                    onClick={() => void confirmDeleteArea()}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  >
-                    {t('crm.workspace.area.deleteArea')}
-                  </button>
-                )}
-              </div>
-            </div>
 
-            <div className="mt-4">
-              <textarea
-                value={descDraft}
-                onChange={(e) => setDescDraft(e.target.value)}
-                onBlur={() => void saveDescription()}
-                placeholder={t('crm.workspace.area.descriptionPlaceholder')}
-                className="w-full min-h-[88px] rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-sm text-[#222222] placeholder:text-slate-400 outline-none focus:border-slate-300 focus:bg-white"
-              />
+          <div className="ws-arrow">→</div>
+
+          <div className="ws-lane">
+            <div className="ws-lane-head">
+              <span className="n">02</span>
+              <span className="t">{t('crm.workspace.area.mapData')}</span>
+              <span className="c">{dataObjects.length}</span>
+            </div>
+            <div className="ws-lane-body">
+              {dataObjects.map((o) => (
+                <button
+                  key={o.id}
+                  type="button"
+                  className={nodeClass(nodeId('data', o.id))}
+                  onClick={() => onNodeClick('data', o.id)}
+                >
+                  <span className="ico">
+                    <NAV_ICON_MAP.table className="!h-[13px] !w-[13px]" />
+                  </span>
+                  <span style={{ minWidth: 0, flex: 1 }}>
+                    <span className="nm">{o.name}</span>
+                  </span>
+                </button>
+              ))}
+              <button
+                type="button"
+                className="ws-node add"
+                onClick={() => navigate(`/workspace/new?workspaceAreaId=${areaId}&finish=table&kind=data`)}
+              >
+                <NavIconPlus className="!h-3.5 !w-3.5" /> {t('crm.workspace.area.newDataTable')}
+              </button>
+            </div>
+          </div>
+
+          <div className="ws-arrow">→</div>
+
+          <div className="ws-lane">
+            <div className="ws-lane-head">
+              <span className="n">03</span>
+              <span className="t">{t('crm.workspace.area.mapBoards')}</span>
+              <span className="c">{boardObjects.length}</span>
+            </div>
+            <div className="ws-lane-body">
+              {boardObjects.map((o) => {
+                const v = parseEnabledViews(o.meta);
+                return (
+                  <button
+                    key={o.id}
+                    type="button"
+                    className={nodeClass(nodeId('board', o.id), 'board')}
+                    onClick={() => onNodeClick('board', o.id)}
+                  >
+                    <span className="ico">
+                      <NAV_ICON_MAP.table className="!h-[13px] !w-[13px]" />
+                    </span>
+                    <span style={{ minWidth: 0, flex: 1 }}>
+                      <span className="nm">{o.name}</span>
+                      <div className="ws-views">
+                        <span className="ws-view on">{t('crm.workspace.views.table')}</span>
+                        {v.kanban && <span className="ws-view on">{t('crm.workspace.views.kanban')}</span>}
+                        {v.calendar && <span className="ws-view on">{t('crm.workspace.views.calendar')}</span>}
+                        {v.gantt && <span className="ws-view on">{t('crm.workspace.views.gantt')}</span>}
+                        {v.analytics && <span className="ws-view on">{t('crm.workspace.views.analytics')}</span>}
+                      </div>
+                    </span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                className="ws-node add"
+                onClick={() => navigate(`/workspace/new?workspaceAreaId=${areaId}&finish=table&kind=board`)}
+              >
+                <NavIconPlus className="!h-3.5 !w-3.5" /> {t('crm.workspace.area.newBoardTable')}
+              </button>
             </div>
           </div>
         </div>
 
-        <div className="mt-6 px-4 sm:px-6 lg:px-8 flex flex-wrap gap-2 border-b border-slate-200 pb-0">
+        <div className="view-tabs">
           {(
             [
               ['recent', t('crm.workspace.area.tabRecent')],
               ['content', t('crm.workspace.area.tabContent')],
-              ['permissions', t('crm.workspace.area.tabPermissions')],
+              ['sources', t('crm.workspace.area.tabSources')],
+              ['bindings', t('crm.workspace.area.tabBindings')],
+              ['log', t('crm.workspace.area.tabLog')],
             ] as const
           ).map(([k, label]) => (
             <button
               key={k}
               type="button"
               onClick={() => setTab(k)}
-              className={`rounded-t-xl px-4 py-2.5 text-sm font-medium transition ${
-                tab === k
-                  ? 'bg-white text-[#222222] shadow-sm border border-b-0 border-slate-200 -mb-px'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
+              className={`view-tab${tab === k ? ' active' : ''}`}
             >
               {label}
             </button>
           ))}
         </div>
 
-        <div className="mx-4 sm:mx-6 lg:mx-8 rounded-b-2xl rounded-tr-2xl border border-slate-200 border-t-0 bg-white p-6 shadow-sm min-h-[240px]">
-          {tab === 'permissions' && (
-            <div className="space-y-4 max-w-xl">
-              <p className="text-sm text-slate-700">{t('crm.workspace.area.permissionsLead')}</p>
-              <p className="text-sm text-slate-500">{t('crm.workspace.area.permissionsNote')}</p>
-              <Link
-                to="/staff/permissions"
-                className="btn-primary btn-primary-lg"
+        {tab === 'recent' && (
+          <div className="ws-panel">
+            {recentObjects.length === 0 && (
+              <div className="ws-row" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="ws-note">{t('crm.workspace.gantt.empty')}</span>
+              </div>
+            )}
+            {recentObjects.map((o) => (
+              <button
+                key={o.id}
+                type="button"
+                onClick={() => openTable(o)}
+                className="ws-row"
+                style={{ width: '100%', border: 0, borderBottom: '1px solid var(--line-3)', background: 'none', cursor: 'pointer', font: 'inherit' }}
               >
-                {t('crm.workspace.area.permissionsCta')}
-              </Link>
-            </div>
-          )}
-          {tab === 'recent' && (
-            <div className="divide-y divide-slate-100">
-              {recentObjects.length === 0 && (
-                <p className="text-sm text-slate-500 py-6">{t('crm.workspace.gantt.empty')}</p>
+                <div className="ws-cellmain">
+                  <span className="ico">
+                    <NAV_ICON_MAP.table className="!h-[14px] !w-[14px]" />
+                  </span>
+                  <span className="nm">{o.name}</span>
+                </div>
+                <span className="ws-badge">
+                  {getWorkspaceTableKind(o.meta) === 'board' ? t('crm.workspace.kindBadge.shortBoard') : t('crm.workspace.kindBadge.shortData')}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === 'content' && (
+          <div className="ws-panel">
+            {objects.length === 0 && (
+              <div className="ws-row" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="ws-note">{t('crm.workspace.tablesList.empty')}</span>
+              </div>
+            )}
+            {objects.map((o) => {
+              const v = parseEnabledViews(o.meta);
+              const views = [
+                v.table && t('crm.workspace.views.table'),
+                v.kanban && t('crm.workspace.views.kanban'),
+                v.calendar && t('crm.workspace.views.calendar'),
+                v.analytics && t('crm.workspace.views.analytics'),
+                v.gantt && t('crm.workspace.views.gantt'),
+              ]
+                .filter(Boolean)
+                .join(', ');
+              const kind = getWorkspaceTableKind(o.meta);
+              const fedFrom = kind === 'board'
+                ? linkedDataIds(o).map((id) => objects.find((x) => x.id === id)).filter(Boolean) as CustomObject[]
+                : [];
+              const sourcesOf = kind === 'data' ? bindings.filter((b) => b.targetObjectId === o.id) : [];
+              const pushed = pushedCounts[o.id];
+              const readyCount = Math.max(0, (dataRecordCounts[o.id] ?? 0) - (pushed?.count ?? 0));
+              return (
+                <div className="ws-row" key={o.id}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="ws-cellmain">
+                      <span className="ico">
+                        <NAV_ICON_MAP.table className="!h-[14px] !w-[14px]" />
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <button type="button" className="nm" style={{ background: 'none', border: 0, cursor: 'pointer', padding: 0, textAlign: 'left', font: 'inherit', color: 'inherit' }} onClick={() => openTable(o)}>
+                          {o.name}
+                        </button>
+                        <div className="sub">{views || '—'}</div>
+                      </span>
+                    </div>
+                    {fedFrom.length > 0 && (
+                      <div className="ws-chain ws-cellmore">
+                        <span className="lbl">{t('crm.workspace.area.contentFedFrom')}</span>
+                        {fedFrom.map((d) => (
+                          <button key={d.id} type="button" className="it" onClick={() => openTable(d)}>
+                            <NAV_ICON_MAP.table className="!h-[11px] !w-[11px]" />
+                            {d.name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {sourcesOf.length > 0 && (
+                      <div className="ws-chain ws-cellmore">
+                        <span className="lbl">{t('crm.workspace.area.contentSourcesOf')}</span>
+                        {sourcesOf.map((b) => (
+                          <button key={b.id} type="button" className="it" onClick={() => setIntegrationsOpen(true)}>
+                            <SourceIcon catalogKey={b.catalogKey} className="!h-[11px] !w-[11px]" />
+                            {b.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className={`ws-badge${kind === 'board' ? ' board' : ''}`}>
+                    {kind === 'board' ? t('crm.workspace.kindBadge.board') : t('crm.workspace.kindBadge.data')}
+                  </span>
+                  <span className="ws-v">
+                    {new Date(o.createdAt).toLocaleDateString()}
+                    {kind === 'data' && pushed && (
+                      <div className="mono" style={{ marginTop: 2 }}>
+                        {t('crm.workspace.area.contentPushedTo', { name: pushed.boardName, count: pushed.count })}
+                      </div>
+                    )}
+                  </span>
+                  <div className="ws-acts">
+                    {kind === 'data' && (
+                      <>
+                        <button
+                          type="button"
+                          className="tb-icon-btn"
+                          disabled={pushLoadingId === o.id || readyCount === 0}
+                          onClick={() => void openPushAll(o)}
+                        >
+                          {pushLoadingId === o.id
+                            ? '…'
+                            : readyCount > 0
+                              ? t('crm.workspace.area.pushAllButton', { count: readyCount })
+                              : t('crm.workspace.area.contentAllPushed')}
+                        </button>
+                        <button
+                          type="button"
+                          className="tb-icon-btn"
+                          title={t('crm.workspace.area.contentDownloadCsv')}
+                          disabled={downloadLoadingId === o.id}
+                          onClick={() => void downloadCsv(o)}
+                        >
+                          {downloadLoadingId === o.id ? '…' : (
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M12 3v12" />
+                              <path d="M7 11l5 5 5-5" />
+                              <path d="M5 20h14" />
+                            </svg>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === 'sources' && (
+          <div>
+            <div className="ws-panel">
+              {bindings.length === 0 && (
+                <div className="ws-row" style={{ gridTemplateColumns: '1fr' }}>
+                  <span className="ws-note">{t('crm.workspace.area.sourcesEmpty')}</span>
+                </div>
               )}
-              {recentObjects.map((o) => {
-                const Icon =
-                  (o.meta?.workspaceNavIcon &&
-                    NAV_ICON_MAP[o.meta.workspaceNavIcon as NavIconKey]) ||
-                  NAV_ICON_MAP.table;
+              {bindings.map((b) => {
+                const connected = workspaceBindingHasActiveIntegration(b, connections, marketingRows);
+                const target = b.targetObjectId ? objects.find((o) => o.id === b.targetObjectId) : null;
                 return (
-                  <button
-                    key={o.id}
-                    type="button"
-                    onClick={() => openTable(o)}
-                    className="flex w-full items-center gap-3 py-3 text-left hover:bg-slate-50"
-                  >
-                    <Icon className="h-5 w-5 text-slate-500" />
-                    <span className="flex-1 font-medium text-slate-900">{o.name}</span>
-                    <span className="text-slate-400 text-xs">{t('crm.workspace.area.star')}</span>
-                  </button>
+                  <div className="ws-row" key={b.id}>
+                    <div className="ws-cellmain">
+                      <span className="ico">
+                        <SourceIcon catalogKey={b.catalogKey} className="!h-[14px] !w-[14px]" />
+                      </span>
+                      <span style={{ minWidth: 0 }}>
+                        <span className="nm">{b.label}</span>
+                        <div className="sub">
+                          {target
+                            ? t('crm.workspace.area.sourceTarget', { name: target.name })
+                            : t('crm.workspace.area.sourceNoTarget')}
+                        </div>
+                      </span>
+                    </div>
+                    <span className={`ws-badge ${connected ? 'ok' : 'warn'}`}>
+                      <span className="d" />
+                      {connected ? t('crm.workspace.area.sourceConnected') : t('crm.workspace.area.sourceNotConnected')}
+                    </span>
+                    <span className="ws-v mono">{b.catalogKey}</span>
+                    <div className="ws-acts" />
+                  </div>
                 );
               })}
             </div>
-          )}
-          {tab === 'content' && (
-            <div>
-              <p className="text-sm text-slate-600 mb-4">{t('crm.workspace.area.contentSubtitle')}</p>
-              <div className="overflow-x-auto rounded-xl border border-slate-200">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="px-4 py-3">{t('crm.workspace.newTable.name')}</th>
-                      <th className="px-4 py-3">{t('crm.workspace.area.tableKindColumn')}</th>
-                      <th className="px-4 py-3">{t('crm.workspace.views.addView')}</th>
-                      <th className="px-4 py-3">{t('crm.workspace.common.created')}</th>
-                      <th className="px-4 py-3">{t('crm.workspace.area.integrations')}</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {objects.map((o) => {
-                      const v = parseEnabledViews(o.meta);
-                      const views = [
-                        v.table && t('crm.workspace.views.table'),
-                        v.kanban && t('crm.workspace.views.kanban'),
-                        v.calendar && t('crm.workspace.views.calendar'),
-                        v.analytics && t('crm.workspace.views.analytics'),
-                        v.gantt && t('crm.workspace.views.gantt'),
-                      ]
-                        .filter(Boolean)
-                        .join(', ');
-                      return (
-                        <tr key={o.id} className="hover:bg-slate-50/80">
-                          <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={() => openTable(o)}
-                              className="font-medium text-lumiva-accent hover:underline"
-                            >
-                              {o.name}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span
-                              className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-medium ${
-                                getWorkspaceTableKind(o.meta as Record<string, unknown> | null) ===
-                                'board'
-                                  ? 'bg-lumiva-accent text-white'
-                                  : 'bg-surface-subtle text-text-secondary'
-                              }`}
-                            >
-                              {getWorkspaceTableKind(o.meta as Record<string, unknown> | null) ===
-                              'board'
-                                ? t('crm.workspace.kindBadge.board')
-                                : t('crm.workspace.kindBadge.data')}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">{views || '—'}</td>
-                          <td className="px-4 py-3 text-slate-500">
-                            {new Date(o.createdAt).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-3 text-slate-400">—</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {objects.length === 0 && (
-                  <div className="p-8 text-center text-slate-500 text-sm">
-                    {t('crm.workspace.tablesList.empty')}
-                  </div>
-                )}
-              </div>
+            <div style={{ marginTop: 12 }}>
+              <button type="button" className="btn btn-sm" onClick={() => setIntegrationsOpen(true)}>
+                {t('crm.workspace.area.sourcesManage')}
+              </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {bindings.length > 0 && (
-          <div className="mt-6 mx-4 sm:mx-6 lg:mx-8 rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-2">
-              {t('crm.workspace.area.bindingsTitle')}
+        {tab === 'bindings' && (
+          <div className="ws-panel" style={{ overflowX: 'auto' }}>
+            {bindLoading && (
+              <div className="ws-row" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="ws-note">{t('crm.workspace.common.loading')}</span>
+              </div>
+            )}
+            {!bindLoading && (!bindRows || bindRows.length === 0) && (
+              <div className="ws-row" style={{ gridTemplateColumns: '1fr' }}>
+                <span className="ws-note">{t('crm.workspace.area.bindingsEmpty')}</span>
+              </div>
+            )}
+            {!bindLoading && bindRows && bindRows.length > 0 && (
+              <table className="ws-bind">
+                <thead>
+                  <tr>
+                    <th>{t('crm.workspace.area.bindingsTableCol')}</th>
+                    <th>{t('crm.workspace.area.bindingsFieldCol')}</th>
+                    <th>{t('crm.workspace.area.bindingsModeCol')}</th>
+                    <th>{t('crm.workspace.area.bindingsSourceCol')}</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {bindRows.map((r, i) => (
+                    <tr key={`${r.tableId}-${r.fieldKey}-${i}`}>
+                      <td className="col">{r.tableName}</td>
+                      <td>
+                        {r.fieldLabel}
+                        <span className="key"> ({r.fieldKey})</span>
+                      </td>
+                      <td>
+                        <span className="ws-mode">
+                          {r.mode === 'from_pushed_source' && t('crm.workspace.table.columnBindingPushed')}
+                          {r.mode === 'lookup_by_key' && t('crm.workspace.table.columnBindingLookup')}
+                          {r.mode === 'pick_from_data' && t('crm.workspace.table.columnBindingPickFromData')}
+                          {r.mode === 'rollup' && t('crm.workspace.table.columnBindingRollup')}
+                          {r.mode === 'cached_snapshot' && t('crm.workspace.area.bindModeCachedSnapshot')}
+                        </span>
+                      </td>
+                      <td>{r.summary}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="tb-icon-btn"
+                          onClick={() => navigate(`/workspace/${r.tableId}/table`)}
+                        >
+                          {t('crm.workspace.area.bindingsEdit')}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        )}
+
+        {tab === 'log' && (
+          <div className="ws-panel">
+            <div className="ws-log">
+              {logLoading && <div className="ws-log-item"><span className="tx">{t('crm.workspace.common.loading')}</span></div>}
+              {!logLoading && (!logEntries || logEntries.length === 0) && (
+                <div className="ws-log-item"><span className="tx">{t('crm.workspace.area.logEmpty')}</span></div>
+              )}
+              {!logLoading &&
+                logEntries?.map((e) => (
+                  <div className="ws-log-item" key={e.id}>
+                    <span className="ic">{LOG_GLYPH[e.kind] || '•'}</span>
+                    <span className="tx">
+                      <b>{e.title}</b>
+                      {e.detail && <span className="m">{e.detail}</span>}
+                    </span>
+                    <span className="tm">{new Date(e.createdAt).toLocaleString()}</span>
+                  </div>
+                ))}
             </div>
-            <ul className="flex flex-wrap gap-2">
-              {bindings.map((b) => (
-                <li
-                  key={b.id}
-                  className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-700"
-                >
-                  {b.label}
-                </li>
-              ))}
-            </ul>
           </div>
         )}
       </div>
@@ -473,6 +832,22 @@ export const WorkspaceAreaHomePage: React.FC = () => {
           area={area}
           onClose={() => setIntegrationsOpen(false)}
           onSaved={(next) => setArea(next)}
+        />
+      )}
+
+      {pushState && (
+        <PushToBoardModal
+          open
+          onClose={() => setPushState(null)}
+          sourceObjectId={pushState.sourceObjectId}
+          workspaceAreaId={areaId}
+          areaObjects={objects}
+          recordIds={pushState.recordIds}
+          sourceFields={pushState.sourceFields}
+          onSuccess={() => {
+            setPushState(null);
+            void load();
+          }}
         />
       )}
     </MainLayout>

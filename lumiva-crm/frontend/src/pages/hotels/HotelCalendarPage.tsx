@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { HotelPricingCalendar } from './HotelPricingCalendar';
@@ -8,6 +10,7 @@ import { fetchHotels, fetchRoomTypes, type Hotel, type HotelRoomType } from '../
 import './hotels-design.css';
 
 export const HotelCalendarPage: React.FC = () => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [hotelId, setHotelId] = useState('');
@@ -20,7 +23,7 @@ export const HotelCalendarPage: React.FC = () => {
         setHotels(h);
         if (h.length) setHotelId(h[0].id);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить отели', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.calendarPage.error'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -28,19 +31,20 @@ export const HotelCalendarPage: React.FC = () => {
     if (!hotelId) return;
     fetchRoomTypes(hotelId)
       .then(setRoomTypes)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить типы номеров', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.calendarPage.roomTypesError'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotelId]);
 
   return (
     <MainLayout>
+      <PageHelpButton topic="hotelCalendar" />
       <div className="px-scope">
         <HotelsSubnav active="calendar" />
         <div className="htl-hero">
           <div>
-            <div className="kicker"><span className="dot" />КАЛЕНДАРЬ ДОСТУПНОСТИ И ЦЕН</div>
-            <h1>Календарь номеров</h1>
-            <p className="sub">Устанавливайте цену, скидку и стоп-продажи по конкретным датам для каждого типа номера.</p>
+            <div className="kicker"><span className="dot" />{t('crm.hotels.calendarPage.kicker')}</div>
+            <h1>{t('crm.hotels.calendarPage.title')}</h1>
+            <p className="sub">{t('crm.hotels.calendarPage.subtitle')}</p>
           </div>
           <div className="htl-hero-r">
             <select value={hotelId} onChange={(e) => setHotelId(e.target.value)}>
@@ -52,8 +56,8 @@ export const HotelCalendarPage: React.FC = () => {
         </div>
 
         <div className="bk-savedviews" style={{ marginTop: 16 }}>
-          <div className={`bk-sv-tab${tab === 'price' ? ' active' : ''}`} onClick={() => setTab('price')}>Цены и доступность</div>
-          <div className={`bk-sv-tab${tab === 'occupancy' ? ' active' : ''}`} onClick={() => setTab('occupancy')}>Занятость номеров</div>
+          <div className={`bk-sv-tab${tab === 'price' ? ' active' : ''}`} onClick={() => setTab('price')}>{t('crm.hotels.calendarPage.tabPrice')}</div>
+          <div className={`bk-sv-tab${tab === 'occupancy' ? ' active' : ''}`} onClick={() => setTab('occupancy')}>{t('crm.hotels.calendarPage.tabOccupancy')}</div>
         </div>
 
         <div style={{ marginTop: 16 }}>

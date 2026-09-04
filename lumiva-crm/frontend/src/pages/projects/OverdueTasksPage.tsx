@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { fetchProjects } from '../../api/projects';
 import { getLocale } from '../../i18n/utils';
 import type { Project, ProjectTask } from './projectTypes';
@@ -73,6 +74,7 @@ export const OverdueTasksPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="projectsOverdue" />
       <div className="space-y-4 md:space-y-6 pb-8">
         <section className="flex flex-col gap-1">
           <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">

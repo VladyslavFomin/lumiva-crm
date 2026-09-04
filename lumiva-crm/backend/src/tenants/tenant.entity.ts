@@ -82,6 +82,31 @@ export class Tenant {
   notes: string | null;
 
   /**
+   * Реквизиты компании (ИНН/VKN, банковские реквизиты и т.п.) — используются в документах
+   * («Мои документы») как {ORG_TAX}, вводятся один раз в настройках компании.
+   * Устарело: заменено структурированным списком legalRequisites ниже — оставлено как fallback
+   * для тенантов, заполнивших это поле до появления структурированного списка.
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  documentRequisites: string | null;
+
+  /**
+   * Структурированный список реквизитов компании ({ id, type, value }[], см.
+   * src/common/legal-requisites.ts) — заменяет documentRequisites: тип выбирается из
+   * сгруппированного по направлению (СНГ/Турция/Европа/Общие) каталога, значения без текста
+   * не попадают в {ORG_TAX}. При непустом значении имеет приоритет над documentRequisites.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  legalRequisites: { id: string; type: string; value: string }[] | null;
+
+  /**
+   * Ответственный по умолчанию для документов («Мои документы», ключ {MANAGER}) —
+   * подставляется, если пользователь, выпускающий документ, не указан отдельно.
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  documentManagerName: string | null;
+
+  /**
    * Включенные модули для тенента (JSON объект: { "chat": true, "marketing": false, ... })
    */
   @Column({ type: 'jsonb', nullable: true })
@@ -138,6 +163,15 @@ export class Tenant {
   stripeCustomerId: string | null;
 
   /**
+   * Провайдер оплаты тарифа, зафиксированный один раз при первом чекауте (по uiLanguage:
+   * ru→yookassa, tr→iyzico, иначе→stripe; уже платившие через Stripe — принудительно stripe)
+   * и переиспользуемый дальше независимо от последующей смены uiLanguage. Можно переопределить
+   * вручную из pl1. null — ещё не резолвился (тенант ни разу не доходил до чекаута).
+   */
+  @Column({ name: 'payment_provider', type: 'varchar', length: 16, nullable: true })
+  paymentProvider: 'stripe' | 'yookassa' | 'iyzico' | null;
+
+  /**
    * IP-телефония — платный добавок поверх любого тарифа (не входит ни в один план по умолчанию,
    * поэтому НЕ участвует в plan-entitlements/COMPONENT_MIN_PLAN — тот механизм считает "не задано
    * явно" как "разрешено по тарифу", что здесь означало бы бесплатный доступ). Включается либо
@@ -152,6 +186,16 @@ export class Tenant {
   @Column({ type: 'timestamptz', nullable: true })
   onboardingCompletedAt: Date | null;
 
+  /**
+   * Дата окончания 14-дневного бесплатного Enterprise-триала (ставится при self-service
+   * регистрации). Null = тенант никогда не был на триале (создан из pl1 напрямую) либо уже
+   * реально оплатил тариф (billing.service.ts сбрасывает это поле при успешной оплате).
+   * `tenant-trial.scheduler.ts` использует его вместе с `activeUntil`, чтобы после истечения
+   * триала жёстко перевести неоплативший тенант на `free_locked`.
+   */
+  @Column({ name: 'trial_ends_at', type: 'timestamptz', nullable: true })
+  trialEndsAt: Date | null;
+
   /** Set once the "load example data" wizard step has run — makes seeding idempotent. */
   @Column({ type: 'timestamptz', nullable: true })
   sampleDataSeededAt: Date | null;
@@ -160,6 +204,24 @@ export class Tenant {
    * main plan is prepaid one-time Checkout, not a Stripe Subscription, so it never raises this. */
   @Column({ type: 'timestamptz', nullable: true })
   lastPaymentFailedAt: Date | null;
+
+  /**
+   * Кастомный домен клиента (например crm.clientcompany.com), настраивается только из pl1
+   * по запросу клиента — самообслуживания нет. Реальная выдача сертификата и создание
+   * nginx-vhost'а выполняются вручную скриптом `provision-tenant-domain.sh`, который по
+   * завершении переводит статус в active/failed через отдельные platform-эндпоинты.
+   */
+  @Column({ name: 'custom_domain', type: 'varchar', length: 255, nullable: true, unique: true })
+  customDomain: string | null;
+
+  /** none — не настроен, pending — записан в pl1, ждёт ручного провижининга, active — vhost и
+   * сертификат выпущены и подтверждены, failed — провижининг упал (см. customDomainError). */
+  @Column({ name: 'custom_domain_status', type: 'varchar', length: 16, default: 'none' })
+  customDomainStatus: 'none' | 'pending' | 'active' | 'failed';
+
+  /** Причина последней неудачи провижининга (для отображения в pl1), null если не failed. */
+  @Column({ name: 'custom_domain_error', type: 'text', nullable: true })
+  customDomainError: string | null;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

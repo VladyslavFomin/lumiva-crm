@@ -1,6 +1,8 @@
 // src/pages/companies/CompaniesListPage.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { LottieIcon } from '../../components/LottieIcon';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -345,6 +347,7 @@ export const CompaniesListPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="companies" />
       <div
         className="lv-pt w-full pb-8 min-w-0"
         style={{
@@ -416,6 +419,11 @@ export const CompaniesListPage: React.FC = () => {
             className="rounded-[10px] border p-8 text-center"
             style={{ borderColor: 'var(--line-2)', background: 'var(--surface)' }}
           >
+            {!search && (
+              <div className="flex justify-center mb-1">
+                <LottieIcon name="empty-state-folder" size={72} />
+              </div>
+            )}
             <div className="text-[12px] text-[var(--fg-3)]">
               {search ? t('crm.companies.list.notFound') : t('crm.companies.list.empty')}
             </div>

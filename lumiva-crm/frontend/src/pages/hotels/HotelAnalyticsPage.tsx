@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { HotelsSubnav } from './HotelsSubnav';
 import { Ic, HTL_ICON } from './HotelIcons';
@@ -25,6 +27,7 @@ function fmtMoney(v: number, currency: string) {
 }
 
 const PacingLineChart: React.FC<{ buckets: PacingBucket[] }> = ({ buckets }) => {
+  const { t } = useTranslation();
   const width = 640;
   const height = 200;
   if (!buckets.length) return null;
@@ -48,7 +51,7 @@ const PacingLineChart: React.FC<{ buckets: PacingBucket[] }> = ({ buckets }) => 
       {points.map((p, i) => <circle key={i} cx={p.x} cy={p.yActual} r="3.5" fill="#222" />)}
       {buckets.map((b, i) => (
         <text key={i} x={points[i].x} y={height + 18} fontSize="10" fill="#888" textAnchor={i === 0 ? 'start' : i === buckets.length - 1 ? 'end' : 'middle'}>
-          {b.daysBeforeArrival > 0 ? `${b.daysBeforeArrival} дн.` : 'заезд'}
+          {b.daysBeforeArrival > 0 ? t('crm.hotels.analytics.pacing.daysBeforeArrival', { count: b.daysBeforeArrival }) : t('crm.hotels.analytics.pacing.arrival')}
         </text>
       ))}
     </svg>
@@ -60,6 +63,7 @@ const PacingTable: React.FC<{
   editable: boolean;
   onEditTarget: (daysBeforeArrival: number, value: string) => void;
 }> = ({ buckets, editable, onEditTarget }) => {
+  const { t } = useTranslation();
   const [editing, setEditing] = useState<number | null>(null);
   const risk = (actual: number, target: number) => {
     const gap = target - actual;
@@ -71,7 +75,13 @@ const PacingTable: React.FC<{
     <div className="pace-table-wrap">
       <table className="pace-table">
         <thead>
-          <tr><th>До заезда</th><th>Цель, %</th><th>Факт, %</th><th>Отставание</th><th>Нужно продавать / день</th></tr>
+          <tr>
+            <th>{t('crm.hotels.analytics.sellTable.colDays')}</th>
+            <th>{t('crm.hotels.analytics.sellTable.colTarget')}</th>
+            <th>{t('crm.hotels.analytics.sellTable.colActual')}</th>
+            <th>{t('crm.hotels.analytics.sellTable.colGap')}</th>
+            <th>{t('crm.hotels.analytics.sellTable.colNeeded')}</th>
+          </tr>
         </thead>
         <tbody>
           {buckets.map((b) => {
@@ -79,11 +89,11 @@ const PacingTable: React.FC<{
             const needClass = r === 'bad' ? 'high' : r === 'warn' ? 'mid' : 'low';
             return (
               <tr key={b.daysBeforeArrival}>
-                <td>{b.daysBeforeArrival > 0 ? `${b.daysBeforeArrival} дней` : '0 дней'}</td>
+                <td>{b.daysBeforeArrival > 0 ? t('crm.hotels.analytics.sellTable.daysValue', { count: b.daysBeforeArrival }) : t('crm.hotels.analytics.sellTable.zeroDays')}</td>
                 <td
                   className={editable ? 'target-cell' : undefined}
                   onClick={() => editable && setEditing(b.daysBeforeArrival)}
-                  title={editable ? 'Изменить целевой %' : undefined}
+                  title={editable ? t('crm.hotels.analytics.sellTable.editTargetTitle') : undefined}
                 >
                   {editing === b.daysBeforeArrival ? (
                     <input
@@ -98,8 +108,8 @@ const PacingTable: React.FC<{
                   ) : `${b.targetPct}%`}
                 </td>
                 <td>{b.actualPct}%</td>
-                <td><span className={cx('ha-risk-pill', r)}>{b.gapPct > 0 ? `−${b.gapPct}%` : 'в норме'}</span></td>
-                <td className={cx('need', needClass)}>{b.roomsNeededPerDay != null ? `${b.roomsNeededPerDay} ном./день` : '—'}</td>
+                <td><span className={cx('ha-risk-pill', r)}>{b.gapPct > 0 ? `−${b.gapPct}%` : t('crm.hotels.analytics.sellTable.onTrack')}</span></td>
+                <td className={cx('need', needClass)}>{b.roomsNeededPerDay != null ? t('crm.hotels.analytics.sellTable.roomsPerDay', { count: b.roomsNeededPerDay }) : '—'}</td>
               </tr>
             );
           })}
@@ -110,7 +120,10 @@ const PacingTable: React.FC<{
 };
 
 const ArrivalHeatmap: React.FC<{ rows: ArrivalDayRow[] }> = ({ rows }) => {
-  if (!rows.length) return <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>Нет данных за период</div>;
+  const { t, i18n } = useTranslation();
+  const dow = t('crm.hotels.calendarCommon.dow', { returnObjects: true }) as string[];
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
+  if (!rows.length) return <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>{t('crm.hotels.analytics.heatmap.empty')}</div>;
   const firstDow = (new Date(rows[0].date).getDay() + 6) % 7; // Mon=0
   const cells = [...Array(firstDow).fill(null), ...rows];
   const bg: Record<string, string> = { ok: '#eaf6ec', warn: '#fdf3d7', bad: '#fdecea' };
@@ -118,9 +131,9 @@ const ArrivalHeatmap: React.FC<{ rows: ArrivalDayRow[] }> = ({ rows }) => {
   return (
     <>
       <div className="heat-grid">
-        {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d) => <div key={d} className="heat-dow">{d}</div>)}
+        {dow.map((d) => <div key={d} className="heat-dow">{d}</div>)}
         {cells.map((c, i) => c ? (
-          <div key={i} className="heat-cell" style={{ background: bg[c.riskLevel] }} title={`${c.date} — загрузка ${c.occupancyPct}%`}>
+          <div key={i} className="heat-cell" style={{ background: bg[c.riskLevel] }} title={t('crm.hotels.analytics.heatmap.cellTitle', { date: new Date(c.date).toLocaleDateString(dateLocale), pct: c.occupancyPct })}>
             <span className="risk-dot" style={{ background: dot[c.riskLevel] }} />
             <div className="d">{new Date(c.date).getDate()}</div>
             <div className="p">{c.occupancyPct}%</div>
@@ -128,15 +141,16 @@ const ArrivalHeatmap: React.FC<{ rows: ArrivalDayRow[] }> = ({ rows }) => {
         ) : <div key={i} className="heat-cell empty" />)}
       </div>
       <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-        <span className="heat-legend"><i style={{ background: '#eaf6ec' }} />Хорошая загрузка (≥65%)</span>
-        <span className="heat-legend"><i style={{ background: '#fdf3d7' }} />Требует внимания (45–64%)</span>
-        <span className="heat-legend"><i style={{ background: '#fdecea' }} />Риск недозаезда (&lt;45%)</span>
+        <span className="heat-legend"><i style={{ background: '#eaf6ec' }} />{t('crm.hotels.analytics.heatmap.legendGood')}</span>
+        <span className="heat-legend"><i style={{ background: '#fdf3d7' }} />{t('crm.hotels.analytics.heatmap.legendWarn')}</span>
+        <span className="heat-legend"><i style={{ background: '#fdecea' }} />{t('crm.hotels.analytics.heatmap.legendBad')}</span>
       </div>
     </>
   );
 };
 
 export const HotelAnalyticsPage: React.FC = () => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [roomTypesByHotel, setRoomTypesByHotel] = useState<Record<string, HotelRoomType[]>>({});
@@ -154,7 +168,7 @@ export const HotelAnalyticsPage: React.FC = () => {
           .then((pairs) => setRoomTypesByHotel(Object.fromEntries(pairs)))
           .catch(() => {});
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить отели', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.analytics.error'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -174,7 +188,7 @@ export const HotelAnalyticsPage: React.FC = () => {
     if (!hotels.length) return;
     Promise.all([fetchHotelAnalyticsSummary(filters), fetchHotelAnalyticsArrivals(filters)])
       .then(([s, a]) => { setSummary(s); setArrivals(a); })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить аналитику', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.analytics.summaryError'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hotels.length, filters.hotelIds, filters.roomTypeId]);
 
@@ -188,33 +202,33 @@ export const HotelAnalyticsPage: React.FC = () => {
     if (!Number.isFinite(pct) || selectedHotelIds.length !== 1) return;
     updatePacingTargets(selectedHotelIds[0], [{ daysBeforeArrival, targetPct: pct }])
       .then(() => fetchHotelAnalyticsSummary(filters).then(setSummary))
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить цель', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.analytics.saveTargetError'), { variant: 'error' }));
   };
 
   const currency = summary?.kpis.currency || 'USD';
 
   return (
     <MainLayout>
+      <PageHelpButton topic="hotelAnalytics" />
       <div className="px-scope">
         <HotelsSubnav active="analytics" />
         <div className="htl-hero">
           <div>
-            <div className="kicker"><span className="dot" />АНАЛИТИКА</div>
-            <h1>Аналитика загрузки и выручки</h1>
+            <div className="kicker"><span className="dot" />{t('crm.hotels.analytics.kicker')}</div>
+            <h1>{t('crm.hotels.analytics.title')}</h1>
             <p className="sub">
-              Темп продаж (pacing) относительно цели, риски по датам заезда и сколько номеров нужно
-              продавать в день с учётом переноса недопродаж.
+              {t('crm.hotels.analytics.subtitle')}
             </p>
           </div>
           <div className="htl-hero-r">
             <div className="hotel-select-tabs">
-              <div className={cx('hotel-select-tab', selectedHotelIds.length === hotels.length && 'active')} onClick={toggleAll}>Все отели</div>
+              <div className={cx('hotel-select-tab', selectedHotelIds.length === hotels.length && 'active')} onClick={toggleAll}>{t('crm.hotels.analytics.allHotels')}</div>
               {hotels.map((h) => (
                 <div key={h.id} className={cx('hotel-select-tab', selectedHotelIds.includes(h.id) && 'active')} onClick={() => toggleHotel(h.id)}>{h.name}</div>
               ))}
             </div>
             <select value={roomTypeId} onChange={(e) => setRoomTypeId(e.target.value)} style={{ padding: '8px 12px', border: '1px solid var(--line-2)', borderRadius: 9, fontSize: 12.5 }}>
-              <option value="all">Все типы номеров</option>
+              <option value="all">{t('crm.hotels.analytics.allRoomTypes')}</option>
               {roomTypeOptions.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
@@ -224,36 +238,36 @@ export const HotelAnalyticsPage: React.FC = () => {
           <>
             <div className="ha-kpis">
               <div className="ha-kpi">
-                <div className="l">Загрузка сейчас</div>
+                <div className="l">{t('crm.hotels.analytics.kpis.occupancyNow')}</div>
                 <div className="v">{summary.kpis.occupancyNowPct}<small>%</small></div>
               </div>
               <div className="ha-kpi">
-                <div className="l">Свободно номеров</div>
-                <div className="v">{summary.kpis.roomsAvailable}<small>/ {summary.kpis.roomsTotal}</small></div>
+                <div className="l">{t('crm.hotels.analytics.kpis.roomsAvailable')}</div>
+                <div className="v">{summary.kpis.roomsAvailable}<small>{t('crm.hotels.analytics.kpis.roomsAvailableOf', { total: summary.kpis.roomsTotal })}</small></div>
               </div>
               <div className="ha-kpi">
-                <div className="l">Выручка (продано)</div>
+                <div className="l">{t('crm.hotels.analytics.kpis.revenueSold')}</div>
                 <div className="v">{fmtMoney(summary.kpis.revenueSold, currency)}</div>
               </div>
               <div className="ha-kpi">
-                <div className="l">Нужно продавать / день</div>
-                <div className="v">{summary.kpis.roomsNeededPerDay}<small>ном.</small></div>
-                <div className="d down">с учётом переноса недопродаж</div>
+                <div className="l">{t('crm.hotels.analytics.kpis.roomsNeeded')}</div>
+                <div className="v">{summary.kpis.roomsNeededPerDay}<small>{t('crm.hotels.analytics.kpis.roomsNeededUnit')}</small></div>
+                <div className="d down">{t('crm.hotels.analytics.kpis.roomsNeededHint')}</div>
               </div>
             </div>
 
             <div className="ha-section">
               <div className="ha-section-head">
                 <div>
-                  <h3><Ic d={HTL_ICON.calendar} size={15} />Темп продаж (Pacing) vs цель</h3>
-                  <div className="sub">Сплошная линия — фактические продажи, пунктир — целевая кривая.</div>
+                  <h3><Ic d={HTL_ICON.calendar} size={15} />{t('crm.hotels.analytics.pacing.title')}</h3>
+                  <div className="sub">{t('crm.hotels.analytics.pacing.subtitle')}</div>
                 </div>
               </div>
               <div className="pace-chart-wrap">
                 <PacingLineChart buckets={summary.pacing.buckets} />
                 <div className="pace-legend">
-                  <span><i style={{ background: '#222' }} />Факт</span>
-                  <span><i style={{ background: '#b5b5b5', borderTop: '2px dashed #b5b5b5', height: 0 }} />Цель</span>
+                  <span><i style={{ background: '#222' }} />{t('crm.hotels.analytics.pacing.legendActual')}</span>
+                  <span><i style={{ background: '#b5b5b5', borderTop: '2px dashed #b5b5b5', height: 0 }} />{t('crm.hotels.analytics.pacing.legendTarget')}</span>
                 </div>
               </div>
             </div>
@@ -261,10 +275,9 @@ export const HotelAnalyticsPage: React.FC = () => {
             <div className="ha-section">
               <div className="ha-section-head">
                 <div>
-                  <h3><Ic d={HTL_ICON.check} size={15} />Сколько продавать по срокам до заезда</h3>
+                  <h3><Ic d={HTL_ICON.check} size={15} />{t('crm.hotels.analytics.sellTable.title')}</h3>
                   <div className="sub">
-                    Если план не выполнен на каком-то этапе — недостающие номера прибавляются к следующим
-                    дням.{selectedHotelIds.length === 1 && ' Кликните по целевому % чтобы изменить.'}
+                    {t('crm.hotels.analytics.sellTable.subtitle')}{selectedHotelIds.length === 1 && t('crm.hotels.analytics.sellTable.editHint')}
                   </div>
                 </div>
               </div>
@@ -275,8 +288,8 @@ export const HotelAnalyticsPage: React.FC = () => {
               <div className="ha-section" style={{ marginBottom: 0 }}>
                 <div className="ha-section-head">
                   <div>
-                    <h3><Ic d={HTL_ICON.calendar} size={15} />Загрузка по датам заезда</h3>
-                    <div className="sub">Даты с низкой загрузкой требуют промо-тарифов или доп. каналов продаж.</div>
+                    <h3><Ic d={HTL_ICON.calendar} size={15} />{t('crm.hotels.analytics.heatmap.title')}</h3>
+                    <div className="sub">{t('crm.hotels.analytics.heatmap.subtitle')}</div>
                   </div>
                 </div>
                 <ArrivalHeatmap rows={arrivals} />
@@ -284,15 +297,15 @@ export const HotelAnalyticsPage: React.FC = () => {
               <div className="ha-section" style={{ marginBottom: 0 }}>
                 <div className="ha-section-head">
                   <div>
-                    <h3><Ic d={HTL_ICON.chart} size={15} />Выручка сезона</h3>
-                    <div className="sub">План / факт / в брони / остаток</div>
+                    <h3><Ic d={HTL_ICON.chart} size={15} />{t('crm.hotels.analytics.funnel.title')}</h3>
+                    <div className="sub">{t('crm.hotels.analytics.funnel.subtitle')}</div>
                   </div>
                 </div>
                 {[
-                  { label: 'План на сезон', val: summary.funnel.planRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#d9d9d9' },
-                  { label: 'Факт (продано)', val: summary.funnel.actualRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#222' },
-                  { label: 'В брони (не оплачено)', val: summary.funnel.pendingRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#a06b1a' },
-                  { label: 'Осталось продать', val: summary.funnel.remainingRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#c0c8d6' },
+                  { label: t('crm.hotels.analytics.funnel.plan'), val: summary.funnel.planRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#d9d9d9' },
+                  { label: t('crm.hotels.analytics.funnel.actual'), val: summary.funnel.actualRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#222' },
+                  { label: t('crm.hotels.analytics.funnel.pending'), val: summary.funnel.pendingRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#a06b1a' },
+                  { label: t('crm.hotels.analytics.funnel.remaining'), val: summary.funnel.remainingRevenue, max: Math.max(1, summary.funnel.planRevenue, summary.funnel.maxPossibleRevenue), color: '#c0c8d6' },
                 ].map((r) => (
                   <div key={r.label} className="rev-bar-row">
                     <span style={{ color: 'var(--fg-3)' }}>{r.label}</span>
@@ -301,7 +314,7 @@ export const HotelAnalyticsPage: React.FC = () => {
                   </div>
                 ))}
                 <div style={{ marginTop: 14, padding: '12px 14px', background: 'var(--bg-muted)', borderRadius: 10, fontSize: 11.5, color: 'var(--fg-3)', lineHeight: 1.5 }}>
-                  Максимум сезона при 100% загрузке и текущих ценах: <b style={{ color: 'var(--ink)' }}>{fmtMoney(summary.funnel.maxPossibleRevenue, currency)}</b>.
+                  {t('crm.hotels.analytics.funnel.maxHint', { max: fmtMoney(summary.funnel.maxPossibleRevenue, currency) })}
                 </div>
               </div>
             </div>
@@ -309,14 +322,22 @@ export const HotelAnalyticsPage: React.FC = () => {
             <div className="ha-section">
               <div className="ha-section-head">
                 <div>
-                  <h3><Ic d={HTL_ICON.calendar} size={15} />Разбивка по типам номеров</h3>
-                  <div className="sub">Загрузка, средний тариф и выручка по каждой категории номеров.</div>
+                  <h3><Ic d={HTL_ICON.calendar} size={15} />{t('crm.hotels.analytics.roomTypesTable.title')}</h3>
+                  <div className="sub">{t('crm.hotels.analytics.roomTypesTable.subtitle')}</div>
                 </div>
               </div>
               <div className="pace-table-wrap">
                 <table className="pace-table">
                   <thead>
-                    <tr><th>Тип номера</th><th>Всего</th><th>Продано</th><th>Загрузка</th><th>ADR</th><th>Ср. гостей</th><th>Выручка</th></tr>
+                    <tr>
+                      <th>{t('crm.hotels.analytics.roomTypesTable.colType')}</th>
+                      <th>{t('crm.hotels.analytics.roomTypesTable.colTotal')}</th>
+                      <th>{t('crm.hotels.analytics.roomTypesTable.colSold')}</th>
+                      <th>{t('crm.hotels.analytics.roomTypesTable.colOccupancy')}</th>
+                      <th>{t('crm.hotels.analytics.roomTypesTable.colAdr')}</th>
+                      <th>{t('crm.hotels.analytics.roomTypesTable.colAvgGuests')}</th>
+                      <th>{t('crm.hotels.analytics.roomTypesTable.colRevenue')}</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {summary.roomTypes.map((r) => (
@@ -331,7 +352,7 @@ export const HotelAnalyticsPage: React.FC = () => {
                       </tr>
                     ))}
                     {summary.roomTypes.length === 0 && (
-                      <tr><td colSpan={7} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>Нет данных за период</td></tr>
+                      <tr><td colSpan={7} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.hotels.analytics.roomTypesTable.empty')}</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -342,8 +363,8 @@ export const HotelAnalyticsPage: React.FC = () => {
               <div className="ha-section" style={{ marginBottom: 0 }}>
                 <div className="ha-section-head">
                   <div>
-                    <h3><Ic d={HTL_ICON.chart} size={15} />Выручка по рынкам продаж</h3>
-                    <div className="sub">Факт по каждому рынку за период.</div>
+                    <h3><Ic d={HTL_ICON.chart} size={15} />{t('crm.hotels.analytics.markets.title')}</h3>
+                    <div className="sub">{t('crm.hotels.analytics.markets.subtitle')}</div>
                   </div>
                 </div>
                 {summary.markets.map((m) => {
@@ -352,43 +373,49 @@ export const HotelAnalyticsPage: React.FC = () => {
                     <div key={m.market} className="rev-bar-row" style={{ gridTemplateColumns: '160px 1fr 150px' }}>
                       <span style={{ color: 'var(--fg-2)' }}>{m.market}</span>
                       <span className="rev-bar-track"><span className="rev-bar-fill" style={{ width: `${(m.revenueActual / max) * 100}%`, background: '#222' }} /></span>
-                      <span className="rev-bar-val">{fmtMoney(m.revenueActual, currency)} <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>· {m.roomsSold} ном.</span></span>
+                      <span className="rev-bar-val">{fmtMoney(m.revenueActual, currency)} <span style={{ color: 'var(--fg-3)', fontWeight: 400 }}>· {m.roomsSold} {t('crm.hotels.analytics.markets.roomsUnit')}</span></span>
                     </div>
                   );
                 })}
-                {summary.markets.length === 0 && <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>Нет данных за период</div>}
+                {summary.markets.length === 0 && <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>{t('crm.hotels.analytics.markets.empty')}</div>}
               </div>
               <div className="ha-section" style={{ marginBottom: 0 }}>
                 <div className="ha-section-head">
                   <div>
-                    <h3><Ic d={HTL_ICON.check} size={15} />Демография гостей</h3>
-                    <div className="sub">Взрослые, дети и младенцы по бронированиям.</div>
+                    <h3><Ic d={HTL_ICON.check} size={15} />{t('crm.hotels.analytics.guests.title')}</h3>
+                    <div className="sub">{t('crm.hotels.analytics.guests.subtitle')}</div>
                   </div>
                 </div>
                 {summary.guests.dataAvailable ? (
                   <div>
-                    <div className="htl-info-item"><div className="l">Всего гостей</div><div className="v">{summary.guests.adultsCount + summary.guests.childrenCount + summary.guests.infantsCount}</div></div>
+                    <div className="htl-info-item"><div className="l">{t('crm.hotels.analytics.guests.total')}</div><div className="v">{summary.guests.adultsCount + summary.guests.childrenCount + summary.guests.infantsCount}</div></div>
                   </div>
                 ) : (
                   <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5, marginBottom: 12 }}>
-                    Данные о возрасте гостей недоступны — учитывается только общее число гостей на бронь.
+                    {t('crm.hotels.analytics.guests.noData')}
                   </div>
                 )}
-                <div className="htl-info-item"><div className="l">Ср. гостей / бронь</div><div className="v">{summary.guests.avgGuestsPerBooking}</div></div>
+                <div className="htl-info-item"><div className="l">{t('crm.hotels.analytics.guests.avgPerBooking')}</div><div className="v">{summary.guests.avgGuestsPerBooking}</div></div>
               </div>
             </div>
 
             <div className="ha-section">
               <div className="ha-section-head">
                 <div>
-                  <h3><Ic d={HTL_ICON.check} size={15} />Продажи по агентствам и каналам</h3>
-                  <div className="sub">Кто приносит бронирования: туроператоры, OTA и прямые продажи.</div>
+                  <h3><Ic d={HTL_ICON.check} size={15} />{t('crm.hotels.analytics.agencies.title')}</h3>
+                  <div className="sub">{t('crm.hotels.analytics.agencies.subtitle')}</div>
                 </div>
               </div>
               <div className="pace-table-wrap">
                 <table className="pace-table">
                   <thead>
-                    <tr><th>Агентство / канал</th><th>Броней</th><th>Выручка</th><th>Средний тариф</th><th>Доля</th></tr>
+                    <tr>
+                      <th>{t('crm.hotels.analytics.agencies.colAgency')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colBookings')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colRevenue')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colAvgRate')}</th>
+                      <th>{t('crm.hotels.analytics.agencies.colShare')}</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {summary.agencies.map((a) => (
@@ -401,7 +428,7 @@ export const HotelAnalyticsPage: React.FC = () => {
                       </tr>
                     ))}
                     {summary.agencies.length === 0 && (
-                      <tr><td colSpan={5} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>Нет данных за период</td></tr>
+                      <tr><td colSpan={5} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.hotels.analytics.agencies.empty')}</td></tr>
                     )}
                   </tbody>
                 </table>

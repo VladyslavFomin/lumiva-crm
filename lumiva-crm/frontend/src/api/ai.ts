@@ -23,6 +23,7 @@ export interface AiChatResponse {
   usage: { prompt_tokens: number; completion_tokens: number; costCents: number };
   imageUrl?: string | null;
   imageRevisedPrompt?: string | null;
+  usingOwnKey?: boolean;
 }
 
 export interface AiChatSessionDto {
@@ -285,4 +286,38 @@ export interface AiSmartSearchResult {
 
 export async function postAiSmartSearch(query: string): Promise<AiSmartSearchResult> {
   return api.post<AiSmartSearchResult>('/ai/smart-search', { query });
+}
+
+// ── PROJECT TASKS GENERATION ──────────────────────────────────────────────────
+export interface AiGeneratedTask {
+  title: string;
+  priority: 'Высокий' | 'Обычный' | 'Низкий';
+  deadline: string | null;
+}
+
+/** Предложенная кастомная колонка проекта (и значение для неё), сгенерированная из текста запроса. */
+export interface AiGeneratedField {
+  label: string;
+  type: 'text' | 'textarea' | 'number' | 'email' | 'phone' | 'date' | 'datetime' | 'daterange' | 'boolean' | 'select' | 'multiselect' | 'url';
+  options?: string[];
+  /** Если задан — такая колонка уже существует, использовать её key вместо создания новой. */
+  existingKey: string | null;
+  value: string;
+}
+
+export interface AiProjectTasksResult {
+  ok: boolean;
+  tasks?: AiGeneratedTask[];
+  fields?: AiGeneratedField[];
+  /** Пояснение от ИИ, когда tasks и fields намеренно пусты (не ошибка — например, поле уже стандартное). */
+  note?: string;
+  error?: string;
+  message?: string | null;
+}
+
+export async function postAiGenerateProjectTasks(body: {
+  projectName?: string;
+  prompt: string;
+}): Promise<AiProjectTasksResult> {
+  return api.post<AiProjectTasksResult>('/ai/project-tasks', body);
 }

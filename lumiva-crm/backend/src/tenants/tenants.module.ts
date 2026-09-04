@@ -13,6 +13,7 @@ import { TenantsService } from './tenants.service';
 import { TenantsController } from './tenants.controller';
 import { PlatformTenantsController } from './platform-tenants.controller';
 import { TenantLogsService } from './tenant-logs.service';
+import { TenantTrialSchedulerService } from './tenant-trial.scheduler';
 
 import { StaffUsersModule } from '../staff/staff-users.module';
 import { RbacModule } from '../rbac/rbac.module';
@@ -61,6 +62,7 @@ import { CustomObjectRecord } from '../custom-objects/custom-object-record.entit
     TenantLogsService,
     TenantStorageService,
     CompanyFilesService,
+    TenantTrialSchedulerService,
   ],
   controllers: [
     TenantsController,          // обычные ручки для CRM

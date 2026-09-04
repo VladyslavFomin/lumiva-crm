@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { PublicPageLayout } from './PublicPageLayout';
 
 const BASE_URL = 'https://crm.lumiva.agency/v1';
@@ -35,99 +36,98 @@ const Endpoint: React.FC<{
 };
 
 export default function ApiDocsPage() {
+  const { t } = useTranslation();
+  const ad = (key: string) => t(`publicPages.apiDocs.${key}`);
+
   return (
-    <PublicPageLayout pageKey="api" title="Справочник API" subtitle="Реальные, рабочие эндпоинты — без вымышленных примеров.">
+    <PublicPageLayout pageKey="api" title={ad('pageTitle')} subtitle={ad('pageSubtitle')}>
       <div className="space-y-8">
         <section className="rounded-2xl border border-slate-200 bg-white p-5">
-          <h2 className="text-base font-semibold text-slate-900">Авторизация</h2>
+          <h2 className="text-base font-semibold text-slate-900">{ad('auth.title')}</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Все запросы ниже требуют заголовок <code>X-Api-Token</code> с токеном вашей компании.
-            Создать и отозвать токены можно в CRM: Настройки → API-токены.
+            {ad('auth.bodyPrefix')} <code>X-Api-Token</code> {ad('auth.bodySuffix')}
           </p>
           <CodeBlock>{`curl ${BASE_URL}/public/ping \\\n  -H "X-Api-Token: YOUR_TOKEN"`}</CodeBlock>
           <p className="mt-3 text-xs text-slate-500">
-            Лимиты: 20 запросов/сек, 100/10 сек, 400/мин на IP (общий лимит на все API, кроме
-            эндпоинтов из раздела «Проверка соединения» — они не ограничены).
-            Токен можно отозвать в любой момент — уже выданные запросы с отозванным токеном
-            начнут получать 401 сразу.
+            {ad('auth.limitsHint')}
           </p>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">Проверка соединения и данные компании</h2>
-          <Endpoint method="POST" path="/public/ping" title="Проверить токен" description="Возвращает ok:true и tenantId, если токен валиден.">
+          <h2 className="text-base font-semibold text-slate-900">{ad('sections.ping.heading')}</h2>
+          <Endpoint method="POST" path="/public/ping" title={ad('sections.ping.pingTitle')} description={ad('sections.ping.pingDesc')}>
             <CodeBlock>{`{"ok":true,"tenantId":"...","ts":"2026-08-05T12:00:00.000Z"}`}</CodeBlock>
           </Endpoint>
-          <Endpoint method="GET" path="/public/tenant/info" title="Информация о компании" description="Базовые данные тенанта (название, план и т.п.)." />
-          <Endpoint method="GET" path="/public/tenant/modules" title="Включённые модули" description="Какие модули CRM активны для вашей компании." />
+          <Endpoint method="GET" path="/public/tenant/info" title={ad('sections.ping.tenantInfoTitle')} description={ad('sections.ping.tenantInfoDesc')} />
+          <Endpoint method="GET" path="/public/tenant/modules" title={ad('sections.ping.modulesTitle')} description={ad('sections.ping.modulesDesc')} />
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">Лиды</h2>
+          <h2 className="text-base font-semibold text-slate-900">{ad('sections.leads.heading')}</h2>
           <Endpoint
             method="POST"
             path="/public/inbound-lead"
-            title="Создать лид"
-            description="Приём заявок с сайта/форм — создаёт лид со статусом «Новый»."
+            title={ad('sections.leads.createTitle')}
+            description={ad('sections.leads.createDesc')}
           >
             <CodeBlock>{`curl -X POST ${BASE_URL}/public/inbound-lead \\\n  -H "X-Api-Token: YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "name": "Иван Петров",\n    "email": "ivan@example.com",\n    "phone": "+79991112233",\n    "source": "my-website.com",\n    "message": "Интересует бронирование",\n    "company": "ООО Ромашка"\n  }'`}</CodeBlock>
           </Endpoint>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">Товары</h2>
-          <Endpoint method="GET" path="/public/products" title="Список товаров" description="Все активные товары компании, с вариациями." />
+          <h2 className="text-base font-semibold text-slate-900">{ad('sections.products.heading')}</h2>
+          <Endpoint method="GET" path="/public/products" title={ad('sections.products.listTitle')} description={ad('sections.products.listDesc')} />
           <Endpoint
             method="GET"
             path="/public/products/:externalIdOrSku"
-            title="Один товар"
-            description="Найти товар по SKU или externalId."
+            title={ad('sections.products.oneTitle')}
+            description={ad('sections.products.oneDesc')}
           />
           <Endpoint
             method="POST"
             path="/public/products/ingest"
-            title="Создать/обновить товар"
-            description="Сопоставление по sku или externalId — обязательно указать хотя бы одно из полей. Приходит заголовок X-Idempotency-Key — повторный вызов с тем же ключом не создаст дубликат."
+            title={ad('sections.products.ingestTitle')}
+            description={ad('sections.products.ingestDesc')}
           >
             <CodeBlock>{`curl -X POST ${BASE_URL}/public/products/ingest \\\n  -H "X-Api-Token: YOUR_TOKEN" \\\n  -H "X-Idempotency-Key: order-8842" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "sku": "ROOM-STD-01",\n    "name": "Стандартный номер",\n    "price": 4200,\n    "currency": "RUB",\n    "status": "active",\n    "lowStockThreshold": 3\n  }'`}</CodeBlock>
           </Endpoint>
           <Endpoint
             method="PATCH"
             path="/public/products/stock"
-            title="Изменить остаток"
-            description="sku или variantSku + delta (относительное изменение) или absolute (новое значение)."
+            title={ad('sections.products.stockTitle')}
+            description={ad('sections.products.stockDesc')}
           >
             <CodeBlock>{`{"sku": "ROOM-STD-01", "delta": -1}`}</CodeBlock>
           </Endpoint>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">Бронирования</h2>
+          <h2 className="text-base font-semibold text-slate-900">{ad('sections.bookings.heading')}</h2>
           <Endpoint
             method="POST"
             path="/public/bookings/ingest"
-            title="Создать бронирование"
-            description="Для виджета записи на внешнем сайте. locationId, startAt и endAt обязательны."
+            title={ad('sections.bookings.createTitle')}
+            description={ad('sections.bookings.createDesc')}
           >
             <CodeBlock>{`curl -X POST ${BASE_URL}/public/bookings/ingest \\\n  -H "X-Api-Token: YOUR_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "locationId": "...",\n    "serviceId": "...",\n    "startAt": "2026-09-01T10:00:00Z",\n    "endAt": "2026-09-01T11:00:00Z",\n    "participants": 2,\n    "customer": {"name": "Иван Петров", "phone": "+79991112233", "email": "ivan@example.com"}\n  }'`}</CodeBlock>
           </Endpoint>
         </section>
 
         <section className="space-y-3">
-          <h2 className="text-base font-semibold text-slate-900">No-code объекты (Workspace)</h2>
+          <h2 className="text-base font-semibold text-slate-900">{ad('sections.customObjects.heading')}</h2>
           <Endpoint
             method="POST"
             path="/public/custom-objects/:slug/ingest"
-            title="Загрузить записи в пользовательский объект"
-            description="slug — идентификатор объекта, созданного в разделе Workspace. Тело запроса зависит от полей объекта."
+            title={ad('sections.customObjects.ingestTitle')}
+            description={ad('sections.customObjects.ingestDesc')}
           />
         </section>
 
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-          <h2 className="text-sm font-semibold text-amber-900">Известные ограничения</h2>
+          <h2 className="text-sm font-semibold text-amber-900">{ad('limitations.title')}</h2>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-800">
-            <li>Публичного чтения контактов, продаж и сделок пока нет — только создание лидов и работа с товарами/бронированиями.</li>
-            <li>OpenAPI/Swagger-схема существует, но не включена на проде по умолчанию — эта страница является основным источником правды по запросам и телам ответов.</li>
+            <li>{ad('limitations.item1')}</li>
+            <li>{ad('limitations.item2')}</li>
           </ul>
         </section>
       </div>

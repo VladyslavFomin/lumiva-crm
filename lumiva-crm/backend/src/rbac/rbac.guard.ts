@@ -26,74 +26,51 @@ export class RbacGuard implements CanActivate {
     const user = req.user as any;
     if (!user) return false;
 
-    // Новый формат: { resource, action }
-    if (typeof required === 'object' && 'resource' in required && 'action' in required) {
-      // Для нового формата проверяем resource как PermissionKey
-      const resource = required.resource as PermissionKey;
-      
+    // staff_users.id, не users.id — персональные права ключуются тем же id, что фронтенд берёт
+    // из /staff-users (см. CurrentUserPayload.staffUserId). users.id !== staff_users.id для
+    // одного и того же человека, это две разные таблицы со своими UUID.
+    const staffUserId: string | undefined | null = user.staffUserId;
+
+    // Новые модули без явной настройки разрешены всем по умолчанию (fail-open) — см. комментарий
+    // ниже. Но явное индивидуальное разрешение/запрет (панель «Индивидуальные права») должен
+    // побеждать это поведение в обе стороны: если owner намеренно запретил конкретному человеку
+    // доступ к, скажем, 'telephony', это должно реально блокировать, а не потеряться в fail-open.
+    const newModules = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
+
+    const checkOne = async (perm: PermissionKey): Promise<boolean> => {
+      if (user.role === 'owner') return true;
+
+      if (staffUserId) {
+        const override = await this.rbac.getUserOverride(user.tenantId, staffUserId, perm);
+        if (override !== null) return override;
+      }
+
       // Для новых модулей разрешаем доступ по умолчанию
       // 'contacts'/'companies' removed 2026-08-05: verified zero explicit deny-rows exist in
       // production for either key, so enforcing them for real can't lock anyone out today — see
       // [[lumiva_rbac_granularity_normalization]] memory for the audit that confirmed this.
-      const newModules = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
-      if (newModules.includes(resource)) {
-        // Для owner всегда разрешаем
-        if (user.role === 'owner') {
-          return true;
-        }
-        // Проверяем права, но если не найдены - разрешаем доступ (новый модуль еще не настроен)
-        try {
-          const ok = await this.rbac.can(user.tenantId, user.role, resource);
-          // Если права найдены - используем их, если не найдены (false) - разрешаем для новых модулей
-          if (ok) return true;
-          // Если права не найдены (false), но это новый модуль - разрешаем доступ
-          return true; // Для новых модулей разрешаем по умолчанию
-        } catch {
-          // Если ошибка - разрешаем доступ для новых модулей
-          return true;
-        }
+      if (newModules.includes(perm)) {
+        return true;
       }
-      
-      // Для старых модулей проверяем права строго
+
+      // Для старых модулей проверяем строго
       try {
-        const ok = await this.rbac.can(user.tenantId, user.role, resource);
-        return ok;
+        return await this.rbac.can(user.tenantId, user.role, perm);
       } catch {
         return false;
       }
+    };
+
+    // Новый формат: { resource, action }
+    if (typeof required === 'object' && 'resource' in required && 'action' in required) {
+      return checkOne(required.resource as PermissionKey);
     }
 
     // Старый формат: PermissionKey или PermissionKey[]
     const perms = Array.isArray(required) ? required : [required];
-
     for (const perm of perms) {
-      // Для новых модулей разрешаем доступ по умолчанию
-      // 'contacts'/'companies' removed 2026-08-05: verified zero explicit deny-rows exist in
-      // production for either key, so enforcing them for real can't lock anyone out today — see
-      // [[lumiva_rbac_granularity_normalization]] memory for the audit that confirmed this.
-      const newModules = ['tools_automation', 'custom_objects', 'email', 'telegram', 'whatsapp', 'telephony', 'notes'];
-      if (newModules.includes(perm)) {
-        // Для owner всегда разрешаем
-        if (user.role === 'owner') {
-          continue; // Пропускаем проверку для owner
-        }
-        try {
-          const ok = await this.rbac.can(user.tenantId, user.role, perm);
-          // Если права найдены и разрешены - ок, если не найдены - тоже разрешаем (новый модуль)
-          if (ok) continue; // Права найдены и разрешены
-          // Если права не найдены (false), но это новый модуль - разрешаем доступ
-          continue; // Для новых модулей разрешаем по умолчанию
-        } catch {
-          // Если ошибка - разрешаем доступ для новых модулей
-          continue;
-        }
-      }
-      
-      // Для старых модулей проверяем строго
-      const ok = await this.rbac.can(user.tenantId, user.role, perm);
-      if (!ok) return false;
+      if (!(await checkOne(perm))) return false;
     }
-
     return true;
   }
 }

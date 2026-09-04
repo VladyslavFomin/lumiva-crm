@@ -63,193 +63,96 @@ const SetPasswordPage: React.FC = () => {
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "radial-gradient(circle at top, #1f2937 0, #020617 55%)",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        color: "#e5e7eb",
-        fontFamily:
-          "-apple-system,BlinkMacSystemFont,system-ui,Segoe UI,Roboto,sans-serif",
-        padding: "24px",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "420px",
-          background:
-            "linear-gradient(145deg, rgba(15,23,42,0.96), rgba(15,23,42,0.98))",
-          borderRadius: "16px",
-          padding: "28px 26px 26px",
-          boxShadow:
-            "0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(148,163,184,0.12)",
-          backdropFilter: "blur(18px)",
-        }}
-      >
-        <div style={{ marginBottom: "18px" }}>
-          <div
-            style={{
-              fontSize: "13px",
-              letterSpacing: "0.08em",
-              textTransform: "uppercase",
-              color: "#6b7280",
-              marginBottom: "4px",
-            }}
-          >
-            {t("crm.auth.setPassword.brand")}
+    <div className="min-h-screen flex items-center justify-center px-4 py-12 bg-gradient-to-b from-white via-lumiva-bg to-lumiva-bg">
+      <div className="w-full max-w-md">
+        <div className="bg-white border border-slate-200 rounded-3xl shadow-[0_24px_70px_rgba(17,24,39,0.12)] p-6 sm:p-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-1">
+                {t("crm.auth.setPassword.brand")}
+              </div>
+              <div className="text-lg font-semibold text-lumiva-accent">
+                {t("crm.auth.setPassword.title")}
+              </div>
+            </div>
+            <div className="h-10 w-10 rounded-2xl bg-black text-white border border-slate-200 flex items-center justify-center shadow-[0_10px_30px_rgba(17,24,39,0.18)]">
+              <span className="text-xs font-semibold">CRM</span>
+            </div>
           </div>
-          <h1 style={{ fontSize: "24px", fontWeight: 600, marginBottom: "6px" }}>
-            {t("crm.auth.setPassword.title")}
-          </h1>
-          <p style={{ fontSize: "14px", color: "#9ca3af" }}>
+
+          <p className="text-sm text-slate-600 mb-6">
             {t("crm.auth.setPassword.subtitle")}
           </p>
+
+          {!token && (
+            <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+              {t("crm.auth.setPassword.tokenMissing")}
+            </div>
+          )}
+
+          {error && (
+            <div className="mb-4 text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">
+              {error}
+            </div>
+          )}
+
+          {success ? (
+            <div className="text-center text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-3">
+              {t("crm.auth.setPassword.success")}
+              <br />
+              {t("crm.auth.setPassword.redirect")}
+            </div>
+          ) : (
+            <form onSubmit={submit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                  {t("crm.auth.setPassword.password")}
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={t("crm.auth.setPassword.passwordPlaceholder")}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-lumiva-accent placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-lumiva-accent shadow-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1.5">
+                  {t("crm.auth.setPassword.confirm")}
+                </label>
+                <input
+                  type="password"
+                  value={password2}
+                  onChange={(e) => setPassword2(e.target.value)}
+                  placeholder={t("crm.auth.setPassword.confirmPlaceholder")}
+                  className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-lumiva-accent placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 focus:border-lumiva-accent shadow-sm"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading || !token}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-lumiva-accent hover:bg-lumiva-accent-soft transition-all px-3 py-2.5 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(34,34,34,0.18)] hover:-translate-y-[1px] active:translate-y-0 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {loading
+                  ? t("crm.auth.setPassword.saving")
+                  : t("crm.auth.setPassword.submit")}
+              </button>
+
+              <div className="text-center text-[11px] text-slate-500">
+                {t("crm.auth.setPassword.footer")}
+              </div>
+            </form>
+          )}
         </div>
 
-        {!token && (
-          <div
-            style={{
-              marginBottom: "14px",
-              background: "rgba(248,113,113,0.12)",
-              color: "#fecaca",
-              padding: "10px 12px",
-              borderRadius: "10px",
-              fontSize: "13px",
-              border: "1px solid rgba(248,113,113,0.4)",
-            }}
-          >
-            {t("crm.auth.setPassword.tokenMissing")}
-          </div>
-        )}
-
-        {error && (
-          <div
-            style={{
-              marginBottom: "14px",
-              background: "rgba(248,113,113,0.12)",
-              color: "#fecaca",
-              padding: "10px 12px",
-              borderRadius: "10px",
-              fontSize: "13px",
-              border: "1px solid rgba(248,113,113,0.4)",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {success ? (
-          <div
-            style={{
-              background: "rgba(34,197,94,0.12)",
-              color: "#bbf7d0",
-              padding: "12px 14px",
-              borderRadius: "10px",
-              fontSize: "14px",
-              border: "1px solid rgba(34,197,94,0.45)",
-              textAlign: "center",
-            }}
-          >
-            {t("crm.auth.setPassword.success")}
-            <br />
-            {t("crm.auth.setPassword.redirect")}
-          </div>
-        ) : (
-          <form onSubmit={submit}>
-            <label
-              style={{
-                display: "block",
-                marginBottom: "6px",
-                fontSize: "13px",
-                color: "#e5e7eb",
-              }}
-            >
-              {t("crm.auth.setPassword.password")}
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={t("crm.auth.setPassword.passwordPlaceholder")}
-              style={inputStyle}
-            />
-
-            <label
-              style={{
-                display: "block",
-                marginTop: "16px",
-                marginBottom: "6px",
-                fontSize: "13px",
-                color: "#e5e7eb",
-              }}
-            >
-              {t("crm.auth.setPassword.confirm")}
-            </label>
-            <input
-              type="password"
-              value={password2}
-              onChange={(e) => setPassword2(e.target.value)}
-              placeholder={t("crm.auth.setPassword.confirmPlaceholder")}
-              style={inputStyle}
-            />
-
-            <button
-              type="submit"
-              disabled={loading || !token}
-              style={{
-                width: "100%",
-                marginTop: "22px",
-                padding: "11px 14px",
-                borderRadius: "999px",
-                background:
-                  loading || !token
-                    ? "linear-gradient(135deg,#4f46e5aa,#06b6d4aa)"
-                    : "linear-gradient(135deg,#4f46e5,#06b6d4)",
-                border: "none",
-                color: "white",
-                cursor:
-                  loading || !token ? "default" : "pointer",
-                fontSize: "15px",
-                fontWeight: 500,
-                boxShadow: "0 18px 40px rgba(37,99,235,0.45)",
-                transition: "transform 0.12s ease, box-shadow 0.12s ease",
-              }}
-            >
-              {loading
-                ? t("crm.auth.setPassword.saving")
-                : t("crm.auth.setPassword.submit")}
-            </button>
-
-            <div
-              style={{
-                marginTop: "14px",
-                fontSize: "12px",
-                color: "#6b7280",
-                textAlign: "center",
-              }}
-            >
-              {t("crm.auth.setPassword.footer")}
-            </div>
-          </form>
-        )}
+        <div className="mt-4 text-center text-[11px] text-slate-500">
+          © {new Date().getFullYear()} Lumiva
+        </div>
       </div>
     </div>
   );
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "11px 12px",
-  background: "rgba(15,23,42,0.9)",
-  borderRadius: "10px",
-  border: "1px solid rgba(148,163,184,0.55)",
-  color: "#e5e7eb",
-  fontSize: "14px",
-  outline: "none",
-  boxSizing: "border-box",
 };
 
 export default SetPasswordPage;

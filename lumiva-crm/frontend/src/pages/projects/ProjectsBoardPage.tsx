@@ -1,7 +1,12 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
+import { useKanbanSensors } from '../../components/kanban/useKanbanSensors';
+import { kanbanCollisionDetection } from '../../components/kanban/kanbanCollisionDetection';
+import { useHorizontalWheelScroll } from '../../components/kanban/useHorizontalWheelScroll';
 import './ProjectsListPage.css';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import type { Project, ProjectStatus } from './projectTypes';
 import {
   fetchProject,
@@ -17,11 +22,9 @@ import {
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { ProjectsViewsBar } from './ProjectsViewsBar';
-import {
-  filterProjectsForCustomView,
-  loadProjectsViewsState,
-  type ProjectsViewSettings,
-} from './projectsViewsStore';
+import type { ProjectsViewSettings } from './projectsViewSettings';
+import type { ProjectTable } from '../../api/projectTables';
+import { useProjectStatuses } from './useProjectStatuses';
 
 function resolveLocale(lang: string) {
   if (lang.startsWith('tr')) return 'tr-TR';
@@ -29,15 +32,35 @@ function resolveLocale(lang: string) {
   return 'ru-RU';
 }
 
-/** Цвет левой границы карточки по колонке (как в канбане лидов). */
-const PROJECT_STATUS_ACCENT: Record<ProjectStatus, string> = {
-  Новый: '#3b82f6',
-  'В работе': '#22c55e',
-  'На проверке': '#f59e0b',
-  Заморожен: '#64748b',
-  Закрыт: '#6b7280',
-  Выиграно: '#10b981',
-  Проиграно: '#ef4444',
+const DraggableProjectCard: React.FC<{
+  id: string;
+  className?: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}> = ({ id, className, onClick, children }) => {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  // The floating DragOverlay (rendered separately, see ProjectsBoardPage) provides the visual
+  // feedback while dragging — the source card just steps out of the way. Transforming the
+  // source in place (the previous approach) is the wrong dnd-kit pattern for a card that moves
+  // between different droppable containers: its DOM parent changes on drop (unmount from the
+  // old column, mount in the new one), and the in-place transform resetting to identity at that
+  // exact moment could visually read as "snapping back" to the old column for a frame even
+  // though the underlying status change had already succeeded.
+  const style: React.CSSProperties = { opacity: isDragging ? 0.35 : undefined };
+  return (
+    <div ref={setNodeRef} style={style} className={className} onClick={onClick} {...listeners} {...attributes}>
+      {children}
+    </div>
+  );
+};
+
+const DroppableProjectColumn: React.FC<{ id: string; className?: string; children: React.ReactNode }> = ({ id, className, children }) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`${className || ''}${isOver ? ' over' : ''}`}>
+      {children}
+    </div>
+  );
 };
 
 export const ProjectsBoardPage: React.FC = () => {
@@ -61,18 +84,18 @@ export const ProjectsBoardPage: React.FC = () => {
   const [activeViewSettings, setActiveViewSettings] = useState<ProjectsViewSettings>({
     kanbanCardFields: ['amount', 'created', 'progress', 'tags'],
   });
+  const [resolvedTables, setResolvedTables] = useState<ProjectTable[]>([]);
 
   const navigate = useNavigate();
-  const activeViewId = searchParams.get('view');
-  const activeCustomView = useMemo(() => {
-    if (!activeViewId) return null;
-    return loadProjectsViewsState().customViews.find((v) => v.id === activeViewId) ?? null;
-  }, [activeViewId]);
-
-  const visibleProjects = useMemo(
-    () => filterProjectsForCustomView(projects, activeCustomView),
-    [projects, activeCustomView],
+  const tableIdParam = searchParams.get('table');
+  const defaultTable = useMemo(
+    () => resolvedTables.find((tbl) => tbl.slug === 'main') || null,
+    [resolvedTables],
   );
+  const activeTableId = tableIdParam || defaultTable?.id || '';
+
+  // Данные каждой таблицы уже изолированы на бэкенде (?tableId=), клиентской фильтрации не нужно.
+  const visibleProjects = projects;
 
   const suggestedKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -93,17 +116,11 @@ export const ProjectsBoardPage: React.FC = () => {
     }),
     [t],
   );
+  const { statuses: statusDefs, colorFor: statusColorFor, reload: reloadStatuses } = useProjectStatuses();
   const statuses = useMemo(
-    (): { id: ProjectStatus; title: string }[] => [
-      { id: 'Новый', title: statusLabels.Новый },
-      { id: 'В работе', title: statusLabels['В работе'] },
-      { id: 'На проверке', title: statusLabels['На проверке'] },
-      { id: 'Заморожен', title: statusLabels.Заморожен },
-      { id: 'Закрыт', title: statusLabels.Закрыт },
-      { id: 'Выиграно', title: statusLabels.Выиграно },
-      { id: 'Проиграно', title: statusLabels.Проиграно },
-    ],
-    [statusLabels],
+    (): { id: ProjectStatus; title: string }[] =>
+      statusDefs.map((s) => ({ id: s.value, title: statusLabels[s.value] ?? s.value })),
+    [statusDefs, statusLabels],
   );
   const formatAmount = (amount: number, currency?: string) => {
     const formatted = new Intl.NumberFormat(locale).format(amount);
@@ -115,18 +132,21 @@ export const ProjectsBoardPage: React.FC = () => {
   };
 
   const createProject = () => {
-    const q = activeViewId ? `?view=${encodeURIComponent(activeViewId)}` : '';
+    const q = activeTableId ? `?table=${encodeURIComponent(activeTableId)}` : '';
     navigate(`/projects/new${q}`);
   };
   const openProject = (id: string) => navigate(`/projects/${id}`);
-  const openView = (type: 'table' | 'kanban' | 'calendar', viewId?: string) => {
+  const openType = (type: 'table' | 'kanban' | 'calendar') => {
     const basePath =
       type === 'table'
         ? '/projects'
         : type === 'kanban'
           ? '/projects/board'
           : '/projects/calendar';
-    navigate(viewId ? `${basePath}?view=${viewId}` : basePath);
+    navigate(activeTableId ? `${basePath}?table=${activeTableId}` : basePath);
+  };
+  const changeTable = (tableId: string) => {
+    navigate(`/projects/board?table=${tableId}`);
   };
 
   useEffect(() => {
@@ -134,7 +154,7 @@ export const ProjectsBoardPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    fetchProjects()
+    fetchProjects({ tableId: tableIdParam ?? undefined })
       .then(async (res) => {
         if (!alive) return;
         setProjects(res.items);
@@ -168,7 +188,7 @@ export const ProjectsBoardPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [tableIdParam]);
 
   useEffect(() => {
     let alive = true;
@@ -198,30 +218,88 @@ export const ProjectsBoardPage: React.FC = () => {
 
   const activeCustomFields = customFields.filter((field) => field.isActive);
 
+  const formatCustomFieldPreviewValue = (field: CustomField, raw: unknown): string | null => {
+    if (raw === null || raw === undefined || raw === '') return null;
+    if (field.type === 'boolean') {
+      return raw === true || raw === 'true'
+        ? t('crm.projects.board.boolean.yes')
+        : t('crm.projects.board.boolean.no');
+    }
+    if (field.type === 'select') {
+      const opt = field.options?.find((o) => o.value === String(raw));
+      return opt?.label ?? String(raw);
+    }
+    if (field.type === 'multiselect') {
+      const arr = Array.isArray(raw) ? raw : [raw];
+      return arr
+        .map((v) => field.options?.find((o) => o.value === String(v))?.label ?? String(v))
+        .join(', ');
+    }
+    if (field.type === 'daterange' && typeof raw === 'object') {
+      const rv = raw as { start?: string; end?: string | null };
+      const fmt = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(locale);
+      if (rv.start && rv.end) return `${fmt(rv.start)} – ${fmt(rv.end)}`;
+      if (rv.start) return `${t('crm.projects.list.datePicker.from', 'с')} ${fmt(rv.start)}`;
+      return null;
+    }
+    if (field.type === 'date') {
+      return new Date(`${raw}T00:00:00`).toLocaleDateString(locale);
+    }
+    if (field.type === 'datetime') {
+      return new Date(String(raw)).toLocaleString(locale);
+    }
+    if (Array.isArray(raw)) return raw.join(', ');
+    if (typeof raw === 'object') return null;
+    return String(raw);
+  };
+
   const renderCustomPreview = (project: Project) => {
     if (!activeCustomFields.length) return null;
-    const rows = activeCustomFields
+    const textFields = activeCustomFields.filter((field) => field.type !== 'url');
+    const urlFields = activeCustomFields.filter((field) => field.type === 'url');
+
+    const rows = textFields
       .map((field) => {
-        const raw = project.customFields?.[field.key];
-        if (raw === null || raw === undefined || raw === '') return null;
-        const display = Array.isArray(raw)
-          ? raw.join(', ')
-          : typeof raw === 'boolean'
-            ? raw
-              ? t('crm.projects.board.boolean.yes')
-              : t('crm.projects.board.boolean.no')
-            : String(raw);
+        const display = formatCustomFieldPreviewValue(field, project.customFields?.[field.key]);
+        if (display === null) return null;
         return `${field.label}: ${display}`;
       })
       .filter(Boolean)
       .slice(0, 2);
-    if (!rows.length) return null;
+
+    const links = urlFields
+      .map((field) => {
+        const raw = project.customFields?.[field.key];
+        return raw ? { label: field.label, url: String(raw) } : null;
+      })
+      .filter((x): x is { label: string; url: string } => x !== null)
+      .slice(0, 2);
+
+    if (!rows.length && !links.length) return null;
     return (
-      <div className="mt-2 space-y-0.5">
+      <div className="kb-chips">
         {rows.map((row, idx) => (
-          <div key={idx} className="text-[10px] text-slate-500 truncate">
+          <span key={`t-${idx}`} className="kb-chip">
             {row}
-          </div>
+          </span>
+        ))}
+        {links.map((link, idx) => (
+          <a
+            key={`l-${idx}`}
+            href={link.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="kb-chip kb-chip-link"
+            title={link.url}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M14 3h7v7" />
+              <path d="M10 14L21 3" />
+              <path d="M21 14v6a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1h6" />
+            </svg>
+            {link.label}
+          </a>
         ))}
       </div>
     );
@@ -275,16 +353,24 @@ export const ProjectsBoardPage: React.FC = () => {
     return 'Обычный';
   };
 
+  const suppressCardClickRef = useRef(false);
+  const kanbanSensors = useKanbanSensors();
+  const { ref: boardScrollRef } = useHorizontalWheelScroll<HTMLDivElement>();
+  const activeDragProject = useMemo(() => projects.find((p) => p.id === dragProjectId) ?? null, [projects, dragProjectId]);
+
   const handleDragStart = (id: string) => {
     setDragProjectId(id);
   };
 
-  const handleDropTo = async (status: ProjectStatus) => {
-    if (!dragProjectId) return;
-
-    const id = dragProjectId;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over, delta } = event;
     setDragProjectId(null);
+    if (delta.x !== 0 || delta.y !== 0) suppressCardClickRef.current = true;
+    if (!over) return;
+    handleDropTo(String(active.id), over.id as ProjectStatus);
+  };
 
+  const handleDropTo = async (id: string, status: ProjectStatus) => {
     // оптимистичное обновление
     setProjects((prev) =>
       prev.map((p) => (p.id === id ? { ...p, status } : p)),
@@ -301,7 +387,7 @@ export const ProjectsBoardPage: React.FC = () => {
       console.error(e);
       setError(e.message || t('crm.projects.errors.statusUpdateFailed'));
       // перезагрузить с сервера
-      fetchProjects()
+      fetchProjects({ tableId: tableIdParam ?? undefined })
         .then((res) => setProjects(res.items))
         .catch((err) => console.error(err));
     } finally {
@@ -346,7 +432,10 @@ export const ProjectsBoardPage: React.FC = () => {
       },
     };
     try {
-      const updated = await updateProject(next);
+      // Quick-edit only ever touches amount/owner/priority — never send its (possibly stale,
+      // captured-at-render) `status` snapshot along, or it can silently undo a status change
+      // made via drag on the same card moments earlier (out-of-order response race).
+      const updated = await updateProject(next, { excludeStatus: true });
       setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, ...updated } : p)));
       setEditingProjectId(null);
       setEditDraft(null);
@@ -358,8 +447,9 @@ export const ProjectsBoardPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="projects" />
       <div
-        className="lv-pt w-full pb-8 min-w-0 space-y-5"
+        className="lv-pt lv-kb w-full pb-8 min-w-0 space-y-5"
         style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24, width: 'calc(100% + 48px)' }}
       >
         <div className="lv-pt-head">
@@ -390,9 +480,11 @@ export const ProjectsBoardPage: React.FC = () => {
 
         <ProjectsViewsBar
           currentType="kanban"
-          activeViewId={activeViewId}
-          onOpenView={openView}
+          activeTableId={activeTableId}
+          onOpenType={openType}
+          onTableChange={changeTable}
           onSettingsChange={setActiveViewSettings}
+          onTablesChange={setResolvedTables}
           projectCount={visibleProjects.length}
         />
 
@@ -409,46 +501,39 @@ export const ProjectsBoardPage: React.FC = () => {
         )}
 
         {!loading && (
-          <div className="flex gap-3 overflow-x-auto pb-1">
+          <DndContext sensors={kanbanSensors} collisionDetection={kanbanCollisionDetection} onDragStart={(e) => handleDragStart(String(e.active.id))} onDragEnd={handleDragEnd}>
+          <div className="kb-board" ref={boardScrollRef}>
             {statuses.map((col) => {
               const columnProjects = projectsByStatus(col.id);
-              const columnAccent = PROJECT_STATUS_ACCENT[col.id] ?? '#3b82f6';
+              const columnAccent = statusColorFor(col.id);
               return (
-                <div
-                  key={col.id}
-                  className="flex-1 min-w-[260px] max-w-xs bg-white border border-slate-200 rounded-3xl p-3 flex flex-col"
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDropTo(col.id)}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="text-xs text-slate-700 font-semibold">
-                      {col.title}
-                    </div>
-                    <div className="text-[10px] text-slate-500">
-                      {columnProjects.length}
+                <DroppableProjectColumn key={col.id} id={col.id} className="kb-col">
+                  <div className="kb-col-head">
+                    <div className="kb-col-titlerow">
+                      <span className="kb-dot" style={{ background: columnAccent }} />
+                      <span className="kb-col-title">{col.title}</span>
+                      <span className="kb-count">{columnProjects.length}</span>
                     </div>
                   </div>
 
-                  <div className="flex-1 space-y-2 overflow-y-auto">
+                  <div className="kb-list">
                     {columnProjects.map((project) => {
                       const percent = progressValue(project);
                       const color = progressColor(percent);
                       const priority = projectPriority(project);
                       return (
-                      <div
+                      <DraggableProjectCard
                         key={project.id}
-                        draggable
-                        onDragStart={() => handleDragStart(project.id)}
-                        onClick={() => openProject(project.id)}
-                        className={
-                          'group relative cursor-move rounded-2xl bg-white border border-slate-200 px-3 py-2 text-xs text-slate-800 hover:border-slate-300 hover:bg-slate-50 transition-colors ' +
-                          (changing === project.id ? 'opacity-60' : '')
-                        }
-                        style={{ borderLeftWidth: 4, borderLeftColor: columnAccent }}
+                        id={project.id}
+                        onClick={() => {
+                          if (suppressCardClickRef.current) { suppressCardClickRef.current = false; return; }
+                          openProject(project.id);
+                        }}
+                        className={`group kb-card${dragProjectId === project.id ? ' dragging' : ''}`}
                       >
-                        <div className="flex items-start justify-between mb-1 gap-2">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <div className="font-medium truncate">
+                        <div className="kb-card-top">
+                          <div className="flex min-w-0 items-center gap-1.5" style={{ flex: 1 }}>
+                            <div className="kb-name truncate">
                               {project.name}
                             </div>
                             <button
@@ -460,27 +545,25 @@ export const ProjectsBoardPage: React.FC = () => {
                               ✎
                             </button>
                           </div>
-                          <div className="text-[10px] text-slate-500 whitespace-nowrap">
+                          <span className="kb-id">
                             #{project.id.slice(0, 8)}
-                          </div>
+                          </span>
                         </div>
 
                         {(cardFields.includes('amount') || cardFields.includes('created')) && (
-                          <div className="flex items-center justify-between mb-1">
+                          <div className="kb-val">
                             {cardFields.includes('amount') ? (
-                              <span className="text-[11px] text-slate-600">
-                                {formatAmount(project.amount, project.currency)}
-                              </span>
+                              <span className="n" style={{ fontSize: 13 }}>{formatAmount(project.amount, project.currency)}</span>
                             ) : (
                               <span />
                             )}
                             {cardFields.includes('created') && (
-                              <span className="text-[10px] text-slate-500">{project.createdAt}</span>
+                              <span className="age">{project.createdAt}</span>
                             )}
                           </div>
                         )}
                         {cardFields.includes('progress') && (
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2" style={{ marginTop: 9 }}>
                             <div className="flex-1 h-1.5 rounded-full bg-surface-active overflow-hidden">
                               <div
                                 className="h-full rounded-full transition-all"
@@ -493,24 +576,24 @@ export const ProjectsBoardPage: React.FC = () => {
                           </div>
                         )}
                         {(cardFields.includes('tags') || cardFields.includes('priority') || cardFields.includes('owner') || cardFields.includes('deadline')) && (
-                          <div className="flex flex-wrap gap-1 mt-1">
+                          <div className="kb-chips">
                             {cardFields.includes('owner') && project.owner && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                              <span className="kb-chip">
                                 {project.owner}
                               </span>
                             )}
                             {cardFields.includes('priority') && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                              <span className="kb-chip">
                                 {priority}
                               </span>
                             )}
                             {cardFields.includes('deadline') && nearestDeadline(project) && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                              <span className="kb-chip">
                                 {nearestDeadline(project)}
                               </span>
                             )}
                             {cardFields.includes('tags') && project.category && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-700">
+                              <span className="kb-chip">
                                 {project.category}
                               </span>
                             )}
@@ -518,7 +601,7 @@ export const ProjectsBoardPage: React.FC = () => {
                               project.tags.map((tag) => (
                                 <span
                                   key={tag}
-                                  className="text-[9px] px-1.5 py-0.5 rounded-full bg-lumiva-accent-soft/10 text-lumiva-accent"
+                                  className="kb-chip"
                                 >
                                   #{tag}
                                 </span>
@@ -623,20 +706,39 @@ export const ProjectsBoardPage: React.FC = () => {
                           </div>
                         )}
                         {renderCustomPreview(project)}
-                      </div>
+                      </DraggableProjectCard>
                     );
                     })}
 
                     {columnProjects.length === 0 && (
-                      <div className="text-[11px] text-slate-500 italic px-1 py-2">
+                      <div className="kb-empty">
                         {t('crm.projects.board.empty')}
                       </div>
                     )}
                   </div>
-                </div>
+                </DroppableProjectColumn>
               );
             })}
           </div>
+          <DragOverlay>
+            {/* DragOverlay portals to document.body, outside the .lv-kb scope its CSS classes rely on — re-establish it here (a real DOM ancestor, not just a class on the same node). */}
+            {activeDragProject ? (
+              <div className="lv-kb">
+                <div className="kb-card" style={{ cursor: 'grabbing', width: 268, boxShadow: '0 12px 28px rgba(16,24,40,.18)' }}>
+                  <div className="kb-card-top">
+                    <div className="kb-name truncate">{activeDragProject.name}</div>
+                  </div>
+                  {activeDragProject.amount > 0 && (
+                    <div className="kb-val">
+                      <span className="n">{new Intl.NumberFormat(locale).format(activeDragProject.amount)}</span>
+                      {activeDragProject.currency && <span className="c">{activeDragProject.currency}</span>}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
+          </DndContext>
         )}
         {customFieldsOpen && (
           <CustomFieldsManager

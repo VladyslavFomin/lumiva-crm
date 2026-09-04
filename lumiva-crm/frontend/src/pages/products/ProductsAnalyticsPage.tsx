@@ -16,6 +16,7 @@ import {
   YAxis,
 } from 'recharts';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { ProductsSubnav } from './ProductsSubnav';
 import {
@@ -140,6 +141,7 @@ export const ProductsAnalyticsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="productsAnalytics" />
       <div className="px-scope">
         <div className="px-head">
           <div>

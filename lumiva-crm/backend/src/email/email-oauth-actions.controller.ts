@@ -43,7 +43,7 @@ export class EmailOAuthActionsController {
     const url = await this.oauth.buildGoogleAuthUrl({
       tenantId,
       userId: this.uid(user),
-      redirect: (body.redirect || '/app/email/accounts').trim(),
+      redirect: (body.redirect || '/app/email').trim(),
       provider: 'gmail',
     });
     return { url };
@@ -60,7 +60,7 @@ export class EmailOAuthActionsController {
     const url = await this.oauth.buildMicrosoftAuthUrl({
       tenantId,
       userId: this.uid(user),
-      redirect: (body.redirect || '/app/email/accounts').trim(),
+      redirect: (body.redirect || '/app/email').trim(),
       provider: 'outlook',
     });
     return { url };

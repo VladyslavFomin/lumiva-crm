@@ -14,6 +14,8 @@ import {
 } from '@nestjs/common';
 
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
+import { RbacGuard } from '../../rbac/rbac.guard';
+import { RequirePermission } from '../../rbac/require-permission.decorator';
 import {
   CurrentUser,
   type CurrentUserPayload,
@@ -27,7 +29,8 @@ import { CreateCcpTxnDto } from './dto/create-txn.dto';
 import { CreateCcpTransferDto } from './dto/create-transfer.dto';
 import { CreateCcpClientDto } from './dto/create-client.dto';
 
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
+@RequirePermission('client_accounts', 'read')
 @Controller('ccp') // ✅ БЕЗ /v1, потому что setGlobalPrefix('v1') уже есть
 export class CcpController {
   constructor(private readonly ccp: CcpService) {}

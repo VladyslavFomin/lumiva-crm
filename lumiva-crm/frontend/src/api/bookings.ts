@@ -469,7 +469,7 @@ export const reassignStaffBookings = (dto: {
   toStaffUserId: string | null;
   fromDate: string;
   toDate: string;
-}) => api.post<{ reassignedCount: number }>('/bookings/availability/reassign', dto);
+}) => api.post<{ reassignedCount: number; skippedCount: number }>('/bookings/availability/reassign', dto);
 
 /* ---------- logs ---------- */
 

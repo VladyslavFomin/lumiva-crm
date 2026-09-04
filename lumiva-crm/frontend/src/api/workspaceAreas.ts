@@ -1,6 +1,8 @@
 import { api } from './client';
 import type { IntegrationConnectionDto } from './integrations';
 import type { MarketingIntegrationRow } from './marketing';
+import type { WorkspaceAreaMember, WorkspaceAreaRole } from '../workspace/workspaceAreaRole';
+import type { WorkspaceAreaActivityKind } from '../workspace/workspaceAreaActivityLog';
 
 export interface WorkspaceArea {
   id: string;
@@ -17,8 +19,23 @@ export interface WorkspaceArea {
   updatedAt: string;
 }
 
-export async function fetchWorkspaceAreas() {
-  return api.get<WorkspaceArea[]>('/workspace-areas');
+export async function fetchWorkspaceAreas(includeArchived = false) {
+  return api.get<WorkspaceArea[]>(
+    `/workspace-areas${includeArchived ? '?includeArchived=1' : ''}`,
+  );
+}
+
+export interface WorkspaceAreaSummary {
+  tableCount: number;
+  boardCount: number;
+  dataCount: number;
+  recordCount: number;
+  memberCount: number;
+  sourceCount: number;
+}
+
+export async function fetchWorkspaceAreaSummary(id: string) {
+  return api.get<WorkspaceAreaSummary>(`/workspace-areas/${id}/summary`);
 }
 
 export async function fetchWorkspaceArea(id: string) {
@@ -63,6 +80,47 @@ export async function uploadWorkspaceAreaCover(areaId: string, file: File) {
   return api.postForm<WorkspaceArea>(`/workspace-areas/${areaId}/cover`, fd);
 }
 
+export async function fetchWorkspaceAreaMembers(areaId: string) {
+  return api.get<WorkspaceAreaMember[]>(`/workspace-areas/${areaId}/members`);
+}
+
+export async function addWorkspaceAreaMember(
+  areaId: string,
+  payload: { staffUserId?: string; email?: string; role: WorkspaceAreaRole },
+) {
+  return api.post<WorkspaceAreaMember>(`/workspace-areas/${areaId}/members`, payload);
+}
+
+export async function updateWorkspaceAreaMemberRole(
+  areaId: string,
+  memberId: string,
+  role: WorkspaceAreaRole,
+) {
+  return api.patch<WorkspaceAreaMember>(`/workspace-areas/${areaId}/members/${memberId}`, { role });
+}
+
+export async function removeWorkspaceAreaMember(areaId: string, memberId: string) {
+  return api.delete<{ ok: boolean }>(`/workspace-areas/${areaId}/members/${memberId}`);
+}
+
+export interface WorkspaceAreaActivityLogEntryDto {
+  id: string;
+  tenantId: string;
+  workspaceAreaId: string;
+  kind: WorkspaceAreaActivityKind;
+  title: string;
+  detail: string | null;
+  relatedObjectId: string | null;
+  actorUserId: string | null;
+  createdAt: string;
+}
+
+export async function fetchWorkspaceAreaActivityLog(areaId: string, limit = 50) {
+  return api.get<WorkspaceAreaActivityLogEntryDto[]>(
+    `/workspace-areas/${areaId}/activity-log?limit=${limit}`,
+  );
+}
+
 export type WorkspaceIntegrationBinding = {
   id: string;
   catalogKey: string;
@@ -70,6 +128,8 @@ export type WorkspaceIntegrationBinding = {
   connectionId?: string | null;
   /** Подключение из раздела «Маркетинг» (Meta Ads, GA4 и т.д.) */
   marketingIntegrationId?: string | null;
+  /** Таблица данных области, в которую этот источник пишет строки — для карты области. */
+  targetObjectId?: string | null;
 };
 
 export function readWorkspaceIntegrationBindings(
@@ -84,6 +144,7 @@ export function readWorkspaceIntegrationBindings(
       label: String((x as any).label || ''),
       connectionId: (x as any).connectionId ?? null,
       marketingIntegrationId: (x as any).marketingIntegrationId ?? null,
+      targetObjectId: (x as any).targetObjectId ?? null,
     }))
     .filter((b) => Boolean(b.catalogKey));
 }

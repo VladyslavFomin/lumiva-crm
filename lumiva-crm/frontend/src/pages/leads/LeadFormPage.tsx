@@ -1,25 +1,31 @@
 // src/pages/leads/LeadFormPage.tsx
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { AiLeadScoreCard } from '../../components/ai/AiLeadScoreCard';
 import { AiEnrichPanel } from '../../components/ai/AiEnrichPanel';
 import { AiNextActionCard } from '../../components/ai/AiNextActionCard';
 import { AiOutreachEmailCard } from '../../components/ai/AiOutreachEmailCard';
 import { CalendarEntryModal } from '../../components/CalendarEntryModal';
-import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/email';
+import { fetchEmailAccounts, fetchEmailMessages, sendEmail, type EmailAccount, type EmailMessage } from '../../api/email';
+import { readMeetings, type LeadMeeting } from './LeadsCalendarPage';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton, InlineHelpButton } from '../../components/help/PageHelpButton';
 import { useTranslation } from 'react-i18next';
 import { deleteLead } from '../../api/leads';
+import { isForbiddenError } from '../../api/client';
 import {
   fetchLeadById,
   createLead,
   updateLead,
   fetchLeadHistory,
-  addLeadComment,
+  convertLead,
 } from '../../api/leads';
-import type { Lead, LeadStatus, LeadActivity } from '../../api/leads';
+import type { Lead, LeadStatus, LeadActivity, LeadComment } from '../../api/leads';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { getStoredUser } from '../../auth/session';
+import { usePermission } from '../../hooks/usePermission';
+import { splitTextWithMentions, isTextMentioning } from '../projects/mentions';
 import { ccpApi, type CcpClient, type CcpSite } from '../../api/ccp';
 import { fetchCompanies, createCompany, type Company } from '../../api/companies';
 import { createContact } from '../../api/contacts';
@@ -30,6 +36,8 @@ import {
   type CustomField,
 } from '../../api/custom-fields';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
+import { JiraIssueLinkPanel } from '../../components/integrations/JiraIssueLinkPanel';
+import { ExternalLinksPanel } from '../../components/integrations/ExternalLinksPanel';
 import {
   fetchProjects,
   fetchProjectActivities,
@@ -83,14 +91,74 @@ function createEmptyLead(): Lead {
     assignedUserIds: [],
     assignedToList: [],
     meta: {},
+    amount: 0,
+    currency: 'TRY',
+    tasks: [],
+    comments: [],
+    commentsCount: 0,
     createdAt: now,
     updatedAt: now,
+    myAccessTier: 'owner',
+    canViewAnalytics: true,
+    canEdit: true,
+    canDelete: true,
+    canReassign: true,
   } as Lead;
+}
+
+function CollapsibleCard({
+  title,
+  right,
+  defaultOpen = true,
+  children,
+}: {
+  title: React.ReactNode;
+  right?: React.ReactNode;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div style={{ border: `1px solid #e7e7e7`, borderRadius: 12, padding: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: open ? 12 : 0 }}>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', padding: 0, cursor: 'pointer', minWidth: 0 }}
+        >
+          <svg
+            width={12}
+            height={12}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ color: '#888', flexShrink: 0, transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}
+          >
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+          <span style={{ fontFamily: 'inherit', fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {title}
+          </span>
+        </button>
+        {right}
+      </div>
+      {open && children}
+    </div>
+  );
 }
 
 export const LeadFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const isNew = !id || id === 'new';
+  // Гейт на само поле «Сумма» действует только при редактировании — на создании (leads_create
+  // уже проверен бэкендом на POST /leads) сумму указывает кто угодно, кто может создать лид.
+  // Хук вызывается безусловно (иначе после создания лид-страница переходит из isNew=true в
+  // isNew=false без ремонта, и React ловит несовпадение числа хуков между рендерами).
+  const canEditAmountPermission = usePermission('leads_edit_amount');
+  const canEditAmount = isNew || canEditAmountPermission;
 
   const { t, i18n } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
@@ -108,6 +176,7 @@ export const LeadFormPage: React.FC = () => {
   const [customFieldsLoading, setCustomFieldsLoading] = useState(false);
   const [customFieldsError, setCustomFieldsError] = useState<string | null>(null);
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
   const suggestedKeys = useMemo(() => {
     const keys = new Set<string>();
     Object.keys(lead.customFields ?? {}).forEach((key) => keys.add(key));
@@ -132,6 +201,22 @@ export const LeadFormPage: React.FC = () => {
   const [projectActivities, setProjectActivities] = useState<ProjectActivity[]>([]);
   const [projectActivitiesLoading, setProjectActivitiesLoading] = useState(false);
   const [projectActivitiesError, setProjectActivitiesError] = useState<string | null>(null);
+  const [leadEmails, setLeadEmails] = useState<EmailMessage[]>([]);
+  const [leadEmailsLoading, setLeadEmailsLoading] = useState(false);
+  const [leadEmailsError, setLeadEmailsError] = useState<string | null>(null);
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
+
+  // Комментарии лида (упоминания/лайки/ответы — как у проектов)
+  const [comments, setComments] = useState<LeadComment[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const lastCommentsSnapshotRef = useRef<string>('');
+  const leadRef = useRef<Lead>(lead);
+  useEffect(() => {
+    leadRef.current = lead;
+  }, [lead]);
 
   const [ccpClient, setCcpClient] = useState<CcpClient | null>(null);
   const [ccpClientLoading, setCcpClientLoading] = useState(false);
@@ -162,6 +247,15 @@ export const LeadFormPage: React.FC = () => {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loadingCompanies, setLoadingCompanies] = useState(false);
 
+  // Модальное окно конвертации лида в клиента (Contact + Company)
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
+  const [convertBusy, setConvertBusy] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+  const [convertPosition, setConvertPosition] = useState('');
+  const [convertCity, setConvertCity] = useState('');
+  const [convertCompanyName, setConvertCompanyName] = useState('');
+  const [convertMarkWon, setConvertMarkWon] = useState(false);
+
   const handleApplyEnrich = useCallback((field: string, value: string) => {
     setLead(prev => ({ ...prev, [field]: value }));
   }, []);
@@ -187,6 +281,13 @@ export const LeadFormPage: React.FC = () => {
   }, 3500);
 };
 
+  /** A widget's own fetch (custom fields, WooCommerce orders, project history, …) 403ing must not
+   * surface NestJS's raw "Forbidden resource" — swap in a friendly message pointing at the
+   * assignee instead, same intent as MainLayout's route-level fix but for sections that keep
+   * loading independently after the page itself has already mounted. */
+  const friendlyErr = (e: unknown, fallback: string): string =>
+    isForbiddenError(e) ? t('crm.errors.inlineForbidden') : ((e as Error)?.message || fallback);
+
   const statusLabels = useMemo(
     () => ({
       'Новый клиент': t('crm.leads.statusValues.new'),
@@ -198,25 +299,35 @@ export const LeadFormPage: React.FC = () => {
     [t],
   );
 
-  /** Лид из Woo / из заказа: по source, каналу или meta. */
-  const isWooRelatedLead = useMemo(() => {
-    const meta = lead.meta as Record<string, unknown> | undefined;
-    if (meta?.fromSaleId) return true;
-    if (meta?.saleExternalOrderNo || meta?.saleExternalId) return true;
-    const norm = (s: string) => s.trim().toLowerCase();
-    const src = norm(String(lead.source ?? ''));
-    const ch = norm(String(lead.channel ?? ''));
-    if (src === 'woocommerce' || ch === 'woocommerce') return true;
-    if (ch.includes('woocommerce') || src.includes('woocommerce')) return true;
-    return false;
-  }, [lead.source, lead.channel, lead.meta]);
+  // Показываем блок, только если у лида реально ЕСТЬ заказы — не по признакам "похож на Woo" и,
+  // тем более, не когда загрузка провалилась (раньше ошибка загрузки — например 403 у того, кому
+  // не выдан доступ к "Продажам" — сама по себе делала блок видимым, показывая текст ошибки;
+  // получалось, что чем меньше прав, тем чаще блок появлялся). Тот же принцип, что и у соседнего
+  // блока "Информация о бронировании" чуть ниже.
+  const showLeadSalesSection = !isNew && leadSales.length > 0;
 
-  const showLeadSalesSection =
-    !isNew &&
-    (isWooRelatedLead ||
-      leadSales.length > 0 ||
-      leadSalesLoading ||
-      Boolean(leadSalesError));
+  // Отбрасываем битые записи (не объект / без текста) — чтобы поломанные данные
+  // не роняли всю страницу при рендере, а просто не показывались.
+  const sanitizeComments = (raw: unknown): LeadComment[] => {
+    if (!Array.isArray(raw)) return [];
+    return raw.filter(
+      (c): c is LeadComment =>
+        !!c && typeof c === 'object' && !Array.isArray(c) && typeof (c as LeadComment).id === 'string' && typeof (c as LeadComment).text === 'string',
+    );
+  };
+
+  const emailPreviewText = (msg: EmailMessage): string => {
+    if (msg.textBody && msg.textBody.trim()) return msg.textBody.trim();
+    if (msg.htmlBody) {
+      return msg.htmlBody
+        .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    return '';
+  };
 
   const getActivityLabel = (a: LeadActivity): string => {
     switch (a.type) {
@@ -303,6 +414,29 @@ export const LeadFormPage: React.FC = () => {
     });
     return rows;
   }, [history, projectActivities]);
+
+  const leadMeetings = useMemo(() => readMeetings(lead), [lead]);
+  const sortedLeadMeetings = useMemo(
+    () => [...leadMeetings].sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime()),
+    [leadMeetings],
+  );
+  const sortedLeadEmails = useMemo(() => {
+    const leadEmailNorm = (lead.email || '').trim().toLowerCase();
+    // leadId на письме означает лишь "связано с этим лидом" (например, внутреннее уведомление
+    // сотруднику о смене статуса) — в "Переписку" должны попадать только письма, реально
+    // адресованные лиду или полученные от него, а не всё подряд с этим leadId.
+    const relevant = leadEmailNorm
+      ? leadEmails.filter((msg) => {
+          if (msg.direction === 'incoming') {
+            return (msg.from || '').trim().toLowerCase() === leadEmailNorm;
+          }
+          return [...(msg.to || []), ...(msg.cc || [])].some(
+            (addr) => (addr || '').trim().toLowerCase() === leadEmailNorm,
+          );
+        })
+      : leadEmails;
+    return [...relevant].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [leadEmails, lead.email]);
 
   const hasUtmCaptured = useMemo(() => {
     return [
@@ -498,7 +632,7 @@ export const LeadFormPage: React.FC = () => {
       .catch((e) => {
         if (!alive) return;
         console.error(e);
-        setCustomFieldsError(e.message || t('crm.leads.form.fields.customFieldsLoading'));
+        setCustomFieldsError(friendlyErr(e, t('crm.leads.form.fields.customFieldsLoading')));
       })
       .finally(() => {
         if (!alive) return;
@@ -548,6 +682,8 @@ export const LeadFormPage: React.FC = () => {
       setLoading(false);
       setHistory([]);
       setHistoryError(null);
+      setComments([]);
+      lastCommentsSnapshotRef.current = '';
     } else {
       setLoading(true);
 
@@ -555,11 +691,14 @@ export const LeadFormPage: React.FC = () => {
         .then((data) => {
           if (!alive) return;
           setLead(data);
+          const cleanComments = sanitizeComments(data.comments);
+          setComments(cleanComments);
+          lastCommentsSnapshotRef.current = JSON.stringify(cleanComments);
         })
         .catch((e) => {
           console.error(e);
           if (!alive) return;
-          setError(e.message || t('crm.leads.form.errors.loadLead'));
+          setError(friendlyErr(e, t('crm.leads.form.errors.loadLead')));
         })
         .finally(() => {
           if (!alive) return;
@@ -578,7 +717,7 @@ export const LeadFormPage: React.FC = () => {
           console.error('Ошибка загрузки истории лида', e);
           if (!alive) return;
           setHistory([]);
-          setHistoryError(e.message || t('crm.leads.form.errors.historyLoad'));
+          setHistoryError(friendlyErr(e, t('crm.leads.form.errors.historyLoad')));
         })
         .finally(() => {
           if (!alive) return;
@@ -622,12 +761,43 @@ export const LeadFormPage: React.FC = () => {
         if (!alive) return;
         setLeadProjects([]);
         setLeadProjectsError(
-          e.message || t('crm.leads.form.errors.projectsLoad'),
+          friendlyErr(e, t('crm.leads.form.errors.projectsLoad')),
         );
       })
       .finally(() => {
         if (!alive) return;
         setLeadProjectsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, isNew, t]);
+
+  // Переписка по лиду: и отправленные, и полученные письма (связка идёт по leadId на бэкенде)
+  useEffect(() => {
+    if (isNew || !id) {
+      setLeadEmails([]);
+      setLeadEmailsError(null);
+      setLeadEmailsLoading(false);
+      return;
+    }
+    let alive = true;
+    setLeadEmailsLoading(true);
+    setLeadEmailsError(null);
+    fetchEmailMessages({ leadId: id, limit: 100 })
+      .then((res) => {
+        if (!alive) return;
+        setLeadEmails(res.items);
+      })
+      .catch((e) => {
+        console.error('Ошибка загрузки переписки лида', e);
+        if (!alive) return;
+        setLeadEmails([]);
+        setLeadEmailsError(friendlyErr(e, t('crm.leads.form.errors.emailsLoad')));
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLeadEmailsLoading(false);
       });
     return () => {
       alive = false;
@@ -655,7 +825,7 @@ export const LeadFormPage: React.FC = () => {
         if (!alive) return;
         setLeadSales([]);
         setLeadSalesError(
-          (e as Error).message || t('crm.leads.form.errors.salesLoad'),
+          friendlyErr(e, t('crm.leads.form.errors.salesLoad')),
         );
       })
       .finally(() => {
@@ -753,7 +923,7 @@ export const LeadFormPage: React.FC = () => {
         if (!alive) return;
         setProjectActivities([]);
         setProjectActivitiesError(
-          e.message || t('crm.leads.form.errors.projectHistoryLoad'),
+          friendlyErr(e, t('crm.leads.form.errors.projectHistoryLoad')),
         );
       })
       .finally(() => {
@@ -786,6 +956,45 @@ export const LeadFormPage: React.FC = () => {
   const handleStatusChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const value = e.target.value as LeadStatus;
     setLead((prev) => ({ ...prev, status: value }));
+    if (value === 'Закрыт (успех)' && !isNew && !lead.contactId) {
+      handleOpenConvert(true);
+    }
+  };
+
+  const handleOpenConvert = (markWon: boolean) => {
+    setConvertError(null);
+    setConvertPosition('');
+    setConvertCity('');
+    setConvertCompanyName('');
+    setConvertMarkWon(markWon);
+    setConvertModalOpen(true);
+  };
+
+  const handleConvertSave = async () => {
+    if (!id || isNew) return;
+    setConvertBusy(true);
+    setConvertError(null);
+    try {
+      const result = await convertLead(id, {
+        position: convertPosition.trim() || undefined,
+        city: convertCity.trim() || undefined,
+        companyName: convertCompanyName.trim() || undefined,
+        markWon: convertMarkWon,
+      });
+      setLead((prev) => ({
+        ...prev,
+        contactId: result.lead.contactId,
+        companyId: result.lead.companyId,
+        status: result.lead.status,
+      }));
+      showSuccess(t('crm.leads.form.messages.leadConverted'));
+      setConvertModalOpen(false);
+    } catch (e: any) {
+      console.error(e);
+      setConvertError(friendlyErr(e, t('crm.leads.form.errors.convertLead')));
+    } finally {
+      setConvertBusy(false);
+    }
   };
 
   const leadAssignableStaff = useMemo(
@@ -859,6 +1068,51 @@ export const LeadFormPage: React.FC = () => {
     });
   };
 
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number(e.target.value);
+    setLead((prev) => ({ ...prev, amount: Number.isFinite(value) ? value : 0 }));
+  };
+
+  const handleCurrencyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setLead((prev) => ({ ...prev, currency: value }));
+  };
+
+  const addLeadTask = () => {
+    const title = newTaskTitle.trim();
+    if (!title) return;
+    setLead((prev) => ({
+      ...prev,
+      tasks: [...prev.tasks, { id: crypto.randomUUID(), title, done: false, deadline: null }],
+    }));
+    setNewTaskTitle('');
+  };
+
+  const toggleLeadTask = (taskId: string) => {
+    setLead((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, done: !t.done } : t)),
+    }));
+  };
+
+  const updateLeadTaskTitle = (taskId: string, title: string) => {
+    setLead((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, title } : t)),
+    }));
+  };
+
+  const updateLeadTaskDeadline = (taskId: string, deadline: string) => {
+    setLead((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) => (t.id === taskId ? { ...t, deadline: deadline || null } : t)),
+    }));
+  };
+
+  const removeLeadTask = (taskId: string) => {
+    setLead((prev) => ({ ...prev, tasks: prev.tasks.filter((t) => t.id !== taskId) }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
@@ -881,6 +1135,9 @@ export const LeadFormPage: React.FC = () => {
           companyId: lead.companyId ?? undefined,
           customFields: lead.customFields ?? {},
           meta: lead.meta ?? {},
+          amount: lead.amount,
+          currency: lead.currency,
+          tasks: lead.tasks,
         });
         setLead(saved);
         showSuccess(t('crm.leads.form.messages.leadCreated'));
@@ -901,6 +1158,9 @@ export const LeadFormPage: React.FC = () => {
           companyId: lead.companyId ?? undefined,
           customFields: lead.customFields ?? {},
           meta: lead.meta ?? {},
+          amount: lead.amount,
+          currency: lead.currency,
+          tasks: lead.tasks,
         });
         setLead(saved);
         showSuccess(t('crm.leads.form.messages.leadSaved'));
@@ -922,7 +1182,7 @@ export const LeadFormPage: React.FC = () => {
       }
     } catch (e: any) {
       console.error(e);
-      setError(e.message || t('crm.leads.form.errors.saveLead'));
+      setError(friendlyErr(e, t('crm.leads.form.errors.saveLead')));
     } finally {
       setSaving(false);
     }
@@ -965,7 +1225,7 @@ export const LeadFormPage: React.FC = () => {
       showSuccess(t('crm.leads.form.messages.contactCreated'));
     } catch (e: any) {
       console.error(e);
-      setError(e.message || t('crm.leads.form.errors.createContact'));
+      setError(friendlyErr(e, t('crm.leads.form.errors.createContact')));
     }
   };
 
@@ -1026,7 +1286,7 @@ export const LeadFormPage: React.FC = () => {
       setCompanySize('');
     } catch (e: any) {
       console.error(e);
-      setCompanyError(e.message || t('crm.companies.form.errors.createFailed'));
+      setCompanyError(friendlyErr(e, t('crm.companies.form.errors.createFailed')));
     } finally {
       setCompanyBusy(false);
     }
@@ -1135,27 +1395,111 @@ export const LeadFormPage: React.FC = () => {
   }
   };
 
-  const handleSendComment = async () => {
-    if (!id || isNew) {
-      showAlert(t('crm.leads.form.alerts.commentRequiresSave'), {
-        variant: 'info',
-      });
-      return;
+  // ── Комментарии: упоминания, лайки, ответы (как в карточке проекта) ──────
+  const commentUser = useMemo(() => getStoredUser(), []);
+  const currentStaffForComments = useMemo(
+    () => staff.find((u) => u.id === commentUser?.id || u.email === commentUser?.email),
+    [staff, commentUser],
+  );
+  const normalizeCommentUser = (value?: string | null) =>
+    (value ?? '').toString().trim().toLowerCase();
+  const currentCommentLabels = useMemo(
+    () =>
+      [commentUser?.name, commentUser?.email, currentStaffForComments?.fullName]
+        .filter(Boolean)
+        .map((v) => normalizeCommentUser(v as string)),
+    [commentUser, currentStaffForComments],
+  );
+  const extractMentions = useCallback((text: string) => {
+    const matches = text.matchAll(/@([\p{L}\p{N}._-]+)/gu);
+    const result: string[] = [];
+    for (const match of matches) {
+      if (match[1]) result.push(match[1]);
     }
-    const text = newComment.trim();
-    if (!text) return;
+    return result;
+  }, []);
+  const renderMentions = (text: string) =>
+    splitTextWithMentions(text, staff).map((part, idx) =>
+      part.mention ? (
+        <span key={`m-${idx}`} style={{ color: '#0284c7', fontWeight: 500 }}>
+          {part.text}
+        </span>
+      ) : (
+        <span key={`t-${idx}`}>{part.text}</span>
+      ),
+    );
+  const isMentioned = useCallback(
+    (text: string) => isTextMentioning(text, currentCommentLabels),
+    [currentCommentLabels],
+  );
 
-    try {
-      await addLeadComment(id, text);
-      setNewComment('');
-      const items = await fetchLeadHistory(id);
-      setHistory(items ?? []);
-      showSuccess(t('crm.leads.form.messages.commentAdded'));
-    } catch (e: any) {
-      console.error(e);
-      setHistoryError(e.message || t('crm.leads.form.errors.commentFailed'));
-    }
+  const addComment = () => {
+    if (!newComment.trim()) return;
+    const mentions = extractMentions(newComment.trim());
+    const c: LeadComment = {
+      id: `cm${Date.now()}`,
+      author: currentStaffForComments?.fullName || commentUser?.name || commentUser?.email || t('crm.projects.detail.fallbacks.user'),
+      createdAt: new Date().toLocaleString(locale),
+      text: newComment.trim(),
+      mentions,
+    };
+    setComments((prev) => [c, ...prev]);
+    setNewComment('');
   };
+
+  const addReply = (parentId: string) => {
+    if (!replyText.trim()) return;
+    const mentions = extractMentions(replyText.trim());
+    const c: LeadComment = {
+      id: `cm${Date.now()}`,
+      author: currentStaffForComments?.fullName || commentUser?.name || commentUser?.email || t('crm.projects.detail.fallbacks.user'),
+      createdAt: new Date().toLocaleString(locale),
+      text: replyText.trim(),
+      mentions,
+      parentId,
+    };
+    setComments((prev) => [...prev, c]);
+    setReplyText('');
+    setReplyingToId(null);
+  };
+
+  const toggleCommentLike = (commentId: string) => {
+    const me = currentStaffForComments?.id || commentUser?.id || commentUser?.email;
+    if (!me) return;
+    setComments((prev) =>
+      prev.map((c) => {
+        if (c.id !== commentId) return c;
+        const likedBy = c.likedBy || [];
+        return {
+          ...c,
+          likedBy: likedBy.includes(me)
+            ? likedBy.filter((uid) => uid !== me)
+            : [...likedBy, me],
+        };
+      }),
+    );
+  };
+
+  // Автосохранение комментариев (новый/ответ/лайк) — независимо от общего сохранения лида
+  useEffect(() => {
+    if (isNew || loading) return;
+    const snapshot = JSON.stringify(comments);
+    if (snapshot === lastCommentsSnapshotRef.current) return;
+    const timer = window.setTimeout(() => {
+      lastCommentsSnapshotRef.current = snapshot;
+      if (!leadRef.current.id || leadRef.current.id === 'new') return;
+      updateLead(leadRef.current.id, { comments })
+        .then((saved) => {
+          const nextComments = Array.isArray(saved.comments) ? sanitizeComments(saved.comments) : comments;
+          lastCommentsSnapshotRef.current = JSON.stringify(nextComments);
+          setComments(nextComments);
+        })
+        .catch((e: any) => {
+          console.error(e);
+        });
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [comments, isNew, loading]);
 
   // ── calendar entry modal ────────────────────────────────────────
   const [calendarModal, setCalendarModal] = useState<'meeting' | 'note' | null>(null);
@@ -1184,7 +1528,7 @@ export const LeadFormPage: React.FC = () => {
       await sendEmail({ accountId: emailAccountId, to: [emailTo.trim()], subject: emailSubject.trim() || undefined, textBody: emailBody.trim() || undefined, leadId: isNew ? undefined : id });
       setEmailOpen(false); setEmailTo(''); setEmailSubject(''); setEmailBody('');
       showSuccess(t('crm.leads.form.email.sent'));
-    } catch (e: any) { setEmailError(e.message || t('crm.leads.form.email.errorSend')); }
+    } catch (e: any) { setEmailError(friendlyErr(e, t('crm.leads.form.email.errorSend'))); }
     finally { setEmailSending(false); }
   };
 
@@ -1213,6 +1557,7 @@ export const LeadFormPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="leadCard" />
       {/* toasts */}
       {successMessage && (
         <div className="fixed top-4 right-4 z-[9999] flex items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 py-2.5 text-xs text-emerald-700 shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
@@ -1246,16 +1591,23 @@ export const LeadFormPage: React.FC = () => {
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               {!isNew && (
                 <>
+                  {!lead.contactId && (
+                    <button type="button" onClick={() => handleOpenConvert(false)} className="btn-secondary">{t('crm.leads.form.actions.convertToClient')}</button>
+                  )}
                   <button type="button" onClick={handleCreateCompany} className="btn-secondary">{t('crm.leads.form.actions.addCompany')}</button>
                   <button type="button" onClick={handleCreateAccount} className="btn-secondary">{t('crm.leads.form.actions.addAccount')}</button>
-                  <button type="button" onClick={handleDeleteLead} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">{t('crm.leads.form.actions.delete')}</button>
+                  {lead.canDelete !== false && (
+                    <button type="button" onClick={handleDeleteLead} className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 disabled:cursor-not-allowed transition-colors">{t('crm.leads.form.actions.delete')}</button>
+                  )}
                 </>
               )}
               <button type="button" onClick={() => setCustomFieldsOpen(true)} className="btn-secondary">{t('crm.leads.form.actions.configureFields')}</button>
-              <button type="button" onClick={handleSave} disabled={saving}
-                style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: saving ? 0.65 : 1 }}>
-                {saving ? t('crm.leads.form.actions.saving') : t('crm.leads.form.actions.save')}
-              </button>
+              {(isNew || lead.canEdit !== false) && (
+                <button type="button" onClick={handleSave} disabled={saving}
+                  style={{ padding: "8px 20px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: saving ? 0.65 : 1 }}>
+                  {saving ? t('crm.leads.form.actions.saving') : t('crm.leads.form.actions.save')}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1347,17 +1699,7 @@ export const LeadFormPage: React.FC = () => {
                       {t('crm.leads.form.sections.salesWooOpenList')} ↗
                     </button>
                   </div>
-                  {leadSalesLoading && (
-                    <div style={{ fontSize: 12, color: FG4 }}>{t('crm.leads.form.sections.salesWooLoading')}</div>
-                  )}
-                  {leadSalesError && (
-                    <div style={{ fontSize: 11, color: '#ef4444', marginBottom: 8 }}>{leadSalesError}</div>
-                  )}
-                  {!leadSalesLoading && !leadSalesError && leadSales.length === 0 && isWooRelatedLead && (
-                    <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>{t('crm.leads.form.sections.salesWooEmpty')}</div>
-                  )}
-                  {!leadSalesLoading && leadSales.length > 0 && (
-                    <div style={{ overflowX: 'auto' }}>
+                  <div style={{ overflowX: 'auto' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, color: INK }}>
                         <thead>
                           <tr style={{ borderBottom: `1px solid ${LINE}` }}>
@@ -1417,8 +1759,7 @@ export const LeadFormPage: React.FC = () => {
                           })}
                         </tbody>
                       </table>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
 
@@ -1489,6 +1830,103 @@ export const LeadFormPage: React.FC = () => {
                 </div>
               </div>
 
+              {/* Deal amount + currency */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.amountLabel')}</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className={inpCls + (canEditAmount ? '' : ' opacity-50 cursor-not-allowed')}
+                    value={lead.amount || ''}
+                    onChange={handleAmountChange}
+                    disabled={!canEditAmount}
+                    title={canEditAmount ? undefined : t('crm.leads.form.fields.amountNoPermission') || undefined}
+                    placeholder="0"
+                  />
+                </div>
+                <div>
+                  <label className={lblCls} style={{ color: FG3 }}>{t('crm.leads.form.fields.currencyLabel')}</label>
+                  <select className={inpCls} value={lead.currency} onChange={handleCurrencyChange}>
+                    <option value="TRY">TRY · ₺</option>
+                    <option value="EUR">EUR · €</option>
+                    <option value="USD">USD · $</option>
+                    <option value="RUB">RUB · ₽</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Next steps checklist */}
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3 }}>{t('crm.leads.form.fields.tasksLabel')}</span>
+                </div>
+                <div className="space-y-1.5">
+                  {lead.tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-2 rounded-lg border px-2 py-1.5 text-[11px]"
+                      style={{ borderColor: LINE, background: '#fff' }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={task.done}
+                        onChange={() => toggleLeadTask(task.id)}
+                        className="h-3.5 w-3.5 rounded"
+                      />
+                      <input
+                        value={task.title}
+                        onChange={(e) => updateLeadTaskTitle(task.id, e.target.value)}
+                        className="min-w-0 flex-1 border-0 bg-transparent text-[12px] outline-none"
+                        style={{ color: INK }}
+                      />
+                      <input
+                        type="date"
+                        value={task.deadline ?? ''}
+                        onChange={(e) => updateLeadTaskDeadline(task.id, e.target.value)}
+                        className="shrink-0 border-0 bg-transparent text-[11px] outline-none"
+                        style={{ color: FG3, fontFamily: FM }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeLeadTask(task.id)}
+                        className="shrink-0 rounded px-1.5"
+                        style={{ color: '#9a1f31' }}
+                        aria-label={t('crm.leads.form.actions.removeTask')}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {lead.tasks.length === 0 && (
+                    <div style={{ fontSize: 12, color: FG4, fontStyle: 'italic' }}>{t('crm.leads.form.fields.tasksEmpty')}</div>
+                  )}
+                </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addLeadTask();
+                      }
+                    }}
+                    className={inpCls}
+                    placeholder={t('crm.leads.form.fields.tasksAddPlaceholder')}
+                  />
+                  <button
+                    type="button"
+                    onClick={addLeadTask}
+                    className="shrink-0 px-3 py-2.5 text-sm rounded-xl border"
+                    style={{ borderColor: LINE, color: FG2 }}
+                  >
+                    {t('crm.leads.form.actions.addTask')}
+                  </button>
+                </div>
+              </div>
+
               {/* Custom fields */}
               <div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1514,6 +1952,89 @@ export const LeadFormPage: React.FC = () => {
                   placeholder={t('crm.leads.form.fields.notesPlaceholder')} />
               </div>
 
+              {/* Переписка */}
+              <CollapsibleCard
+                title={t('crm.leads.form.sections.emailsTitle')}
+                right={!isNew && sortedLeadEmails.length > 0 ? (
+                  <span style={{ fontSize: 10, color: FG4 }}>{t('crm.leads.form.sections.emailsCount', { count: sortedLeadEmails.length })}</span>
+                ) : undefined}
+              >
+                {isNew && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.projectsNeedSave')}</div>}
+                {!isNew && leadEmailsLoading && <div style={{ fontSize: 11, color: FG4 }}>{t('crm.leads.form.sections.historyLoading')}</div>}
+                {leadEmailsError && <div style={{ fontSize: 11, color: "#ef4444", marginBottom: 8 }}>{leadEmailsError}</div>}
+                {!isNew && !leadEmailsLoading && sortedLeadEmails.length === 0 && !leadEmailsError && (
+                  <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.emailsEmpty')}</div>
+                )}
+                {!isNew && sortedLeadEmails.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 460, overflowY: "auto", paddingRight: 4 }}>
+                    {sortedLeadEmails.map((msg) => {
+                      const isOut = msg.direction === 'outgoing';
+                      const expanded = expandedEmailId === msg.id;
+                      const preview = emailPreviewText(msg);
+                      return (
+                        <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isOut ? 'flex-end' : 'flex-start' }}>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setExpandedEmailId(expanded ? null : msg.id)}
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedEmailId(expanded ? null : msg.id); } }}
+                            style={{
+                              maxWidth: '75%',
+                              cursor: 'pointer',
+                              border: `1px solid ${isOut ? '#dbeafe' : LINE}`,
+                              background: isOut ? '#eff6ff' : '#fafafa',
+                              borderRadius: 10,
+                              padding: '8px 10px',
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: 11, fontWeight: 500, color: INK }}>
+                                {isOut ? t('crm.leads.form.sections.emailsFromUs') : (msg.fromName || msg.from)}
+                              </span>
+                              {!isOut && !msg.isRead && (
+                                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#2563eb', display: 'inline-block', flexShrink: 0 }} />
+                              )}
+                              <span style={{ fontFamily: FM, fontSize: 9, color: FG4 }}>{new Date(msg.date).toLocaleString(locale)}</span>
+                            </div>
+                            {msg.subject && <div style={{ fontSize: 11, fontWeight: 500, color: FG2, marginBottom: 2 }}>{msg.subject}</div>}
+                            <div
+                              style={{
+                                fontSize: 12,
+                                color: FG2,
+                                lineHeight: 1.4,
+                                whiteSpace: 'pre-wrap',
+                                ...(expanded
+                                  ? {}
+                                  : { display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }),
+                              }}
+                            >
+                              {preview || t('crm.leads.form.sections.emailsNoBody')}
+                            </div>
+                            {expanded && (
+                              <a
+                                href={`/email/inbox?messageId=${msg.id}&accountId=${msg.accountId}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ display: 'inline-block', marginTop: 6, fontSize: 10, color: '#1d4ed8', textDecoration: 'none' }}
+                              >
+                                {t('crm.leads.form.sections.emailsOpenInInbox')}
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CollapsibleCard>
+
+              {/* Внешние CRM */}
+              <ExternalLinksPanel entityType="lead" entityId={lead.id} />
+
+              {/* Jira */}
+              <JiraIssueLinkPanel entityType="lead" entityId={lead.id} defaultSummary={lead.name} />
+
               {/* UTM (only if captured) */}
               {hasUtmCaptured && (
                 <div style={{ background: BG_MUTED, border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
@@ -1535,22 +2056,19 @@ export const LeadFormPage: React.FC = () => {
 
               {/* ── CCP account summary (ClientCabinet leads only) ─── */}
               {!isNew && (ccpClient || ccpClientLoading) && (
-                <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16, background: '#fafafa' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                    <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase' as const, color: FG3 }}>
-                      Клиентский кабинет
-                    </div>
-                    {ccpClient && (
-                      <Link
-                        to="/client-accounts"
-                        style={{ fontFamily: FM, fontSize: 10, color: FG3, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
-                        onMouseEnter={e => (e.currentTarget.style.color = INK)}
-                        onMouseLeave={e => (e.currentTarget.style.color = FG3)}
-                      >
-                        Перейти в счёт ↗
-                      </Link>
-                    )}
-                  </div>
+                <CollapsibleCard
+                  title="Клиентский кабинет"
+                  right={ccpClient && (
+                    <Link
+                      to="/client-accounts"
+                      style={{ fontFamily: FM, fontSize: 10, color: FG3, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 3 }}
+                      onMouseEnter={e => (e.currentTarget.style.color = INK)}
+                      onMouseLeave={e => (e.currentTarget.style.color = FG3)}
+                    >
+                      Перейти в счёт ↗
+                    </Link>
+                  )}
+                >
                   {ccpClientLoading && <div style={{ fontSize: 12, color: FG4 }}>Загрузка…</div>}
                   {ccpClient && !ccpClientLoading && (
                     <>
@@ -1573,12 +2091,18 @@ export const LeadFormPage: React.FC = () => {
                       </div>
                     </>
                   )}
-                </div>
+                </CollapsibleCard>
               )}
 
               {/* AI Sidebar — only for saved leads */}
               {!isNew && (
                 <>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '2px 2px 0' }}>
+                    <span style={{ fontFamily: FM, fontSize: 10, letterSpacing: '0.12em', textTransform: 'uppercase', color: FG3 }}>
+                      {t('crm.leads.form.sections.aiTitle')}
+                    </span>
+                    <InlineHelpButton topic="leadAiTools" />
+                  </div>
                   <AiLeadScoreCard leadId={lead.id} />
                   <AiNextActionCard leadId={lead.id} />
                   <AiOutreachEmailCard
@@ -1613,7 +2137,7 @@ export const LeadFormPage: React.FC = () => {
                       {label}
                     </button>
                   ))}
-                  <button type="button" onClick={() => navigate('/app/integrations')}
+                  <button type="button" onClick={() => navigate('/integrations-hub')}
                     style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "12px 8px", border: `1px solid ${LINE}`, borderRadius: 10, background: "#fff", cursor: "pointer", fontSize: 11, color: FG2, transition: "all 0.15s", gridColumn: "span 2" }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = INK; e.currentTarget.style.color = INK; }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = LINE; e.currentTarget.style.color = FG2; }}>
@@ -1626,10 +2150,7 @@ export const LeadFormPage: React.FC = () => {
               </div>
 
               {/* Assignees — как блок ответственных в карточке проекта */}
-              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
-                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 12 }}>
-                  {t('crm.projects.detail.owner.byDepartment')}
-                </div>
+              <CollapsibleCard title={t('crm.projects.detail.owner.byDepartment')}>
                 <div style={{ fontFamily: FM, fontSize: 10, color: FG4, marginBottom: 8 }}>
                   {t('crm.projects.detail.owner.selected', {
                     count: (lead.assignedUserIds ?? []).length,
@@ -1660,11 +2181,11 @@ export const LeadFormPage: React.FC = () => {
                           <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 10, color: FG3, cursor: "pointer", flexShrink: 0, whiteSpace: "nowrap" }}>
                             <input
                               type="checkbox"
+                              className="lv-checkbox-input"
                               checked={allChecked}
                               onChange={(e) =>
                                 toggleLeadOwnerDepartment(group.department, e.target.checked)
                               }
-                              style={{ accentColor: "#1769d1", width: 14, height: 14, margin: 0, cursor: "pointer" }}
                             />
                             <span>{t('crm.projects.detail.owner.wholeDepartment')}</span>
                           </label>
@@ -1688,9 +2209,10 @@ export const LeadFormPage: React.FC = () => {
                               >
                                 <input
                                   type="checkbox"
+                                  className="lv-checkbox-input"
                                   checked={checked}
                                   onChange={(e) => toggleLeadOwnerUser(u.id, e.target.checked)}
-                                  style={{ accentColor: "#1769d1", width: 14, height: 14, margin: "2px 0 0", flexShrink: 0, cursor: "pointer" }}
+                                  style={{ marginTop: 2, flexShrink: 0 }}
                                 />
                                 <span style={{ minWidth: 0, wordBreak: "break-word" }}>
                                   {u.fullName}
@@ -1704,11 +2226,231 @@ export const LeadFormPage: React.FC = () => {
                     );
                   })}
                 </div>
-              </div>
+              </CollapsibleCard>
+
+              {/* Встречи */}
+              <CollapsibleCard title={t('crm.leads.form.sections.meetingsTitle')}>
+                {isNew && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.projectsNeedSave')}</div>}
+                {!isNew && sortedLeadMeetings.length === 0 && (
+                  <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.meetingsEmpty')}</div>
+                )}
+                {!isNew && sortedLeadMeetings.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 280, overflowY: "auto", paddingRight: 4 }}>
+                    {sortedLeadMeetings.map((meeting) => {
+                      const start = new Date(meeting.startsAt);
+                      const isPast = start.getTime() < Date.now();
+                      const isCancelled = Boolean(meeting.closedAt);
+                      const badgeBg = isCancelled ? '#fee2e2' : isPast ? BG_MUTED : '#ecfdf5';
+                      const badgeFg = isCancelled ? '#dc2626' : isPast ? FG3 : '#16a34a';
+                      const badgeBorder = isCancelled ? '#fecaca' : isPast ? LINE : '#bbf7d0';
+                      const badgeLabel = isCancelled
+                        ? t('crm.leads.form.sections.meetingsCancelled')
+                        : isPast
+                          ? t('crm.leads.form.sections.meetingsPast')
+                          : t('crm.leads.form.sections.meetingsUpcoming');
+                      return (
+                        <div key={meeting.id} style={{ border: `1px solid ${LINE}`, borderRadius: 10, padding: "8px 10px", background: isCancelled ? BG_MUTED : "#fff" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 2 }}>
+                            <span style={{ fontSize: 12, fontWeight: 500, color: INK }}>{meeting.title || t('crm.leads.form.sections.meetingsFallbackTitle')}</span>
+                            <span style={{ fontSize: 10, background: badgeBg, color: badgeFg, border: `1px solid ${badgeBorder}`, borderRadius: 999, padding: "1px 7px", whiteSpace: 'nowrap' }}>
+                              {badgeLabel}
+                            </span>
+                          </div>
+                          <div style={{ fontFamily: FM, fontSize: 10, color: FG3 }}>{start.toLocaleString(locale)}</div>
+                          {meeting.attendeeNames && meeting.attendeeNames.length > 0 && (
+                            <div style={{ fontSize: 11, color: FG3, marginTop: 2 }}>{t('crm.leads.calendar.labels.team')} {meeting.attendeeNames.join(', ')}</div>
+                          )}
+                          {meeting.notes && <div style={{ fontSize: 11, color: FG2, marginTop: 4, lineHeight: 1.4 }}>{meeting.notes}</div>}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                            {meeting.meetingUrl && (
+                              <a href={meeting.meetingUrl} target="_blank" rel="noreferrer" style={{ fontSize: 10, color: '#1d4ed8', textDecoration: 'none' }}>{t('crm.leads.calendar.actions.link')}</a>
+                            )}
+                            {meeting.notifySentAt && (
+                              <span style={{ fontSize: 10, color: FG4 }}>
+                                · {t('crm.leads.form.sections.meetingsNotified', { date: new Date(meeting.notifySentAt).toLocaleDateString(locale) })}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CollapsibleCard>
+
+              {/* Комментарии — упоминания, лайки, ответы (как в проекте) */}
+              <CollapsibleCard title={t('crm.projects.detail.tabs.comments', 'Комментарии')}>
+                {isNew && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.projectsNeedSave')}</div>}
+                {!isNew && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    <div style={{ maxHeight: 320, overflowY: "auto", paddingRight: 4, display: "flex", flexDirection: "column", gap: 8 }}>
+                      {comments
+                        .filter((c) => !c.parentId)
+                        .map((c) => {
+                          const replies = comments.filter((r) => r.parentId === c.id);
+                          const me = currentStaffForComments?.id || commentUser?.id || commentUser?.email || '';
+                          const liked = !!me && (c.likedBy || []).includes(me);
+                          const renderCommentBody = (comment: LeadComment) => {
+                            const mentions = comment.mentions ?? extractMentions(comment.text || '');
+                            return (
+                              <>
+                                <div style={{ fontSize: 10, color: FG3, marginBottom: 3 }}>
+                                  {comment.createdAt} · {comment.author}
+                                </div>
+                                <div style={{ fontSize: 12, whiteSpace: "pre-wrap", color: INK }}>
+                                  {renderMentions(comment.text)}
+                                </div>
+                                {mentions.length > 0 && (
+                                  <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4, fontSize: 10, color: FG3 }}>
+                                    {mentions.map((m) => (
+                                      <span key={m} style={{ borderRadius: 999, padding: "1px 7px", background: "#fff", border: `1px solid ${LINE}` }}>
+                                        @{m}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </>
+                            );
+                          };
+                          return (
+                            <div key={c.id}>
+                              <div style={{ borderRadius: 10, padding: "8px 10px", border: `1px solid ${isMentioned(c.text) ? '#bae6fd' : LINE}`, background: isMentioned(c.text) ? '#f0f9ff' : BG_MUTED }}>
+                                {renderCommentBody(c)}
+                                <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 12, fontSize: 10, color: FG3 }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleCommentLike(c.id)}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "none", border: "none", padding: 0, color: liked ? '#dc2626' : FG3, cursor: "pointer" }}
+                                  >
+                                    <span aria-hidden>{liked ? '♥' : '♡'}</span>
+                                    {(c.likedBy || []).length > 0 && (c.likedBy || []).length}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setReplyingToId((prev) => (prev === c.id ? null : c.id))}
+                                    style={{ background: "none", border: "none", padding: 0, color: FG3, cursor: "pointer" }}
+                                  >
+                                    {t('crm.projects.detail.comments.reply')}
+                                  </button>
+                                </div>
+                              </div>
+
+                              {replies.length > 0 && (
+                                <div style={{ marginTop: 6, marginLeft: 14, paddingLeft: 10, borderLeft: `2px solid ${LINE}`, display: "flex", flexDirection: "column", gap: 6 }}>
+                                  {replies.map((r) => {
+                                    const rLiked = !!me && (r.likedBy || []).includes(me);
+                                    return (
+                                      <div key={r.id} style={{ borderRadius: 10, padding: "8px 10px", border: `1px solid ${isMentioned(r.text) ? '#bae6fd' : LINE}`, background: isMentioned(r.text) ? '#f0f9ff' : "#fff" }}>
+                                        {renderCommentBody(r)}
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleCommentLike(r.id)}
+                                          style={{ marginTop: 6, display: "inline-flex", alignItems: "center", gap: 3, background: "none", border: "none", padding: 0, fontSize: 10, color: rLiked ? '#dc2626' : FG3, cursor: "pointer" }}
+                                        >
+                                          <span aria-hidden>{rLiked ? '♥' : '♡'}</span>
+                                          {(r.likedBy || []).length > 0 && (r.likedBy || []).length}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+
+                              {replyingToId === c.id && (
+                                <div style={{ marginTop: 6, marginLeft: 14, display: "flex", gap: 6 }}>
+                                  <input
+                                    autoFocus
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') addReply(c.id); }}
+                                    placeholder={t('crm.projects.detail.comments.replyPlaceholder')}
+                                    className="flex-1 min-w-0 rounded-lg border border-neutral-200 bg-white px-2.5 py-1.5 text-xs outline-none focus:border-neutral-400 text-neutral-900"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => addReply(c.id)}
+                                    style={{ padding: "6px 12px", fontSize: 11, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}
+                                  >
+                                    {t('crm.projects.detail.actions.add')}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      {comments.length === 0 && (
+                        <div style={{ fontSize: 11, fontStyle: "italic", color: FG4 }}>{t('crm.projects.detail.comments.empty')}</div>
+                      )}
+                    </div>
+
+                    <div style={{ position: "relative", paddingTop: 10, borderTop: `1px solid ${LINE}` }}>
+                      <textarea
+                        ref={commentInputRef}
+                        value={newComment}
+                        onChange={(e) => {
+                          const value = e.target.value;
+                          setNewComment(value);
+                          const caret = e.target.selectionStart ?? value.length;
+                          const before = value.slice(0, caret);
+                          const match = before.match(/@([\p{L}\p{N}._-]*)$/u);
+                          setMentionQuery(match ? match[1] : null);
+                        }}
+                        onBlur={() => window.setTimeout(() => setMentionQuery(null), 150)}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addComment(); } }}
+                        placeholder={t('crm.projects.detail.comments.newPlaceholder')}
+                        rows={3}
+                        className="w-full resize-y min-h-[64px] rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-400 text-neutral-900"
+                      />
+                      {mentionQuery !== null && (() => {
+                        const q = mentionQuery.toLowerCase();
+                        const matches = staff.filter((u) => u.fullName?.toLowerCase().includes(q)).slice(0, 6);
+                        if (!matches.length) return null;
+                        return (
+                          <div style={{ position: "absolute", zIndex: 20, marginTop: 4, width: 260, maxHeight: 224, overflowY: "auto", borderRadius: 10, background: "#fff", boxShadow: "0 12px 32px rgba(0,0,0,0.14)", padding: 4, border: `1px solid ${LINE}` }}>
+                            {matches.map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  const el = commentInputRef.current;
+                                  const caret = el?.selectionStart ?? newComment.length;
+                                  const before = newComment.slice(0, caret);
+                                  const after = newComment.slice(caret);
+                                  const replaced = before.replace(/@([\p{L}\p{N}._-]*)$/u, `@${u.fullName} `);
+                                  const next = replaced + after;
+                                  setNewComment(next);
+                                  setMentionQuery(null);
+                                  requestAnimationFrame(() => {
+                                    el?.focus();
+                                    const pos = replaced.length;
+                                    el?.setSelectionRange(pos, pos);
+                                  });
+                                }}
+                                style={{ display: "flex", width: "100%", alignItems: "center", gap: 8, borderRadius: 8, padding: "6px 8px", textAlign: "left", background: "none", border: "none", cursor: "pointer" }}
+                                onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                                onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
+                              >
+                                <span style={{ fontWeight: 500, fontSize: 12, color: INK }}>{u.fullName}</span>
+                                <span style={{ fontSize: 10, color: FG4 }}>{u.email}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                      <button
+                        type="button"
+                        onClick={addComment}
+                        style={{ marginTop: 8, padding: "7px 14px", fontSize: 11, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer" }}
+                      >
+                        {t('crm.projects.detail.actions.add')}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </CollapsibleCard>
 
               {/* Timeline */}
-              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
-                <div style={{ fontFamily: FM, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: FG3, marginBottom: 14 }}>{t('crm.leads.form.sections.timelineTitle')}</div>
+              <CollapsibleCard title={t('crm.leads.form.sections.timelineTitle')}>
                 {isNew && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.projectsNeedSave')}</div>}
                 {!isNew && (historyLoading || (leadProjects.length > 0 && projectActivitiesLoading)) && <div style={{ fontSize: 11, color: FG4 }}>{t('crm.leads.form.sections.historyLoading')}</div>}
                 {!isNew && mergedTimeline.length === 0 && !historyLoading && <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.sections.historyEmpty')}</div>}
@@ -1767,22 +2509,7 @@ export const LeadFormPage: React.FC = () => {
                     })}
                   </div>
                 )}
-                {/* Comment input */}
-                {!isNew && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${LINE}` }}>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <input className="flex-1 min-w-0 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-xs outline-none focus:border-neutral-400 text-neutral-900"
-                        value={newComment} onChange={e => setNewComment(e.target.value)}
-                        placeholder={t('crm.leads.form.fields.commentPlaceholder')}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendComment(); } }} />
-                      <button type="button" onClick={handleSendComment}
-                        style={{ padding: "7px 14px", fontSize: 11, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", whiteSpace: "nowrap" }}>
-                        {t('crm.leads.form.actions.send')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
+              </CollapsibleCard>
             </div>
           </div>
         )}
@@ -1803,7 +2530,7 @@ export const LeadFormPage: React.FC = () => {
               <div>
                 <label style={lblInline}>{t('crm.leads.form.email.title').toUpperCase()}</label>
                 {emailAccounts.length === 0
-                  ? <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.email.noAccounts')} <a href="/app/email/accounts" style={{ color: INK }}>{t('crm.leads.form.email.connectAccounts')}</a></div>
+                  ? <div style={{ fontSize: 12, color: FG4, fontStyle: "italic" }}>{t('crm.leads.form.email.noAccounts')} <a href="/app/email" style={{ color: INK }}>{t('crm.leads.form.email.connectAccounts')}</a></div>
                   : <select value={emailAccountId} onChange={e => setEmailAccountId(e.target.value)} style={inlineInp}>
                       {emailAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.email}{acc.name ? ` · ${acc.name}` : ''}</option>)}
                     </select>
@@ -1907,6 +2634,54 @@ export const LeadFormPage: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
                 <button type="button" onClick={() => setCompanyModalOpen(false)} style={{ padding: "8px 18px", fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.companies.form.cancel')}</button>
                 <button type="button" onClick={handleCompanySave} disabled={companyBusy || !companyName.trim()} style={{ padding: "8px 18px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: (companyBusy || !companyName.trim()) ? 0.55 : 1 }}>{companyBusy ? t('crm.companies.form.saving') : t('crm.companies.form.save')}</button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ══ CONVERT-TO-CLIENT MODAL ══════════════════════════════ */}
+      {convertModalOpen && createPortal(
+        <div className="fixed inset-0 z-[8500] flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 520, maxHeight: "92vh", overflowY: "auto", boxShadow: "0 30px 80px rgba(0,0,0,0.20)", fontFamily: FF }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "18px 24px", borderBottom: `1px solid ${LINE}` }}>
+              <div>
+                <h3 style={{ fontSize: 16, fontWeight: 500, color: INK }}>{t('crm.leads.form.convert.title')}</h3>
+                <div style={{ fontSize: 12, color: FG3, marginTop: 4 }}>{t('crm.leads.form.convert.subtitle')}</div>
+              </div>
+              <button type="button" onClick={() => setConvertModalOpen(false)} style={{ background: "none", border: "none", fontSize: 20, color: FG3, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 14 }}>
+              {convertError && <div style={{ fontSize: 12, color: "#ef4444", padding: "8px 12px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca" }}>{convertError}</div>}
+
+              {lead.contactId ? (
+                <div style={{ fontSize: 12, color: FG3 }}>{t('crm.leads.form.convert.contactExists')}</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label style={lblInline}>{t('crm.contacts.form.fields.position')}</label><input type="text" value={convertPosition} onChange={e => setConvertPosition(e.target.value)} style={inlineInp} /></div>
+                  <div><label style={lblInline}>{t('crm.contacts.form.fields.city')}</label><input type="text" value={convertCity} onChange={e => setConvertCity(e.target.value)} style={inlineInp} /></div>
+                </div>
+              )}
+
+              {lead.companyId ? (
+                <div style={{ fontSize: 12, color: FG3 }}>{t('crm.leads.form.convert.companyExists')}</div>
+              ) : (
+                <div>
+                  <label style={lblInline}>{t('crm.leads.form.convert.companyName')}</label>
+                  <input type="text" value={convertCompanyName} onChange={e => setConvertCompanyName(e.target.value)} style={inlineInp} />
+                  <div style={{ fontSize: 11, color: FG4, marginTop: 4 }}>{t('crm.leads.form.convert.companyNameHelper')}</div>
+                </div>
+              )}
+
+              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: INK, cursor: "pointer" }}>
+                <input type="checkbox" checked={convertMarkWon} onChange={e => setConvertMarkWon(e.target.checked)} />
+                {t('crm.leads.form.convert.markWon')}
+              </label>
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button type="button" onClick={() => setConvertModalOpen(false)} style={{ padding: "8px 18px", fontSize: 13, borderRadius: 8, border: `1px solid ${LINE}`, background: "#fff", color: FG2, cursor: "pointer" }}>{t('crm.companies.form.cancel')}</button>
+                <button type="button" onClick={handleConvertSave} disabled={convertBusy} style={{ padding: "8px 18px", fontSize: 13, fontWeight: 500, borderRadius: 8, border: `1px solid ${INK}`, background: INK, color: "#fff", cursor: "pointer", opacity: convertBusy ? 0.55 : 1 }}>{convertBusy ? t('crm.leads.form.convert.saving') : t('crm.leads.form.convert.save')}</button>
               </div>
             </div>
           </div>

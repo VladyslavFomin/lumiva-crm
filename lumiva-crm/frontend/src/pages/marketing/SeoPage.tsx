@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   fetchSeoSettings,
   updateSeoSettings,
@@ -460,6 +461,7 @@ export const SeoPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="marketingSeo" />
       <div className="space-y-4 md:space-y-6 pb-8">
         <section className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>

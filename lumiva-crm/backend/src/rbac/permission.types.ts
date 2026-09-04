@@ -4,10 +4,17 @@ import type { StaffRole } from '../staff/staff-user.entity';
 export type PermissionKey =
   | 'leads'
   | 'leads_view_roi'
+  | 'leads_edit_amount'
+  | 'leads_create'
+  | 'leads_manage_import'
   | 'projects'
   | 'projects_manage_trash'
+  | 'projects_edit_amount'
+  | 'projects_edit_owner'
+  | 'projects_manage'
   | 'sales'
   | 'sales_manage_import'
+  | 'client_accounts'
   | 'staff'
   | 'finance'
   | 'analytics'
@@ -39,7 +46,14 @@ export type PermissionKey =
 
 export type RoleMatrix = Record<StaffRole, PermissionKey[]>;
 
-export type UserPermissionMatrix = Record<string, PermissionKey[]>;
+/**
+ * Per-user overrides on top of the role matrix. Key present + `true` = explicit grant
+ * (overrides a role-level deny); key present + `false` = explicit deny (overrides a role-level
+ * grant, even for a "new module" that otherwise fails open); key absent = inherit from role.
+ * This is the real, backend-enforced shape — see RbacGuard/RbacService.canForUser — not just a
+ * cosmetic list of extra-granted keys like the earlier version of this type.
+ */
+export type UserPermissionMatrix = Record<string, Partial<Record<PermissionKey, boolean>>>;
 
 /**
  * Newly-added granular keys that didn't exist before this pass, for which "same access as the
@@ -63,4 +77,14 @@ export const GRANULAR_FALLBACK_TO_BASE: Partial<Record<PermissionKey, Permission
   sales_manage_import: 'sales',
   contacts_manage_bulk: 'contacts',
   companies_manage_tasks: 'companies',
+  // Editing a lead/project's amount was never gated separately from editing the record at all —
+  // inherits the base key's own resolution so nobody who could already edit amounts loses that
+  // without the tenant explicitly restricting the new key.
+  leads_edit_amount: 'leads',
+  projects_edit_amount: 'projects',
+  // projects_edit_owner deliberately has NO fallback entry — same precedent as
+  // projects_manage_trash: reassigning a project's owner was previously owner-role-only
+  // (hardcoded in ProjectsController), a real prior restriction narrower than base 'projects',
+  // so it stays owner-only by default (role==='owner' always bypasses RBAC) until a tenant
+  // explicitly grants this key to a role or person.
 };

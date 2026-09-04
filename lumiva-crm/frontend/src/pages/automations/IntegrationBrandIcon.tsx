@@ -16,6 +16,8 @@ const CATALOG_TO_SLUG: Record<string, string> = {
   google_ads: 'googleads',
   google_analytics: 'googleanalytics',
   yandex_metrika: 'yandexmetrika',
+  yandex_direct: 'yandexdirect',
+  vk_ads: 'vk',
   meta_ads: 'meta',
   '1c': '1c',
   sap: 'sap',

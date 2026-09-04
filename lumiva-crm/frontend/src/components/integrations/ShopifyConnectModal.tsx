@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { BlurModal } from './BlurModal';
 import { IntegrationBrandIcon } from '../../pages/automations/IntegrationBrandIcon';
 import { createIntegration } from '../../api/integrations';
-import { useAlertModal } from '../../contexts/AlertModalContext';
 import type { SalesChannel } from '../../api/salesChannels';
 
 type Props = {
@@ -19,21 +18,23 @@ const labelCls = 'mb-1 block text-[11px] font-medium text-slate-600';
 
 export const ShopifyConnectModal: React.FC<Props> = ({ open, onClose, onCreated, channels = [] }) => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
   const [form, setForm] = useState({ name: '', shopDomain: '', accessToken: '', channelId: '' });
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<'guide' | 'form'>('guide');
+  const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
     setForm({ name: '', shopDomain: '', accessToken: '', channelId: '' });
     setStep('guide');
+    setError(null);
   };
 
   const handleClose = () => { reset(); onClose(); };
 
   const handleCreate = async () => {
+    setError(null);
     if (!form.shopDomain.trim() || !form.accessToken.trim()) {
-      showAlert(t('crm.integrationsHub.shopify.errors.missing'), { variant: 'info' });
+      setError(t('crm.integrationsHub.shopify.errors.missing'));
       return;
     }
     setSaving(true);
@@ -51,7 +52,7 @@ export const ShopifyConnectModal: React.FC<Props> = ({ open, onClose, onCreated,
       onCreated();
       onClose();
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : t('crm.salesIntegrations.errors.create'), { variant: 'error' });
+      setError(e instanceof Error ? e.message : t('crm.salesIntegrations.errors.create'));
     } finally {
       setSaving(false);
     }
@@ -60,7 +61,7 @@ export const ShopifyConnectModal: React.FC<Props> = ({ open, onClose, onCreated,
   if (!open) return null;
 
   return (
-    <BlurModal open={open} onClose={handleClose}>
+    <BlurModal open={open} onClose={handleClose} size="sm">
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center gap-3">
           <IntegrationBrandIcon catalogId="shopify" label="Shopify" size={36} />
@@ -159,6 +160,7 @@ export const ShopifyConnectModal: React.FC<Props> = ({ open, onClose, onCreated,
                 </p>
               </div>
             </div>
+            {error && <p className="text-[11px] text-rose-600">{error}</p>}
             <div className="flex justify-between gap-2 pt-1">
               <button
                 type="button"

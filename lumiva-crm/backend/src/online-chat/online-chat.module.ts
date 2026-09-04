@@ -10,6 +10,7 @@ import { PublicOnlineChatController } from './public-online-chat.controller';
 import { Tenant } from '../tenants/tenant.entity';
 import { Lead } from '../leads/lead.entity';
 import { LeadsModule } from '../leads/leads.module'; // 👈 нужно для создания лидов из чата
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { LeadsModule } from '../leads/leads.module'; // 👈 нужно для �
       Lead,
     ]),
     LeadsModule, // 👈 подтягиваем LeadsService внутрь OnlineChatService
+    RbacModule,
   ],
   controllers: [
     OnlineChatController,       // внутренний (CRM)

@@ -3,7 +3,15 @@ import { api } from './client';
 
 export type EntityType = 'contact' | 'company' | 'lead' | 'sale' | 'project';
 
-export type FieldType = 'text' | 'number' | 'email' | 'phone' | 'date' | 'datetime' | 'boolean' | 'select' | 'multiselect' | 'textarea' | 'url';
+export type FieldType = 'text' | 'number' | 'email' | 'phone' | 'date' | 'datetime' | 'daterange' | 'boolean' | 'select' | 'multiselect' | 'textarea' | 'url';
+
+/** Источник значения для email/phone полей: тянуть из привязанного лида/компании вместо ручного ввода. */
+export type CustomFieldValueSource = 'manual' | 'lead' | 'company';
+
+export interface CustomFieldMeta {
+  source?: CustomFieldValueSource;
+  [key: string]: any;
+}
 
 export interface CustomField {
   id: string;
@@ -19,6 +27,7 @@ export interface CustomField {
   defaultValue: string | null;
   order: number;
   isActive: boolean;
+  meta?: CustomFieldMeta | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -35,10 +44,20 @@ export interface CreateCustomFieldDto {
   defaultValue?: string;
   order?: number;
   isActive?: boolean;
+  meta?: CustomFieldMeta;
 }
 
 export interface UpdateCustomFieldDto extends Partial<CreateCustomFieldDto> {
   // key и entityType нельзя менять
+}
+
+export function normalizeCustomFieldKey(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 48);
 }
 
 export async function fetchCustomFields(entityType?: EntityType): Promise<CustomField[]> {

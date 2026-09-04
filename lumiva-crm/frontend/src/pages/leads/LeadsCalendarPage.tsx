@@ -2,6 +2,7 @@ import React from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import type { Lead } from '../../api/leads';
 import { fetchLeads, updateLead } from '../../api/leads';
 import { fetchEmailAccounts, sendEmail, type EmailAccount } from '../../api/email';
@@ -18,7 +19,7 @@ import {
 import { dayKeysFromStartEndStrings, toLocalDateKey } from '../../utils/calendarLocalDates';
 import '../projects/ProjectsListPage.css';
 
-type LeadMeeting = {
+export type LeadMeeting = {
   id: string;
   title: string;
   startsAt: string;
@@ -120,7 +121,7 @@ const meetingProvider = (url?: string) => {
   return value ? 'other' : 'none';
 };
 
-const readMeetings = (lead: Lead): LeadMeeting[] => {
+export const readMeetings = (lead: Lead): LeadMeeting[] => {
   const raw = (lead.meta as any)?.meetings;
   if (!Array.isArray(raw)) return [];
   return raw
@@ -596,6 +597,15 @@ export const LeadsCalendarPage: React.FC = () => {
     return 'bg-slate-400';
   };
 
+  const statusAccentClass = (status: string) => {
+    if (status.includes('Новый')) return 'border-l-rose-400';
+    if (status.includes('работе')) return 'border-l-sky-400';
+    if (status.includes('Ожидает')) return 'border-l-amber-400';
+    if (status.includes('успех')) return 'border-l-emerald-400';
+    if (status.includes('проигран')) return 'border-l-rose-500';
+    return 'border-l-slate-400';
+  };
+
   const upcomingMeetings = React.useMemo(() => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -622,6 +632,7 @@ export const LeadsCalendarPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="leads" />
       <ViewNameModal
         open={nameModalOpen}
         title={
@@ -879,7 +890,7 @@ export const LeadsCalendarPage: React.FC = () => {
                         {dayCell.items.slice(0, 3).map(({ lead, meeting }) => (
                           <div
                             key={meeting.id}
-                            className="rounded-lg border border-border-default bg-surface-subtle px-2 py-1"
+                            className={`rounded-lg border border-l-[3px] border-border-default bg-white px-2 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.04)] ${statusAccentClass(lead.status)}`}
                           >
                             <button
                               type="button"
@@ -887,10 +898,10 @@ export const LeadsCalendarPage: React.FC = () => {
                               className="w-full text-left"
                             >
                               <div className="flex items-center gap-1.5">
-                                <span className={`inline-block h-1.5 w-1.5 rounded-full ${statusDotClass(lead.status)}`} />
-                                <span className="truncate text-[11px] text-[#111827]">{meeting.title || lead.name || `#${lead.id.slice(0, 6)}`}</span>
+                                <span className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${statusDotClass(lead.status)}`} />
+                                <span className="truncate text-[11px] font-semibold text-[#111827]">{meeting.title || lead.name || `#${lead.id.slice(0, 6)}`}</span>
                               </div>
-                              <div className="truncate text-[10px] text-text-tertiary">
+                              <div className="truncate text-[10px] text-text-secondary">
                                 {dateTimeFormatter.format(new Date(meeting.startsAt))} ·{' '}
                                 {lead.name || lead.email || lead.phone || t('crm.leads.calendar.fallbacks.lead')}
                               </div>
@@ -912,7 +923,7 @@ export const LeadsCalendarPage: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => sendMeetingInvite(lead, meeting)}
-                                className="rounded-md border border-indigo-700/60 px-1.5 py-0.5 text-[10px] text-indigo-200 hover:bg-indigo-900/40"
+                                className="rounded-md border border-indigo-200 px-1.5 py-0.5 text-[10px] text-indigo-700 hover:bg-indigo-50 transition-colors"
                               >
                                 {meeting.notifySentAt
                                   ? t('crm.leads.calendar.actions.resend')

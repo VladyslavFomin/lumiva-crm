@@ -1,4 +1,13 @@
 /**
+ * Единый список стандартных (не кастомных) полей проекта — общий для системного промпта
+ * чата, промпта генератора задач и описания crm_project_create_column, чтобы держать в
+ * одном месте и не пропускать поля по одному (leadId/priority/currency уже наступали на
+ * эти грабли, будучи перечислены в одном месте промпта и забыты в другом).
+ */
+export const STANDARD_PROJECT_FIELDS_NOTE =
+  'Название (name), Статус (status), Сумма (amount), Валюта (currency), Лид (leadId), Компания (companyId), Контакт (contactId), Ответственный (ownerUserId), Категория (category), Теги (tags), Описание (description), Этап/прогресс задач (считается от задач, не редактируется напрямую), Дата создания (createdAt).';
+
+/**
  * Дополнительные function-calling инструменты CRM для AI-ассистента
  * (лиды, проекты, продажи, компании, контакты, заметки, workspace, маркетинг-синк).
  */
@@ -63,7 +72,8 @@ export const CRM_EXTENDED_AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_update_project',
       description:
-        'Обновить проект: projectId и опционально name, description, amount, currency, status, category, tags (строка через запятую), leadId, companyId, contactId, ownerUserId, briefFileName, briefFileUrl, tasks (массив), comments (массив JSON), customFields.',
+        'Обновить проект: projectId и опционально name, description, amount, currency, status, category, tags (строка через запятую), leadId, companyId, contactId, ownerUserId, briefFileName, briefFileUrl, tasks (массив), comments (массив JSON), customFields. ' +
+        'customFields — объект { <key>: <значение> } для кастомных колонок проекта: ключи и типы этих колонок узнавай через crm_project_list_columns, а если нужной колонки ещё нет — сначала создай её через crm_project_create_column. Формат значения зависит от type колонки: number → число, boolean → true/false, date → "YYYY-MM-DD", datetime → ISO-строка, daterange → {"start":"YYYY-MM-DD","end":"YYYY-MM-DD"}, select → одно из options.value, multiselect → массив options.value, остальные (text/textarea/email/phone/url) → строка.',
       parameters: {
         type: 'object',
         properties: {
@@ -91,6 +101,10 @@ export const CRM_EXTENDED_AI_TOOL_DEFINITIONS: unknown[] = [
             items: { type: 'object' },
             description: 'Комментарии к проекту (массив объектов)',
           },
+          customFields: {
+            type: 'object',
+            description: 'Значения кастомных колонок проекта — { <key>: <значение> }, см. описание инструмента.',
+          },
         },
         required: ['projectId'],
       },
@@ -99,9 +113,51 @@ export const CRM_EXTENDED_AI_TOOL_DEFINITIONS: unknown[] = [
   {
     type: 'function',
     function: {
+      name: 'crm_project_list_columns',
+      description:
+        'Список кастомных колонок (полей) таблицы «Проекты» тенанта: id, key, label, type, options (для select/multiselect), source (для email/phone: manual — введено вручную, lead/company — берётся автоматически из привязанного лида/компании). ' +
+        'Всегда вызывай это перед тем как читать/писать customFields проекта или создавать новую колонку — так узнаёшь реальные key и типы и не создашь дубликат уже существующей колонки.',
+      parameters: { type: 'object', properties: {} },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_project_create_column',
+      description:
+        'Создать новую кастомную колонку (поле) в таблице «Проекты». НЕ вызывай для стандартных полей таблицы — они уже есть и меняются через crm_update_project, отдельной колонки под них заводить не нужно (например «колонка с лидом» — это уже существующее поле leadId, не кастомная колонка): ' +
+        STANDARD_PROJECT_FIELDS_NOTE +
+        ' Сначала проверь crm_project_list_columns — не создавай колонку, если подходящая кастомная уже есть. ' +
+        'Выбирай type строго по смыслу данных: email → "email", телефон → "phone", ссылка/URL → "url", дата → "date", дата и время → "datetime", период (с — по) → "daterange", да/нет → "boolean", число/сумма → "number", один вариант из фиксированного списка → "select" (передай options), несколько вариантов сразу → "multiselect" (передай options), длинный текст/заметка → "textarea", короткая строка по умолчанию → "text". Ключ (key) генерируется автоматически из label, его знать не нужно.',
+      parameters: {
+        type: 'object',
+        properties: {
+          label: { type: 'string', description: 'Название колонки, как его увидит пользователь, например "Ссылка на бриф"' },
+          type: {
+            type: 'string',
+            enum: ['text', 'textarea', 'number', 'email', 'phone', 'date', 'datetime', 'daterange', 'boolean', 'select', 'multiselect', 'url'],
+          },
+          options: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Только для select/multiselect — список вариантов (просто подписи текстом)',
+          },
+          source: {
+            type: 'string',
+            enum: ['manual', 'lead', 'company'],
+            description: 'Только для email/phone: manual — вводится вручную (по умолчанию), lead/company — значение автоматически берётся из email/телефона привязанного лида или компании проекта, ручного ввода тогда нет.',
+          },
+        },
+        required: ['label', 'type'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'crm_change_project_status',
       description:
-        'Сменить статус проекта. status: Новый | В работе | На проверке | Заморожен | Закрыт | Выиграно | Проиграно',
+        'Сменить статус проекта. Статусы настраиваются тенантом (см. /projects/settings) и могут отличаться от базового набора (Новый, В работе, На проверке, Заморожен, Закрыт, Выиграно, Проиграно) — если статус не подойдёт, инструмент вернёт allowed с актуальным списком для этого тенанта; используй его, не переспрашивай наугад.',
       parameters: {
         type: 'object',
         properties: {
@@ -250,11 +306,14 @@ export const CRM_EXTENDED_AI_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'crm_list_contacts',
-      description: 'Список контактов: search, limit (по умолчанию 30).',
+      description: 'Список контактов с фильтрами: search (имя/email/телефон/компания), status, assignedUserId, tags, limit (по умолчанию 30).',
       parameters: {
         type: 'object',
         properties: {
           search: { type: 'string' },
+          status: { type: 'string', description: 'Фильтр по статусу контакта' },
+          assignedUserId: { type: 'string', description: 'UUID ответственного сотрудника' },
+          tags: { type: 'array', items: { type: 'string' }, description: 'Фильтр по тегам (совпадение хотя бы по одному)' },
           limit: { type: 'integer', default: 30 },
         },
       },
@@ -858,6 +917,51 @@ export const CRM_PRODUCTS_AI_TOOL_DEFINITIONS: unknown[] = [
   {
     type: 'function',
     function: {
+      name: 'crm_product_create',
+      description:
+        'Создать новый товар в каталоге. quantity задаёт начальный остаток на складе (создаётся движение прихода). ' +
+        'Категория: если знаешь реальный UUID — передай categoryId (из crm_product_list_categories); если пользователь назвал категорию словами ("добавь в категорию Продукты") — передай category (текст), и инструмент сам найдёт существующую категорию с таким названием или создаст новую (в ответе будет createdCategory: true, если создал — сообщи об этом пользователю). ' +
+        'Валюта: если не указана явно, берётся валюта, которой у тенанта уже оформлено большинство товаров (НЕ жёстко EUR) — проверь currency в ответе, если для тебя важно, в чём именно создан товар.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          sku: { type: 'string' },
+          description: { type: 'string' },
+          categoryId: { type: 'string', description: 'Реальный UUID категории из crm_product_list_categories' },
+          category: { type: 'string', description: 'Название категории текстом — найдётся или создастся автоматически' },
+          status: { type: 'string', description: 'active | draft | archived и т.п. — по умолчанию active' },
+          price: { type: 'number' },
+          costPrice: { type: 'number' },
+          currency: { type: 'string', description: 'ISO код валюты; если не задан — определяется автоматически по уже существующим товарам тенанта' },
+          unit: { type: 'string' },
+          quantity: { type: 'number', description: 'Начальный остаток на складе' },
+          barcode: { type: 'string' },
+          tags: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_product_create_category',
+      description: 'Создать новую категорию товаров. Обычно не нужен напрямую — crm_product_create сам создаёт недостающую категорию по имени; используй этот инструмент, если пользователь явно просит завести категорию отдельно (или с родительской категорией/цветом).',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          parentId: { type: 'string', description: 'UUID родительской категории (опционально)' },
+          color: { type: 'string', description: 'HEX-цвет, напр. #22aabb (опционально)' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'crm_product_search',
       description: 'Найти товары по названию или SKU (поиск ILIKE). Используй перед любым изменением цены/статуса/остатков, чтобы получить productId.',
       parameters: {
@@ -1034,7 +1138,7 @@ export const CRM_BOOKINGS_AI_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'crm_booking_search',
-      description: 'Найти брони (записи на приём) по имени/телефону/email клиента и/или диапазону дат/статусу.',
+      description: 'Найти брони (записи на приём) по имени/телефону/email клиента и/или диапазону дат/статусу/мастеру/локации/услуге. Ответ: { results }. Если искал с query (именем) и передал from/to, а results пуст — инструмент САМ уже повторил поиск за тебя без имени и вернул { results: [], note, possibleMatchesByDate }: имя в базе может отличаться от указанного пользователем (опечатка/другое имя, напр. "Александр" вместо "Александра"). В этом случае прочти note и, если possibleMatchesByDate не пуст, покажи эти записи пользователю на подтверждение — НЕ утверждай, что ничего не найдено, и НЕ вызывай инструмент второй раз без query, это уже сделано.',
       parameters: {
         type: 'object',
         properties: {
@@ -1042,6 +1146,9 @@ export const CRM_BOOKINGS_AI_TOOL_DEFINITIONS: unknown[] = [
           from: { type: 'string', description: 'ISO-дата, начало диапазона' },
           to: { type: 'string', description: 'ISO-дата, конец диапазона' },
           status: { type: 'string' },
+          staffUserId: { type: 'string', description: 'UUID мастера/сотрудника' },
+          locationId: { type: 'string', description: 'UUID локации' },
+          serviceId: { type: 'string', description: 'UUID услуги' },
           limit: { type: 'integer', default: 15 },
         },
       },
@@ -1089,100 +1196,204 @@ export const CRM_BOOKINGS_AI_TOOL_DEFINITIONS: unknown[] = [
   {
     type: 'function',
     function: {
-      name: 'crm_booking_reschedule',
-      description: 'Перенести бронь на другое время/мастера/ресурс. Дождись согласия пользователя — userConfirmedReschedule: true.',
+      name: 'crm_booking_update',
+      description:
+        'Изменить существующую бронь: перенос времени, смена мастера/кабинета/локации/услуги, данные клиента, кол-во участников, цена, статус оплаты. reservationId и хотя бы одно поле для изменения. Дождись согласия пользователя — userConfirmedChange: true. Для смены статуса брони (подтвердить/отменить/чек-ин и т.п.) используй crm_booking_set_status, не этот инструмент. Если reservationId не найден — берётся не из твоей памяти/предыдущего текста, а СВЕЖИЙ из последнего crm_booking_search; если он всё равно не найден, ответ будет содержать closestMatch (ближайшая реальная запись) — сверься с ним, это почти всегда опечатка в одном символе UUID, а не отсутствие брони.',
       parameters: {
         type: 'object',
         properties: {
-          userConfirmedReschedule: { type: 'boolean' },
+          userConfirmedChange: { type: 'boolean' },
           reservationId: { type: 'string' },
           startAt: { type: 'string' },
           endAt: { type: 'string' },
           staffUserId: { type: 'string' },
           resourceId: { type: 'string' },
+          serviceId: { type: 'string', description: 'UUID услуги из crm_booking_list_services — меняет саму услугу брони' },
+          locationId: { type: 'string' },
+          customerName: { type: 'string' },
+          customerPhone: { type: 'string' },
+          customerEmail: { type: 'string' },
+          participants: { type: 'integer' },
+          price: { type: 'number' },
+          currency: { type: 'string' },
+          paymentStatus: { type: 'string', enum: ['not_required', 'unpaid', 'deposit_paid', 'paid', 'partially_refunded', 'refunded', 'failed'] },
         },
-        required: ['userConfirmedReschedule', 'reservationId'],
+        required: ['userConfirmedChange', 'reservationId'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'crm_booking_confirm',
-      description: 'Подтвердить бронь (статус confirmed). Дождись согласия пользователя — userConfirmedStatusChange: true.',
+      name: 'crm_booking_set_status',
+      description:
+        'Сменить статус брони — объединяет подтверждение/отмену/отклонение/чек-ин/завершение/неявку в один инструмент, укажи action. ' +
+        'confirm/cancel/reject меняют намерение по брони — дождись явного согласия пользователя в чате, затем userConfirmed: true. ' +
+        'check_in/complete/mark_no_show лишь фиксируют уже случившийся факт — подтверждения не требуют. ' +
+        'reservationId бери из свежего crm_booking_search, не из памяти/своего текста; если не найден, ответ вернёт closestMatch — почти всегда опечатка в одном символе UUID.',
       parameters: {
         type: 'object',
         properties: {
-          userConfirmedStatusChange: { type: 'boolean' },
           reservationId: { type: 'string' },
+          action: {
+            type: 'string',
+            enum: ['confirm', 'cancel', 'reject', 'check_in', 'complete', 'mark_no_show'],
+          },
+          userConfirmed: { type: 'boolean', description: 'Обязательно true для action confirm/cancel/reject; не нужен для check_in/complete/mark_no_show' },
         },
-        required: ['userConfirmedStatusChange', 'reservationId'],
+        required: ['reservationId', 'action'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'crm_booking_cancel',
-      description: 'Отменить бронь со стороны бизнеса. Дождись согласия пользователя — userConfirmedCancel: true.',
+      name: 'crm_booking_manage_location',
+      description: 'Создать/изменить/удалить локацию (филиал/точку) — укажи action. create: name обязателен. update: locationId обязателен, любые поля кроме action/locationId — что меняешь; плюс workingHours ({mon..sun: [{start,end}]}) и status (active/pending/disabled). delete: locationId, необратимо — озвучь пользователю и дождись согласия перед вызовом.',
       parameters: {
         type: 'object',
         properties: {
-          userConfirmedCancel: { type: 'boolean' },
-          reservationId: { type: 'string' },
+          action: { type: 'string', enum: ['create', 'update', 'delete'] },
+          locationId: { type: 'string', description: 'Обязателен для update/delete' },
+          name: { type: 'string' },
+          address: { type: 'string' },
+          timezone: { type: 'string', description: 'Напр. Europe/Istanbul' },
+          phone: { type: 'string' },
+          email: { type: 'string' },
+          notes: { type: 'string' },
+          status: { type: 'string', description: 'Только для update: active | pending | disabled' },
+          workingHours: { type: 'object', description: 'Только для update: ключи mon..sun -> массив [{start:"09:00",end:"18:00"}]' },
         },
-        required: ['userConfirmedCancel', 'reservationId'],
+        required: ['action'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'crm_booking_reject',
-      description: 'Отклонить бронь. Дождись согласия пользователя — userConfirmedStatusChange: true.',
+      name: 'crm_booking_manage_service',
+      description: 'Создать/изменить/удалить услугу для записи — укажи action. create: name обязателен; ПЕРЕД созданием проверь crm_booking_list_services — если услуга с таким названием уже есть, используй её (update при необходимости), не создавай дубликат. update: serviceId обязателен, плюс active (boolean). delete: serviceId, необратимо — озвучь пользователю и дождись согласия перед вызовом.',
       parameters: {
         type: 'object',
         properties: {
-          userConfirmedStatusChange: { type: 'boolean' },
-          reservationId: { type: 'string' },
+          action: { type: 'string', enum: ['create', 'update', 'delete'] },
+          serviceId: { type: 'string', description: 'Обязателен для update/delete' },
+          name: { type: 'string' },
+          category: { type: 'string' },
+          color: { type: 'string', description: 'HEX для календаря' },
+          durationMinutes: { type: 'integer', default: 60 },
+          price: { type: 'number' },
+          currency: { type: 'string' },
+          capacityMin: { type: 'integer' },
+          capacityMax: { type: 'integer' },
+          locationIds: { type: 'array', items: { type: 'string' }, description: 'UUID локаций, где доступна услуга (из crm_booking_list_locations)' },
+          staffUserIds: { type: 'array', items: { type: 'string' }, description: 'UUID мастеров, которые ВООБЩЕ умеют оказывать эту услугу (справочник/каталог, доступные для выбора при записи) — это НЕ мастер конкретной брони клиента и никак не отражается в списке записей. Если пользователь имеет в виду конкретную бронь/запись клиента ("назначь мастера на эту запись/бронь") — это crm_booking_update с staffUserId, а не это поле; при неясности спроси, что именно имеется в виду.' },
+          autoConfirm: { type: 'boolean' },
+          active: { type: 'boolean', description: 'Только для update' },
         },
-        required: ['userConfirmedStatusChange', 'reservationId'],
+        required: ['action'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'crm_booking_check_in',
-      description: 'Отметить, что клиент пришёл (check-in). Фиксация факта, подтверждения не требует.',
+      name: 'crm_booking_manage_resource',
+      description: 'Создать/изменить/удалить ресурс (кабинет/стол/оборудование и т.п.) — укажи action. create: name, locationId, type обязательны. update: resourceId обязателен, плюс active (boolean). delete: resourceId, необратимо — озвучь пользователю и дождись согласия перед вызовом.',
       parameters: {
         type: 'object',
-        properties: { reservationId: { type: 'string' } },
-        required: ['reservationId'],
+        properties: {
+          action: { type: 'string', enum: ['create', 'update', 'delete'] },
+          resourceId: { type: 'string', description: 'Обязателен для update/delete' },
+          name: { type: 'string' },
+          locationId: { type: 'string', description: 'UUID локации (из crm_booking_list_locations); обязателен при create' },
+          type: { type: 'string', description: 'room | cabinet | table | equipment | hall | parking и т.п.; обязателен при create' },
+          quantity: { type: 'integer', description: 'Для пула одинаковых ресурсов, по умолчанию 1' },
+          capacity: { type: 'integer' },
+          assignedServiceIds: { type: 'array', items: { type: 'string' } },
+          active: { type: 'boolean', description: 'Только для update' },
+        },
+        required: ['action'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'crm_booking_complete',
-      description: 'Отметить бронь как завершённую. Фиксация факта, подтверждения не требует.',
+      name: 'crm_booking_manage_staff_profile',
+      description:
+        'Настроить сотрудника как мастера для записи: доступность для бронирования, недельный график, к каким локациям/услугам привязан, лимит одновременных броней, цвет в календаре. Не создаёт нового сотрудника (для этого нужен модуль «Команда») — только его профиль в модуле «Бронирования» для уже существующего staffUserId (см. crm_list_staff_members / crm_booking_list_staff).',
       parameters: {
         type: 'object',
-        properties: { reservationId: { type: 'string' } },
-        required: ['reservationId'],
+        properties: {
+          staffUserId: { type: 'string' },
+          availableForBooking: { type: 'boolean', description: 'Может ли вообще принимать записи' },
+          weeklyAvailability: {
+            type: 'object',
+            description: 'Ключи mon,tue,wed,thu,fri,sat,sun -> массив периодов [{start:"09:00",end:"18:00"}]; пустой массив или отсутствие ключа = выходной в этот день. Полностью заменяет прежний график.',
+          },
+          assignedLocationIds: { type: 'array', items: { type: 'string' }, description: 'UUID локаций, где принимает (из crm_booking_list_locations)' },
+          assignedServiceIds: { type: 'array', items: { type: 'string' }, description: 'UUID услуг, которые оказывает (из crm_booking_list_services)' },
+          maxSimultaneousBookings: { type: 'integer' },
+          calendarColor: { type: 'string', description: 'HEX-цвет для календаря' },
+        },
+        required: ['staffUserId'],
       },
     },
   },
   {
     type: 'function',
     function: {
-      name: 'crm_booking_mark_no_show',
-      description: 'Отметить неявку клиента. Фиксация факта, подтверждения не требует.',
+      name: 'crm_booking_manage_staff_time_off',
+      description: 'Добавить/удалить отпуск-выходной мастеру — укажи action. add: from/to обязательны — на этот период мастер недоступен для записи и проверки слотов. remove: index обязателен (позиция в списке timeOff, начиная с 0 — узнай через crm_booking_list_staff).',
       parameters: {
         type: 'object',
-        properties: { reservationId: { type: 'string' } },
-        required: ['reservationId'],
+        properties: {
+          action: { type: 'string', enum: ['add', 'remove'] },
+          staffUserId: { type: 'string' },
+          from: { type: 'string', description: 'ISO дата/время начала; только для add' },
+          to: { type: 'string', description: 'ISO дата/время конца; только для add' },
+          reason: { type: 'string' },
+          index: { type: 'integer', description: 'Только для remove' },
+        },
+        required: ['action', 'staffUserId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_manage_location_closure',
+      description: '"Особая дата" локации (закрытый день/сокращённые часы, напр. праздник) — укажи action. add: date обязателен. remove: index обязателен (позиция в списке closures, начиная с 0 — узнай через crm_booking_list_locations).',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['add', 'remove'] },
+          locationId: { type: 'string' },
+          date: { type: 'string', description: 'YYYY-MM-DD; только для add' },
+          reason: { type: 'string' },
+          customHours: {
+            type: 'array',
+            items: { type: 'object', properties: { start: { type: 'string' }, end: { type: 'string' } } },
+            description: 'Только для add: сокращённые часы вместо полного закрытия (опционально)',
+          },
+          index: { type: 'integer', description: 'Только для remove' },
+        },
+        required: ['action', 'locationId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_booking_analytics',
+      description: 'Сводная аналитика модуля «Бронирования» за период: загрузка (occupancy), количество записей, доход и т.п. Используй, когда пользователь спрашивает про статистику/загрузку/динамику записей, а не для поиска конкретной брони.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD' },
+        },
       },
     },
   },
@@ -1235,6 +1446,163 @@ export const CRM_HOTELS_AI_TOOL_DEFINITIONS: unknown[] = [
         type: 'object',
         properties: { hotelId: { type: 'string' } },
         required: ['hotelId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_list_markets',
+      description:
+        'Плоские (flat) тарифы за ночь по рынкам для КОНКРЕТНОГО типа номера — отдельная от групп рынков (crm_hotel_list_market_groups) и от посуточной цены по заезду (crm_hotel_get_daily_rates) система: если для рынка гостя настроен flat-тариф, он перекрывает Brutto/ночь. ВСЕГДА вызывай перед crm_hotel_reservation_create, если у брони есть определённый рынок гостя (страна) — чтобы не подставить/не попросить у пользователя неверную цену.',
+      parameters: {
+        type: 'object',
+        properties: { roomTypeId: { type: 'string' } },
+        required: ['roomTypeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_create',
+      description: 'Создать новый отель.',
+      parameters: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          city: { type: 'string' },
+          country: { type: 'string' },
+          stars: { type: 'integer', description: '1-5, по умолчанию 5' },
+          currency: { type: 'string' },
+          address: { type: 'string' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_create_room_type',
+      description: 'Создать новый тип номера в отеле (crm_hotel_list_room_types покажет существующие). Автоматически создаёт два базовых варианта размещения (SGL, 2 AD) — их можно изменить/дополнить через crm_hotel_create_occupancy_type.',
+      parameters: {
+        type: 'object',
+        properties: {
+          hotelId: { type: 'string' },
+          name: { type: 'string' },
+          sizeM2: { type: 'number' },
+          capacityLabel: { type: 'string' },
+          basePrice: { type: 'number' },
+          currency: { type: 'string' },
+          quantity: { type: 'integer', description: 'Кол-во номеров этого типа' },
+          amenities: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['hotelId', 'name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_list_room_units',
+      description: 'Список конкретных номеров (с реальными номерами/названиями — напр. "101", "Deluxe-3") для типа номера или отеля целиком.',
+      parameters: {
+        type: 'object',
+        properties: {
+          hotelId: { type: 'string' },
+          roomTypeId: { type: 'string' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_manage_room_unit',
+      description: 'Создать/изменить/удалить конкретный номер (с номером/названием, напр. "101") у типа номера — укажи action. create: roomTypeId и label обязательны. update: roomUnitId обязателен, плюс active (boolean). delete: roomUnitId, необратимо — озвучь пользователю и дождись согласия перед вызовом.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['create', 'update', 'delete'] },
+          roomUnitId: { type: 'string', description: 'Обязателен для update/delete' },
+          roomTypeId: { type: 'string', description: 'Обязателен для create' },
+          label: { type: 'string', description: 'Номер/название, напр. "101"; обязателен для create' },
+          note: { type: 'string' },
+          active: { type: 'boolean', description: 'Только для update' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_list_occupancy_types',
+      description: 'Варианты размещения для типа номера (напр. SGL, 2 AD, 2 AD + 1 CHD) с коэффициентом цены — основа для посуточных тарифов (crm_hotel_get_daily_rates).',
+      parameters: {
+        type: 'object',
+        properties: { roomTypeId: { type: 'string' } },
+        required: ['roomTypeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_manage_occupancy_type',
+      description: 'Создать/изменить/удалить вариант размещения (заполняемость) типа номера, напр. "3 AD" с коэффициентом цены к базовой ставке — укажи action. create: roomTypeId, label, coefficient обязательны. update: occupancyTypeId обязателен. remove: occupancyTypeId, необратимо — озвучь пользователю и дождись согласия перед вызовом.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['create', 'update', 'remove'] },
+          occupancyTypeId: { type: 'string', description: 'Обязателен для update/remove' },
+          roomTypeId: { type: 'string', description: 'Обязателен для create' },
+          label: { type: 'string' },
+          coefficient: { type: 'number', description: 'Множитель к базовой цене номера, напр. 1.6; обязателен для create' },
+          paidChildCount: { type: 'integer' },
+          sortOrder: { type: 'integer' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_update_room_type',
+      description: 'Изменить данные/наполнение типа номера: название, площадь, вместимость, кол-во номеров, удобства (amenities — полный список текстом, перезаписывает старый), обложку, стоп-продажу. Это НЕ тариф/цена за ночь — для тарифов используй crm_hotel_update_rate / crm_hotel_list_markets.',
+      parameters: {
+        type: 'object',
+        properties: {
+          roomTypeId: { type: 'string' },
+          name: { type: 'string' },
+          sizeM2: { type: 'number' },
+          capacityLabel: { type: 'string', description: 'Текст вместимости, напр. "2 взрослых + 1 ребёнок"' },
+          quantity: { type: 'integer', description: 'Кол-во номеров этого типа в отеле' },
+          amenities: { type: 'array', items: { type: 'string' }, description: 'Полный список удобств — перезаписывает существующий, а не добавляет к нему' },
+          coverPhotoUrl: { type: 'string' },
+          stopSale: { type: 'boolean' },
+        },
+        required: ['roomTypeId'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_hotel_analytics',
+      description: 'Сводная аналитика системы резервации: загрузка номеров, доход, воронка, разбивка по типам номеров/рынкам/агентствам/демографии гостей. Используй для вопросов про статистику/загрузку/динамику, а не для поиска конкретной брони.',
+      parameters: {
+        type: 'object',
+        properties: {
+          hotelId: { type: 'string', description: 'UUID отеля, либо через запятую несколько; не задано = все отели' },
+          roomTypeId: { type: 'string' },
+          from: { type: 'string', description: 'YYYY-MM-DD, начало диапазона по дате заезда' },
+          to: { type: 'string', description: 'YYYY-MM-DD, конец диапазона по дате заезда' },
+          market: { type: 'string' },
+          agencyId: { type: 'string' },
+        },
       },
     },
   },
@@ -1296,13 +1664,15 @@ export const CRM_HOTELS_AI_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'crm_hotel_reservation_search',
-      description: 'Найти брони номеров отеля (HotelReservation) по отелю/типу номера/статусу.',
+      description: 'Найти брони номеров отеля (HotelReservation) по отелю/типу номера/статусу/рынку/имени гостя.',
       parameters: {
         type: 'object',
         properties: {
           hotelId: { type: 'string' },
           roomTypeId: { type: 'string' },
           status: { type: 'string' },
+          market: { type: 'string' },
+          search: { type: 'string', description: 'Поиск по имени/email/телефону гостя' },
         },
       },
     },
@@ -1324,7 +1694,7 @@ export const CRM_HOTELS_AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_hotel_reservation_create',
       description:
-        'Создать бронь номера отеля (заезд/выезд гостя). Перед вызовом озвучь пользователю отель, тип номера, даты и имя гостя, дождись явного согласия — тогда userConfirmedReservation: true. Поле market — свободный текст региона гостя (например «Германия»), это НЕ marketGroupId из crm_hotel_list_market_groups, не путай их.',
+        'Создать бронь номера отеля (заезд/выезд гостя). Перед вызовом озвучь пользователю отель, тип номера, даты, имя гостя И цену за ночь, дождись явного согласия — тогда userConfirmedReservation: true. Поле market — свободный текст региона гостя (например «Германия»), это НЕ marketGroupId из crm_hotel_list_market_groups, не путай их. Если market указан, а grossPerNight — нет, инструмент попробует автоматически подставить настроенный flat-тариф этого рынка (см. crm_hotel_list_markets) — ОБЯЗАТЕЛЬНО проверь marketPriceNote в ответе и озвучь пользователю реальную цену, использованную в брони, прежде чем подтверждать; если тариф не найден, инструмент не станет угадывать цену — вызови crm_hotel_list_markets и уточни у пользователя.',
       parameters: {
         type: 'object',
         properties: {
@@ -1352,7 +1722,8 @@ export const CRM_HOTELS_AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_hotel_reservation_update',
       description:
-        'Изменить бронь номера отеля — перенос дат, редактирование данных гостя/цены, или отмена (status: "cancelled"). Дождись согласия пользователя — userConfirmedReservationChange: true.',
+        'Изменить бронь номера отеля — перенос дат, редактирование данных гостя/цены, кол-ва гостей, или отмена (status: "cancelled"). Дождись согласия пользователя — userConfirmedReservationChange: true. ' +
+        'Итоговая сумма (total/roomTotal/ppTotal) автоматически пересчитывается из ночей × ставки за ночь при ЛЮБОМ изменении (даты/цена и т.п.) — но сама ставка за ночь НЕ меняется автоматически при изменении pax: если добавляешь/убираешь гостей и это должно повлиять на цену, сначала узнай актуальную ставку под новую вместимость (crm_hotel_get_daily_rates / crm_hotel_list_markets) и передай новый grossPerNight/ppPerNight вместе с pax в этом же вызове — иначе сумма останется прежней, из старой ставки.',
       parameters: {
         type: 'object',
         properties: {

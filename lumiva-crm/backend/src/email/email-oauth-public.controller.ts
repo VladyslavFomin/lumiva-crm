@@ -24,7 +24,7 @@ export class EmailOAuthPublicController {
     @Res() res: Response,
   ) {
     const fe = this.frontendBase();
-    const fail = () => res.redirect(`${fe}/app/email/accounts?oauth=error`);
+    const fail = () => res.redirect(`${fe}/app/email?oauth=error`);
     if (oauthError || !code || !state) return fail();
     try {
       const { redirect } = await this.oauth.handleGoogleCallback(code, state);
@@ -44,7 +44,7 @@ export class EmailOAuthPublicController {
     @Res() res: Response,
   ) {
     const fe = this.frontendBase();
-    const fail = () => res.redirect(`${fe}/app/email/accounts?oauth=error`);
+    const fail = () => res.redirect(`${fe}/app/email?oauth=error`);
     if (oauthError || !code || !state) return fail();
     try {
       const { redirect } = await this.oauth.handleMicrosoftCallback(

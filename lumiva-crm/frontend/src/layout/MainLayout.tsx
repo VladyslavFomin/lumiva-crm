@@ -44,6 +44,7 @@ import {
 import { resolvePublicAssetUrl, readForbiddenNotice, clearForbiddenNotice, persistForbiddenNotice } from '../api/client';
 import { withTimeout, DEFAULT_FETCH_TIMEOUT_MS } from '../utils/withTimeout';
 import { AiAssistantPanel } from '../components/ai/AiAssistantPanel';
+import { CommandPalette } from '../components/CommandPalette';
 import { AiAssistantTriggerIcon } from '../components/ai/AiAssistantTriggerIcon';
 import { HelpdeskQuickRequestModal } from './HelpdeskQuickRequestModal';
 import {
@@ -163,6 +164,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
   const [notificationsPreviewOpen, setNotificationsPreviewOpen] = useState(false);
   const [helpdeskQuickRequestOpen, setHelpdeskQuickRequestOpen] = useState(false);
   const [aiAssistantOpen, setAiAssistantOpen] = useState(false);
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [taskNotifications, setTaskNotifications] = useState<
     Array<{
       projectId: string;
@@ -661,6 +663,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     if (meta.type === 'company.assigned') return 'Компания';
     if (meta.type === 'company_task.assigned') return 'Задача';
     if (meta.type === 'reservation.assigned') return 'Бронь';
+    if (meta.type === 'telegram.handoff') return 'Telegram';
     return 'Система';
   };
 
@@ -1144,6 +1147,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         children: [
           { label: t('crm.nav.mailInbox'), path: '/app/email/inbox' },
           { label: t('crm.nav.mailAccounts'), path: '/app/email' },
+          { label: t('crm.nav.mailTemplates'), path: '/app/marketing/email-templates' },
         ],
       },
 
@@ -1202,7 +1206,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
           { label: t('crm.nav.marketingSeo'), path: '/app/marketing/seo' },
           { label: t('crm.nav.marketingSmm'), path: '/app/marketing/smm' },
           { label: t('crm.nav.marketingIntegrations'), path: '/app/integrations-hub?tab=marketing' },
-          { label: t('crm.nav.marketingEmailTemplates'), path: '/app/marketing/email-templates' },
         ],
       },
 
@@ -1336,6 +1339,34 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
     ],
     [t],
   );
+
+  const commandPaletteNavItems = useMemo(
+    () =>
+      NAV.flatMap((item) => [
+        { label: item.label, path: item.path },
+        ...(item.children || []).map((c) => ({ label: c.label, path: c.path })),
+      ]),
+    [NAV],
+  );
+
+  // ⌘K / Ctrl+K — палитра команд (поиск по записям и разделам), ⌘J / Ctrl+J — ИИ-ассистент.
+  // Глобальный слушатель, а не привязка к конкретному инпуту — работает с любой точки страницы.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      if (e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandPaletteOpen(true);
+      } else if (e.key.toLowerCase() === 'j') {
+        e.preventDefault();
+        setNotificationsOpen(false);
+        setAiAssistantOpen(true);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   // Маппинг путей к ключам компонентов (после редиректа /app → короткие пути)
   const componentKeyForPath = (path: string): string | null => {
@@ -2868,6 +2899,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children, fullBleed = fa
         open={aiAssistantOpen}
         onClose={() => setAiAssistantOpen(false)}
         userName={user?.name?.trim() || null}
+      />
+
+      <CommandPalette
+        open={commandPaletteOpen}
+        onClose={() => setCommandPaletteOpen(false)}
+        navItems={commandPaletteNavItems}
       />
 
       <HelpdeskQuickRequestModal open={helpdeskQuickRequestOpen} onClose={() => setHelpdeskQuickRequestOpen(false)} />

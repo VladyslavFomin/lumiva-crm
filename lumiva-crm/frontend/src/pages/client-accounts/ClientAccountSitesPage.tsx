@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { ccpApi, type CcpClient, type CcpSite } from '../../api/ccp';
 import { useAlertModal } from '../../contexts/AlertModalContext';
@@ -18,8 +19,8 @@ function initials(name: string) {
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
 }
-function fmtNum(v: number | string | null | undefined) {
-  return Number(v || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function fmtNum(v: number | string | null | undefined, locale = 'ru-RU') {
+  return Number(v || 0).toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 function pickItems<T>(res: any): T[] {
   if (!res) return [];
@@ -35,6 +36,9 @@ const emptyForm: SiteForm = { siteUrl: '', wpRestBase: '', wpToken: '', isActive
 type SiteStat = { clientCount: number; investedEur: number; investedUsd: number };
 
 export default function ClientAccountSitesPage() {
+  const { t, i18n } = useTranslation();
+  const sp = (key: string, opts?: Record<string, unknown>) => t(`crm.clientAccounts.sitesPage.${key}`, opts as any) as string;
+  const locale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const { showConfirm } = useAlertModal();
   const [sites, setSites]       = useState<CcpSite[]>([]);
   const [clients, setClients]   = useState<CcpClient[]>([]);
@@ -60,7 +64,7 @@ export default function ClientAccountSitesPage() {
       setSites(sitesRes.status === 'fulfilled' ? (sitesRes.value || []) : []);
       setClients(clientsRes.status === 'fulfilled' ? pickItems<CcpClient>(clientsRes.value) : []);
     } catch (e: any) {
-      setError(e?.message || 'Не удалось загрузить данные');
+      setError(e?.message || sp('loadDataError'));
     } finally {
       setLoading(false);
     }
@@ -106,7 +110,7 @@ export default function ClientAccountSitesPage() {
 
   const saveCreate = async () => {
     const siteUrl = normalizeUrl(createForm.siteUrl);
-    if (!siteUrl) { setError('Укажите URL сайта'); return; }
+    if (!siteUrl) { setError(sp('siteUrlRequired')); return; }
     setSaving(true); setError(''); setMessage('');
     try {
       const site = await ccpApi.addSite({ siteUrl });
@@ -117,16 +121,16 @@ export default function ClientAccountSitesPage() {
       }
       setCreateForm(emptyForm);
       setShowAddForm(false);
-      setMessage('Сайт добавлен');
+      setMessage(sp('siteAdded'));
       await load();
     } catch (e: any) {
-      setError(e?.message || 'Не удалось добавить сайт');
+      setError(e?.message || sp('addSiteError'));
     } finally { setSaving(false); }
   };
 
   const saveEdit = async (siteId: string) => {
     const siteUrl = normalizeUrl(editForm.siteUrl);
-    if (!siteUrl) { setError('Укажите URL сайта'); return; }
+    if (!siteUrl) { setError(sp('siteUrlRequired')); return; }
     setSaving(true); setError(''); setMessage('');
     try {
       await ccpApi.updateSite(siteId, {
@@ -136,29 +140,29 @@ export default function ClientAccountSitesPage() {
         isActive:   editForm.isActive,
       });
       setEditingId(null);
-      setMessage('Сайт обновлён');
+      setMessage(sp('siteUpdated'));
       await load();
     } catch (e: any) {
-      setError(e?.message || 'Не удалось обновить сайт');
+      setError(e?.message || sp('updateSiteError'));
     } finally { setSaving(false); }
   };
 
   const deleteSite = async (site: CcpSite) => {
     const label = site.siteHost || site.siteUrl || site.id;
-    const ok = await showConfirm(`Удалить сайт «${label}»? Данные клиентов не удалятся.`, {
-      title: 'Удаление',
-      confirmLabel: 'Удалить',
-      cancelLabel: 'Отмена',
+    const ok = await showConfirm(sp('deleteConfirmFormat', { label }), {
+      title: sp('deleteConfirmTitle'),
+      confirmLabel: sp('deleteConfirmBtn'),
+      cancelLabel: sp('cancelBtn'),
       danger: true,
     });
     if (!ok) return;
     setSaving(true); setError(''); setMessage('');
     try {
       await ccpApi.deleteSite(site.id);
-      setMessage('Сайт удалён');
+      setMessage(sp('siteDeleted'));
       await load();
     } catch (e: any) {
-      setError(e?.message || 'Не удалось удалить сайт');
+      setError(e?.message || sp('deleteSiteError'));
     } finally { setSaving(false); }
   };
 
@@ -174,27 +178,27 @@ export default function ClientAccountSitesPage() {
   const kpiCells = [
     {
       icon: <><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a14 14 0 010 18"/><path d="M12 3a14 14 0 000 18"/></>,
-      label: 'Сайтов',
+      label: sp('kpis.sites'),
       value: sites.length,
-      sub: `${activeSites.length} активных · ${offlineSites.length} офлайн`,
+      sub: sp('kpis.sitesSubFormat', { active: activeSites.length, offline: offlineSites.length }),
     },
     {
       icon: <><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3 3-5.5 6-5.5s6 2.5 6 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M15 14.5c2.5 0 5 1.5 5 4"/></>,
-      label: 'Клиентов всего',
+      label: sp('kpis.totalClients'),
       value: totalClients,
-      sub: 'по всем сайтам',
+      sub: sp('kpis.acrossAllSites'),
     },
     {
       icon: <><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="17" cy="14" r="1.4" fill="currentColor"/></>,
-      label: 'Инвестировано EUR',
-      value: <>{fmtNum(totalEur)}<span className="text-[16px] font-normal text-[#999] ml-1">EUR</span></>,
-      sub: 'суммарно по счетам',
+      label: sp('kpis.investedEur'),
+      value: <>{fmtNum(totalEur, locale)}<span className="text-[16px] font-normal text-[#999] ml-1">EUR</span></>,
+      sub: sp('kpis.acrossAccounts'),
     },
     {
       icon: <><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="17" cy="14" r="1.4" fill="currentColor"/></>,
-      label: 'Инвестировано USD',
-      value: <>{fmtNum(totalUsd)}<span className="text-[16px] font-normal text-[#999] ml-1">USD</span></>,
-      sub: 'суммарно по счетам',
+      label: sp('kpis.investedUsd'),
+      value: <>{fmtNum(totalUsd, locale)}<span className="text-[16px] font-normal text-[#999] ml-1">USD</span></>,
+      sub: sp('kpis.acrossAccounts'),
     },
   ];
 
@@ -205,10 +209,10 @@ export default function ClientAccountSitesPage() {
         <div className="flex items-start justify-between pb-5 border-b border-[#e7e7e7]">
           <div>
             <div className="cd-mono text-[10px] font-medium tracking-[0.18em] uppercase text-[#888] mb-1">
-              Client accounts
+              {sp('kicker')}
             </div>
             <h1 className="cd-display text-[22px] font-semibold tracking-[-0.02em] text-[#222]">
-              Сайты счетов
+              {sp('title')}
             </h1>
           </div>
           <div className="flex items-center gap-2 mt-1">
@@ -216,7 +220,7 @@ export default function ClientAccountSitesPage() {
               to="/client-accounts"
               className="h-8 px-3 flex items-center rounded-[8px] border border-[#e7e7e7] bg-white cd-mono text-[11px] font-medium text-[#555] hover:bg-[#fafafa] transition-colors"
             >
-              ← Счета
+              {sp('accountsLink')}
             </Link>
             <button
               type="button"
@@ -226,7 +230,7 @@ export default function ClientAccountSitesPage() {
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M21 12a9 9 0 11-3-6.7"/><path d="M21 4v5h-5"/>
               </svg>
-              Обновить
+              {sp('refreshBtn')}
             </button>
             <button
               type="button"
@@ -241,7 +245,7 @@ export default function ClientAccountSitesPage() {
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M12 5v14"/><path d="M5 12h14"/>
               </svg>
-              Подключить сайт
+              {sp('connectSiteBtn')}
             </button>
           </div>
         </div>
@@ -272,7 +276,7 @@ export default function ClientAccountSitesPage() {
         {showAddForm && (
           <div className="bg-white border border-[#e7e7e7] rounded-[12px] p-5">
             <div className="flex items-center justify-between mb-4">
-              <div className="font-semibold text-[14px] text-[#222] tracking-[-0.01em]">Подключить новый сайт</div>
+              <div className="font-semibold text-[14px] text-[#222] tracking-[-0.01em]">{sp('addForm.title')}</div>
               <button type="button" onClick={() => setShowAddForm(false)} className="text-[#b5b5b5] hover:text-[#222]">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12"/><path d="M6 18L18 6"/></svg>
               </button>
@@ -280,19 +284,19 @@ export default function ClientAccountSitesPage() {
             <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
               <input
                 className="h-9 rounded-[8px] border border-[#e7e7e7] bg-[#fafafa] px-3 text-sm text-[#222] outline-none focus:border-[#222] focus:bg-white transition-colors"
-                placeholder="https://example.com"
+                placeholder={sp('addForm.urlPlaceholder')}
                 value={createForm.siteUrl}
                 onChange={e => setCreateForm(p => ({ ...p, siteUrl: e.target.value }))}
               />
               <input
                 className="h-9 rounded-[8px] border border-[#e7e7e7] bg-[#fafafa] px-3 text-sm text-[#222] outline-none focus:border-[#222] focus:bg-white transition-colors"
-                placeholder="REST base, напр. /api/v1/crm"
+                placeholder={sp('addForm.restBasePlaceholder')}
                 value={createForm.wpRestBase}
                 onChange={e => setCreateForm(p => ({ ...p, wpRestBase: e.target.value }))}
               />
               <input
                 className="h-9 rounded-[8px] border border-[#e7e7e7] bg-[#fafafa] px-3 text-sm text-[#222] outline-none focus:border-[#222] focus:bg-white transition-colors"
-                placeholder="Site REST token"
+                placeholder={sp('addForm.tokenPlaceholder')}
                 value={createForm.wpToken}
                 onChange={e => setCreateForm(p => ({ ...p, wpToken: e.target.value }))}
               />
@@ -302,11 +306,11 @@ export default function ClientAccountSitesPage() {
                 onClick={saveCreate}
                 className="h-9 px-4 rounded-[8px] bg-[#222] text-white cd-mono text-[11px] font-semibold hover:bg-[#1a1a1a] disabled:opacity-50 whitespace-nowrap transition-colors"
               >
-                Добавить
+                {sp('addForm.addBtn')}
               </button>
             </div>
             <p className="mt-3 text-[11px] text-[#888] leading-5">
-              REST base и token можно заполнить позже — сайт добавится в список сразу.
+              {sp('addForm.hint')}
             </p>
           </div>
         )}
@@ -319,20 +323,20 @@ export default function ClientAccountSitesPage() {
             </svg>
             <input
               className="w-full h-9 pl-8 pr-3 rounded-[8px] border border-[#e7e7e7] bg-white text-sm text-[#222] placeholder-[#b5b5b5] outline-none focus:border-[#222] transition-colors"
-              placeholder="Найти сайт по хосту…"
+              placeholder={sp('searchPlaceholder')}
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
           </div>
           <div className="flex-1" />
           <span className="cd-mono text-[11px] text-[#888] tracking-[0.06em]">
-            {loading ? '…' : `${filteredSites.length} САЙТОВ`}
+            {loading ? '…' : `${filteredSites.length} ${sp('sitesCountSuffix')}`}
           </span>
         </div>
 
         {/* ── Loading ──────────────────────────────────────────────────── */}
         {loading && (
-          <div className="flex items-center justify-center py-16 text-sm text-[#888]">Загрузка…</div>
+          <div className="flex items-center justify-center py-16 text-sm text-[#888]">{sp('loading')}</div>
         )}
 
         {/* ── Site grid ────────────────────────────────────────────────── */}
@@ -369,17 +373,17 @@ export default function ClientAccountSitesPage() {
                         : 'border-[#e7e7e7] bg-[#f5f5f5] text-[#888]',
                     )}>
                       <span className={cx('w-[5px] h-[5px] rounded-full', isOnline ? 'bg-[#1f8a5e]' : 'bg-[#ccc]')} />
-                      {isOnline ? 'Онлайн' : 'Офлайн'}
+                      {isOnline ? sp('online') : sp('offline')}
                     </span>
                   </div>
 
                   {/* Stats */}
                   <div className="grid grid-cols-4 border-t border-[#f0f0f0] px-4 py-3 gap-2">
                     {[
-                      { label: 'Клиентов', value: String(stats.clientCount), mono: false },
-                      { label: 'REST API', value: site.wpRestBase ? 'v1 ✓' : '—', mono: true },
-                      { label: 'EUR', value: fmtNum(stats.investedEur), mono: true },
-                      { label: 'USD', value: fmtNum(stats.investedUsd), mono: true },
+                      { label: sp('card.clients'), value: String(stats.clientCount), mono: false },
+                      { label: sp('card.restApi'), value: site.wpRestBase ? 'v1 ✓' : '—', mono: true },
+                      { label: 'EUR', value: fmtNum(stats.investedEur, locale), mono: true },
+                      { label: 'USD', value: fmtNum(stats.investedUsd, locale), mono: true },
                     ].map(({ label, value, mono }) => (
                       <div key={label}>
                         <div className="cd-mono text-[9.5px] font-medium tracking-[0.08em] uppercase text-[#aaa]">{label}</div>
@@ -412,7 +416,7 @@ export default function ClientAccountSitesPage() {
                           onClick={() => startEdit(site)}
                           className="h-7 px-2.5 rounded-[7px] border border-[#e7e7e7] cd-mono text-[10px] font-medium text-[#555] hover:bg-[#fafafa] transition-colors"
                         >
-                          Изменить
+                          {sp('card.editBtn')}
                         </button>
                         <button
                           type="button"
@@ -420,7 +424,7 @@ export default function ClientAccountSitesPage() {
                           onClick={() => deleteSite(site)}
                           className="h-7 px-2.5 rounded-[7px] border border-[#f0c8cf] cd-mono text-[10px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] disabled:opacity-50 transition-colors"
                         >
-                          Удалить
+                          {sp('card.deleteBtn')}
                         </button>
                       </div>
                     )}
@@ -431,7 +435,7 @@ export default function ClientAccountSitesPage() {
                     <div className="border-t border-[#e7e7e7] bg-[#fafafa] p-4">
                       <div className="grid gap-2.5 sm:grid-cols-2">
                         <label className="cd-mono text-[10px] font-medium text-[#888] uppercase tracking-[0.08em]">
-                          URL сайта
+                          {sp('editForm.siteUrlLabel')}
                           <input
                             className="mt-1.5 block w-full h-8 rounded-[7px] border border-[#e7e7e7] bg-white px-3 text-sm text-[#222] outline-none focus:border-[#222] transition-colors"
                             value={editForm.siteUrl}
@@ -439,7 +443,7 @@ export default function ClientAccountSitesPage() {
                           />
                         </label>
                         <label className="cd-mono text-[10px] font-medium text-[#888] uppercase tracking-[0.08em]">
-                          REST base
+                          {sp('editForm.restBaseLabel')}
                           <input
                             className="mt-1.5 block w-full h-8 rounded-[7px] border border-[#e7e7e7] bg-white px-3 text-sm text-[#222] outline-none focus:border-[#222] transition-colors"
                             value={editForm.wpRestBase}
@@ -447,10 +451,10 @@ export default function ClientAccountSitesPage() {
                           />
                         </label>
                         <label className="cd-mono text-[10px] font-medium text-[#888] uppercase tracking-[0.08em]">
-                          Новый token
+                          {sp('editForm.newTokenLabel')}
                           <input
                             className="mt-1.5 block w-full h-8 rounded-[7px] border border-[#e7e7e7] bg-white px-3 text-sm text-[#222] outline-none focus:border-[#222] transition-colors"
-                            placeholder={site.wpToken ? 'Уже задан — введите новый для замены' : 'Site REST token'}
+                            placeholder={site.wpToken ? sp('editForm.tokenSetPlaceholder') : sp('editForm.tokenPlaceholder')}
                             value={editForm.wpToken}
                             onChange={e => setEditForm(p => ({ ...p, wpToken: e.target.value }))}
                           />
@@ -462,7 +466,7 @@ export default function ClientAccountSitesPage() {
                             onChange={e => setEditForm(p => ({ ...p, isActive: e.target.checked }))}
                             className="rounded"
                           />
-                          Активен
+                          {sp('editForm.activeLabel')}
                         </label>
                       </div>
                       <div className="flex justify-end gap-2 mt-3">
@@ -471,7 +475,7 @@ export default function ClientAccountSitesPage() {
                           onClick={() => setEditingId(null)}
                           className="h-8 px-3 rounded-[7px] border border-[#e7e7e7] bg-white cd-mono text-[10px] font-medium text-[#555] hover:bg-[#fafafa] transition-colors"
                         >
-                          Отмена
+                          {sp('editForm.cancelBtn')}
                         </button>
                         <button
                           type="button"
@@ -479,7 +483,7 @@ export default function ClientAccountSitesPage() {
                           onClick={() => saveEdit(site.id)}
                           className="h-8 px-3 rounded-[7px] bg-[#222] text-white cd-mono text-[10px] font-semibold hover:bg-[#1a1a1a] disabled:opacity-50 transition-colors"
                         >
-                          Сохранить
+                          {sp('editForm.saveBtn')}
                         </button>
                       </div>
                     </div>
@@ -500,8 +504,8 @@ export default function ClientAccountSitesPage() {
                 </svg>
               </div>
               <div>
-                <div className="font-semibold text-[13px] tracking-[-0.01em]">Подключить сайт</div>
-                <div className="cd-mono text-[10px] mt-0.5">WordPress + плагин CCP</div>
+                <div className="font-semibold text-[13px] tracking-[-0.01em]">{sp('addSiteCard.title')}</div>
+                <div className="cd-mono text-[10px] mt-0.5">{sp('addSiteCard.subtitle')}</div>
               </div>
             </button>
           </div>
@@ -509,7 +513,7 @@ export default function ClientAccountSitesPage() {
 
         {!loading && filteredSites.length === 0 && !showAddForm && (
           <div className="py-16 text-center text-sm text-[#888]">
-            {search ? `Сайты по запросу «${search}» не найдены` : 'Пока нет подключённых сайтов'}
+            {search ? sp('emptySearchFormat', { search }) : sp('emptySites')}
           </div>
         )}
       </div>

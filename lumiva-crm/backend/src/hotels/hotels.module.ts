@@ -133,6 +133,7 @@ import { TenantsModule } from '../tenants/tenants.module';
     HotelsPricingService,
     HotelRoomTypesService,
     HotelsPublicStorefrontService,
+    HotelRoomUnitsService,
   ],
 })
 export class HotelsModule {}

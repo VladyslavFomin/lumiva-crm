@@ -3,9 +3,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { translateSaleStatus } from './saleStatusI18n';
-import { SalesStatusPillSelect } from './SalesStatusPillSelect';
 import {
   fetchSaleDetail,
+  fetchSales,
   updateSale,
   type SaleDetail,
   type SaleStatus,
@@ -21,10 +21,16 @@ import {
   type Lead,
 } from '../../api/leads';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { fetchAuditLog, type AuditLogEntry, type AuditLogAction } from '../../api/auditLog';
+import { getStoredUser } from '../../auth/session';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { CustomFieldsManager } from '../../components/CustomFieldsManager';
 import { SalePaymentLinkModal } from './SalePaymentLinkModal';
+import { JiraIssueLinkPanel } from '../../components/integrations/JiraIssueLinkPanel';
 import { getLocale } from '../../i18n/utils';
+import type { ProjectComment } from '../projects/projectTypes';
+import { splitTextWithMentions } from '../projects/mentions';
 import {
   saleOrderDisplayNumber,
   saleStorefrontProductName,
@@ -34,6 +40,13 @@ import {
   extractWooOrderSummary,
   extractStorefrontOrderSummary,
 } from '../../utils/wooOrderSummary';
+import { Ic, SD_ICON } from './SaleDetailIcons';
+import './sales-design.css';
+import './sale-detail-design.css';
+
+const cxd = (...a: Array<string | false | undefined | null>) => a.filter(Boolean).join(' ');
+
+const STATUS_ORDER: SaleStatus[] = ['new', 'pending', 'confirmed', 'cancelled', 'refunded', 'other'];
 
 /** Поля записи Sale, не выводимые в «Дополнительные поля»: дубли шапки / продукта / формы или служебные ключи. */
 const SALE_DETAIL_GRID_HIDDEN_KEYS = new Set([
@@ -66,6 +79,19 @@ const SALE_DETAIL_GRID_HIDDEN_KEYS = new Set([
   'channelIntegrationLabel',
 ]);
 
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '—';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+
+function auditIconFor(action: AuditLogAction): React.ReactNode {
+  if (action === 'create') return SD_ICON.bolt;
+  if (action === 'delete') return SD_ICON.trash;
+  return SD_ICON.refresh;
+}
+
 export const SaleDetailsPage: React.FC = () => {
   const { t, i18n } = useTranslation();
   const locale = getLocale();
@@ -85,6 +111,8 @@ export const SaleDetailsPage: React.FC = () => {
     {},
   );
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [ownerPickerOpen, setOwnerPickerOpen] = useState(false);
 
   // создание лида из заказа
   const [creatingLead, setCreatingLead] = useState(false);
@@ -103,6 +131,22 @@ export const SaleDetailsPage: React.FC = () => {
   const [customFieldsOpen, setCustomFieldsOpen] = useState(false);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [paymentLinkOpen, setPaymentLinkOpen] = useState(false);
+
+  const [auditEntries, setAuditEntries] = useState<AuditLogEntry[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  const [clientStats, setClientStats] = useState<{ count: number; sum: number | null; sumCurrency: string | null; first: string | null } | null>(null);
+
+  // Комментарии (теги, лайки, ответы) — хранятся в sale.customFields.comments,
+  // как в проектах, автосохраняются отдельно от общей формы (не ждут кнопки "Сохранить").
+  const [comments, setComments] = useState<ProjectComment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionDropdownPos, setMentionDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const commentInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const [replyingToId, setReplyingToId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const lastCommentsSnapshotRef = useRef<string>('');
 
   useEffect(() => {
     fetchStaff()
@@ -131,6 +175,12 @@ export const SaleDetailsPage: React.FC = () => {
           setFormNotes((sale.notes as string) || '');
           setFormLeadId((sale.leadId as string) || '');
           setFormCustomFields((sale.customFields as Record<string, any>) || {});
+
+          const loadedComments = (
+            (sale.customFields as Record<string, any> | undefined)?.comments ?? []
+          ) as ProjectComment[];
+          setComments(loadedComments);
+          lastCommentsSnapshotRef.current = JSON.stringify(loadedComments);
         })
         .catch((e: any) => {
           console.error(e);
@@ -159,6 +209,69 @@ export const SaleDetailsPage: React.FC = () => {
       })
       .catch(() => undefined);
   }, [data?.sale?.leadId]);
+
+  // История изменений (audit-log) — реальная лента, перезагружается после каждого сохранения.
+  useEffect(() => {
+    if (!id) return;
+    setAuditLoading(true);
+    fetchAuditLog({ entityType: 'sale', entityId: id, limit: 20 })
+      .then((res) => setAuditEntries(res.items))
+      .catch(() => setAuditEntries([]))
+      .finally(() => setAuditLoading(false));
+  }, [id, data?.sale?.updatedAt]);
+
+  // Статистика покупок по привязанному лиду — реальный список продаж этого лида.
+  useEffect(() => {
+    if (!formLeadId) {
+      setClientStats(null);
+      return;
+    }
+    let alive = true;
+    fetchSales({ leadId: formLeadId, page: 1, pageSize: 200 })
+      .then((res) => {
+        if (!alive) return;
+        const currencies = new Set(res.items.map((s) => s.currency));
+        const sameCurrency = currencies.size <= 1;
+        const sum = sameCurrency ? res.items.reduce((acc, s) => acc + (s.amount || 0), 0) : null;
+        const dates = res.items
+          .map((s) => s.saleDate || s.createdAt)
+          .filter(Boolean) as string[];
+        const first = dates.length ? dates.reduce((a, b) => (a < b ? a : b)) : null;
+        setClientStats({
+          count: res.total,
+          sum,
+          sumCurrency: sameCurrency ? res.items[0]?.currency ?? null : null,
+          first,
+        });
+      })
+      .catch(() => setClientStats(null));
+    return () => {
+      alive = false;
+    };
+  }, [formLeadId]);
+
+  // Автосохранение комментариев (новый/ответ/лайк) — независимо от основной формы,
+  // как в проектах. Читает базовый customFields из последних загруженных данных, а не
+  // из formCustomFields, чтобы не сохранять заодно недописанные правки кастомных полей.
+  useEffect(() => {
+    if (loading || !id) return;
+    const snapshot = JSON.stringify(comments);
+    if (snapshot === lastCommentsSnapshotRef.current) return;
+    const timer = window.setTimeout(() => {
+      lastCommentsSnapshotRef.current = snapshot;
+      const baseCustomFields = ((data?.sale as Record<string, any> | undefined)?.customFields as Record<string, any>) || {};
+      updateSale(id, { customFields: { ...baseCustomFields, comments } })
+        .then((updated) => {
+          setData((prev) =>
+            prev
+              ? { ...prev, sale: { ...prev.sale, customFields: updated.customFields, updatedAt: updated.updatedAt } }
+              : prev,
+          );
+        })
+        .catch((e: any) => console.error(e));
+    }, 600);
+    return () => window.clearTimeout(timer);
+  }, [comments, loading, id]);
 
   const persistedSaleManagerNames = useMemo(() => {
     const raw = (data?.sale as Record<string, unknown> | undefined)?.managerName;
@@ -220,41 +333,34 @@ export const SaleDetailsPage: React.FC = () => {
   const sale = data?.sale || {};
   const meta = data?.meta || null;
 
-  // Стоимость + валюта
   const amount = (sale.amount as number | undefined) ?? null;
+  const currency = (sale.currency as string | undefined) ?? t('crm.sales.common.empty');
 
-  const currency =
-    (sale.currency as string | undefined) ?? t('crm.sales.common.empty');
-
-  // Даты: покупка и изменение
   const purchaseDateRaw =
-    (sale.saleDate as string | undefined) ||
-    (sale.createdAt as string | undefined);
-
-  const purchaseDate = purchaseDateRaw
-    ? new Date(purchaseDateRaw).toLocaleString(locale)
-    : t('crm.sales.common.empty');
+    (sale.saleDate as string | undefined) || (sale.createdAt as string | undefined);
+  const purchaseDate = purchaseDateRaw ? new Date(purchaseDateRaw) : null;
+  const purchaseDateFull = purchaseDate ? purchaseDate.toLocaleString(locale) : t('crm.sales.common.empty');
+  const purchaseDatePart = purchaseDate ? purchaseDate.toLocaleDateString(locale) : t('crm.sales.common.empty');
+  const purchaseTimePart = purchaseDate
+    ? purchaseDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+    : '';
 
   const updatedAtRaw = sale.updatedAt as string | undefined;
-  const updatedAt = updatedAtRaw
-    ? new Date(updatedAtRaw).toLocaleString(locale)
-    : t('crm.sales.common.empty');
+  const updatedAtDate = updatedAtRaw ? new Date(updatedAtRaw) : null;
+  const updatedAtFull = updatedAtDate ? updatedAtDate.toLocaleString(locale) : t('crm.sales.common.empty');
+  const updatedTimePart = updatedAtDate
+    ? updatedAtDate.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })
+    : '';
 
-  // Клиент
   const clientName =
-    (sale.agentName as string | undefined) ||
-    (sale.guestName as string | undefined) ||
-    null;
+    (sale.agentName as string | undefined) || (sale.guestName as string | undefined) || null;
 
-  // Товары заказа с тестовой витрины/embed-формы (нет sale.hotel, состав лежит в customFields.items)
   const storefrontItemNames = useMemo(
     () => saleStorefrontProductName(sale),
     [sale.customFields],
   );
 
-  // Продукт
-  const productName =
-    (sale.hotel as string | undefined) || storefrontItemNames || null;
+  const productName = (sale.hotel as string | undefined) || storefrontItemNames || null;
 
   const wpOrderNoForDisplay = saleOrderDisplayNumber(sale as Record<string, unknown>);
 
@@ -265,15 +371,91 @@ export const SaleDetailsPage: React.FC = () => {
 
   const productUrl = extractSaleProductUrl(sale as Record<string, unknown>);
 
-  // Страна покупки
-  const country =
-    (sale.market as string | undefined) || null;
+  const country = (sale.market as string | undefined) || null;
 
-  /** Если канал удалён из справочника, API отдаёт channel: null, а в продаже остаётся channelId — не показываем UUID как «название». */
-  const UUID_LIKE =
-    /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
-  const rawChannelId =
-    typeof sale.channelId === 'string' ? sale.channelId.trim() : '';
+  const contactId = typeof sale.contactId === 'string' ? sale.contactId : null;
+
+  /** Email клиента для «Письмо» / создания лида — та же экстракция, что и в handleCreateLeadFromSale. */
+  const clientEmail = useMemo(() => {
+    const rawPayload = sale.rawPayload as Record<string, any> | undefined;
+    const billing = rawPayload?.billing || {};
+    return (
+      (typeof billing.email === 'string' && billing.email.trim()) ||
+      (meta && (meta.email as string)) ||
+      (meta && (meta.billing_email as string)) ||
+      ''
+    );
+  }, [sale.rawPayload, meta]);
+
+  // ---------------- Комментарии: текущий пользователь, упоминания ----------------
+  const currentUser = useMemo(() => getStoredUser(), []);
+  const currentStaff = useMemo(
+    () => staff.find((u) => u.id === currentUser?.id || u.email === currentUser?.email),
+    [staff, currentUser],
+  );
+  const extractMentions = useCallback((text: string) => {
+    const matches = text.matchAll(/@([\p{L}\p{N}._-]+)/gu);
+    const result: string[] = [];
+    for (const m of matches) if (m[1]) result.push(m[1]);
+    return result;
+  }, []);
+  const renderMentions = (text: string) =>
+    splitTextWithMentions(text, staff).map((part, idx) =>
+      part.mention ? (
+        <span key={`m-${idx}`} className="mention">
+          {part.text}
+        </span>
+      ) : (
+        <span key={`t-${idx}`}>{part.text}</span>
+      ),
+    );
+  const addComment = () => {
+    if (!newComment.trim()) return;
+    const mentions = extractMentions(newComment.trim());
+    const c: ProjectComment = {
+      id: `cm${Date.now()}`,
+      author: currentStaff?.fullName || currentUser?.name || currentUser?.email || t('crm.sales.details.fallbacks.noName'),
+      createdAt: new Date().toLocaleString(locale),
+      text: newComment.trim(),
+      mentions,
+    };
+    setComments((prev) => [c, ...prev]);
+    setNewComment('');
+  };
+
+  const addReply = (parentId: string) => {
+    if (!replyText.trim()) return;
+    const mentions = extractMentions(replyText.trim());
+    const c: ProjectComment = {
+      id: `cm${Date.now()}`,
+      author: currentStaff?.fullName || currentUser?.name || currentUser?.email || t('crm.sales.details.fallbacks.noName'),
+      createdAt: new Date().toLocaleString(locale),
+      text: replyText.trim(),
+      mentions,
+      parentId,
+    };
+    setComments((prev) => [...prev, c]);
+    setReplyText('');
+    setReplyingToId(null);
+  };
+
+  const toggleCommentLike = (commentId: string) => {
+    const me = currentStaff?.id || currentUser?.id || currentUser?.email;
+    if (!me) return;
+    setComments((prev) =>
+      prev.map((c) => {
+        if (c.id !== commentId) return c;
+        const likedBy = c.likedBy || [];
+        return {
+          ...c,
+          likedBy: likedBy.includes(me) ? likedBy.filter((x) => x !== me) : [...likedBy, me],
+        };
+      }),
+    );
+  };
+
+  const UUID_LIKE = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
+  const rawChannelId = typeof sale.channelId === 'string' ? sale.channelId.trim() : '';
   const channelLabel =
     data?.channel?.name ??
     (!rawChannelId
@@ -288,10 +470,7 @@ export const SaleDetailsPage: React.FC = () => {
       .sort(([a], [b]) => a.localeCompare(b));
   }, [sale]);
 
-  const wooOrderSummary = useMemo(
-    () => extractWooOrderSummary(sale.rawPayload),
-    [sale.rawPayload],
-  );
+  const wooOrderSummary = useMemo(() => extractWooOrderSummary(sale.rawPayload), [sale.rawPayload]);
 
   const storefrontOrderSummary = useMemo(
     () =>
@@ -303,28 +482,21 @@ export const SaleDetailsPage: React.FC = () => {
     [sale.customFields, sale.currency, sale.amount],
   );
 
-  // У заказа может быть только один источник состава корзины: либо Woo rawPayload, либо
-  // customFields.items с витрины/embed-формы — они никогда не сосуществуют на одной продаже.
   const orderItemsSummary = wooOrderSummary || storefrontOrderSummary;
-  const orderItemsSummaryLabel = wooOrderSummary
-    ? t('crm.sales.details.orderContentsFromStore')
-    : t('crm.sales.details.orderContentsFromStorefront');
 
-  const wooAmountDisplay = (amount: string | null) => {
-    if (amount == null || amount === '') return t('crm.sales.common.empty');
-    const c = wooOrderSummary?.currency;
-    return c ? `${amount} ${c}` : amount;
+  const unitPrice = (quantity: string | number, lineTotal: string | null): string | null => {
+    const qty = typeof quantity === 'number' ? quantity : Number(quantity);
+    const total = lineTotal != null ? Number(lineTotal) : NaN;
+    if (!qty || !Number.isFinite(qty) || !Number.isFinite(total)) return null;
+    return (total / qty).toLocaleString(locale, { maximumFractionDigits: 2 });
   };
 
   const saleGridFieldLabel = (key: string) =>
     t(`crm.sales.details.saleFieldLabels.${key}`, { defaultValue: key });
-
   const metaGridFieldLabel = (key: string) =>
     t(`crm.sales.details.metaFieldLabels.${key}`, { defaultValue: key });
 
-  const pairsMeta = meta
-    ? Object.entries(meta).sort(([a], [b]) => a.localeCompare(b))
-    : [];
+  const pairsMeta = meta ? Object.entries(meta).sort(([a], [b]) => a.localeCompare(b)) : [];
 
   const saleStatusSelectLabels = useMemo(
     () =>
@@ -339,18 +511,11 @@ export const SaleDetailsPage: React.FC = () => {
     [t, i18n],
   );
 
-  const activeCustomFields = useMemo(
-    () => customFields.filter((field) => field.isActive),
-    [customFields],
-  );
+  const activeCustomFields = useMemo(() => customFields.filter((field) => field.isActive), [customFields]);
 
   const managerStaff = useMemo(() => {
     const filtered = staff.filter(
-      (u) =>
-        u.isActive &&
-        (u.role === 'owner' ||
-          u.role === 'manager' ||
-          u.role === 'sales'),
+      (u) => u.isActive && (u.role === 'owner' || u.role === 'manager' || u.role === 'sales'),
     );
     const base = filtered.length ? filtered : staff.filter((u) => u.isActive);
     return [...base].sort((a, b) => a.fullName.localeCompare(b.fullName));
@@ -358,17 +523,18 @@ export const SaleDetailsPage: React.FC = () => {
 
   const ownerAssignableStaff = useMemo(() => {
     if (managerStaff.length) return managerStaff;
-    return staff
-      .filter((u) => u.isActive)
-      .sort((a, b) => a.fullName.localeCompare(b.fullName));
+    return staff.filter((u) => u.isActive).sort((a, b) => a.fullName.localeCompare(b.fullName));
   }, [managerStaff, staff]);
+
+  const selectedOwners = useMemo(
+    () => ownerAssignableStaff.filter((u) => formManagerIds.includes(u.id)),
+    [ownerAssignableStaff, formManagerIds],
+  );
 
   const ownerDepartmentGroups = useMemo(() => {
     const groups = new Map<string, StaffUser[]>();
     ownerAssignableStaff.forEach((u) => {
-      const key =
-        (u.department || '').trim() ||
-        t('crm.projects.detail.owner.noDepartment');
+      const key = (u.department || '').trim() || t('crm.projects.detail.owner.noDepartment');
       const list = groups.get(key) || [];
       list.push(u);
       groups.set(key, list);
@@ -388,9 +554,7 @@ export const SaleDetailsPage: React.FC = () => {
 
   const toggleSaleManagerUser = (userId: string, checked: boolean) => {
     setFormManagerIds((prev) =>
-      checked
-        ? Array.from(new Set([...prev, userId]))
-        : prev.filter((x) => x !== userId),
+      checked ? Array.from(new Set([...prev, userId])) : prev.filter((x) => x !== userId),
     );
   };
 
@@ -399,44 +563,28 @@ export const SaleDetailsPage: React.FC = () => {
     if (!group) return;
     const ids = group.users.map((u) => u.id);
     setFormManagerIds((prev) =>
-      checked
-        ? Array.from(new Set([...prev, ...ids]))
-        : prev.filter((id) => !ids.includes(id)),
+      checked ? Array.from(new Set([...prev, ...ids])) : prev.filter((id) => !ids.includes(id)),
     );
   };
 
-  const getCustomFieldValue = (field: CustomField) =>
-    (formCustomFields ?? {})[field.key];
-
+  const getCustomFieldValue = (field: CustomField) => (formCustomFields ?? {})[field.key];
   const setCustomFieldValue = (field: CustomField, value: any) => {
-    setFormCustomFields((prev) => ({
-      ...(prev ?? {}),
-      [field.key]: value,
-    }));
+    setFormCustomFields((prev) => ({ ...(prev ?? {}), [field.key]: value }));
   };
 
   const renderCustomFieldInput = (field: CustomField) => {
     const value = getCustomFieldValue(field);
-    const commonClass =
-      'base-input h-8 text-[11px] px-2';
     const label = (
-      <div className="form-label mb-1">
+      <span className="sd-fl">
         {field.label}
-        {field.required && <span className="text-rose-400 ml-1">*</span>}
-      </div>
+        {field.required && <em style={{ color: '#b0233a', marginLeft: 4, fontStyle: 'normal' }}>*</em>}
+      </span>
     );
 
     if (field.type === 'boolean') {
       return (
-        <label
-          key={field.id}
-          className="flex items-center gap-2 text-[11px] text-[#111827]"
-        >
-          <input
-            type="checkbox"
-            checked={Boolean(value)}
-            onChange={(e) => setCustomFieldValue(field, e.target.checked)}
-          />
+        <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
+          <input type="checkbox" checked={Boolean(value)} onChange={(e) => setCustomFieldValue(field, e.target.checked)} />
           {field.label}
         </label>
       );
@@ -450,7 +598,7 @@ export const SaleDetailsPage: React.FC = () => {
             value={value ?? ''}
             onChange={(e) => setCustomFieldValue(field, e.target.value)}
             placeholder={field.placeholder || ''}
-            className="base-input text-[11px] px-2 py-2 resize-y"
+            className="sd-field"
             rows={3}
           />
         </div>
@@ -461,11 +609,7 @@ export const SaleDetailsPage: React.FC = () => {
       return (
         <div key={field.id}>
           {label}
-          <select
-            value={value ?? ''}
-            onChange={(e) => setCustomFieldValue(field, e.target.value)}
-            className={commonClass}
-          >
+          <select value={value ?? ''} onChange={(e) => setCustomFieldValue(field, e.target.value)} className="sd-field">
             <option value="">{field.placeholder || t('crm.sales.details.placeholders.selectValue')}</option>
             {(field.options || []).map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -489,13 +633,8 @@ export const SaleDetailsPage: React.FC = () => {
           <select
             multiple
             value={arrayValue}
-            onChange={(e) =>
-              setCustomFieldValue(
-                field,
-                Array.from(e.target.selectedOptions).map((o) => o.value),
-              )
-            }
-            className={commonClass}
+            onChange={(e) => setCustomFieldValue(field, Array.from(e.target.selectedOptions).map((o) => o.value))}
+            className="sd-field"
           >
             {(field.options || []).map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -529,16 +668,11 @@ export const SaleDetailsPage: React.FC = () => {
           type={inputType}
           value={value ?? ''}
           onChange={(e) => {
-            const next =
-              field.type === 'number'
-                ? e.target.value === ''
-                  ? null
-                  : Number(e.target.value)
-                : e.target.value;
+            const next = field.type === 'number' ? (e.target.value === '' ? null : Number(e.target.value)) : e.target.value;
             setCustomFieldValue(field, next);
           }}
           placeholder={field.placeholder || ''}
-          className={commonClass}
+          className="sd-field"
         />
       </div>
     );
@@ -551,8 +685,7 @@ export const SaleDetailsPage: React.FC = () => {
     fetchCustomFields('sale')
       .then((items) => {
         if (!alive) return;
-        const sorted = [...items].sort((a, b) => a.order - b.order);
-        setCustomFields(sorted);
+        setCustomFields([...items].sort((a, b) => a.order - b.order));
       })
       .catch((e) => {
         console.error('Failed to load sale custom fields:', e);
@@ -598,6 +731,7 @@ export const SaleDetailsPage: React.FC = () => {
                 notes: updated.notes,
                 leadId: updated.leadId,
                 customFields: updated.customFields,
+                updatedAt: updated.updatedAt,
               },
             }
           : prev,
@@ -635,16 +769,11 @@ export const SaleDetailsPage: React.FC = () => {
         (meta && (meta.phone as string)) ||
         (meta && (meta.billing_phone as string)) ||
         '';
-      const emailFromMeta =
-        (typeof billing.email === 'string' && billing.email.trim()) ||
-        (meta && (meta.email as string)) ||
-        (meta && (meta.billing_email as string)) ||
-        '';
 
       const payload = {
         name: clientName || t('crm.sales.details.lead.defaultName'),
         phone: phoneFromMeta,
-        email: emailFromMeta,
+        email: clientEmail,
         country: country || '',
         status: 'Новый клиент' as const,
         source: data?.channel?.name || 'sales',
@@ -659,16 +788,10 @@ export const SaleDetailsPage: React.FC = () => {
       };
 
       const newLead = await createLead(payload);
-
-      // сразу привязываем лид к заказу
       await updateSale(data.id, { leadId: newLead.id });
 
       setFormLeadId(newLead.id);
-      setLeadQuery(
-        [newLead.name, newLead.phone || newLead.email]
-          .filter(Boolean)
-          .join(' • '),
-      );
+      setLeadQuery([newLead.name, newLead.phone || newLead.email].filter(Boolean).join(' • '));
 
       setData((prev) =>
         prev
@@ -689,681 +812,805 @@ export const SaleDetailsPage: React.FC = () => {
     }
   };
 
+  const copyId = () => {
+    const val = (sale.id as string) || data?.id || '';
+    if (!val || !navigator.clipboard) return;
+    navigator.clipboard
+      .writeText(val)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <div className="px-scope">
+          <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 11.5, color: 'var(--fg-3)' }}>
+            {t('crm.sales.details.loading')}
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <MainLayout>
+        <div className="px-scope">
+          {error && <div style={{ fontSize: 11.5, color: '#b0233a' }}>{error}</div>}
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const statusLabel = saleStatusSelectLabels[(formStatus || 'new') as SaleStatus];
+  const itemsRows = orderItemsSummary?.lines || [];
+  const fallbackSingleItem = !orderItemsSummary && (productName || amount != null);
+
   return (
     <MainLayout>
-      <div className="space-y-4 md:space-y-6 pb-8">
-        {/* Заголовок */}
-        <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <div className="text-[11px] uppercase tracking-[0.25em] text-text-tertiary mb-1">
-              {t('crm.sales.kicker')}
+      <PageHelpButton topic="saleCard" />
+      <div className="px-scope">
+        <div className="sd-head">
+          <div className="sd-head-l">
+            <div className="kicker">
+              <span className="dot" />
+              {t('crm.sales.kicker')} · {t('crm.sales.details.sections.order')}
             </div>
-            <h1 className="page-title">
-              {t('crm.sales.details.titleWithOrder', {
-                orderNo: saleOrderDisplayNumber(sale as Record<string, unknown>),
-              })}
-            </h1>
-            <p className="text-xs text-text-tertiary mt-1 max-w-2xl">
-              {t('crm.sales.details.subtitle')}
-            </p>
+            <div className="sd-idrow">
+              <h1>{t('crm.sales.details.titleWithOrder', { orderNo: wpOrderNoForDisplay })}</h1>
+              <span className={cxd('sd-stsel', formStatus || 'new')}>
+                <span className="dot" />
+                <select value={formStatus || 'new'} onChange={(e) => setFormStatus(e.target.value as SaleStatus)}>
+                  {STATUS_ORDER.map((s) => (
+                    <option key={s} value={s}>
+                      {saleStatusSelectLabels[s]}
+                    </option>
+                  ))}
+                </select>
+                <Ic d={SD_ICON.chev} size={13} />
+              </span>
+            </div>
+            <div className="sd-uuid">
+              {t('crm.sales.details.fields.internalRecordId')} · {sale.id || data.id}
+              <button type="button" onClick={copyId} title="Скопировать">
+                <Ic d={copied ? SD_ICON.check : SD_ICON.copy} size={12} />
+              </button>
+            </div>
           </div>
-
-          <div className="flex flex-col items-end gap-2">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="btn-secondary btn-secondary-sm"
-            >
-              {`← ${t('crm.sales.details.back')}`}
+          <div className="sd-head-r">
+            <button type="button" className="sl-btn" onClick={() => navigate(-1)}>
+              <Ic d={SD_ICON.back} size={14} />
+              {t('crm.sales.details.back')}
+            </button>
+            {wooAdminEditUrl && (
+              <a className="sl-btn" href={wooAdminEditUrl} target="_blank" rel="noreferrer">
+                <Ic d={SD_ICON.ext} size={14} />
+                {t('crm.sales.details.links.wpOrder')}
+              </a>
+            )}
+            {amount != null && amount > 0 && (
+              <button type="button" className="sl-btn" onClick={() => setPaymentLinkOpen(true)}>
+                <Ic d={SD_ICON.doc} size={14} />
+                {t('crm.sales.paymentLink.openButton')}
+              </button>
+            )}
+            <button type="button" className="sl-btn solid" disabled={saving} onClick={() => void handleSave()}>
+              <Ic d={SD_ICON.check} size={14} />
+              {saving ? t('crm.sales.details.actions.saving') : t('crm.sales.details.actions.save')}
             </button>
           </div>
-        </section>
+        </div>
 
-        {loading && (
-          <div className="text-[11px] text-text-tertiary">{t('crm.sales.details.loading')}</div>
-        )}
+        <div className="sd-strip">
+          <div>
+            <div className="l">{t('crm.sales.details.strip.amount')}</div>
+            <div className="v">
+              {amount != null ? amount.toLocaleString(locale, { maximumFractionDigits: 2 }) : t('crm.sales.common.empty')}
+              <small>{currency}</small>
+            </div>
+          </div>
+          <div>
+            <div className="l">{t('crm.sales.details.strip.payment')}</div>
+            <div className="v" style={{ fontSize: 15, marginTop: 8 }}>
+              {amount != null && amount > 0
+                ? t('crm.sales.details.strip.paymentAvailable')
+                : t('crm.sales.details.strip.paymentUnavailable')}
+            </div>
+            <div className="s">{amount != null && amount > 0 ? t('crm.sales.details.strip.invoiceNotIssued') : '—'}</div>
+          </div>
+          <div>
+            <div className="l">{t('crm.sales.details.strip.channel')}</div>
+            <div className="v" style={{ fontSize: 15, marginTop: 8 }}>
+              {channelLabel}
+            </div>
+            <div className="s">
+              {wpOrderNoForDisplay !== '—' && (
+                <>
+                  {t('crm.sales.details.strip.storeLabel')}: <b>{wpOrderNoForDisplay}</b>
+                </>
+              )}
+            </div>
+          </div>
+          <div>
+            <div className="l">{t('crm.sales.details.strip.dates')}</div>
+            <div className="v" style={{ fontSize: 15, marginTop: 8, fontFamily: 'var(--ff-mono)', letterSpacing: 0 }}>
+              {purchaseDatePart}
+            </div>
+            <div className="s">
+              {purchaseTimePart &&
+                t('crm.sales.details.strip.purchaseUpdatedHint', { purchaseTime: purchaseTimePart, updateTime: updatedTimePart || purchaseTimePart })}
+            </div>
+          </div>
+        </div>
 
-        {error && (
-          <div className="text-[11px] text-red-400">{error}</div>
-        )}
-
-        {data && !loading && !error && (
-          <>
-            {/* Шапка: три колонки с разделителями */}
-            <section className="card p-4 md:p-6 text-xs">
-              <div className="mb-4 border-b border-border-default pb-3">
-                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary">
-                  {t('crm.sales.details.structure.heroKicker')}
-                </div>
+        <div className="sd-split">
+          <div className="sd-col">
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.sections.orderContents')}</span>
+                <span className="s">{t('crm.sales.details.orderContentsHint')}</span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 md:divide-x md:divide-border-default gap-y-8 md:gap-y-0">
-                {/* Заказ */}
-                <div className="space-y-2 md:pr-6">
-                  <div className="text-[11px] text-text-secondary">
-                    {t('crm.sales.details.sections.order')}
-                  </div>
-                  <div className="text-[#111827] text-xl font-semibold tabular-nums tracking-tight">
-                    {saleOrderDisplayNumber(sale as Record<string, unknown>)}
-                  </div>
-                  <div className="pt-1 space-y-1.5">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-tertiary">
-                      {t('crm.sales.details.subsections.status')}
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-2 shadow-sm">
-                      <SalesStatusPillSelect
-                        value={(formStatus || 'new') as SaleStatus}
-                        labels={saleStatusSelectLabels}
-                        onChange={(s) => setFormStatus(s)}
-                        stopPropagationOnControl={false}
-                        className="w-full [&_button]:max-w-none [&_button]:w-full [&_button]:justify-between"
-                      />
-                    </div>
-                  </div>
-                  <div className="text-[10px] text-text-tertiary font-mono break-all pt-2 border-t border-border-default">
-                    {t('crm.sales.details.fields.internalRecordId')}
-                    <span className="text-text-secondary"> · </span>
-                    <span className="break-all">{sale.id || data.id}</span>
-                  </div>
-                  <dl className="space-y-1.5 pt-2">
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.purchaseDate')}</dt>
-                      <dd className="text-[#111827] text-right">{purchaseDate}</dd>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.updatedAt')}</dt>
-                      <dd className="text-[#111827] text-right">{updatedAt}</dd>
-                    </div>
-                  </dl>
-                </div>
-
-                {/* Финансы и канал */}
-                <div className="space-y-2 md:px-6">
-                  <div className="text-[11px] text-text-secondary">
-                    {t('crm.sales.details.sections.amountAndChannel')}
-                  </div>
-                  <div className="text-[#111827] text-lg font-semibold tabular-nums">
-                    {amount != null
-                      ? `${amount.toLocaleString(locale, {
-                          maximumFractionDigits: 2,
-                        })} ${currency}`
-                      : t('crm.sales.common.empty')}
-                  </div>
-                  <dl className="space-y-1.5 pt-2 border-t border-border-default">
-                    <div className="flex justify-between gap-4">
-                      <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.channel')}</dt>
-                      <dd className="text-[#111827] text-right min-w-0">{channelLabel}</dd>
-                    </div>
-                    {data?.channel?.name
-                      ? null
-                      : rawChannelId && UUID_LIKE.test(rawChannelId) ? (
-                          <div className="text-[10px] font-mono text-text-tertiary break-all pt-1">
-                            {t('crm.sales.details.fields.channelIdInternal')}: {rawChannelId}
-                          </div>
-                        ) : null}
-                    {data.integration && (
-                      <div className="flex justify-between gap-4">
-                        <dt className="text-text-tertiary shrink-0">{t('crm.sales.details.fields.integration')}</dt>
-                        <dd className="text-[#111827] text-right min-w-0">
-                          {data.integration.name} · {data.integration.kind}
-                        </dd>
+              {itemsRows.length > 0 ? (
+                <>
+                  <table className="sd-items">
+                    <thead>
+                      <tr>
+                        <th>{t('crm.sales.details.wooOrder.colProduct')}</th>
+                        <th className="r">{t('crm.sales.details.wooOrder.colQty')}</th>
+                        <th className="r">{t('crm.sales.details.orderContentsExtra.colPrice')}</th>
+                        <th className="r">{t('crm.sales.details.wooOrder.colLineTotal')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {itemsRows.map((line, idx) => (
+                        <tr key={`${idx}-${line.name}`}>
+                          <td>
+                            <span className="nm">{line.name}</span>
+                          </td>
+                          <td className="r">{line.quantity}</td>
+                          <td className="r">
+                            {(() => {
+                              const p = unitPrice(line.quantity, line.lineTotal);
+                              return p ? `${p} ${orderItemsSummary?.currency || currency}` : '—';
+                            })()}
+                          </td>
+                          <td className="r">
+                            {line.lineTotal != null ? `${line.lineTotal} ${orderItemsSummary?.currency || currency}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <div className="sd-totals">
+                    {orderItemsSummary?.totalTax && (
+                      <div className="sd-tr">
+                        <span>{t('crm.sales.details.wooOrder.totalTax')}</span>
+                        <b>{orderItemsSummary.totalTax} {orderItemsSummary.currency || currency}</b>
                       </div>
                     )}
-                  </dl>
-                  {wooAdminEditUrl ? (
-                    <div className="pt-2">
-                      <a
-                        href={wooAdminEditUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-lumiva-accent hover:underline font-medium text-[11px]"
-                      >
-                        {t('crm.sales.details.links.wpOrder')} ↗
-                      </a>
+                    <div className="sd-tr grand">
+                      <span>{t('crm.sales.details.orderContentsExtra.grandTotal')}</span>
+                      <span>
+                        <b>
+                          {(orderItemsSummary?.total ?? amount)?.toLocaleString
+                            ? Number(orderItemsSummary?.total ?? amount).toLocaleString(locale, { maximumFractionDigits: 2 })
+                            : orderItemsSummary?.total}{' '}
+                          {orderItemsSummary?.currency || currency}
+                        </b>
+                      </span>
                     </div>
-                  ) : null}
-                  {amount != null && amount > 0 ? (
-                    <div className="pt-2">
-                      <button
-                        type="button"
-                        onClick={() => setPaymentLinkOpen(true)}
-                        className="btn-secondary btn-secondary-sm"
-                      >
-                        {t('crm.sales.paymentLink.openButton')}
-                      </button>
+                  </div>
+                </>
+              ) : fallbackSingleItem ? (
+                <>
+                  <table className="sd-items">
+                    <thead>
+                      <tr>
+                        <th>{t('crm.sales.details.wooOrder.colProduct')}</th>
+                        <th className="r">{t('crm.sales.details.wooOrder.colQty')}</th>
+                        <th className="r">{t('crm.sales.details.wooOrder.colLineTotal')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>
+                          <span className="nm">{productName || t('crm.sales.common.empty')}</span>
+                          {productUrl && (
+                            <a href={productUrl} target="_blank" rel="noreferrer" className="sku" style={{ color: 'var(--fg-3)' }}>
+                              {productUrl}
+                            </a>
+                          )}
+                        </td>
+                        <td className="r">1</td>
+                        <td className="r">{amount != null ? `${amount.toLocaleString(locale, { maximumFractionDigits: 2 })} ${currency}` : '—'}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="sd-totals">
+                    <div className="sd-tr grand">
+                      <span>{t('crm.sales.details.orderContentsExtra.grandTotal')}</span>
+                      <b>{amount != null ? `${amount.toLocaleString(locale, { maximumFractionDigits: 2 })} ${currency}` : '—'}</b>
                     </div>
-                  ) : null}
+                  </div>
+                </>
+              ) : (
+                <div className="sl-panel-b">
+                  <div className="sd-cf">{t('crm.sales.details.orderContentsExtra.noData')}</div>
                 </div>
+              )}
+            </div>
 
-                {/* Клиент */}
-                <div className="space-y-2 md:pl-6">
-                  <div className="text-[11px] text-text-secondary">
-                    {t('crm.sales.details.sections.client')}
-                  </div>
-                  <div className="text-[#111827] text-base font-medium leading-snug">
-                    {clientName || t('crm.sales.common.empty')}
-                  </div>
-                  {country && (
-                    <div className="text-[11px] text-text-secondary pt-2 border-t border-border-default">
-                      <span className="text-text-tertiary">{t('crm.sales.details.fields.country')}: </span>
-                      <span className="text-[#111827]">{country}</span>
-                    </div>
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.strip.payment')}</span>
+                <span className="s">{t('crm.sales.paymentLink.openButton')}</span>
+              </div>
+              <div className="sl-panel-b">
+                <div className="sd-pay">
+                  <span className="sd-pay-st">
+                    <i />
+                    {amount != null && amount > 0
+                      ? t('crm.sales.details.strip.paymentAvailable')
+                      : t('crm.sales.details.strip.paymentUnavailable')}
+                  </span>
+                  <span className="m">
+                    {t('crm.sales.details.paymentExtra.methodNotChosen')}
+                    {amount != null && amount > 0 ? ` · ${t('crm.sales.details.strip.invoiceNotIssued')}` : ''}
+                  </span>
+                  <span className="sl-sp" />
+                  {amount != null && amount > 0 && (
+                    <button type="button" className="sl-btn sm" onClick={() => setPaymentLinkOpen(true)}>
+                      <Ic d={SD_ICON.card} size={12} />
+                      {t('crm.sales.paymentLink.openButton')}
+                    </button>
                   )}
                 </div>
               </div>
-            </section>
+            </div>
 
-            {/* Содержимое заказа: сводка CRM и данные магазина (Woo или витрина/embed-форма) */}
-            {(orderItemsSummary ||
-              productName ||
-              wpOrderNoForDisplay !== '—' ||
-              productUrl) && (
-              <section className="card p-4 md:p-6 text-xs">
-                <header className="border-b border-border-default pb-4 mb-6">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-tertiary mb-1">
-                    {t('crm.sales.details.structure.orderContentsKicker')}
-                  </div>
-                  <h2 className="text-base font-semibold text-[#111827] tracking-tight">
-                    {t('crm.sales.details.sections.orderContents')}
-                  </h2>
-                  <p className="text-[11px] text-text-tertiary mt-1 max-w-2xl leading-relaxed">
-                    {t('crm.sales.details.orderContentsHint')}
-                  </p>
-                </header>
-
-                <div className="space-y-6">
-                  {(productName ||
-                    wpOrderNoForDisplay !== '—' ||
-                    productUrl) && (
-                    <div className="space-y-3">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                        {t('crm.sales.details.orderContentsFromCrm')}
-                      </h3>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <div className="text-[11px] text-text-tertiary mb-1">
-                              {t('crm.sales.details.fields.productName')}
-                            </div>
-                            <div className="text-slate-900 text-[13px] font-medium leading-snug">
-                              {productName || t('crm.sales.common.empty')}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-text-tertiary mb-1">
-                              {t('crm.sales.details.fields.externalOrderNo')}
-                            </div>
-                            <div className="text-slate-900 font-mono text-[11px] tabular-nums">
-                              {wpOrderNoForDisplay !== '—'
-                                ? wpOrderNoForDisplay
-                                : t('crm.sales.common.empty')}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-text-tertiary mb-1">
-                              {t('crm.sales.details.fields.productLink')}
-                            </div>
-                            {productUrl ? (
-                              <a
-                                href={productUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="text-lumiva-accent text-[11px] font-medium hover:underline break-all"
-                              >
-                                {productUrl}
-                              </a>
-                            ) : (
-                              <span className="text-text-secondary">
-                                {t('crm.sales.common.empty')}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {orderItemsSummary &&
-                  (productName ||
-                    wpOrderNoForDisplay !== '—' ||
-                    productUrl) ? (
-                    <div className="h-px bg-border-default" aria-hidden />
-                  ) : null}
-
-                  {orderItemsSummary && (
-                    <div className="space-y-3">
-                      <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                        {orderItemsSummaryLabel}
-                      </h3>
-                      <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-4">
-                        <p className="text-[10px] text-slate-600 leading-snug">
-                          {wooOrderSummary
-                            ? t('crm.sales.details.wooOrder.hint')
-                            : t('crm.sales.details.wooOrder.storefrontHint')}
-                        </p>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div>
-                            <div className="text-[11px] text-text-tertiary mb-1">
-                              {t('crm.sales.details.wooOrder.currency')}
-                            </div>
-                            <div className="text-slate-900 font-semibold tabular-nums">
-                              {orderItemsSummary.currency ?? t('crm.sales.common.empty')}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-text-tertiary mb-1">
-                              {t('crm.sales.details.wooOrder.totalTax')}
-                            </div>
-                            <div className="text-slate-900 tabular-nums">
-                              {wooAmountDisplay(orderItemsSummary.totalTax)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-text-tertiary mb-1">
-                              {t('crm.sales.details.wooOrder.orderTotal')}
-                            </div>
-                            <div className="text-slate-900 font-semibold tabular-nums">
-                              {wooAmountDisplay(orderItemsSummary.total)}
-                            </div>
-                          </div>
-                        </div>
-
-                        {orderItemsSummary.lines.length > 0 && (
-                          <div>
-                            <div className="text-[11px] font-medium text-slate-700 mb-2">
-                              {t('crm.sales.details.wooOrder.itemsHeading')}
-                            </div>
-                            <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-                              <table className="w-full text-left border-collapse min-w-[280px]">
-                                <thead>
-                                  <tr className="border-b border-slate-200 bg-slate-100/80">
-                                    <th className="py-2 px-2 text-[10px] uppercase tracking-wide text-slate-600 font-medium">
-                                      {t('crm.sales.details.wooOrder.colProduct')}
-                                    </th>
-                                    <th className="py-2 px-2 text-[10px] uppercase tracking-wide text-slate-600 font-medium whitespace-nowrap w-20 text-right">
-                                      {t('crm.sales.details.wooOrder.colQty')}
-                                    </th>
-                                    <th className="py-2 px-2 text-[10px] uppercase tracking-wide text-slate-600 font-medium whitespace-nowrap text-right">
-                                      {t('crm.sales.details.wooOrder.colLineTotal')}
-                                    </th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {orderItemsSummary.lines.map((line, idx) => (
-                                    <tr
-                                      key={`${idx}-${line.name}`}
-                                      className="border-b border-slate-100 last:border-0"
-                                    >
-                                      <td className="py-2 px-2 text-slate-900 align-top text-[11px]">
-                                        {line.name}
-                                      </td>
-                                      <td className="py-2 px-2 text-slate-800 tabular-nums text-right align-top text-[11px]">
-                                        {line.quantity}
-                                      </td>
-                                      <td className="py-2 px-2 text-slate-800 tabular-nums text-right align-top text-[11px]">
-                                        {line.lineTotal != null &&
-                                        line.lineTotal !== ''
-                                          ? wooAmountDisplay(line.lineTotal)
-                                          : t('crm.sales.common.empty')}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-            )}
-
-            {/* Управление заказом: по подпунктам, светлые панели как у ответственных */}
-            <section className="card p-4 md:p-6 text-xs">
-              <header className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between border-b border-border-default pb-4 mb-6">
-                <div className="min-w-0 space-y-1">
-                  <h2 className="text-base font-semibold text-[#111827] tracking-tight">
-                    {t('crm.sales.details.sections.management')}
-                  </h2>
-                  <p className="text-[11px] text-text-tertiary max-w-xl leading-relaxed">
-                    {t('crm.sales.details.managementIntro')}
-                  </p>
-                </div>
-                {saving && (
-                  <span className="text-[11px] text-text-secondary shrink-0 tabular-nums">
-                    {t('crm.sales.details.actions.saving')}
-                  </span>
-                )}
-              </header>
-
-              <div className="space-y-8">
-                {/* Команда и лид — две колонки на xl */}
-                <div className="grid grid-cols-1 gap-8 xl:grid-cols-12 xl:gap-8 xl:items-start">
-                  <div className="space-y-3 xl:col-span-7 min-w-0">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                      {t('crm.sales.details.subsections.team')}
-                    </h3>
-                    <label className="block text-[11px] font-medium text-text-secondary sr-only">
-                      {t('crm.sales.details.fields.manager')}
-                    </label>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
-                      <div className="mb-2 text-[10px] font-medium uppercase tracking-[0.12em] text-text-tertiary">
-                        {t('crm.projects.detail.owner.byDepartment')}
-                      </div>
-                      <div className="mb-2 text-[11px] text-slate-600">
-                        {t('crm.projects.detail.owner.selected', {
-                          count: formManagerIds.length,
-                        })}
-                      </div>
-                      <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
-                        {ownerDepartmentGroups.map((group) => {
-                          const groupIds = group.users.map((u) => u.id);
-                          const selectedInGroup = groupIds.filter((id) =>
-                            formManagerIds.includes(id),
-                          ).length;
-                          const allChecked =
-                            selectedInGroup > 0 &&
-                            selectedInGroup === groupIds.length;
-                          return (
-                            <div
-                              key={group.department}
-                              className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm"
-                            >
-                              <div className="mb-1.5 flex items-center justify-between gap-2">
-                                <div className="truncate text-[11px] font-semibold text-slate-900">
-                                  {group.department}
-                                </div>
-                                <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-[10px] text-slate-600">
-                                  <input
-                                    type="checkbox"
-                                    checked={allChecked}
-                                    onChange={(e) =>
-                                      toggleSaleManagerDepartment(
-                                        group.department,
-                                        e.target.checked,
-                                      )
-                                    }
-                                    className="h-4 w-4 shrink-0 rounded border-slate-400 text-blue-600 focus:ring-blue-500"
-                                  />
-                                  {t('crm.projects.detail.owner.wholeDepartment')}
-                                </label>
-                              </div>
-                              <div className="space-y-1">
-                                {group.users.map((u) => (
-                                  <label
-                                    key={u.id}
-                                    className="flex cursor-pointer items-start gap-2 text-[11px]"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={formManagerIds.includes(u.id)}
-                                      onChange={(e) =>
-                                        toggleSaleManagerUser(u.id, e.target.checked)
-                                      }
-                                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-400 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="min-w-0">
-                                      <span className="font-medium text-slate-900">
-                                        {u.fullName || u.email}
-                                      </span>
-                                      {u.email ? (
-                                        <span className="text-text-tertiary">
-                                          {' · '}
-                                          {u.email}
-                                        </span>
-                                      ) : null}
-                                    </span>
-                                  </label>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-3 xl:col-span-5 min-w-0">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                      {t('crm.sales.details.subsections.lead')}
-                    </h3>
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-3">
-                      <p className="text-[10px] text-slate-600 leading-snug">
-                        {t('crm.sales.details.hints.leadAuto')}
-                      </p>
-                      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-                        <div className="relative flex items-center border-b border-transparent">
-                          <input
-                            type="text"
-                            value={leadQuery}
-                            onChange={(e) => setLeadQuery(e.target.value)}
-                            placeholder={t('crm.sales.details.placeholders.searchLead')}
-                            className="w-full min-h-[36px] border-0 bg-transparent px-3 py-2 text-[11px] text-slate-800 outline-none placeholder:text-text-secondary pr-9"
-                          />
-                          {leadSearching && (
-                            <span className="pointer-events-none absolute right-3 text-[11px] text-text-secondary">
-                              …
-                            </span>
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.timeline.title')}</span>
+                <span className="s">{t('crm.sales.details.timeline.hint')}</span>
+              </div>
+              <div className="sl-panel-b">
+                {auditLoading ? (
+                  <div className="sd-cf">{t('crm.sales.details.timeline.loading')}</div>
+                ) : auditEntries.length > 0 ? (
+                  <div className="sd-tl">
+                    {auditEntries.map((entry, idx) => (
+                      <div key={entry.id} className={cxd('sd-tl-i', idx === 0 && 'hi')}>
+                        <span className="sd-tl-d">
+                          <Ic d={auditIconFor(entry.action)} size={11} />
+                        </span>
+                        <div className="sd-tl-c">
+                          <b>{entry.summary || entry.action}</b>
+                          {entry.changes && entry.changes.length > 0 && (
+                            <p>
+                              {entry.changes
+                                .map((c) => `${saleGridFieldLabel(c.field)}: ${c.oldValue ?? '—'} → ${c.newValue ?? '—'}`)
+                                .join(' · ')}
+                            </p>
                           )}
+                          <span className="t">
+                            {new Date(entry.createdAt).toLocaleString(locale)}
+                            {entry.actorName ? ` · ${entry.actorName}` : ''}
+                          </span>
                         </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="sd-cf">{t('crm.sales.details.timeline.empty')}</div>
+                )}
+              </div>
+            </div>
 
-                        {leadDropdownOpen &&
-                          leadQuery.trim().length >= 2 &&
-                          (leadResults.length > 0 ? (
-                            <div className="max-h-56 overflow-y-auto border-t border-slate-200 bg-white">
-                              {leadResults.map((lead) => (
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.comments.title')}</span>
+                <span className="s">{t('crm.sales.details.comments.hint')}</span>
+              </div>
+              <div className="sl-panel-b">
+                {comments.filter((c) => !c.parentId).length > 0 ? (
+                  <div className="sd-cm-list">
+                    {comments
+                      .filter((c) => !c.parentId)
+                      .map((c) => {
+                        const replies = comments.filter((r) => r.parentId === c.id);
+                        const me = currentStaff?.id || currentUser?.id || currentUser?.email || '';
+                        const liked = !!me && (c.likedBy || []).includes(me);
+                        const renderBody = (comment: ProjectComment) => {
+                          const mentions = comment.mentions ?? extractMentions(comment.text || '');
+                          return (
+                            <>
+                              <div className="sd-cm-meta">
+                                {comment.createdAt} · {comment.author}
+                              </div>
+                              <div className="sd-cm-text">{renderMentions(comment.text)}</div>
+                              {mentions.length > 0 && (
+                                <div className="sd-cm-tags">
+                                  {mentions.map((m) => (
+                                    <span key={m} className="sd-cm-tag">
+                                      @{m}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </>
+                          );
+                        };
+                        return (
+                          <div key={c.id}>
+                            <div className="sd-cm">
+                              {renderBody(c)}
+                              <div className="sd-cm-acts">
+                                <button type="button" className={cxd('sd-cm-like', liked && 'on')} onClick={() => toggleCommentLike(c.id)}>
+                                  <span aria-hidden>{liked ? '♥' : '♡'}</span>
+                                  {(c.likedBy || []).length > 0 && (c.likedBy || []).length}
+                                </button>
                                 <button
                                   type="button"
-                                  key={lead.id}
-                                  onClick={() => handleSelectLead(lead)}
-                                  className="flex w-full flex-col items-start gap-0.5 border-b border-slate-100 px-3 py-2.5 text-left last:border-b-0 hover:bg-slate-50"
+                                  className="sd-cm-reply-btn"
+                                  onClick={() => setReplyingToId((prev) => (prev === c.id ? null : c.id))}
                                 >
-                                  <span className="block w-full truncate text-[11px] font-medium text-slate-900">
-                                    {lead.name ||
-                                      t('crm.sales.details.fallbacks.noName')}
-                                  </span>
-                                  <span className="block w-full truncate text-[10px] text-text-tertiary">
-                                    {lead.phone ||
-                                      lead.email ||
-                                      t('crm.sales.details.fallbacks.noContacts')}
-                                  </span>
+                                  {t('crm.sales.details.comments.reply')}
                                 </button>
-                              ))}
-                            </div>
-                          ) : (
-                            !leadSearching && (
-                              <div className="border-t border-slate-200 px-3 py-2.5 text-[11px] text-text-tertiary">
-                                {t('crm.sales.details.fallbacks.noResults')}
                               </div>
-                            )
-                          ))}
-                      </div>
+                            </div>
 
-                      {formLeadId ? (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span
-                            className="max-w-[220px] truncate text-[11px] text-slate-700"
-                            title={formLeadId}
-                          >
-                            {leadQuery ||
-                              `${formLeadId.slice(0, 8)}…`}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleOpenLead}
-                            className="inline-flex px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-surface-hover"
-                          >
-                            {t('crm.sales.details.actions.open')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormLeadId('');
-                              setLeadQuery('');
-                            }}
-                            className="text-[11px] text-slate-600 hover:text-slate-900 underline"
-                          >
-                            {t('crm.sales.details.actions.unlinkLead')}
-                          </button>
-                        </div>
-                      ) : null}
+                            {replies.length > 0 && (
+                              <div className="sd-cm-replies">
+                                {replies.map((r) => {
+                                  const rLiked = !!me && (r.likedBy || []).includes(me);
+                                  return (
+                                    <div key={r.id} className="sd-cm reply">
+                                      {renderBody(r)}
+                                      <div className="sd-cm-acts">
+                                        <button
+                                          type="button"
+                                          className={cxd('sd-cm-like', rLiked && 'on')}
+                                          onClick={() => toggleCommentLike(r.id)}
+                                        >
+                                          <span aria-hidden>{rLiked ? '♥' : '♡'}</span>
+                                          {(r.likedBy || []).length > 0 && (r.likedBy || []).length}
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
 
-                      <div>
-                        <button
-                          type="button"
-                          disabled={!!formLeadId || creatingLead}
-                          onClick={handleCreateLeadFromSale}
-                          className="inline-flex px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-[11px] font-medium text-slate-900 shadow-sm transition-colors hover:bg-surface-hover disabled:opacity-50"
-                        >
-                          {creatingLead
-                            ? t('crm.sales.details.actions.creatingLead')
-                            : t('crm.sales.details.actions.createLead')}
-                        </button>
-                      </div>
-                      {createLeadError && (
-                        <p className="text-[10px] text-red-600">
-                          {createLeadError}
-                        </p>
-                      )}
-                    </div>
+                            {replyingToId === c.id && (
+                              <div className="sd-cm-replybox">
+                                <input
+                                  autoFocus
+                                  className="sd-field"
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && addReply(c.id)}
+                                  placeholder={t('crm.sales.details.comments.replyPlaceholder')}
+                                />
+                                <button type="button" className="sl-btn sm solid" onClick={() => addReply(c.id)}>
+                                  {t('crm.projects.detail.actions.add')}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
-                </div>
+                ) : (
+                  <div className="sd-cf" style={{ marginBottom: 14 }}>
+                    {t('crm.sales.details.comments.empty')}
+                  </div>
+                )}
 
-                {/* Кастомные поля */}
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                      {t('crm.sales.details.subsections.customFields')}
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => setCustomFieldsOpen(true)}
-                      className="text-[11px] font-medium text-lumiva-accent hover:text-lumiva-accent-soft"
-                    >
-                      {t('crm.sales.details.actions.configure')}
+                <div className="sd-cm-new">
+                  <textarea
+                    ref={commentInputRef}
+                    className="sd-field"
+                    rows={3}
+                    style={{ resize: 'vertical', minHeight: 76 }}
+                    value={newComment}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setNewComment(value);
+                      const caret = e.target.selectionStart ?? value.length;
+                      const before = value.slice(0, caret);
+                      const match = before.match(/@([\p{L}\p{N}._-]*)$/u);
+                      setMentionQuery(match ? match[1] : null);
+                      if (match) {
+                        const rect = e.target.getBoundingClientRect();
+                        setMentionDropdownPos({ top: rect.top - 6, left: rect.left, width: rect.width });
+                      }
+                    }}
+                    onBlur={() => window.setTimeout(() => setMentionQuery(null), 150)}
+                    placeholder={t('crm.sales.details.comments.newPlaceholder')}
+                  />
+                  {mentionQuery !== null &&
+                    mentionDropdownPos &&
+                    (() => {
+                      const q = mentionQuery.toLowerCase();
+                      const matches = staff.filter((u) => u.fullName?.toLowerCase().includes(q)).slice(0, 6);
+                      return (
+                        <div
+                          className="sd-cm-mentions-dd"
+                          style={{
+                            position: 'fixed',
+                            top: mentionDropdownPos.top,
+                            left: mentionDropdownPos.left,
+                            width: mentionDropdownPos.width,
+                            transform: 'translateY(-100%)',
+                          }}
+                        >
+                          {matches.length > 0 ? (
+                            matches.map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  const el = commentInputRef.current;
+                                  const caret = el?.selectionStart ?? newComment.length;
+                                  const before = newComment.slice(0, caret);
+                                  const after = newComment.slice(caret);
+                                  const replaced = before.replace(/@([\p{L}\p{N}._-]*)$/u, `@${u.fullName} `);
+                                  const next = replaced + after;
+                                  setNewComment(next);
+                                  setMentionQuery(null);
+                                  requestAnimationFrame(() => {
+                                    el?.focus();
+                                    const pos = replaced.length;
+                                    el?.setSelectionRange(pos, pos);
+                                  });
+                                }}
+                              >
+                                <b>{u.fullName}</b>
+                                <i>{u.email}</i>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="empty">{t('crm.sales.details.comments.noResults')}</div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  <div className="sd-cm-send">
+                    <button type="button" className="sl-btn sm solid" onClick={addComment}>
+                      {t('crm.projects.detail.actions.add')}
                     </button>
                   </div>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm space-y-3">
-                    {customFieldsLoading && (
-                      <div className="text-[11px] text-slate-600">
-                        {t('crm.sales.details.loadingCustomFields')}
-                      </div>
-                    )}
-                    {customFieldsError && (
-                      <div className="text-[11px] text-red-600">
-                        {customFieldsError}
-                      </div>
-                    )}
-                    {!customFieldsLoading &&
-                      !customFieldsError &&
-                      activeCustomFields.length === 0 && (
-                        <div className="text-[11px] text-slate-600">
-                          {t('crm.sales.details.fallbacks.noActiveCustomFields')}
-                        </div>
-                      )}
-                    {activeCustomFields.length > 0 && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {activeCustomFields.map((field) =>
-                          renderCustomFieldInput(field),
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Заметки */}
-                <div className="space-y-3">
-                  <h3 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-tertiary">
-                    {t('crm.sales.details.subsections.notes')}
-                  </h3>
-                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-                    <label className="block text-[11px] font-medium text-slate-700 mb-2">
-                      {t('crm.sales.details.fields.notes')}
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={formNotes}
-                      onChange={(e) => setFormNotes(e.target.value)}
-                      placeholder={t('crm.sales.details.placeholders.notes')}
-                      className="w-full rounded-xl bg-white border border-slate-200 text-[11px] text-slate-900 px-3 py-2 outline-none resize-y placeholder:text-text-secondary focus:border-lumiva-accent/60 focus:ring-1 focus:ring-lumiva-accent/20"
-                    />
-                  </div>
                 </div>
               </div>
+            </div>
 
-              <div className="mt-8 flex justify-end border-t border-slate-800/80 pt-5">
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="btn-primary btn-primary-lg disabled:opacity-60"
-                >
-                  {saving ? t('crm.sales.details.actions.saving') : t('crm.sales.details.actions.save')}
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.subsections.customFields')}</span>
+                <button type="button" className="sl-btn sm" style={{ marginLeft: 'auto' }} onClick={() => setCustomFieldsOpen(true)}>
+                  {t('crm.sales.details.actions.configure')}
                 </button>
               </div>
-            </section>
+              <div className="sl-panel-b">
+                {customFieldsLoading && <div className="sd-cf">{t('crm.sales.details.loadingCustomFields')}</div>}
+                {customFieldsError && <div className="sd-cf" style={{ color: '#b0233a' }}>{customFieldsError}</div>}
+                {!customFieldsLoading && !customFieldsError && activeCustomFields.length === 0 && (
+                  <div className="sd-cf">{t('crm.sales.details.fallbacks.noActiveCustomFields')}</div>
+                )}
+                {activeCustomFields.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                    {activeCustomFields.map((field) => renderCustomFieldInput(field))}
+                  </div>
+                )}
+              </div>
+            </div>
 
-            {/* Дополнительные поля записи (без дублей шапки и без служебных ключей) */}
             {pairsSaleFiltered.length > 0 && (
-              <section className="card p-4 md:p-5 text-xs">
-                <div className="text-sm font-semibold text-slate-100 mb-0.5">
-                  {t('crm.sales.details.sections.allSaleFields')}
+              <div className="sl-panel">
+                <div className="sl-panel-h">
+                  <span className="t">{t('crm.sales.details.sections.allSaleFields')}</span>
+                  <span className="s">{t('crm.sales.details.allSaleFieldsHint')}</span>
                 </div>
-                <p className="text-[11px] text-text-tertiary mb-3 max-w-2xl">
-                  {t('crm.sales.details.allSaleFieldsHint')}
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
-                  {pairsSaleFiltered.map(([key, value]) => (
-                    <div key={key} className="flex gap-2">
-                      <div className="w-40 text-[11px] text-text-tertiary truncate">
-                        {saleGridFieldLabel(key)}
+                <div className="sl-panel-b">
+                  <div className="sd-rows">
+                    {pairsSaleFiltered.map(([key, value]) => (
+                      <div key={key} className="sd-row">
+                        <span className="k">{saleGridFieldLabel(key)}</span>
+                        <span className="v">{typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)}</span>
                       </div>
-                      <div className="flex-1 text-slate-100 break-all">
-                        {typeof value === 'object' && value !== null
-                          ? JSON.stringify(value)
-                          : String(value)}
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </section>
+              </div>
             )}
 
-            {/* Дополнительные данные (meta) */}
             {pairsMeta.length > 0 && (
-              <section className="card p-4 md:p-5 text-xs">
-                <div className="text-sm font-semibold text-slate-100 mb-2">
-                  {t('crm.sales.details.sections.metaFields')}
+              <div className="sl-panel">
+                <div className="sl-panel-h">
+                  <span className="t">{t('crm.sales.details.sections.metaFields')}</span>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">
-                  {pairsMeta.map(([key, value]) => (
-                    <div key={key} className="flex gap-2">
-                      <div className="w-40 text-[11px] text-text-tertiary truncate">
-                        {metaGridFieldLabel(key)}
+                <div className="sl-panel-b">
+                  <div className="sd-rows">
+                    {pairsMeta.map(([key, value]) => (
+                      <div key={key} className="sd-row">
+                        <span className="k">{metaGridFieldLabel(key)}</span>
+                        <span className="v">{typeof value === 'object' && value !== null ? JSON.stringify(value) : String(value)}</span>
                       </div>
-                      <div className="flex-1 text-slate-100 break-all">
-                        {typeof value === 'object' && value !== null
-                          ? JSON.stringify(value)
-                          : String(value)}
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="sd-rail">
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.sections.client')}</span>
+              </div>
+              <div className="sl-panel-b">
+                <div className="sd-client">
+                  <span className="av">{clientName ? initialsOf(clientName) : '—'}</span>
+                  <div style={{ minWidth: 0 }}>
+                    <div className="nm">{clientName || t('crm.sales.common.empty')}</div>
+                    <div className="em">{clientEmail || country || ''}</div>
+                  </div>
+                </div>
+                <div className="sd-cl-acts">
+                  {clientEmail && (
+                    <a className="sl-btn sm" href={`mailto:${clientEmail}`}>
+                      <Ic d={SD_ICON.mail} size={12} />
+                      {t('crm.sales.details.actions.sendEmail')}
+                    </a>
+                  )}
+                  {contactId && (
+                    <button type="button" className="sl-btn sm" onClick={() => navigate(`/contacts/${contactId}`)}>
+                      <Ic d={SD_ICON.user} size={12} />
+                      {t('crm.sales.details.actions.openContactCard')}
+                    </button>
+                  )}
+                </div>
+                {formLeadId && clientStats && (
+                  <div className="sd-rows" style={{ marginTop: 12 }}>
+                    <div className="sd-row">
+                      <span className="k">{t('crm.sales.details.clientExtra.statsCount')}</span>
+                      <span className="v mono">{clientStats.count}</span>
+                    </div>
+                    {clientStats.sum != null && (
+                      <div className="sd-row">
+                        <span className="k">{t('crm.sales.details.clientExtra.statsSum')}</span>
+                        <span className="v mono">
+                          {clientStats.sum.toLocaleString(locale, { maximumFractionDigits: 0 })} {clientStats.sumCurrency}
+                        </span>
                       </div>
+                    )}
+                    {clientStats.first && (
+                      <div className="sd-row">
+                        <span className="k">{t('crm.sales.details.clientExtra.statsFirst')}</span>
+                        <span className="v mono">{new Date(clientStats.first).toLocaleDateString(locale)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.subsections.lead')}</span>
+              </div>
+              <div className="sl-panel-b">
+                {formLeadId ? (
+                  <div className="sd-lead">
+                    <Ic d={SD_ICON.bolt} size={14} />
+                    <div className="tx">
+                      <b>{leadQuery || `${formLeadId.slice(0, 8)}…`}</b>
+                      <i>{t('crm.sales.details.lead.linkedHint')}</i>
+                    </div>
+                    <button type="button" className="sl-btn ghost sm" onClick={handleOpenLead} title={t('crm.sales.details.actions.open')}>
+                      <Ic d={SD_ICON.ext} size={12} />
+                    </button>
+                    <button
+                      type="button"
+                      className="sl-btn ghost sm"
+                      onClick={() => {
+                        setFormLeadId('');
+                        setLeadQuery('');
+                      }}
+                    >
+                      {t('crm.sales.details.actions.unlinkLead')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="sd-lead-search">
+                    <input
+                      type="text"
+                      className="sd-field"
+                      value={leadQuery}
+                      onChange={(e) => setLeadQuery(e.target.value)}
+                      placeholder={t('crm.sales.details.placeholders.searchLead')}
+                    />
+                    {leadDropdownOpen &&
+                      leadQuery.trim().length >= 2 &&
+                      (leadResults.length > 0 ? (
+                        <div className="sd-lead-dd">
+                          {leadResults.map((lead) => (
+                            <button type="button" key={lead.id} onClick={() => handleSelectLead(lead)}>
+                              <b>{lead.name || t('crm.sales.details.fallbacks.noName')}</b>
+                              <i>{lead.phone || lead.email || t('crm.sales.details.fallbacks.noContacts')}</i>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        !leadSearching && (
+                          <div className="sd-lead-dd">
+                            <div className="empty">{t('crm.sales.details.fallbacks.noResults')}</div>
+                          </div>
+                        )
+                      ))}
+                  </div>
+                )}
+                <p className="sd-note">{t('crm.sales.details.hints.leadAuto')}</p>
+                {!formLeadId && (
+                  <button
+                    type="button"
+                    className="sl-btn sm"
+                    disabled={creatingLead}
+                    onClick={() => void handleCreateLeadFromSale()}
+                  >
+                    {creatingLead ? t('crm.sales.details.actions.creatingLead') : t('crm.sales.details.actions.createLead')}
+                  </button>
+                )}
+                {createLeadError && <p style={{ fontSize: 10.5, color: '#b0233a', marginTop: 6 }}>{createLeadError}</p>}
+              </div>
+            </div>
+
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.subsections.team')}</span>
+                <span className="s">{formManagerIds.length}</span>
+              </div>
+              <div className="sl-panel-b">
+                <div className="sd-own">
+                  {selectedOwners.map((o) => (
+                    <div key={o.id} className="sd-own-r">
+                      <span className="av">{initialsOf(o.fullName || o.email)}</span>
+                      <span className="tx">
+                        <b>{o.fullName || o.email}</b>
+                        <i>{o.email}</i>
+                      </span>
+                      <span className="sd-dept">{o.department || t('crm.projects.detail.owner.noDepartment')}</span>
+                      <button type="button" className="x" onClick={() => toggleSaleManagerUser(o.id, false)}>
+                        <Ic d={SD_ICON.x} size={12} />
+                      </button>
                     </div>
                   ))}
+                  {!selectedOwners.length && <div className="sd-cf">{t('crm.sales.details.owners.noneAssigned')}</div>}
                 </div>
-              </section>
-            )}
-          </>
-        )}
+                <button
+                  type="button"
+                  className="sl-btn sm"
+                  style={{ width: '100%', justifyContent: 'center', marginTop: 9 }}
+                  onClick={() => setOwnerPickerOpen((v) => !v)}
+                >
+                  <Ic d={SD_ICON.plus} size={12} />
+                  {t('crm.sales.details.owners.addButton')}
+                </button>
+                {ownerPickerOpen && (
+                  <div className="sd-own-picker">
+                    {ownerDepartmentGroups.map((group) => {
+                      const groupIds = group.users.map((u) => u.id);
+                      const selectedInGroup = groupIds.filter((gid) => formManagerIds.includes(gid)).length;
+                      const allChecked = selectedInGroup > 0 && selectedInGroup === groupIds.length;
+                      return (
+                        <div key={group.department} className="sd-own-grp">
+                          <div className="sd-own-grp-h">
+                            <span>{group.department}</span>
+                            <label style={{ fontWeight: 400, fontSize: 10.5 }}>
+                              <input
+                                type="checkbox"
+                                className="lv-checkbox-input"
+                                checked={allChecked}
+                                onChange={(e) => toggleSaleManagerDepartment(group.department, e.target.checked)}
+                              />
+                              {t('crm.projects.detail.owner.wholeDepartment')}
+                            </label>
+                          </div>
+                          {group.users.map((u) => (
+                            <label key={u.id}>
+                              <input
+                                type="checkbox"
+                                className="lv-checkbox-input"
+                                checked={formManagerIds.includes(u.id)}
+                                onChange={(e) => toggleSaleManagerUser(u.id, e.target.checked)}
+                              />
+                              <span>
+                                {u.fullName || u.email}
+                                {u.email ? ` · ${u.email}` : ''}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">Jira</span>
+              </div>
+              <div className="sl-panel-b">
+                <JiraIssueLinkPanel
+                  entityType="sale"
+                  entityId={(sale.id as string) || data.id}
+                  defaultSummary={clientName ? `Сделка — ${clientName}` : undefined}
+                />
+              </div>
+            </div>
+
+            <div className="sl-panel">
+              <div className="sl-panel-h">
+                <span className="t">{t('crm.sales.details.record.title')}</span>
+              </div>
+              <div className="sl-panel-b">
+                <div className="sd-rows">
+                  <div className="sd-row">
+                    <span className="k">{t('crm.sales.details.fields.externalOrderNo')}</span>
+                    <span className="v mono">{wpOrderNoForDisplay}</span>
+                  </div>
+                  <div className="sd-row">
+                    <span className="k">{t('crm.sales.details.record.currencyLabel')}</span>
+                    <span className="v mono">{currency}</span>
+                  </div>
+                  <div className="sd-row">
+                    <span className="k">{t('crm.sales.details.fields.purchaseDate')}</span>
+                    <span className="v mono">{purchaseDateFull}</span>
+                  </div>
+                  <div className="sd-row">
+                    <span className="k">{t('crm.sales.details.fields.updatedAt')}</span>
+                    <span className="v mono">{updatedAtFull}</span>
+                  </div>
+                  {data.integration && (
+                    <div className="sd-row">
+                      <span className="k">{t('crm.sales.details.fields.integration')}</span>
+                      <span className="v">
+                        {data.integration.name}
+                        <i>{data.integration.kind}</i>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="sd-bar">
+          <span className="h">{t('crm.sales.details.bar.statusHint', { label: statusLabel })}</span>
+          <button type="button" className="sl-btn" onClick={() => navigate(-1)}>
+            {t('crm.sales.details.actions.cancel')}
+          </button>
+          <button type="button" className="sl-btn solid" disabled={saving} onClick={() => void handleSave()}>
+            <Ic d={SD_ICON.check} size={14} />
+            {saving ? t('crm.sales.details.actions.saving') : t('crm.sales.details.actions.save')}
+          </button>
+        </div>
       </div>
+
       {customFieldsOpen && (
         <CustomFieldsManager
           entityType="sale"
           title={t('crm.sales.list.customFieldsTitle')}
           onClose={() => setCustomFieldsOpen(false)}
-          onUpdated={(list) =>
-            setCustomFields([...list].sort((a, b) => a.order - b.order))
-          }
+          onUpdated={(list) => setCustomFields([...list].sort((a, b) => a.order - b.order))}
         />
       )}
       {id && amount != null ? (

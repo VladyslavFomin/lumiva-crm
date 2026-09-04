@@ -59,6 +59,10 @@ export class ApiToken {
   @Column({ type: 'timestamptz', nullable: true })
   expiresAt!: Date | null;
 
+  /** Обновляется гардом при каждом успешном использовании токена (best-effort, не блокирует запрос). */
+  @Column({ name: 'last_used_at', type: 'timestamptz', nullable: true })
+  lastUsedAt!: Date | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt!: Date;
 

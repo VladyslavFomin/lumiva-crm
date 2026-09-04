@@ -5,7 +5,40 @@ import {
   IsUUID,
   IsObject,
   IsArray,
+  IsNumberString,
+  ValidateNested,
 } from 'class-validator';
+import { Type } from 'class-transformer';
+import type { LeadTask } from '../lead.entity';
+
+/** Валидируем форму каждого элемента comments — иначе мусор вроде [[]] тихо пройдёт как "просто массив". */
+export class LeadCommentDto {
+  @IsString()
+  id: string;
+
+  @IsString()
+  author: string;
+
+  @IsString()
+  createdAt: string;
+
+  @IsString()
+  text: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  mentions?: string[];
+
+  @IsOptional()
+  @IsString()
+  parentId?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  likedBy?: string[];
+}
 
 export class CreateLeadDto {
   @IsOptional()
@@ -93,6 +126,25 @@ export class CreateLeadDto {
   @IsOptional()
   @IsObject()
   customFields?: Record<string, any>;
+
+  // ---- сделка ----
+  @IsOptional()
+  @IsNumberString()
+  amount?: string;
+
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @IsOptional()
+  @IsArray()
+  tasks?: LeadTask[];
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => LeadCommentDto)
+  comments?: LeadCommentDto[];
 
   // для истории (если прилетает comment при создании)
   @IsOptional()

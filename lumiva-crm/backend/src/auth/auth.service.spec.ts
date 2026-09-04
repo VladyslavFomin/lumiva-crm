@@ -65,7 +65,10 @@ describe('AuthService', () => {
   const tenantLogs = { record: jest.fn() };
   const staffUsers = { issuePasswordResetToken: jest.fn() };
   const mailService = { sendMail: jest.fn() };
-  const userSessions = { createSession: jest.fn() };
+  const userSessions = {
+    createSession: jest.fn(),
+    listActiveForUser: jest.fn().mockResolvedValue([]),
+  };
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -151,7 +154,7 @@ describe('AuthService', () => {
       userRepo.save.mockResolvedValue(makeUser());
       jwtService.signAsync.mockResolvedValue('signed-jwt');
 
-      const result = await service.login(dto);
+      const result = (await service.login(dto)) as any;
 
       expect(result.accessToken).toBe('signed-jwt');
       expect(result.tenantId).toBe('tenant-1');

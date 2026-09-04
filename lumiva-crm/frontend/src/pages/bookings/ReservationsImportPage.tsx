@@ -1,6 +1,8 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { BookingsSubnav } from './BookingsSubnav';
 import {
@@ -14,6 +16,7 @@ import {
 import './bookings-design.css';
 
 export const ReservationsImportPage: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,7 +47,7 @@ export const ReservationsImportPage: React.FC = () => {
       }
       setColumnToField(inverted);
     } catch (err: any) {
-      showAlert(err.message || 'Не удалось разобрать файл', { variant: 'error' });
+      showAlert(err.message || t('crm.bookings.import.parseError'), { variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -77,7 +80,7 @@ export const ReservationsImportPage: React.FC = () => {
       });
       setResult(res);
     } catch (err: any) {
-      showAlert(err.message || 'Не удалось применить импорт', { variant: 'error' });
+      showAlert(err.message || t('crm.bookings.import.applyError'), { variant: 'error' });
     } finally {
       setApplying(false);
     }
@@ -92,6 +95,7 @@ export const ReservationsImportPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="reservationsImport" />
       <div className="px-scope">
         <BookingsSubnav active="reservations" />
         <button
@@ -100,36 +104,36 @@ export const ReservationsImportPage: React.FC = () => {
           style={{ marginBottom: 12 }}
           onClick={() => navigate('/bookings/reservations')}
         >
-          ← Брони
+          {t('crm.bookings.import.backToBookings')}
         </button>
         <div className="bk-hero">
           <div>
-            <div className="kicker"><span className="dot" />ИМПОРТ</div>
-            <h1>Импорт броней</h1>
-            <p className="sub">Загрузите CSV или Excel-файл — сопоставьте колонки с полями брони и импортируйте.</p>
+            <div className="kicker"><span className="dot" />{t('crm.bookings.import.kicker')}</div>
+            <h1>{t('crm.bookings.import.title')}</h1>
+            <p className="sub">{t('crm.bookings.import.subtitle')}</p>
           </div>
         </div>
 
         {result ? (
           <div className="bk-panel" style={{ maxWidth: 480, marginTop: 20 }}>
-            <div className="bk-panel-head"><div className="t">Результат импорта</div></div>
+            <div className="bk-panel-head"><div className="t">{t('crm.bookings.import.result.title')}</div></div>
             <div className="bk-panel-body" style={{ padding: '0 18px 18px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, color: 'var(--fg-2)' }}>
-              <div>Создано броней: {result.created}</div>
-              <div>Ошибок: {result.errors.length}</div>
-              <div>Всего строк: {result.total}</div>
+              <div>{t('crm.bookings.import.result.created', { count: result.created })}</div>
+              <div>{t('crm.bookings.import.result.errors', { count: result.errors.length })}</div>
+              <div>{t('crm.bookings.import.result.total', { count: result.total })}</div>
             </div>
             {!!result.errors.length && (
               <div style={{ marginTop: 14, maxHeight: 200, overflowY: 'auto', border: '1px solid var(--line-2)', borderRadius: 8, padding: 10 }}>
                 {result.errors.map((e, i) => (
                   <div key={i} style={{ fontSize: 12, color: '#9a1f31', marginBottom: 4 }}>
-                    Строка {e.row}: {e.message}
+                    {t('crm.bookings.import.result.rowError', { row: e.row, message: e.message })}
                   </div>
                 ))}
               </div>
             )}
             <button type="button" className="btn btn-primary btn-sm" style={{ marginTop: 16 }} onClick={() => navigate('/bookings/reservations')}>
-              Готово
+              {t('crm.bookings.import.result.done')}
             </button>
             </div>
           </div>
@@ -144,10 +148,10 @@ export const ReservationsImportPage: React.FC = () => {
               cursor: 'pointer', background: 'var(--bg-muted)', color: 'var(--fg-3)', fontSize: 14,
             }}
           >
-            {loading ? 'Загрузка…' : 'Перетащите файл сюда или нажмите, чтобы выбрать'}
+            {loading ? t('crm.bookings.import.dropzone.loading') : t('crm.bookings.import.dropzone.prompt')}
             <div style={{ marginTop: 14 }}>
               <button type="button" className="btn btn-sm" onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}>
-                Выбрать файл
+                {t('crm.bookings.import.dropzone.chooseFile')}
               </button>
             </div>
             <input
@@ -161,31 +165,31 @@ export const ReservationsImportPage: React.FC = () => {
         ) : (
           <div style={{ marginTop: 20 }}>
             <div style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 4 }}>
-              Колонок: {preview.columns.length}, строк: {preview.totalRows}
+              {t('crm.bookings.import.preview.columnsRows', { columns: preview.columns.length, rows: preview.totalRows })}
             </div>
             <div style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 16 }}>
-              Сопоставлено: {mappedCount} из {preview.columns.length}
+              {t('crm.bookings.import.preview.mapped', { mapped: mappedCount, total: preview.columns.length })}
             </div>
 
             {locations.length > 1 && (
               <div className="bk-field" style={{ maxWidth: 320, marginBottom: 20 }}>
-                <label>Локация по умолчанию (если не указана в файле)</label>
+                <label>{t('crm.bookings.import.preview.defaultLocationLabel')}</label>
                 <select className="bk-select" value={defaultLocationId} onChange={(e) => setDefaultLocationId(e.target.value)}>
-                  <option value="">— не выбрано —</option>
+                  <option value="">{t('crm.bookings.import.preview.notSelected')}</option>
                   {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               </div>
             )}
 
             <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ink)', marginBottom: 8 }}>
-              Сопоставление колонок
+              {t('crm.bookings.import.preview.mappingTitle')}
             </div>
             <div className="bk-table-wrap" style={{ marginBottom: 20 }}>
               <table className="bk-table">
                 <thead>
                   <tr>
-                    <th>Колонка файла</th>
-                    <th>Поле брони</th>
+                    <th>{t('crm.bookings.import.preview.colFileColumn')}</th>
+                    <th>{t('crm.bookings.import.preview.colBookingField')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -203,7 +207,7 @@ export const ReservationsImportPage: React.FC = () => {
                             value={mappedKey}
                             onChange={(e) => setColumnToField((p) => ({ ...p, [column]: e.target.value }))}
                           >
-                            <option value="">— не сопоставлено —</option>
+                            <option value="">{t('crm.bookings.import.preview.notMapped')}</option>
                             {mappableFields.map((f) => (
                               <option key={f.key} value={f.key}>{f.label}</option>
                             ))}
@@ -218,10 +222,10 @@ export const ReservationsImportPage: React.FC = () => {
 
             <div style={{ display: 'flex', gap: 10 }}>
               <button type="button" className="btn btn-sm" onClick={resetPreview}>
-                Назад
+                {t('crm.bookings.import.preview.back')}
               </button>
               <button type="button" className="btn btn-primary btn-sm" onClick={handleApply} disabled={applying}>
-                {applying ? 'Импортируем…' : 'Импортировать'}
+                {applying ? t('crm.bookings.import.preview.importingBtn') : t('crm.bookings.import.preview.importBtn')}
               </button>
             </div>
           </div>

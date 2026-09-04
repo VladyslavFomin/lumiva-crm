@@ -4,8 +4,11 @@ import { Cron } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { TelegramBot } from './telegram-bot.entity';
+import { TelegramContact } from './telegram-contact.entity';
 import { Lead } from '../leads/lead.entity';
 import { TelegramCrmService } from './telegram-crm.service';
+
+interface PendingReminder { nodeId: string; text: string; dueAt: string; sent: boolean }
 
 type LeadMeeting = {
   id: string;
@@ -26,8 +29,49 @@ export class TelegramBotSchedulerService {
     private readonly botRepo: Repository<TelegramBot>,
     @InjectRepository(Lead)
     private readonly leadRepo: Repository<Lead>,
+    @InjectRepository(TelegramContact)
+    private readonly contactRepo: Repository<TelegramContact>,
     private readonly telegramCrm: TelegramCrmService,
   ) {}
+
+  /** Every 15 minutes: send flow-authored `delay` node reminders (e.g. a booking's -24h
+   * reminder), queued into `contact.meta.pendingReminders` by the flow interpreter when it
+   * enters a `delay` node — see telegram-crm.service.ts's `scheduleDelay`. Same idempotency
+   * pattern as sendMeetingReminders below: a `sent` flag written back onto the record. */
+  @Cron('*/15 * * * *')
+  async sendPendingFlowReminders(): Promise<void> {
+    try {
+      const contacts = await this.contactRepo
+        .createQueryBuilder('c')
+        .where("c.meta->'pendingReminders' IS NOT NULL")
+        .getMany();
+      if (!contacts.length) return;
+      const now = Date.now();
+      for (const contact of contacts) {
+        const pending: PendingReminder[] = Array.isArray((contact.meta as any)?.pendingReminders) ? (contact.meta as any).pendingReminders : [];
+        if (!pending.length) continue;
+        let changed = false;
+        for (const reminder of pending) {
+          if (reminder.sent) continue;
+          const due = new Date(reminder.dueAt).getTime();
+          if (!Number.isFinite(due) || due > now) continue;
+          if (!contact.botId) { reminder.sent = true; changed = true; continue; }
+          const bot = await this.botRepo.findOne({ where: { id: contact.botId, status: 'active' } });
+          if (bot) {
+            await this.telegramCrm.sendDirectToChat(bot.tenantId, bot.id, contact.telegramUserId, reminder.text || 'Напоминаем о вашей записи.').catch(() => undefined);
+          }
+          reminder.sent = true;
+          changed = true;
+        }
+        if (changed) {
+          contact.meta = { ...(contact.meta || {}), pendingReminders: pending.filter((r) => !r.sent || (now - new Date(r.dueAt).getTime()) < 7 * 24 * 3600_000) };
+          await this.contactRepo.save(contact).catch(() => undefined);
+        }
+      }
+    } catch (err: any) {
+      this.log.warn(`Flow reminder cron error: ${err.message}`);
+    }
+  }
 
   /** Every 15 minutes: send Telegram meeting reminders to staff */
   @Cron('*/15 * * * *')

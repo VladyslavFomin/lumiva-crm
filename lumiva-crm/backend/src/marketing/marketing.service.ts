@@ -13,13 +13,24 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import axios from 'axios';
 import * as jwt from 'jsonwebtoken';
-import { Between, Brackets, EntityManager, Repository } from 'typeorm';
+import {
+  Between,
+  Brackets,
+  EntityManager,
+  Repository,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 import { Lead } from '../leads/lead.entity';
 import { LeadsService } from '../leads/leads.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 
 import { MarketingTraffic } from './marketing-traffic.entity';
+import {
+  buildMarketRegexPatterns,
+  marketLabel,
+  resolveRowMarket,
+} from './marketing-market-catalog';
 import { MarketingUtmTemplate } from './marketing-utm-template.entity';
 import { MarketingIntegration } from './marketing-integration.entity';
 import { MarketingAutomation } from './marketing-automation.entity';
@@ -38,6 +49,8 @@ import { CreateMarketingIntegrationDto } from './dto/create-marketing-integratio
 import { UpdateMarketingIntegrationDto } from './dto/update-marketing-integration.dto';
 import { GoogleAdsOAuthStartDto } from './dto/google-ads-oauth-start.dto';
 import { Ga4OAuthStartDto } from './dto/ga4-oauth-start.dto';
+import { YandexDirectApiService } from './yandex-direct/yandex-direct-api.service';
+import { VkAdsApiService } from './vk-ads/vk-ads-api.service';
 
 /** Актуальная версия REST Google Ads API (v14 и ниже сняты → 404). */
 export const GOOGLE_ADS_API_VERSION = 'v23';
@@ -301,7 +314,45 @@ export class MarketingService {
     private readonly platformSettings: PlatformSettingsService,
     @Inject(forwardRef(() => LeadsService))
     private readonly leadsService: LeadsService,
+    private readonly yandexDirect: YandexDirectApiService,
+    private readonly vkAds: VkAdsApiService,
   ) {}
+
+  /**
+   * Добавляет в query builder WHERE-условие по рынку: точный ISO2 из GA4 (t.country),
+   * ИЛИ префикс-тег кампании ("LV - ..."), ИЛИ вхождение имени страны как слова в тексте
+   * кампании (мультиязычно). Нужно, т.к. country заполнен только у GA4-строк — у Google
+   * Ads/Meta/Yandex/VK гео есть только в свободном тексте campaign (см. marketing-market-catalog.ts).
+   */
+  /**
+   * Приоритет намеренный: тег/текст названия КАМПАНИИ (то, что рекламодатель таргетировал и
+   * оплачивал) важнее страны визита из GA4 (t.country) — иначе клик из Британии по кампании
+   * "RO - ..." (Румыния) засчитался бы в бюджет GB. country используется только как запасной
+   * вариант для строк БЕЗ содержательного названия кампании (direct/referral/organic/не задано/
+   * голый числовой id) — единственный случай, когда у строки нет иного сигнала о рынке.
+   */
+  private applyMarketFilter(
+    qb: SelectQueryBuilder<MarketingTraffic>,
+    market: string | undefined,
+  ): SelectQueryBuilder<MarketingTraffic> {
+    if (!market) return qb;
+    const code = market.toUpperCase();
+    const { prefix, names } = buildMarketRegexPatterns(code);
+    const genericCampaign =
+      `(t.campaign IS NULL OR t.campaign = '' OR t.campaign ~ '^\(.*\)$' OR t.campaign ~ '^[0-9]+$')`;
+    // LOWER(t.campaign) + регистро-чувствительный ~ (не ~*): у Postgres ~* не приводит турецкую
+    // заглавную İ к "i" (в отличие от LOWER(), которая в локали en_US.utf8 это делает верно) —
+    // с ~* кампании вида "İngiltere" молча не матчились, хотя JS-классификатор их ловил.
+    const params: Record<string, string> = { mCode: code, mPrefix: prefix };
+    let sql = `(LOWER(t.campaign) ~ :mPrefix`;
+    if (names) {
+      sql += ` OR LOWER(t.campaign) ~ :mNames`;
+      params.mNames = names;
+    }
+    sql += ` OR (UPPER(COALESCE(t.country,'')) = :mCode AND ${genericCampaign}))`;
+    qb.andWhere(sql, params);
+    return qb;
+  }
 
   /**
    * Массовый `save` по десяткам тысяч сущностей даёт один INSERT с огромным числом параметров
@@ -493,6 +544,8 @@ export class MarketingService {
     dataSource?: string,
     /** Лимит строк детализации (после GROUP BY); тоталы и провайдеры — полные. */
     itemsLimit = 14_000,
+    /** ISO2 код рынка (см. marketing-market-catalog.ts) — уже разрешённый, не свободный текст. */
+    market?: string,
   ): Promise<MarketingTrafficChannelsStats> {
     const qb = this.trafficRepo
       .createQueryBuilder('t')
@@ -500,6 +553,7 @@ export class MarketingService {
     if (from) qb.andWhere('t.date >= :from', { from });
     if (to) qb.andWhere('t.date <= :to', { to });
     if (dataSource) qb.andWhere('t.dataSource = :ds', { ds: dataSource });
+    this.applyMarketFilter(qb, market);
 
     const num = (v: string | number | null | undefined) =>
       Number(v != null && v !== '' ? v : 0) || 0;
@@ -656,12 +710,14 @@ export class MarketingService {
     to?: string,
     dataSource?: string,
     onlyUnattributed?: boolean,
+    market?: string,
   ): Promise<{ series: MarketingTrafficDailyPoint[] }> {
     const qb = this.trafficRepo
       .createQueryBuilder('t')
       .where('t.tenantId = :tenantId', { tenantId });
     if (from) qb.andWhere('t.date >= :from', { from });
     if (to) qb.andWhere('t.date <= :to', { to });
+    this.applyMarketFilter(qb, market);
     if (onlyUnattributed) {
       qb.andWhere('(t.dataSource IS NULL OR t.dataSource = :empty)', {
         empty: '',
@@ -755,6 +811,114 @@ export class MarketingService {
     });
 
     return { rows };
+  }
+
+  /**
+   * Реальный список рынков, присутствующих в рекламных данных за период — для AI-чата:
+   * определяет рынок каждой сгруппированной строки (GA4 country / префикс-тег кампании /
+   * имя страны в тексте, см. marketing-market-catalog.ts) и агрегирует cost/sessions/etc
+   * по рынку. Строки, для которых рынок не удалось определить, попадают в market:null
+   * ("unclassified") — они НЕ должны молча растворяться в общих итогах отчёта по одной стране.
+   */
+  async getMarketingMarketsBreakdown(
+    tenantId: string,
+    from?: string,
+    to?: string,
+    dataSource?: string,
+  ): Promise<{
+    markets: Array<{
+      code: string;
+      label: string;
+      campaigns: number;
+      sessions: number;
+      clicks: number;
+      impressions: number;
+      leads: number;
+      revenue: number;
+      cost: number;
+    }>;
+    unclassified: {
+      campaigns: number;
+      sessions: number;
+      cost: number;
+      sampleCampaigns: string[];
+    };
+  }> {
+    const qb = this.trafficRepo
+      .createQueryBuilder('t')
+      .where('t.tenantId = :tenantId', { tenantId });
+    if (from) qb.andWhere('t.date >= :from', { from });
+    if (to) qb.andWhere('t.date <= :to', { to });
+    if (dataSource) qb.andWhere('t.dataSource = :ds', { ds: dataSource });
+
+    const num = (v: string | number | null | undefined) =>
+      Number(v != null && v !== '' ? v : 0) || 0;
+
+    const raw = await qb
+      .select('t.campaign', 'campaign')
+      .addSelect('t.country', 'country')
+      .addSelect('COALESCE(SUM(t.sessions), 0)', 'sessions')
+      .addSelect('COALESCE(SUM(t.clicks), 0)', 'clicks')
+      .addSelect('COALESCE(SUM(t.impressions), 0)', 'impressions')
+      .addSelect('COALESCE(SUM(t.leads), 0)', 'leads')
+      .addSelect('COALESCE(SUM(t.revenue), 0)', 'revenue')
+      .addSelect('COALESCE(SUM(t.cost), 0)', 'cost')
+      .groupBy('t.campaign')
+      .addGroupBy('t.country')
+      .limit(20_000)
+      .getRawMany();
+
+    const byMarket = new Map<
+      string,
+      { campaigns: number; sessions: number; clicks: number; impressions: number; leads: number; revenue: number; cost: number }
+    >();
+    const unclassified = { campaigns: 0, sessions: 0, cost: 0, sampleCampaigns: [] as string[] };
+
+    for (const r of raw as Record<string, unknown>[]) {
+      const campaign = r.campaign != null ? String(r.campaign) : null;
+      const country = r.country != null ? String(r.country) : null;
+      const code = resolveRowMarket(campaign, country);
+      const row = {
+        sessions: num(r.sessions as string),
+        clicks: num(r.clicks as string),
+        impressions: num(r.impressions as string),
+        leads: num(r.leads as string),
+        revenue: num(r.revenue as string),
+        cost: num(r.cost as string),
+      };
+      if (!code) {
+        unclassified.campaigns += 1;
+        unclassified.sessions += row.sessions;
+        unclassified.cost += row.cost;
+        if (unclassified.sampleCampaigns.length < 15 && campaign) {
+          unclassified.sampleCampaigns.push(campaign);
+        }
+        continue;
+      }
+      const acc = byMarket.get(code) || {
+        campaigns: 0,
+        sessions: 0,
+        clicks: 0,
+        impressions: 0,
+        leads: 0,
+        revenue: 0,
+        cost: 0,
+      };
+      acc.campaigns += 1;
+      acc.sessions += row.sessions;
+      acc.clicks += row.clicks;
+      acc.impressions += row.impressions;
+      acc.leads += row.leads;
+      acc.revenue += row.revenue;
+      acc.cost += row.cost;
+      byMarket.set(code, acc);
+    }
+
+    const markets = [...byMarket.entries()]
+      .map(([code, acc]) => ({ code, label: marketLabel(code), ...acc }))
+      .sort((a, b) => b.cost - a.cost || b.sessions - a.sessions);
+
+    return { markets, unclassified };
   }
 
   /** Имена ресурсов GA4 из настроек интеграций (ключ dataSource = ga4_{propertyId}). */
@@ -1027,6 +1191,20 @@ export class MarketingService {
     );
   }
 
+  private isYandexDirectProvider(normalized: string): boolean {
+    return normalized === 'yandex_direct' || normalized === 'yandexdirect' || normalized === 'direct';
+  }
+
+  private isVkAdsProvider(normalized: string): boolean {
+    return (
+      normalized === 'vk_ads' ||
+      normalized === 'vkads' ||
+      normalized === 'vk' ||
+      normalized === 'vk_reklama' ||
+      normalized === 'vk_реклама'
+    );
+  }
+
   private isGa4MarketingProvider(normalized: string): boolean {
     return (
       normalized === 'google_analytics' ||
@@ -1046,6 +1224,10 @@ export class MarketingService {
       'metrica',
       'yandexMetrika',
       'yandex_metrika',
+      'yandexDirect',
+      'yandex_direct',
+      'vkAds',
+      'vk_ads',
       'config',
       'credentials',
       'auth',
@@ -1450,6 +1632,12 @@ export class MarketingService {
       }
       if (this.isMetaAdsProvider(provider)) {
         return await this.syncMetaAdsIntegration(row);
+      }
+      if (this.isYandexDirectProvider(provider)) {
+        return await this.syncYandexDirectIntegration(row);
+      }
+      if (this.isVkAdsProvider(provider)) {
+        return await this.syncVkAdsIntegration(row);
       }
       throw new BadRequestException(
         `Синхронизация недоступна для провайдера «${row.provider}». Обновите backend или проверьте значение поля provider в интеграции.`,
@@ -3404,6 +3592,133 @@ export class MarketingService {
     }
   }
 
+  async syncYandexDirectIntegration(row: MarketingIntegration): Promise<number> {
+    const s = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const rawToken = String(s.oauthToken || s.token || '').trim();
+    if (!rawToken) {
+      this.log.warn(`Yandex Direct sync skipped for integration ${row.id}: no oauthToken`);
+      return 0;
+    }
+    const token = this.normalizeMetrikaOAuthToken(rawToken);
+    const clientLogin = String(s.clientLogin || s.client_login || '').trim() || undefined;
+
+    const { from, to, lookbackDays } = this.resolveAdvertisingSyncInclusiveUtcRange(s);
+    this.log.log(
+      `Yandex Direct sync: integration ${row.id} window UTC ${from}..${to} (${lookbackDays}d inclusive)`,
+    );
+
+    const currencyNorm = String(s.currency || 'RUB').trim().toUpperCase().slice(0, 8) || 'RUB';
+
+    let report: Awaited<ReturnType<YandexDirectApiService['fetchCampaignReport']>>;
+    try {
+      report = await this.yandexDirect.fetchCampaignReport({ token, clientLogin }, from, to);
+    } catch (e: unknown) {
+      throw new BadRequestException(e instanceof Error ? e.message : 'Яндекс.Директ: не удалось получить отчёт');
+    }
+
+    if (!report.length) {
+      this.log.warn(`Yandex Direct: пустой отчёт для интеграции ${row.id}`);
+      return 0;
+    }
+
+    const trafficRows: MarketingTraffic[] = report.map((r) => {
+      const safeName = sanitizeTrafficText(r.campaignName) ?? r.campaignName.slice(0, 256);
+      return this.trafficRepo.create({
+        tenantId: row.tenantId,
+        date: r.date,
+        dataSource: 'yandex_direct',
+        source: 'yandex',
+        medium: 'cpc',
+        campaign: safeName,
+        sessions: r.clicks,
+        clicks: r.clicks,
+        leads: 0,
+        projects: 0,
+        cost: String(r.cost),
+        revenue: '0',
+        currency: currencyNorm,
+        impressions: r.impressions,
+      });
+    });
+
+    await this.trafficRepo
+      .createQueryBuilder()
+      .delete()
+      .from(MarketingTraffic)
+      .where('tenantId = :tenantId', { tenantId: row.tenantId })
+      .andWhere('dataSource = :ds', { ds: 'yandex_direct' })
+      .andWhere('date BETWEEN :from AND :to', { from, to })
+      .execute();
+    await this.saveMarketingTrafficChunked(trafficRows);
+    this.log.log(`Yandex Direct: сохранено ${trafficRows.length} строк (по кампаниям), интеграция ${row.id}`);
+    return trafficRows.length;
+  }
+
+  async syncVkAdsIntegration(row: MarketingIntegration): Promise<number> {
+    const s = this.flattenNestedIntegrationSettings(
+      this.parseSettingsObject(row.settings),
+    );
+    const clientId = String(s.clientId || s.client_id || '').trim();
+    const clientSecret = String(s.clientSecret || s.client_secret || '').trim();
+    if (!clientId || !clientSecret) {
+      this.log.warn(`VK Ads sync skipped for integration ${row.id}: no clientId/clientSecret`);
+      return 0;
+    }
+
+    const { from, to, lookbackDays } = this.resolveAdvertisingSyncInclusiveUtcRange(s);
+    this.log.log(
+      `VK Ads sync: integration ${row.id} window UTC ${from}..${to} (${lookbackDays}d inclusive)`,
+    );
+
+    const currencyNorm = String(s.currency || 'RUB').trim().toUpperCase().slice(0, 8) || 'RUB';
+
+    let report: Awaited<ReturnType<VkAdsApiService['fetchCampaignReport']>>;
+    try {
+      report = await this.vkAds.fetchCampaignReport({ clientId, clientSecret }, from, to);
+    } catch (e: unknown) {
+      throw new BadRequestException(e instanceof Error ? e.message : 'VK Реклама: не удалось получить отчёт');
+    }
+
+    if (!report.length) {
+      this.log.warn(`VK Ads: пустой отчёт для интеграции ${row.id}`);
+      return 0;
+    }
+
+    const trafficRows: MarketingTraffic[] = report.map((r) => {
+      const safeName = sanitizeTrafficText(r.campaignName) ?? r.campaignName.slice(0, 256);
+      return this.trafficRepo.create({
+        tenantId: row.tenantId,
+        date: r.date,
+        dataSource: 'vk_ads',
+        source: 'vk',
+        medium: 'cpc',
+        campaign: safeName,
+        sessions: r.clicks,
+        clicks: r.clicks,
+        leads: 0,
+        projects: 0,
+        cost: String(r.cost),
+        revenue: '0',
+        currency: currencyNorm,
+        impressions: r.impressions,
+      });
+    });
+
+    await this.trafficRepo
+      .createQueryBuilder()
+      .delete()
+      .from(MarketingTraffic)
+      .where('tenantId = :tenantId', { tenantId: row.tenantId })
+      .andWhere('dataSource = :ds', { ds: 'vk_ads' })
+      .andWhere('date BETWEEN :from AND :to', { from, to })
+      .execute();
+    await this.saveMarketingTrafficChunked(trafficRows);
+    this.log.log(`VK Ads: сохранено ${trafficRows.length} строк (по кампаниям), интеграция ${row.id}`);
+    return trafficRows.length;
+  }
+
   /** Ночной прогон: Метрика, GA4, Meta Ads. */
   async syncAllActiveAnalyticsIntegrations(): Promise<void> {
     const list = await this.integrationRepo.find({ where: { isActive: true } });
@@ -3419,11 +3734,15 @@ export class MarketingService {
         p === 'google_analytics_4' ||
         p === 'google_analytics_ga4';
       const meta = this.isMetaAdsProvider(p);
-      if (!yandex && !ga && !meta) continue;
+      const yandexDirect = this.isYandexDirectProvider(p);
+      const vkAds = this.isVkAdsProvider(p);
+      if (!yandex && !ga && !meta && !yandexDirect && !vkAds) continue;
       try {
         if (yandex) await this.syncYandexMetrikaIntegration(row);
         else if (ga) await this.syncGa4Integration(row);
-        else await this.syncMetaAdsIntegration(row);
+        else if (meta) await this.syncMetaAdsIntegration(row);
+        else if (yandexDirect) await this.syncYandexDirectIntegration(row);
+        else await this.syncVkAdsIntegration(row);
       } catch (e: any) {
         this.log.error(
           `Analytics sync failed [${row.provider} ${row.id}]: ${e?.message || e}`,

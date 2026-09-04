@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { Ic, BK_ICON } from './BookingIcons';
 import {
@@ -18,7 +20,6 @@ import {
   completeReservation,
   markReservationNoShow,
   updateReservation,
-  RESERVATION_STATUS_LABELS_RU,
   type Reservation,
   type ReservationActivity,
   type BookingLocation,
@@ -31,28 +32,12 @@ import {
 import { fetchNotes, createNote, deleteNote, type Note } from '../../api/notes';
 import './bookings-design.css';
 
-const TABS = ['Обзор', 'Клиент', 'Данные брони', 'Активность', 'Заметки'] as const;
-type TabId = (typeof TABS)[number];
+type TabId = 'overview' | 'client' | 'fields' | 'activity' | 'notes';
+const TAB_KEYS: TabId[] = ['overview', 'client', 'fields', 'activity', 'notes'];
 
-const ACTIVITY_LABELS: Record<string, string> = {
-  created: 'Бронь создана',
-  status_changed: 'Статус изменён',
-  rescheduled: 'Бронь перенесена',
-  staff_changed: 'Мастер изменён',
-  resource_changed: 'Ресурс изменён',
-  notification_sent: 'Уведомление отправлено',
-  note_added: 'Добавлена заметка',
-};
+const ACTIVITY_TYPE_KEYS = ['created', 'status_changed', 'rescheduled', 'staff_changed', 'resource_changed', 'notification_sent', 'note_added'];
 
-const PAYMENT_STATUS_OPTIONS: Array<{ id: ReservationPaymentStatus; label: string }> = [
-  { id: 'not_required', label: 'Не требуется' },
-  { id: 'unpaid', label: 'Не оплачено' },
-  { id: 'deposit_paid', label: 'Депозит оплачен' },
-  { id: 'paid', label: 'Оплачено' },
-  { id: 'partially_refunded', label: 'Частично возвращено' },
-  { id: 'refunded', label: 'Возвращено' },
-  { id: 'failed', label: 'Ошибка оплаты' },
-];
+const PAYMENT_STATUS_KEYS: ReservationPaymentStatus[] = ['not_required', 'unpaid', 'deposit_paid', 'paid', 'partially_refunded', 'refunded', 'failed'];
 
 const toLocalDateInput = (iso: string) => iso.slice(0, 10);
 const toLocalTimeInput = (iso: string) => new Date(iso).toTimeString().slice(0, 5);
@@ -67,6 +52,7 @@ const EditReservationModal: React.FC<{
   onClose: () => void;
   onSaved: (updated: Reservation) => void;
 }> = ({ open, reservation, locations, services, staff, resources, onClose, onSaved }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [locationId, setLocationId] = useState('');
   const [serviceId, setServiceId] = useState('');
@@ -123,7 +109,7 @@ const EditReservationModal: React.FC<{
       onSaved(updated);
       onClose();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось сохранить изменения', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.detail.editModal.saveError'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -133,55 +119,55 @@ const EditReservationModal: React.FC<{
     <div className="px-scope">
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()} style={{ width: 'min(520px, calc(100vw - 32px))' }}>
-        <h3>Редактировать бронь</h3>
+        <h3>{t('crm.bookings.detail.editModal.title')}</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="bk-field">
-            <label>Локация</label>
+            <label>{t('crm.bookings.detail.editModal.locationLabel')}</label>
             <select value={locationId} onChange={(e) => { setLocationId(e.target.value); setResourceId(''); }}>
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
           <div className="bk-field">
-            <label>Услуга</label>
+            <label>{t('crm.bookings.detail.editModal.serviceLabel')}</label>
             <select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-              <option value="">Без услуги</option>
+              <option value="">{t('crm.bookings.detail.editModal.serviceNone')}</option>
               {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
           <div className="bk-field">
-            <label>Мастер</label>
+            <label>{t('crm.bookings.detail.editModal.staffLabel')}</label>
             <select value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)}>
-              <option value="">Не назначен</option>
+              <option value="">{t('crm.bookings.detail.editModal.staffNone')}</option>
               {staff.map((s) => <option key={s.staffUserId} value={s.staffUserId}>{s.staffUser?.fullName}</option>)}
             </select>
           </div>
           <div className="bk-field">
-            <label>Кабинет / ресурс</label>
+            <label>{t('crm.bookings.detail.editModal.resourceLabel')}</label>
             <select value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
-              <option value="">Без ресурса</option>
+              <option value="">{t('crm.bookings.detail.editModal.resourceNone')}</option>
               {resourcesAtLocation.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>
-          <div className="bk-field"><label>Дата</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-          <div className="bk-field"><label>Время начала</label><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></div>
-          <div className="bk-field"><label>Длительность (мин)</label><input type="number" value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} /></div>
-          <div className="bk-field"><label>Участников</label><input type="number" value={participants} onChange={(e) => setParticipants(e.target.value)} /></div>
-          <div className="bk-field"><label>Цена</label><input value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Например, 3000" /></div>
+          <div className="bk-field"><label>{t('crm.bookings.detail.editModal.dateLabel')}</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
+          <div className="bk-field"><label>{t('crm.bookings.detail.editModal.startTimeLabel')}</label><input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></div>
+          <div className="bk-field"><label>{t('crm.bookings.detail.editModal.durationLabel')}</label><input type="number" value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} /></div>
+          <div className="bk-field"><label>{t('crm.bookings.detail.editModal.participantsLabel')}</label><input type="number" value={participants} onChange={(e) => setParticipants(e.target.value)} /></div>
+          <div className="bk-field"><label>{t('crm.bookings.detail.editModal.priceLabel')}</label><input value={price} onChange={(e) => setPrice(e.target.value)} placeholder={t('crm.bookings.detail.editModal.pricePlaceholder')} /></div>
           <div className="bk-field">
-            <label>Валюта</label>
+            <label>{t('crm.bookings.detail.editModal.currencyLabel')}</label>
             <input value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase().slice(0, 3))} />
           </div>
           <div className="bk-field" style={{ gridColumn: '1 / -1' }}>
-            <label>Статус оплаты</label>
+            <label>{t('crm.bookings.detail.editModal.paymentStatusLabel')}</label>
             <select value={paymentStatus} onChange={(e) => setPaymentStatus(e.target.value as ReservationPaymentStatus)}>
-              {PAYMENT_STATUS_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+              {PAYMENT_STATUS_KEYS.map((k) => <option key={k} value={k}>{t(`crm.bookings.detail.paymentStatusOptions.${k}`)}</option>)}
             </select>
           </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line-2)' }}>
-          <button className="btn btn-sm" onClick={onClose}>Отмена</button>
+          <button className="btn btn-sm" onClick={onClose}>{t('crm.bookings.detail.editModal.cancel')}</button>
           <button className="btn btn-primary btn-sm" disabled={saving} onClick={save}>
-            <Ic d={BK_ICON.check} size={13} /> Сохранить
+            <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.detail.editModal.save')}
           </button>
         </div>
       </div>
@@ -190,6 +176,7 @@ const EditReservationModal: React.FC<{
 };
 
 export const ReservationDetailPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
@@ -199,7 +186,7 @@ export const ReservationDetailPage: React.FC = () => {
   const [services, setServices] = useState<BookingServiceItem[]>([]);
   const [staff, setStaff] = useState<BookingStaffProfile[]>([]);
   const [resources, setResources] = useState<BookingResourceItem[]>([]);
-  const [tab, setTab] = useState<TabId>('Обзор');
+  const [tab, setTab] = useState<TabId>('overview');
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -207,6 +194,10 @@ export const ReservationDetailPage: React.FC = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [notesLoading, setNotesLoading] = useState(false);
   const [newNote, setNewNote] = useState('');
+
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
+  const statusLabel = (s: Reservation['status']) => t(`crm.bookings.status.${s}`);
+  const paymentStatusLabel = (s: ReservationPaymentStatus) => t(`crm.bookings.detail.paymentStatusOptions.${s}`);
 
   const load = () => {
     if (!id) return;
@@ -227,7 +218,7 @@ export const ReservationDetailPage: React.FC = () => {
         setStaff(st);
         setResources(res);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить бронь', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.bookings.detail.error'), { variant: 'error' }))
       .finally(() => setLoading(false));
   };
 
@@ -252,7 +243,7 @@ export const ReservationDetailPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (tab === 'Заметки') loadNotes();
+    if (tab === 'notes') loadNotes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, id]);
 
@@ -263,7 +254,7 @@ export const ReservationDetailPage: React.FC = () => {
       setNewNote('');
       loadNotes();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось добавить заметку', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.detail.notesTab.addError'), { variant: 'error' });
     }
   };
 
@@ -272,7 +263,7 @@ export const ReservationDetailPage: React.FC = () => {
       await deleteNote(noteId);
       loadNotes();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось удалить заметку', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.detail.notesTab.deleteError'), { variant: 'error' });
     }
   };
 
@@ -288,7 +279,7 @@ export const ReservationDetailPage: React.FC = () => {
       setReservation(updated);
       load();
     } catch (e: any) {
-      showAlert(e.message || 'Действие не выполнено', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.detail.actionError'), { variant: 'error' });
     } finally {
       setActionLoading(false);
     }
@@ -297,98 +288,103 @@ export const ReservationDetailPage: React.FC = () => {
   if (loading || !reservation) {
     return (
       <MainLayout>
-        <div className="px-scope" style={{ padding: 24, color: 'var(--fg-3)' }}>Загрузка…</div>
+        <div className="px-scope" style={{ padding: 24, color: 'var(--fg-3)' }}>{t('crm.bookings.detail.loading')}</div>
       </MainLayout>
     );
   }
 
   return (
     <MainLayout>
+      <PageHelpButton topic="reservationCard" />
       <div className="px-scope">
         <div className="bk-det-head">
           <div>
             <div className="idline">
-              #{reservation.id.slice(0, 8)} · создана {new Date(reservation.createdAt).toLocaleString('ru-RU')} · источник: {reservation.source}
+              {t('crm.bookings.detail.idLine', {
+                id: reservation.id.slice(0, 8),
+                date: new Date(reservation.createdAt).toLocaleString(dateLocale),
+                source: reservation.source,
+              })}
             </div>
-            <h1>{reservation.customerName || 'Без имени'}{service ? ` — ${service.name}` : ''}</h1>
+            <h1>{reservation.customerName || t('crm.bookings.detail.noName')}{service ? ` — ${service.name}` : ''}</h1>
             <div className="sub">
-              {new Date(reservation.startAt).toLocaleString('ru-RU', { dateStyle: 'medium', timeStyle: 'short' })}
+              {new Date(reservation.startAt).toLocaleString(dateLocale, { dateStyle: 'medium', timeStyle: 'short' })}
               {' – '}
-              {new Date(reservation.endAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+              {new Date(reservation.endAt).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}
               {location ? ` · ${location.name}` : ''}
-              {staffProfile ? ` · мастер ${staffProfile.staffUser?.fullName}` : ''}
+              {staffProfile ? ` · ${t('crm.bookings.detail.staffPrefix', { name: staffProfile.staffUser?.fullName })}` : ''}
             </div>
           </div>
           <div className="bk-det-actions">
             <span className={`bk-badge ${reservation.status}`} style={{ fontSize: 12, padding: '5px 12px' }}>
-              {RESERVATION_STATUS_LABELS_RU[reservation.status]}
+              {statusLabel(reservation.status)}
             </span>
             <button className="btn btn-sm" onClick={() => setEditOpen(true)}>
-              <Ic d={BK_ICON.edit} size={13} /> Редактировать
+              <Ic d={BK_ICON.edit} size={13} /> {t('crm.bookings.detail.edit')}
             </button>
             {reservation.status === 'pending' && (
               <button className="btn btn-primary btn-sm" disabled={actionLoading} onClick={() => runAction(confirmReservation)}>
-                <Ic d={BK_ICON.check} size={13} /> Подтвердить
+                <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.detail.confirm')}
               </button>
             )}
             {reservation.status === 'confirmed' && (
               <button className="btn btn-sm" disabled={actionLoading} onClick={() => runAction(checkInReservation)}>
-                Отметить приход
+                {t('crm.bookings.detail.checkIn')}
               </button>
             )}
             {reservation.status === 'checked_in' && (
               <button className="btn btn-primary btn-sm" disabled={actionLoading} onClick={() => runAction(completeReservation)}>
-                <Ic d={BK_ICON.check} size={13} /> Завершить
+                <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.detail.complete')}
               </button>
             )}
             {['pending', 'confirmed'].includes(reservation.status) && (
               <>
                 <button className="btn btn-sm" style={{ color: '#cc2f47', borderColor: '#f0c8cf' }} disabled={actionLoading} onClick={() => runAction(markReservationNoShow)}>
-                  Неявка
+                  {t('crm.bookings.detail.noShow')}
                 </button>
                 <button className="btn btn-sm" style={{ color: '#cc2f47', borderColor: '#f0c8cf' }} disabled={actionLoading} onClick={() => runAction(cancelReservation)}>
-                  <Ic d={BK_ICON.x} size={13} /> Отменить
+                  <Ic d={BK_ICON.x} size={13} /> {t('crm.bookings.detail.cancel')}
                 </button>
               </>
             )}
             {reservation.status === 'pending' && (
               <button className="btn btn-sm" style={{ color: '#cc2f47', borderColor: '#f0c8cf' }} disabled={actionLoading} onClick={() => runAction(rejectReservation)}>
-                Отклонить
+                {t('crm.bookings.detail.reject')}
               </button>
             )}
           </div>
         </div>
 
         <div className="bk-tabs">
-          {TABS.map((t) => (
-            <div key={t} className={`bk-tab${t === tab ? ' active' : ''}`} onClick={() => setTab(t)}>{t}</div>
+          {TAB_KEYS.map((k) => (
+            <div key={k} className={`bk-tab${k === tab ? ' active' : ''}`} onClick={() => setTab(k)}>{t(`crm.bookings.detail.tabs.${k}`)}</div>
           ))}
         </div>
 
-        {tab === 'Обзор' && (
+        {tab === 'overview' && (
           <div className="bk-grid2">
             <div className="bk-panel">
-              <div className="bk-panel-head"><div className="t">Детали брони</div></div>
+              <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.overviewTab.detailsTitle')}</div></div>
               <div className="bk-panel-body" style={{ padding: '6px 18px 14px' }}>
-                <div className="bk-info-row"><span className="l">Услуга</span><span className="v">{service?.name || '—'}</span></div>
-                <div className="bk-info-row"><span className="l">Длительность</span><span className="v">{service ? `${service.durationMinutes} минут` : '—'}</span></div>
-                <div className="bk-info-row"><span className="l">Локация</span><span className="v">{location?.name || '—'}</span></div>
-                <div className="bk-info-row"><span className="l">Мастер</span><span className="v">{staffProfile?.staffUser?.fullName || '—'}</span></div>
-                <div className="bk-info-row"><span className="l">Участников</span><span className="v">{reservation.participants}</span></div>
-                <div className="bk-info-row"><span className="l">Цена</span><span className="v">{reservation.price ? `${reservation.price} ${reservation.currency}` : '—'}</span></div>
-                <div className="bk-info-row"><span className="l">Статус оплаты</span><span className="v">{reservation.paymentStatus}</span></div>
-                <div className="bk-info-row"><span className="l">Источник</span><span className="v">{reservation.source}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.service')}</span><span className="v">{service?.name || '—'}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.duration')}</span><span className="v">{service ? t('crm.bookings.detail.overviewTab.durationValue', { count: service.durationMinutes }) : '—'}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.location')}</span><span className="v">{location?.name || '—'}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.staff')}</span><span className="v">{staffProfile?.staffUser?.fullName || '—'}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.participants')}</span><span className="v">{reservation.participants}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.price')}</span><span className="v">{reservation.price ? `${reservation.price} ${reservation.currency}` : '—'}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.paymentStatus')}</span><span className="v">{paymentStatusLabel(reservation.paymentStatus)}</span></div>
+                <div className="bk-info-row"><span className="l">{t('crm.bookings.detail.overviewTab.source')}</span><span className="v">{reservation.source}</span></div>
               </div>
             </div>
 
             <div>
               <div className="bk-panel" style={{ marginBottom: 16 }}>
-                <div className="bk-panel-head"><div className="t">Клиент</div></div>
+                <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.overviewTab.clientTitle')}</div></div>
                 <div className="bk-panel-body" style={{ padding: '14px 18px' }}>
                   <div className="bk-cust-card" style={{ border: 0, padding: 0, margin: 0 }}>
                     <div className="bk-cust-ava">{(reservation.customerName || '?').split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
                     <div>
-                      <div className="n">{reservation.customerName || 'Без имени'}</div>
+                      <div className="n">{reservation.customerName || t('crm.bookings.detail.noName')}</div>
                       <div className="c">{reservation.customerPhone} {reservation.customerEmail ? `· ${reservation.customerEmail}` : ''}</div>
                     </div>
                   </div>
@@ -398,8 +394,8 @@ export const ReservationDetailPage: React.FC = () => {
               {reservation.leadId && (
                 <div className="bk-panel">
                   <div className="bk-panel-head">
-                    <div className="t">Связанный лид</div>
-                    <button className="link" onClick={() => navigate(`/leads/${reservation.leadId}`)}>Открыть →</button>
+                    <div className="t">{t('crm.bookings.detail.overviewTab.linkedLeadTitle')}</div>
+                    <button className="link" onClick={() => navigate(`/leads/${reservation.leadId}`)}>{t('crm.bookings.detail.overviewTab.openLead')}</button>
                   </div>
                 </div>
               )}
@@ -407,77 +403,77 @@ export const ReservationDetailPage: React.FC = () => {
           </div>
         )}
 
-        {tab === 'Клиент' && (
+        {tab === 'client' && (
           <div className="bk-panel">
-            <div className="bk-panel-head"><div className="t">Профиль клиента</div></div>
+            <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.clientTab.profileTitle')}</div></div>
             <div className="bk-panel-body" style={{ padding: 18 }}>
               <div className="bk-cust-card">
                 <div className="bk-cust-ava">{(reservation.customerName || '?').split(' ').map((w) => w[0]).slice(0, 2).join('')}</div>
                 <div>
-                  <div className="n">{reservation.customerName || 'Без имени'}</div>
+                  <div className="n">{reservation.customerName || t('crm.bookings.detail.noName')}</div>
                   <div className="c">{reservation.customerPhone} {reservation.customerEmail ? `· ${reservation.customerEmail}` : ''}</div>
                   {customerStats?.tags && customerStats.tags.length > 0 && (
-                    <div className="bk-cust-tags">{customerStats.tags.map((t) => <span key={t} className="bk-cust-tag">{t}</span>)}</div>
+                    <div className="bk-cust-tags">{customerStats.tags.map((tg) => <span key={tg} className="bk-cust-tag">{tg}</span>)}</div>
                   )}
                 </div>
               </div>
               <div className="bk-cust-stat" style={{ gridTemplateColumns: 'repeat(4,1fr)', marginTop: 0 }}>
-                <div><div className="v">{customerStats?.visits ?? '—'}</div><div className="l">визитов</div></div>
-                <div><div className="v">{customerStats?.cancellations ?? '—'}</div><div className="l">отмен</div></div>
-                <div><div className="v">{customerStats?.noShows ?? '—'}</div><div className="l">неявок</div></div>
-                <div><div className="v">{customerStats ? `${customerStats.ltv} ₽` : '—'}</div><div className="l">оборот</div></div>
+                <div><div className="v">{customerStats?.visits ?? '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.visits')}</div></div>
+                <div><div className="v">{customerStats?.cancellations ?? '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.cancellations')}</div></div>
+                <div><div className="v">{customerStats?.noShows ?? '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.noShows')}</div></div>
+                <div><div className="v">{customerStats ? `${customerStats.ltv} ₽` : '—'}</div><div className="l">{t('crm.bookings.detail.clientTab.turnover')}</div></div>
               </div>
               {!reservation.contactId && (
-                <div style={{ marginTop: 16, fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic' }}>Контакт для этой брони не связан.</div>
+                <div style={{ marginTop: 16, fontSize: 12, color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.bookings.detail.clientTab.noContact')}</div>
               )}
             </div>
           </div>
         )}
 
-        {tab === 'Данные брони' && (
+        {tab === 'fields' && (
           <div className="bk-panel">
-            <div className="bk-panel-head"><div className="t">Данные из формы бронирования</div></div>
+            <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.fieldsTab.title')}</div></div>
             <div className="bk-panel-body" style={{ padding: '6px 18px 14px' }}>
               {reservation.customFields && Object.keys(reservation.customFields).length > 0 ? (
                 Object.entries(reservation.customFields).map(([k, v]) => (
                   <div className="bk-info-row" key={k}><span className="l">{k}</span><span className="v">{String(v)}</span></div>
                 ))
               ) : (
-                <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>Нет дополнительных данных</div>
+                <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>{t('crm.bookings.detail.fieldsTab.empty')}</div>
               )}
             </div>
           </div>
         )}
 
-        {tab === 'Активность' && (
+        {tab === 'activity' && (
           <div className="bk-panel">
-            <div className="bk-panel-head"><div className="t">Журнал активности</div></div>
+            <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.activityTab.title')}</div></div>
             <div className="bk-panel-body" style={{ padding: 18 }}>
               <div className="bk-timeline">
                 {activity.map((a) => (
                   <div key={a.id} className="bk-tl-item">
-                    <div className="t">{ACTIVITY_LABELS[a.type] || a.type}</div>
+                    <div className="t">{ACTIVITY_TYPE_KEYS.includes(a.type) ? t(`crm.bookings.detail.activityTab.types.${a.type}`) : a.type}</div>
                     {a.description && <div className="d">{a.description}</div>}
-                    <div className="when">{new Date(a.createdAt).toLocaleString('ru-RU')}{a.user ? ` · ${a.user.fullName}` : ''}</div>
+                    <div className="when">{new Date(a.createdAt).toLocaleString(dateLocale)}{a.user ? ` · ${a.user.fullName}` : ''}</div>
                   </div>
                 ))}
-                {activity.length === 0 && <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>Пока нет событий</div>}
+                {activity.length === 0 && <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5 }}>{t('crm.bookings.detail.activityTab.empty')}</div>}
               </div>
             </div>
           </div>
         )}
 
-        {tab === 'Заметки' && (
+        {tab === 'notes' && (
           <div className="bk-panel">
-            <div className="bk-panel-head"><div className="t">Внутренние заметки</div></div>
+            <div className="bk-panel-head"><div className="t">{t('crm.bookings.detail.notesTab.title')}</div></div>
             <div className="bk-panel-body" style={{ padding: 18 }}>
-              {notesLoading && <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>Загрузка…</div>}
+              {notesLoading && <div style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('crm.bookings.detail.notesTab.loading')}</div>}
               {!notesLoading && notes.length === 0 && (
-                <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5, marginBottom: 12 }}>Пока нет заметок</div>
+                <div style={{ color: 'var(--fg-4)', fontStyle: 'italic', fontSize: 12.5, marginBottom: 12 }}>{t('crm.bookings.detail.notesTab.empty')}</div>
               )}
               {notes.map((n) => (
                 <div key={n.id} className="bk-note">
-                  <div className="hd"><b>{n.createdBy || 'Вы'}</b> · {new Date(n.createdAt).toLocaleString('ru-RU')}
+                  <div className="hd"><b>{n.createdBy || t('crm.bookings.detail.notesTab.you')}</b> · {new Date(n.createdAt).toLocaleString(dateLocale)}
                     <button onClick={() => removeNote(n.id)} style={{ float: 'right', background: 'none', border: 0, color: 'var(--fg-3)', cursor: 'pointer' }}>
                       <Ic d={BK_ICON.x} size={12} />
                     </button>
@@ -486,8 +482,8 @@ export const ReservationDetailPage: React.FC = () => {
                 </div>
               ))}
               <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
-                <input value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder="Добавить заметку…" style={{ flex: 1, padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit' }} />
-                <button className="btn btn-primary btn-sm" onClick={addNote}>Добавить</button>
+                <input value={newNote} onChange={(e) => setNewNote(e.target.value)} placeholder={t('crm.bookings.detail.notesTab.addPlaceholder')} style={{ flex: 1, padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5, fontFamily: 'inherit' }} />
+                <button className="btn btn-primary btn-sm" onClick={addNote}>{t('crm.bookings.detail.notesTab.add')}</button>
               </div>
             </div>
           </div>

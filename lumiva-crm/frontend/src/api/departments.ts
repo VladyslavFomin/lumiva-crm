@@ -5,6 +5,7 @@ export interface Department {
   id: string;
   tenantId: string;
   name: string;
+  code: string | null;
   description: string | null;
   parentId: string | null;
   parent?: Department | null;
@@ -31,6 +32,7 @@ export interface Department {
 
 export interface CreateDepartmentDto {
   name: string;
+  code?: string | null;
   description?: string | null;
   parentId?: string | null;
   managerId?: string | null;
@@ -40,11 +42,29 @@ export interface CreateDepartmentDto {
 
 export interface UpdateDepartmentDto {
   name?: string;
+  code?: string | null;
   description?: string | null;
   parentId?: string | null;
   managerId?: string | null;
   sortOrder?: number;
   isActive?: boolean;
+}
+
+export interface DepartmentsSummary {
+  departmentsCount: number;
+  staffInDepartments: number;
+  totalActiveStaff: number;
+  departmentsWithoutManager: number;
+  unassignedStaffCount: number;
+}
+
+export interface DepartmentStats {
+  staffCount: number;
+  staffCountRecursive: number;
+  leadsInProgress: number;
+  salesClosed30d: number;
+  salesClosed30dAmount: number;
+  conversionPct: number | null;
 }
 
 export const fetchDepartmentsTree = async (): Promise<Department[]> => {
@@ -61,6 +81,14 @@ export const fetchDepartment = async (id: string): Promise<Department> => {
 
 export const fetchDepartmentStaff = async (id: string): Promise<any[]> => {
   return api.get<any[]>(`/departments/${id}/staff`);
+};
+
+export const fetchDepartmentsSummary = async (): Promise<DepartmentsSummary> => {
+  return api.get<DepartmentsSummary>('/departments/summary');
+};
+
+export const fetchDepartmentStats = async (id: string): Promise<DepartmentStats> => {
+  return api.get<DepartmentStats>(`/departments/${id}/stats`);
 };
 
 export const createDepartment = async (

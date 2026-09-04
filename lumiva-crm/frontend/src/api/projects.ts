@@ -5,9 +5,10 @@ import type {
   ProjectStatus,
   ProjectTask,
   ProjectComment,
+  ProjectFileLink,
 } from '../pages/projects/projectTypes';
 
-export type { Project, ProjectStatus, ProjectTask, ProjectComment } from '../pages/projects/projectTypes';
+export type { Project, ProjectStatus, ProjectTask, ProjectComment, ProjectFileLink } from '../pages/projects/projectTypes';
 
 const generateId = (prefix: string) => {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -34,6 +35,7 @@ interface ApiProject {
   tenantId: string;
   leadId: string | null;
   companyId?: string | null;
+  contactId?: string | null;
   name: string;
   description: string | null;
   amount: string;               // numeric → string
@@ -46,6 +48,7 @@ interface ApiProject {
   ownerUserIds?: string[] | null;
   briefFileName: string | null;
   briefFileUrl: string | null;
+  files?: ProjectFileLink[] | null;
   tasks?: ProjectTask[] | null;
   comments?: ProjectComment[] | null;
   customFields?: Record<string, any> | null;
@@ -83,8 +86,6 @@ function coerceUuidList(raw: unknown): string[] {
 
 // ---- Маппинг API → фронт ----
 function mapProject(p: ApiProject): Project {
-  const normalizedStatus =
-    p.status === 'Закрыт' ? ('Выиграно' as ProjectStatus) : p.status;
   const tasks = normalizeTasks(p.tasks);
   const raw = p as ApiProject & Record<string, unknown>;
   const ids = coerceUuidList(
@@ -105,7 +106,7 @@ function mapProject(p: ApiProject): Project {
     description: p.description ?? '',
     amount: Number(p.amount || 0),
     currency: p.currency || 'EUR',
-    status: normalizedStatus,
+    status: p.status,
     category: p.category,
     tags: p.tags ?? [],
 
@@ -117,6 +118,7 @@ function mapProject(p: ApiProject): Project {
     // лид / компания
     leadId: p.leadId,
     companyId: p.companyId != null ? p.companyId : null,
+    contactId: p.contactId != null ? p.contactId : null,
     // name/email — заполняем на фронте при выборе лида
     leadName: null,
     leadEmail: null,
@@ -125,6 +127,7 @@ function mapProject(p: ApiProject): Project {
     // файлы / доп.поля
     briefFileName: p.briefFileName ?? null,
     briefFileUrl: p.briefFileUrl ?? null,
+    files: p.files ?? null,
     customFields: p.customFields ?? null,
 
     tasks,
@@ -146,16 +149,25 @@ function projectToDto(
   options?: {
     includeEmptyTasks?: boolean;
     includeEmptyComments?: boolean;
+    // Background autosaves (tasks/comments) build their payload from a full local Project
+    // snapshot and can be in flight for a while (debounced). If a real-time status change (from
+    // the kanban board, the status pill, or the table) lands and resolves WHILE one of these is
+    // still in flight, the autosave's stale `status` value — from before the change — can arrive
+    // second and silently overwrite the fresh one. Every field-specific caller that isn't the
+    // user's own explicit "Save" action should set this so status is left untouched server-side
+    // (omitted from the DTO — the backend already treats an absent field as "don't change it").
+    excludeStatus?: boolean;
   },
 ) {
   const includeEmptyTasks = Boolean(options?.includeEmptyTasks);
   const includeEmptyComments = Boolean(options?.includeEmptyComments);
+  const excludeStatus = Boolean(options?.excludeStatus);
   return {
     name: p.name,
     description: p.description || null,
     amount: String(p.amount ?? 0),
     currency: p.currency || 'EUR',
-    status: p.status,
+    status: excludeStatus ? undefined : p.status,
     category: p.category ?? null,
     tags: p.tags && p.tags.length ? p.tags.join(',') : undefined,
 
@@ -176,10 +188,17 @@ function projectToDto(
         : p.companyId === undefined
           ? undefined
           : p.companyId,
+    contactId:
+      p.contactId === null
+        ? null
+        : p.contactId === undefined
+          ? undefined
+          : p.contactId,
 
     // файлы / доп.поля
     briefFileName: p.briefFileName ?? undefined,
     briefFileUrl: p.briefFileUrl ?? undefined,
+    files: p.files ?? undefined,
     customFields: p.customFields ?? undefined,
 
     // если задач нет — не шлём поле вообще (если не просят очистить)
@@ -205,6 +224,7 @@ export async function fetchProjects(params?: {
   q?: string;
   archived?: boolean;
   deleted?: boolean;
+  tableId?: string;
 }) {
   const qs = new URLSearchParams();
   if (params?.status) qs.set('status', params.status);
@@ -212,6 +232,7 @@ export async function fetchProjects(params?: {
   if (params?.q) qs.set('q', params.q);
   if (params?.archived) qs.set('archived', 'true');
   if (params?.deleted) qs.set('deleted', 'true');
+  if (params?.tableId) qs.set('tableId', params.tableId);
 
   const query = qs.toString() ? `?${qs.toString()}` : '';
   const res = await api.get<{ total: number; items: ApiProject[] }>(
@@ -230,9 +251,12 @@ export async function fetchProject(id: string): Promise<Project> {
 }
 
 // создать проект
-export async function createProject(p: Project): Promise<Project> {
+export async function createProject(p: Project, options?: { tableId?: string }): Promise<Project> {
   const dto = projectToDto(p);
-  const res = await api.post<ApiProject>('/projects', dto);
+  const res = await api.post<ApiProject>('/projects', {
+    ...dto,
+    ...(options?.tableId ? { tableId: options.tableId } : {}),
+  });
   return mapProject(res);
 }
 
@@ -242,6 +266,7 @@ export async function updateProject(
   options?: {
     includeEmptyTasks?: boolean;
     includeEmptyComments?: boolean;
+    excludeStatus?: boolean;
   },
 ): Promise<Project> {
   const dto = projectToDto(p, options);

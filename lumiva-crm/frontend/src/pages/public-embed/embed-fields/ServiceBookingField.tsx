@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchPublicServices, type PublicBookingService } from '../../../api/publicBooking';
 import type { EmbedFieldConfigItem } from '../../../api/embedForms';
 import { compositeTokens, fieldLabelStyle, hintStyle, inputStyle } from './compositeFieldStyles';
@@ -17,10 +18,12 @@ export const ServiceBookingField: React.FC<{
   design: Record<string, unknown>;
   onChange: (value: ServiceBookingValue | null) => void;
 }> = ({ field, clientKey, design: d, onChange }) => {
+  const { t } = useTranslation();
+  const minutesShort = t('crm.embedFields.serviceBooking.minutesShort');
   const [services, setServices] = useState<PublicBookingService[]>([]);
   const [serviceId, setServiceId] = useState('');
   const [date, setDate] = useState('');
-  const t = compositeTokens(d);
+  const tokens = compositeTokens(d);
 
   const allowed = field.sourceFilter?.serviceIds;
 
@@ -32,6 +35,7 @@ export const ServiceBookingField: React.FC<{
         if (filtered[0]) setServiceId(filtered[0].id);
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientKey]);
 
   useEffect(() => {
@@ -58,22 +62,22 @@ export const ServiceBookingField: React.FC<{
       <select style={{ ...inputStyle(d), marginBottom: selected ? 6 : 10 }} value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
         {services.map((s) => (
           <option key={s.id} value={s.id}>
-            {s.name} · {s.durationMinutes} мин · {s.price} {s.currency}
+            {s.name} · {s.durationMinutes} {minutesShort} · {s.price} {s.currency}
           </option>
         ))}
       </select>
       {selected && (
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-          <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 9px', background: t.field, border: `1px solid ${t.border}`, color: t.text }}>
-            {selected.durationMinutes} мин
+          <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 9px', background: tokens.field, border: `1px solid ${tokens.border}`, color: tokens.text }}>
+            {selected.durationMinutes} {minutesShort}
           </span>
-          <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 9px', background: t.field, border: `1px solid ${t.border}`, color: t.text }}>
+          <span style={{ fontSize: 11, fontWeight: 600, borderRadius: 999, padding: '3px 9px', background: tokens.field, border: `1px solid ${tokens.border}`, color: tokens.text }}>
             {selected.price} {selected.currency}
           </span>
         </div>
       )}
       <input type="datetime-local" style={inputStyle(d)} value={date} onChange={(e) => setDate(e.target.value)} />
-      {!services.length && <div style={hintStyle(d)}>Нет доступных услуг</div>}
+      {!services.length && <div style={hintStyle(d)}>{t('crm.embedFields.serviceBooking.noServices')}</div>}
     </div>
   );
 };

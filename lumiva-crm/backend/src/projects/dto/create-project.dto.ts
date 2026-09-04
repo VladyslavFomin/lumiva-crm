@@ -2,12 +2,13 @@ import {
   IsString,
   IsOptional,
   IsNumberString,
-  IsIn,
   IsUUID,
   IsArray,
   IsObject,
   IsBoolean,
+  Length,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import type { ProjectStatus } from '../project.entity';
 
 export class CreateProjectDto {
@@ -21,20 +22,16 @@ export class CreateProjectDto {
   @IsNumberString()
   amount: string; // "11000.00"
 
+  // crm_projects.currency — character(3): без этой проверки тенантская валюта длиннее
+  // 3 символов (валидация в CreateProjectCurrencyDto раньше допускала до 8) валила
+  // сохранение проекта сырой ошибкой Postgres "value too long for type character(3)".
   @IsOptional()
   @IsString()
+  @Length(3, 3)
   currency?: string; // EUR / TRY etc.
 
-  @IsIn([
-    'Новый',
-    'В работе',
-    'На проверке',
-    'Заморожен',
-    'Закрыт',
-    'Выиграно',
-    'Проиграно',
-  ])
-  status: ProjectStatus;
+  @IsString()
+  status: ProjectStatus; // валидируется по тенантским ProjectStatusDefinition в ProjectsService
 
   @IsOptional()
   @IsString()
@@ -63,6 +60,10 @@ export class CreateProjectDto {
 
   @IsOptional()
   @IsUUID()
+  tableId?: string;
+
+  @IsOptional()
+  @IsUUID()
   companyId?: string;
 
   @IsOptional()
@@ -81,13 +82,20 @@ export class CreateProjectDto {
   @IsOptional()
   @IsString()
   briefFileUrl?: string;
-  
+
   @IsOptional()
   @IsArray()
+  @Type(() => Object)
+  files?: any[];
+
+  @IsOptional()
+  @IsArray()
+  @Type(() => Object)
   tasks?: any[];
 
   @IsOptional()
   @IsArray()
+  @Type(() => Object)
   comments?: any[];
 
   @IsOptional()

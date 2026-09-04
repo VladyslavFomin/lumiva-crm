@@ -16,6 +16,8 @@ export interface StoredSession {
   tenantPlan?: string | null;
   billingLocked?: boolean;
   tenantActiveUntil?: string | null;
+  /** Дата окончания 14-дневного Enterprise-триала; null/undefined = не на триале. */
+  tenantTrialEndsAt?: string | null;
 }
 
 type SessionExpiredState = {
@@ -93,6 +95,7 @@ export function persistSession(resp: {
   tenantPlan?: string;
   billingLocked?: boolean;
   tenantActiveUntil?: string | null;
+  tenantTrialEndsAt?: string | null;
 }) {
   const token = resp.token || resp.accessToken || null;
   const tenantName =
@@ -107,6 +110,7 @@ export function persistSession(resp: {
     tenantName: tenantName ?? null,
     tenantPlan: resp.tenantPlan ?? null,
     tenantActiveUntil: resp.tenantActiveUntil ?? null,
+    tenantTrialEndsAt: resp.tenantTrialEndsAt ?? null,
     billingLocked:
       typeof resp.billingLocked === 'boolean'
         ? resp.billingLocked
@@ -208,6 +212,21 @@ export function isBillingLocked(): boolean {
   if (activeUntil && Number.isFinite(activeUntil) && activeUntil <= Date.now()) return true;
   if (typeof s.billingLocked === 'boolean') return s.billingLocked;
   return s.tenantPlan === 'free_locked';
+}
+
+/**
+ * Сколько дней осталось до конца 14-дневного Enterprise-триала (для баннера в MainLayout).
+ * null — тенант не на триале, либо триал уже истёк (тогда billingLocked уже сработает).
+ */
+export function getTrialDaysLeft(): number | null {
+  const s = getSession() as any;
+  const raw = s?.tenantTrialEndsAt;
+  if (!raw) return null;
+  const endsAt = new Date(raw).getTime();
+  if (!Number.isFinite(endsAt)) return null;
+  const msLeft = endsAt - Date.now();
+  if (msLeft <= 0) return null;
+  return Math.ceil(msLeft / (24 * 60 * 60 * 1000));
 }
 
 export function markBillingUnlocked(nextPlan?: string) {

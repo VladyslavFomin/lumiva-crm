@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { BookingsSubnav } from './BookingsSubnav';
 import { Ic, BK_ICON } from './BookingIcons';
@@ -17,6 +19,7 @@ import './bookings-design.css';
 type ModalState = { mode: 'create' } | { mode: 'edit'; service: BookingServiceItem } | null;
 
 const CAT_COLORS = ['#222222', '#3b6cb6', '#1f8a5e', '#c08319', '#5a45a8', '#cc2f47', '#888888', '#214b8a'];
+const ALL_CATEGORY = '__all__';
 
 const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; onClose: () => void; onSaved: () => void }> = ({
   state,
@@ -24,6 +27,7 @@ const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; 
   onClose,
   onSaved,
 }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const editing = state?.mode === 'edit' ? state.service : null;
   const [name, setName] = useState(editing?.name || '');
@@ -62,7 +66,7 @@ const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; 
       onSaved();
       onClose();
     } catch (err: any) {
-      showAlert(err.message || 'Не удалось сохранить услугу', { variant: 'error' });
+      showAlert(err.message || t('crm.bookings.services.modal.saveError'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -72,41 +76,41 @@ const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; 
     <div className="px-scope">
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{editing ? 'Редактировать услугу' : 'Новая услуга'}</h3>
+        <h3>{editing ? t('crm.bookings.services.modal.titleEdit') : t('crm.bookings.services.modal.titleNew')}</h3>
         <div className="bk-field">
-          <label>Название</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Маникюр классический" />
+          <label>{t('crm.bookings.services.modal.nameLabel')}</label>
+          <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t('crm.bookings.services.modal.namePlaceholder')} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 10 }}>
           <div className="bk-field">
-            <label>Категория</label>
-            <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Ногтевой сервис" />
+            <label>{t('crm.bookings.services.modal.categoryLabel')}</label>
+            <input value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t('crm.bookings.services.modal.categoryPlaceholder')} />
           </div>
           <div className="bk-field">
-            <label>Цвет</label>
+            <label>{t('crm.bookings.services.modal.colorLabel')}</label>
             <input type="color" value={color} onChange={(e) => setColor(e.target.value)} style={{ width: 44, height: 36, padding: 2 }} />
           </div>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
           <div className="bk-field">
-            <label>Длительность (мин)</label>
+            <label>{t('crm.bookings.services.modal.durationLabel')}</label>
             <input type="number" value={durationMinutes} onChange={(e) => setDurationMinutes(e.target.value)} />
           </div>
           <div className="bk-field">
-            <label>Цена</label>
+            <label>{t('crm.bookings.services.modal.priceLabel')}</label>
             <input value={price} onChange={(e) => setPrice(e.target.value)} />
           </div>
           <div className="bk-field">
-            <label>Вместимость</label>
+            <label>{t('crm.bookings.services.modal.capacityLabel')}</label>
             <input type="number" value={capacityMax} onChange={(e) => setCapacityMax(e.target.value)} />
           </div>
         </div>
         <div className="bk-field">
-          <label>Мин. уведомление (мин, необязательно — иначе как в проекте)</label>
-          <input type="number" value={minNoticeMinutes} onChange={(e) => setMinNoticeMinutes(e.target.value)} placeholder="Например, 120" />
+          <label>{t('crm.bookings.services.modal.minNoticeLabel')}</label>
+          <input type="number" value={minNoticeMinutes} onChange={(e) => setMinNoticeMinutes(e.target.value)} placeholder={t('crm.bookings.services.modal.minNoticePlaceholder')} />
         </div>
         <div className="bk-field">
-          <label>Доступные мастера</label>
+          <label>{t('crm.bookings.services.modal.staffLabel')}</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {staff.map((s) => (
               <span
@@ -122,17 +126,17 @@ const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; 
                 {s.staffUser?.fullName || s.staffUserId}
               </span>
             ))}
-            {staff.length === 0 && <span style={{ fontSize: 11.5, color: 'var(--fg-4)', fontStyle: 'italic' }}>Нет сотрудников</span>}
+            {staff.length === 0 && <span style={{ fontSize: 11.5, color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.bookings.services.modal.noStaff')}</span>}
           </div>
         </div>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 }}>
           <input type="checkbox" checked={autoConfirm} onChange={(e) => setAutoConfirm(e.target.checked)} />
-          Автоматическое подтверждение брони
+          {t('crm.bookings.services.modal.autoConfirm')}
         </label>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line-2)' }}>
-          <button className="btn btn-sm" onClick={onClose}>Отмена</button>
+          <button className="btn btn-sm" onClick={onClose}>{t('crm.bookings.services.modal.cancel')}</button>
           <button className="btn btn-primary btn-sm" disabled={saving} onClick={handleSave}>
-            <Ic d={BK_ICON.check} size={13} /> Сохранить
+            <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.services.modal.save')}
           </button>
         </div>
       </div>
@@ -141,10 +145,11 @@ const ServiceModal: React.FC<{ state: ModalState; staff: BookingStaffProfile[]; 
 };
 
 export const BookingServicesPage: React.FC = () => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [services, setServices] = useState<BookingServiceItem[]>([]);
   const [staff, setStaff] = useState<BookingStaffProfile[]>([]);
-  const [category, setCategory] = useState('Все');
+  const [category, setCategory] = useState(ALL_CATEGORY);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<ModalState>(null);
 
@@ -155,7 +160,7 @@ export const BookingServicesPage: React.FC = () => {
         setServices(s);
         setStaff(st);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить услуги', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.bookings.services.error'), { variant: 'error' }))
       .finally(() => setLoading(false));
   };
 
@@ -165,10 +170,10 @@ export const BookingServicesPage: React.FC = () => {
   }, []);
 
   const handleDelete = async (service: BookingServiceItem) => {
-    const ok = await showConfirm(`Удалить услугу «${service.name}»? Действие необратимо.`, {
-      title: 'Удаление',
-      confirmLabel: 'Удалить',
-      cancelLabel: 'Отмена',
+    const ok = await showConfirm(t('crm.bookings.services.deleteConfirm.body', { name: service.name }), {
+      title: t('crm.bookings.services.deleteConfirm.title'),
+      confirmLabel: t('crm.bookings.services.deleteConfirm.confirmLabel'),
+      cancelLabel: t('crm.bookings.services.deleteConfirm.cancelLabel'),
       danger: true,
     });
     if (!ok) return;
@@ -176,38 +181,39 @@ export const BookingServicesPage: React.FC = () => {
       await deleteBookingService(service.id);
       load();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось удалить услугу', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.services.deleteConfirm.error'), { variant: 'error' });
     }
   };
 
   const categories = useMemo(() => {
     const set = new Set(services.map((s) => s.category).filter(Boolean) as string[]);
-    return ['Все', ...set];
+    return [ALL_CATEGORY, ...set];
   }, [services]);
 
-  const filtered = services.filter((s) => category === 'Все' || s.category === category);
+  const filtered = services.filter((s) => category === ALL_CATEGORY || s.category === category);
   const staffNames = (ids: string[]) => ids.map((id) => staff.find((s) => s.staffUserId === id)?.staffUser?.fullName).filter(Boolean).join(', ') || '—';
 
   return (
     <MainLayout>
+      <PageHelpButton topic="bookingServices" />
       <div className="px-scope">
         <BookingsSubnav active="services" />
         <div className="bk-hero">
           <div>
-            <div className="kicker"><span className="dot" />{services.length} УСЛУГ · {services.filter((s) => s.active).length} АКТИВНЫ</div>
-            <h1>Услуги</h1>
-            <p className="sub">Каталог услуг с длительностью, ценой и доступными мастерами.</p>
+            <div className="kicker"><span className="dot" />{t('crm.bookings.services.kicker', { total: services.length, active: services.filter((s) => s.active).length })}</div>
+            <h1>{t('crm.bookings.services.title')}</h1>
+            <p className="sub">{t('crm.bookings.services.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
             <button className="btn btn-primary btn-sm" onClick={() => setModal({ mode: 'create' })}>
-              <Ic d={BK_ICON.plus} size={13} /> Новая услуга
+              <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.services.newService')}
             </button>
           </div>
         </div>
 
         <div className="bk-savedviews" style={{ marginTop: 16 }}>
           {categories.map((c) => (
-            <div key={c} className={`bk-sv-tab${c === category ? ' active' : ''}`} onClick={() => setCategory(c)}>{c}</div>
+            <div key={c} className={`bk-sv-tab${c === category ? ' active' : ''}`} onClick={() => setCategory(c)}>{c === ALL_CATEGORY ? t('crm.bookings.services.allCategories') : c}</div>
           ))}
         </div>
 
@@ -215,12 +221,19 @@ export const BookingServicesPage: React.FC = () => {
           <table className="bk-table">
             <thead>
               <tr>
-                <th>Название</th><th>Категория</th><th>Длительность</th><th>Вместимость</th><th>Цена</th><th>Мастера</th><th>Статус</th><th></th>
+                <th>{t('crm.bookings.services.table.colName')}</th>
+                <th>{t('crm.bookings.services.table.colCategory')}</th>
+                <th>{t('crm.bookings.services.table.colDuration')}</th>
+                <th>{t('crm.bookings.services.table.colCapacity')}</th>
+                <th>{t('crm.bookings.services.table.colPrice')}</th>
+                <th>{t('crm.bookings.services.table.colStaff')}</th>
+                <th>{t('crm.bookings.services.table.colStatus')}</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={8} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>Пока нет услуг</td></tr>
+                <tr><td colSpan={8} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.bookings.services.table.empty')}</td></tr>
               )}
               {filtered.map((s) => (
                 <tr key={s.id} className="clickable" onClick={() => setModal({ mode: 'edit', service: s })}>
@@ -231,15 +244,15 @@ export const BookingServicesPage: React.FC = () => {
                   <td style={{ color: 'var(--fg-3)' }}>{s.category || '—'}</td>
                   <td>
                     <Ic d={BK_ICON.clock} size={12} style={{ display: 'inline', marginRight: 5, verticalAlign: '-2px', color: 'var(--fg-3)' } as any} />
-                    {s.durationMinutes} мин
+                    {t('crm.bookings.services.table.durationSuffix', { count: s.durationMinutes })}
                   </td>
                   <td>
                     <Ic d={BK_ICON.users} size={12} style={{ display: 'inline', marginRight: 5, verticalAlign: '-2px', color: 'var(--fg-3)' } as any} />
-                    {s.capacityMax} чел.
+                    {t('crm.bookings.services.table.capacitySuffix', { count: s.capacityMax })}
                   </td>
                   <td style={{ fontFamily: 'var(--ff-mono)' }}>{s.price} {s.currency}</td>
                   <td style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>{staffNames(s.staffUserIds)}</td>
-                  <td><span className={s.active ? 'bk-badge confirmed' : 'bk-badge no_show'}>{s.active ? 'Активна' : 'Скрыта'}</span></td>
+                  <td><span className={s.active ? 'bk-badge confirmed' : 'bk-badge no_show'}>{s.active ? t('crm.bookings.services.table.statusActive') : t('crm.bookings.services.table.statusHidden')}</span></td>
                   <td onClick={(e) => e.stopPropagation()} style={{ textAlign: 'right' }}>
                     <button
                       className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[#9a1f31] hover:bg-[#fbecef] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"

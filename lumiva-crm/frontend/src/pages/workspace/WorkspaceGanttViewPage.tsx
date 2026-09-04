@@ -15,6 +15,7 @@ import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs'
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
 import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
 import { parseToLocalYMD, type LocalYMD } from '../../utils/calendarLocalDates';
+import { LottieIcon } from '../../components/LottieIcon';
 
 const BAR_COLORS = [
   'linear-gradient(90deg,#93c5fd,#60a5fa)',
@@ -302,7 +303,10 @@ export const WorkspaceGanttViewPage: React.FC = () => {
                   </div>
                 ))}
                 {rows.length === 0 && (
-                  <div className="p-4 text-xs text-slate-500">{t('crm.workspace.gantt.empty')}</div>
+                  <div className="p-4 flex flex-col items-center gap-1 text-xs text-slate-500">
+                    <LottieIcon name="gantt-bars" size={64} />
+                    <span>{t('crm.workspace.gantt.empty')}</span>
+                  </div>
                 )}
               </div>
               <div className="flex-1 min-w-0 overflow-x-auto">

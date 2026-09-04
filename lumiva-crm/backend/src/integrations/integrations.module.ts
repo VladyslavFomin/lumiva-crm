@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { IntegrationConnection } from './integration-connection.entity';
 import { IntegrationsService } from './integrations.service';
 import { IntegrationsController } from './integrations.controller';
+import { ExternalLinksController } from './external-links.controller';
 import { IntegrationRegistryService } from './integration-registry.service';
 
 // адаптеры интеграций
@@ -14,6 +15,7 @@ import { ShopifyApiService } from './shopify/shopify-api.service';
 import { ShopifySyncScheduler } from './shopify/shopify-sync.scheduler';
 import { ThirdPartyLinkAdapter } from './third-party-link/third-party-link.adapter';
 import { SlackWebhookService } from './slack/slack-webhook.service';
+import { SlackOAuthService } from './slack/slack-oauth.service';
 import { TeamsWebhookService } from './teams/teams-webhook.service';
 import { ZapierHookService } from './zapier/zapier-hook.service';
 import { MakeWebhookService } from './make/make-webhook.service';
@@ -23,11 +25,14 @@ import { OutlookCalendarService } from './outlook/outlook-calendar.service';
 import { BitrixRestService } from './bitrix/bitrix-rest.service';
 import { AmocrmApiService } from './amocrm/amocrm-api.service';
 import { HubspotApiService } from './hubspot/hubspot-api.service';
+import { HubspotOAuthService } from './hubspot/hubspot-oauth.service';
 import { GoogleAdsApiService } from './google-ads/google-ads-api.service';
 import { MetaAdsGraphService } from './meta-ads/meta-ads-graph.service';
 import { MailchimpApiService } from './mailchimp/mailchimp-api.service';
+import { MailchimpOAuthService } from './mailchimp/mailchimp-oauth.service';
 import { LegacyHttpInboundCleanupService } from './legacy-http-inbound-cleanup.service';
 import { IntegrationHubCatalogService } from './catalog/integration-hub-catalog.service';
+import { RbacModule } from '../rbac/rbac.module';
 import { GoogleSheetsSyncModule } from './google-sheets/google-sheets-sync.module';
 import { Lead } from '../leads/lead.entity';
 import { GoogleCalendarOAuthService } from './google-calendar/google-calendar-oauth.service';
@@ -36,6 +41,7 @@ import { OpenAiApiService } from './openai/openai-api.service';
 import { OneCApiService } from './onec/onec-api.service';
 import { SapApiService } from './sap/sap-api.service';
 import { JiraApiService } from './jira/jira-api.service';
+import { JiraOAuthService } from './jira/jira-oauth.service';
 import { IyzicoApiService } from './iyzico/iyzico-api.service';
 import { PaytrApiService } from './paytr/paytr-api.service';
 import { YookassaApiService } from './yookassa/yookassa-api.service';
@@ -47,6 +53,7 @@ import { PlatformSettingsModule } from '../platform-settings/platform-settings.m
 import { TenantsModule } from '../tenants/tenants.module';
 import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
 import { WorkspaceAreasModule } from '../workspace-areas/workspace-areas.module';
+import { WorkspaceAreaActivityLogModule } from '../workspace-areas/workspace-area-activity-log.module';
 import { MarketingModule } from '../marketing/marketing.module';
 import { LeadsModule } from '../leads/leads.module';
 
@@ -57,6 +64,7 @@ import { LeadsModule } from '../leads/leads.module';
     forwardRef(() => GoogleSheetsSyncModule),
     CustomObjectsModule,
     WorkspaceAreasModule,
+    WorkspaceAreaActivityLogModule,
     MarketingModule,
     forwardRef(() => LeadsModule),
     TypeOrmModule.forFeature([
@@ -65,6 +73,7 @@ import { LeadsModule } from '../leads/leads.module';
       SalesChannel,
       Lead,
     ]),
+    RbacModule,
   ],
   providers: [
     IntegrationsService,
@@ -91,6 +100,10 @@ import { LeadsModule } from '../leads/leads.module';
     IntegrationHubCatalogService,
     GoogleCalendarOAuthService,
     OutlookCalendarOAuthService,
+    SlackOAuthService,
+    HubspotOAuthService,
+    MailchimpOAuthService,
+    JiraOAuthService,
     OpenAiApiService,
     OneCApiService,
     SapApiService,
@@ -99,7 +112,7 @@ import { LeadsModule } from '../leads/leads.module';
     PaytrApiService,
     YookassaApiService,
   ],
-  controllers: [IntegrationsController],
+  controllers: [IntegrationsController, ExternalLinksController],
   exports: [IntegrationsService, JiraApiService],
 })
 export class IntegrationsModule {}

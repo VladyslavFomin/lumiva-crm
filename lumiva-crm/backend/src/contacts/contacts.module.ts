@@ -10,6 +10,7 @@ import { Company } from '../companies/company.entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { DataVisibilityModule } from '../data-visibility/data-visibility.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
     RbacModule,
     forwardRef(() => AutomationsModule),
     AuditLogModule,
+    DataVisibilityModule,
   ],
   controllers: [ContactsController],
   providers: [ContactsService],

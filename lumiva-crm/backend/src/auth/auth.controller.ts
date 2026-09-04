@@ -46,6 +46,21 @@ export class AuthController {
   }
 
   /**
+   * POST /auth/verify-2fa — второй шаг логина, когда login() вернул { twoFactorRequired: true }.
+   * Body: { challengeToken, code } — code принимает и 6-значный TOTP, и резервный код.
+   */
+  @Post('verify-2fa')
+  async verifyTwoFactor(
+    @Body() body: { challengeToken?: string; code?: string },
+    @Req() req: Request,
+  ) {
+    if (!body.challengeToken || !body.code) {
+      throw new BadRequestException('challengeToken и code обязательны');
+    }
+    return this.authService.verifyTwoFactorLogin(body.challengeToken, body.code, req);
+  }
+
+  /**
    * POST /auth/set-password
    * Только через reset/invite токен: { token, password }
    */

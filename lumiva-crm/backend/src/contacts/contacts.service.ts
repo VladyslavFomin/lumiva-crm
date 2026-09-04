@@ -13,6 +13,7 @@ import { excludeTrashedLeads } from '../leads/lead-relations.util';
 import { Project } from '../projects/project.entity';
 import { Company } from '../companies/company.entity';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditLogChange } from '../audit-log/audit-log.entity';
 
 @Injectable()
 export class ContactsService {
@@ -40,6 +41,7 @@ export class ContactsService {
       status?: string;
       assignedUserId?: string;
       tags?: string[];
+      companyId?: string;
       limit?: number;
       offset?: number;
     },
@@ -48,6 +50,10 @@ export class ContactsService {
       .createQueryBuilder('contact')
       .leftJoin('contact.company', 'company')
       .where('contact.tenantId = :tenantId', { tenantId });
+
+    if (options?.companyId) {
+      qb.andWhere('contact.companyId = :companyId', { companyId: options.companyId });
+    }
 
     if (options?.search) {
       const search = `%${options.search.toLowerCase()}%`;
@@ -224,7 +230,7 @@ export class ContactsService {
     actorUserId?: string | null,
   ): Promise<Contact> {
     const contact = await this.findOne(tenantId, id);
-    const before = { email: contact.email, phone: contact.phone, status: contact.status, assignedUserId: contact.assignedUserId };
+    const before = { email: contact.email, phone: contact.phone, status: contact.status, assignedUserId: contact.assignedUserId, customFields: JSON.stringify(contact.customFields ?? null) };
 
     // Обновляем поля
     if (dto.firstName !== undefined) contact.firstName = dto.firstName || null;
@@ -275,9 +281,14 @@ export class ContactsService {
     }
 
     const updatedContact = Array.isArray(saved) ? saved[0] : saved;
-    const changes = (['email', 'phone', 'status', 'assignedUserId'] as const)
+    const changes: AuditLogChange[] = (['email', 'phone', 'status', 'assignedUserId'] as const)
       .filter((field) => before[field] !== updatedContact[field])
       .map((field) => ({ field, oldValue: before[field] ?? null, newValue: (updatedContact[field] as string | null) ?? null }));
+    // Кастомные поля раньше вообще не попадали в audit log, хотя принимаются и сохраняются
+    // тем же update() — их можно было менять без единого следа в истории изменений.
+    if (before.customFields !== JSON.stringify(updatedContact.customFields ?? null)) {
+      changes.push({ field: 'customFields', oldValue: null, newValue: null });
+    }
     void this.auditLog.log({
       tenantId,
       entityType: 'contact',

@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { getStoredUser } from '../../auth/session';
 import { BookingsSubnav } from './BookingsSubnav';
@@ -15,8 +18,8 @@ import {
   fetchBookingResources,
   fetchBookingStaff,
   fetchCustomerStats,
-  RESERVATION_STATUS_LABELS_RU,
   type Reservation,
+  type ReservationStatus,
   type BookingLocation,
   type BookingServiceItem,
   type BookingResourceItem,
@@ -25,29 +28,40 @@ import {
 } from '../../api/bookings';
 import './bookings-design.css';
 
-const SAVED_VIEWS = ['Все', 'Сегодня', 'Завтра', 'Эта неделя', 'Ожидают подтв.', 'Отменённые', 'Мои брони'];
+type ViewKey = 'all' | 'today' | 'tomorrow' | 'week' | 'pending' | 'cancelled' | 'mine';
+const VIEW_KEYS: ViewKey[] = ['all', 'today', 'tomorrow', 'week', 'pending', 'cancelled', 'mine'];
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
 
-function toCsv(rows: Reservation[]): string {
-  const header = ['ID', 'Дата', 'Время', 'Клиент', 'Телефон', 'Статус', 'Источник'];
+function toCsv(rows: Reservation[], t: TFunction, statusLabel: (s: ReservationStatus) => string): string {
+  const header = [
+    t('crm.bookings.list.csv.colId'),
+    t('crm.bookings.list.csv.colDate'),
+    t('crm.bookings.list.csv.colTime'),
+    t('crm.bookings.list.csv.colClient'),
+    t('crm.bookings.list.csv.colPhone'),
+    t('crm.bookings.list.csv.colStatus'),
+    t('crm.bookings.list.csv.colSource'),
+  ];
   const lines = rows.map((r) => [
     r.id,
     new Date(r.startAt).toLocaleDateString('ru-RU'),
     new Date(r.startAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }),
     r.customerName || '',
     r.customerPhone || '',
-    RESERVATION_STATUS_LABELS_RU[r.status],
+    statusLabel(r.status),
     r.source,
   ]);
   return [header, ...lines].map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
 }
 
 const ClientDrawer: React.FC<{ reservation: Reservation | null; onClose: () => void }> = ({ reservation, onClose }) => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [stats, setStats] = useState<CustomerStats | null>(null);
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
 
   useEffect(() => {
     if (!reservation?.contactId) {
@@ -65,31 +79,31 @@ const ClientDrawer: React.FC<{ reservation: Reservation | null; onClose: () => v
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(20,20,20,0.3)', zIndex: 58 }} onClick={onClose} />
       <div style={{ position: 'fixed', top: 0, right: 0, height: '100vh', width: 340, background: '#fff', borderLeft: '1px solid var(--line-2)', boxShadow: '-12px 0 32px rgba(0,0,0,0.08)', zIndex: 59, padding: 22, overflowY: 'auto' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 18 }}>
-          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', textTransform: 'uppercase' }}>Профиль клиента</div>
+          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', textTransform: 'uppercase' }}>{t('crm.bookings.list.drawer.profileTitle')}</div>
           <button onClick={onClose} style={{ background: 'none', border: 0, color: 'var(--fg-3)', cursor: 'pointer' }}><Ic d={BK_ICON.x} size={15} /></button>
         </div>
         <div className="bk-cust-card" style={{ border: 0, margin: 0, padding: 0 }}>
           <div className="bk-cust-ava">{initials}</div>
           <div>
-            <div className="n">{reservation.customerName || 'Без имени'}</div>
+            <div className="n">{reservation.customerName || t('crm.bookings.list.table.noName')}</div>
             <div className="c">{reservation.customerPhone}</div>
             {stats?.tags && stats.tags.length > 0 && (
-              <div className="bk-cust-tags">{stats.tags.map((t) => <span key={t} className="bk-cust-tag">{t}</span>)}</div>
+              <div className="bk-cust-tags">{stats.tags.map((tg) => <span key={tg} className="bk-cust-tag">{tg}</span>)}</div>
             )}
           </div>
         </div>
         <div className="bk-cust-stat">
-          <div><div className="v">{stats?.visits ?? '—'}</div><div className="l">визитов</div></div>
-          <div><div className="v">{stats ? `${stats.ltv} ₽` : '—'}</div><div className="l">LTV</div></div>
-          <div><div className="v" style={{ fontSize: 11 }}>{stats?.lastVisit ? new Date(stats.lastVisit).toLocaleDateString('ru-RU') : '—'}</div><div className="l">последний визит</div></div>
+          <div><div className="v">{stats?.visits ?? '—'}</div><div className="l">{t('crm.bookings.list.drawer.visits')}</div></div>
+          <div><div className="v">{stats ? `${stats.ltv} ₽` : '—'}</div><div className="l">{t('crm.bookings.list.drawer.ltv')}</div></div>
+          <div><div className="v" style={{ fontSize: 11 }}>{stats?.lastVisit ? new Date(stats.lastVisit).toLocaleDateString(dateLocale) : '—'}</div><div className="l">{t('crm.bookings.list.drawer.lastVisit')}</div></div>
         </div>
         <div style={{ marginTop: 18, paddingTop: 16, borderTop: '1px solid var(--line-3)' }}>
-          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 8 }}>Текущая бронь</div>
-          <div className="bk-info-row"><span className="l">Дата</span><span className="v">{new Date(reservation.startAt).toLocaleString('ru-RU')}</span></div>
-          <div className="bk-info-row"><span className="l">Статус</span><span className="v">{RESERVATION_STATUS_LABELS_RU[reservation.status]}</span></div>
+          <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 10, letterSpacing: '0.08em', color: 'var(--fg-3)', textTransform: 'uppercase', marginBottom: 8 }}>{t('crm.bookings.list.drawer.currentBookingTitle')}</div>
+          <div className="bk-info-row"><span className="l">{t('crm.bookings.list.drawer.dateLabel')}</span><span className="v">{new Date(reservation.startAt).toLocaleString(dateLocale)}</span></div>
+          <div className="bk-info-row"><span className="l">{t('crm.bookings.list.drawer.statusLabel')}</span><span className="v">{t(`crm.bookings.status.${reservation.status}`)}</span></div>
         </div>
         <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: 18 }} onClick={() => navigate(`/bookings/reservations/${reservation.id}`)}>
-          Открыть бронь
+          {t('crm.bookings.list.drawer.openBooking')}
         </button>
       </div>
     </div>
@@ -104,6 +118,7 @@ const NewReservationModal: React.FC<{
   onClose: () => void;
   onCreated: () => void;
 }> = ({ open, locations, services, staff, onClose, onCreated }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -125,7 +140,7 @@ const NewReservationModal: React.FC<{
 
   const handleCreate = async () => {
     if (!locationId || !date || !time) {
-      showAlert('Укажите локацию, дату и время', { variant: 'error' });
+      showAlert(t('crm.bookings.list.modal.requiredError'), { variant: 'error' });
       return;
     }
     const service = services.find((s) => s.id === serviceId);
@@ -147,7 +162,7 @@ const NewReservationModal: React.FC<{
       onCreated();
       onClose();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось создать бронь', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.list.modal.createError'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
@@ -157,34 +172,34 @@ const NewReservationModal: React.FC<{
     <div className="px-scope">
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Новая бронь</h3>
+        <h3>{t('crm.bookings.list.modal.title')}</h3>
         <div className="bk-field">
-          <label>Клиент</label>
-          <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Имя" />
+          <label>{t('crm.bookings.list.modal.clientLabel')}</label>
+          <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder={t('crm.bookings.list.modal.clientPlaceholder')} />
         </div>
         <div className="bk-field">
-          <label>Телефон</label>
-          <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="+7 900 000-00-00" />
+          <label>{t('crm.bookings.list.modal.phoneLabel')}</label>
+          <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder={t('crm.bookings.list.modal.phonePlaceholder')} />
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="bk-field">
-            <label>Локация</label>
+            <label>{t('crm.bookings.list.modal.locationLabel')}</label>
             <select value={locationId} onChange={(e) => setLocationId(e.target.value)}>
               {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
           </div>
           <div className="bk-field">
-            <label>Услуга</label>
+            <label>{t('crm.bookings.list.modal.serviceLabel')}</label>
             <select value={serviceId} onChange={(e) => setServiceId(e.target.value)}>
-              <option value="">Без услуги</option>
+              <option value="">{t('crm.bookings.list.modal.serviceNone')}</option>
               {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
         </div>
         <div className="bk-field">
-          <label>Мастер</label>
+          <label>{t('crm.bookings.list.modal.staffLabel')}</label>
           <select value={staffUserId} onChange={(e) => setStaffUserId(e.target.value)}>
-            <option value="">Любой</option>
+            <option value="">{t('crm.bookings.list.modal.staffAny')}</option>
             {staff.filter((s) => s.availableForBooking).map((s) => (
               <option key={s.staffUserId} value={s.staffUserId}>{s.staffUser?.fullName || s.staffUserId}</option>
             ))}
@@ -192,18 +207,18 @@ const NewReservationModal: React.FC<{
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div className="bk-field">
-            <label>Дата</label>
+            <label>{t('crm.bookings.list.modal.dateLabel')}</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </div>
           <div className="bk-field">
-            <label>Время</label>
+            <label>{t('crm.bookings.list.modal.timeLabel')}</label>
             <input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
           </div>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line-2)' }}>
-          <button className="btn btn-sm" onClick={onClose}>Отмена</button>
+          <button className="btn btn-sm" onClick={onClose}>{t('crm.bookings.list.modal.cancel')}</button>
           <button className="btn btn-primary btn-sm" disabled={saving} onClick={handleCreate}>
-            <Ic d={BK_ICON.check} size={13} /> Создать бронь
+            <Ic d={BK_ICON.check} size={13} /> {t('crm.bookings.list.modal.submit')}
           </button>
         </div>
       </div>
@@ -212,6 +227,7 @@ const NewReservationModal: React.FC<{
 };
 
 export const ReservationsPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { showAlert } = useAlertModal();
   const [reservations, setReservations] = useState<Reservation[]>([]);
@@ -220,7 +236,7 @@ export const ReservationsPage: React.FC = () => {
   const [resources, setResources] = useState<BookingResourceItem[]>([]);
   const [staff, setStaff] = useState<BookingStaffProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('Все');
+  const [view, setView] = useState<ViewKey>('all');
   const [search, setSearch] = useState('');
   const [locationFilter, setLocationFilter] = useState('');
   const [serviceFilter, setServiceFilter] = useState('');
@@ -231,6 +247,10 @@ export const ReservationsPage: React.FC = () => {
   const [selected, setSelected] = useState<string[]>([]);
   const [drawerRes, setDrawerRes] = useState<Reservation | null>(null);
   const [bulkLoading, setBulkLoading] = useState(false);
+
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
+  const statusLabel = (s: ReservationStatus) => t(`crm.bookings.status.${s}`);
+  const sourceLabel = (s: string) => (s === 'website' || s === 'phone' || s === 'walkin' || s === 'manual' || s === 'api' || s === 'telegram' ? t(`crm.bookings.source.${s}`) : s);
 
   const currentUserEmail = getStoredUser()?.email as string | undefined;
   const myStaffUserId = staff.find((s) => s.staffUser?.email?.toLowerCase() === currentUserEmail?.toLowerCase())?.staffUserId;
@@ -245,7 +265,7 @@ export const ReservationsPage: React.FC = () => {
         setResources(res);
         setStaff(st);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить брони', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.bookings.list.error'), { variant: 'error' }))
       .finally(() => setLoading(false));
   };
 
@@ -268,12 +288,12 @@ export const ReservationsPage: React.FC = () => {
 
     return reservations.filter((r) => {
       const start = new Date(r.startAt);
-      if (view === 'Сегодня' && !isSameDay(start, now)) return false;
-      if (view === 'Завтра' && !isSameDay(start, tomorrow)) return false;
-      if (view === 'Эта неделя' && (start < now || start > weekEnd)) return false;
-      if (view === 'Ожидают подтв.' && r.status !== 'pending') return false;
-      if (view === 'Отменённые' && !r.status.startsWith('cancelled') && r.status !== 'rejected') return false;
-      if (view === 'Мои брони' && r.assignedUserId !== myStaffUserId) return false;
+      if (view === 'today' && !isSameDay(start, now)) return false;
+      if (view === 'tomorrow' && !isSameDay(start, tomorrow)) return false;
+      if (view === 'week' && (start < now || start > weekEnd)) return false;
+      if (view === 'pending' && r.status !== 'pending') return false;
+      if (view === 'cancelled' && !r.status.startsWith('cancelled') && r.status !== 'rejected') return false;
+      if (view === 'mine' && r.assignedUserId !== myStaffUserId) return false;
       if (locationFilter && r.locationId !== locationFilter) return false;
       if (serviceFilter && r.serviceId !== serviceFilter) return false;
       if (staffFilter && r.staffUserId !== staffFilter) return false;
@@ -297,7 +317,7 @@ export const ReservationsPage: React.FC = () => {
       setSelected([]);
       load();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось подтвердить брони', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.list.bulkbar.confirmError'), { variant: 'error' });
     } finally {
       setBulkLoading(false);
     }
@@ -310,14 +330,14 @@ export const ReservationsPage: React.FC = () => {
       setSelected([]);
       load();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось отменить брони', { variant: 'error' });
+      showAlert(e.message || t('crm.bookings.list.bulkbar.cancelError'), { variant: 'error' });
     } finally {
       setBulkLoading(false);
     }
   };
 
   const exportCsv = () => {
-    const csv = toCsv(filtered);
+    const csv = toCsv(filtered, t, statusLabel);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -329,30 +349,31 @@ export const ReservationsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="reservations" />
       <div className="px-scope">
         <BookingsSubnav active="reservations" />
         <div className="bk-hero">
           <div>
-            <div className="kicker"><span className="dot" />{reservations.length} БРОНИ</div>
-            <h1>Брони</h1>
-            <p className="sub">Все резервации — из виджета сайта, звонков и вручную созданные записи.</p>
+            <div className="kicker"><span className="dot" />{t('crm.bookings.list.kicker', { count: reservations.length })}</div>
+            <h1>{t('crm.bookings.list.title')}</h1>
+            <p className="sub">{t('crm.bookings.list.subtitle')}</p>
           </div>
           <div className="bk-hero-r">
             <button className="btn btn-sm" onClick={() => navigate('/bookings/reservations/import')}>
-              Импорт
+              {t('crm.bookings.list.import')}
             </button>
             <button className="btn btn-sm" onClick={exportCsv} disabled={!filtered.length}>
-              <Ic d={BK_ICON.more} size={13} /> Экспорт
+              <Ic d={BK_ICON.more} size={13} /> {t('crm.bookings.list.export')}
             </button>
             <button className="btn btn-primary btn-sm" onClick={() => setModalOpen(true)} disabled={!locations.length}>
-              <Ic d={BK_ICON.plus} size={13} /> Новая бронь
+              <Ic d={BK_ICON.plus} size={13} /> {t('crm.bookings.list.newBooking')}
             </button>
           </div>
         </div>
 
         <div className="bk-savedviews" style={{ marginTop: 16 }}>
-          {SAVED_VIEWS.map((v) => (
-            <div key={v} className={`bk-sv-tab${v === view ? ' active' : ''}`} onClick={() => setView(v)}>{v}</div>
+          {VIEW_KEYS.map((v) => (
+            <div key={v} className={`bk-sv-tab${v === view ? ' active' : ''}`} onClick={() => setView(v)}>{t(`crm.bookings.list.views.${v}`)}</div>
           ))}
         </div>
 
@@ -362,34 +383,36 @@ export const ReservationsPage: React.FC = () => {
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Клиент или телефон…"
+              placeholder={t('crm.bookings.list.filters.searchPlaceholder')}
               style={{ border: 0, outline: 'none', fontSize: 12.5, width: '100%' }}
             />
           </div>
           <select className="bk-select" value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}>
-            <option value="">Локация: все</option>
+            <option value="">{t('crm.bookings.list.filters.locationAll')}</option>
             {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
           </select>
           <select className="bk-select" value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)}>
-            <option value="">Услуга: все</option>
+            <option value="">{t('crm.bookings.list.filters.serviceAll')}</option>
             {services.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
           <select className="bk-select" value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
-            <option value="">Мастер: все</option>
+            <option value="">{t('crm.bookings.list.filters.staffAll')}</option>
             {staff.map((s) => <option key={s.staffUserId} value={s.staffUserId}>{s.staffUser?.fullName}</option>)}
           </select>
           <select className="bk-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-            <option value="">Статус: все</option>
-            {Object.entries(RESERVATION_STATUS_LABELS_RU).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            <option value="">{t('crm.bookings.list.filters.statusAll')}</option>
+            {(['draft', 'pending', 'confirmed', 'checked_in', 'in_progress', 'completed', 'cancelled_by_customer', 'cancelled_by_business', 'rejected', 'no_show'] as ReservationStatus[]).map((k) => (
+              <option key={k} value={k}>{statusLabel(k)}</option>
+            ))}
           </select>
           <select className="bk-select" value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value)}>
-            <option value="">Источник: все</option>
-            <option value="website">Сайт</option>
-            <option value="phone">Телефон</option>
-            <option value="walkin">Walk-in</option>
-            <option value="manual">Вручную</option>
-            <option value="api">API</option>
-            <option value="telegram">Telegram</option>
+            <option value="">{t('crm.bookings.list.filters.sourceAll')}</option>
+            <option value="website">{t('crm.bookings.source.website')}</option>
+            <option value="phone">{t('crm.bookings.source.phone')}</option>
+            <option value="walkin">{t('crm.bookings.source.walkin')}</option>
+            <option value="manual">{t('crm.bookings.source.manual')}</option>
+            <option value="api">{t('crm.bookings.source.api')}</option>
+            <option value="telegram">{t('crm.bookings.source.telegram')}</option>
           </select>
         </div>
 
@@ -398,12 +421,19 @@ export const ReservationsPage: React.FC = () => {
             <thead>
               <tr>
                 <th style={{ width: 34 }}></th>
-                <th>Дата / время</th><th>Клиент</th><th>Услуга</th><th>Мастер</th><th>Каб.</th><th>Статус</th><th>Оплата</th><th>Источник</th>
+                <th>{t('crm.bookings.list.table.colDate')}</th>
+                <th>{t('crm.bookings.list.table.colClient')}</th>
+                <th>{t('crm.bookings.list.table.colService')}</th>
+                <th>{t('crm.bookings.list.table.colStaff')}</th>
+                <th>{t('crm.bookings.list.table.colResource')}</th>
+                <th>{t('crm.bookings.list.table.colStatus')}</th>
+                <th>{t('crm.bookings.list.table.colPayment')}</th>
+                <th>{t('crm.bookings.list.table.colSource')}</th>
               </tr>
             </thead>
             <tbody>
               {!loading && filtered.length === 0 && (
-                <tr><td colSpan={9} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>Нет броней по выбранному фильтру</td></tr>
+                <tr><td colSpan={9} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.bookings.list.table.empty')}</td></tr>
               )}
               {filtered.map((r) => (
                 <tr key={r.id} className="clickable" onClick={() => navigate(`/bookings/reservations/${r.id}`)}>
@@ -416,19 +446,19 @@ export const ReservationsPage: React.FC = () => {
                     </span>
                   </td>
                   <td>
-                    {new Date(r.startAt).toLocaleDateString('ru-RU')}{' '}
-                    <span style={{ color: 'var(--fg-3)' }}>· {new Date(r.startAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                    {new Date(r.startAt).toLocaleDateString(dateLocale)}{' '}
+                    <span style={{ color: 'var(--fg-3)' }}>· {new Date(r.startAt).toLocaleTimeString(dateLocale, { hour: '2-digit', minute: '2-digit' })}</span>
                   </td>
                   <td className="cust-cell" onClick={(e) => { e.stopPropagation(); setDrawerRes(r); }} style={{ cursor: 'pointer' }}>
-                    <span className="n">{r.customerName || 'Без имени'}</span>
+                    <span className="n">{r.customerName || t('crm.bookings.list.table.noName')}</span>
                     <span className="s">{r.customerPhone || ''}</span>
                   </td>
                   <td>{serviceName(r.serviceId)}</td>
                   <td>{staffName(r.staffUserId)}</td>
                   <td>{resourceName(r.resourceId)}</td>
-                  <td><span className={`bk-badge ${r.status}`}>{RESERVATION_STATUS_LABELS_RU[r.status]}</span></td>
+                  <td><span className={`bk-badge ${r.status}`}>{statusLabel(r.status)}</span></td>
                   <td style={{ color: 'var(--fg-3)', fontSize: 11.5 }}>{r.paymentStatus === 'not_required' ? '—' : r.paymentStatus}</td>
-                  <td><span className="src">{r.source}</span></td>
+                  <td><span className="src">{sourceLabel(r.source)}</span></td>
                 </tr>
               ))}
             </tbody>
@@ -437,17 +467,17 @@ export const ReservationsPage: React.FC = () => {
 
         {selected.length > 0 && (
           <div className="bk-bulkbar">
-            <div className="bk-bulkbar-count"><strong>{selected.length}</strong> ВЫБРАНО</div>
+            <div className="bk-bulkbar-count"><strong>{selected.length}</strong> {t('crm.bookings.list.bulkbar.selected')}</div>
             <div className="bk-bulkbar-divider" />
             <button type="button" className="bk-bulkbar-btn" disabled={bulkLoading} onClick={bulkConfirm}>
-              <Ic d={BK_ICON.check} size={12} /> Подтвердить
+              <Ic d={BK_ICON.check} size={12} /> {t('crm.bookings.list.bulkbar.confirm')}
             </button>
             <div className="bk-bulkbar-divider" />
             <button type="button" className="bk-bulkbar-btn danger" disabled={bulkLoading} onClick={bulkCancel}>
-              <Ic d={BK_ICON.x} size={12} /> Отменить
+              <Ic d={BK_ICON.x} size={12} /> {t('crm.bookings.list.bulkbar.cancel')}
             </button>
             <div className="bk-bulkbar-divider" />
-            <button type="button" className="bk-bulkbar-close" onClick={() => setSelected([])} aria-label="Снять выбор">×</button>
+            <button type="button" className="bk-bulkbar-close" onClick={() => setSelected([])} aria-label={t('crm.bookings.list.bulkbar.closeAria')}>×</button>
           </div>
         )}
       </div>

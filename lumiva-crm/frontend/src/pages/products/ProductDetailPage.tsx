@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { resolvePublicAssetUrl } from '../../api/client';
 import { ProductImageField, ProductGalleryField } from './ProductImageField';
@@ -449,6 +450,7 @@ export const ProductDetailPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="productCard" />
       <div className="px-scope">
         <button type="button" className="px-back" onClick={() => navigate('/products')}>
           <Icon d={I.back} size={14} />

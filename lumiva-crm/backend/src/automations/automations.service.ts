@@ -37,6 +37,7 @@ import { CustomObjectsService } from '../custom-objects/custom-objects.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { SmsService } from '../sms/sms.service';
 import { JiraApiService } from '../integrations/jira/jira-api.service';
+import { JiraLinkService } from '../integrations/jira/jira-link.service';
 import { StaffUsersService } from '../staff/staff-users.service';
 
 @Injectable()
@@ -44,6 +45,25 @@ export class AutomationsService {
   private readonly logger = new Logger(AutomationsService.name);
   private scheduleRunning = false;
   private staleCheckRunning = false;
+  // cooldown/maxExecutions читаются в начале triggerAutomation, но пишутся обратно только в
+  // конце runActionsFrom — два события для одной автоматизации, случившиеся близко друг к
+  // другу (например, две записи созданы одна за другой в цикле импорта), оба проходят
+  // проверку по ещё не обновлённым счётчикам, и лимит/кулдаун можно превысить на один лишний
+  // запуск. Полноценная БД-блокировка держала бы строку на весь run (может включать email/AI-
+  // вызовы) — вместо этого сериализуем по automation.id в памяти: для однопроцессного деплоя
+  // (как этот) этого достаточно, чтобы второе событие увидело уже обновлённые счётчики первого
+  // до своей собственной проверки, а не до, а после — то есть корректно.
+  private readonly automationRunLocks = new Map<string, Promise<void>>();
+
+  private runExclusive(key: string, fn: () => Promise<void>): Promise<void> {
+    const prior = this.automationRunLocks.get(key) || Promise.resolve();
+    const run = prior.then(fn, fn);
+    this.automationRunLocks.set(key, run);
+    run.finally(() => {
+      if (this.automationRunLocks.get(key) === run) this.automationRunLocks.delete(key);
+    });
+    return run;
+  }
   constructor(
     @InjectRepository(Automation)
     private readonly automationRepo: Repository<Automation>,
@@ -78,6 +98,7 @@ export class AutomationsService {
     private readonly staffUsersService: StaffUsersService,
     private readonly smsService: SmsService,
     private readonly jiraApi: JiraApiService,
+    private readonly jiraLink: JiraLinkService,
   ) {}
 
   /**
@@ -334,34 +355,33 @@ export class AutomationsService {
       },
     });
 
-    for (const automation of automations) {
-      // Проверяем ограничения
-      if (automation.maxExecutions && automation.executionCount >= automation.maxExecutions) {
-        continue; // Пропускаем, если достигнут лимит
-      }
+    for (const automationStub of automations) {
+      // Лок сериализует, но исходный `automationStub` в этом массиве был прочитан ДО лока —
+      // под локом перечитываем строку заново, иначе второй (ожидавший) вызов всё равно
+      // проверял бы лимит/кулдаун по устаревшим счётчикам первого.
+      await this.runExclusive(automationStub.id, async () => {
+        const automation = await this.automationRepo.findOne({ where: { id: automationStub.id } });
+        if (!automation || !automation.isActive) return;
 
-      // Проверяем cooldown
-      if (automation.cooldownSeconds && automation.lastExecutedAt) {
-        const cooldownMs = automation.cooldownSeconds * 1000;
-        const timeSinceLastExecution = Date.now() - automation.lastExecutedAt.getTime();
-        if (timeSinceLastExecution < cooldownMs) {
-          continue; // Пропускаем, если еще не прошло время cooldown
+        if (automation.maxExecutions && automation.executionCount >= automation.maxExecutions) {
+          return; // Достигнут лимит
         }
-      }
 
-      // Проверяем условия
-      if (automation.conditions && automation.conditions.length > 0) {
-        const conditionsMet = this.checkConditions(
-          automation.conditions,
-          triggerData,
-        );
-        if (!conditionsMet) {
-          continue; // Условия не выполнены
+        if (automation.cooldownSeconds && automation.lastExecutedAt) {
+          const cooldownMs = automation.cooldownSeconds * 1000;
+          const timeSinceLastExecution = Date.now() - automation.lastExecutedAt.getTime();
+          if (timeSinceLastExecution < cooldownMs) {
+            return; // Ещё не прошло время cooldown
+          }
         }
-      }
 
-      // Выполняем автоматизацию
-      await this.executeAutomation(automation, event, triggerData);
+        if (automation.conditions && automation.conditions.length > 0) {
+          const conditionsMet = this.checkConditions(automation.conditions, triggerData);
+          if (!conditionsMet) return;
+        }
+
+        await this.executeAutomation(automation, event, triggerData);
+      });
     }
   }
 
@@ -614,6 +634,28 @@ export class AutomationsService {
     }
   }
 
+  /** Уведомляет сотрудников тенанта (in-app + Telegram), что шаг автоматизации ждёт подтверждения */
+  private async notifyApprovalPending(automation: Automation, stepIndex: number, actionType: string): Promise<void> {
+    const title = 'Требуется подтверждение';
+    const body = `Автоматизация «${automation.name}» остановлена на шаге #${stepIndex + 1} (${actionType}) и ждёт вашего решения`;
+    try {
+      const targetIds = await this.staffUsersService.resolveNotificationUserIdsForTenant(automation.tenantId);
+      if (targetIds.length) {
+        await this.notificationsService.create(automation.tenantId, targetIds, title, body, {
+          type: 'automation.approval_pending',
+          link: '/app/automations/pending-approvals',
+          automationId: automation.id,
+        });
+      }
+    } catch (err: any) {
+      this.logger.warn(`notifyApprovalPending: in-app notification failed: ${err.message}`);
+    }
+    await this.telegramCrmService.notifyTenantRecipients(
+      automation.tenantId,
+      `⏸ <b>Требуется подтверждение</b>\nАвтоматизация «${escHtml(automation.name)}»\nШаг #${stepIndex + 1} · ${escHtml(actionType)}`,
+    );
+  }
+
   /**
    * Проверить условия
    */
@@ -805,6 +847,7 @@ export class AutomationsService {
         execution.ctxSnapshot = ctx;
         execution.executionResult = results;
         await this.executionRepo.save(execution);
+        await this.notifyApprovalPending(automation, i, action.type);
         return execution;
       }
 
@@ -845,6 +888,20 @@ export class AutomationsService {
     await this.automationRepo.save(automation);
     await this.executionRepo.save(execution);
     return execution;
+  }
+
+  /** Cron entry point: если процесс упал посреди runActionsFrom (между действиями), запись
+   * execution так и остаётся в 'pending' навсегда — ни один код-путь больше её не трогает
+   * (в отличие от 'paused_delay'/'paused_approval', у которых есть явный resume). 15 минут —
+   * с большим запасом больше любого реального времени выполнения обычной автоматизации. */
+  async cleanupStuckPendingExecutions(): Promise<void> {
+    const cutoff = new Date(Date.now() - 15 * 60_000);
+    await this.executionRepo
+      .createQueryBuilder()
+      .update(AutomationExecution)
+      .set({ status: 'error', errorMessage: 'Execution stuck in pending — process likely crashed mid-run' })
+      .where('status = :status AND "createdAt" < :cutoff', { status: 'pending', cutoff })
+      .execute();
   }
 
   /** Cron entry point: resumes `paused_delay` executions whose wait has elapsed. */
@@ -1102,6 +1159,10 @@ export class AutomationsService {
           merge,
           { status: memberStatus },
         );
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `Mailchimp: подписка (${memberStatus})`,
+          content: `Email ${email} добавлен в аудиторию ${list} со статусом «${memberStatus}»`,
+        });
         return { mailchimpSent: true };
       }
 
@@ -1175,6 +1236,10 @@ export class AutomationsService {
             html,
             plainText: plain,
           });
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `Mailchimp: рассылка «${subj}»`,
+          content: `Кампания «${title}» отправлена аудитории ${list}` + (campaignId ? `\nID кампании: ${campaignId}` : ''),
+        });
         return { mailchimpCampaignSent: true, mailchimpCampaignId: campaignId };
       }
 
@@ -1303,13 +1368,17 @@ export class AutomationsService {
           String(text || 'Сообщение из Lumiva CRM'),
           triggerData,
         );
-        await this.integrationsService.sendWhatsappTextRaw(
+        const waResult = await this.integrationsService.sendWhatsappTextRaw(
           phoneNumberId,
           accessToken,
           toPhone,
           message,
         );
-        return { whatsappSent: true };
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `WhatsApp → ${toPhone}`,
+          content: message + (waResult?.messageId ? `\nID сообщения: ${waResult.messageId}` : ''),
+        });
+        return { whatsappSent: true, whatsappMessageId: waResult?.messageId };
       }
 
       case 'send_google_calendar': {
@@ -1364,14 +1433,20 @@ export class AutomationsService {
         const desc = description
           ? this.interpolateString(String(description), triggerData)
           : undefined;
-        await this.integrationsService.createGoogleCalendarEventRaw(accessToken, cal, {
+        const gcalEvent = await this.integrationsService.createGoogleCalendarEventRaw(accessToken, cal, {
           summary: summ,
           description: desc,
           startIso,
           endIso,
           timeZone: tz,
         });
-        return { googleCalendarEventCreated: true };
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `Google Calendar: ${summ}`,
+          content:
+            `Создано событие «${summ}» на ${new Date(startMs).toLocaleString('ru-RU')}` +
+            (gcalEvent?.id ? `\nID события: ${gcalEvent.id}` : ''),
+        });
+        return { googleCalendarEventCreated: true, googleCalendarEventId: gcalEvent?.id };
       }
 
       case 'send_outlook_calendar': {
@@ -1421,7 +1496,7 @@ export class AutomationsService {
         const bodyText = description
           ? this.interpolateString(String(description), triggerData)
           : undefined;
-        await this.integrationsService.createOutlookCalendarEventRaw(
+        const ocalEvent = await this.integrationsService.createOutlookCalendarEventRaw(
           accessToken,
           calendarGraphId,
           {
@@ -1431,7 +1506,13 @@ export class AutomationsService {
             endIsoUtc,
           },
         );
-        return { outlookCalendarEventCreated: true };
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `Outlook Calendar: ${subject}`,
+          content:
+            `Создано событие «${subject}» на ${new Date(startMs).toLocaleString('ru-RU')}` +
+            (ocalEvent?.id ? `\nID события: ${ocalEvent.id}` : ''),
+        });
+        return { outlookCalendarEventCreated: true, outlookCalendarEventId: ocalEvent?.id };
       }
 
       case 'send_bitrix': {
@@ -1472,8 +1553,29 @@ export class AutomationsService {
             throw new Error('send_bitrix: paramsJson должен быть JSON-объектом (не массивом)');
           }
         }
-        await this.integrationsService.callBitrixRestMethodRaw(baseUrl, m, payload);
-        return { bitrixSent: true };
+        const bitrixResult = await this.integrationsService.callBitrixRestMethodRaw(baseUrl, m, payload);
+        const bitrixResultId = (bitrixResult as { result?: unknown })?.result;
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `Bitrix24: ${m}`,
+          content:
+            `Метод: ${m}` +
+            (bitrixResultId !== undefined ? `\nРезультат: ${JSON.stringify(bitrixResultId)}` : ''),
+        });
+        // Тот же ключ meta.bitrixLeadId, что читает входящий вебхук Bitrix24 — чтобы повторное
+        // событие по этому же Bitrix-лиду находило запись, а не заводило дубликат.
+        if (
+          entityType === 'lead' &&
+          entityId &&
+          m.toLowerCase() === 'crm.lead.add' &&
+          (typeof bitrixResultId === 'number' || typeof bitrixResultId === 'string')
+        ) {
+          const leadRow = await this.leadRepo.findOne({ where: { id: entityId, tenantId } as any });
+          if (leadRow) {
+            leadRow.meta = { ...(leadRow.meta || {}), bitrixLeadId: String(bitrixResultId) };
+            await this.leadRepo.save(leadRow);
+          }
+        }
+        return { bitrixSent: true, bitrixResult: bitrixResultId };
       }
 
       case 'send_amocrm': {
@@ -1535,14 +1637,33 @@ export class AutomationsService {
             throw new Error('send_amocrm: paramsJson должен быть JSON-объектом или массивом');
           }
         }
-        await this.integrationsService.callAmocrmApiRaw(
+        const amocrmResult = await this.integrationsService.callAmocrmApiRaw(
           baseUrl,
           accessToken,
           httpVerb,
           path,
           body,
         );
-        return { amocrmSent: true };
+        const amoEmbedded = (amocrmResult as { _embedded?: Record<string, Array<{ id?: unknown }>> })?._embedded;
+        const amoCreatedId =
+          amoEmbedded?.leads?.[0]?.id ??
+          amoEmbedded?.contacts?.[0]?.id ??
+          amoEmbedded?.companies?.[0]?.id ??
+          (amocrmResult as { id?: unknown })?.id;
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `amoCRM: ${httpVerb} ${path}`,
+          content: `${httpVerb} ${path}` + (amoCreatedId !== undefined ? `\nID записи amoCRM: ${amoCreatedId}` : ''),
+        });
+        // Тот же ключ meta.amocrmLeadId, что уже использует входящий вебхук amoCRM — чтобы
+        // повторный вебхук по этому лиду находил его, а не заводил дубликат.
+        if (entityType === 'lead' && entityId && path.includes('leads') && amoCreatedId !== undefined) {
+          const leadRow = await this.leadRepo.findOne({ where: { id: entityId, tenantId } as any });
+          if (leadRow) {
+            leadRow.meta = { ...(leadRow.meta || {}), amocrmLeadId: String(amoCreatedId) };
+            await this.leadRepo.save(leadRow);
+          }
+        }
+        return { amocrmSent: true, amocrmResultId: amoCreatedId };
       }
 
       case 'send_hubspot': {
@@ -1605,14 +1726,34 @@ export class AutomationsService {
             throw new Error('send_hubspot: paramsJson должен быть JSON-объектом или массивом');
           }
         }
-        await this.integrationsService.callHubspotApiRaw(
+        const hubspotResult = await this.integrationsService.callHubspotApiRaw(
           effectiveBase,
           accessToken,
           httpVerb,
           path,
           body,
         );
-        return { hubspotSent: true };
+        const hubspotResultId = (hubspotResult as { id?: unknown })?.id;
+        await this.recordIntegrationResult(tenantId, entityType, entityId, {
+          title: `HubSpot: ${httpVerb} ${path}`,
+          content: `${httpVerb} ${path}` + (hubspotResultId !== undefined ? `\nID записи HubSpot: ${hubspotResultId}` : ''),
+        });
+        // meta.hubspotObjectId — тот же принцип, что и meta.amocrmLeadId/meta.bitrixLeadId: если
+        // это создание контакта/сделки для лида, привязываем результат к записи.
+        if (
+          entityType === 'lead' &&
+          entityId &&
+          httpVerb === 'POST' &&
+          path.includes('/objects/') &&
+          (typeof hubspotResultId === 'number' || typeof hubspotResultId === 'string')
+        ) {
+          const leadRow = await this.leadRepo.findOne({ where: { id: entityId, tenantId } as any });
+          if (leadRow) {
+            leadRow.meta = { ...(leadRow.meta || {}), hubspotObjectId: String(hubspotResultId) };
+            await this.leadRepo.save(leadRow);
+          }
+        }
+        return { hubspotSent: true, hubspotResultId };
       }
 
       case 'send_google_ads': {
@@ -2025,9 +2166,17 @@ export class AutomationsService {
         if (!('status' in resolved.entity)) {
           throw new Error(`change_status: entity type ${resolved.type} does not support status`);
         }
+        const oldStatus = resolved.entity.status;
         const nextStatus = this.interpolateString(String(status), triggerData);
         resolved.entity.status = nextStatus;
-        await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+        const saved = await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+        // Раньше эта мутация писала статус мимо LeadsService/SalesService/... — событие
+        // *_STATUS_CHANGED (и завязанный на него Telegram-уведомитель) вообще не срабатывало,
+        // если статус менял не человек в UI, а другая автоматизация. Из-за этого цепочки вида
+        // "автоматизация A меняет статус → автоматизация B на смену статуса" не работали.
+        if (oldStatus !== nextStatus) {
+          await this.fireEntityStatusChangedEvent(tenantId, resolved.type, saved, oldStatus, nextStatus);
+        }
 
         return {
           statusChanged: true,
@@ -2059,7 +2208,20 @@ export class AutomationsService {
           entityId,
         );
         this.assignAutomationEntityUsers(resolved.entity, assignment);
-        await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+        const saved = await this.saveAutomationActionEntity(resolved.type, resolved.entity);
+        // Тот же класс бага — переназначение мимо LeadsService, поэтому Telegram-уведомление
+        // "вам назначен лид" никогда не уходило, если назначал не человек, а автоматизация.
+        if (resolved.type === 'lead') {
+          try {
+            await this.triggerAutomation(tenantId, TriggerEvent.LEAD_ASSIGNED, {
+              entityType: 'lead',
+              entityId: saved.id,
+              lead: saved,
+            });
+          } catch (error) {
+            console.error('Failed to trigger automation:', error);
+          }
+        }
 
         return {
           userAssigned: true,
@@ -2427,21 +2589,72 @@ export class AutomationsService {
         const description = this.interpolateString(action.config.description as string || '', triggerData);
         const projectKey = (action.config.projectKey as string || '').trim();
         if (!connectionId) throw new Error('create_jira_issue: укажите integrationConnectionId подключения Jira');
-        const conn = await this.integrationsService.findOneForTenant(tenantId, connectionId);
-        const raw = (conn.config as Record<string, any>) || {};
-        if (!raw.jiraUrl || !raw.jiraEmail || !raw.apiToken) throw new Error('create_jira_issue: неполная конфигурация Jira (jiraUrl / jiraEmail / apiToken)');
-        const cfg = { jiraUrl: String(raw.jiraUrl), email: String(raw.jiraEmail), apiToken: String(raw.apiToken), projectKey: raw.projectKey ? String(raw.projectKey) : undefined };
-        await this.jiraApi.createIssue(cfg, {
+        const conn = await this.integrationsService.findEntityForTenant(tenantId, connectionId);
+        const cfg = await this.jiraApi.resolveConfigAndPersist(conn);
+        if (!cfg) throw new Error('create_jira_issue: подключение Jira не настроено (войдите через OAuth или укажите jiraUrl / email / apiToken)');
+        const createdIssue = await this.jiraApi.createIssue(cfg, {
           summary: title,
           description,
-          projectKey: projectKey || raw.projectKey || '',
+          projectKey: projectKey || cfg.projectKey || '',
           issueType: (action.config.issueType as string) || 'Task',
         });
-        return { jiraIssueCreated: true };
+        const td = triggerData as Record<string, any>;
+        const linkEntityType = td?.entityType as 'lead' | 'sale' | 'project' | undefined;
+        const linkEntityId = td?.entityId as string | undefined;
+        if (linkEntityType && linkEntityId) {
+          await this.jiraLink.attach(tenantId, linkEntityType, linkEntityId, {
+            key: createdIssue.key,
+            url: createdIssue.url,
+            connectionId,
+          });
+        }
+        return { jiraIssueCreated: true, jiraIssueKey: createdIssue.key, jiraIssueUrl: createdIssue.url };
       }
 
       default:
         throw new Error(`Unknown action type: ${type}`);
+    }
+  }
+
+  private async fireEntityStatusChangedEvent(
+    tenantId: string,
+    entityType: string,
+    entity: any,
+    oldStatus: unknown,
+    newStatus: unknown,
+  ): Promise<void> {
+    try {
+      if (entityType === 'lead') {
+        await this.triggerAutomation(tenantId, TriggerEvent.LEAD_STATUS_CHANGED, {
+          entityType: 'lead',
+          entityId: entity.id,
+          lead: entity,
+          oldStatus,
+          newStatus,
+        });
+      } else if (entityType === 'sale') {
+        await this.triggerAutomation(tenantId, TriggerEvent.SALE_STATUS_CHANGED, {
+          entityType: 'sale',
+          entityId: entity.id,
+          sale: entity,
+          oldStatus,
+          newStatus,
+        });
+      } else if (entityType === 'task') {
+        await this.triggerAutomation(tenantId, TriggerEvent.TASK_STATUS_CHANGED, {
+          entityType: 'task',
+          entityId: entity.id,
+          task: entity,
+          companyId: entity.companyId,
+          oldStatus,
+          newStatus,
+        });
+      }
+      // company/contact/project: нет отдельного *_STATUS_CHANGED события в TriggerEvent
+      // и раньше при обычном редактировании через UI/сервис — не регрессия, а тот же
+      // охват, что уже был вне автоматизаций.
+    } catch (error) {
+      console.error('Failed to trigger automation:', error);
     }
   }
 
@@ -2881,6 +3094,38 @@ export class AutomationsService {
       project: NoteEntityType.PROJECT,
     };
     return mapping[entityType.toLowerCase()] || null;
+  }
+
+  /**
+   * Пишет результат исходящего интеграционного действия (Bitrix/amoCRM/HubSpot/Mailchimp/
+   * WhatsApp/Calendar и т.п.) заметкой на сущность-инициатор — чтобы факт отправки и то, что
+   * вернула внешняя система, не терялись после выполнения сценария (иначе "подключили и забыли").
+   */
+  private async recordIntegrationResult(
+    tenantId: string,
+    entityType: string | null | undefined,
+    entityId: string | null | undefined,
+    params: { title: string; content: string },
+  ): Promise<void> {
+    if (!entityType || !entityId) return;
+    const noteEntityType = this.mapEntityTypeToNoteEntityType(entityType);
+    if (!noteEntityType) return;
+    try {
+      await this.notesService.create(
+        tenantId,
+        {
+          entityType: noteEntityType,
+          entityId,
+          content: params.content,
+          title: params.title,
+          type: 'note' as any,
+        },
+        undefined,
+        'automation',
+      );
+    } catch (e) {
+      this.logger.warn(`recordIntegrationResult failed: ${(e as Error).message}`);
+    }
   }
 
   /**

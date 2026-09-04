@@ -27,8 +27,29 @@ export class MailchimpApiService {
     return out;
   }
 
-  /** Суффикс дата-центра в конце ключа, напр. …-us21 */
+  /**
+   * OAuth-подключения хранятся как синтетический "apiKey" вида `oauth:<accessToken>:<dc>`
+   * (см. MailchimpOAuthService) — так все существующие методы этого сервиса и все места,
+   * которые читают cfg.apiToken как строку, работают без изменений и для OAuth, и для
+   * classic API key.
+   */
+  private parseOAuthToken(apiKey: string): { accessToken: string; dc: string } | null {
+    const t = apiKey.trim();
+    if (!t.startsWith('oauth:')) return null;
+    const rest = t.slice('oauth:'.length);
+    const i = rest.lastIndexOf(':');
+    if (i <= 0 || i >= rest.length - 1) return null;
+    return { accessToken: rest.slice(0, i), dc: rest.slice(i + 1).toLowerCase() };
+  }
+
+  static buildOAuthApiKey(accessToken: string, dc: string): string {
+    return `oauth:${accessToken.trim()}:${dc.trim().toLowerCase()}`;
+  }
+
+  /** Суффикс дата-центра в конце ключа, напр. …-us21 (или dc из OAuth-подключения) */
   extractDc(apiKey: string): string | null {
+    const oauth = this.parseOAuthToken(apiKey);
+    if (oauth) return oauth.dc;
     const t = apiKey.trim();
     const i = t.lastIndexOf('-');
     if (i <= 0 || i >= t.length - 1) return null;
@@ -38,6 +59,8 @@ export class MailchimpApiService {
   }
 
   private authHeader(apiKey: string): string {
+    const oauth = this.parseOAuthToken(apiKey);
+    if (oauth) return `Bearer ${oauth.accessToken}`;
     const auth = Buffer.from(`lumiva:${apiKey.trim()}`, 'utf8').toString('base64');
     return `Basic ${auth}`;
   }

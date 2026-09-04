@@ -1,145 +1,212 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
 import { fetchMe, type MeDto } from '../../../api/users';
 import { getStoredTenantName } from '../../../auth/session';
-import { resolvePublicAssetUrl } from '../../../api/client';
+import {
+  fetchMySessions,
+  fetchSecurityLog,
+  revokeMySession,
+  type AccountSession,
+  type SecurityLogItem,
+} from '../../../api/account';
 
-function formatDate(iso: string | null | undefined, locale: string) {
+function formatDate(iso: string | null | undefined) {
   if (!iso) return '—';
   try {
-    return new Date(iso).toLocaleString(locale);
+    return new Date(iso).toLocaleString('ru-RU');
   } catch {
     return iso;
   }
 }
 
+const LINKS: Array<{ t: string; d: string; href: string }> = [
+  { t: 'Компания и бренд', d: 'Название, логотип, реквизиты', href: '/app/settings' },
+  { t: 'Ключи API', d: 'Управление интеграциями', href: '/app/settings/api-tokens' },
+  { t: 'Биллинг', d: 'Тариф и способы оплаты', href: '/app/settings?tab=billing' },
+  { t: 'Команда', d: 'Сотрудники и приглашения', href: '/app/staff' },
+  { t: 'Права доступа', d: 'Роли и области видимости записей', href: '/app/staff/permissions' },
+  { t: 'Отделы', d: 'Структура компании', href: '/app/departments' },
+];
+
 export const AccountOverviewTab: React.FC = () => {
-  const { t, i18n } = useTranslation();
-  const locale =
-    i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
+  const navigate = useNavigate();
   const [me, setMe] = useState<MeDto | null>(null);
+  const [sessions, setSessions] = useState<AccountSession[]>([]);
+  const [log, setLog] = useState<SecurityLogItem[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    let alive = true;
-    fetchMe()
-      .then((u) => {
-        if (alive) setMe(u);
-      })
-      .catch((e) => {
-        if (alive) setErr(e?.message || t('crm.account.personal.errors.load'));
-      });
-    return () => {
-      alive = false;
-    };
-  }, [t]);
+    fetchMe().then(setMe).catch((e) => setErr(e?.message || 'Не удалось загрузить профиль'));
+    fetchMySessions().then(setSessions).catch(() => {});
+    fetchSecurityLog().then((r) => setLog(r.items)).catch(() => {});
+  }, []);
 
   const tenantName = getStoredTenantName();
-  const role = (me?.role || '').toLowerCase();
-  const roleBadge =
-    role === 'owner'
-      ? t('crm.account.badges.owner')
-      : role === 'admin'
-        ? t('crm.account.badges.admin')
-        : me?.role || '—';
-  const status = (me?.status || 'active').toLowerCase();
-  const statusLabel =
-    status === 'disabled'
-      ? t('crm.account.badges.disabled')
-      : t('crm.account.badges.active');
 
-  const avatarSrc = resolvePublicAssetUrl(me?.avatarUrl || null);
+  const tasks = [
+    { done: true, t: 'Почта подтверждена', d: me?.email || '' },
+    { done: !!me?.phone, t: 'Телефон добавлен', d: 'Нужен для входа по SMS и уведомлений о сделках', cta: !me?.phone ? 'personal' : undefined },
+    {
+      done: !!me?.twoFactorEnabled,
+      t: 'Двухфакторная защита',
+      d: 'Владелец видит финансы и ключи API — без 2FA один пароль защищает всё',
+      cta: !me?.twoFactorEnabled ? 'security' : undefined,
+    },
+    { done: !!me?.avatarUrl, t: 'Фото профиля', d: 'Помогает команде узнавать вас в задачах и чатах', cta: !me?.avatarUrl ? 'personal' : undefined },
+  ];
+  const done = tasks.filter((t) => t.done).length;
+
+  const revoke = async (id: string) => {
+    await revokeMySession(id).catch(() => {});
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+  };
 
   return (
-    <div className="space-y-6">
-      {err && (
-        <div className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
-          {err}
-        </div>
-      )}
+    <div className="acc-grid">
+      <div className="acc-col">
+        {err && (
+          <div className="acc-note">
+            <span>{err}</span>
+          </div>
+        )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-            {t('crm.account.overview.cardIdentity')}
-          </div>
-          <div className="mt-4 flex items-start gap-4">
-            <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-              {avatarSrc ? (
-                <img src={avatarSrc} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-slate-400">
-                  {(me?.name?.[0] || me?.email?.[0] || '?').toUpperCase()}
-                </div>
-              )}
-            </div>
-            <div className="min-w-0">
-              <div className="text-lg font-semibold text-slate-900 truncate">
-                {me?.name || me?.email || '—'}
-              </div>
-              <div className="text-sm text-slate-600 truncate">{me?.email}</div>
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] text-slate-800">
-                  {roleBadge}
-                </span>
-                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] text-slate-800">
-                  {statusLabel}
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)]">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-            {t('crm.account.overview.cardTenant')}
-          </div>
-          <div className="mt-4 space-y-3 text-sm">
+        <div className="acc-card">
+          <div className="acc-card-head">
             <div>
-              <div className="text-[11px] text-slate-500">{t('crm.nav.settingsCompany')}</div>
-              <div className="mt-0.5 font-medium text-slate-900">
-                {tenantName?.trim() || t('crm.account.overview.tenantNameFallback')}
-              </div>
+              <h3>Что стоит завершить</h3>
+              <div className="sub">Шаги, после которых аккаунт перестанет быть слабым звеном.</div>
             </div>
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div>
-                <div className="text-[11px] text-slate-500">{t('crm.account.overview.memberSince')}</div>
-                <div className="mt-0.5 text-slate-800">{formatDate(me?.createdAt, locale)}</div>
-              </div>
-              <div>
-                <div className="text-[11px] text-slate-500">{t('crm.account.overview.lastActive')}</div>
-                <div className="mt-0.5 text-slate-800">
-                  {me?.lastActiveAt ? formatDate(me.lastActiveAt, locale) : t('crm.account.overview.never')}
+            <span className="acc-pill">
+              {done} из {tasks.length}
+            </span>
+          </div>
+          <div className="acc-body tight">
+            {tasks.map((task, i) => (
+              <div key={i} className={`acc-task${task.done ? ' done' : ''}`}>
+                <div className="tick">{task.done ? '✓' : ''}</div>
+                <div>
+                  <div className="t">{task.t}</div>
+                  <div className="d">{task.d}</div>
                 </div>
+                {task.cta ? (
+                  <button type="button" className="btn btn-sm" onClick={() => navigate(`/app/profile/${task.cta}`)}>
+                    Заняться
+                  </button>
+                ) : (
+                  <span className="acc-pill ok">
+                    <span className="dot" />
+                    готово
+                  </span>
+                )}
               </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="acc-card">
+          <div className="acc-card-head">
+            <div>
+              <h3>Настройки рабочего пространства</h3>
+              <div className="sub">Разделы CRM, за которые отвечает владелец аккаунта.</div>
             </div>
+          </div>
+          <div className="acc-links">
+            {LINKS.map((l) => (
+              <a key={l.t} className="acc-link" href={l.href}>
+                <div className="ic">↗</div>
+                <div>
+                  <div className="t">{l.t}</div>
+                  <div className="d">{l.d}</div>
+                </div>
+                <span className="ar">›</span>
+              </a>
+            ))}
           </div>
         </div>
       </div>
 
-      <div>
-        <div className="text-sm font-semibold text-slate-900">{t('crm.account.overview.quickLinks')}</div>
-        <p className="mt-1 text-xs text-slate-500">{t('crm.account.overview.quickLinksHint')}</p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Link
-            to="/app/profile/personal"
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 hover:border-[#222222]/30 hover:bg-white"
-          >
-            {t('crm.account.nav.personal')} →
-          </Link>
-          <Link
-            to="/app/profile/security"
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 hover:border-[#222222]/30 hover:bg-white"
-          >
-            {t('crm.account.nav.security')} →
-          </Link>
-          <Link
-            to="/app/settings"
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-medium text-slate-800 hover:border-[#222222]/30 hover:bg-white"
-          >
-            {t('crm.account.nav.company')} →
-          </Link>
+      <div className="acc-col">
+        <div className="acc-card">
+          <div className="acc-card-head">
+            <div>
+              <h3>Активные сессии</h3>
+              <div className="sub">Устройства с доступом к аккаунту.</div>
+            </div>
+          </div>
+          <div className="acc-body tight">
+            {sessions.length === 0 ? (
+              <div className="acc-log-empty">Загрузка…</div>
+            ) : (
+              sessions.map((s) => (
+                <div key={s.id} className="acc-row">
+                  <div className="ic">{s.os === 'iOS' || s.os === 'Android' ? '📱' : '💻'}</div>
+                  <div>
+                    <div className="t">
+                      {s.os} · {s.browser}
+                    </div>
+                    <div className="d">{s.ip || '—'}</div>
+                  </div>
+                  <span className="when">{formatDate(s.lastSeenAt)}</span>
+                  {s.isCurrent ? (
+                    <span className="acc-pill ok">
+                      <span className="dot" />
+                      это вы
+                    </span>
+                  ) : (
+                    <button type="button" className="btn btn-sm btn-danger" onClick={() => revoke(s.id)}>
+                      ×
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="acc-card">
+          <div className="acc-card-head">
+            <div>
+              <h3>Журнал аккаунта</h3>
+              <div className="sub">Последние события по вашему пользователю.</div>
+            </div>
+          </div>
+          <div className="acc-log">
+            {log.length === 0 ? (
+              <div className="acc-log-empty">Пока нет событий</div>
+            ) : (
+              log.slice(0, 6).map((l) => (
+                <div key={l.id} className="acc-log-i">
+                  <span className="tm">{formatDate(l.createdAt)}</span>
+                  <span className="pt" />
+                  <span className="tx">{l.summary}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="acc-card">
+          <div className="acc-card-head">
+            <h3>Организация</h3>
+          </div>
+          <div className="acc-body">
+            <div className="acc-kv">
+              <span className="k">Компания</span>
+              <span className="v">{tenantName?.trim() || '—'}</span>
+            </div>
+            <div className="acc-kv">
+              <span className="k">Ваш ID</span>
+              <span className="v mono">{me?.id?.slice(0, 8) || '—'}</span>
+            </div>
+            <div className="acc-kv">
+              <span className="k">В системе с</span>
+              <span className="v mono">{formatDate(me?.createdAt)}</span>
+            </div>
+            <div className="acc-kv">
+              <span className="k">Последняя активность</span>
+              <span className="v mono">{formatDate(me?.lastActiveAt)}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

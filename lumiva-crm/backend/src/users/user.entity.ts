@@ -50,6 +50,25 @@ export class User {
   @Column({ type: 'timestamptz', nullable: true })
   emailVerificationExpiresAt: Date | null;
 
+  // ------------ АККАУНТ: 2FA, ПРЕДПОЧТЕНИЯ ------------
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  timezone: string | null;
+
+  /** { theme?, density?, dateFormat?, weekStart?, startPage?, notifications?: Record<string, boolean> } — merge-not-replace на запись. */
+  @Column({ type: 'jsonb', nullable: true })
+  preferences: Record<string, any> | null;
+
+  @Column({ type: 'boolean', default: false })
+  twoFactorEnabled: boolean;
+
+  /** Сырой TOTP-секрет (base32) — нужен в открытом виде для проверки кода, поэтому не хешируется. */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  twoFactorSecret: string | null;
+
+  /** bcrypt-хеши одноразовых резервных кодов; использованный код удаляется из массива. */
+  @Column({ type: 'jsonb', nullable: true })
+  twoFactorBackupCodes: string[] | null;
+
   // ------------ РОЛЬ + СТАТУС ------------
   @Column({ type: 'varchar', length: 32, default: 'user' })
   role: string; // owner / manager / viewer / ...

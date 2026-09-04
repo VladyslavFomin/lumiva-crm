@@ -5,11 +5,12 @@ import { Lead } from '../leads/lead.entity';
 import { Project } from '../projects/project.entity';
 import { Reservation } from '../bookings/reservation.entity';
 import { HotelReservation } from '../hotels/hotel-reservation.entity';
+import { CustomField } from '../custom-fields/custom-field.entity';
 import { CalendarService } from './calendar.service';
 import { CalendarController } from './calendar.controller';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Lead, Project, Reservation, HotelReservation])],
+  imports: [TypeOrmModule.forFeature([Lead, Project, Reservation, HotelReservation, CustomField])],
   providers: [CalendarService],
   controllers: [CalendarController],
 })

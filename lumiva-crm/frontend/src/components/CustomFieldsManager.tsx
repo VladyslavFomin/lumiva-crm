@@ -9,6 +9,8 @@ import {
   type FieldType,
   updateCustomField,
 } from '../api/custom-fields';
+import { LottieIcon } from './LottieIcon';
+import { useAlertModal } from '../contexts/AlertModalContext';
 
 const FIELD_TYPE_OPTIONS: Array<{ value: FieldType; label: string }> = [
   { value: 'text', label: 'Текст' },
@@ -18,6 +20,7 @@ const FIELD_TYPE_OPTIONS: Array<{ value: FieldType; label: string }> = [
   { value: 'phone', label: 'Телефон' },
   { value: 'date', label: 'Дата' },
   { value: 'datetime', label: 'Дата и время' },
+  { value: 'daterange', label: 'Диапазон дат' },
   { value: 'boolean', label: 'Да / Нет' },
   { value: 'select', label: 'Список' },
   { value: 'multiselect', label: 'Мульти‑список' },
@@ -58,6 +61,7 @@ export const CustomFieldsManager: React.FC<Props> = ({
   onClose,
   onUpdated,
 }) => {
+  const { showConfirm } = useAlertModal();
   const [fields, setFields] = useState<CustomField[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
@@ -246,7 +250,12 @@ export const CustomFieldsManager: React.FC<Props> = ({
   };
 
   const handleDeleteField = async (field: CustomField) => {
-    const confirmed = window.confirm(`Удалить поле "${field.label}"?`);
+    const confirmed = await showConfirm(`Удалить поле «${field.label}»? Значения этого поля будут потеряны у всех записей.`, {
+      title: 'Удаление поля',
+      confirmLabel: 'Удалить',
+      cancelLabel: 'Отмена',
+      danger: true,
+    });
     if (!confirmed) return;
     try {
       await deleteCustomField(field.id);
@@ -343,7 +352,7 @@ export const CustomFieldsManager: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => handleDeleteField(field)}
-                        className="px-2 py-1 rounded-lg border border-rose-700/60 text-rose-300 hover:bg-rose-950/60"
+                        className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-2 py-1 text-[11px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors"
                       >
                         Удалить
                       </button>
@@ -395,6 +404,22 @@ export const CustomFieldsManager: React.FC<Props> = ({
                         placeholder="Опции через запятую"
                       />
                     )}
+                    {(field.type === 'email' || field.type === 'phone') && (
+                      <select
+                        value={field.meta?.source || 'manual'}
+                        onChange={(e) =>
+                          handleUpdateField(field.id, {
+                            meta: { ...(field.meta || {}), source: e.target.value },
+                          })
+                        }
+                        className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-800 text-xs text-slate-200"
+                        title="Откуда брать значение"
+                      >
+                        <option value="manual">Ручной ввод</option>
+                        <option value="lead">Из лида</option>
+                        <option value="company">Из компании</option>
+                      </select>
+                    )}
                     <input
                       value={field.defaultValue || ''}
                       onChange={(e) =>
@@ -410,7 +435,8 @@ export const CustomFieldsManager: React.FC<Props> = ({
               ))}
 
               {fields.length === 0 && (
-                <div className="text-xs text-slate-500 italic">
+                <div className="flex items-center gap-2 text-xs text-slate-500 italic">
+                  <LottieIcon name="drag-reorder" size={32} className="shrink-0" />
                   Полей пока нет.
                 </div>
               )}

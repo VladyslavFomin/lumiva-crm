@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { resolvePublicAssetUrl } from '../../api/client';
 import { Ic, HTL_ICON } from './HotelIcons';
 import {
@@ -34,6 +35,7 @@ export const PhotoEditDrawer: React.FC<{
   showAlert: (message: string, opts?: { variant?: 'error' | 'success' }) => void;
   showConfirm: (message: string, opts?: { title?: string; confirmLabel?: string; danger?: boolean }) => Promise<boolean>;
 }> = ({ photo, categories, onClose, onSaved, onDeleted, showAlert, showConfirm }) => {
+  const { t } = useTranslation();
   const [categoryId, setCategoryId] = useState<string>(photo.categoryId || '');
   const [crop, setCrop] = useState<CropRect>({ x: 0, y: 0, w: 1, h: 1 });
   const [maxWidth, setMaxWidth] = useState('');
@@ -96,7 +98,7 @@ export const PhotoEditDrawer: React.FC<{
         const img = new Image();
         await new Promise<void>((resolve, reject) => {
           img.onload = () => resolve();
-          img.onerror = () => reject(new Error('Не удалось загрузить изображение'));
+          img.onerror = () => reject(new Error(t('crm.hotels.photoEdit.errors.imageLoad')));
           img.src = src;
         });
         const sx = crop.x * img.naturalWidth;
@@ -109,10 +111,10 @@ export const PhotoEditDrawer: React.FC<{
         canvas.width = Math.max(1, Math.round(targetW));
         canvas.height = Math.max(1, Math.round(targetH));
         const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Canvas недоступен в этом браузере');
+        if (!ctx) throw new Error(t('crm.hotels.photoEdit.errors.canvasUnsupported'));
         ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
         const blob: Blob = await new Promise((resolve, reject) =>
-          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Не удалось сохранить изображение'))), 'image/jpeg', 0.9),
+          canvas.toBlob((b) => (b ? resolve(b) : reject(new Error(t('crm.hotels.photoEdit.errors.imageSave')))), 'image/jpeg', 0.9),
         );
         await replaceGalleryPhoto(photo.id, blob);
       }
@@ -122,16 +124,16 @@ export const PhotoEditDrawer: React.FC<{
       onSaved();
       onClose();
     } catch (e: any) {
-      showAlert(e.message || 'Не удалось сохранить', { variant: 'error' });
+      showAlert(e.message || t('crm.hotels.photoEdit.errors.save'), { variant: 'error' });
     } finally {
       setSaving(false);
     }
   };
 
   const handleDelete = async () => {
-    const ok = await showConfirm('Удалить это фото? Действие нельзя отменить.', {
-      title: 'Удалить фото',
-      confirmLabel: 'Удалить',
+    const ok = await showConfirm(t('crm.hotels.photoEdit.deleteConfirm.body'), {
+      title: t('crm.hotels.photoEdit.deleteConfirm.title'),
+      confirmLabel: t('crm.hotels.photoEdit.deleteConfirm.confirmLabel'),
       danger: true,
     });
     if (!ok) return;
@@ -140,7 +142,7 @@ export const PhotoEditDrawer: React.FC<{
         onDeleted();
         onClose();
       })
-      .catch((e) => showAlert(e.message || 'Не удалось удалить', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.photoEdit.errors.delete'), { variant: 'error' }));
   };
 
   const corners: DragMode[] = ['nw', 'ne', 'sw', 'se'];
@@ -150,7 +152,7 @@ export const PhotoEditDrawer: React.FC<{
       <div className="bk-drawer-back" onClick={onClose} />
       <div className="bk-drawer" onClick={(e) => e.stopPropagation()}>
         <div className="bk-drawer-head">
-          <h3>Редактировать фото</h3>
+          <h3>{t('crm.hotels.photoEdit.editTitle')}</h3>
           <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
         <div className="bk-drawer-body">
@@ -193,30 +195,30 @@ export const PhotoEditDrawer: React.FC<{
             </div>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Перетащите рамку или её углы, чтобы обрезать</span>
-            <button className="btn btn-sm" onClick={resetCrop}>Сбросить обрезку</button>
+            <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.hotels.photoEdit.dragHint')}</span>
+            <button className="btn btn-sm" onClick={resetCrop}>{t('crm.hotels.photoEdit.resetCrop')}</button>
           </div>
 
           <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginTop: 16, marginBottom: 4 }}>
-            Уменьшить ширину до, px (необязательно)
+            {t('crm.hotels.photoEdit.maxWidthLabel')}
           </label>
           <input
             type="number"
             value={maxWidth}
             onChange={(e) => setMaxWidth(e.target.value)}
-            placeholder="например, 1200"
+            placeholder={t('crm.hotels.photoEdit.maxWidthPlaceholder')}
             style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
           />
 
           {categories && (
             <>
-              <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginTop: 16, marginBottom: 4 }}>Категория</label>
+              <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginTop: 16, marginBottom: 4 }}>{t('crm.hotels.photoEdit.categoryLabel')}</label>
               <select
                 value={categoryId}
                 onChange={(e) => setCategoryId(e.target.value)}
                 style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
               >
-                <option value="">Без категории</option>
+                <option value="">{t('crm.hotels.photoEdit.noCategory')}</option>
                 {categories.map((c) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
@@ -225,11 +227,11 @@ export const PhotoEditDrawer: React.FC<{
           )}
         </div>
         <div className="bk-modal-foot" style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <button className="btn" style={{ color: '#9a1f31' }} onClick={handleDelete}>Удалить фото</button>
+          <button className="btn" style={{ color: '#9a1f31' }} onClick={handleDelete}>{t('crm.hotels.photoEdit.delete')}</button>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button className="btn" onClick={onClose}>Отмена</button>
+            <button className="btn" onClick={onClose}>{t('crm.hotels.photoEdit.cancel')}</button>
             <button className="btn btn-primary" disabled={saving} onClick={applyAndSave}>
-              <Ic d={HTL_ICON.check} size={14} />Сохранить
+              <Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.photoEdit.save')}
             </button>
           </div>
         </div>

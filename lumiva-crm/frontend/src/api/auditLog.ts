@@ -10,7 +10,9 @@ export type AuditLogEntityType =
   | 'project'
   | 'reservation'
   | 'hotel_reservation'
-  | 'product';
+  | 'product'
+  | 'rbac_role'
+  | 'rbac_user';
 
 export interface AuditLogChange {
   field: string;
@@ -34,6 +36,7 @@ export interface AuditLogEntry {
 
 export interface AuditLogQuery {
   entityType?: AuditLogEntityType;
+  entityId?: string;
   action?: AuditLogAction;
   actorUserId?: string;
   search?: string;

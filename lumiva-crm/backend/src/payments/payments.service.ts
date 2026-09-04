@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, MoreThanOrEqual, Repository } from 'typeorm';
 import { randomUUID, randomBytes } from 'crypto';
 
 import { Payment, PaymentProvider, PaymentSource } from './payment.entity';
@@ -22,7 +22,12 @@ import {
   YookassaApiService,
   type YookassaCredentials,
 } from '../integrations/yookassa/yookassa-api.service';
-import { toPaymentDto, type PaymentDto } from './payment.dto';
+import {
+  toPaymentDto,
+  type PaymentDto,
+  type PaymentListItemDto,
+  type PaymentsAnalyticsDto,
+} from './payment.dto';
 
 const CURRENCIES_BY_PROVIDER: Record<PaymentProvider, string[]> = {
   iyzico: ['TRY', 'EUR', 'USD', 'GBP'],
@@ -150,6 +155,16 @@ export class PaymentsService {
   }): Promise<PaymentDto> {
     if (params.amount <= 0) {
       throw new BadRequestException('Сумма к оплате должна быть больше нуля');
+    }
+    if (params.saleId) {
+      // Раньше ничего не мешало создать сколько угодно независимых чекаут-сессий на одну и ту
+      // же продажу (повторная отправка ссылки, обновление страницы витрины) — каждая из них
+      // реальная отдельная оплата у провайдера, без предупреждения в CRM. Превращаем прежние
+      // незавершённые ссылки в 'cancelled', раз выпускается новая.
+      await this.repo.update(
+        { tenantId: params.tenantId, saleId: params.saleId, status: 'pending' } as any,
+        { status: 'cancelled' },
+      );
     }
     const currency = this.validateCurrency(params.provider, params.currency);
 
@@ -409,6 +424,129 @@ export class PaymentsService {
     return toPaymentDto(row);
   }
 
+  async listPayments(
+    tenantId: string,
+    filters: {
+      status?: string;
+      provider?: string;
+      source?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    },
+  ): Promise<{ items: PaymentListItemDto[]; total: number }> {
+    const qb = this.repo
+      .createQueryBuilder('p')
+      .leftJoin(Sale, 's', 's.id = p.saleId')
+      .addSelect(['s.externalOrderNo', 's.guestName'])
+      .where('p.tenantId = :tenantId', { tenantId });
+
+    if (filters.status) qb.andWhere('p.status = :status', { status: filters.status });
+    if (filters.provider) qb.andWhere('p.provider = :provider', { provider: filters.provider });
+    if (filters.source) qb.andWhere('p.source = :source', { source: filters.source });
+    if (filters.search) {
+      qb.andWhere(
+        '(s.guestName ILIKE :s OR s.externalOrderNo ILIKE :s OR p.conversationId ILIKE :s)',
+        { s: `%${filters.search}%` },
+      );
+    }
+
+    const total = await qb.getCount();
+    qb.orderBy('p.createdAt', 'DESC').take(filters.limit ?? 50).skip(filters.offset ?? 0);
+    const rows = await qb.getRawAndEntities();
+
+    const items: PaymentListItemDto[] = rows.entities.map((entity, i) => ({
+      ...toPaymentDto(entity),
+      saleOrderNo: rows.raw[i]?.s_externalOrderNo ?? null,
+      buyerName: rows.raw[i]?.s_guestName ?? null,
+    }));
+    return { items, total };
+  }
+
+  async getPaymentsAnalytics(tenantId: string, days = 30): Promise<PaymentsAnalyticsDto> {
+    const since = new Date(Date.now() - days * 86400000);
+    const rows = await this.repo.find({
+      where: { tenantId, createdAt: MoreThanOrEqual(since) } as any,
+      order: { createdAt: 'ASC' },
+      take: 5000,
+    });
+
+    const totalCount = rows.length;
+    const paidRows = rows.filter((r) => r.status === 'paid');
+    const failedRows = rows.filter((r) => r.status === 'failed' || r.status === 'cancelled');
+    const pendingRows = rows.filter((r) => r.status === 'pending');
+    const paidCount = paidRows.length;
+    const failedCount = failedRows.length;
+    const pendingCount = pendingRows.length;
+    const decidedCount = paidCount + failedCount;
+    const successRate = decidedCount ? Math.round((paidCount / decidedCount) * 1000) / 10 : 0;
+
+    const providerMap = new Map<string, { provider: string; totalCount: number; paidCount: number; failedCount: number }>();
+    for (const r of rows) {
+      if (!providerMap.has(r.provider)) {
+        providerMap.set(r.provider, { provider: r.provider, totalCount: 0, paidCount: 0, failedCount: 0 });
+      }
+      const bucket = providerMap.get(r.provider)!;
+      bucket.totalCount++;
+      if (r.status === 'paid') bucket.paidCount++;
+      if (r.status === 'failed' || r.status === 'cancelled') bucket.failedCount++;
+    }
+    const byProvider = Array.from(providerMap.values()).map((b) => ({
+      ...b,
+      successRate: b.paidCount + b.failedCount ? Math.round((b.paidCount / (b.paidCount + b.failedCount)) * 1000) / 10 : 0,
+    }));
+
+    const currencyMap = new Map<string, { currency: string; paidAmount: number; paidCount: number }>();
+    for (const r of paidRows) {
+      if (!currencyMap.has(r.currency)) {
+        currencyMap.set(r.currency, { currency: r.currency, paidAmount: 0, paidCount: 0 });
+      }
+      const bucket = currencyMap.get(r.currency)!;
+      bucket.paidAmount += r.amount;
+      bucket.paidCount++;
+    }
+    const byCurrency = Array.from(currencyMap.values());
+
+    const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+    const dayMap = new Map<string, { date: string; created: number; paid: number; failed: number }>();
+    for (let i = 0; i < days; i++) {
+      const key = dayKey(new Date(since.getTime() + i * 86400000));
+      dayMap.set(key, { date: key, created: 0, paid: 0, failed: 0 });
+    }
+    for (const r of rows) {
+      const bucket = dayMap.get(dayKey(r.createdAt));
+      if (!bucket) continue;
+      bucket.created++;
+      if (r.status === 'paid') bucket.paid++;
+      if (r.status === 'failed' || r.status === 'cancelled') bucket.failed++;
+    }
+    const dailySeries = Array.from(dayMap.values());
+
+    const recentFailures = failedRows
+      .slice(-10)
+      .reverse()
+      .map((r) => ({
+        id: r.id,
+        provider: r.provider,
+        amount: r.amount,
+        currency: r.currency,
+        failReason: r.failReason,
+        createdAt: r.createdAt.toISOString(),
+      }));
+
+    return {
+      totalCount,
+      paidCount,
+      failedCount,
+      pendingCount,
+      successRate,
+      byProvider,
+      byCurrency,
+      dailySeries,
+      recentFailures,
+    };
+  }
+
   /**
    * Callback iyzico (публичный, без авторизации): подтверждаем статус на сервере через
    * checkoutForm.retrieve (никогда не доверяем данным из тела редиректа) и обновляем Payment + Sale.
@@ -430,11 +568,15 @@ export class PaymentsService {
     payment.providerRaw = result as unknown as Record<string, unknown>;
     if (!paid) {
       payment.failReason = result.errorMessage || result.paymentStatus || 'unknown';
-    } else {
+    } else if (!payment.paidAt) {
+      // Не перезаписываем при повторной доставке вебхука — иначе теряется реальное время
+      // ПЕРВОЙ оплаты, которым пользуется аналитика.
       payment.paidAt = new Date();
     }
-    await this.repo.save(payment);
-    await this.markSalePaidIfNeeded(paid, payment.saleId, payment.tenantId);
+    await this.repo.manager.transaction(async (em) => {
+      await em.save(Payment, payment);
+      await this.markSalePaidIfNeeded(em, paid, payment.saleId, payment.tenantId);
+    });
 
     return { status: paid ? 'paid' : 'failed', saleId: payment.saleId, tenantId: payment.tenantId };
   }
@@ -472,11 +614,13 @@ export class PaymentsService {
     payment.providerRaw = body as unknown as Record<string, unknown>;
     if (!paid) {
       payment.failReason = 'paytr_failed';
-    } else {
+    } else if (!payment.paidAt) {
       payment.paidAt = new Date();
     }
-    await this.repo.save(payment);
-    await this.markSalePaidIfNeeded(paid, payment.saleId, payment.tenantId);
+    await this.repo.manager.transaction(async (em) => {
+      await em.save(Payment, payment);
+      await this.markSalePaidIfNeeded(em, paid, payment.saleId, payment.tenantId);
+    });
 
     return { ok: true };
   }
@@ -509,19 +653,25 @@ export class PaymentsService {
     const paid = result.status === 'succeeded' && result.paid;
     payment.status = paid ? 'paid' : result.status === 'canceled' ? 'failed' : payment.status;
     payment.providerRaw = result as unknown as Record<string, unknown>;
-    if (paid) payment.paidAt = new Date();
-    await this.repo.save(payment);
-    await this.markSalePaidIfNeeded(paid, payment.saleId, payment.tenantId);
+    if (paid && !payment.paidAt) payment.paidAt = new Date();
+    await this.repo.manager.transaction(async (em) => {
+      await em.save(Payment, payment);
+      await this.markSalePaidIfNeeded(em, paid, payment.saleId, payment.tenantId);
+    });
 
     return { ok: true };
   }
 
+  // Обёрнуто в одну транзакцию с сохранением Payment на каждом из трёх колбэков выше — иначе
+  // сбой между "платёж помечен оплаченным" и "продажа подтверждена" оставлял их разошедшимися
+  // навсегда (webhook-контроллеры всегда отвечают 200, поэтому провайдер не повторит попытку).
   private async markSalePaidIfNeeded(
+    em: EntityManager,
     paid: boolean,
     saleId: string | null,
     tenantId: string,
   ): Promise<void> {
     if (!paid || !saleId) return;
-    await this.saleRepo.update({ id: saleId, tenantId } as any, { status: 'confirmed' });
+    await em.update(Sale, { id: saleId, tenantId } as any, { status: 'confirmed' });
   }
 }

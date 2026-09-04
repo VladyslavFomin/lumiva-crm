@@ -1,7 +1,7 @@
 // src/onboarding/onboarding-sample-record.entity.ts
 import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
-export type OnboardingSampleEntityType = 'company' | 'contact' | 'lead' | 'product' | 'sale';
+export type OnboardingSampleEntityType = 'company' | 'contact' | 'lead' | 'product' | 'sale' | 'project';
 
 /** One row per record created by the onboarding sample-data seeder — lets "remove example data"
  * delete exactly what it created, without an isSample column on every seedable entity. */

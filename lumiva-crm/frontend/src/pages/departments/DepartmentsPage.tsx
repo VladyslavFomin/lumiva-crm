@@ -1,349 +1,786 @@
 // src/pages/departments/DepartmentsPage.tsx
-import React, { useState, useEffect } from 'react';
-import { MainLayout } from '../../layout/MainLayout';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { MainLayout } from '../../layout/MainLayout';
+import { useAlertModal } from '../../contexts/AlertModalContext';
+import { getStoredUser } from '../../auth/session';
 import {
   fetchDepartmentsTree,
+  fetchDepartments,
+  fetchDepartmentsSummary,
+  fetchDepartmentStats,
+  updateDepartment,
   deleteDepartment,
   type Department,
+  type DepartmentsSummary,
+  type DepartmentStats,
 } from '../../api/departments';
-import { fetchStaff, type StaffUser } from '../../api/staff';
-import { useAlertModal } from '../../contexts/AlertModalContext';
+import { fetchStaff, updateStaffUser, type StaffUser, type StaffRole } from '../../api/staff';
+import { Ic, DIC } from './DepartmentsIcons';
+import './departments-design.css';
 
-// Функция для получения инициалов
-const getInitials = (fullName: string): string => {
-  const parts = fullName.trim().split(' ');
-  if (parts.length >= 2) {
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  }
-  return fullName.substring(0, 2).toUpperCase();
-};
+const cx = (...a: Array<string | false | undefined | null>) => a.filter(Boolean).join(' ');
 
-/** Менеджер из API отдела — роль строкой; для аватара нужны только имя и фото. */
-type StaffAvatarUser = {
-  id: string;
-  fullName: string;
-  email: string;
-  role: string;
-  avatarUrl?: string | null;
-};
-
-// Компонент аватара сотрудника
-const StaffAvatar: React.FC<{ staff: StaffAvatarUser }> = ({ staff }) => {
-  if (staff.avatarUrl) {
-    return (
-      <img
-        src={staff.avatarUrl}
-        alt={staff.fullName}
-        className="w-8 h-8 rounded-full object-cover border-2 border-white shadow-sm"
-        title={staff.fullName}
-      />
-    );
-  }
-  return (
-    <div
-      className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-600 to-slate-700 text-white text-[10px] font-semibold flex items-center justify-center border-2 border-white shadow-sm"
-      title={staff.fullName}
-    >
-      {getInitials(staff.fullName)}
-    </div>
-  );
-};
-
-interface DepartmentCardProps {
-  department: Department;
+type DeptNode = Omit<Department, 'children'> & {
+  children: DeptNode[];
+  directStaff: StaffUser[];
+  totalStaffCount: number;
   level: number;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  allStaff: StaffUser[];
-  isRoot?: boolean;
+};
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '?';
+  return (parts[0][0] + (parts[1]?.[0] ?? '')).toUpperCase();
 }
 
-const DepartmentCard: React.FC<DepartmentCardProps> = ({
-  department,
-  level,
-  onEdit,
-  onDelete,
-  allStaff,
-  isRoot = false,
-}) => {
-  const { t } = useTranslation();
-  const hasChildren = department.children && department.children.length > 0;
-  const departmentStaff = allStaff.filter(
-    (s) => s.departmentId === department.id && s.isActive,
-  );
+function annotate(nodes: Department[], staffByDept: Map<string, StaffUser[]>, level: number): DeptNode[] {
+  return nodes.map((n) => {
+    const children = annotate(n.children ?? [], staffByDept, level + 1);
+    const directStaff = staffByDept.get(n.id) ?? [];
+    const totalStaffCount = directStaff.length + children.reduce((s, c) => s + c.totalStaffCount, 0);
+    return { ...n, children, directStaff, totalStaffCount, level };
+  });
+}
 
-  return (
-    <div className="flex flex-col items-center">
-      {/* Карточка отдела */}
-      <div className="bg-white border-2 border-slate-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow min-w-[280px]">
-        {/* Название отдела */}
-        <div className="text-center mb-3">
-          <h3 className="text-sm font-semibold text-slate-900 mb-1">
-            {department.name}
-          </h3>
-          {!department.isActive && (
-            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-300">
-              {t('crm.departments.inactive')}
-            </span>
-          )}
-        </div>
+function flattenTree(nodes: DeptNode[], out: DeptNode[] = []): DeptNode[] {
+  nodes.forEach((n) => {
+    out.push(n);
+    flattenTree(n.children, out);
+  });
+  return out;
+}
 
-        {/* Руководитель */}
-        {department.manager && (
-          <div className="mb-3 pb-3 border-b border-slate-200">
-            <div className="text-[10px] text-slate-500 mb-1.5 text-center">
-              {t('crm.departments.manager')}
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              <StaffAvatar staff={department.manager} />
-              <div className="text-xs text-slate-700 font-medium">
-                {department.manager.fullName}
-              </div>
-            </div>
-          </div>
-        )}
+function collectIds(nodes: DeptNode[], out: string[] = []): string[] {
+  nodes.forEach((n) => {
+    if (n.children.length) {
+      out.push(n.id);
+      collectIds(n.children, out);
+    }
+  });
+  return out;
+}
 
-        {/* Сотрудники отдела */}
-        {departmentStaff.length > 0 && (
-          <div className="mb-3">
-            <div className="text-[10px] text-slate-500 mb-2 text-center">
-              {t('crm.departments.staff')} ({departmentStaff.length})
-            </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              {departmentStaff.map((staff) => (
-                <StaffAvatar key={staff.id} staff={staff} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Пустое состояние для сотрудников */}
-        {departmentStaff.length === 0 && (
-          <div className="mb-3 text-center">
-            <div className="text-[10px] text-slate-400">
-              {t('crm.departments.noStaff')}
-            </div>
-          </div>
-        )}
-
-        {/* Действия */}
-        <div className="flex items-center justify-center gap-2 pt-3 border-t border-slate-200">
-          <button
-            onClick={() => onEdit(department.id)}
-            className="px-4 py-2 text-xs font-semibold text-white rounded-lg transition-colors shadow-md border border-slate-700"
-            style={{ 
-              backgroundColor: '#0f172a',
-              minWidth: '80px'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e293b'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#0f172a'}
-          >
-            {t('crm.departments.edit')}
-          </button>
-          {!isRoot && (
-            <button
-              onClick={() => onDelete(department.id)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-[#f0c8cf] bg-white px-3 py-1.5 text-[12px] font-medium text-[#9a1f31] hover:bg-[#fbecef] hover:border-[#e8b4bb] transition-colors"
-            >
-              {t('crm.departments.delete')}
-            </button>
-          )}
-        </div>
+const Avas: React.FC<{ people: StaffUser[]; max?: number }> = ({ people, max = 4 }) => (
+  <div className="dp-avas">
+    {people.slice(0, max).map((p, i) => (
+      <div key={p.id} className={cx('dp-ava', i === 0 && 'lead')} title={p.fullName}>
+        {initials(p.fullName || p.email)}
       </div>
+    ))}
+    {people.length > max && <div className="dp-ava more">+{people.length - max}</div>}
+  </div>
+);
 
-      {/* Вертикальная линия вниз к дочерним отделам */}
-      {hasChildren && (
-        <div className="relative w-full flex justify-center my-2">
-          <div className="w-0.5 h-6 bg-slate-300" />
-        </div>
-      )}
-    </div>
-  );
-};
-
-interface DepartmentLevelProps {
-  departments: Department[];
-  level: number;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  allStaff: StaffUser[];
-  isRoot?: boolean;
-}
-
-const DepartmentLevel: React.FC<DepartmentLevelProps> = ({
-  departments,
-  level,
-  onEdit,
-  onDelete,
-  allStaff,
-  isRoot = false,
-}) => {
-  if (departments.length === 0) return null;
-
+const TreeNode: React.FC<{
+  d: DeptNode;
+  sel: string | null;
+  onSel: (id: string) => void;
+  open: Set<string>;
+  toggleOpen: (id: string) => void;
+  t: (k: string, o?: any) => string;
+}> = ({ d, sel, onSel, open, toggleOpen, t }) => {
+  const isOpen = open.has(d.id);
+  const hasKids = d.children.length > 0;
+  const manager = d.directStaff.find((s) => s.id === d.managerId) || null;
   return (
-    <div className="flex flex-col items-center">
-      {/* Горизонтальная линия для соединения отделов одного уровня */}
-      {departments.length > 1 && (
-        <div className="relative w-full mb-4" style={{ width: `${departments.length * 320}px`, maxWidth: '100%' }}>
-          <div className="absolute left-0 right-0 h-0.5 bg-slate-300 top-1/2" />
-          {departments.map((_, idx) => (
-            <div
-              key={idx}
-              className="absolute w-0.5 h-4 bg-slate-300 top-1/2 transform -translate-y-1/2"
-              style={{
-                left: `${(idx + 0.5) * (100 / departments.length)}%`,
-              }}
-            />
+    <div className="dp-node">
+      <div className={cx('dp-row', sel === d.id && 'sel')} onClick={() => onSel(d.id)}>
+        <button
+          type="button"
+          className={cx('dp-caret', !hasKids && 'hidden')}
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleOpen(d.id);
+          }}
+        >
+          <Ic d={isOpen ? DIC.chev : DIC.chevR} size={13} />
+        </button>
+        <div className="dp-ic">
+          <Ic d={d.level === 0 ? DIC.crown : DIC.dept} size={14} />
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div className="dp-n">
+            {d.name}
+            {d.code && <span className="dp-code">{d.code}</span>}
+          </div>
+          <div className="dp-m">
+            {hasKids ? t('crm.departments.page.tree.subCount', { count: d.children.length }) + ' · ' : ''}
+            {t('crm.departments.page.tree.staffCount', { count: d.totalStaffCount })}
+          </div>
+        </div>
+        <div className={cx('dp-lead', !d.managerId && 'vacant')}>
+          {manager ? (
+            <>
+              <span className="dp-ava lead">{initials(manager.fullName || manager.email)}</span>
+              {manager.fullName || manager.email}
+            </>
+          ) : (
+            <>
+              <Ic d={DIC.flag} size={12} />
+              {t('crm.departments.page.tree.noManager')}
+            </>
+          )}
+        </div>
+        <div>
+          <Avas people={d.directStaff} />
+        </div>
+        <Ic d={DIC.chevR} size={14} />
+      </div>
+      {hasKids && isOpen && (
+        <div className="dp-kids">
+          {d.children.map((k) => (
+            <TreeNode key={k.id} d={k} sel={sel} onSel={onSel} open={open} toggleOpen={toggleOpen} t={t} />
           ))}
         </div>
       )}
-
-      {/* Карточки отделов */}
-      <div className="flex flex-wrap justify-center gap-6">
-        {departments.map((dept) => (
-          <div key={dept.id} className="flex flex-col items-center">
-            <DepartmentCard
-              department={dept}
-              level={level}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              allStaff={allStaff}
-              isRoot={isRoot && level === 0}
-            />
-            {/* Рекурсивно отображаем дочерние отделы */}
-            {dept.children && dept.children.length > 0 && (
-              <div className="mt-4">
-                <DepartmentLevel
-                  departments={dept.children}
-                  level={level + 1}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  allStaff={allStaff}
-                />
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
     </div>
   );
 };
 
 export const DepartmentsPage: React.FC = () => {
   const { t } = useTranslation();
-  const { showAlert, showConfirm } = useAlertModal();
   const navigate = useNavigate();
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const { showAlert, showConfirm } = useAlertModal();
+  const isOwner = (getStoredUser()?.role || '') === 'owner';
+
+  const [tab, setTab] = useState<'tree' | 'list' | 'unassigned'>('tree');
+  const [tree, setTree] = useState<Department[]>([]);
   const [allStaff, setAllStaff] = useState<StaffUser[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [summary, setSummary] = useState<DepartmentsSummary | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [sel, setSel] = useState<string | null>(null);
+  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState('');
 
-  const loadData = async () => {
+  const [stats, setStats] = useState<DepartmentStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  const [editName, setEditName] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [editParentId, setEditParentId] = useState<string>('');
+  const [editManagerId, setEditManagerId] = useState<string>('');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const roleLabels: Record<StaffRole, string> = useMemo(
+    () => ({
+      owner: t('crm.staff.roles.owner'),
+      manager: t('crm.staff.roles.manager'),
+      viewer: t('crm.staff.roles.viewer'),
+      finance: t('crm.staff.roles.finance'),
+      sales: t('crm.staff.roles.sales'),
+      developer: t('crm.staff.roles.developer'),
+      support: t('crm.staff.roles.support'),
+    }),
+    [t],
+  );
+
+  const loadAll = () => {
     setLoading(true);
     setError(null);
+    Promise.all([fetchDepartmentsTree(), fetchStaff(), fetchDepartmentsSummary()])
+      .then(([treeData, staffData, summaryData]) => {
+        setTree(treeData);
+        setAllStaff(staffData);
+        setSummary(summaryData);
+        setOpen((prev) => (prev.size ? prev : new Set(treeData.map((d) => d.id))));
+      })
+      .catch((e: any) => setError(e.message || t('crm.departments.errors.loadFailed')))
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const staffByDept = useMemo(() => {
+    const m = new Map<string, StaffUser[]>();
+    allStaff.forEach((s) => {
+      if (!s.departmentId || !s.isActive) return;
+      const arr = m.get(s.departmentId) ?? [];
+      arr.push(s);
+      m.set(s.departmentId, arr);
+    });
+    return m;
+  }, [allStaff]);
+
+  const annotatedTree = useMemo(() => annotate(tree, staffByDept, 0), [tree, staffByDept]);
+  const flatDepts = useMemo(() => flattenTree(annotatedTree), [annotatedTree]);
+  const flatById = useMemo(() => new Map(flatDepts.map((d) => [d.id, d])), [flatDepts]);
+  const parentOf = useMemo(() => {
+    const m = new Map<string, string>();
+    flatDepts.forEach((d) => d.children.forEach((c) => m.set(c.id, d.id)));
+    return m;
+  }, [flatDepts]);
+
+  useEffect(() => {
+    if (!sel && flatDepts.length) setSel(flatDepts[0].id);
+  }, [flatDepts, sel]);
+
+  const selectedDept = sel ? flatById.get(sel) ?? null : null;
+
+  useEffect(() => {
+    if (!selectedDept) return;
+    setEditName(selectedDept.name);
+    setEditCode(selectedDept.code || '');
+    setEditParentId(selectedDept.parentId || '');
+    setEditManagerId(selectedDept.managerId || '');
+    setSaved(false);
+  }, [selectedDept?.id]);
+
+  useEffect(() => {
+    if (!sel) return;
+    let alive = true;
+    setStatsLoading(true);
+    fetchDepartmentStats(sel)
+      .then((res) => {
+        if (alive) setStats(res);
+      })
+      .catch(() => {
+        if (alive) setStats(null);
+      })
+      .finally(() => {
+        if (alive) setStatsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [sel]);
+
+  const toggleOpen = (id: string) => {
+    setOpen((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const expandAll = () => setOpen(new Set(collectIds(annotatedTree)));
+  const collapseAll = () => setOpen(new Set());
+
+  const unassigned = useMemo(() => allStaff.filter((s) => !s.departmentId && s.isActive), [allStaff]);
+
+  const searchResults = useMemo(() => {
+    if (!search.trim()) return null;
+    const q = search.trim().toLowerCase();
+    return flatDepts.filter((d) => (d.name + (d.code || '')).toLowerCase().includes(q));
+  }, [search, flatDepts]);
+
+  const handleSaveDept = async () => {
+    if (!selectedDept) return;
+    setSaving(true);
+    setSaved(false);
     try {
-      const [depts, staff] = await Promise.all([
-        fetchDepartmentsTree(),
-        fetchStaff(),
-      ]);
-      setDepartments(depts);
-      setAllStaff(staff);
+      const updated = await updateDepartment(selectedDept.id, {
+        name: editName.trim(),
+        code: editCode.trim() || null,
+        parentId: editParentId || null,
+        managerId: editManagerId || null,
+      });
+      setTree((prev) => replaceInTree(prev, updated));
+      setSaved(true);
     } catch (e: any) {
-      setError(e.message || t('crm.departments.errors.loadFailed'));
+      showAlert(e.message || t('crm.departments.errors.saveFailed'), { variant: 'error' });
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleCreate = () => navigate('/app/departments/new');
-  const handleEdit = (id: string) => navigate(`/app/departments/${id}`);
-  const handleDelete = async (id: string) => {
+  const replaceInTree = (nodes: Department[], updated: Department): Department[] =>
+    nodes.map((n) =>
+      n.id === updated.id
+        ? { ...n, ...updated, children: n.children }
+        : { ...n, children: n.children ? replaceInTree(n.children, updated) : n.children },
+    );
+
+  const handleDeleteDept = async () => {
+    if (!selectedDept) return;
     const ok = await showConfirm(t('crm.departments.deleteConfirm'), {
-      title: 'Удаление',
-      confirmLabel: 'Удалить',
-      cancelLabel: 'Отмена',
+      title: t('crm.departments.delete'),
+      confirmLabel: t('crm.departments.delete'),
+      cancelLabel: t('crm.departments.page.cancel'),
       danger: true,
     });
     if (!ok) return;
     try {
-      await deleteDepartment(id);
-      await loadData();
-    } catch (err: any) {
-      showAlert(err.message || t('crm.departments.errors.deleteFailed'), {
-        variant: 'error',
-      });
+      await deleteDepartment(selectedDept.id);
+      setSel(null);
+      loadAll();
+    } catch (e: any) {
+      showAlert(e.message || t('crm.departments.errors.deleteFailed'), { variant: 'error' });
     }
   };
 
+  const movePerson = async (staffId: string, departmentId: string | null) => {
+    try {
+      await updateStaffUser(staffId, { departmentId });
+      loadAll();
+    } catch (e: any) {
+      showAlert(e.message || t('crm.departments.errors.saveFailed'), { variant: 'error' });
+    }
+  };
+
+  const exportList = () => {
+    const rows = [
+      [
+        t('crm.departments.page.list.headers.name'),
+        t('crm.departments.page.list.headers.code'),
+        t('crm.departments.page.list.headers.parent'),
+        t('crm.departments.page.list.headers.manager'),
+        t('crm.departments.page.list.headers.staff'),
+      ],
+      ...flatDepts.map((d) => {
+        const parentId = parentOf.get(d.id);
+        const manager = d.directStaff.find((s) => s.id === d.managerId);
+        return [
+          d.name,
+          d.code || '',
+          parentId ? flatById.get(parentId)?.name || '' : '',
+          manager ? manager.fullName || manager.email : '',
+          String(d.totalStaffCount),
+        ];
+      }),
+    ];
+    const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'departments.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const roleCounts = useMemo(() => {
+    if (!selectedDept) return [];
+    const m = new Map<string, number>();
+    selectedDept.directStaff.forEach((s) => m.set(s.role, (m.get(s.role) ?? 0) + 1));
+    return Array.from(m.entries()).sort((a, b) => b[1] - a[1]);
+  }, [selectedDept]);
+
+  const fmtMoney = (n: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(n);
+
   return (
     <MainLayout>
-      <div className="space-y-4">
-        {/* Заголовок */}
-        <div className="flex items-center justify-between gap-3">
+      <div className="px-scope">
+        <div className="dp-hero">
           <div>
-            <h1 className="text-lg font-semibold text-slate-900">
-              {t('crm.departments.title')}
-            </h1>
-            <div className="text-[11px] text-slate-600">
-              {t('crm.departments.subtitle')}
+            <div className="kicker">
+              <span className="dot" />
+              {t('crm.departments.page.kicker')}
             </div>
+            <h1>{t('crm.departments.title')}</h1>
+            <p className="sub">{t('crm.departments.page.heroSub')}</p>
           </div>
-          <button
-            onClick={handleCreate}
-            className="btn-primary btn-secondary-sm"
-          >
-            + {t('crm.departments.create')}
-          </button>
+          <div className="dp-hero-r">
+            <button className="btn btn-sm btn-primary" onClick={() => navigate('/app/departments/new')}>
+              <Ic d={DIC.plus} size={13} />
+              {t('crm.departments.create')}
+            </button>
+          </div>
         </div>
 
-        {/* Ошибка */}
         {error && (
-          <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+          <div className="dp-alert" style={{ marginBottom: 14 }}>
             {error}
           </div>
         )}
 
-        {/* Загрузка */}
-        {loading && !error && (
-          <div className="text-xs text-slate-400">{t('crm.departments.loading')}</div>
-        )}
-
-        {/* Пустое состояние */}
-        {!loading && !error && departments.length === 0 && (
-          <div className="bg-white border border-slate-200 rounded-3xl p-12 text-center">
-            <div className="text-sm text-slate-600 mb-2">
-              {t('crm.departments.empty')}
+        {summary && (
+          <div className="dp-kpis">
+            <div className="dp-kpi">
+              <div className="l">{t('crm.departments.page.kpi.departments')}</div>
+              <div className="v">{summary.departmentsCount}</div>
             </div>
-            <div className="text-xs text-slate-500 mb-4">
-              {t('crm.departments.emptyHint')}
+            <div className="dp-kpi">
+              <div className="l">{t('crm.departments.page.kpi.staffInDepts')}</div>
+              <div className="v">{summary.staffInDepartments}</div>
+              <div className="d">{t('crm.departments.page.kpi.staffInDeptsOf', { total: summary.totalActiveStaff })}</div>
             </div>
-            <button
-              onClick={handleCreate}
-              className="btn-primary btn-secondary-sm"
-            >
-              {t('crm.departments.createFirst')}
-            </button>
+            <div className="dp-kpi">
+              <div className="l">{t('crm.departments.page.kpi.noManager')}</div>
+              <div className={cx('v')} style={summary.departmentsWithoutManager > 0 ? { color: '#a06a08' } : undefined}>
+                {summary.departmentsWithoutManager}
+              </div>
+            </div>
+            <div className="dp-kpi">
+              <div className="l">{t('crm.departments.page.kpi.unassigned')}</div>
+              <div className="v" style={summary.unassignedStaffCount > 0 ? { color: '#a06a08' } : undefined}>
+                {summary.unassignedStaffCount}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* Дерево отделов в стиле Битрикс24 */}
-        {!loading && !error && departments.length > 0 && (
-          <div className="bg-slate-50 rounded-3xl p-8 overflow-x-auto">
-            <div className="min-w-max">
-              <DepartmentLevel
-                departments={departments}
-                level={0}
-                onEdit={handleEdit}
-                onDelete={handleDelete}
-                allStaff={allStaff}
-                isRoot={true}
-              />
+        <div className="dp-tabs">
+          <div className={cx('dp-tab', tab === 'tree' && 'active')} onClick={() => setTab('tree')}>
+            {t('crm.departments.page.tabs.tree')}
+            <span className="n">{summary?.departmentsCount ?? flatDepts.length}</span>
+          </div>
+          <div className={cx('dp-tab', tab === 'list' && 'active')} onClick={() => setTab('list')}>
+            {t('crm.departments.page.tabs.list')}
+          </div>
+          <div className={cx('dp-tab', tab === 'unassigned' && 'active')} onClick={() => setTab('unassigned')}>
+            {t('crm.departments.page.tabs.unassigned')}
+            <span className="n">{unassigned.length}</span>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="text-xs" style={{ color: 'var(--fg-3)' }}>
+            {t('crm.departments.loading')}
+          </div>
+        ) : tab === 'tree' ? (
+          <div className="dp-layout">
+            <div className="dp-card">
+              <div className="dp-toolbar">
+                <div className="dp-search">
+                  <Ic d={DIC.search} size={13} />
+                  <input
+                    placeholder={t('crm.departments.page.tree.searchPlaceholder') || ''}
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                <button className="btn btn-sm" onClick={() => (open.size ? collapseAll() : expandAll())}>
+                  {open.size ? t('crm.staff.permissions.collapseAll') : t('crm.staff.permissions.expandAll')}
+                </button>
+              </div>
+              <div className="dp-tree">
+                {searchResults
+                  ? searchResults.map((d) => (
+                      <TreeNode
+                        key={d.id}
+                        d={{ ...d, children: [] }}
+                        sel={sel}
+                        onSel={setSel}
+                        open={new Set()}
+                        toggleOpen={() => {}}
+                        t={t}
+                      />
+                    ))
+                  : annotatedTree.map((n) => (
+                      <TreeNode key={n.id} d={n} sel={sel} onSel={setSel} open={open} toggleOpen={toggleOpen} t={t} />
+                    ))}
+                {searchResults && !searchResults.length && (
+                  <div style={{ padding: 24, textAlign: 'center', fontSize: 12.5, color: 'var(--fg-3)' }}>
+                    {t('crm.staff.permissions.noResults', { q: search })}
+                  </div>
+                )}
+              </div>
+              <div className="dp-card-foot">
+                <span>
+                  {t('crm.departments.page.tree.footnote', {
+                    depts: flatDepts.length,
+                    staff: summary?.staffInDepartments ?? 0,
+                    unassigned: summary?.unassignedStaffCount ?? 0,
+                  })}
+                </span>
+              </div>
+            </div>
+
+            {selectedDept && (
+              <div>
+                <div className="dp-card" style={{ marginBottom: 16 }}>
+                  <div className="dp-card-head">
+                    <div>
+                      <h3>
+                        <Ic d={DIC.dept} size={15} />
+                        {selectedDept.name}
+                      </h3>
+                      <div className="sub">
+                        {selectedDept.code ? `${t('crm.departments.page.inspector.code')} ${selectedDept.code} · ` : ''}
+                        {t('crm.departments.page.inspector.createdOn', {
+                          date: new Date(selectedDept.createdAt).toLocaleDateString(),
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="dp-card-body">
+                    {!selectedDept.managerId && (
+                      <div className="dp-alert" style={{ marginBottom: 13 }}>
+                        <Ic d={DIC.flag} size={13} />
+                        <div>{t('crm.departments.page.inspector.noManagerWarning')}</div>
+                      </div>
+                    )}
+                    <div className="dp-field-row">
+                      <div className="dp-field">
+                        <span className="dp-label">{t('crm.departments.page.inspector.name')}</span>
+                        <input className="dp-input" value={editName} disabled={!isOwner} onChange={(e) => setEditName(e.target.value)} />
+                      </div>
+                      <div className="dp-field">
+                        <span className="dp-label">{t('crm.departments.page.inspector.code')}</span>
+                        <input className="dp-input" value={editCode} disabled={!isOwner} onChange={(e) => setEditCode(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="dp-field">
+                      <span className="dp-label">{t('crm.departments.page.inspector.parent')}</span>
+                      <select className="dp-select" value={editParentId} disabled={!isOwner} onChange={(e) => setEditParentId(e.target.value)}>
+                        <option value="">{t('crm.departments.page.inspector.noParent')}</option>
+                        {flatDepts
+                          .filter((d) => d.id !== selectedDept.id)
+                          .map((d) => (
+                            <option key={d.id} value={d.id}>
+                              {'— '.repeat(d.level)}
+                              {d.name}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                    <div className="dp-field" style={{ marginBottom: 0 }}>
+                      <span className="dp-label">{t('crm.departments.page.inspector.manager')}</span>
+                      <select className="dp-select" value={editManagerId} disabled={!isOwner} onChange={(e) => setEditManagerId(e.target.value)}>
+                        <option value="">{t('crm.departments.page.inspector.noManagerOption')}</option>
+                        {selectedDept.directStaff.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.fullName || s.email}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="dp-card-foot">
+                    <span>{saved ? t('crm.departments.page.inspector.saved') : t('crm.departments.page.inspector.saveHint')}</span>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {isOwner && (
+                        <button className="btn btn-sm" onClick={handleDeleteDept}>
+                          {t('crm.departments.delete')}
+                        </button>
+                      )}
+                      {isOwner && (
+                        <button className="btn btn-sm btn-primary" disabled={saving} onClick={handleSaveDept}>
+                          <Ic d={DIC.check} size={13} />
+                          {saving ? t('crm.staff.permissions.saving') : t('crm.departments.page.inspector.save')}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="dp-card" style={{ marginBottom: 16 }}>
+                  <div className="dp-card-head">
+                    <div>
+                      <h3>
+                        <Ic d={DIC.users} size={15} />
+                        {t('crm.departments.page.inspector.composition', { count: selectedDept.directStaff.length })}
+                      </h3>
+                      <div className="sub">
+                        {selectedDept.totalStaffCount > selectedDept.directStaff.length
+                          ? t('crm.departments.page.inspector.plusInSubdepts', {
+                              count: selectedDept.totalStaffCount - selectedDept.directStaff.length,
+                            })
+                          : t('crm.departments.page.inspector.noSubdepts')}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="dp-card-body">
+                    {selectedDept.directStaff.length === 0 ? (
+                      <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.departments.noStaff')}</div>
+                    ) : (
+                      selectedDept.directStaff.map((s) => (
+                        <div key={s.id} className="dp-person">
+                          <div className={cx('dp-ava', 'big', s.id === selectedDept.managerId && 'lead')}>
+                            {initials(s.fullName || s.email)}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div className="nm">{s.fullName || s.email}</div>
+                            <div className="rl">{roleLabels[s.role]}</div>
+                          </div>
+                          <select
+                            className="dp-select mv"
+                            style={{ width: 'auto', maxWidth: 150 }}
+                            value={selectedDept.id}
+                            onChange={(e) => movePerson(s.id, e.target.value || null)}
+                          >
+                            <option value={selectedDept.id}>{t('crm.departments.page.inspector.keepHere')}</option>
+                            <option value="">{t('crm.departments.page.inspector.removeFromDept')}</option>
+                            {flatDepts
+                              .filter((d) => d.id !== selectedDept.id)
+                              .map((d) => (
+                                <option key={d.id} value={d.id}>
+                                  {d.name}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+
+                <div className="dp-card" style={{ marginBottom: 16 }}>
+                  <div className="dp-card-head">
+                    <div>
+                      <h3>
+                        <Ic d={DIC.key} size={15} />
+                        {t('crm.departments.page.inspector.access.title')}
+                      </h3>
+                      <div className="sub">{t('crm.departments.page.inspector.access.subtitle')}</div>
+                    </div>
+                  </div>
+                  <div className="dp-card-body">
+                    {roleCounts.length === 0 ? (
+                      <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.departments.noStaff')}</div>
+                    ) : (
+                      roleCounts.map(([role, count]) => (
+                        <div key={role} className="dp-kv">
+                          <span className="k">{roleLabels[role as StaffRole] || role}</span>
+                          <span className="v mono">{count}</span>
+                        </div>
+                      ))
+                    )}
+                    <a className="btn btn-sm" href="/app/staff/permissions" style={{ marginTop: 12 }}>
+                      <Ic d={DIC.key} size={12} />
+                      {t('crm.departments.page.inspector.access.openLink')}
+                    </a>
+                  </div>
+                </div>
+
+                <div className="dp-card">
+                  <div className="dp-card-head">
+                    <div>
+                      <h3>
+                        <Ic d={DIC.chart} size={15} />
+                        {t('crm.departments.page.inspector.stats.title')}
+                      </h3>
+                      <div className="sub">{t('crm.departments.page.inspector.stats.subtitle')}</div>
+                    </div>
+                  </div>
+                  <div className="dp-card-body">
+                    {statsLoading || !stats ? (
+                      <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.staff.permissions.rulesTab.simulate.loading')}</div>
+                    ) : (
+                      <>
+                        <div className="dp-kv">
+                          <span className="k">{t('crm.departments.page.inspector.stats.leadsInProgress')}</span>
+                          <span className="v mono">{stats.leadsInProgress}</span>
+                        </div>
+                        <div className="dp-kv">
+                          <span className="k">{t('crm.departments.page.inspector.stats.salesClosed')}</span>
+                          <span className="v mono">
+                            {stats.salesClosed30d} · {fmtMoney(stats.salesClosed30dAmount)}
+                          </span>
+                        </div>
+                        <div className="dp-kv">
+                          <span className="k">{t('crm.departments.page.inspector.stats.conversion')}</span>
+                          <span className="v mono">{stats.conversionPct === null ? '—' : `${stats.conversionPct}%`}</span>
+                        </div>
+                        <div className="dp-kv">
+                          <span className="k">{t('crm.departments.page.inspector.stats.staffTotal')}</span>
+                          <span className="v mono">{stats.staffCountRecursive}</span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : tab === 'list' ? (
+          <div className="dp-card">
+            <div className="dp-card-head">
+              <div>
+                <h3>
+                  <Ic d={DIC.table} size={15} />
+                  {t('crm.departments.page.list.title')}
+                </h3>
+                <div className="sub">{t('crm.departments.page.list.subtitle')}</div>
+              </div>
+              <button className="btn btn-sm" onClick={exportList}>
+                <Ic d={DIC.download} size={13} />
+                {t('crm.departments.page.list.export')}
+              </button>
+            </div>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="dp-table">
+                <thead>
+                  <tr>
+                    <th>{t('crm.departments.page.list.headers.name')}</th>
+                    <th>{t('crm.departments.page.list.headers.code')}</th>
+                    <th>{t('crm.departments.page.list.headers.parent')}</th>
+                    <th>{t('crm.departments.page.list.headers.manager')}</th>
+                    <th>{t('crm.departments.page.list.headers.staff')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {flatDepts.map((d) => {
+                    const parentId = parentOf.get(d.id);
+                    const manager = d.directStaff.find((s) => s.id === d.managerId);
+                    return (
+                      <tr key={d.id} onClick={() => { setSel(d.id); setTab('tree'); }} style={{ cursor: 'pointer' }}>
+                        <td className="nm">
+                          <span className="dp-ind">{'— '.repeat(d.level)}</span>
+                          {d.name}
+                        </td>
+                        <td className="mono">{d.code || '—'}</td>
+                        <td>{parentId ? flatById.get(parentId)?.name || '—' : '—'}</td>
+                        <td>
+                          {manager ? (
+                            manager.fullName || manager.email
+                          ) : (
+                            <span style={{ color: '#a06a08' }}>{t('crm.departments.page.tree.noManager')}</span>
+                          )}
+                        </td>
+                        <td className="mono">{d.totalStaffCount}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <div className="dp-card">
+            <div className="dp-card-head">
+              <div>
+                <h3>
+                  <Ic d={DIC.user} size={15} />
+                  {t('crm.departments.page.unassigned.title', { count: unassigned.length })}
+                </h3>
+                <div className="sub">{t('crm.departments.page.unassigned.subtitle')}</div>
+              </div>
+            </div>
+            <div className="dp-card-body tight">
+              {unassigned.length === 0 ? (
+                <div className="dp-card-body" style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
+                  {t('crm.departments.page.unassigned.empty')}
+                </div>
+              ) : (
+                unassigned.map((u) => (
+                  <div key={u.id} className="dp-un">
+                    <div>
+                      <div className="nm">{u.fullName || u.email}</div>
+                      <div className="em">{u.email}</div>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-2)' }}>{roleLabels[u.role]}</div>
+                    <select
+                      className="dp-select"
+                      defaultValue=""
+                      onChange={(e) => {
+                        if (e.target.value) movePerson(u.id, e.target.value);
+                      }}
+                    >
+                      <option value="">{t('crm.departments.page.unassigned.pickDept')}</option>
+                      {flatDepts.map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name}
+                        </option>
+                      ))}
+                    </select>
+                    <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>
+                      {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : ''}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}

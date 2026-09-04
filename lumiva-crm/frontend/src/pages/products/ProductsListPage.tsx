@@ -3,6 +3,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { LottieIcon } from '../../components/LottieIcon';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { resolvePublicAssetUrl } from '../../api/client';
 import { ProductsSubnav } from './ProductsSubnav';
@@ -236,6 +238,7 @@ export const ProductsListPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="products" />
       <div className="px-scope">
         <div className="pr-head px-head">
           <div>
@@ -396,9 +399,15 @@ export const ProductsListPage: React.FC = () => {
             )}
 
             {loading ? (
-              <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.common.loading')}</div>
+              <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>
+                <div className="flex justify-center mb-1"><LottieIcon name="loader-spinner" size={48} /></div>
+                {t('crm.common.loading')}
+              </div>
             ) : items.length === 0 ? (
-              <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>{t('crm.products.list.empty')}</div>
+              <div className="py-16 text-center text-[13px]" style={{ color: 'var(--fg-4)' }}>
+                <div className="flex justify-center mb-1"><LottieIcon name="empty-state-folder" size={72} /></div>
+                {t('crm.products.list.empty')}
+              </div>
             ) : view === 'table' ? (
               <div className="pr-table-wrap">
                 <table className="pr-table">

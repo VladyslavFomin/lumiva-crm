@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import axios, { AxiosError } from 'axios';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { AiAnthropicService } from './ai-anthropic.service';
 
 export type ChatMessage = {
   role: 'system' | 'user' | 'assistant' | 'tool';
@@ -18,7 +19,10 @@ export type ChatMessage = {
 export class AiOpenAiService {
   private readonly log = new Logger(AiOpenAiService.name);
 
-  constructor(private readonly platformSettings: PlatformSettingsService) {}
+  constructor(
+    private readonly platformSettings: PlatformSettingsService,
+    private readonly anthropic: AiAnthropicService,
+  ) {}
 
   private async resolveConfig() {
     const cfg = await this.platformSettings.getSettings();
@@ -64,12 +68,20 @@ export class AiOpenAiService {
       messages: ChatMessage[];
       tools?: unknown[];
       toolChoice?: 'auto' | 'none' | { type: 'function'; function: { name: string } };
+      /** Overrides just the model name while still using the resolved (platform or tenant) apiKey/base — e.g. a
+       * per-feature model preference (Telegram AI connector) that doesn't have its own API key to hand. */
+      modelOverride?: string;
+      /** Overrides the fixed 0.6 default sampling temperature — same "use resolved key, override one field" case. */
+      temperatureOverride?: number;
     },
-    overrideConfig?: { apiKey: string; baseUrl?: string; model?: string },
+    overrideConfig?: { apiKey: string; baseUrl?: string; model?: string; provider?: 'openai' | 'anthropic' },
   ): Promise<{
     message: ChatMessage;
     usage: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
   }> {
+    if (overrideConfig?.provider === 'anthropic') {
+      return this.anthropic.chatCompletion(input, overrideConfig);
+    }
     let apiKey: string;
     let base: string;
     let model: string;
@@ -83,11 +95,12 @@ export class AiOpenAiService {
       base = cfg.base;
       model = cfg.model;
     }
+    if (input.modelOverride?.trim()) model = input.modelOverride.trim();
     const url = `${base}/chat/completions`;
     const body: Record<string, unknown> = {
       model,
       messages: input.messages,
-      temperature: 0.6,
+      temperature: input.temperatureOverride ?? 0.6,
     };
     if (input.tools?.length) {
       body.tools = input.tools;
@@ -226,24 +239,35 @@ export class AiOpenAiService {
     }
   }
 
-  async generateImage(input: {
-    prompt: string;
-    size?: '1024x1024' | '1792x1024' | '1024x1792';
-  }): Promise<{ url: string; revised_prompt?: string }> {
-    const cfg = await this.platformSettings.getSettings();
-    const apiKey =
-      cfg?.openAiApiKey?.trim() || process.env.OPENAI_API_KEY?.trim() || '';
+  async generateImage(
+    input: {
+      prompt: string;
+      size?: '1024x1024' | '1792x1024' | '1024x1792';
+    },
+    // BYOK: DALL-E — OpenAI-only API, ключ Anthropic сюда не годится, тогда игнорируем override
+    // и используем платформенный (со списанием квоты — иначе тенант получил бы бесплатную
+    // генерацию только потому, что подключил не тот провайдер под чат).
+    overrideConfig?: { apiKey: string; baseUrl?: string; provider?: 'openai' | 'anthropic' },
+  ): Promise<{ url: string; revised_prompt?: string }> {
+    const useOverride = overrideConfig && overrideConfig.provider !== 'anthropic';
+    const cfg = useOverride ? null : await this.platformSettings.getSettings();
+    const apiKey = useOverride
+      ? overrideConfig!.apiKey
+      : cfg?.openAiApiKey?.trim() || process.env.OPENAI_API_KEY?.trim() || '';
     if (!apiKey) {
       throw new BadRequestException({
         code: 'AI_NOT_CONFIGURED',
         message: 'AI не настроен.',
       });
     }
-    const base =
-      (cfg?.openAiBaseUrl?.trim() || 'https://api.openai.com/v1').replace(
-        /\/+$/,
-        '',
-      );
+    const base = useOverride
+      ? (overrideConfig!.baseUrl || 'https://api.openai.com/v1').replace(/\/+$/, '')
+      : (cfg?.openAiBaseUrl?.trim() || 'https://api.openai.com/v1').replace(
+          /\/+$/,
+          '',
+        );
+    // Модель для чата (overrideConfig.model) может быть не image-моделью — для картинок
+    // всегда используем dall-e-3/платформенный дефолт независимо от BYOK.
     const model =
       cfg?.openAiImageModel?.trim() ||
       process.env.OPENAI_IMAGE_MODEL ||

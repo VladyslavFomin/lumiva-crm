@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 function dNum(d: Record<string, unknown>, k: string, def: number) {
   const n = Number(d[k]);
@@ -14,6 +15,7 @@ type Props = {
  * Мини-превью: как выглядит форма с текущим design, без публичного API.
  */
 export const EmbedDesignPreview: React.FC<Props> = ({ design, title }) => {
+  const { t } = useTranslation();
   const d = design;
   const bg = String(d['backgroundColor'] || '#fff');
   const text = String(d['textColor'] || '#111');
@@ -46,7 +48,7 @@ export const EmbedDesignPreview: React.FC<Props> = ({ design, title }) => {
       <h3 style={{ fontSize: hfs, fontWeight: 600, margin: '0 0 10px' }}>{title}</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap, marginBottom: 10 }}>
         <div>
-          <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>E-mail *</div>
+          <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>{t('crm.embedDesignPreview.emailLabel')}</div>
           <div
             className="lv-embed-preview-inp"
             style={{
@@ -61,7 +63,7 @@ export const EmbedDesignPreview: React.FC<Props> = ({ design, title }) => {
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'flex-start' }}>
           <div style={{ flex: '1 1 calc(50% - 4px)', minWidth: 0 }}>
-            <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>Телефон</div>
+            <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>{t('crm.embedDesignPreview.phoneLabel')}</div>
             <div
               className="lv-embed-preview-inp"
               style={{
@@ -75,7 +77,7 @@ export const EmbedDesignPreview: React.FC<Props> = ({ design, title }) => {
             </div>
           </div>
           <div style={{ flex: '1 1 calc(50% - 4px)', minWidth: 0 }}>
-            <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>Город</div>
+            <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>{t('crm.embedDesignPreview.cityLabel')}</div>
             <div
               className="lv-embed-preview-inp"
               style={{
@@ -90,7 +92,7 @@ export const EmbedDesignPreview: React.FC<Props> = ({ design, title }) => {
           </div>
         </div>
         <div>
-          <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>Сообщение</div>
+          <div style={{ fontWeight: lw, fontSize: 12, marginBottom: 3 }}>{t('crm.embedDesignPreview.messageLabel')}</div>
           <div
             className="lv-embed-preview-ta"
             style={{
@@ -120,7 +122,7 @@ export const EmbedDesignPreview: React.FC<Props> = ({ design, title }) => {
           cursor: 'default',
         }}
       >
-        Отправить
+        {t('crm.embedDesignPreview.submitBtn')}
       </button>
     </div>
   );

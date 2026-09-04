@@ -565,6 +565,34 @@ export class OnlineChatService {
 
     await this.sessionsRepo.save(session);
 
+    // Виджет часто собирает данные в несколько шагов (сначала имя, потом телефон/email) —
+    // без этой проверки каждый повторный вызов создавал ОТДЕЛЬНЫЙ, никак не связанный с
+    // первым лид, а сессия молча переключалась на самый свежий.
+    if (session.leadId) {
+      try {
+        const existingLead = await this.leadsService.findOneForTenant(session.tenantId, session.leadId);
+        const patch: Record<string, unknown> = {};
+        if (name && name !== existingLead.name) patch.name = name;
+        if (phone && phone !== existingLead.phone) patch.phone = phone;
+        if (email && email !== existingLead.email) patch.email = email;
+        const updatedLead = Object.keys(patch).length
+          ? await this.leadsService.updateForTenant(session.tenantId, existingLead.id, patch as any)
+          : existingLead;
+        return {
+          ok: true,
+          session_id: session.id,
+          lead_id: updatedLead.id,
+          name: updatedLead.name,
+          email: updatedLead.email,
+          phone: updatedLead.phone,
+        };
+      } catch (e) {
+        // Лид сессии не найден (удалён/недоступен) — падаем обратно на создание нового,
+        // как и раньше вело себя это место при отсутствии session.leadId.
+        this.logger.warn(`savePublicLead: session.leadId ${session.leadId} not found, creating a new lead`);
+      }
+    }
+
     try {
       const utm = params.utm || {};
       let utmSource =

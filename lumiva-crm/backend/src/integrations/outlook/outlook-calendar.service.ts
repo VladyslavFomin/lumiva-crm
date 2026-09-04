@@ -31,7 +31,9 @@ export function microsoftOAuthClientCredentials(): { clientId: string; clientSec
  */
 @Injectable()
 export class OutlookCalendarService {
-  async refreshAccessToken(refreshToken: string): Promise<{ accessToken: string; expiresIn?: number }> {
+  async refreshAccessToken(
+    refreshToken: string,
+  ): Promise<{ accessToken: string; expiresIn?: number; rotatedRefreshToken?: string }> {
     const { clientId, clientSecret } = microsoftOAuthClientCredentials();
     if (!clientId || !clientSecret) {
       throw new Error('Microsoft OAuth не настроен на платформе (MICROSOFT_OAUTH_CLIENT_ID/SECRET)');
@@ -67,7 +69,12 @@ export class OutlookCalendarService {
     }
     const expiresIn =
       typeof res.data?.expires_in === 'number' ? res.data.expires_in : undefined;
-    return { accessToken, expiresIn };
+    // Microsoft часто ротирует refresh_token при обновлении access-токена (обычная практика
+    // для offline_access) — раньше это игнорировалось и сохранялось только при ручном
+    // переподключении. В какой-то момент исходный refresh_token инвалидируется политикой
+    // ротации, и синхронизация начинает падать invalid_grant без видимой причины.
+    const rotatedRefreshToken = String(res.data?.refresh_token ?? '').trim() || undefined;
+    return { accessToken, expiresIn, rotatedRefreshToken };
   }
 
   /**
@@ -77,14 +84,18 @@ export class OutlookCalendarService {
     apiToken?: string;
     oauthRefreshToken?: string;
     calendarId?: string;
-  }): Promise<{ accessToken: string; calendarGraphId: string | null } | null> {
+  }): Promise<{ accessToken: string; calendarGraphId: string | null; rotatedRefreshToken?: string } | null> {
     const fromField = typeof cfg.calendarId === 'string' ? cfg.calendarId.trim() : '';
     const calendarGraphId = fromField.length > 0 ? fromField : null;
 
     const rt = typeof cfg.oauthRefreshToken === 'string' ? cfg.oauthRefreshToken.trim() : '';
     if (rt) {
-      const { accessToken } = await this.refreshAccessToken(rt);
-      return { accessToken, calendarGraphId };
+      const { accessToken, rotatedRefreshToken } = await this.refreshAccessToken(rt);
+      return {
+        accessToken,
+        calendarGraphId,
+        rotatedRefreshToken: rotatedRefreshToken && rotatedRefreshToken !== rt ? rotatedRefreshToken : undefined,
+      };
     }
 
     const api = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';

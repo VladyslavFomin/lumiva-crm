@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { previewCsvImport, importLeadsWithMapping } from '../../api/leads';
+import { LottieIcon } from '../../components/LottieIcon';
 
 interface Props {
   open: boolean;
@@ -497,7 +498,9 @@ export function LeadsCsvImportModal({ open, onClose, onImported }: Props) {
           {/* STEP: DONE */}
           {step === 'done' && result && (
             <div style={{ textAlign: 'center', padding: '32px 16px' }}>
-              <div style={{ fontSize: 40, marginBottom: 12 }}></div>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: -8 }}>
+                <LottieIcon name="confetti-burst" size={90} loop={false} />
+              </div>
               <h3 style={{ margin: '0 0 12px', fontSize: 18, fontWeight: 700 }}>Import complete!</h3>
               <div
                 style={{
@@ -582,7 +585,8 @@ export function LeadsCsvImportModal({ open, onClose, onImported }: Props) {
               )}
             </>
           ) : step === 'importing' ? (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+              <LottieIcon name="upload-cloud" size={80} />
               <span style={{ fontSize: 13, color: '#64748b' }}>Importing, please wait...</span>
             </div>
           ) : (

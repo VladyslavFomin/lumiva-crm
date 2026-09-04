@@ -1,0 +1,82 @@
+/* ============================================
+   SALES PAYMENTS — scoped design system, same convention as
+   ../telephony/telephony-design.css (px-scope primitives redeclared here on purpose —
+   harmless duplication, keeps this module standalone).
+   ============================================ */
+
+.px-scope {
+  --ink: #222;
+  --fg-1: #222;
+  --fg-2: #555;
+  --fg-3: #888;
+  --line-2: #e7e7e7;
+  --line-3: #f0f0f0;
+  --bg: #fff;
+  --bg-muted: #fafafa;
+  --bg-soft: #f5f5f5;
+  --ff-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--fg-1);
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.px-scope h1, .px-scope h2, .px-scope h3 { font-family: var(--ff-display); font-weight: 600; letter-spacing: -0.02em; margin: 0; color: var(--ink); }
+.px-scope button { font-family: inherit; cursor: pointer; }
+.px-scope svg { display: block; }
+.px-scope .kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--ink)}
+
+.px-scope .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;border:1px solid var(--line-2);background:#fff;color:var(--ink);transition:background .12s,border-color .12s;text-decoration:none}
+.px-scope .btn:hover{border-color:var(--ink)}
+.px-scope .btn:disabled{opacity:.5;cursor:default}
+.px-scope .btn-sm{padding:7px 11px;font-size:12px}
+.px-scope .btn-primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.px-scope .btn-primary:hover{background:#000}
+
+.px-scope .bk-search{display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--line-2);border-radius:9px;background:#fff;color:var(--fg-3)}
+.px-scope .bk-search input{border:0;outline:0;font:inherit;font-size:12.5px;color:var(--ink);width:100%;background:transparent}
+
+.px-scope .bk-savedviews{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+.px-scope .bk-sv-tab{padding:6px 13px;border-radius:999px;font-size:12px;color:var(--fg-3);background:var(--bg-soft);border:1px solid transparent;white-space:nowrap;cursor:pointer}
+.px-scope .bk-sv-tab.active{background:var(--ink);color:#fff}
+
+.px-scope .bk-table-wrap{border:1px solid var(--line-2);border-radius:12px;background:#fff;overflow-x:auto}
+
+.px-scope .ha-section{border:1px solid var(--line-2);border-radius:14px;background:#fff;padding:18px 20px;margin-bottom:16px}
+.px-scope .ha-section-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:12px;flex-wrap:wrap}
+.px-scope .ha-section-head h3{font-size:14.5px;font-weight:600;color:var(--ink)}
+.px-scope .ha-section-head .sub{font-size:11.5px;color:var(--fg-3);margin-top:3px}
+
+.px-scope .rev-bar-row{display:grid;grid-template-columns:120px 1fr 90px;align-items:center;gap:10px;margin-bottom:9px;font-size:12px}
+.px-scope .rev-bar-track{height:20px;border-radius:6px;background:var(--bg-muted);overflow:hidden;position:relative}
+.px-scope .rev-bar-fill{height:100%;border-radius:6px}
+.px-scope .rev-bar-val{font-family:var(--ff-mono);text-align:right;font-weight:600}
+
+.px-scope .pace-legend{display:flex;gap:16px;font-size:11px;color:var(--fg-3);margin-top:10px;flex-wrap:wrap}
+.px-scope .pace-legend span{display:flex;align-items:center;gap:6px}
+.px-scope .pace-legend i{width:14px;height:3px;border-radius:2px;display:inline-block}
+
+.tel-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;margin-bottom:4px}
+.tel-hero h1{font-family:var(--ff-display);font-size:24px;font-weight:600;letter-spacing:-0.02em;color:var(--ink);margin:8px 0 4px}
+.tel-hero .sub{font-size:13px;color:var(--fg-3);max-width:560px;line-height:1.5}
+
+.tel-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:16px 0}
+@media (max-width:1100px){.tel-kpis{grid-template-columns:repeat(2,1fr)}}
+.tel-kpi{border:1px solid var(--line-2);border-radius:12px;padding:14px 16px;background:#fff}
+.tel-kpi .l{font-size:11px;color:var(--fg-3);margin-bottom:6px}
+.tel-kpi .v{font-family:var(--ff-display);font-size:21px;font-weight:600;color:var(--ink);letter-spacing:-0.01em}
+
+/* Payments table */
+.pay-row{display:grid;grid-template-columns:40px 1.6fr 1fr 110px 100px 130px;gap:12px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--line-3);cursor:pointer}
+.pay-row:hover{background:var(--bg-muted)}
+.pay-row:last-child{border-bottom:none}
+.pay-icon{width:32px;height:32px;border-radius:8px;flex-shrink:0}
+.pay-name{font-weight:600;font-size:13px;color:var(--ink)}
+.pay-sub{font-size:11px;color:var(--fg-3);font-family:var(--ff-mono)}
+.pay-amount{font-family:var(--ff-mono);font-size:13px;color:var(--ink);text-align:right}
+.pay-status{display:inline-flex;align-items:center;padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:600;white-space:nowrap}
+.pay-status.paid{background:#eaf6ec;color:#1f8a5e}
+.pay-status.pending{background:#fdf3d7;color:#a06b1a}
+.pay-status.failed,.pay-status.cancelled{background:#fdecea;color:#c0392b}
+.pay-date{font-size:11.5px;color:var(--fg-3)}

@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { ProductsSubnav } from './ProductsSubnav';
 import { fetchSites, type Site } from '../../api/sites';
@@ -71,6 +72,7 @@ export const ProductFeedsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="productFeeds" />
       <div className="px-scope">
         <div className="px-head">
           <div>

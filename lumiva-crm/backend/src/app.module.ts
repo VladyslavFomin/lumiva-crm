@@ -35,6 +35,7 @@ import { WhatsappWebhookModule } from './integrations/whatsapp/whatsapp-webhook.
 import { WhatsappCrmModule } from './whatsapp-crm/whatsapp-crm.module';
 import { TelephonyModule } from './telephony/telephony.module';
 import { AmocrmInboundWebhookModule } from './integrations/amocrm/amocrm-inbound-webhook.module';
+import { BitrixInboundWebhookModule } from './integrations/bitrix/bitrix-inbound-webhook.module';
 import { WordpressCf7InboundWebhookModule } from './integrations/wordpress-cf7/wordpress-cf7-inbound-webhook.module';
 import { ZapierMakeInboundModule } from './integrations/zapier-make/zapier-make-inbound.module';
 import { SlackInboundModule } from './integrations/slack/slack-inbound.module';
@@ -69,6 +70,8 @@ import { PortalModule } from './portal/portal.module';
 import { HelpdeskModule } from './helpdesk/helpdesk.module';
 import { EsignModule } from './esign/esign.module';
 import { AuditLogModule } from './audit-log/audit-log.module';
+import { AccountModule } from './account/account.module';
+import { DataVisibilityModule } from './data-visibility/data-visibility.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { SmsModule } from './sms/sms.module';
 import { DeduplicationModule } from './deduplication/deduplication.module';
@@ -292,6 +295,8 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     HelpdeskModule,
     EsignModule,
     AuditLogModule,
+    AccountModule,
+    DataVisibilityModule,
     AuthModule,
     LeadsModule,
     ContactsModule,
@@ -313,6 +318,7 @@ import { AiAgentReport } from './ai-employees/ai-agent-report.entity';
     TelephonyModule,
     WhatsappWebhookModule,
     AmocrmInboundWebhookModule,
+    BitrixInboundWebhookModule,
     WordpressCf7InboundWebhookModule,
     ZapierMakeInboundModule,
     SlackInboundModule,

@@ -21,7 +21,10 @@ import {
 import { previewSalesImport, previewWorkspaceFileImport } from '../../api/imports';
 import { ApiError, createAiAddonCheckoutSession } from '../../api/client';
 import { AiChatMarkdown } from './AiChatMarkdown';
-import { AiEmailComposerModal } from './AiEmailComposerModal';
+import { AiEmailComposerTab } from './AiEmailComposerTab';
+import { OpenAiConnectModal } from '../integrations/OpenAiConnectModal';
+import { LottieIcon } from '../LottieIcon';
+import { InlineHelpButton } from '../help/PageHelpButton';
 
 function formatCents(c: number): string {
   return (Math.max(0, c) / 100).toFixed(2);
@@ -46,6 +49,18 @@ function greetingDisplayName(raw: string | null | undefined, fallback: string): 
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
+/** Инициалы для аватара в переписке (1-2 буквы); email не учитываем */
+function initialsFromName(raw: string | null | undefined): string {
+  const s = (raw || '').trim();
+  if (!s || s.includes('@')) return '';
+  const parts = s.split(/\s+/).filter(Boolean);
+  return parts
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join('');
+}
+
+/* ---- flat monochrome line icons (замена старым цветным круглым иконкам) ---- */
 
 function PaperclipIcon({ className }: { className?: string }) {
   return (
@@ -53,7 +68,7 @@ function PaperclipIcon({ className }: { className?: string }) {
       <path
         d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"
         stroke="currentColor"
-        strokeWidth={1.75}
+        strokeWidth={1.6}
         strokeLinecap="round"
         strokeLinejoin="round"
       />
@@ -61,14 +76,170 @@ function PaperclipIcon({ className }: { className?: string }) {
   );
 }
 
-function TableGridIcon({ className }: { className?: string }) {
+function MicIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <rect x="3.5" y="4.5" width="17" height="15" rx="2" stroke="currentColor" strokeWidth={1.6} />
-      <path d="M3.5 9.5h17M9.5 4.5v15" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
+      <rect x="9" y="3" width="6" height="11" rx="3" stroke="currentColor" strokeWidth={1.6} />
+      <path
+        d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3"
+        stroke="currentColor"
+        strokeWidth={1.6}
+        strokeLinecap="round"
+      />
     </svg>
   );
 }
+
+function SendArrowIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 19V6M12 6l-6 6M12 6l6 6"
+        stroke="currentColor"
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ArrowRightIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M5 12h13M12 5l7 7-7 7"
+        stroke="currentColor"
+        strokeWidth={1.6}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** Иконки быстрых сценариев — плоские, монохромные (см. crm.aiAssistant.presets) */
+const PRESET_ICON: Record<string, (p: { className?: string }) => React.JSX.Element> = {
+  board: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth={1.5} />
+      <path d="M9 4v16M15 4v16" stroke="currentColor" strokeWidth={1.5} />
+    </svg>
+  ),
+  doc: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M14 3v5h5" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M9 13h6M9 17h4" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+    </svg>
+  ),
+  search: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" stroke="currentColor" strokeWidth={1.5} />
+      <path
+        d="M4.5 5.5v6c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8v-6"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+      <path
+        d="M4.5 11.5v6c0 1.6 3.4 2.8 7.5 2.8s7.5-1.2 7.5-2.8v-6"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+      />
+    </svg>
+  ),
+  data: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M5 19V11M12 19V5M19 19v-6" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+    </svg>
+  ),
+  brain: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9 18h6M10 21h4" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+      <path
+        d="M12 3a6 6 0 0 0-3.5 10.9c.3.3.5.7.5 1.1v1h6v-1c0-.4.2-.8.5-1.1A6 6 0 0 0 12 3z"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
+  image: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" strokeWidth={1.5} />
+      <circle cx="8.5" cy="10" r="1.4" stroke="currentColor" strokeWidth={1.5} />
+      <path
+        d="M4 17l4.5-4.5 3 3 3.5-3L20 17"
+        stroke="currentColor"
+        strokeWidth={1.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  ),
+  vibe: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7 9h6M7 12.5h10M7 16h10" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+    </svg>
+  ),
+  more: ({ className }) => (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M9 3v6M15 3v6" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+      <path d="M6 9h12v3a6 6 0 0 1-12 0z" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 18v3" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />
+    </svg>
+  ),
+};
+
+const PRESET_ORDER = ['board', 'doc', 'search', 'data', 'brain', 'image', 'vibe', 'more'] as const;
 
 /** Заметный "проговариваемый" прелоадер на время создания таблицы рабочей области и импорта строк из файла. */
 function WorkspaceImportingIndicator({
@@ -80,189 +251,26 @@ function WorkspaceImportingIndicator({
 }) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-violet-200 bg-gradient-to-r from-violet-50 via-fuchsia-50 to-violet-50 px-3.5 py-2.5 shadow-[0_4px_16px_rgba(139,92,246,0.12)]">
+    <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3.5 py-2.5 shadow-sm">
       <span className="relative flex h-8 w-8 shrink-0 items-center justify-center">
-        <span className="absolute inset-0 animate-spin rounded-full border-2 border-violet-200 border-t-violet-600" />
-        <TableGridIcon className="h-3.5 w-3.5 text-violet-700" />
+        <span className="absolute inset-0 animate-spin rounded-full border-2 border-slate-200 border-t-[#5b4bec]" />
+        <PlusIcon className="h-3.5 w-3.5 rotate-45 text-slate-700" />
       </span>
       <div className="min-w-0">
-        <div className="text-xs font-semibold text-violet-900">
+        <div className="text-xs font-semibold text-slate-900">
           {t('crm.aiAssistant.workspaceImporting')}
         </div>
         {fileName && (
-          <div className="truncate text-[11px] text-violet-600">
+          <div className="truncate text-[11px] text-slate-500">
             {fileName}
             {totalRows ? ` · ${totalRows} ${t('crm.aiAssistant.rowsShort')}` : ''}
           </div>
         )}
-        <div className="mt-1.5 h-1 w-40 max-w-full overflow-hidden rounded-full bg-violet-100">
-          <div className="h-full w-1/3 animate-indeterminate-bar rounded-full bg-violet-500" />
+        <div className="mt-1.5 h-1 w-40 max-w-full overflow-hidden rounded-full bg-slate-100">
+          <div className="h-full w-1/3 animate-indeterminate-bar rounded-full bg-[#5b4bec]" />
         </div>
       </div>
     </div>
-  );
-}
-
-/** Цветной ободок круга — как на референсе Monday */
-const PRESET_CIRCLE_BORDER: Record<string, string> = {
-  board: 'border-[#a855f7]',
-  doc: 'border-[#14b8a6]',
-  search: 'border-[#eab308]',
-  data: 'border-[#ec4899]',
-  brain: 'border-[#38bdf8]',
-  image: 'border-[#22c55e]',
-  vibe: 'border-[#fb923c]',
-  more: 'border-[#2563eb]',
-};
-
-const PRESET_ORDER = ['board', 'doc', 'search', 'data', 'brain', 'image', 'vibe', 'more'] as const;
-
-/** Чёрный линейный контур внутри белого круга (stroke currentColor = slate-900) */
-function MondayLineIcon({ presetKey }: { presetKey: string }) {
-  const g = 'h-[26px] w-[26px] text-slate-900';
-  const s = 1.65;
-  switch (presetKey) {
-    case 'board':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <rect x="4.5" y="5.5" width="12" height="13" rx="1.5" stroke="currentColor" strokeWidth={s} />
-          <path
-            d="M14.25 6.25V9M12.75 7.625h3"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-    case 'doc':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <path
-            d="M14.5 3.5H7A2.5 2.5 0 0 0 4.5 6v13A2.5 2.5 0 0 0 7 21.5h10a2.5 2.5 0 0 0 2.5-2.5V8L14.5 3.5Z"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinejoin="round"
-          />
-          <path d="M14.5 3.5V8h4.5" stroke="currentColor" strokeWidth={s} strokeLinejoin="round" />
-          <path
-            d="M16.25 5.25V7.5M15 6.375h2.5"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-    case 'search':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <rect x="3.5" y="11" width="9.5" height="8" rx="1.2" stroke="currentColor" strokeWidth={s} />
-          <rect x="6.5" y="8" width="9.5" height="8" rx="1.2" stroke="currentColor" strokeWidth={s} />
-          <rect x="9.5" y="5" width="9.5" height="8" rx="1.2" stroke="currentColor" strokeWidth={s} />
-        </svg>
-      );
-    case 'data':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <path
-            d="M5.5 18.5V11M12 18.5V7.5M18.5 18.5v-6"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinecap="round"
-          />
-        </svg>
-      );
-    case 'brain':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <path
-            d="M12 3.5a3.8 3.8 0 0 0-1.9 7.1V13a1.8 1.8 0 0 0 1.8 1.8h.2a1.8 1.8 0 0 0 1.8-1.8v-2.4a3.8 3.8 0 0 0-1.9-7.1Z"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinejoin="round"
-          />
-          <path d="M9.5 18.5h5" stroke="currentColor" strokeWidth={s} strokeLinecap="round" />
-        </svg>
-      );
-    case 'image':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <rect x="3.5" y="6" width="17" height="12" rx="2" stroke="currentColor" strokeWidth={s} />
-          <circle cx="8" cy="10" r="1.3" stroke="currentColor" strokeWidth={s} />
-          <path
-            d="M3.5 16.5 8 12l3.5 3 3-2.5 6 5"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case 'vibe':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <path
-            d="M12 20.2c-3.2-2.1-6-5.2-6-9.1a3.6 3.6 0 0 1 6-2.2 3.6 3.6 0 0 1 6 2.2c0 3.9-2.8 7-6 9.1Z"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinejoin="round"
-          />
-        </svg>
-      );
-    case 'more':
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <path
-            d="M5 5.5A2 2 0 0 1 7 3.5h4.5V20H7a2 2 0 0 1-2-2v-12.5Z"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinejoin="round"
-          />
-          <path
-            d="M19 5.5A2 2 0 0 0 17 3.5h-4.5V20H17a2 2 0 0 0 2-2v-12.5Z"
-            stroke="currentColor"
-            strokeWidth={s}
-            strokeLinejoin="round"
-          />
-          <path d="M12 3.5V20.5" stroke="currentColor" strokeWidth={s} strokeLinecap="round" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className={g} fill="none" viewBox="0 0 24 24" aria-hidden>
-          <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth={s} />
-        </svg>
-      );
-  }
-}
-
-function SendArrowIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 19V5M12 5l-5 5M12 5l5 5"
-        stroke="currentColor"
-        strokeWidth={2.2}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function PresetCircleRing({
-  presetKey,
-  children,
-}: {
-  presetKey: string;
-  children: React.ReactNode;
-}) {
-  const b = PRESET_CIRCLE_BORDER[presetKey] || PRESET_CIRCLE_BORDER.more;
-  return (
-    <span
-      className={`flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-full border-[2.5px] bg-white shadow-[0_8px_24px_rgba(15,23,42,0.11),0_2px_8px_rgba(15,23,42,0.05),inset_0_1px_0_rgba(255,255,255,1)] transition-transform duration-200 group-hover:scale-[1.06] group-hover:shadow-[0_12px_28px_rgba(15,23,42,0.14)] ${b}`}
-    >
-      {children}
-    </span>
   );
 }
 
@@ -281,10 +289,11 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
   userName,
 }) => {
   const { t, i18n } = useTranslation();
-  const [tab, setTab] = useState<'assistant' | 'memory'>('assistant');
+  const [tab, setTab] = useState<'assistant' | 'memory' | 'letter'>('assistant');
   const [hub, setHub] = useState(true);
-  const [emailComposerOpen, setEmailComposerOpen] = useState(false);
   const [quota, setQuota] = useState<AiQuotaSnapshot | null>(null);
+  const [usingOwnKey, setUsingOwnKey] = useState(false);
+  const [ownKeyModalOpen, setOwnKeyModalOpen] = useState(false);
   const [configured, setConfigured] = useState(true);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -502,6 +511,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
             : undefined,
       });
       setSessionId(res.sessionId);
+      setUsingOwnKey(Boolean(res.usingOwnKey));
       const { messages: m } = await fetchAiSessionMessages(res.sessionId);
       setMessages(m.filter((x) => x.role === 'user' || x.role === 'assistant'));
       if (res.imageUrl) {
@@ -672,64 +682,96 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
     }
   };
 
-  const renderPresetKeyRow = (keys: readonly (typeof PRESET_ORDER)[number][]) =>
-    keys.map((key) => {
-      const p = quickPresets[key];
-      if (!p) return null;
-      return (
-        <button
-          key={key}
-          type="button"
-          title={t('crm.aiAssistant.presetQuickActionTitle')}
-          onClick={() => {
-            void (async () => {
-              try {
-                await ensureSessionId();
-              } catch {
-                return;
-              }
-              setInput(p.prompt);
-              setHub(false);
-            })();
-          }}
-          className="group flex w-[76px] shrink-0 flex-col items-center gap-2 text-center"
-        >
-          <PresetCircleRing presetKey={key}>
-            <MondayLineIcon presetKey={key} />
-          </PresetCircleRing>
-          <span className="text-[10px] font-medium leading-tight text-slate-600">{p.label}</span>
-        </button>
-      );
-    });
+  const formatMsgTime = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleTimeString(i18n.language || 'ru', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  const runPreset = (key: (typeof PRESET_ORDER)[number]) => {
+    const p = quickPresets[key];
+    if (!p) return;
+    void (async () => {
+      try {
+        await ensureSessionId();
+      } catch {
+        return;
+      }
+      setInput(p.prompt);
+      setHub(false);
+    })();
+  };
 
   if (!open) return null;
 
   const displayName = greetingDisplayName(userName, t('crm.aiAssistant.fallbackName'));
+  const userInitials = initialsFromName(userName) || t('crm.aiAssistant.fallbackName').slice(0, 2).toUpperCase();
+
+  const composerAttachChip = (compact: boolean) => (
+    <>
+      {salesImportAttachment && (
+        <span
+          className={`inline-flex items-center gap-1.5 truncate rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-slate-700 ${compact ? 'max-w-[180px] text-[10px]' : 'max-w-[min(100%,280px)] text-[11px]'}`}
+        >
+          <span className="truncate font-medium">
+            {t('crm.aiAssistant.attachedSales')}: {salesImportAttachment.fileName}
+          </span>
+          <button
+            type="button"
+            className="shrink-0 text-slate-400 transition hover:text-rose-600"
+            onClick={() => setSalesImportAttachment(null)}
+          >
+            <CloseIcon className="h-2.5 w-2.5" />
+          </button>
+        </span>
+      )}
+      {workspaceFileAttachment && workspaceFileAttachment.columns.length > 0 && (
+        <span
+          className={`inline-flex items-center gap-1.5 truncate rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-slate-700 ${compact ? 'max-w-[180px] text-[10px]' : 'max-w-[min(100%,280px)] text-[11px]'}`}
+        >
+          <span className="truncate font-medium">
+            {t('crm.aiAssistant.attachedWorkspaceCsv')}: {workspaceFileAttachment.fileName} (
+            {workspaceFileAttachment.totalRows})
+          </span>
+          <button
+            type="button"
+            className="shrink-0 text-slate-400 transition hover:text-rose-600"
+            onClick={() => setWorkspaceFileAttachment(null)}
+          >
+            <CloseIcon className="h-2.5 w-2.5" />
+          </button>
+        </span>
+      )}
+    </>
+  );
+
+  const canSend = !loading && configured && (input.trim() || salesImportAttachment || workspaceFileAttachment);
 
   return createPortal(
     <div className="fixed inset-0 z-[8500] flex flex-row text-slate-900 [color-scheme:light]">
-      <AiEmailComposerModal
-        open={emailComposerOpen}
-        onClose={() => setEmailComposerOpen(false)}
+      <OpenAiConnectModal
+        open={ownKeyModalOpen}
+        onClose={() => setOwnKeyModalOpen(false)}
+        onCreated={() => setOwnKeyModalOpen(false)}
       />
-      {/* Размытие страницы под панелью (нужен webkit для Safari) */}
+      {/* Затемнение и размытие страницы под панелью */}
       <button
         type="button"
-        className="min-h-0 min-w-0 flex-1 cursor-default border-0 p-0 transition hover:bg-slate-900/35"
+        className="min-h-0 min-w-0 flex-1 cursor-default border-0 p-0"
         style={{
-          backgroundColor: 'rgba(15, 23, 42, 0.28)',
-          WebkitBackdropFilter: 'blur(14px) saturate(1.15)',
-          backdropFilter: 'blur(14px) saturate(1.15)',
+          backgroundColor: 'rgba(20, 20, 22, 0.34)',
+          WebkitBackdropFilter: 'blur(6px) saturate(1.1)',
+          backdropFilter: 'blur(6px) saturate(1.1)',
         }}
         aria-label={t('crm.common.close')}
         onClick={onClose}
       />
-      <aside className="relative flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-slate-300/90 bg-gradient-to-b from-white/95 via-slate-50/92 to-slate-100/88 shadow-[-48px_0_120px_rgba(15,23,42,0.28),-16px_0_48px_rgba(99,102,241,0.12),inset_1px_0_0_rgba(255,255,255,0.95)] backdrop-blur-xl md:w-2/5">
-        <div
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(120%_80%_at_100%_0%,rgba(167,139,250,0.12),transparent_55%)]"
-          aria-hidden
-        />
-        <div className="relative flex min-h-0 flex-1 flex-col">
+      <aside className="relative flex h-full w-full min-w-0 shrink-0 flex-col overflow-hidden border-l border-slate-200 bg-white shadow-[-40px_0_90px_-30px_rgba(15,17,25,0.35)] md:w-[min(46%,660px)] md:min-w-[520px]">
         <input
           ref={fileInputRef}
           type="file"
@@ -737,121 +779,162 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
           accept=".csv,.txt,.xml,.xlsx,.xls,text/csv,text/plain,application/xml,text/xml,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           onChange={(e) => void onAttachFile(e)}
         />
-        <div className="h-0.5 w-full shrink-0 bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500" aria-hidden />
+        <div className="h-[2px] w-full shrink-0 bg-gradient-to-r from-[#5b4bec] via-[#8f7bff] to-[#0f172a]" aria-hidden />
 
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200/40 bg-white/25 px-5 py-4 backdrop-blur-sm">
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-violet-600/90">
-              Lumiva AI
-            </div>
-            <div className="mt-0.5 text-lg font-semibold tracking-tight text-slate-900">
-              {t('crm.aiAssistant.title')}
-            </div>
-            {quota && (
-              <div className="mt-1.5 inline-flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500">
-                <span className="rounded-full border border-slate-200/50 bg-white px-2.5 py-0.5 font-medium !text-slate-700 shadow-sm">
-                  {t('crm.aiAssistant.quotaLine', {
-                    left: formatCents(quota.totalAvailableCents),
-                    storage: formatBytes(quota.storageUsedBytes),
-                    cap: formatBytes(quota.storageQuotaBytes),
-                  })}
-                </span>
+        {/* HEADER */}
+        <div className="shrink-0 border-b border-slate-200 px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <div className="font-mono text-[9.5px] font-medium uppercase tracking-[0.18em] text-[#5b4bec]">
+                Lumiva AI
               </div>
-            )}
+              <div className="mt-0.5 text-[22px] font-semibold leading-tight tracking-tight text-slate-900">
+                {t('crm.aiAssistant.title')}
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5">
+              <div className="inline-flex items-center gap-0.5 rounded-full border border-slate-200 bg-slate-50 p-[3px]">
+                <button
+                  type="button"
+                  onClick={() => setTab('assistant')}
+                  className={`rounded-full px-3 py-[5px] text-[12px] font-medium transition ${
+                    tab === 'assistant' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {t('crm.aiAssistant.tabChat')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab('memory');
+                    void loadSessions();
+                  }}
+                  className={`rounded-full px-3 py-[5px] text-[12px] font-medium transition ${
+                    tab === 'memory' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {t('crm.aiAssistant.tabMemory')}
+                </button>
+                <button
+                  type="button"
+                  title={t('crm.aiAssistant.emailComposer.title')}
+                  onClick={() => setTab('letter')}
+                  className={`rounded-full px-3 py-[5px] text-[12px] font-medium transition ${
+                    tab === 'letter' ? 'bg-white text-slate-900 shadow-sm ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {t('crm.aiAssistant.openEmailComposer')}
+                </button>
+              </div>
+              <InlineHelpButton
+                topic="aiAssistant"
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-[#0f172a] hover:text-slate-900"
+              />
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-[#0f172a] hover:text-slate-900"
+              >
+                <CloseIcon className="h-3.5 w-3.5" />
+              </button>
+            </div>
           </div>
-          <div className="flex shrink-0 items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => setTab('assistant')}
-              className={`rounded-full border px-3.5 py-1.5 text-[11px] font-semibold transition ${
-                tab === 'assistant'
-                  ? 'border-lumiva-accent bg-lumiva-accent !text-white shadow-md'
-                  : 'border-slate-300 bg-white !text-slate-900 shadow-sm hover:border-slate-400 hover:bg-slate-50'
-              }`}
-            >
-              {t('crm.aiAssistant.tabChat')}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setTab('memory');
-                void loadSessions();
-              }}
-              className={`rounded-full border px-3.5 py-1.5 text-[11px] font-semibold transition ${
-                tab === 'memory'
-                  ? 'border-lumiva-accent bg-lumiva-accent !text-white shadow-md'
-                  : 'border-slate-300 bg-white !text-slate-900 shadow-sm hover:border-slate-400 hover:bg-slate-50'
-              }`}
-            >
-              {t('crm.aiAssistant.tabMemory')}
-            </button>
-            <button
-              type="button"
-              title={t('crm.aiAssistant.emailComposer.title')}
-              onClick={() => setEmailComposerOpen(true)}
-              className="rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] font-semibold !text-slate-900 shadow-sm transition hover:border-violet-400 hover:bg-violet-50"
-            >
-              {t('crm.aiAssistant.openEmailComposer')}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="ml-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-slate-300 bg-white text-lg font-light leading-none !text-slate-800 shadow-md transition hover:border-slate-400 hover:bg-slate-50"
-            >
-              ×
-            </button>
+
+          <div className="mt-3.5 flex flex-wrap items-center gap-2.5">
+            {usingOwnKey ? (
+              <span className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5">
+                <span className="font-mono text-[8.5px] uppercase tracking-[0.1em] text-slate-400">
+                  {t('crm.aiAssistant.usingOwnKey')}
+                </span>
+              </span>
+            ) : quota ? (
+              <span className="inline-flex items-center gap-2.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5">
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-slate-400">AI</span>
+                  <span className="text-[12.5px] font-semibold leading-none tracking-tight text-slate-900">
+                    ~{formatCents(quota.totalAvailableCents)} USD
+                  </span>
+                </span>
+                <span className="h-6 w-px bg-slate-200" />
+                <span className="flex flex-col gap-0.5">
+                  <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-slate-400">
+                    {t('crm.aiAssistant.topupStorage').replace('+ ', '')}
+                  </span>
+                  <span className="text-[11.5px] font-medium leading-none text-slate-700">
+                    {formatBytes(quota.storageUsedBytes)} / {formatBytes(quota.storageQuotaBytes)}
+                  </span>
+                </span>
+              </span>
+            ) : null}
+            {!usingOwnKey && (
+              <button
+                type="button"
+                onClick={() => setOwnKeyModalOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-dashed border-[#ddd8ff] bg-[#f1efff] px-2.5 py-1.5 text-[12px] font-medium text-[#5b4bec] transition hover:border-[#5b4bec] hover:bg-[#e9e5ff]"
+              >
+                <PlusIcon className="h-3 w-3" />
+                {t('crm.aiAssistant.connectOwnKey')}
+              </button>
+            )}
           </div>
         </div>
 
         {!configured && (
-          <div className="mx-5 mt-3 rounded-xl border border-amber-200/70 bg-amber-50/85 px-3 py-2.5 text-xs text-amber-950 shadow-sm backdrop-blur-sm">
+          <div className="mx-5 mt-3 shrink-0 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
             {t('crm.aiAssistant.notConfigured')}
           </div>
         )}
-
         {error && (
-          <div className="mx-5 mt-2 rounded-xl border border-rose-200/70 bg-rose-50/85 px-3 py-2.5 text-xs text-rose-900 shadow-sm backdrop-blur-sm">
+          <div className="mx-5 mt-2 shrink-0 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-900">
             {error}
           </div>
         )}
 
-        {tab === 'memory' ? (
+        {tab === 'letter' ? (
+          /* ---------------------------- LETTER TAB ---------------------------- */
+          <AiEmailComposerTab active={tab === 'letter'} />
+        ) : tab === 'memory' ? (
+          /* ---------------------------- MEMORY TAB ---------------------------- */
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="border-b border-slate-100/90 px-5 py-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {t('crm.aiAssistant.chatHistoryTitle')}
+            <div className="border-b border-slate-100 px-5 py-5">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="font-mono text-[9.5px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                  {t('crm.aiAssistant.chatHistoryTitle')}
+                </span>
+                <span className="h-px flex-1 bg-slate-100" />
+                <span className="font-mono text-[9.5px] text-slate-300">
+                  {String(sessions.length).padStart(2, '0')}
+                </span>
               </div>
-              <div className="mt-3 max-h-40 space-y-2 overflow-y-auto pr-1">
+              <div className="max-h-40 space-y-1.5 overflow-y-auto pr-1">
                 {sessions.length === 0 ? (
                   <p className="text-xs text-slate-400">{t('crm.aiAssistant.chatHistoryEmpty')}</p>
                 ) : (
                   sessions.map((s) => (
                     <div
                       key={s.id}
-                      className="flex w-full items-stretch gap-0 overflow-hidden rounded-xl border border-slate-100 bg-slate-50/50 text-xs transition hover:border-violet-200 hover:bg-white hover:shadow-sm"
+                      className="flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 transition hover:border-[#0f172a]"
                     >
                       <button
                         type="button"
                         onClick={() => void openChatFromHistory(s.id)}
-                        className="flex min-w-0 flex-1 items-start justify-between gap-2 px-3 py-2 text-left transition hover:bg-white/80"
+                        className="min-w-0 flex-1 truncate text-left text-[12.5px] text-slate-900"
                       >
-                        <span className="line-clamp-2 font-medium text-slate-800">
-                          {(s.title || t('crm.aiAssistant.chatUntitled')).slice(0, 120)}
-                        </span>
-                        <span className="shrink-0 text-[10px] text-slate-400">
-                          {formatSessionDate(s.updatedAt)}
-                        </span>
+                        {(s.title || t('crm.aiAssistant.chatUntitled')).slice(0, 120)}
                       </button>
+                      <span className="shrink-0 font-mono text-[9.5px] text-slate-400">
+                        {formatSessionDate(s.updatedAt)}
+                      </span>
                       <button
                         type="button"
                         title={t('crm.aiAssistant.deleteSession')}
-                        className="shrink-0 border-l border-slate-100/80 px-2.5 py-2 text-[10px] font-semibold text-rose-600 hover:bg-rose-50"
+                        className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-rose-50 hover:text-rose-600"
                         onClick={(e) => {
                           e.stopPropagation();
                           void deleteSessionFromList(s.id);
                         }}
                       >
-                        {t('crm.aiAssistant.deleteChatFromList')}
+                        <TrashIcon className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   ))
@@ -859,90 +942,112 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
               </div>
             </div>
 
-            <div className="space-y-2 border-b border-slate-100/90 px-5 py-4">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                {t('crm.aiAssistant.memoryFragmentsTitle')}
+            <div className="border-b border-slate-100 px-5 py-5">
+              <div className="mb-3 flex items-center gap-2.5">
+                <span className="font-mono text-[9.5px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                  {t('crm.aiAssistant.memoryFragmentsTitle')}
+                </span>
+                <span className="h-px flex-1 bg-slate-100" />
               </div>
-              <input
-                className="ai-assistant-input w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm !text-slate-900 shadow-sm outline-none transition placeholder:!text-slate-500 caret-slate-900 focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                placeholder={t('crm.aiAssistant.memoryTitlePh')}
-                value={memTitle}
-                onChange={(e) => setMemTitle(e.target.value)}
-              />
-              <textarea
-                className="ai-assistant-input min-h-[80px] w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2.5 text-sm !text-slate-900 shadow-sm outline-none transition placeholder:!text-slate-500 caret-slate-900 focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                placeholder={t('crm.aiAssistant.memoryContentPh')}
-                value={memContent}
-                onChange={(e) => setMemContent(e.target.value)}
-              />
-              <button
-                type="button"
-                disabled={loading}
-                onClick={() => void saveMemory()}
-                className="w-full rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 py-2.5 text-sm font-semibold text-white shadow-md hover:from-violet-700 hover:to-fuchsia-700 disabled:opacity-50"
-              >
-                {t('crm.aiAssistant.saveMemory')}
-              </button>
+              <div className="flex flex-col gap-2.5 rounded-xl border border-slate-200 bg-white p-3.5">
+                <input
+                  className="ai-assistant-input w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] !text-slate-900 outline-none transition placeholder:!text-slate-400 focus:border-[#c9c3ff] focus:ring-2 focus:ring-[#5b4bec]/10"
+                  placeholder={t('crm.aiAssistant.memoryTitlePh')}
+                  value={memTitle}
+                  onChange={(e) => setMemTitle(e.target.value)}
+                />
+                <textarea
+                  className="ai-assistant-input min-h-[80px] w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2 text-[13px] !text-slate-900 outline-none transition placeholder:!text-slate-400 focus:border-[#c9c3ff] focus:ring-2 focus:ring-[#5b4bec]/10"
+                  placeholder={t('crm.aiAssistant.memoryContentPh')}
+                  value={memContent}
+                  onChange={(e) => setMemContent(e.target.value)}
+                />
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[11px] text-slate-400">
+                    {t('crm.aiAssistant.addContextHint')}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => void saveMemory()}
+                    className="shrink-0 rounded-lg bg-[#0f172a] px-3.5 py-2 text-[12.5px] font-medium text-white transition hover:bg-black disabled:opacity-50"
+                  >
+                    {t('crm.aiAssistant.saveMemory')}
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-5 py-4">
-              {memory.length === 0 ? (
-                <p className="text-xs text-slate-400">{t('crm.aiAssistant.memoryListEmpty')}</p>
-              ) : (
-                memory.map((m) => (
-                  <div
-                    key={m.id}
-                    className="rounded-xl border border-slate-100 bg-gradient-to-br from-slate-50/90 to-white p-3 text-xs text-slate-700 shadow-sm"
-                  >
-                    <div className="flex justify-between gap-2">
-                      <span className="font-semibold text-slate-900">
-                        {m.title || t('crm.aiAssistant.memoryUntitled')}
-                      </span>
-                      <button
-                        type="button"
-                        className="shrink-0 text-rose-500 hover:underline"
-                        onClick={() => void removeMemory(m.id)}
-                      >
-                        {t('crm.common.delete')}
-                      </button>
-                    </div>
-                    <p className="mt-1 whitespace-pre-wrap text-[11px] leading-relaxed text-slate-600">
-                      {m.content.slice(0, 2000)}
-                    </p>
-                  </div>
-                ))
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+              {memory.length > 0 && (
+                <div className="mb-3 flex items-center gap-2.5">
+                  <span className="font-mono text-[9.5px] text-slate-300">
+                    {String(memory.length).padStart(2, '0')}
+                  </span>
+                  <span className="h-px flex-1 bg-slate-100" />
+                </div>
               )}
+              <div className="flex flex-col gap-2">
+                {memory.length === 0 ? (
+                  <p className="text-xs text-slate-400">{t('crm.aiAssistant.memoryListEmpty')}</p>
+                ) : (
+                  memory.map((m) => (
+                    <div key={m.id} className="rounded-xl border border-slate-200 bg-white p-3.5">
+                      <div className="flex items-start justify-between gap-2.5">
+                        <span className="text-[13px] font-semibold tracking-tight text-slate-900">
+                          {m.title || t('crm.aiAssistant.memoryUntitled')}
+                        </span>
+                        <button
+                          type="button"
+                          className="shrink-0 text-[11px] font-medium text-slate-400 transition hover:text-rose-600"
+                          onClick={() => void removeMemory(m.id)}
+                        >
+                          {t('crm.common.delete')}
+                        </button>
+                      </div>
+                      <p className="mt-1.5 whitespace-pre-wrap text-[12px] leading-relaxed text-slate-600">
+                        {m.content.slice(0, 2000)}
+                      </p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         ) : (
+          /* ---------------------------- CHAT TAB ---------------------------- */
           <>
-            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/40 bg-slate-100/90 px-5 py-2.5">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-50 px-5 py-2.5">
               <button
                 type="button"
                 onClick={() => void startNewChat()}
-                className="rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-[11px] font-medium !text-slate-900 shadow-sm transition hover:border-violet-400 hover:text-violet-800"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-[7px] text-[12.5px] font-medium text-slate-900 transition hover:border-[#0f172a]"
               >
+                <PlusIcon className="h-3 w-3 text-slate-400" />
                 {t('crm.aiAssistant.newChat')}
               </button>
-              <select
-                className="max-w-[220px] rounded-full border border-slate-300 bg-white px-3 py-1.5 text-[11px] !text-slate-900 shadow-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
-                value={sessionId || ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v) void selectSession(v);
-                }}
-              >
-                <option value="">{t('crm.aiAssistant.pickSession')}</option>
-                {sessions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {(s.title || t('crm.aiAssistant.chatUntitled')).slice(0, 42)}
-                  </option>
-                ))}
-              </select>
+              <div className="relative max-w-[220px] flex-1">
+                <select
+                  className="w-full appearance-none rounded-lg border border-slate-200 bg-white py-[7px] pl-3 pr-7 text-[12.5px] text-slate-900 outline-none focus:border-[#0f172a]"
+                  value={sessionId || ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v) void selectSession(v);
+                  }}
+                >
+                  <option value="">{t('crm.aiAssistant.pickSession')}</option>
+                  {sessions.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {(s.title || t('crm.aiAssistant.chatUntitled')).slice(0, 42)}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              </div>
               {sessionId && (
                 <button
                   type="button"
-                  className="text-[11px] font-medium !text-rose-600 hover:underline"
+                  className="text-[12px] font-medium text-slate-400 transition hover:text-rose-600"
                   onClick={() => void deleteAiSession(sessionId).then(() => startNewChat())}
                 >
                   {t('crm.aiAssistant.deleteSession')}
@@ -952,138 +1057,116 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
 
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               {hub && messages.length === 0 ? (
+                /* ---- HUB / стартовый экран ---- */
                 <div className="min-h-0 flex-1 overflow-y-auto px-5 py-6">
-                  <h2 className="text-center text-[1.35rem] font-bold leading-snug tracking-tight text-slate-900 sm:text-2xl">
-                    {t('crm.aiAssistant.greeting', { name: displayName })}
-                  </h2>
-                  <p className="mx-auto mt-2 max-w-lg text-center text-sm leading-relaxed text-slate-500">
-                    {t('crm.aiAssistant.subGreeting')}
-                  </p>
-
-                  <div className="relative mx-auto mt-6 w-full max-w-xl px-1">
-                    <label className="mb-1 block text-center text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                      {t('crm.aiAssistant.chatTitleField')}
-                    </label>
-                    <input
-                      type="text"
-                      className="ai-assistant-input w-full rounded-xl border border-slate-200/90 bg-white px-3 py-2 text-sm !text-slate-900 shadow-sm outline-none transition placeholder:!text-slate-400 caret-slate-900 focus:border-violet-300 focus:ring-2 focus:ring-violet-100"
-                      placeholder={t('crm.aiAssistant.chatTitlePlaceholder')}
-                      value={newChatTitleDraft}
-                      maxLength={200}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        newChatTitleDraftRef.current = v;
-                        setNewChatTitleDraft(v);
-                      }}
-                      disabled={loading || !configured}
-                    />
-                    <p className="mt-1 text-center text-[10px] text-slate-500">
-                      {t('crm.aiAssistant.chatTitleHint')}
+                  <div className="text-center">
+                    <div className="flex justify-center">
+                      <LottieIcon name="welcome" size={110} />
+                    </div>
+                    <h2 className="text-[1.35rem] font-semibold leading-snug tracking-tight text-slate-900">
+                      {t('crm.aiAssistant.greeting', { name: displayName })
+                        .split(displayName)
+                        .map((part, i, arr) =>
+                          i < arr.length - 1 ? (
+                            <React.Fragment key={i}>
+                              {part}
+                              <em className="text-[#5b4bec] not-italic">{displayName}</em>
+                            </React.Fragment>
+                          ) : (
+                            part
+                          ),
+                        )}
+                    </h2>
+                    <p className="mx-auto mt-2 max-w-lg text-[13.5px] leading-relaxed text-slate-500">
+                      {t('crm.aiAssistant.subGreeting')}
                     </p>
                   </div>
 
-                  <div className="relative mx-auto mt-6 max-w-xl">
-                    <div
-                      className="rounded-2xl p-[2px] shadow-[0_12px_40px_rgba(99,102,241,0.15),0_4px_12px_rgba(15,23,42,0.08)]"
-                      style={{
-                        background:
-                          'linear-gradient(125deg, #c084fc, #818cf8, #22d3ee, #34d399, #fbbf24, #fb7185)',
-                      }}
-                    >
-                      <div className="rounded-[14px] bg-white p-1 shadow-[inset_0_1px_3px_rgba(15,23,42,0.06)]">
-                        <textarea
-                          className="ai-assistant-input min-h-[104px] w-full resize-none border-0 bg-white px-3 py-3 text-sm !text-slate-900 outline-none focus:ring-0 placeholder:!text-slate-500 caret-slate-900"
-                          placeholder={t('crm.aiAssistant.inputPlaceholder')}
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              void send();
-                            }
+                  <div className="mt-6 w-full">
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_12px_30px_-22px_rgba(15,17,25,0.4)] transition focus-within:border-[#c9c3ff] focus-within:shadow-[0_0_0_3px_rgba(91,75,236,0.09)]">
+                      <div className="flex items-center gap-2 border-b border-slate-100 px-3.5 py-2">
+                        <span className="shrink-0 font-mono text-[9px] uppercase tracking-[0.1em] text-slate-400">
+                          {t('crm.aiAssistant.chatTitleField')}
+                        </span>
+                        <input
+                          type="text"
+                          className="ai-assistant-input min-w-0 flex-1 border-0 bg-transparent px-0 py-0.5 text-[12.5px] !text-slate-900 outline-none placeholder:!text-slate-400"
+                          placeholder={t('crm.aiAssistant.chatTitlePlaceholder')}
+                          value={newChatTitleDraft}
+                          maxLength={200}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            newChatTitleDraftRef.current = v;
+                            setNewChatTitleDraft(v);
                           }}
+                          disabled={loading || !configured}
                         />
-                        <div className="flex flex-col gap-1 border-t border-slate-200 bg-slate-50/80">
-                          <div className="flex flex-wrap items-center gap-2 px-2 pt-2">
-                            <button
-                              type="button"
-                              title={t('crm.aiAssistant.attachFileTitle')}
-                              onClick={() => fileInputRef.current?.click()}
-                              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-violet-300 hover:text-violet-800"
-                            >
-                              <PaperclipIcon className="h-4 w-4" />
-                            </button>
-                            <span className="text-[10px] font-medium text-slate-600">
-                              {t('crm.aiAssistant.addContextLabel')}
-                            </span>
-                            {salesImportAttachment && (
-                              <span className="inline-flex max-w-[min(100%,280px)] items-center gap-1 truncate rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-800">
-                                <span className="truncate">
-                                  {t('crm.aiAssistant.attachedSales')}:{' '}
-                                  {salesImportAttachment.fileName}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="shrink-0 text-rose-600 hover:underline"
-                                  onClick={() => setSalesImportAttachment(null)}
-                                >
-                                  {t('crm.aiAssistant.removeAttachment')}
-                                </button>
-                              </span>
-                            )}
-                            {workspaceFileAttachment &&
-                              workspaceFileAttachment.columns.length > 0 && (
-                                <span className="inline-flex max-w-[min(100%,280px)] items-center gap-1 truncate rounded-full border border-emerald-200 bg-emerald-50/90 px-2 py-0.5 text-[10px] text-emerald-950">
-                                  <span className="truncate">
-                                    {t('crm.aiAssistant.attachedWorkspaceCsv')}:{' '}
-                                    {workspaceFileAttachment.fileName} (
-                                    {workspaceFileAttachment.totalRows})
-                                  </span>
-                                  <button
-                                    type="button"
-                                    className="shrink-0 text-rose-600 hover:underline"
-                                    onClick={() => setWorkspaceFileAttachment(null)}
-                                  >
-                                    {t('crm.aiAssistant.removeAttachment')}
-                                  </button>
-                                </span>
-                              )}
-                          </div>
-                          <div className="flex items-center justify-between gap-2 px-2 pb-2">
-                            <span className="text-[10px] text-slate-500">
-                              {t('crm.aiAssistant.addContextHint')}
-                            </span>
-                            <button
-                              type="button"
-                              disabled={
-                                loading ||
-                                !configured ||
-                                (!input.trim() &&
-                                  !salesImportAttachment &&
-                                  !workspaceFileAttachment)
-                              }
-                              onClick={() => void send()}
-                              title={t('crm.aiAssistant.send')}
-                              className="group flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-violet-700 bg-violet-600 !text-white shadow-[0_4px_14px_rgba(109,40,217,0.45)] transition hover:bg-violet-700 hover:brightness-105 disabled:cursor-not-allowed disabled:border-slate-400 disabled:bg-slate-200 disabled:shadow-none"
-                            >
-                              <SendArrowIcon className="h-5 w-5 shrink-0 text-white group-disabled:text-slate-600" />
-                            </button>
-                          </div>
-                        </div>
                       </div>
+                      <textarea
+                        className="ai-assistant-input block min-h-[96px] w-full resize-none border-0 bg-white px-4 py-4 text-[14.5px] leading-relaxed !text-slate-900 outline-none focus:ring-0 placeholder:!text-slate-400"
+                        placeholder={t('crm.aiAssistant.inputPlaceholder')}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            void send();
+                          }
+                        }}
+                      />
+                      <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-2.5 py-2">
+                        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                          <button
+                            type="button"
+                            title={t('crm.aiAssistant.attachFileTitle')}
+                            onClick={() => fileInputRef.current?.click()}
+                            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-[11.5px] font-medium text-slate-600 transition hover:border-[#0f172a] hover:text-slate-900"
+                          >
+                            <PaperclipIcon className="h-3.5 w-3.5" />
+                            {t('crm.aiAssistant.addContextLabel')}
+                          </button>
+                          {speechSupported && (
+                            <button
+                              type="button"
+                              onClick={toggleVoice}
+                              title={isListening ? 'Остановить запись' : 'Голосовой ввод'}
+                              className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition ${isListening ? 'animate-pulse border-rose-300 bg-rose-50 text-rose-600' : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f172a] hover:text-slate-900'}`}
+                            >
+                              <MicIcon className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                          {composerAttachChip(false)}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!canSend}
+                          onClick={() => void send()}
+                          title={t('crm.aiAssistant.send')}
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#0f172a] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                        >
+                          <SendArrowIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3 px-1">
+                      <span className="text-[11px] text-slate-400">{t('crm.aiAssistant.chatTitleHint')}</span>
+                      <span className="hidden shrink-0 items-center gap-1 text-[11px] text-slate-400 sm:inline-flex">
+                        <kbd className="rounded border border-slate-200 bg-white px-1 font-mono text-[9.5px]">Enter</kbd>
+                        {t('crm.aiAssistant.send')}
+                      </span>
                     </div>
                   </div>
 
                   {imagePanelOpen && (
-                    <div className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-violet-200 bg-violet-50/95 p-4 shadow-sm">
+                    <div className="mt-5 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4">
                       <div className="text-xs font-semibold text-slate-900">
                         {t('crm.aiAssistant.imagePanelTitle')}
                       </div>
-                      <p className="mt-1 text-[11px] leading-relaxed text-slate-600">
+                      <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
                         {t('crm.aiAssistant.imagePanelHint')}
                       </p>
                       <textarea
-                        className="ai-assistant-input mt-3 min-h-[96px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm outline-none focus:border-violet-400 focus:ring-2 focus:ring-violet-100"
+                        className="ai-assistant-input mt-3 min-h-[96px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#c9c3ff] focus:ring-2 focus:ring-[#5b4bec]/10"
                         value={imagePromptLocal}
                         onChange={(e) => setImagePromptLocal(e.target.value)}
                         placeholder={t('crm.aiAssistant.imagePrompt')}
@@ -1093,7 +1176,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                           type="button"
                           disabled={loading || !configured || !imagePromptLocal.trim()}
                           onClick={() => void runImageWithPrompt(imagePromptLocal)}
-                          className="rounded-xl bg-violet-600 px-4 py-2 text-xs font-semibold text-white shadow-md transition hover:bg-violet-700 disabled:opacity-50"
+                          className="rounded-lg bg-[#0f172a] px-4 py-2 text-xs font-semibold text-white transition hover:bg-black disabled:opacity-50"
                         >
                           {t('crm.aiAssistant.generateImageAction')}
                         </button>
@@ -1103,7 +1186,7 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                             setImagePanelOpen(false);
                             setImagePromptLocal('');
                           }}
-                          className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-medium text-slate-800 shadow-sm hover:bg-slate-50"
+                          className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:border-[#0f172a]"
                         >
                           {t('crm.common.cancel')}
                         </button>
@@ -1111,49 +1194,40 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                     </div>
                   )}
 
-                  <div className="mx-auto mt-9 w-full max-w-lg px-1">
-                    <div className="flex flex-col items-center gap-5">
-                      <div className="flex flex-wrap justify-center gap-x-3 gap-y-4 sm:gap-x-4">
-                        {renderPresetKeyRow(PRESET_ORDER.slice(0, 5))}
-                      </div>
-                      <div className="flex flex-wrap justify-center gap-x-3 gap-y-4 sm:gap-x-4">
-                        {renderPresetKeyRow(PRESET_ORDER.slice(5))}
-                        <button
-                          type="button"
-                          title={t('crm.aiAssistant.presetQuickActionTitle')}
-                          onClick={() => {
-                            void (async () => {
-                              try {
-                                await ensureSessionId();
-                              } catch {
-                                return;
-                              }
-                              setImagePanelOpen(true);
-                              setImagePromptLocal((prev) => prev || input.trim());
-                            })();
-                          }}
-                          className="group flex w-[76px] shrink-0 flex-col items-center gap-2 text-center"
-                        >
-                          <PresetCircleRing presetKey="image">
-                            <MondayLineIcon presetKey="image" />
-                          </PresetCircleRing>
-                          <span className="text-[10px] font-medium leading-tight text-slate-600">
-                            {t('crm.aiAssistant.genImage')}
-                          </span>
-                        </button>
-                      </div>
+                  <div className="mt-8 w-full">
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <span className="font-mono text-[9.5px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                        {t('crm.aiAssistant.presetQuickActionTitle')}
+                      </span>
+                      <span className="h-px flex-1 bg-slate-100" />
                     </div>
-                  </div>
-
-                  <p className="mt-10 text-center text-[11px] font-medium uppercase tracking-[0.2em] text-slate-500">
-                    {t('crm.aiAssistant.cardsIntro')}
-                  </p>
-                  <div className="mx-auto mt-4 w-full rounded-2xl bg-slate-200/50 p-3 ring-1 ring-slate-300/60">
-                    <div className="grid w-full grid-cols-2 gap-2.5 lg:grid-cols-3 xl:grid-cols-4">
-                    {presetCards.map((c, i) => (
+                    <div className="grid grid-cols-3 gap-2">
+                      {PRESET_ORDER.map((key) => {
+                        const p = quickPresets[key];
+                        if (!p) return null;
+                        const Icon = PRESET_ICON[key];
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            title={t('crm.aiAssistant.presetQuickActionTitle')}
+                            onClick={() => runPreset(key)}
+                            className="group flex min-w-0 items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2.5 text-left transition hover:-translate-y-px hover:border-[#0f172a] hover:shadow-[0_10px_22px_-18px_rgba(15,17,25,0.5)]"
+                          >
+                            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-900 transition group-hover:border-[#0f172a] group-hover:bg-[#0f172a] group-hover:text-white">
+                              <Icon className="h-3.5 w-3.5" />
+                            </span>
+                            <span className="min-w-0">
+                              <span className="block truncate text-[12px] font-medium leading-tight text-slate-900">
+                                {p.label}
+                              </span>
+                            </span>
+                          </button>
+                        );
+                      })}
                       <button
-                        key={i}
                         type="button"
+                        title={t('crm.aiAssistant.genImage')}
                         onClick={() => {
                           void (async () => {
                             try {
@@ -1161,25 +1235,67 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                             } catch {
                               return;
                             }
-                            setInput(c.prompt);
-                            setHub(false);
+                            setImagePanelOpen(true);
+                            setImagePromptLocal((prev) => prev || input.trim());
                           })();
                         }}
-                        className="group rounded-xl border-2 border-slate-200 bg-white p-3.5 text-left shadow-[0_4px_16px_rgba(15,23,42,0.08)] transition hover:border-violet-400 hover:shadow-[0_8px_24px_rgba(99,102,241,0.15)]"
+                        className="group flex min-w-0 items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-2.5 py-2.5 text-left transition hover:-translate-y-px hover:border-[#0f172a] hover:shadow-[0_10px_22px_-18px_rgba(15,17,25,0.5)]"
                       >
-                        <span className="mb-2 inline-block rounded-lg bg-violet-50 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-700 group-hover:bg-violet-100">
-                          {c.tag}
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-900 transition group-hover:border-[#0f172a] group-hover:bg-[#0f172a] group-hover:text-white">
+                          <PRESET_ICON.image className="h-3.5 w-3.5" />
                         </span>
-                        <div className="text-[11px] font-medium leading-snug text-slate-800">{c.title}</div>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[12px] font-medium leading-tight text-slate-900">
+                            {t('crm.aiAssistant.genImage')}
+                          </span>
+                        </span>
                       </button>
-                    ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-8 w-full">
+                    <div className="mb-3 flex items-center gap-2.5">
+                      <span className="font-mono text-[9.5px] font-medium uppercase tracking-[0.14em] text-slate-400">
+                        {t('crm.aiAssistant.cardsIntro')}
+                      </span>
+                      <span className="h-px flex-1 bg-slate-100" />
+                      <span className="font-mono text-[9.5px] text-slate-300">
+                        {String(presetCards.length).padStart(2, '0')}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {presetCards.map((c, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            void (async () => {
+                              try {
+                                await ensureSessionId();
+                              } catch {
+                                return;
+                              }
+                              setInput(c.prompt);
+                              setHub(false);
+                            })();
+                          }}
+                          className="group relative flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 text-left transition hover:border-[#0f172a] hover:shadow-[0_10px_24px_-20px_rgba(15,17,25,0.5)]"
+                        >
+                          <span className="font-mono text-[8.5px] font-medium uppercase tracking-[0.11em] text-slate-400">
+                            {c.tag}
+                          </span>
+                          <p className="pr-4 text-[12.5px] leading-snug text-slate-800">{c.title}</p>
+                          <ArrowRightIcon className="absolute bottom-3 right-3 h-3.5 w-3.5 -translate-x-0.5 text-slate-300 opacity-0 transition group-hover:translate-x-0 group-hover:text-slate-900 group-hover:opacity-100" />
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+                /* ---- активный диалог ---- */
+                <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5">
                   {lastImageUrl && (
-                    <div className="rounded-2xl border border-emerald-100/90 bg-emerald-50/90 p-3 text-xs text-emerald-950 shadow-sm">
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-950">
                       <div className="mb-2 font-semibold">{t('crm.aiAssistant.imageReady')}</div>
                       <img
                         src={lastImageUrl}
@@ -1195,25 +1311,32 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                       </button>
                     </div>
                   )}
-                  {displayMessages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-[0_4px_16px_rgba(15,23,42,0.08)] ${
-                          m.role === 'user'
-                            ? 'border border-lumiva-accent/30 bg-lumiva-accent !text-white'
-                            : 'border border-slate-200 bg-white !text-slate-900 shadow-sm'
-                        }`}
-                      >
-                        <AiChatMarkdown
-                          text={m.content || ''}
-                          variant={m.role === 'user' ? 'user' : 'assistant'}
-                        />
+                  {displayMessages.map((m) => {
+                    const isUser = m.role === 'user';
+                    return (
+                      <div key={m.id} className="flex gap-2.5">
+                        <span
+                          className={`flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-lg font-mono text-[9px] font-medium tracking-wide ${
+                            isUser ? 'border border-slate-200 bg-slate-50 text-slate-600' : 'bg-[#0f172a] text-white'
+                          }`}
+                        >
+                          {isUser ? userInitials : 'AI'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="mb-1.5 font-mono text-[9px] uppercase tracking-[0.1em] text-slate-400">
+                            {isUser ? `Вы · ${formatMsgTime(m.createdAt)}` : t('crm.aiAssistant.title')}
+                          </div>
+                          <div
+                            className={`text-[13.5px] leading-relaxed ${
+                              isUser ? 'rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-slate-900' : 'text-slate-800'
+                            }`}
+                          >
+                            <AiChatMarkdown text={m.content || ''} variant={isUser ? 'user' : 'assistant'} />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {(loading || imageGenPending) &&
                     (workspaceImportPending ? (
                       <WorkspaceImportingIndicator
@@ -1221,11 +1344,9 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
                         totalRows={workspaceImportPending.totalRows}
                       />
                     ) : (
-                      <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <span className="inline-flex h-1.5 w-1.5 animate-pulse rounded-full bg-violet-400" />
-                        {imageGenPending
-                          ? t('crm.aiAssistant.imageGenerating')
-                          : t('crm.aiAssistant.thinking')}
+                      <div className="flex items-center gap-1.5 pl-9 text-xs text-slate-400">
+                        <LottieIcon name="ai-sparkle-orbit" size={20} className="shrink-0 -my-1.5" />
+                        {imageGenPending ? t('crm.aiAssistant.imageGenerating') : t('crm.aiAssistant.thinking')}
                       </div>
                     ))}
                   <div ref={bottomRef} />
@@ -1233,118 +1354,73 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
               )}
 
               {!hub || messages.length > 0 ? (
-                <div className="border-t border-slate-200/80 bg-slate-100/95 px-4 py-3 shadow-[0_-8px_32px_rgba(15,23,42,0.06)]">
-                  <div
-                    className="rounded-xl p-[2px] shadow-[0_8px_24px_rgba(99,102,241,0.12)]"
-                    style={{
-                      background:
-                        'linear-gradient(120deg, #c084fc, #818cf8, #22d3ee, #34d399, #fbbf24)',
-                    }}
-                  >
-                    <div className="flex flex-col gap-1.5 rounded-[10px] border border-slate-100 bg-white p-2 shadow-[inset_0_1px_2px_rgba(15,23,42,0.04)]">
-                      <div className="flex flex-wrap items-center gap-2 px-0.5">
+                /* ---- докованный композер ---- */
+                <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3.5">
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white transition focus-within:border-[#c9c3ff] focus-within:ring-2 focus-within:ring-[#5b4bec]/10">
+                    <textarea
+                      className="ai-assistant-input block max-h-32 min-h-[44px] w-full resize-none border-0 bg-white px-3.5 py-2.5 text-sm !text-slate-900 outline-none placeholder:!text-slate-400"
+                      placeholder={t('crm.aiAssistant.chatPlaceholder')}
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          void send();
+                        }
+                      }}
+                    />
+                    <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-2.5 py-2">
+                      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           title={t('crm.aiAssistant.attachFileTitle')}
                           onClick={() => fileInputRef.current?.click()}
-                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 transition hover:border-violet-300 hover:text-violet-800"
+                          className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 transition hover:border-[#0f172a] hover:text-slate-900"
                         >
                           <PaperclipIcon className="h-3.5 w-3.5" />
                         </button>
-                        <span className="text-[10px] font-medium text-slate-600">
-                          {t('crm.aiAssistant.addContextLabel')}
-                        </span>
-                        {salesImportAttachment && (
-                          <span className="inline-flex max-w-[200px] items-center gap-1 truncate rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[9px] text-slate-800">
-                            <span className="truncate">{salesImportAttachment.fileName}</span>
-                            <button
-                              type="button"
-                              className="shrink-0 text-rose-600"
-                              onClick={() => setSalesImportAttachment(null)}
-                            >
-                              ×
-                            </button>
-                          </span>
-                        )}
-                        {workspaceFileAttachment &&
-                          workspaceFileAttachment.columns.length > 0 && (
-                            <span className="inline-flex max-w-[200px] items-center gap-1 truncate rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[9px] text-emerald-950">
-                              <span className="truncate">
-                                {workspaceFileAttachment.fileName}
-                              </span>
-                              <button
-                                type="button"
-                                className="shrink-0 text-rose-600"
-                                onClick={() => setWorkspaceFileAttachment(null)}
-                              >
-                                ×
-                              </button>
-                            </span>
-                          )}
-                      </div>
-                      <div className="flex items-end gap-2">
-                        <textarea
-                          className="ai-assistant-input max-h-32 min-h-[44px] flex-1 resize-none border-0 bg-white px-2 py-2 text-sm !text-slate-900 outline-none placeholder:!text-slate-500 caret-slate-900"
-                          placeholder={t('crm.aiAssistant.chatPlaceholder')}
-                          value={input}
-                          onChange={(e) => setInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                              e.preventDefault();
-                              void send();
-                            }
-                          }}
-                        />
                         {speechSupported && (
                           <button
                             type="button"
                             onClick={toggleVoice}
                             title={isListening ? 'Остановить запись' : 'Голосовой ввод'}
-                            className={`mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 transition ${isListening ? 'animate-pulse border-rose-500 bg-rose-50 text-rose-600' : 'border-slate-300 bg-white text-slate-500 hover:border-violet-400 hover:text-violet-600'}`}
+                            className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md border transition ${isListening ? 'animate-pulse border-rose-300 bg-rose-50 text-rose-600' : 'border-slate-200 bg-white text-slate-600 hover:border-[#0f172a] hover:text-slate-900'}`}
                           >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="9" y="2" width="6" height="12" rx="3"/>
-                              <path d="M5 10a7 7 0 0014 0M12 19v3M9 22h6"/>
-                            </svg>
+                            <MicIcon className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        <button
-                          type="button"
-                          disabled={
-                            loading ||
-                            !configured ||
-                            (!input.trim() &&
-                              !salesImportAttachment &&
-                              !workspaceFileAttachment)
-                          }
-                          onClick={() => void send()}
-                          title={t('crm.aiAssistant.send')}
-                          className="group mb-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2 border-violet-700 bg-violet-600 !text-white shadow-[0_4px_14px_rgba(109,40,217,0.45)] transition hover:bg-violet-700 disabled:cursor-not-allowed disabled:border-slate-400 disabled:bg-slate-200 disabled:shadow-none"
-                        >
-                          <SendArrowIcon className="h-5 w-5 shrink-0 text-white group-disabled:text-slate-600" />
-                        </button>
+                        {composerAttachChip(true)}
                       </div>
+                      <button
+                        type="button"
+                        disabled={!canSend}
+                        onClick={() => void send()}
+                        title={t('crm.aiAssistant.send')}
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0f172a] text-white transition hover:bg-black disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                      >
+                        <SendArrowIcon className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => void topup('ai_prepaid')}
-                      className="rounded-full border border-violet-400 bg-violet-100 px-3 py-1 text-[10px] font-semibold !text-violet-950 shadow-sm transition hover:bg-violet-200"
+                      className="rounded-full border border-[#ddd8ff] bg-[#f1efff] px-3 py-1 text-[10.5px] font-medium text-[#5b4bec] transition hover:bg-[#e9e5ff]"
                     >
                       {t('crm.aiAssistant.topupAi')}
                     </button>
                     <button
                       type="button"
                       onClick={() => void topup('storage_pack')}
-                      className="rounded-full border-2 border-slate-400 bg-white px-3 py-1 text-[10px] font-medium !text-slate-900 shadow-sm transition hover:bg-slate-50"
+                      className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[10.5px] font-medium text-slate-700 transition hover:border-[#0f172a]"
                     >
                       {t('crm.aiAssistant.topupStorage')}
                     </button>
                     <button
                       type="button"
                       onClick={() => setHub(true)}
-                      className="rounded-full border-2 border-slate-400 bg-white px-3 py-1 text-[10px] font-medium !text-slate-900 shadow-sm transition hover:bg-slate-50"
+                      className="ml-auto rounded-full border border-slate-200 bg-white px-3 py-1 text-[10.5px] font-medium text-slate-700 transition hover:border-[#0f172a]"
                     >
                       {t('crm.aiAssistant.backToHub')}
                     </button>
@@ -1354,7 +1430,6 @@ export const AiAssistantPanel: React.FC<AiAssistantPanelProps> = ({
             </div>
           </>
         )}
-        </div>
       </aside>
     </div>,
     document.body,

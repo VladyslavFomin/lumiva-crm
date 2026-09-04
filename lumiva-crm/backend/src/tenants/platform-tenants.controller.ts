@@ -33,10 +33,14 @@ export class PlatformTenantsController {
       status: t.status,
       plan: normalizeTenantPlan(t.plan),
       apiEnabled: t.apiEnabled,
+      paymentProvider: t.paymentProvider,
       activeUntil: t.activeUntil,
       ownerName: t.ownerName,
       ownerEmail: t.ownerEmail,
       notes: t.notes,
+      customDomain: t.customDomain,
+      customDomainStatus: t.customDomainStatus,
+      customDomainError: t.customDomainError,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
     };
@@ -272,6 +276,7 @@ export class PlatformTenantsController {
       ownerName?: string | null;
       ownerEmail?: string | null;
       notes?: string | null;
+      paymentProvider?: 'stripe' | 'yookassa' | 'iyzico' | null;
     },
   ) {
     const tenant = await this.tenants.platformUpdateTenant(id, body);
@@ -311,6 +316,47 @@ export class PlatformTenantsController {
     const tenant = await this.tenants.platformUpdateTenant(id, {
       apiEnabled: mode === 'on',
     });
+    return this.mapTenant(tenant);
+  }
+
+  /**
+   * Записать/снять запрошенный клиентом кастомный домен (переводит в pending). Настраивается
+   * только отсюда — по запросу клиента, никакого self-service.
+   */
+  @Patch(':id/domain')
+  async setDomain(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { customDomain: string | null },
+  ) {
+    const tenant = await this.tenants.setTenantCustomDomain(
+      id,
+      body.customDomain ?? null,
+    );
+    return this.mapTenant(tenant);
+  }
+
+  /**
+   * Отметить домен активным — вызывается вручную (или provision-tenant-domain.sh) после того,
+   * как сертификат и nginx-vhost реально выпущены.
+   */
+  @Post(':id/domain/mark-active')
+  async markDomainActive(@Param('id', new ParseUUIDPipe()) id: string) {
+    const tenant = await this.tenants.markCustomDomainActive(id);
+    return this.mapTenant(tenant);
+  }
+
+  /**
+   * Отметить провижининг домена неудавшимся, с причиной для отображения в pl1.
+   */
+  @Post(':id/domain/mark-failed')
+  async markDomainFailed(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { error: string },
+  ) {
+    const tenant = await this.tenants.markCustomDomainFailed(
+      id,
+      body.error || 'Неизвестная ошибка',
+    );
     return this.mapTenant(tenant);
   }
 

@@ -1,6 +1,7 @@
 // src/pages/analytics/LeadsRoiPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useTranslation } from 'react-i18next';
 import {
   fetchLeadRoi,
@@ -217,6 +218,7 @@ export const LeadsRoiPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="leadsRoi" />
       <div className="space-y-4 md:space-y-6 pb-8">
         {/* Заголовок + пресеты + режим */}
         <section className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

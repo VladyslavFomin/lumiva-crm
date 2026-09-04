@@ -1,6 +1,8 @@
 // src/pages/telephony/TelephonySmsPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { TelephonySubnav } from './TelephonySubnav';
 import { fetchSmsMessages, sendSms, type SmsMessage } from '../../api/sms';
 import { useAlertModal } from '../../contexts/AlertModalContext';
@@ -31,6 +33,7 @@ function buildThreads(messages: SmsMessage[]): Thread[] {
 }
 
 export const TelephonySmsPage: React.FC = () => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [messages, setMessages] = useState<SmsMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +47,7 @@ export const TelephonySmsPage: React.FC = () => {
       const data = await fetchSmsMessages({ limit: 500 });
       setMessages(data.items);
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось загрузить SMS', { variant: 'error' });
+      showAlert(e?.message || t('crm.telephony.sms.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -71,7 +74,7 @@ export const TelephonySmsPage: React.FC = () => {
       setMessages((prev) => [...prev, msg]);
       setDraft('');
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось отправить SMS', { variant: 'error' });
+      showAlert(e?.message || t('crm.telephony.sms.sendError'), { variant: 'error' });
     } finally {
       setSending(false);
     }
@@ -79,45 +82,46 @@ export const TelephonySmsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="telephonySms" />
       <div className="px-scope">
         <div className="tel-hero">
           <div>
-            <div className="kicker"><span className="dot" />{messages.length} СООБЩЕНИЙ</div>
-            <h1>SMS-переписки</h1>
-            <p className="sub">Все входящие и исходящие SMS в одном месте.</p>
+            <div className="kicker"><span className="dot" />{t('crm.telephony.sms.kicker', { count: messages.length })}</div>
+            <h1>{t('crm.telephony.sms.title')}</h1>
+            <p className="sub">{t('crm.telephony.sms.subtitle')}</p>
           </div>
         </div>
 
         <TelephonySubnav active="sms" />
 
         <div className="tel-kpis" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
-          <div className="tel-kpi"><div className="l">Отправлено</div><div className="v">{totalSent}</div></div>
-          <div className="tel-kpi"><div className="l">Доставлено</div><div className="v">{deliveryRate}%</div></div>
-          <div className="tel-kpi"><div className="l">Получено</div><div className="v">{totalReceived}</div></div>
+          <div className="tel-kpi"><div className="l">{t('crm.telephony.sms.kpis.sent')}</div><div className="v">{totalSent}</div></div>
+          <div className="tel-kpi"><div className="l">{t('crm.telephony.sms.kpis.delivered')}</div><div className="v">{deliveryRate}%</div></div>
+          <div className="tel-kpi"><div className="l">{t('crm.telephony.sms.kpis.received')}</div><div className="v">{totalReceived}</div></div>
         </div>
 
         {loading ? (
-          <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Загрузка…</div>
+          <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>{t('crm.telephony.sms.loading')}</div>
         ) : threads.length === 0 ? (
           <div className="bk-table-wrap" style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13, marginTop: 14 }}>
-            SMS-переписок пока нет
+            {t('crm.telephony.sms.emptyThreads')}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '320px 1fr', gap: 0, border: '1px solid var(--line-2)', borderRadius: 12, overflow: 'hidden', marginTop: 14, background: '#fff' }}>
             <div style={{ borderRight: '1px solid var(--line-2)', maxHeight: 560, overflowY: 'auto' }}>
-              {threads.map((t) => (
+              {threads.map((th) => (
                 <div
-                  key={t.phone}
+                  key={th.phone}
                   className="sms-thread-row"
-                  style={{ background: activePhone === t.phone ? 'var(--bg-muted)' : undefined }}
-                  onClick={() => setActivePhone(t.phone)}
+                  style={{ background: activePhone === th.phone ? 'var(--bg-muted)' : undefined }}
+                  onClick={() => setActivePhone(th.phone)}
                 >
-                  <div className="sms-ava">{t.phone.slice(-2)}</div>
+                  <div className="sms-ava">{th.phone.slice(-2)}</div>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, fontFamily: 'var(--ff-mono)' }}>{t.phone}</div>
-                    <div className="sms-preview">{t.lastMessage.direction === 'outbound' ? 'Вы: ' : ''}{t.lastMessage.body}</div>
+                    <div style={{ fontWeight: 600, fontSize: 13, fontFamily: 'var(--ff-mono)' }}>{th.phone}</div>
+                    <div className="sms-preview">{th.lastMessage.direction === 'outbound' ? t('crm.telephony.sms.youPrefix') : ''}{th.lastMessage.body}</div>
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--fg-3)', textAlign: 'right' }}>{new Date(t.lastMessage.createdAt).toLocaleDateString()}</div>
+                  <div style={{ fontSize: 11, color: 'var(--fg-3)', textAlign: 'right' }}>{new Date(th.lastMessage.createdAt).toLocaleDateString()}</div>
                 </div>
               ))}
             </div>
@@ -134,14 +138,14 @@ export const TelephonySmsPage: React.FC = () => {
                       {m.body}
                       <span className="meta">
                         {new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        {m.direction === 'outbound' && m.status === 'failed' ? ' · не доставлено' : ''}
+                        {m.direction === 'outbound' && m.status === 'failed' ? ` · ${t('crm.telephony.sms.notDelivered')}` : ''}
                       </span>
                     </div>
                   ))}
                 </div>
                 <div className="sms-chat-input">
-                  <input placeholder="Написать сообщение…" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }} />
-                  <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={sending || !draft.trim()}>Отправить</button>
+                  <input placeholder={t('crm.telephony.sms.inputPlaceholder')} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }} />
+                  <button className="btn btn-primary btn-sm" onClick={handleSend} disabled={sending || !draft.trim()}>{t('crm.telephony.sms.sendBtn')}</button>
                 </div>
               </div>
             )}

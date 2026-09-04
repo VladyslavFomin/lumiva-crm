@@ -84,7 +84,20 @@ export class WhatsappCrmService {
       contact.connectionId = connectionId;
       if (msg.profileName) contact.waProfileName = msg.profileName;
     }
-    contact = await this.contactRepo.save(contact);
+    try {
+      contact = await this.contactRepo.save(contact);
+    } catch (error) {
+      // Гонка двух почти одновременных вебхуков от одного номера — обе ветки прошли
+      // find-then-create до того, как первая успела сохраниться. UQ_whatsapp_contacts_tenant_phone
+      // (см. migrations/20260902120000) ловит это на уровне БД вместо тихого дубля контакта.
+      if ((error as { code?: string }).code === '23505') {
+        const existing = await this.contactRepo.findOne({ where: { tenantId, waPhoneDigits: digits } });
+        if (!existing) throw error;
+        contact = existing;
+      } else {
+        throw error;
+      }
+    }
 
     let lead: Lead | null = null;
     if (contact.leadId) lead = await this.leadRepo.findOne({ where: { id: contact.leadId, tenantId } });
@@ -103,18 +116,28 @@ export class WhatsappCrmService {
       await this.contactRepo.save(contact);
     }
 
-    const message = await this.messageRepo.save(this.messageRepo.create({
-      tenantId,
-      contactId: contact.id,
-      connectionId,
-      waMessageId: msg.waMessageId,
-      direction: 'incoming',
-      text: msg.type === 'text' ? (msg.text || null) : null,
-      messageType: msg.type,
-      date: msg.timestamp ? new Date(msg.timestamp * 1000) : new Date(),
-      isRead: false,
-      rawData: msg.raw,
-    }));
+    let message: WhatsappMessage;
+    try {
+      message = await this.messageRepo.save(this.messageRepo.create({
+        tenantId,
+        contactId: contact.id,
+        connectionId,
+        waMessageId: msg.waMessageId,
+        direction: 'incoming',
+        text: msg.type === 'text' ? (msg.text || null) : null,
+        messageType: msg.type,
+        date: msg.timestamp ? new Date(msg.timestamp * 1000) : new Date(),
+        isRead: false,
+        rawData: msg.raw,
+      }));
+    } catch (error) {
+      // Тот же класс гонки, что и у контакта выше — обгоняющая доставка того же
+      // waMessageId уже прошла find-then-create до сохранения этой. Не задваиваем.
+      if ((error as { code?: string }).code === '23505' && msg.waMessageId) {
+        return null;
+      }
+      throw error;
+    }
 
     const lines = [
       'Входящее сообщение WhatsApp',

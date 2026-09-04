@@ -46,7 +46,18 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * A 403 from a widget's own fetch (a lead's WooCommerce orders, custom fields, etc.) — the
+ * caller should show a friendly "ask the assignee" message instead of this raw ApiError's text
+ * (NestJS's default is literally "Forbidden resource"), same spirit as the route-level fix in
+ * MainLayout but for inline sections that keep loading independently after the page has mounted.
+ */
+export function isForbiddenError(e: unknown): boolean {
+  return e instanceof ApiError && e.status === 403;
+}
+
 const TENANT_INACTIVE_KEY = 'lumiva_tenant_inactive';
+const FORBIDDEN_KEY = 'lumiva_forbidden_notice';
 type ApiRequestInit = RequestInit & { skipUnauthorizedRedirect?: boolean };
 
 function handleUnauthorized() {
@@ -54,6 +65,39 @@ function handleUnauthorized() {
   persistSessionExpired('unauthorized');
   if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
     window.location.href = '/login';
+  }
+}
+
+/**
+ * Shown once on the dashboard after MainLayout redirects a user away from a route their own
+ * permission matrix says they can't see (see routeAllowed in MainLayout.tsx). Deliberately NOT
+ * triggered reactively off a 403 response here — an incidental background fetch (nav badge
+ * counts, notification polling, etc.) 403ing must never redirect the user off a page they DO
+ * have access to just because some unrelated widget on it lacks permission for its own data.
+ */
+export function persistForbiddenNotice(path: string) {
+  try {
+    sessionStorage.setItem(FORBIDDEN_KEY, JSON.stringify({ path, ts: Date.now() }));
+  } catch {
+    // ignore
+  }
+}
+
+export function readForbiddenNotice(): { path: string; ts: number } | null {
+  try {
+    const raw = sessionStorage.getItem(FORBIDDEN_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function clearForbiddenNotice() {
+  try {
+    sessionStorage.removeItem(FORBIDDEN_KEY);
+  } catch {
+    // ignore
   }
 }
 
@@ -201,7 +245,14 @@ export interface LoginResponse {
   tenant?: { name?: string | null };
 }
 
-export async function login(payload: LoginRequest): Promise<LoginResponse> {
+export interface TwoFactorRequiredResponse {
+  twoFactorRequired: true;
+  challengeToken: string;
+}
+
+export async function login(
+  payload: LoginRequest,
+): Promise<LoginResponse | TwoFactorRequiredResponse> {
   const res = await fetch(`${API_BASE}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -237,7 +288,50 @@ export async function login(payload: LoginRequest): Promise<LoginResponse> {
     throw new ApiError(msg, res.status, data?.code, data);
   }
 
-  return data as LoginResponse;
+  return data as LoginResponse | TwoFactorRequiredResponse;
+}
+
+/**
+ * Резолвит clientKey по кастомному домену тенанта (см. GET /tenants/by-domain) — используется
+ * страницей логина, когда её открыли не с crm.lumiva.agency, чтобы не показывать клиенту поле
+ * с его собственным company slug. Возвращает null, если домен не настроен/не активен — это
+ * штатный случай (например для самого crm.lumiva.agency), а не ошибка.
+ */
+export async function resolveClientKeyByDomain(host: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${API_BASE}/tenants/by-domain?host=${encodeURIComponent(host)}`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.clientKey || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function verifyTwoFactorLogin(payload: {
+  challengeToken: string;
+  code: string;
+}): Promise<LoginResponse & { usedBackupCode?: boolean }> {
+  const res = await fetch(`${API_BASE}/auth/verify-2fa`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  let data: any;
+  try {
+    data = await res.json();
+  } catch {
+    throw new ApiError(`2FA error: ${res.status}`, res.status);
+  }
+  if (!res.ok) {
+    throw new ApiError(
+      data?.message || `2FA error: ${res.status} ${res.statusText}`,
+      res.status,
+      data?.code,
+      data,
+    );
+  }
+  return data;
 }
 
 export interface SignupRequest {
@@ -370,7 +464,7 @@ export async function createCheckoutSession(payload: {
   period?: 'month' | 'year';
   successUrl: string;
   cancelUrl: string;
-}): Promise<{ id: string; url: string | null }> {
+}): Promise<{ id: string; url: string | null; provider: 'stripe' | 'yookassa' | 'iyzico'; ref?: string }> {
   return request('/billing/checkout-session', {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -392,6 +486,16 @@ export async function confirmCheckoutSession(sessionId: string): Promise<{ ok: b
   return request(`/billing/checkout-confirm?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'GET',
   });
+}
+
+export async function confirmProviderCheckout(params: {
+  provider: 'yookassa';
+  ref: string;
+}): Promise<{ ok: boolean }> {
+  return request(
+    `/billing/checkout-confirm?provider=${encodeURIComponent(params.provider)}&ref=${encodeURIComponent(params.ref)}`,
+    { method: 'GET' },
+  );
 }
 
 export async function createPortalSession(payload: { returnUrl: string }): Promise<{ url: string }> {

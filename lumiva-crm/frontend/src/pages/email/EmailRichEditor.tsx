@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -23,6 +24,7 @@ export const EmailRichEditor: React.FC<EmailRichEditorProps> = ({
   className = '',
   variant = 'dark',
 }) => {
+  const { t } = useTranslation();
   const editor = useEditor({
     extensions: [
       // StarterKit v3 уже включает Link и Underline — не подключать их повторно
@@ -93,13 +95,13 @@ export const EmailRichEditor: React.FC<EmailRichEditorProps> = ({
     <div className={`${wrap} ${className}`}>
       <div className={toolbar}>
         <button type="button" className={btn(editor.isActive('bold'))} onClick={() => editor.chain().focus().toggleBold().run()}>
-          Ж
+          {t('crm.email.richEditor.bold')}
         </button>
         <button type="button" className={btn(editor.isActive('italic'))} onClick={() => editor.chain().focus().toggleItalic().run()}>
-          К
+          {t('crm.email.richEditor.italic')}
         </button>
         <button type="button" className={btn(editor.isActive('underline'))} onClick={() => editor.chain().focus().toggleUnderline().run()}>
-          Ч
+          {t('crm.email.richEditor.underline')}
         </button>
         <button type="button" className={btn(editor.isActive('strike'))} onClick={() => editor.chain().focus().toggleStrike().run()}>
           S̶

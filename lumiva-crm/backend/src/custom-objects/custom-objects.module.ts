@@ -14,6 +14,9 @@ import { Tenant } from '../tenants/tenant.entity';
 import { ApiToken } from '../api-tokens/api-token.entity';
 import { ApiTokenGuard } from '../api-tokens/api-token.guard';
 import { TenantsModule } from '../tenants/tenants.module';
+import { WorkspaceAreasModule } from '../workspace-areas/workspace-areas.module';
+import { WorkspaceAreaAccessGuard } from '../workspace-areas/workspace-area-access.guard';
+import { WorkspaceAreaActivityLogModule } from '../workspace-areas/workspace-area-activity-log.module';
 
 @Module({
   imports: [
@@ -29,9 +32,11 @@ import { TenantsModule } from '../tenants/tenants.module';
     forwardRef(() => AutomationsModule),
     ApiTokensModule,
     TenantsModule,
+    WorkspaceAreasModule,
+    WorkspaceAreaActivityLogModule,
   ],
   controllers: [CustomObjectsController, CustomObjectsPublicController],
-  providers: [CustomObjectsService, ApiTokenGuard],
+  providers: [CustomObjectsService, ApiTokenGuard, WorkspaceAreaAccessGuard],
   exports: [CustomObjectsService],
 })
 export class CustomObjectsModule {}

@@ -3,8 +3,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { login, resendSignupCode, signup, verifySignupCode } from "../api/client";
-import { persistSession } from "../auth/session";
+import { login, resendSignupCode, signup, verifySignupCode, verifyTwoFactorLogin } from "../api/client";
+import { persistSession, getAccessToken, clearSession, getStoredTenantName } from "../auth/session";
+import { fetchLeadStats } from "../api/leads";
+import { fetchProjects } from "../api/projects";
 import { PublicHeader } from "../components/public/PublicHeader";
 import { PublicFooter } from "../components/public/PublicFooter";
 
@@ -752,6 +754,14 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
           verifyCode: "Verification code", verifySubmit: "Confirm code",
           verifySent: "Code sent to your email", verifyOk: "Email confirmed. Redirecting to billing...",
           resendCode: "Send code again", resendWait: "You can request again in", verifyTapHint: "Tap to type code",
+          welcomeBackTitle: "Welcome back", welcomeBackSubtitle: "You're already signed in. Jump back into your workspace, or switch to a different account.",
+          returnToPanel: "Back to dashboard", switchAccount: "Sign in with a different account",
+          previewLeadsTitle: "Leads", previewLeadsPeriod: "30d", previewLeadsTotal: "leads",
+          previewLeadsInProgress: "in progress", previewLeadsConversion: "conversion",
+          previewProjectsTitle: "Projects", previewProjectsTotal: "total",
+          previewProjectsInProgress: "in progress", previewProjectsWon: "won",
+          twoFactorTitle: "Two-factor code", twoFactorHint: "Enter the code from your authenticator app or a backup code.",
+          twoFactorCode: "Verification code", twoFactorSubmit: "Verify and sign in", twoFactorBack: "Back to password",
         }
       : lang === "tr"
         ? {
@@ -767,6 +777,14 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
             verifyCode: "Doğrulama kodu", verifySubmit: "Kodu onayla",
             verifySent: "Kod e-postanıza gönderildi", verifyOk: "E-posta doğrulandı. Ödemeye yönlendiriliyor...",
             resendCode: "Kodu tekrar gönder", resendWait: "Tekrar isteme süresi", verifyTapHint: "Kodu yazmak için dokunun",
+            welcomeBackTitle: "Tekrar hoş geldiniz", welcomeBackSubtitle: "Zaten giriş yaptınız. Panele dönün veya başka bir hesapla giriş yapın.",
+            returnToPanel: "Panele dön", switchAccount: "Başka bir hesapla giriş yap",
+            previewLeadsTitle: "Potansiyel müşteriler", previewLeadsPeriod: "30g", previewLeadsTotal: "toplam",
+            previewLeadsInProgress: "işlemde", previewLeadsConversion: "dönüşüm",
+            previewProjectsTitle: "Projeler", previewProjectsTotal: "toplam",
+            previewProjectsInProgress: "işlemde", previewProjectsWon: "kazanılan",
+            twoFactorTitle: "İki faktörlü kod", twoFactorHint: "Kimlik doğrulayıcı uygulamanızdaki kodu veya bir yedek kodu girin.",
+            twoFactorCode: "Doğrulama kodu", twoFactorSubmit: "Doğrula ve giriş yap", twoFactorBack: "Şifreye dön",
           }
         : {
             title: "Вход в аккаунт",
@@ -781,17 +799,30 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
             verifyCode: "Код подтверждения", verifySubmit: "Подтвердить код",
             verifySent: "Код отправлен вам на почту", verifyOk: "Email подтвержден. Переходим к оплате...",
             resendCode: "Отправить код повторно", resendWait: "Повторная отправка через", verifyTapHint: "Нажмите, чтобы ввести код",
+            welcomeBackTitle: "С возвращением", welcomeBackSubtitle: "Вы уже вошли в аккаунт. Вернитесь в рабочее пространство или войдите под другим аккаунтом.",
+            returnToPanel: "Вернуться в панель", switchAccount: "Войти под другим аккаунтом",
+            previewLeadsTitle: "Лиды", previewLeadsPeriod: "30д", previewLeadsTotal: "всего",
+            previewLeadsInProgress: "в работе", previewLeadsConversion: "конверсия",
+            previewProjectsTitle: "Проекты", previewProjectsTotal: "всего",
+            previewProjectsInProgress: "в работе", previewProjectsWon: "выиграно",
+            twoFactorTitle: "Код двухфакторной защиты", twoFactorHint: "Введите код из приложения-аутентификатора или резервный код.",
+            twoFactorCode: "Код подтверждения", twoFactorSubmit: "Подтвердить и войти", twoFactorBack: "Назад к паролю",
           };
 
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<"login" | "signup">(
     searchParams.get("mode") === "signup" ? "signup" : "login",
   );
+  const [loggedIn, setLoggedIn] = useState(() => !!getAccessToken());
+  const tenantName = loggedIn ? getStoredTenantName() : null;
+  const handleSwitchAccount = () => { clearSession(); setLoggedIn(false); setMode("login"); };
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [loginForm, setLoginForm] = useState({ clientKey: "", email: "", password: "" });
+  const [twoFactorChallenge, setTwoFactorChallenge] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState("");
   const [signupForm, setSignupForm] = useState({
     companyName: "", clientKey: "", email: "", password: "", phoneCountry: "+7", phoneNumber: "",
   });
@@ -831,6 +862,22 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
     setLoading(true);
     try {
       const resp = await login(loginForm);
+      if ((resp as any).twoFactorRequired) {
+        setTwoFactorChallenge((resp as any).challengeToken);
+        return;
+      }
+      const loginResp = resp as import('../api/client').LoginResponse;
+      persistSession(loginResp); setMessage(text.loginOk);
+      navigate(loginResp.billingLocked ? "/app/billing" : "/app", { replace: true });
+    } catch (err: any) { setError(err?.message || "Error"); } finally { setLoading(false); }
+  };
+
+  const handleVerifyTwoFactor = async (e: React.FormEvent) => {
+    e.preventDefault(); setError(null); setMessage(null);
+    if (!twoFactorChallenge || !twoFactorCode) return;
+    setLoading(true);
+    try {
+      const resp = await verifyTwoFactorLogin({ challengeToken: twoFactorChallenge, code: twoFactorCode });
       persistSession(resp); setMessage(text.loginOk);
       navigate(resp.billingLocked ? "/app/billing" : "/app", { replace: true });
     } catch (err: any) { setError(err?.message || "Error"); } finally { setLoading(false); }
@@ -855,7 +902,11 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
     setLoading(true);
     try {
       const resp = await verifySignupCode({ clientKey: signupVerification.clientKey, email: signupVerification.email, code: verificationCode.trim() });
-      persistSession(resp); setMessage(text.verifyOk); navigate("/app/billing", { replace: true });
+      persistSession(resp); setMessage(text.verifyOk);
+      // Раньше сюда всегда попадал только что заблокированный free_locked тенант, поэтому
+      // редирект на /app/billing был безусловным. Теперь signup даёт 14-дневный Enterprise-триал
+      // (billingLocked=false), так что нужно вести в CRM, а не сразу на экран оплаты.
+      navigate(resp.billingLocked ? "/app/billing" : "/app", { replace: true });
     } catch (err: any) { setError(err?.message || "Error"); } finally { setLoading(false); }
   };
 
@@ -878,12 +929,34 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
       : "rounded-3xl border border-neutral-200 bg-white p-5 shadow-[0_20px_60px_rgba(0,0,0,0.06)] md:p-8"}>
       <div className={compact ? "max-w-none" : "max-w-3xl"}>
         <h2 style={{ fontFamily: FF }} className={compact ? "text-xl font-semibold text-black" : "text-2xl font-semibold text-black"}>
-          {text.title}
+          {loggedIn ? text.welcomeBackTitle : text.title}
         </h2>
-        <p className={compact ? "mt-1.5 text-xs text-neutral-500" : "mt-2 text-sm text-neutral-500"}>{text.subtitle}</p>
+        <p className={compact ? "mt-1.5 text-xs text-neutral-500" : "mt-2 text-sm text-neutral-500"}>
+          {loggedIn ? text.welcomeBackSubtitle : text.subtitle}
+        </p>
+        {loggedIn && tenantName && (
+          <p className="mt-1 text-xs font-medium text-neutral-700">{tenantName}</p>
+        )}
       </div>
 
+      {loggedIn && (
+        <div className={compact ? "mt-4 grid gap-3" : "mt-5 grid gap-3"}>
+          <button type="button" onClick={() => navigate("/app")}
+            style={{ fontFamily: FF }}
+            className="w-full rounded-xl bg-black py-2.5 text-sm font-medium text-white hover:bg-neutral-800 transition-colors">
+            {text.returnToPanel}
+          </button>
+          <button type="button" onClick={handleSwitchAccount}
+            className="text-xs font-medium text-neutral-500 hover:text-black transition-colors">
+            {text.switchAccount}
+          </button>
+          <AccountPreviewWidgets compact={compact} text={text} />
+        </div>
+      )}
+
       {/* Tab switcher */}
+      {!loggedIn && (
+      <>
       <div className={compact ? "mt-4" : "mt-5"}>
         <div className="inline-flex rounded-full border border-neutral-200 bg-neutral-50 p-1">
           {(["login", "signup"] as const).map(tab => (
@@ -898,7 +971,7 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
       </div>
 
       {/* Login form */}
-      {mode === "login" && (
+      {mode === "login" && !twoFactorChallenge && (
         <form onSubmit={handleLogin} className={compact ? "mt-4 grid gap-2.5" : "mt-5 grid gap-3"}>
           <input className={inp} placeholder={text.loginClientKey} value={loginForm.clientKey}
             onChange={e => setLoginForm(s => ({ ...s, clientKey: e.target.value }))} />
@@ -910,6 +983,24 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
             style={{ fontFamily: FF }}
             className="w-full rounded-xl bg-black py-2.5 text-sm font-medium text-white disabled:opacity-60 hover:bg-neutral-800 transition-colors">
             {loading ? text.loading : text.submitLogin}
+          </button>
+        </form>
+      )}
+
+      {/* Two-factor challenge */}
+      {mode === "login" && twoFactorChallenge && (
+        <form onSubmit={handleVerifyTwoFactor} className={compact ? "mt-4 grid gap-2.5" : "mt-5 grid gap-3"}>
+          <p className="text-xs text-neutral-500">{text.twoFactorHint}</p>
+          <input className={inp} placeholder={text.twoFactorCode} autoFocus value={twoFactorCode}
+            onChange={e => setTwoFactorCode(e.target.value)} />
+          <button type="submit" disabled={loading || !twoFactorCode}
+            style={{ fontFamily: FF }}
+            className="w-full rounded-xl bg-black py-2.5 text-sm font-medium text-white disabled:opacity-60 hover:bg-neutral-800 transition-colors">
+            {loading ? text.loading : text.twoFactorSubmit}
+          </button>
+          <button type="button" onClick={() => { setTwoFactorChallenge(null); setTwoFactorCode(""); setError(null); }}
+            className="text-xs font-medium text-neutral-500 hover:text-black transition-colors">
+            {text.twoFactorBack}
           </button>
         </form>
       )}
@@ -1021,7 +1112,121 @@ const LandingAuthPanel: React.FC<{ compact?: boolean }> = ({ compact = false }) 
 
       {error   && <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</div>}
       {message && <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{message}</div>}
+      </>
+      )}
     </section>
+  );
+};
+
+/* ─── ACCOUNT PREVIEW WIDGETS (уже вошёл, реальные данные тенанта) ──
+   Показываются вместо формы входа тому, у кого уже есть валидная сессия.
+   При ошибке/нехватке прав конкретный блок просто не рендерится —
+   "Вернуться в панель" выше остаётся рабочим в любом случае. */
+type PreviewLeadsData = { total: number; inProgress: number; conversion: number };
+type PreviewProjectsData = { total: number; inProgress: number; won: number };
+
+const PreviewStatCard: React.FC<{
+  icon: string; title: string; period?: string;
+  stats: { label: string; value: string }[];
+}> = ({ icon, title, period, stats }) => (
+  <div className="rounded-2xl border border-neutral-200 bg-neutral-50/60 p-4">
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2 text-black">
+        <Icon name={icon} size={15} />
+        <span style={{ fontFamily: FF }} className="text-sm font-medium">{title}</span>
+      </div>
+      {period && (
+        <span style={{ fontFamily: FM }} className="text-[10px] uppercase tracking-[0.08em] text-neutral-400">{period}</span>
+      )}
+    </div>
+    <div className="mt-3 grid grid-cols-3 gap-2">
+      {stats.map((s) => (
+        <div key={s.label}>
+          <div style={{ fontFamily: FF }} className="text-lg font-semibold leading-none text-black">{s.value}</div>
+          <div className="mt-1 text-[10px] leading-tight text-neutral-500">{s.label}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+const AccountPreviewWidgets: React.FC<{ compact?: boolean; text: any }> = ({ text }) => {
+  const [loading, setLoading] = useState(true);
+  const [leads, setLeads] = useState<PreviewLeadsData | null>(null);
+  const [projects, setProjects] = useState<PreviewProjectsData | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const to = new Date();
+      const from = new Date(to);
+      from.setDate(from.getDate() - 29);
+      const fmt = (d: Date) => d.toISOString().slice(0, 10);
+
+      const [leadStats, projectsRes] = await Promise.all([
+        fetchLeadStats({ from: fmt(from), to: fmt(to) }).catch(() => null),
+        fetchProjects().catch(() => null),
+      ]);
+      if (cancelled) return;
+
+      if (leadStats) {
+        const byStatus = new Map(leadStats.byStatus.map((s) => [s.status, s.count]));
+        const won = byStatus.get("won") || 0;
+        const lost = byStatus.get("lost") || 0;
+        const total = leadStats.total;
+        setLeads({
+          total,
+          inProgress: Math.max(0, total - won - lost),
+          conversion: total > 0 ? Math.round((won / total) * 100) : 0,
+        });
+      }
+
+      if (projectsRes) {
+        const items = projectsRes.items;
+        setProjects({
+          total: projectsRes.total,
+          inProgress: items.filter((p) => p.status === "В работе" || p.status === "Новый" || p.status === "На проверке").length,
+          won: items.filter((p) => p.status === "Выиграно").length,
+        });
+      }
+
+      if (!leadStats && !projectsRes) setFailed(true);
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (failed) return null;
+
+  if (loading) {
+    return (
+      <div className="grid gap-3">
+        <div className="h-[84px] animate-pulse rounded-2xl border border-neutral-200 bg-neutral-50" />
+        <div className="h-[84px] animate-pulse rounded-2xl border border-neutral-200 bg-neutral-50" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3">
+      {leads && (
+        <PreviewStatCard icon="user" title={text.previewLeadsTitle} period={text.previewLeadsPeriod}
+          stats={[
+            { label: text.previewLeadsTotal, value: String(leads.total) },
+            { label: text.previewLeadsInProgress, value: String(leads.inProgress) },
+            { label: text.previewLeadsConversion, value: `${leads.conversion}%` },
+          ]} />
+      )}
+      {projects && (
+        <PreviewStatCard icon="grid" title={text.previewProjectsTitle}
+          stats={[
+            { label: text.previewProjectsTotal, value: String(projects.total) },
+            { label: text.previewProjectsInProgress, value: String(projects.inProgress) },
+            { label: text.previewProjectsWon, value: String(projects.won) },
+          ]} />
+      )}
+    </div>
   );
 };
 

@@ -66,6 +66,8 @@ const CATALOG_BRAND_COLORS: Record<string, string> = {
   meta_ads: '#0866FF',
   google_analytics: '#0F9D58',
   yandex_metrika: '#FC3F1D',
+  yandex_direct: '#FFCC00',
+  vk_ads: '#0077FF',
   mailchimp: '#FFE01B',
   shopify: '#96BF48',
   woocommerce: '#96588A',
@@ -99,6 +101,8 @@ const MARKETING_HUB_CATALOG: Partial<Record<string, MarketingIntegrationProvider
   meta_ads: 'meta_ads',
   google_analytics: 'google_analytics',
   yandex_metrika: 'yandex_metrika',
+  yandex_direct: 'yandex_direct',
+  vk_ads: 'vk_ads',
 };
 
 function marketingProviderForCatalog(id: string): MarketingIntegrationProviderKey | null {
@@ -281,7 +285,11 @@ export const IntegrationsHubPage: React.FC = () => {
     const ga4 = searchParams.get('ga4OAuth');
     const gcal = searchParams.get('googleCalendarOAuth');
     const ocal = searchParams.get('outlookCalendarOAuth');
-    if (!ads && !ga4 && !gcal && !ocal) return;
+    const slk = searchParams.get('slackOAuth');
+    const hs = searchParams.get('hubspotOAuth');
+    const mc = searchParams.get('mailchimpOAuth');
+    const jr = searchParams.get('jiraOAuth');
+    if (!ads && !ga4 && !gcal && !ocal && !slk && !hs && !mc && !jr) return;
     setSearchParams(
       (prev) => {
         const n = new URLSearchParams(prev);
@@ -289,6 +297,10 @@ export const IntegrationsHubPage: React.FC = () => {
         if (ga4) n.delete('ga4OAuth');
         if (gcal) n.delete('googleCalendarOAuth');
         if (ocal) n.delete('outlookCalendarOAuth');
+        if (slk) n.delete('slackOAuth');
+        if (hs) n.delete('hubspotOAuth');
+        if (mc) n.delete('mailchimpOAuth');
+        if (jr) n.delete('jiraOAuth');
         return n;
       },
       { replace: true },
@@ -319,6 +331,30 @@ export const IntegrationsHubPage: React.FC = () => {
       refresh = true;
     } else if (ocal === 'error') {
       pushMsg('crm.integrationsHub.outlookCalendar.oauthCallback.error');
+    }
+    if (slk === 'connected') {
+      pushMsg('crm.integrationsHub.slack.oauth.callback.connected');
+      refresh = true;
+    } else if (slk === 'error') {
+      pushMsg('crm.integrationsHub.slack.oauth.callback.error');
+    }
+    if (hs === 'connected') {
+      pushMsg('crm.automations.panel.integrations.connectHubspotOauthCallbackConnected');
+      refresh = true;
+    } else if (hs === 'error') {
+      pushMsg('crm.automations.panel.integrations.connectHubspotOauthCallbackError');
+    }
+    if (mc === 'connected') {
+      pushMsg('crm.automations.panel.integrations.connectMailchimpOauthCallbackConnected');
+      refresh = true;
+    } else if (mc === 'error') {
+      pushMsg('crm.automations.panel.integrations.connectMailchimpOauthCallbackError');
+    }
+    if (jr === 'connected') {
+      pushMsg('crm.automations.panel.integrations.connectJiraOauthCallbackConnected');
+      refresh = true;
+    } else if (jr === 'error') {
+      pushMsg('crm.automations.panel.integrations.connectJiraOauthCallbackError');
     }
     if (refresh) {
       setMarketingPanelRefreshSignal((x) => x + 1);
@@ -554,7 +590,7 @@ export const IntegrationsHubPage: React.FC = () => {
       entry.id === 'sms'
         ? { label: t('crm.integrationsHub.smsManagedLink'), to: '/app/telephony/sms' }
         : entry.id === 'email'
-          ? { label: t('crm.integrationsHub.emailManagedLink'), to: '/app/email/accounts' }
+          ? { label: t('crm.integrationsHub.emailManagedLink'), to: '/app/email' }
           : entry.id === 'telegram'
             ? { label: t('crm.integrationsHub.telegramManagedLink'), to: '/app/telegram' }
             : null;

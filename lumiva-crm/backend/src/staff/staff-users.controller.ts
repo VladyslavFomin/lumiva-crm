@@ -9,10 +9,25 @@ import {
   Param,
   Req,
   UseGuards,
+  ForbiddenException,
 } from '@nestjs/common';
 import { StaffUsersService } from './staff-users.service';
 import { StaffRole } from './staff-user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+
+// Изменяющие эндпоинты этого контроллера раньше не проверяли роль вообще (только
+// JwtAuthGuard) — любой залогиненный сотрудник любой роли мог создать сотрудника, сменить
+// чью угодно роль (включая назначение СЕБЯ владельцем через PATCH :id/role — активная
+// privilege-escalation дыра, не гипотетическая), деактивировать/удалить коллегу и т.д. Тот же
+// принцип и тот же паттерн, что уже применён в rbac.controller.ts/departments.controller.ts:
+// GET остаётся открытым для всех авторизованных (MainLayout и десятки пикеров "ответственный"
+// по всему приложению читают список сотрудников для любой роли, само чтение не настолько
+// чувствительно), а мутирующие эндпоинты — только владелец компании.
+function assertOwner(req: any): void {
+  if ((req.user?.role || '').toLowerCase() !== 'owner') {
+    throw new ForbiddenException('Изменять сотрудников может только владелец компании');
+  }
+}
 
 @UseGuards(JwtAuthGuard)
 @Controller('staff-users')
@@ -47,6 +62,7 @@ export class StaffUsersController {
 
   @Post()
   async create(@Req() req: any, @Body() body: any) {
+    assertOwner(req);
     const tenantId = req.user.tenantId;
     return this.service.createForTenant(tenantId, {
       email: body.email,
@@ -68,18 +84,21 @@ export class StaffUsersController {
 
   @Patch(':id')
   async update(@Req() req: any, @Param('id') id: string, @Body() body: any) {
+    assertOwner(req);
     const tenantId = req.user.tenantId;
     return this.service.updateForTenant(tenantId, id, body);
   }
 
   @Patch(':id/deactivate')
   async deactivate(@Req() req: any, @Param('id') id: string) {
+    assertOwner(req);
     const tenantId = req.user.tenantId;
     return this.service.deactivateForTenant(tenantId, id);
   }
 
   @Patch(':id/activate')
   async activate(@Req() req: any, @Param('id') id: string) {
+    assertOwner(req);
     const tenantId = req.user.tenantId;
     return this.service.activateForTenant(tenantId, id);
   }
@@ -90,6 +109,7 @@ export class StaffUsersController {
     @Param('id') id: string,
     @Body() body: { role: StaffRole },
   ) {
+    assertOwner(req);
     const tenantId = req.user.tenantId;
     return this.service.updateRoleForTenant(tenantId, id, body.role);
   }
@@ -100,6 +120,7 @@ export class StaffUsersController {
     @Param('id') id: string,
     @Body() body: { department: string | null },
   ) {
+    assertOwner(req);
     const tenantId = req.user.tenantId;
     return this.service.updateDepartmentForTenant(
       tenantId,
@@ -110,6 +131,7 @@ export class StaffUsersController {
 
   @Delete(':id')
   async delete(@Req() req: any, @Param('id') id: string) {
+    assertOwner(req);
     const tenantId = req.user.tenantId;
     await this.service.deleteForTenant(tenantId, id);
     return { success: true };

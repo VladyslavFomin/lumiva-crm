@@ -117,4 +117,8 @@ export class CreateCompanyDto {
 
   @IsOptional()
   customFields?: Record<string, any>;
+
+  @IsOptional()
+  @IsArray()
+  legalRequisites?: { id: string; type: string; value: string }[];
 }

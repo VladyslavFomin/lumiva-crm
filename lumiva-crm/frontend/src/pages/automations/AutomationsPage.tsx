@@ -1,6 +1,7 @@
 // src/pages/automations/AutomationsPage.tsx
 import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { LottieIcon } from '../../components/LottieIcon';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -602,6 +603,9 @@ export const AutomationsPage: React.FC = () => {
               )}
               {!loading && !error && filtered.length === 0 && (
                 <div style={{ padding: '48px 20px', textAlign: 'center', fontSize: 13, color: FG3 }}>
+                  <div className="flex justify-center">
+                    <LottieIcon name="automation-flow" size={84} />
+                  </div>
                   {t('crm.automations.list.empty')}
                 </div>
               )}

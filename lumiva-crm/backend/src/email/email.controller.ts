@@ -335,7 +335,7 @@ export class EmailController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: PreviewStyledMailDto,
   ) {
-    return this.emailService.previewStyledMail(user.tenantId, dto);
+    return this.emailService.previewStyledMail(user.tenantId, dto, user.email);
   }
 
   /** Отправка с той же обёрткой, что preview-styled */
@@ -345,7 +345,7 @@ export class EmailController {
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: SendStyledEmailDto,
   ) {
-    return this.emailService.sendStyledTransactionalMail(user.tenantId, dto);
+    return this.emailService.sendStyledTransactionalMail(user.tenantId, dto, user.email);
   }
 
   // ==== TEMPLATES ====

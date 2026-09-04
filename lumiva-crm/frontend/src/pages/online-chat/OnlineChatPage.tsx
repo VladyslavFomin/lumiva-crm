@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   ChatMessage,
   ChatSession,
@@ -250,6 +251,7 @@ const OnlineChatPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="onlineChat" />
       <div className="mb-4">
         <h1
           className="text-lg font-semibold tracking-tight"

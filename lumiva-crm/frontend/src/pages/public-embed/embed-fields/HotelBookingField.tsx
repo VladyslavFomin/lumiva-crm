@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { fetchPublicHotel, searchPublicHotels, type PublicHotelDetail, type PublicHotelSearchResult } from '../../../api/publicHotels';
 import type { EmbedFieldConfigItem } from '../../../api/embedForms';
 import { checkMark, compositeTokens, fieldLabelStyle, hintStyle, inputStyle, optionCardStyle, primaryButtonStyle } from './compositeFieldStyles';
@@ -27,6 +28,8 @@ export const HotelBookingField: React.FC<{
   design: Record<string, unknown>;
   onChange: (value: HotelBookingValue | null) => void;
 }> = ({ field, clientKey, design: d, onChange }) => {
+  const { t } = useTranslation();
+  const ef = (key: string, opts?: Record<string, unknown>) => t(`crm.embedFields.hotelBooking.${key}`, opts as any) as string;
   const [hotels, setHotels] = useState<Array<{ id: string; name: string }>>([]);
   const [hotelId, setHotelId] = useState('');
   const [checkIn, setCheckIn] = useState(todayPlus(7));
@@ -40,7 +43,7 @@ export const HotelBookingField: React.FC<{
   const [hasSearched, setHasSearched] = useState(false);
 
   const allowed = field.sourceFilter?.hotelIds;
-  const t = compositeTokens(d);
+  const t2 = compositeTokens(d);
 
   useEffect(() => {
     // Список отелей идёт из результатов поиска на широком диапазоне дат — переиспользуем /search
@@ -56,6 +59,7 @@ export const HotelBookingField: React.FC<{
         if (list[0]) setHotelId(list[0].id);
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientKey]);
 
   useEffect(() => {
@@ -101,23 +105,23 @@ export const HotelBookingField: React.FC<{
           <option key={h.id} value={h.id}>{h.name}</option>
         ))}
       </select>
-      {!hotels.length && <div style={hintStyle(d)}>Нет доступных отелей</div>}
+      {!hotels.length && <div style={hintStyle(d)}>{ef('noHotels')}</div>}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <label style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>Заезд</span>
+          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>{ef('checkInLabel')}</span>
           <input type="date" style={inputStyle(d)} value={checkIn} onChange={(e) => setCheckIn(e.target.value)} />
         </label>
         <label style={{ flex: '1 1 130px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>Выезд</span>
+          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>{ef('checkOutLabel')}</span>
           <input type="date" style={inputStyle(d)} value={checkOut} onChange={(e) => setCheckOut(e.target.value)} />
         </label>
         <label style={{ width: 72, display: 'flex', flexDirection: 'column', gap: 4 }}>
-          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>Гостей</span>
+          <span style={{ fontSize: 10.5, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.03em' }}>{ef('guestsLabel')}</span>
           <input type="number" min={1} style={inputStyle(d)} value={pax} onChange={(e) => setPax(Math.max(1, Number(e.target.value) || 1))} />
         </label>
         <button type="button" onClick={search} disabled={searching || !hotelId} style={primaryButtonStyle(d, searching || !hotelId)}>
-          {searching ? 'Ищем…' : 'Найти'}
+          {searching ? ef('searchingBtn') : ef('searchBtn')}
         </button>
       </div>
 
@@ -129,25 +133,25 @@ export const HotelBookingField: React.FC<{
               <button key={r.roomTypeId} type="button" onClick={() => setRoomTypeId(r.roomTypeId)} style={optionCardStyle(d, selected)}>
                 <span style={checkMark(d, selected)}>{selected ? '✓' : ''}</span>
                 <span style={{ display: 'grid', gap: 2, textAlign: 'left', flex: 1, minWidth: 0 }}>
-                  <span style={{ fontWeight: 650, color: t.text, fontSize: 13 }}>{r.roomTypeName}</span>
-                  <span style={{ fontSize: 11.5, opacity: 0.65, color: t.text }}>от {r.pricePerNight} {r.currency}/ночь · {r.nights} ноч.</span>
+                  <span style={{ fontWeight: 650, color: t2.text, fontSize: 13 }}>{r.roomTypeName}</span>
+                  <span style={{ fontSize: 11.5, opacity: 0.65, color: t2.text }}>{ef('fromPricePerNightFormat', { price: r.pricePerNight, currency: r.currency })} · {ef('nightsShortFormat', { count: r.nights })}</span>
                 </span>
-                <span style={{ fontWeight: 700, color: t.text, fontSize: 13, whiteSpace: 'nowrap' }}>{r.total} {r.currency}</span>
+                <span style={{ fontWeight: 700, color: t2.text, fontSize: 13, whiteSpace: 'nowrap' }}>{r.total} {r.currency}</span>
               </button>
             );
           })}
         </div>
       )}
       {!searching && !hasSearched && results.length === 0 && detail && (
-        <div style={hintStyle(d)}>Нажмите «Найти», чтобы увидеть свободные номера</div>
+        <div style={hintStyle(d)}>{ef('pressSearchHint')}</div>
       )}
       {!searching && hasSearched && results.length === 0 && (
-        <div style={hintStyle(d)}>На эти даты свободных номеров нет</div>
+        <div style={hintStyle(d)}>{ef('noRoomsForDates')}</div>
       )}
 
       {selectedRoomType && selectedRoomType.occupancyTypes.length > 0 && (
         <select style={inputStyle(d)} value={occupancyTypeId} onChange={(e) => setOccupancyTypeId(e.target.value)}>
-          <option value="">Выберите размещение</option>
+          <option value="">{ef('chooseOccupancy')}</option>
           {selectedRoomType.occupancyTypes.map((o) => (
             <option key={o.id} value={o.id}>{o.label}</option>
           ))}

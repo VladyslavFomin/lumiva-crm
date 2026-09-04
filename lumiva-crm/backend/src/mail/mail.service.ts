@@ -4,6 +4,7 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import * as nodemailer from 'nodemailer';
 import { MAIL_QUEUE, MAIL_JOB_SEND } from './mail.constants';
+import { escapeMailHtml, renderMailShell } from './mail-template.util';
 
 export interface MailSendOptions {
   to: string;
@@ -126,14 +127,6 @@ export class MailService {
     }
   }
 
-  private escapeHtml(s: string): string {
-    return s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
   async sendOwnerInviteEmail(params: {
     to: string;
     fullName: string;
@@ -141,56 +134,20 @@ export class MailService {
     link: string;
   }) {
     const { to, fullName, tenantName, link } = params;
-    const safeName = this.escapeHtml(fullName);
-    const safeTenant = tenantName ? this.escapeHtml(tenantName) : '';
+    const safeName = escapeMailHtml(fullName);
+    const safeTenant = tenantName ? escapeMailHtml(tenantName) : '';
 
     const subject = 'Добро пожаловать в Lumiva CRM';
 
-    const html = `<!doctype html>
-<html lang="ru">
-  <body style="margin:0;padding:0;background:#050816;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e5e7eb;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#050816;padding:32px 0;">
-      <tr>
-        <td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:radial-gradient(circle at top left,#22d3ee,#1e293b);border-radius:24px;padding:32px 32px 40px;">
-            <tr>
-              <td style="font-size:24px;font-weight:600;padding-bottom:8px;color:#ecfeff;">
-                Добро пожаловать в Lumiva CRM
-              </td>
-            </tr>
-            <tr>
-              <td style="font-size:15px;line-height:1.6;color:#e5e7eb;padding-bottom:24px;">
-                Здравствуйте, ${safeName}!<br/><br/>
-                Для компании ${
-                  safeTenant ? `<strong>${safeTenant}</strong>` : 'вашей компании'
-                } создан доступ к платформе Lumiva CRM.
-                Чтобы начать работу, задайте персональный пароль.
-              </td>
-            </tr>
-            <tr>
-              <td align="center" style="padding-bottom:24px;">
-                <a href="${link}" style="display:inline-block;padding:14px 32px;border-radius:14px;background:#222222;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">
-                  Задать пароль
-                </a>
-              </td>
-            </tr>
-            <tr>
-              <td style="font-size:13px;line-height:1.6;color:#9ca3af;">
-                Ссылка будет активна в течение <strong>48 часов</strong> и может быть использована только один раз.
-                Если вы не запрашивали доступ к Lumiva CRM, просто проигнорируйте это письмо.
-              </td>
-            </tr>
-            <tr>
-              <td style="font-size:12px;color:#6b7280;padding-top:24px;border-top:1px solid rgba(15,23,42,0.8);">
-                © ${new Date().getFullYear()} Lumiva CRM. Все права защищены.
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+    const html = renderMailShell({
+      headline: 'Добро пожаловать в Lumiva CRM',
+      bodyHtml: `<p style="margin:0 0 16px;">Здравствуйте, ${safeName}!</p>
+<p style="margin:0 0 16px;">Для компании ${
+        safeTenant ? `<strong>${safeTenant}</strong>` : 'вашей компании'
+      } создан доступ к платформе Lumiva CRM. Чтобы начать работу, задайте персональный пароль.</p>
+<p style="margin:0;font-size:13px;color:#71717a;">Ссылка будет активна в течение <strong>48 часов</strong> и может быть использована только один раз. Если вы не запрашивали доступ к Lumiva CRM, просто проигнорируйте это письмо.</p>`,
+      cta: { label: 'Задать пароль', href: link },
+    });
 
     await this.sendMail({ to, subject, html });
   }
@@ -203,65 +160,23 @@ export class MailService {
     loginUrl: string;
   }) {
     const { to, fullName, tenantName, link, loginUrl } = params;
-    const safeName = this.escapeHtml(fullName);
-    const safeTenant = tenantName ? this.escapeHtml(tenantName) : '';
+    const safeName = escapeMailHtml(fullName);
+    const safeTenant = tenantName ? escapeMailHtml(tenantName) : '';
 
     const subject = 'Приглашение в команду — Lumiva CRM';
 
-    const html = `<!doctype html>
-<html lang="ru">
-  <body style="margin:0;padding:0;background:#050816;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#e5e7eb;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background:#050816;padding:32px 0;">
-      <tr>
-        <td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:radial-gradient(circle at top left,#22d3ee,#1e293b);border-radius:24px;padding:32px 32px 40px;">
-            <tr>
-              <td style="font-size:22px;font-weight:600;padding-bottom:8px;color:#ecfeff;">
-                Приглашение в Lumiva CRM
-              </td>
-            </tr>
-            <tr>
-              <td style="font-size:15px;line-height:1.65;color:#e5e7eb;padding-bottom:20px;">
-                Здравствуйте, ${safeName}!<br/><br/>
-                ${
-                  safeTenant
-                    ? `Компания <strong>${safeTenant}</strong> приглашает вас в рабочее пространство Lumiva CRM.`
-                    : 'Вам открыт доступ к рабочему пространству Lumiva CRM.'
-                }
-                Нажмите кнопку ниже, чтобы <strong>задать пароль</strong> и активировать учётную запись.
-              </td>
-            </tr>
-            <tr>
-              <td align="center" style="padding-bottom:16px;">
-                <a href="${link}" style="display:inline-block;padding:14px 32px;border-radius:14px;background:#222222;color:#ffffff;text-decoration:none;font-weight:600;font-size:15px;">
-                  Задать пароль и войти
-                </a>
-              </td>
-            </tr>
-            <tr>
-              <td align="center" style="padding-bottom:22px;">
-                <a href="${loginUrl}" style="font-size:14px;color:#e0f2fe;text-decoration:underline;font-weight:500;">
-                  Уже есть пароль? Войти в аккаунт
-                </a>
-              </td>
-            </tr>
-            <tr>
-              <td style="font-size:13px;line-height:1.6;color:#9ca3af;">
-                Ссылка для пароля действует <strong>48 часов</strong> и одноразовая.
-                Если вы не ожидали это письмо, проигнорируйте его.
-              </td>
-            </tr>
-            <tr>
-              <td style="font-size:12px;color:#6b7280;padding-top:24px;border-top:1px solid rgba(15,23,42,0.8);">
-                © ${new Date().getFullYear()} Lumiva CRM
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+    const html = renderMailShell({
+      headline: 'Приглашение в Lumiva CRM',
+      bodyHtml: `<p style="margin:0 0 16px;">Здравствуйте, ${safeName}!</p>
+<p style="margin:0 0 20px;">${
+        safeTenant
+          ? `Компания <strong>${safeTenant}</strong> приглашает вас в рабочее пространство Lumiva CRM.`
+          : 'Вам открыт доступ к рабочему пространству Lumiva CRM.'
+      } Нажмите кнопку ниже, чтобы задать пароль и активировать учётную запись.</p>
+<p style="margin:0 0 16px;"><a href="${loginUrl}" style="color:#222222;font-weight:600;text-decoration:underline;">Уже есть пароль? Войти в аккаунт</a></p>
+<p style="margin:0;font-size:13px;color:#71717a;">Ссылка для пароля действует <strong>48 часов</strong> и одноразовая. Если вы не ожидали это письмо, проигнорируйте его.</p>`,
+      cta: { label: 'Задать пароль и войти', href: link },
+    });
 
     await this.sendMail({ to, subject, html });
   }

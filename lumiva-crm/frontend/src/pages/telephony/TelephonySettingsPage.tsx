@@ -1,6 +1,9 @@
 // src/pages/telephony/TelephonySettingsPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { TelephonySubnav } from './TelephonySubnav';
 import {
   fetchTelephonyStatus,
@@ -18,37 +21,39 @@ interface SmsProviderDef {
   value: SmsProvider;
   label: string;
   logo: string;
-  fields: { key: string; label: string; placeholder: string; secret?: boolean }[];
+  fields: { key: string; labelKey: string; placeholder: string; secret?: boolean }[];
 }
 
-const SMS_PROVIDERS: SmsProviderDef[] = [
+const getSmsProviders = (t: TFunction): SmsProviderDef[] => [
   {
     value: 'twilio', label: 'Twilio', logo: 'TW',
     fields: [
-      { key: 'accountSid', label: 'Account SID', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
-      { key: 'authToken', label: 'Auth Token', placeholder: '••••••••••••••••••••••••••••••••', secret: true },
-      { key: 'fromPhone', label: 'Номер отправителя', placeholder: '+19998887766' },
+      { key: 'accountSid', labelKey: 'crm.telephony.settings.providerFields.accountSid', placeholder: 'ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' },
+      { key: 'authToken', labelKey: 'crm.telephony.settings.providerFields.authToken', placeholder: '••••••••••••••••••••••••••••••••', secret: true },
+      { key: 'fromPhone', labelKey: 'crm.telephony.settings.providerFields.senderNumber', placeholder: '+19998887766' },
     ],
   },
   {
     value: 'smsc', label: 'SMSC.ru', logo: 'SC',
     fields: [
-      { key: 'login', label: 'Логин', placeholder: 'my_login' },
-      { key: 'password', label: 'Пароль', placeholder: '••••••••', secret: true },
-      { key: 'sender', label: 'Имя отправителя (необязательно)', placeholder: 'MyBrand' },
+      { key: 'login', labelKey: 'crm.telephony.settings.providerFields.login', placeholder: 'my_login' },
+      { key: 'password', labelKey: 'crm.telephony.settings.providerFields.password', placeholder: '••••••••', secret: true },
+      { key: 'sender', labelKey: 'crm.telephony.settings.providerFields.senderNameOptional', placeholder: 'MyBrand' },
     ],
   },
   {
     value: 'smsru', label: 'SMS.ru', logo: 'SR',
     fields: [
-      { key: 'apiId', label: 'API ID', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', secret: true },
-      { key: 'from', label: 'Имя отправителя (необязательно)', placeholder: 'MyBrand' },
+      { key: 'apiId', labelKey: 'crm.telephony.settings.providerFields.apiId', placeholder: 'xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', secret: true },
+      { key: 'from', labelKey: 'crm.telephony.settings.providerFields.fromOptional', placeholder: 'MyBrand' },
     ],
   },
 ];
 
 export const TelephonySettingsPage: React.FC = () => {
+  const { t } = useTranslation();
   const { showConfirm } = useAlertModal();
+  const SMS_PROVIDERS = React.useMemo(() => getSmsProviders(t), [t]);
   // ─── Telephony (Twilio Voice) ─────────────────────────────────────────────
   const [addonEnabled, setAddonEnabled] = useState<boolean | null>(null);
   const [includedInPlan, setIncludedInPlan] = useState(false);
@@ -158,10 +163,10 @@ export const TelephonySettingsPage: React.FC = () => {
   };
 
   const handleDeleteTelephony = async () => {
-    const ok = await showConfirm('Отключить телефонию? Звонки станут недоступны.', {
-      title: 'Отключение',
-      confirmLabel: 'Отключить',
-      cancelLabel: 'Отмена',
+    const ok = await showConfirm(t('crm.telephony.settings.voice.disconnectConfirmBody'), {
+      title: t('crm.telephony.settings.voice.disconnectConfirmTitle'),
+      confirmLabel: t('crm.telephony.settings.voice.disconnectConfirmBtn'),
+      cancelLabel: t('crm.telephony.settings.voice.cancel'),
       danger: true,
     });
     if (!ok) return;
@@ -192,10 +197,10 @@ export const TelephonySettingsPage: React.FC = () => {
   };
 
   const handleDeleteSms = async () => {
-    const ok = await showConfirm('Удалить настройки SMS? Отправка сообщений станет недоступна.', {
-      title: 'Удаление',
-      confirmLabel: 'Удалить',
-      cancelLabel: 'Отмена',
+    const ok = await showConfirm(t('crm.telephony.settings.sms.disconnectConfirmBody'), {
+      title: t('crm.telephony.settings.sms.disconnectConfirmTitle'),
+      confirmLabel: t('crm.telephony.settings.sms.disconnectConfirmBtn'),
+      cancelLabel: t('crm.telephony.settings.voice.cancel'),
       danger: true,
     });
     if (!ok) return;
@@ -216,12 +221,13 @@ export const TelephonySettingsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="telephonySettings" />
       <div className="px-scope">
         <div className="tel-hero">
           <div>
-            <div className="kicker"><span className="dot" />ПРОВАЙДЕРЫ И НОМЕРА</div>
-            <h1>Настройки телефонии и SMS</h1>
-            <p className="sub">Подключите провайдера связи, номера и посмотрите статус записи разговоров.</p>
+            <div className="kicker"><span className="dot" />{t('crm.telephony.settings.kicker')}</div>
+            <h1>{t('crm.telephony.settings.title')}</h1>
+            <p className="sub">{t('crm.telephony.settings.subtitle')}</p>
           </div>
         </div>
 
@@ -229,72 +235,71 @@ export const TelephonySettingsPage: React.FC = () => {
 
         {/* ── IP-телефония ────────────────────────────────────────────── */}
         <div className="ha-section">
-          <div className="ha-section-head"><div><h3>IP-телефония</h3><div className="sub">Twilio Voice — звонки прямо из CRM</div></div></div>
+          <div className="ha-section-head"><div><h3>{t('crm.telephony.settings.voice.title')}</h3><div className="sub">{t('crm.telephony.settings.voice.subtitle')}</div></div></div>
 
           {telLoading ? (
-            <p style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Загрузка…</p>
+            <p style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.voice.loading')}</p>
           ) : !addonEnabled ? (
             <div className="provider-card">
               <div className="provider-logo">TW</div>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 13.5 }}>Twilio Voice</div>
-                <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>Платное дополнение — +€14/мес поверх любого тарифа</div>
+                <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.voice.addonPriceNote')}</div>
               </div>
               <div className="provider-status">
-                <button className="btn btn-primary btn-sm" onClick={handleActivate} disabled={activating}>{activating ? 'Открываем оплату…' : 'Подключить'}</button>
+                <button className="btn btn-primary btn-sm" onClick={handleActivate} disabled={activating}>{activating ? t('crm.telephony.settings.voice.connectingBtn') : t('crm.telephony.settings.voice.connectBtn')}</button>
               </div>
             </div>
           ) : (
             <>
               {includedInPlan && (
-                <p style={{ fontSize: 12, color: '#1f8a5e', marginBottom: 10 }}>Включено бесплатно в ваш тариф Ultimate.</p>
+                <p style={{ fontSize: 12, color: '#1f8a5e', marginBottom: 10 }}>{t('crm.telephony.settings.voice.planIncludedNote')}</p>
               )}
               <div className="provider-card">
                 <div className="provider-logo">TW</div>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 13.5 }}>Twilio Voice {telConfig?.voiceNumber ? `· ${telConfig.voiceNumber}` : ''}</div>
                   <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
-                    {telConfig ? (telConfig.isEnabled ? 'Подключено и активно' : 'Подключено, но отключено') : 'Не настроено'}
+                    {telConfig ? (telConfig.isEnabled ? t('crm.telephony.settings.voice.connectedActive') : t('crm.telephony.settings.voice.connectedDisabled')) : t('crm.telephony.settings.voice.notConfigured')}
                   </div>
                 </div>
                 <div className="provider-status">
-                  {telConfig && <span className="bk-badge confirmed">{telConfig.isEnabled ? 'Активен' : 'Отключён'}</span>}
-                  {telConfig && <button className="btn btn-sm" style={{ color: '#9a1f31', borderColor: '#f0c8cf' }} onClick={handleDeleteTelephony}>Отключить</button>}
+                  {telConfig && <span className="bk-badge confirmed">{telConfig.isEnabled ? t('crm.telephony.settings.voice.statusActive') : t('crm.telephony.settings.voice.statusDisabled')}</span>}
+                  {telConfig && <button className="btn btn-sm" style={{ color: '#9a1f31', borderColor: '#f0c8cf' }} onClick={handleDeleteTelephony}>{t('crm.telephony.settings.voice.disconnectBtn')}</button>}
                 </div>
               </div>
 
               <div style={{ marginTop: 14, display: 'grid', gap: 10, maxWidth: 480 }}>
                 {telConfig?.accountSid && (
                   <p style={{ fontSize: 11.5, color: 'var(--fg-3)', background: 'var(--bg-muted)', borderRadius: 8, padding: '8px 10px' }}>
-                    Учётные данные уже сохранены. Заполните поля ниже только если хотите их обновить.
+                    {t('crm.telephony.settings.voice.credentialsSavedHint')}
                   </p>
                 )}
-                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>Account SID
+                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.voice.accountSidLabel')}
                   <input style={inputStyle} value={accountSid} onChange={(e) => setAccountSid(e.target.value)} placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" autoComplete="off" />
                 </label>
-                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>Auth Token
+                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.voice.authTokenLabel')}
                   <input type="password" style={inputStyle} value={authToken} onChange={(e) => setAuthToken(e.target.value)} placeholder="••••••••••••••••••••••••••••••••" autoComplete="off" />
                 </label>
-                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>Voice-номер (E.164)
+                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.voice.voiceNumberLabel')}
                   <input style={inputStyle} value={voiceNumber} onChange={(e) => setVoiceNumber(e.target.value)} placeholder="+19998887766" />
                 </label>
-                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>Номера сотрудников для звонков (по одному на строку)
+                <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.voice.forwardNumbersLabel')}
                   <textarea style={{ ...inputStyle, minHeight: 70, resize: 'vertical' }} value={forwardNumbersText} onChange={(e) => setForwardNumbersText(e.target.value)} placeholder={'+79991234567\n+79997654321'} />
                 </label>
                 <p style={{ fontSize: 10.5, color: 'var(--fg-3)' }}>
-                  Первый номер — кому звонит Twilio при исходящем звонке из CRM. Все номера — куда звонит Twilio при входящем.
+                  {t('crm.telephony.settings.voice.forwardNumbersHint')}
                 </p>
 
                 <div className="tel-num-row" style={{ background: 'var(--bg-muted)', border: 'none' }}>
-                  <span style={{ fontSize: 11.5 }}>Запись звонков и транскрипция (Whisper) включены автоматически — хранение записей 3 года.</span>
+                  <span style={{ fontSize: 11.5 }}>{t('crm.telephony.settings.voice.recordingHint')}</span>
                 </div>
 
                 {telConfig?.inboundWebhookUrl && (
                   <div>
-                    <p style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>Приём входящих звонков</p>
+                    <p style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>{t('crm.telephony.settings.voice.inboundTitle')}</p>
                     <p style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
-                      Вставьте в консоли Twilio: номер телефона → раздел «Voice» → «A call comes in» → Webhook (HTTP POST).
-                      Без этого шага исходящие звонки из CRM будут работать, а входящие на этот номер — нет.
+                      {t('crm.telephony.settings.voice.inboundHint')}
                     </p>
                     <code style={{ display: 'block', background: 'var(--bg-muted)', border: '1px solid var(--line-2)', borderRadius: 8, padding: '8px 10px', fontSize: 11, wordBreak: 'break-all' }}>
                       {telConfig.inboundWebhookUrl}
@@ -303,9 +308,9 @@ export const TelephonySettingsPage: React.FC = () => {
                 )}
 
                 {telError && <p style={{ fontSize: 11.5, color: '#cc2f47' }}>{telError}</p>}
-                {telSuccess && <p style={{ fontSize: 11.5, color: '#1f8a5e' }}>Настройки сохранены</p>}
+                {telSuccess && <p style={{ fontSize: 11.5, color: '#1f8a5e' }}>{t('crm.telephony.settings.voice.saveSuccess')}</p>}
                 <div>
-                  <button className="btn btn-primary" onClick={handleSaveTelephony} disabled={telSaving}>{telSaving ? 'Сохраняем…' : 'Сохранить настройки телефонии'}</button>
+                  <button className="btn btn-primary" onClick={handleSaveTelephony} disabled={telSaving}>{telSaving ? t('crm.telephony.settings.voice.savingBtn') : t('crm.telephony.settings.voice.saveBtn')}</button>
                 </div>
               </div>
             </>
@@ -314,10 +319,10 @@ export const TelephonySettingsPage: React.FC = () => {
 
         {/* ── SMS-провайдер ────────────────────────────────────────────── */}
         <div className="ha-section">
-          <div className="ha-section-head"><div><h3>SMS-провайдер</h3><div className="sub">Отправка и приём SMS</div></div></div>
+          <div className="ha-section-head"><div><h3>{t('crm.telephony.settings.sms.title')}</h3><div className="sub">{t('crm.telephony.settings.sms.subtitle')}</div></div></div>
 
           {smsLoading ? (
-            <p style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Загрузка…</p>
+            <p style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.sms.loading')}</p>
           ) : (
             <>
               {smsConfig && (
@@ -326,13 +331,13 @@ export const TelephonySettingsPage: React.FC = () => {
                   <div>
                     <div style={{ fontWeight: 600, fontSize: 13.5 }}>{SMS_PROVIDERS.find((p) => p.value === smsConfig.provider)?.label ?? smsConfig.provider}</div>
                     <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
-                      {smsConfig.isEnabled ? 'Подключено и активно' : 'Подключено, но отключено'}
-                      {smsConfig.senderName ? ` · подпись «${smsConfig.senderName}»` : ''}
+                      {smsConfig.isEnabled ? t('crm.telephony.settings.sms.connectedActive') : t('crm.telephony.settings.sms.connectedDisabled')}
+                      {smsConfig.senderName ? ` · ${t('crm.telephony.settings.sms.signatureSuffix', { name: smsConfig.senderName })}` : ''}
                     </div>
                   </div>
                   <div className="provider-status">
-                    <span className="bk-badge confirmed">{smsConfig.isEnabled ? 'Активен' : 'Отключён'}</span>
-                    <button className="btn btn-sm" style={{ color: '#9a1f31', borderColor: '#f0c8cf' }} onClick={handleDeleteSms} disabled={smsDeleting}>{smsDeleting ? 'Удаление…' : 'Отключить'}</button>
+                    <span className="bk-badge confirmed">{smsConfig.isEnabled ? t('crm.telephony.settings.sms.statusActive') : t('crm.telephony.settings.sms.statusDisabled')}</span>
+                    <button className="btn btn-sm" style={{ color: '#9a1f31', borderColor: '#f0c8cf' }} onClick={handleDeleteSms} disabled={smsDeleting}>{smsDeleting ? t('crm.telephony.settings.sms.disconnectingBtn') : t('crm.telephony.settings.sms.disconnectBtn')}</button>
                   </div>
                 </div>
               )}
@@ -353,12 +358,12 @@ export const TelephonySettingsPage: React.FC = () => {
               <div style={{ display: 'grid', gap: 10, maxWidth: 480 }}>
                 {smsConfig?.hasCredentials && (
                   <p style={{ fontSize: 11.5, color: 'var(--fg-3)', background: 'var(--bg-muted)', borderRadius: 8, padding: '8px 10px' }}>
-                    Учётные данные уже сохранены. Заполните поля ниже только если хотите их обновить.
+                    {t('crm.telephony.settings.sms.credentialsSavedHint')}
                   </p>
                 )}
                 {smsProviderDef.fields.map((field) => (
                   <label key={field.key} style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                    {field.label}
+                    {t(field.labelKey)}
                     <input
                       type={field.secret ? 'password' : 'text'}
                       style={inputStyle}
@@ -370,14 +375,14 @@ export const TelephonySettingsPage: React.FC = () => {
                   </label>
                 ))}
                 <label style={{ fontSize: 11, color: 'var(--fg-3)' }}>
-                  Глобальное имя отправителя (необязательно)
+                  {t('crm.telephony.settings.sms.globalSenderLabel')}
                   <input style={inputStyle} maxLength={64} value={senderName} onChange={(e) => setSenderName(e.target.value)} placeholder="Lumiva" />
                 </label>
 
                 <div className="provider-card" style={{ marginBottom: 0 }}>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 13 }}>SMS активны</div>
-                    <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>Разрешить отправку SMS через этот провайдер</div>
+                    <div style={{ fontWeight: 600, fontSize: 13 }}>{t('crm.telephony.settings.sms.activeToggleTitle')}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.telephony.settings.sms.activeToggleHint')}</div>
                   </div>
                   <div className="provider-status">
                     <div className={smsIsEnabled ? 'tel-switch on' : 'tel-switch'} onClick={() => setSmsIsEnabled(!smsIsEnabled)}><i /></div>
@@ -386,9 +391,9 @@ export const TelephonySettingsPage: React.FC = () => {
 
                 {smsConfig?.inboundWebhookUrl && smsConfig.provider === 'twilio' && (
                   <div>
-                    <p style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>Приём входящих SMS</p>
+                    <p style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 4 }}>{t('crm.telephony.settings.sms.inboundTitle')}</p>
                     <p style={{ fontSize: 11, color: 'var(--fg-3)', marginBottom: 6 }}>
-                      Вставьте в консоли Twilio: номер телефона → «A message comes in» → Webhook.
+                      {t('crm.telephony.settings.sms.inboundHint')}
                     </p>
                     <code style={{ display: 'block', background: 'var(--bg-muted)', border: '1px solid var(--line-2)', borderRadius: 8, padding: '8px 10px', fontSize: 11, wordBreak: 'break-all' }}>
                       {smsConfig.inboundWebhookUrl}
@@ -397,9 +402,9 @@ export const TelephonySettingsPage: React.FC = () => {
                 )}
 
                 {smsError && <p style={{ fontSize: 11.5, color: '#cc2f47' }}>{smsError}</p>}
-                {smsSuccess && <p style={{ fontSize: 11.5, color: '#1f8a5e' }}>Настройки сохранены</p>}
+                {smsSuccess && <p style={{ fontSize: 11.5, color: '#1f8a5e' }}>{t('crm.telephony.settings.sms.saveSuccess')}</p>}
                 <div>
-                  <button className="btn btn-primary" onClick={handleSaveSms} disabled={smsSaving}>{smsSaving ? 'Сохраняем…' : 'Сохранить настройки SMS'}</button>
+                  <button className="btn btn-primary" onClick={handleSaveSms} disabled={smsSaving}>{smsSaving ? t('crm.telephony.settings.sms.savingBtn') : t('crm.telephony.settings.sms.saveBtn')}</button>
                 </div>
               </div>
             </>

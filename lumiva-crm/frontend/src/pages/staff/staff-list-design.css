@@ -1,0 +1,14 @@
+/* Column widths for the Staff table — reuses the shared .lv-proj-table
+   design language from ProjectsListPage.css (Leads/Companies/Contacts). */
+.lv-staff-table th:nth-child(1),
+.lv-staff-table td:nth-child(1) { width: 26%; }
+.lv-staff-table th:nth-child(2),
+.lv-staff-table td:nth-child(2) { width: 24%; }
+.lv-staff-table th:nth-child(3),
+.lv-staff-table td:nth-child(3) { width: 16%; }
+.lv-staff-table th:nth-child(4),
+.lv-staff-table td:nth-child(4) { width: 14%; }
+.lv-staff-table th:nth-child(5),
+.lv-staff-table td:nth-child(5) { width: 12%; }
+.lv-staff-table th:nth-child(6),
+.lv-staff-table td:nth-child(6) { width: 8%; }

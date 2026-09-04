@@ -15,6 +15,17 @@ import { LeadsModule } from '../leads/leads.module';
 import { NotesModule } from '../notes/notes.module';
 import { TelegramBotSchedulerService } from './telegram-bot-scheduler.service';
 import { TelegramPollingService } from './telegram-polling.service';
+import { TelegramAiToolsService } from './telegram-ai-tools';
+import { BookingsModule } from '../bookings/bookings.module';
+import { SalesModule } from '../sales/sales.module';
+import { ContactsModule } from '../contacts/contacts.module';
+
+// Note: HelpdeskModule is deliberately NOT imported here even though TelegramAiToolsService
+// calls into HelpdeskService — HelpdeskModule already imports TelegramCrmModule (for its own
+// TelegramCrmService dependency), so importing it back here would recreate the exact circular
+// module-loading failure this comment is warning about. TelegramAiToolsService reaches
+// HelpdeskService through a lazy ModuleRef.get(..., { strict: false }) global lookup instead
+// (see telegram-ai-tools.ts) — same pattern this service already uses for AiAssistantService.
 
 @Module({
   imports: [
@@ -23,9 +34,12 @@ import { TelegramPollingService } from './telegram-polling.service';
     forwardRef(() => AutomationsModule),
     forwardRef(() => LeadsModule),
     forwardRef(() => NotesModule),
+    forwardRef(() => BookingsModule),
+    forwardRef(() => SalesModule),
+    forwardRef(() => ContactsModule),
   ],
   controllers: [TelegramCrmController, TelegramCrmPublicController],
-  providers: [TelegramCrmService, TelegramBotSchedulerService, TelegramPollingService],
+  providers: [TelegramCrmService, TelegramBotSchedulerService, TelegramPollingService, TelegramAiToolsService],
   exports: [TelegramCrmService],
 })
 export class TelegramCrmModule {}

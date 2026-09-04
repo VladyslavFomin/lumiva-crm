@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BlurModal } from '../../components/integrations/BlurModal';
 import { createSalePaymentLink, getPayment, type PaymentDto } from '../../api/payments';
-import { useAlertModal } from '../../contexts/AlertModalContext';
+import { LottieIcon } from '../../components/LottieIcon';
 
 type Props = {
   open: boolean;
@@ -28,7 +28,6 @@ export const SalePaymentLinkModal: React.FC<Props> = ({
   onPaid,
 }) => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
   const [form, setForm] = useState({
     buyerName: defaultBuyerName || '',
     buyerEmail: '',
@@ -72,11 +71,11 @@ export const SalePaymentLinkModal: React.FC<Props> = ({
   };
 
   const handleCreate = async () => {
+    setErr(null);
     if (!form.buyerName.trim() || !form.buyerEmail.trim() || !form.city.trim() || !form.address.trim()) {
-      showAlert(t('crm.sales.paymentLink.errors.missing'), { variant: 'info' });
+      setErr(t('crm.sales.paymentLink.errors.missing'));
       return;
     }
-    setErr(null);
     setBusy(true);
     try {
       const p = await createSalePaymentLink(saleId, {
@@ -198,7 +197,10 @@ export const SalePaymentLinkModal: React.FC<Props> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-[11px] text-slate-500">{t('crm.sales.paymentLink.linkReadyHint')}</p>
+            <div className="flex items-center gap-2">
+              <LottieIcon name="link-share" size={36} className="shrink-0" />
+              <p className="text-[11px] text-slate-500">{t('crm.sales.paymentLink.linkReadyHint')}</p>
+            </div>
             <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
               <input
                 readOnly

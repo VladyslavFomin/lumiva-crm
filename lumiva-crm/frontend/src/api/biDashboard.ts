@@ -60,6 +60,23 @@ export interface BiDashboardSummary {
     pickupRate: number;
     trend: BiTrend;
   };
+  marketing: {
+    connectedChannels: number;
+    spend: CurrencyAmount[];
+    campaigns: number;
+    countries: number;
+    topCountries: string[];
+    channels: Array<{
+      provider: string;
+      name: string;
+      connected: boolean;
+      spend: CurrencyAmount[];
+      campaigns: number;
+      countries: number;
+      topCountries: string[];
+      lastDataDate: string | null;
+    }>;
+  };
   dailyTrend: Array<{
     date: string;
     leads: number;

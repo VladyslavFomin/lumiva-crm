@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import '../projects/ProjectsListPage.css';
 import {
@@ -514,6 +515,7 @@ export const SalesImportPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="salesImport" />
       <div
         className="lv-pt w-full pb-8 min-w-0"
         style={{

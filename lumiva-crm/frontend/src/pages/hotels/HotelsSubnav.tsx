@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 type SubnavKey = 'overview' | 'hotels' | 'reservations' | 'frontdesk' | 'pricing' | 'calendar' | 'analytics';
 
@@ -45,15 +46,16 @@ const ICONS: Record<SubnavKey, React.ReactNode> = {
 
 export const HotelsSubnav: React.FC<{ active: SubnavKey }> = ({ active }) => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const items: Array<{ key: SubnavKey; label: string; path: string }> = [
-    { key: 'overview', label: 'Обзор', path: '/hotels' },
-    { key: 'hotels', label: 'Отели', path: '/hotels/list' },
-    { key: 'reservations', label: 'Брони', path: '/hotels/reservations' },
-    { key: 'frontdesk', label: 'Сегодня', path: '/hotels/frontdesk' },
-    { key: 'pricing', label: 'Цены и рынки', path: '/hotels/pricing' },
-    { key: 'calendar', label: 'Календарь номеров', path: '/hotels/calendar' },
-    { key: 'analytics', label: 'Аналитика', path: '/hotels/analytics' },
+    { key: 'overview', label: t('crm.hotels.nav.overview'), path: '/hotels' },
+    { key: 'hotels', label: t('crm.hotels.nav.hotels'), path: '/hotels/list' },
+    { key: 'reservations', label: t('crm.hotels.nav.reservations'), path: '/hotels/reservations' },
+    { key: 'frontdesk', label: t('crm.hotels.nav.frontdesk'), path: '/hotels/frontdesk' },
+    { key: 'pricing', label: t('crm.hotels.nav.pricing'), path: '/hotels/pricing' },
+    { key: 'calendar', label: t('crm.hotels.nav.calendar'), path: '/hotels/calendar' },
+    { key: 'analytics', label: t('crm.hotels.nav.analytics'), path: '/hotels/analytics' },
   ];
 
   return (

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { ProductsSubnav } from './ProductsSubnav';
 import {
@@ -140,6 +141,7 @@ export const ProductStockPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="productStock" />
       <div className="px-scope">
         <div className="px-head">
           <div>

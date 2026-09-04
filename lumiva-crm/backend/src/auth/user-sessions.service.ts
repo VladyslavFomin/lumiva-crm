@@ -78,6 +78,46 @@ export class UserSessionsService {
     }
   }
 
+  /** Активные сессии ОДНОГО пользователя (страница «Аккаунт» — в отличие от listActiveForTenant,
+   * которая отдаёт всех сотрудников тенанта и требует прав owner). */
+  async listActiveForUser(tenantId: string, userId: string): Promise<UserSession[]> {
+    return this.repo.find({
+      where: { tenantId, userId, revokedAt: IsNull() },
+      order: { lastSeenAt: 'DESC' },
+    });
+  }
+
+  /** Отозвать одну свою сессию — проверяет, что она принадлежит именно этому пользователю
+   * (в отличие от revokeSessionForTenant, которую вызывает owner для ЧУЖИХ сессий). */
+  async revokeOwnSession(tenantId: string, userId: string, sessionId: string): Promise<void> {
+    const s = await this.repo.findOne({ where: { id: sessionId } });
+    if (!s || s.tenantId !== tenantId || s.userId !== userId) {
+      throw new NotFoundException('Session not found');
+    }
+    if (!s.revokedAt) {
+      s.revokedAt = new Date();
+      await this.repo.save(s);
+    }
+  }
+
+  /** «Завершить все, кроме этой» — использует ту же сессию, что и текущий запрос. */
+  async revokeAllForUserExceptCurrent(
+    tenantId: string,
+    userId: string,
+    currentSessionId: string,
+  ): Promise<number> {
+    const res = await this.repo
+      .createQueryBuilder()
+      .update(UserSession)
+      .set({ revokedAt: () => 'NOW()' })
+      .where('tenantId = :tenantId', { tenantId })
+      .andWhere('userId = :userId', { userId })
+      .andWhere('id != :currentSessionId', { currentSessionId })
+      .andWhere('revokedAt IS NULL')
+      .execute();
+    return res.affected ?? 0;
+  }
+
   async listActiveForTenant(tenantId: string): Promise<
     Array<{
       id: string;

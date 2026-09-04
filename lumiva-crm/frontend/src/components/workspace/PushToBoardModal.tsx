@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import '../../pages/workspace/WorkspaceArea.css';
 import {
   fetchCustomObjectFields,
   pushRecordsToBoard,
@@ -159,159 +160,145 @@ export const PushToBoardModal: React.FC<Props> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl p-5 space-y-4">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">
-            {t('crm.workspace.pushToBoard.title')}
-          </h2>
-          <p className="text-sm text-slate-500 mt-1">{t('crm.workspace.pushToBoard.subtitle')}</p>
+    <div className="ws-page ws-scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="ws-drawer">
+        <div className="ws-drawer-head">
+          <div>
+            <h2>{t('crm.workspace.pushToBoard.title')}</h2>
+            <div className="s">{t('crm.workspace.pushToBoard.subtitle')}</div>
+          </div>
         </div>
 
-        {!workspaceAreaId ? (
-          <p className="text-sm text-amber-700">{t('crm.workspace.pushToBoard.noArea')}</p>
-        ) : boards.length === 0 ? (
-          <p className="text-sm text-amber-700">{t('crm.workspace.pushToBoard.noBoards')}</p>
-        ) : (
-          <>
-            <label className="block text-xs font-medium text-slate-600">
-              {t('crm.workspace.pushToBoard.targetTable')}
-              <select
-                value={targetId}
-                onChange={(e) => {
-                  setTargetId(e.target.value);
-                  setDupField('');
-                }}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">{t('crm.workspace.pushToBoard.pickBoard')}</option>
-                {boards.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <p className="text-[11px] text-slate-500">
-              {t('crm.workspace.pushToBoard.autoMapHint', { count: matchedKeysCount })}
-              {explicitPairsCount > 0
-                ? ` ${t('crm.workspace.pushToBoard.explicitMapHint', { count: explicitPairsCount })}`
-                : ''}
-            </p>
-
-            {!!targetFields.length && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50/80">
-                <button
-                  type="button"
-                  onClick={() => setMapExpanded((v) => !v)}
-                  className="w-full flex items-center justify-between px-3 py-2 text-left text-sm font-medium text-slate-800"
+        <div className="ws-drawer-body">
+          {!workspaceAreaId ? (
+            <p className="ws-note">{t('crm.workspace.pushToBoard.noArea')}</p>
+          ) : boards.length === 0 ? (
+            <p className="ws-note">{t('crm.workspace.pushToBoard.noBoards')}</p>
+          ) : (
+            <>
+              <label className="ws-field">
+                <label>{t('crm.workspace.pushToBoard.targetTable')}</label>
+                <select
+                  value={targetId}
+                  onChange={(e) => {
+                    setTargetId(e.target.value);
+                    setDupField('');
+                  }}
+                  className="ws-input"
                 >
-                  <span>{t('crm.workspace.pushToBoard.fieldMapSection')}</span>
-                  <span className="text-slate-400">{mapExpanded ? '▼' : '▶'}</span>
-                </button>
-                {mapExpanded && (
-                  <div className="px-3 pb-3 space-y-2 border-t border-slate-200">
-                    <p className="text-[11px] text-slate-500 pt-2">
-                      {t('crm.workspace.pushToBoard.fieldMapHelp')}
-                    </p>
-                    <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
-                            <th className="px-2 py-2 font-medium">{t('crm.workspace.pushToBoard.colTarget')}</th>
-                            <th className="px-2 py-2 font-medium">{t('crm.workspace.pushToBoard.colSource')}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {targetFields.map((tf) => {
-                            const val = perTargetSource[tf.key] ?? MAP_AUTO;
-                            return (
-                              <tr key={tf.id} className="border-b border-slate-100 last:border-0">
-                                <td className="px-2 py-1.5 text-slate-800 align-middle">
-                                  <span className="font-medium">{tf.label}</span>
-                                  <span className="text-slate-400 ml-1">({tf.key})</span>
-                                </td>
-                                <td className="px-2 py-1.5 align-middle">
-                                  <select
-                                    value={val}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setPerTargetSource((prev) => ({ ...prev, [tf.key]: v }));
-                                    }}
-                                    className="w-full min-w-[200px] rounded-md border border-slate-300 px-2 py-1 text-xs bg-white"
+                  <option value="">{t('crm.workspace.pushToBoard.pickBoard')}</option>
+                  {boards.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <p className="ws-note">
+                {t('crm.workspace.pushToBoard.autoMapHint', { count: matchedKeysCount })}
+                {explicitPairsCount > 0
+                  ? ` ${t('crm.workspace.pushToBoard.explicitMapHint', { count: explicitPairsCount })}`
+                  : ''}
+              </p>
+
+              {!!targetFields.length && (
+                <div className="ws-sec">
+                  <button
+                    type="button"
+                    onClick={() => setMapExpanded((v) => !v)}
+                    className="ws-sec-head"
+                    style={{ width: '100%', background: 'none', border: 0, cursor: 'pointer', textAlign: 'left' }}
+                  >
+                    <h2 style={{ flex: 1 }}>{t('crm.workspace.pushToBoard.fieldMapSection')}</h2>
+                    <span className="s">{mapExpanded ? '▼' : '▶'}</span>
+                  </button>
+                  {mapExpanded && (
+                    <div className="ws-sec-body">
+                      <p className="ws-note" style={{ marginBottom: 8 }}>
+                        {t('crm.workspace.pushToBoard.fieldMapHelp')}
+                      </p>
+                      {targetFields.map((tf) => {
+                        const val = perTargetSource[tf.key] ?? MAP_AUTO;
+                        return (
+                          <div className="ws-maprow" key={tf.id}>
+                            <div className="tgt">
+                              {tf.label}
+                              <span className="key">({tf.key})</span>
+                            </div>
+                            <span className="ar">→</span>
+                            <select
+                              value={val}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setPerTargetSource((prev) => ({ ...prev, [tf.key]: v }));
+                              }}
+                              className="ws-input"
+                            >
+                              <option value={MAP_AUTO}>{t('crm.workspace.pushToBoard.mapAuto')}</option>
+                              <option value={MAP_OMIT}>{t('crm.workspace.pushToBoard.mapOmit')}</option>
+                              {sourceFields.map((sf) => {
+                                const taken = sourceTakenByOther(sf.key, tf.key);
+                                return (
+                                  <option
+                                    key={sf.id}
+                                    value={sf.key}
+                                    disabled={taken && val !== sf.key}
                                   >
-                                    <option value={MAP_AUTO}>{t('crm.workspace.pushToBoard.mapAuto')}</option>
-                                    <option value={MAP_OMIT}>{t('crm.workspace.pushToBoard.mapOmit')}</option>
-                                    {sourceFields.map((sf) => {
-                                      const taken = sourceTakenByOther(sf.key, tf.key);
-                                      return (
-                                        <option
-                                          key={sf.id}
-                                          value={sf.key}
-                                          disabled={taken && val !== sf.key}
-                                        >
-                                          {sf.label} ({sf.key})
-                                          {taken && val !== sf.key ? ` — ${t('crm.workspace.pushToBoard.sourceBusy')}` : ''}
-                                        </option>
-                                      );
-                                    })}
-                                  </select>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                    {sf.label} ({sf.key})
+                                    {taken && val !== sf.key ? ` — ${t('crm.workspace.pushToBoard.sourceBusy')}` : ''}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                          </div>
+                        );
+                      })}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  )}
+                </div>
+              )}
 
-            <label className="block text-xs font-medium text-slate-600">
-              {t('crm.workspace.pushToBoard.dupFieldTarget')}
-              <select
-                value={dupField}
-                onChange={(e) => setDupField(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              >
-                <option value="">{t('crm.workspace.pushToBoard.dupFieldNone')}</option>
-                {targetFields.map((f) => (
-                  <option key={f.id} value={f.key}>
-                    {f.label} ({f.key})
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700">
-              <input
-                type="checkbox"
-                checked={skipDup}
-                onChange={(e) => setSkipDup(e.target.checked)}
-                className="rounded border-slate-300"
-              />
-              {t('crm.workspace.pushToBoard.skipDup')}
-            </label>
-          </>
-        )}
+              <label className="ws-field">
+                <label>{t('crm.workspace.pushToBoard.dupFieldTarget')}</label>
+                <select
+                  value={dupField}
+                  onChange={(e) => setDupField(e.target.value)}
+                  className="ws-input"
+                >
+                  <option value="">{t('crm.workspace.pushToBoard.dupFieldNone')}</option>
+                  {targetFields.map((f) => (
+                    <option key={f.id} value={f.key}>
+                      {f.label} ({f.key})
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="ws-check">
+                <input
+                  type="checkbox"
+                  checked={skipDup}
+                  onChange={(e) => setSkipDup(e.target.checked)}
+                />
+                {t('crm.workspace.pushToBoard.skipDup')}
+              </label>
+            </>
+          )}
 
-        {err && <p className="text-sm text-rose-600">{err}</p>}
-        {summary && <p className="text-sm text-emerald-700">{summary}</p>}
+          {err && <p className="ws-note" style={{ color: '#9c2338' }}>{err}</p>}
+          {summary && <p className="ws-note" style={{ color: '#1f8a5e' }}>{summary}</p>}
+        </div>
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-lg border border-slate-200 text-sm text-slate-700 hover:bg-slate-50"
-          >
+        <div className="ws-drawer-foot">
+          <span className="sp" />
+          <button type="button" onClick={onClose} className="btn btn-sm">
             {t('crm.common.cancel')}
           </button>
           <button
             type="button"
             disabled={busy || !targetId || !recordIds.length || !boards.length}
             onClick={() => void run()}
-            className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm font-medium hover:bg-sky-700 disabled:opacity-50"
+            className="btn btn-primary btn-sm"
           >
             {busy ? t('crm.workspace.pushToBoard.running') : t('crm.workspace.pushToBoard.submit')}
           </button>

@@ -1,7 +1,9 @@
 // src/pages/helpdesk/HelpdeskPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   fetchHelpdeskTickets,
   fetchHelpdeskTicket,
@@ -28,46 +30,30 @@ import './helpdesk-design.css';
 
 const cx = (...a: Array<string | false | undefined>) => a.filter(Boolean).join(' ');
 
-const STATUS: Record<TicketStatus, { label: string; cls: string }> = {
-  open: { label: 'Открыт', cls: 'open' },
-  pending: { label: 'В обработке', cls: 'pending' },
-  resolved: { label: 'Решён', cls: 'resolved' },
-  closed: { label: 'Закрыт', cls: 'closed' },
-};
-const PRIORITY: Record<TicketPriority, { label: string; cls: string }> = {
-  low: { label: 'Низкий', cls: 'low' },
-  medium: { label: 'Средний', cls: 'medium' },
-  high: { label: 'Высокий', cls: 'high' },
-  urgent: { label: 'Критичный', cls: 'urgent' },
-};
-const CHANNEL_LABEL: Record<HelpdeskChannel, string> = {
-  portal: 'Чат в кабинете',
-  email: 'Email',
-  telegram: 'Telegram',
-  whatsapp: 'WhatsApp',
-  sms: 'SMS',
-  internal: 'Внутреннее обращение',
-};
-const LINK_TYPE_LABEL: Record<HelpdeskLinkType, string> = { lead: 'Лид', company: 'Компания', project: 'Проект' };
+const STATUS_CLS: Record<TicketStatus, string> = { open: 'open', pending: 'pending', resolved: 'resolved', closed: 'closed' };
+const PRIORITY_CLS: Record<TicketPriority, string> = { low: 'low', medium: 'medium', high: 'high', urgent: 'urgent' };
+const STATUS_KEYS: TicketStatus[] = ['open', 'pending', 'resolved', 'closed'];
+const PRIORITY_KEYS: TicketPriority[] = ['low', 'medium', 'high', 'urgent'];
+const CHANNEL_KEYS: HelpdeskChannel[] = ['portal', 'email', 'telegram', 'whatsapp', 'sms', 'internal'];
 const LINK_TYPE_ROUTE: Record<HelpdeskLinkType, string> = { lead: '/leads', company: '/companies', project: '/projects' };
+const TAB_KEYS = ['all', 'open', 'pending', 'resolved', 'closed'] as const;
 
-const TABS: Array<{ key: string; label: string }> = [
-  { key: 'all', label: 'Все' },
-  { key: 'open', label: 'Открытые' },
-  { key: 'pending', label: 'В обработке' },
-  { key: 'resolved', label: 'Решённые' },
-  { key: 'closed', label: 'Закрытые' },
-];
-
-const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleString('ru-RU', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
-const fmtSla = (min: number) => (min < 60 ? `${min} мин` : min % 60 === 0 ? `${min / 60} ч` : `${Math.round(min / 60)} ч`);
+const fmtDate = (iso: string | null, locale: string) => (iso ? new Date(iso).toLocaleString(locale, { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
 
 export const HelpdeskPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const { showAlert } = useAlertModal();
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
+  const statusLabel = (s: TicketStatus) => t(`crm.helpdesk.status.${s}`);
+  const priorityLabel = (p: TicketPriority) => t(`crm.helpdesk.priority.${p}`);
+  const channelLabel = (c: HelpdeskChannel) => t(`crm.helpdesk.channel.${c}`);
+  const linkTypeLabel = (lt: HelpdeskLinkType) => t(`crm.helpdesk.linkType.${lt}`);
+  const fmtSla = (min: number) => (min < 60 ? `${min} ${t('crm.helpdesk.minShort')}` : min % 60 === 0 ? `${min / 60} ${t('crm.helpdesk.hourShort')}` : `${Math.round(min / 60)} ${t('crm.helpdesk.hourShort')}`);
+
   const [tickets, setTickets] = useState<HelpdeskTicketRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<{ ticket: HelpdeskTicketDetail; messages: HelpdeskMessage[] } | null>(null);
-  const [tab, setTab] = useState('all');
+  const [tab, setTab] = useState<typeof TAB_KEYS[number]>('all');
   const [q, setQ] = useState('');
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -94,7 +80,7 @@ export const HelpdeskPage: React.FC = () => {
     setLoading(true);
     fetchHelpdeskTickets()
       .then(setTickets)
-      .catch((e: any) => showAlert(e?.message || 'Не удалось загрузить обращения', { variant: 'error' }))
+      .catch((e: any) => showAlert(e?.message || t('crm.helpdesk.loadListError'), { variant: 'error' }))
       .finally(() => setLoading(false));
   };
 
@@ -132,22 +118,22 @@ export const HelpdeskPage: React.FC = () => {
 
   const filtered = useMemo(
     () =>
-      tickets.filter((t) => {
-        if (tab !== 'all' && t.status !== tab) return false;
-        if (q && !t.subject.toLowerCase().includes(q.toLowerCase()) && !(t.contactName || '').toLowerCase().includes(q.toLowerCase())) return false;
+      tickets.filter((tk) => {
+        if (tab !== 'all' && tk.status !== tab) return false;
+        if (q && !tk.subject.toLowerCase().includes(q.toLowerCase()) && !(tk.contactName || '').toLowerCase().includes(q.toLowerCase())) return false;
         return true;
       }),
     [tickets, tab, q],
   );
 
-  const tabCount = (key: string) => (key === 'all' ? tickets.length : tickets.filter((t) => t.status === key).length);
+  const tabCount = (key: string) => (key === 'all' ? tickets.length : tickets.filter((tk) => tk.status === key).length);
 
   const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const counts = {
-    open: tickets.filter((t) => t.status === 'open').length,
-    pending: tickets.filter((t) => t.status === 'pending').length,
-    overdue: tickets.filter((t) => t.overdue).length,
-    closed7: tickets.filter((t) => t.status === 'closed' && t.closedAt && new Date(t.closedAt).getTime() >= sevenDaysAgo).length,
+    open: tickets.filter((tk) => tk.status === 'open').length,
+    pending: tickets.filter((tk) => tk.status === 'pending').length,
+    overdue: tickets.filter((tk) => tk.overdue).length,
+    closed7: tickets.filter((tk) => tk.status === 'closed' && tk.closedAt && new Date(tk.closedAt).getTime() >= sevenDaysAgo).length,
   };
 
   const resetForm = () => {
@@ -183,7 +169,7 @@ export const HelpdeskPage: React.FC = () => {
       loadList();
       setSelectedId(ticket.id);
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось создать тикет', { variant: 'error' });
+      showAlert(e?.message || t('crm.helpdesk.form.createError'), { variant: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -200,7 +186,7 @@ export const HelpdeskPage: React.FC = () => {
       setDetail(fresh);
       loadList();
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось отправить ответ', { variant: 'error' });
+      showAlert(e?.message || t('crm.helpdesk.replyError'), { variant: 'error' });
     } finally {
       setSending(false);
     }
@@ -214,7 +200,7 @@ export const HelpdeskPage: React.FC = () => {
       setDetail(fresh);
       loadList();
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось обновить тикет', { variant: 'error' });
+      showAlert(e?.message || t('crm.helpdesk.updateError'), { variant: 'error' });
     }
   };
 
@@ -222,15 +208,16 @@ export const HelpdeskPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="helpdesk" />
       <div className="px-scope">
         <div className="esn-hero">
           <div>
             <div className="kicker">
               <span className="dot" />
-              ПОДДЕРЖКА
+              {t('crm.helpdesk.kicker')}
             </div>
-            <h1>Хэлпдеск</h1>
-            <p className="sub">Обращения клиентов из кабинета, email, Telegram, WhatsApp и SMS — в одном списке. Ответ уходит обратно в тот же канал.</p>
+            <h1>{t('crm.helpdesk.title')}</h1>
+            <p className="sub">{t('crm.helpdesk.subtitle')}</p>
           </div>
           <div className="esn-hero-r">
             <button
@@ -242,31 +229,31 @@ export const HelpdeskPage: React.FC = () => {
               }}
             >
               <Ic d={HD_ICON.plus} size={13} />
-              {showForm ? 'Отмена' : 'Создать тикет'}
+              {showForm ? t('crm.helpdesk.cancelBtn') : t('crm.helpdesk.createTicketBtn')}
             </button>
           </div>
         </div>
 
         <div className="esn-kpis">
           <div className="esn-kpi">
-            <div className="l">Открытых</div>
+            <div className="l">{t('crm.helpdesk.kpis.open')}</div>
             <div className="v">{counts.open}</div>
-            <div className="d warn">требуют ответа</div>
+            <div className="d warn">{t('crm.helpdesk.kpis.openDesc')}</div>
           </div>
           <div className="esn-kpi">
-            <div className="l">В обработке</div>
+            <div className="l">{t('crm.helpdesk.kpis.pending')}</div>
             <div className="v">{counts.pending}</div>
-            <div className="d">в диалоге с агентом</div>
+            <div className="d">{t('crm.helpdesk.kpis.pendingDesc')}</div>
           </div>
           <div className="esn-kpi">
-            <div className="l">Просрочено по SLA</div>
+            <div className="l">{t('crm.helpdesk.kpis.overdue')}</div>
             <div className="v">{counts.overdue}</div>
-            <div className="d warn">ответ не отправлен вовремя</div>
+            <div className="d warn">{t('crm.helpdesk.kpis.overdueDesc')}</div>
           </div>
           <div className="esn-kpi">
-            <div className="l">Закрыто</div>
+            <div className="l">{t('crm.helpdesk.kpis.closed')}</div>
             <div className="v">{counts.closed7}</div>
-            <div className="d up">за последние 7 дней</div>
+            <div className="d up">{t('crm.helpdesk.kpis.closedDesc')}</div>
           </div>
         </div>
 
@@ -274,38 +261,38 @@ export const HelpdeskPage: React.FC = () => {
           <form className="esn-panel" onSubmit={handleCreate}>
             <div className="esn-row2">
               <div className="esn-field">
-                <span className="l">Тема обращения</span>
-                <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="Коротко опишите проблему" required />
+                <span className="l">{t('crm.helpdesk.form.subjectLabel')}</span>
+                <input type="text" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder={t('crm.helpdesk.form.subjectPlaceholder')} required />
               </div>
               <div className="esn-field">
-                <span className="l">Категория</span>
-                <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Например: Биллинг, Доступ/Аккаунт…" />
+                <span className="l">{t('crm.helpdesk.form.categoryLabel')}</span>
+                <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t('crm.helpdesk.form.categoryPlaceholder')} />
               </div>
             </div>
 
             <div className="esn-row3">
               <div className="esn-field">
-                <span className="l">Приоритет</span>
+                <span className="l">{t('crm.helpdesk.form.priorityLabel')}</span>
                 <select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)}>
-                  {(Object.keys(PRIORITY) as TicketPriority[]).map((p) => (
+                  {PRIORITY_KEYS.map((p) => (
                     <option key={p} value={p}>
-                      {PRIORITY[p].label}
+                      {priorityLabel(p)}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="esn-field">
-                <span className="l">Канал ответа</span>
+                <span className="l">{t('crm.helpdesk.form.channelLabel')}</span>
                 <select value={channel} onChange={(e) => setChannel(e.target.value as HelpdeskChannel)}>
-                  {(Object.keys(CHANNEL_LABEL) as HelpdeskChannel[]).map((c) => (
+                  {CHANNEL_KEYS.map((c) => (
                     <option key={c} value={c}>
-                      {CHANNEL_LABEL[c]}
+                      {channelLabel(c)}
                     </option>
                   ))}
                 </select>
               </div>
               <div className="esn-field">
-                <span className="l">Привязка к записи CRM</span>
+                <span className="l">{t('crm.helpdesk.form.linkLabel')}</span>
                 <select
                   value={entityType}
                   onChange={(e) => {
@@ -314,26 +301,29 @@ export const HelpdeskPage: React.FC = () => {
                     setEntitySearch('');
                   }}
                 >
-                  <option value="">Без привязки</option>
-                  <option value="lead">Лид</option>
-                  <option value="company">Компания</option>
-                  <option value="project">Проект</option>
+                  <option value="">{t('crm.helpdesk.form.noLink')}</option>
+                  <option value="lead">{linkTypeLabel('lead')}</option>
+                  <option value="company">{linkTypeLabel('company')}</option>
+                  <option value="project">{linkTypeLabel('project')}</option>
                 </select>
               </div>
             </div>
 
             {channel !== 'portal' && (
               <div className="esn-alert warn">
-                Ответы будут отправляться контакту напрямую через {CHANNEL_LABEL[channel]} — убедитесь, что у контакта есть {channel === 'email' ? 'email' : channel === 'sms' ? 'телефон' : `привязка к ${CHANNEL_LABEL[channel]}`}.
+                {t('crm.helpdesk.form.channelWarning', {
+                  channel: channelLabel(channel),
+                  requirement: channel === 'email' ? t('crm.helpdesk.form.requirementEmail') : channel === 'sms' ? t('crm.helpdesk.form.requirementPhone') : t('crm.helpdesk.form.requirementLinkTo', { channel: channelLabel(channel) }),
+                })}
               </div>
             )}
 
             <div className="esn-row2">
               <div className="esn-field">
-                <span className="l">Контакт{channel !== 'portal' ? ' (обязательно для этого канала)' : ''}</span>
-                <input type="text" value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder="Поиск контакта…" />
+                <span className="l">{t('crm.helpdesk.form.contactLabel')}{channel !== 'portal' ? t('crm.helpdesk.form.contactRequiredSuffix') : ''}</span>
+                <input type="text" value={contactSearch} onChange={(e) => setContactSearch(e.target.value)} placeholder={t('crm.helpdesk.form.contactSearchPlaceholder')} />
                 <select value={contactId} onChange={(e) => setContactId(e.target.value)} style={{ marginTop: 4 }}>
-                  <option value="">Без привязки к контакту</option>
+                  <option value="">{t('crm.helpdesk.form.noContactLink')}</option>
                   {contacts.map((c) => (
                     <option key={c.id} value={c.id}>
                       {c.fullName || [c.firstName, c.lastName].filter(Boolean).join(' ')} {c.email ? `(${c.email})` : ''}
@@ -343,15 +333,15 @@ export const HelpdeskPage: React.FC = () => {
               </div>
               {entityType && (
                 <div className="esn-field">
-                  <span className="l">{LINK_TYPE_LABEL[entityType]}</span>
+                  <span className="l">{linkTypeLabel(entityType)}</span>
                   <input
                     type="text"
                     value={entitySearch}
                     onChange={(e) => setEntitySearch(e.target.value)}
-                    placeholder={`Поиск: ${LINK_TYPE_LABEL[entityType].toLowerCase()}…`}
+                    placeholder={t('crm.helpdesk.form.linkSearchPlaceholder', { type: linkTypeLabel(entityType).toLowerCase() })}
                   />
                   <select value={entityId} onChange={(e) => setEntityId(e.target.value)} style={{ marginTop: 4 }}>
-                    <option value="">— выберите —</option>
+                    <option value="">{t('crm.helpdesk.form.chooseOption')}</option>
                     {entityOptions.map((o) => (
                       <option key={o.id} value={o.id}>
                         {o.name}
@@ -363,61 +353,61 @@ export const HelpdeskPage: React.FC = () => {
             </div>
 
             <div className="esn-field">
-              <span className="l">Первое сообщение</span>
-              <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={4} placeholder="Опишите суть обращения…" />
+              <span className="l">{t('crm.helpdesk.form.firstMessageLabel')}</span>
+              <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={4} placeholder={t('crm.helpdesk.form.firstMessagePlaceholder')} />
             </div>
 
             <button type="submit" className="btn btn-primary" disabled={submitting}>
-              {submitting ? 'Создаём…' : 'Создать тикет'}
+              {submitting ? t('crm.helpdesk.form.creatingBtn') : t('crm.helpdesk.form.createBtn')}
             </button>
           </form>
         )}
 
         <div className="view-tabs">
-          {TABS.map((t) => (
-            <button key={t.key} type="button" className={cx('view-tab', tab === t.key && 'active')} onClick={() => setTab(t.key)}>
-              {t.label}
-              <span className="badge">{tabCount(t.key)}</span>
+          {TAB_KEYS.map((k) => (
+            <button key={k} type="button" className={cx('view-tab', tab === k && 'active')} onClick={() => setTab(k)}>
+              {t(`crm.helpdesk.tabs.${k}`)}
+              <span className="badge">{tabCount(k)}</span>
             </button>
           ))}
           <div className="toolbar-spacer" />
           <div className="tb-search" style={{ width: 220 }}>
             <Ic d={HD_ICON.search} size={13} />
-            <input placeholder="Найти тикет…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input placeholder={t('crm.helpdesk.searchPlaceholder')} value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
         </div>
 
         <div className="ds-layout hd-layout">
           <div className="ds-list">
-            {loading && <div className="ds-empty">Загрузка…</div>}
-            {!loading && filtered.length === 0 && <div className="ds-empty">{tickets.length === 0 ? 'Обращений нет' : 'Ничего не найдено'}</div>}
+            {loading && <div className="ds-empty">{t('crm.helpdesk.loadingList')}</div>}
+            {!loading && filtered.length === 0 && <div className="ds-empty">{tickets.length === 0 ? t('crm.helpdesk.emptyTickets') : t('crm.helpdesk.emptySearch')}</div>}
             {!loading &&
-              filtered.map((t) => (
-                <div key={t.id} className={cx('hd-ticket', selectedId === t.id && 'active')} onClick={() => setSelectedId(t.id)}>
+              filtered.map((tk) => (
+                <div key={tk.id} className={cx('hd-ticket', selectedId === tk.id && 'active')} onClick={() => setSelectedId(tk.id)}>
                   <div className="hd-ticket-top">
                     <span className="hd-id">
-                      #{t.id.slice(0, 6)}
-                      {t.unreadCount > 0 && (
-                        <span style={{ marginLeft: 6, color: '#cc2f47', fontWeight: 700 }}>· {t.unreadCount} новых</span>
+                      #{tk.id.slice(0, 6)}
+                      {tk.unreadCount > 0 && (
+                        <span style={{ marginLeft: 6, color: '#cc2f47', fontWeight: 700 }}>· {t('crm.helpdesk.newMessagesSuffix', { count: tk.unreadCount })}</span>
                       )}
                     </span>
-                    <span className={cx('hd-pill', PRIORITY[t.priority].cls)}>{PRIORITY[t.priority].label}</span>
+                    <span className={cx('hd-pill', PRIORITY_CLS[tk.priority])}>{priorityLabel(tk.priority)}</span>
                   </div>
-                  <div className="ds-doc-title">{t.subject}</div>
+                  <div className="ds-doc-title">{tk.subject}</div>
                   <div className="ds-doc-link">
-                    {t.requesterName
-                      ? `${t.requesterName}${t.requesterDepartment ? ` · ${t.requesterDepartment}` : ''}`
-                      : t.entityLabel
-                        ? `${LINK_TYPE_LABEL[t.entityType as HelpdeskLinkType]} · ${t.entityLabel}`
-                        : t.contactName || 'Без привязки'}
-                    {t.overdue && <span className="hd-overdue"> · SLA просрочен</span>}
+                    {tk.requesterName
+                      ? `${tk.requesterName}${tk.requesterDepartment ? ` · ${tk.requesterDepartment}` : ''}`
+                      : tk.entityLabel
+                        ? `${linkTypeLabel(tk.entityType as HelpdeskLinkType)} · ${tk.entityLabel}`
+                        : tk.contactName || t('crm.helpdesk.noLinkFallback')}
+                    {tk.overdue && <span className="hd-overdue"> · {t('crm.helpdesk.slaOverdueSuffix')}</span>}
                   </div>
                   <div className="ds-doc-foot">
-                    <Ic d={CHANNEL_ICON[t.channel]} size={12} />
-                    <span>{CHANNEL_LABEL[t.channel]}</span>
+                    <Ic d={CHANNEL_ICON[tk.channel]} size={12} />
+                    <span>{channelLabel(tk.channel)}</span>
                     <span className="sep">·</span>
-                    <span className={cx('ds-status', STATUS[t.status].cls)} style={{ padding: '1px 7px' }}>
-                      {STATUS[t.status].label}
+                    <span className={cx('ds-status', STATUS_CLS[tk.status])} style={{ padding: '1px 7px' }}>
+                      {statusLabel(tk.status)}
                     </span>
                   </div>
                 </div>
@@ -427,12 +417,12 @@ export const HelpdeskPage: React.FC = () => {
           <div className="ds-detail hd-detail">
             {!selectedId && (
               <div className="ds-empty" style={{ margin: 'auto' }}>
-                Выберите тикет
+                {t('crm.helpdesk.selectTicket')}
               </div>
             )}
             {selectedId && detailLoading && (
               <div className="ds-empty" style={{ margin: 'auto' }}>
-                Загрузка…
+                {t('crm.helpdesk.loadingDetail')}
               </div>
             )}
             {sel && !detailLoading && (
@@ -447,22 +437,22 @@ export const HelpdeskPage: React.FC = () => {
                     <div className="ds-detail-link">
                       {sel.entityType && sel.entityLabel ? (
                         <>
-                          {LINK_TYPE_LABEL[sel.entityType]} · <Link to={`${LINK_TYPE_ROUTE[sel.entityType]}/${sel.entityId}`}>{sel.entityLabel}</Link>
+                          {linkTypeLabel(sel.entityType)} · <Link to={`${LINK_TYPE_ROUTE[sel.entityType]}/${sel.entityId}`}>{sel.entityLabel}</Link>
                         </>
                       ) : (
-                        'Без привязки к лиду, компании или проекту'
+                        t('crm.helpdesk.noLinkDetail')
                       )}
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-                    <span className={cx('hd-pill', 'lg', PRIORITY[sel.priority].cls)}>{PRIORITY[sel.priority].label}</span>
-                    <span className={cx('ds-status', 'lg', STATUS[sel.status].cls)}>{STATUS[sel.status].label}</span>
+                    <span className={cx('hd-pill', 'lg', PRIORITY_CLS[sel.priority])}>{priorityLabel(sel.priority)}</span>
+                    <span className={cx('ds-status', 'lg', STATUS_CLS[sel.status])}>{statusLabel(sel.status)}</span>
                   </div>
                 </div>
 
                 {sel.overdue && (
                   <div className="esn-alert warn" style={{ marginTop: 14 }}>
-                    Ответ не отправлен в течение {fmtSla(sel.slaTargetMinutes)} — SLA просрочен.
+                    {t('crm.helpdesk.slaOverdueBanner', { sla: fmtSla(sel.slaTargetMinutes) })}
                   </div>
                 )}
 
@@ -472,25 +462,27 @@ export const HelpdeskPage: React.FC = () => {
                       {detail!.messages.map((m) => (
                         <div key={m.id} className={cx('hd-msg', m.direction === 'outgoing' && 'outgoing')}>
                           <div className="hd-msg-head">
-                            <span className="nm">{m.authorName || (m.direction === 'incoming' ? 'Клиент' : 'Сотрудник')}</span>
-                            <span className="tm">{fmtDate(m.createdAt)}</span>
+                            <span className="nm">{m.authorName || (m.direction === 'incoming' ? t('crm.helpdesk.authorClient') : t('crm.helpdesk.authorStaff'))}</span>
+                            <span className="tm">{fmtDate(m.createdAt, dateLocale)}</span>
                           </div>
                           <div className="hd-msg-text">{m.text}</div>
                         </div>
                       ))}
-                      {detail!.messages.length === 0 && <div className="ds-empty">Сообщений пока нет</div>}
+                      {detail!.messages.length === 0 && <div className="ds-empty">{t('crm.helpdesk.noMessages')}</div>}
                     </div>
 
                     <form className="hd-reply" onSubmit={handleReply}>
-                      <textarea placeholder="Написать ответ…" rows={3} value={reply} onChange={(e) => setReply(e.target.value)} />
+                      <textarea placeholder={t('crm.helpdesk.replyPlaceholder')} rows={3} value={reply} onChange={(e) => setReply(e.target.value)} />
                       <div className="hd-reply-actions">
                         <span className="hd-reply-chan">
                           <Ic d={CHANNEL_ICON[sel.channel]} size={13} className="ic" />
-                          {sel.channel === 'internal' ? `Придёт уведомлением сотруднику${sel.requesterName ? ` (${sel.requesterName})` : ''}` : `Уйдёт через ${CHANNEL_LABEL[sel.channel]}`}
+                          {sel.channel === 'internal'
+                            ? t('crm.helpdesk.replyViaInternal', { name: sel.requesterName ? ` (${sel.requesterName})` : '' })
+                            : t('crm.helpdesk.replyViaChannel', { channel: channelLabel(sel.channel) })}
                         </span>
                         <button type="submit" className="btn btn-primary btn-sm" disabled={sending || !reply.trim()}>
                           <Ic d={HD_ICON.email} size={13} />
-                          {sending ? 'Отправляем…' : 'Отправить'}
+                          {sending ? t('crm.helpdesk.sendingBtn') : t('crm.helpdesk.sendBtn')}
                         </button>
                       </div>
                     </form>
@@ -499,7 +491,7 @@ export const HelpdeskPage: React.FC = () => {
                   <div className="ds-side">
                     <div className="ds-meta">
                       <div className="ds-meta-row">
-                        <span className="l">{sel.requesterName ? 'Внутреннее обращение от' : 'Обращение от'}</span>
+                        <span className="l">{sel.requesterName ? t('crm.helpdesk.meta.fromInternal') : t('crm.helpdesk.meta.from')}</span>
                         <span className="v">
                           {sel.requesterName
                             ? `${sel.requesterName}${sel.requesterDepartment ? ` · ${sel.requesterDepartment}` : ''}`
@@ -507,36 +499,36 @@ export const HelpdeskPage: React.FC = () => {
                         </span>
                       </div>
                       <div className="ds-meta-row">
-                        <span className="l">Канал</span>
+                        <span className="l">{t('crm.helpdesk.meta.channel')}</span>
                         <span className="v hd-channel">
                           <Ic d={CHANNEL_ICON[sel.channel]} size={12} />
-                          {CHANNEL_LABEL[sel.channel]}
+                          {channelLabel(sel.channel)}
                         </span>
                       </div>
                       {sel.category && (
                         <div className="ds-meta-row">
-                          <span className="l">Категория</span>
+                          <span className="l">{t('crm.helpdesk.meta.category')}</span>
                           <span className="v">{sel.category}</span>
                         </div>
                       )}
                       <div className="ds-meta-row">
-                        <span className="l">Приоритет</span>
+                        <span className="l">{t('crm.helpdesk.meta.priority')}</span>
                         <select className="hd-select-inline" value={sel.priority} onChange={(e) => patchTicket({ priority: e.target.value as TicketPriority })}>
-                          {(Object.keys(PRIORITY) as TicketPriority[]).map((p) => (
+                          {PRIORITY_KEYS.map((p) => (
                             <option key={p} value={p}>
-                              {PRIORITY[p].label}
+                              {priorityLabel(p)}
                             </option>
                           ))}
                         </select>
                       </div>
                       <div className="ds-meta-row">
-                        <span className="l">Ответственный</span>
+                        <span className="l">{t('crm.helpdesk.meta.assignee')}</span>
                         <select
                           className="hd-select-inline"
                           value={sel.assignedUserId || ''}
                           onChange={(e) => patchTicket({ assignedUserId: e.target.value || null })}
                         >
-                          <option value="">— не назначен —</option>
+                          <option value="">{t('crm.helpdesk.meta.unassigned')}</option>
                           {staff.map((s) => (
                             <option key={s.id} value={s.id}>
                               {s.fullName}
@@ -545,30 +537,30 @@ export const HelpdeskPage: React.FC = () => {
                         </select>
                       </div>
                       <div className="ds-meta-row">
-                        <span className="l">Создан</span>
-                        <span className="v">{fmtDate(sel.createdAt)}</span>
+                        <span className="l">{t('crm.helpdesk.meta.created')}</span>
+                        <span className="v">{fmtDate(sel.createdAt, dateLocale)}</span>
                       </div>
                       <div className="ds-meta-row">
-                        <span className="l">SLA до ответа</span>
+                        <span className="l">{t('crm.helpdesk.meta.slaUntilReply')}</span>
                         <span className={cx('v', sel.overdue && 'hd-overdue')}>
                           {fmtSla(sel.slaTargetMinutes)}
-                          {sel.overdue ? ' · просрочен' : ''}
+                          {sel.overdue ? t('crm.helpdesk.meta.overdueSuffix') : ''}
                         </span>
                       </div>
                     </div>
 
                     <div className="ds-actions">
                       <select className="hd-select-inline" value={sel.status} onChange={(e) => patchTicket({ status: e.target.value as TicketStatus })}>
-                        {(Object.keys(STATUS) as TicketStatus[]).map((s) => (
+                        {STATUS_KEYS.map((s) => (
                           <option key={s} value={s}>
-                            {STATUS[s].label}
+                            {statusLabel(s)}
                           </option>
                         ))}
                       </select>
                       {sel.status !== 'closed' && (
                         <button type="button" className="btn btn-sm" onClick={() => patchTicket({ status: 'closed' })}>
                           <Ic d={HD_ICON.check} size={13} />
-                          Закрыть тикет
+                          {t('crm.helpdesk.closeTicketBtn')}
                         </button>
                       )}
                     </div>

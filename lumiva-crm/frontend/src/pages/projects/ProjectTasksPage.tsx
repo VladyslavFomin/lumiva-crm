@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { fetchProject, fetchProjects, updateProject } from '../../api/projects';
 import { fetchStaff, type StaffUser } from '../../api/staff';
 import { getLocale } from '../../i18n/utils';
@@ -15,6 +16,7 @@ import {
   taskAssigneesMatchNormalizedLabels,
   toggleTaskAssigneeIds,
 } from './taskAssignees';
+import { isTextMentioning } from './mentions';
 
 type FlattenedTask = ProjectTask & {
   projectId: string;
@@ -117,14 +119,6 @@ export const ProjectTasksPage: React.FC = () => {
 
   const normalize = (value?: string | null) =>
     (value ?? '').toString().trim().toLowerCase();
-  const extractMentions = (text: string) => {
-    const matches = text.matchAll(/@([\p{L}\p{N}._-]+)/gu);
-    const result: string[] = [];
-    for (const match of matches) {
-      if (match[1]) result.push(match[1]);
-    }
-    return result;
-  };
   const currentStaff = staff.find(
     (u) => u.id === user?.id || u.email === user?.email,
   );
@@ -326,7 +320,7 @@ export const ProjectTasksPage: React.FC = () => {
     try {
       const saved = await updateProject(
         { ...project, tasks: nextTasks },
-        { includeEmptyTasks: true },
+        { includeEmptyTasks: true, excludeStatus: true },
       );
       const resolved = resolveSavedTasks(saved.tasks, nextTasks);
       const snapshot = lastProjectTasksRef.current[projectId];
@@ -391,7 +385,7 @@ export const ProjectTasksPage: React.FC = () => {
     try {
       const saved = await updateProject(
         { ...project, tasks: nextTasks },
-        { includeEmptyTasks: true },
+        { includeEmptyTasks: true, excludeStatus: true },
       );
       const resolved = resolveSavedTasks(saved.tasks, nextTasks);
       const snapshot = lastProjectTasksRef.current[projectId];
@@ -432,7 +426,7 @@ export const ProjectTasksPage: React.FC = () => {
     try {
       const saved = await updateProject(
         { ...project, tasks: nextTasks },
-        { includeEmptyTasks: true },
+        { includeEmptyTasks: true, excludeStatus: true },
       );
       const resolved = resolveSavedTasks(saved.tasks, nextTasks);
       const snapshot = lastProjectTasksRef.current[projectId];
@@ -477,7 +471,7 @@ export const ProjectTasksPage: React.FC = () => {
     try {
       const saved = await updateProject(
         { ...project, tasks: nextTasks },
-        { includeEmptyTasks: true },
+        { includeEmptyTasks: true, excludeStatus: true },
       );
       const resolved = resolveSavedTasks(saved.tasks, nextTasks);
       const snapshot = lastProjectTasksRef.current[projectId];
@@ -503,6 +497,7 @@ export const ProjectTasksPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="projectsTasks" />
       <div className="space-y-4 md:space-y-6 pb-8">
         <section className="flex flex-col gap-1">
           <div className="text-[11px] uppercase tracking-[0.25em] text-slate-500">
@@ -683,10 +678,7 @@ export const ProjectTasksPage: React.FC = () => {
                       const assignees = resolveAssignees(task);
                       const projectPercent = projectProgress.get(project.id) ?? 0;
                       const done = isDoneStatus(task.status);
-                      const mentions = extractMentions(task.title || '');
-                      const hasMention = mentions.some((m) =>
-                        currentLabels.includes(normalize(m)),
-                      );
+                      const hasMention = isTextMentioning(task.title || '', currentLabels);
                       const ctl =
                         'rounded-lg border border-slate-300 bg-slate-100 px-2 py-1.5 text-[11px] font-medium text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-lumiva-accent/25';
                       return (

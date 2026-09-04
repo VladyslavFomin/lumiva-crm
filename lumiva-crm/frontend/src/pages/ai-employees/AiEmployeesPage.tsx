@@ -3,6 +3,9 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction, i18n as I18NextInstance } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
+import { OpenAiConnectModal } from '../../components/integrations/OpenAiConnectModal';
+import { LottieIcon } from '../../components/LottieIcon';
 import { fetchIntegrations, type IntegrationConnectionDto } from '../../api/integrations';
 import { cn } from '../../lib/cn';
 import {
@@ -827,6 +830,7 @@ function DashboardView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [ownKeyModalOpen, setOwnKeyModalOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -854,6 +858,7 @@ function DashboardView() {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployees" />
       <div className="ai-emp">
         <div className="ai-hero">
           <div>
@@ -876,6 +881,38 @@ function DashboardView() {
           {t('crm.aiEmployees.naming.dashboardHint')}
         </p>
 
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+            border: '1px solid var(--line-2)',
+            borderRadius: 12,
+            padding: '12px 16px',
+            marginBottom: 20,
+            background: 'rgba(124, 58, 237, 0.04)',
+          }}
+        >
+          <div style={{ fontSize: 12.5, color: 'var(--fg-2)', lineHeight: 1.5 }}>
+            <strong style={{ color: 'var(--fg-1)' }}>{t('crm.aiEmployees.ownKeyBanner.title')}</strong>{' '}
+            {t('crm.aiEmployees.ownKeyBanner.body')}
+          </div>
+          <button
+            className="aib"
+            style={{ flexShrink: 0 }}
+            onClick={() => setOwnKeyModalOpen(true)}
+          >
+            {t('crm.aiEmployees.ownKeyBanner.button')}
+          </button>
+        </div>
+        <OpenAiConnectModal
+          open={ownKeyModalOpen}
+          onClose={() => setOwnKeyModalOpen(false)}
+          onCreated={() => setOwnKeyModalOpen(false)}
+        />
+
         {error ? (
           <div className="ai-panel" style={{ padding: 16, marginBottom: 16, color: '#9a1f31', fontSize: 13 }}>
             {error}
@@ -885,57 +922,77 @@ function DashboardView() {
 
         {data ? (
           <>
-            <div className="ai-kpis">
-              <KpiTile label={t('crm.aiEmployees.dashboard.kpiActive')} value={data.kpis.activeAiEmployees} icon={ICON.users} />
-              <KpiTile label={t('crm.aiEmployees.dashboard.kpiTasksToday')} value={data.kpis.tasksCompletedToday} icon={ICON.bolt} />
-              <KpiTile label={t('crm.aiEmployees.dashboard.kpiPendingApprovals')} value={data.kpis.pendingApprovals} icon={ICON.shield} />
-              <KpiTile label={t('crm.aiEmployees.dashboard.kpiReports')} value={data.kpis.reportsGenerated} icon={ICON.doc} />
-              <KpiTile label={t('crm.aiEmployees.dashboard.kpiLeads')} value={data.kpis.leadsAnalyzed} icon={ICON.lead} />
-              <KpiTile label={t('crm.aiEmployees.dashboard.kpiIssues')} value={data.kpis.issuesDetected} icon={ICON.x} />
-            </div>
-
-            <div className="ai-grp">
-              {t('crm.aiEmployees.dashboard.title')} <span className="cnt">· {data.items.length}</span>
-            </div>
-            <div className="ai-roster">
-              {data.items.map((agent) => (
-                <AgentCard key={agent.id} agent={agent} onOpen={() => navigate(`/ai-employees/${agent.id}`)} />
-              ))}
-              <div
-                className="ai-card"
-                {...clickableProps(add)}
-                style={{
-                  border: '1.5px dashed var(--line-2)',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  minHeight: 220,
-                  background: 'rgba(255,255,255,0.5)',
-                }}
-              >
-                <div
-                  style={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 12,
-                    background: 'var(--bg-soft)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: 'var(--fg-3)',
-                    margin: '0 auto 12px',
-                  }}
-                >
-                  <I d={ICON.plus} size={20} />
+            {data.items.length === 0 ? (
+              <div className="ai-panel" style={{ padding: '40px 24px', textAlign: 'center', marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <LottieIcon name="welcome" size={168} />
                 </div>
-                <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>
-                  {t('crm.aiEmployees.dashboard.hireCardTitle')}
+                <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 19, color: 'var(--ink)', letterSpacing: '-0.02em', marginTop: 4 }}>
+                  {t('crm.aiEmployees.empty.title')}
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 5, maxWidth: 220, marginLeft: 'auto', marginRight: 'auto' }}>
-                  {t('crm.aiEmployees.dashboard.hireCardSubtitle')}
+                <div style={{ fontSize: 13, color: 'var(--fg-3)', maxWidth: 420, margin: '8px auto 0', lineHeight: 1.5 }}>
+                  {t('crm.aiEmployees.empty.body')}
                 </div>
+                <button className="aib" style={{ marginTop: 18 }} onClick={add}>
+                  <I d={ICON.plus} size={15} />
+                  {t('crm.aiEmployees.empty.cta')}
+                </button>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="ai-kpis">
+                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiActive')} value={data.kpis.activeAiEmployees} icon={ICON.users} />
+                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiTasksToday')} value={data.kpis.tasksCompletedToday} icon={ICON.bolt} />
+                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiPendingApprovals')} value={data.kpis.pendingApprovals} icon={ICON.shield} />
+                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiReports')} value={data.kpis.reportsGenerated} icon={ICON.doc} />
+                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiLeads')} value={data.kpis.leadsAnalyzed} icon={ICON.lead} />
+                  <KpiTile label={t('crm.aiEmployees.dashboard.kpiIssues')} value={data.kpis.issuesDetected} icon={ICON.x} />
+                </div>
+
+                <div className="ai-grp">
+                  {t('crm.aiEmployees.dashboard.title')} <span className="cnt">· {data.items.length}</span>
+                </div>
+                <div className="ai-roster">
+                  {data.items.map((agent) => (
+                    <AgentCard key={agent.id} agent={agent} onOpen={() => navigate(`/ai-employees/${agent.id}`)} />
+                  ))}
+                  <div
+                    className="ai-card"
+                    {...clickableProps(add)}
+                    style={{
+                      border: '1.5px dashed var(--line-2)',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      textAlign: 'center',
+                      minHeight: 220,
+                      background: 'rgba(255,255,255,0.5)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        background: 'var(--bg-soft)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--fg-3)',
+                        margin: '0 auto 12px',
+                      }}
+                    >
+                      <I d={ICON.plus} size={20} />
+                    </div>
+                    <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 14, color: 'var(--ink)', letterSpacing: '-0.01em' }}>
+                      {t('crm.aiEmployees.dashboard.hireCardTitle')}
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 5, maxWidth: 220, marginLeft: 'auto', marginRight: 'auto' }}>
+                      {t('crm.aiEmployees.dashboard.hireCardSubtitle')}
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
 
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
@@ -1006,6 +1063,7 @@ function ChooseView() {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployeesChoose" />
       <div className="ai-emp">
         <div className="ai-hero" style={{ marginBottom: 20 }}>
           <div>
@@ -1147,6 +1205,7 @@ function CreateView() {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployeesCreate" />
       <div className="ai-emp">
         <button className="ai-back" onClick={back}>
           <I d={ICON.back} size={14} />
@@ -1268,6 +1327,11 @@ function CreateView() {
                       </option>
                     ))}
                   </select>
+                  {openaiConnectionId && (
+                    <p style={{ marginTop: 6, fontSize: 11, color: 'var(--ai-fg-3, #64748b)' }}>
+                      {t('crm.aiEmployees.create.aiProviderOwnKeyHint')}
+                    </p>
+                  )}
                 </div>
               </div>
             </>
@@ -1410,6 +1474,7 @@ function ApprovalsView() {
   }, []);
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployeesApprovals" />
       <div className="ai-emp">
         <div className="ai-hero" style={{ marginBottom: 20 }}>
           <div>
@@ -1451,6 +1516,7 @@ function LogsView() {
   }, []);
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployeesLogs" />
       <div className="ai-emp">
         <div className="ai-hero" style={{ marginBottom: 20 }}>
           <div>
@@ -1489,6 +1555,7 @@ function ReportsView() {
   }, []);
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployeesReports" />
       <div className="ai-emp">
         <div className="ai-hero" style={{ marginBottom: 20 }}>
           <div>
@@ -1567,6 +1634,7 @@ function EditIdentityView() {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployeesCreate" />
       <div className="ai-emp">
         <button className="ai-back" onClick={() => navigate(id ? `/ai-employees/${id}` : '/ai-employees')}>
           <I d={ICON.back} size={14} />
@@ -1760,6 +1828,7 @@ export function AiEmployeeProfilePage() {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="aiEmployeeProfile" />
       <div className="ai-emp">
         <button className="ai-back" onClick={() => navigate('/ai-employees')}>
           <I d={ICON.back} size={14} />

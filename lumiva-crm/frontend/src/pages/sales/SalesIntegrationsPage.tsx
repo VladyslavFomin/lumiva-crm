@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   fetchIntegration,
@@ -866,6 +867,7 @@ export const SalesIntegrationsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="salesIntegrations" />
       <div className="space-y-4 md:space-y-6 pb-8">
         {/* Заголовок */}
         <section className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">

@@ -1,7 +1,9 @@
 // src/pages/telephony/TelephonyPage.tsx
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { TelephonySubnav } from './TelephonySubnav';
 import {
   fetchTelephonyStatus,
@@ -13,15 +15,15 @@ import {
   type Call,
   type TelephonyStats,
 } from '../../api/telephony';
-import { SENTIMENT_LABEL, SENTIMENT_CLASS, TOPIC_LABEL } from './telephonyLabels';
+import { SENTIMENT_CLASS, sentimentLabel, topicLabel } from './telephonyLabels';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import './telephony-design.css';
 
 const cx = (...a: Array<string | false | undefined>) => a.filter(Boolean).join(' ');
 
-const STATUS_LABEL: Record<string, string> = {
-  queued: 'В очереди', ringing: 'Звонит', 'in-progress': 'Идёт разговор',
-  completed: 'Завершён', 'no-answer': 'Не ответили', busy: 'Занято', failed: 'Ошибка', canceled: 'Отменён',
+const STATUS_KEY: Record<string, string> = {
+  queued: 'queued', ringing: 'ringing', 'in-progress': 'in_progress',
+  completed: 'completed', 'no-answer': 'no_answer', busy: 'busy', failed: 'failed', canceled: 'canceled',
 };
 
 const DIR_ICON: Record<string, React.ReactNode> = {
@@ -42,6 +44,7 @@ const displayNumber = (call: Call): string => (call.direction === 'outbound' ? c
 type DirFilter = 'all' | 'inbound' | 'outbound' | 'missed';
 
 const CallDetail: React.FC<{ call: Call; onClose: () => void; onTagsSaved: (call: Call) => void }> = ({ call, onClose, onTagsSaved }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioLoading, setAudioLoading] = useState(false);
@@ -66,11 +69,11 @@ const CallDetail: React.FC<{ call: Call; onClose: () => void; onTagsSaved: (call
   const handleSaveTags = async () => {
     setSavingTags(true);
     try {
-      const tags = tagsDraft.split(',').map((t) => t.trim()).filter(Boolean);
+      const tags = tagsDraft.split(',').map((tag) => tag.trim()).filter(Boolean);
       const updated = await updateCallTags(call.id, tags);
       onTagsSaved(updated);
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось сохранить теги', { variant: 'error' });
+      showAlert(e?.message || t('crm.telephony.calls.detail.tagsSaveError'), { variant: 'error' });
     } finally {
       setSavingTags(false);
     }
@@ -82,7 +85,7 @@ const CallDetail: React.FC<{ call: Call; onClose: () => void; onTagsSaved: (call
         <div className="bk-drawer-head">
           <div>
             <div style={{ fontFamily: 'var(--ff-mono)', fontSize: 11, color: 'var(--fg-3)' }}>
-              {call.direction === 'outbound' ? 'Исходящий' : isMissed ? 'Пропущенный' : 'Входящий'} · {new Date(call.createdAt).toLocaleString()}
+              {t(`crm.telephony.direction.${call.direction === 'outbound' ? 'outbound' : isMissed ? 'missed' : 'inbound'}`)} · {new Date(call.createdAt).toLocaleString()}
             </div>
             <h3>{displayNumber(call)}</h3>
           </div>
@@ -92,63 +95,63 @@ const CallDetail: React.FC<{ call: Call; onClose: () => void; onTagsSaved: (call
         </div>
         <div className="bk-drawer-body">
           <div className="htl-info-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <div className="htl-info-item"><div className="l">Статус</div><div className="v">{STATUS_LABEL[call.status] || call.status}</div></div>
-            <div className="htl-info-item"><div className="l">Длительность</div><div className="v">{formatDuration(call.durationSeconds)}</div></div>
+            <div className="htl-info-item"><div className="l">{t('crm.telephony.calls.detail.status')}</div><div className="v">{t(`crm.telephony.status.${STATUS_KEY[call.status] || call.status}`, { defaultValue: call.status })}</div></div>
+            <div className="htl-info-item"><div className="l">{t('crm.telephony.calls.detail.duration')}</div><div className="v">{formatDuration(call.durationSeconds)}</div></div>
           </div>
 
           {call.recordingUrl ? (
             <div className="call-audio-player">
-              <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 10 }}>Запись разговора</div>
-              {audioLoading && <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>Загрузка записи…</p>}
+              <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 10 }}>{t('crm.telephony.calls.detail.recordingTitle')}</div>
+              {audioLoading && <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('crm.telephony.calls.detail.loadingRecording')}</p>}
               {audioUrl && <audio controls src={audioUrl} style={{ width: '100%' }} />}
             </div>
           ) : (
-            <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>Записи нет</p>
+            <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('crm.telephony.calls.detail.noRecording')}</p>
           )}
 
           {call.transcript && (
             <div style={{ marginTop: 14 }}>
-              <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>Анализ разговора (ИИ)</div>
-              {call.sentimentStatus === 'pending' && <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>Анализируется…</p>}
-              {call.sentimentStatus === 'failed' && <p style={{ fontSize: 12, color: '#cc2f47' }}>Не удалось проанализировать</p>}
+              <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>{t('crm.telephony.calls.detail.aiAnalysisTitle')}</div>
+              {call.sentimentStatus === 'pending' && <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('crm.telephony.calls.detail.analyzing')}</p>}
+              {call.sentimentStatus === 'failed' && <p style={{ fontSize: 12, color: '#cc2f47' }}>{t('crm.telephony.calls.detail.analysisFailed')}</p>}
               {call.sentimentStatus === 'done' && call.sentiment && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <span className={cx('ha-risk-pill', SENTIMENT_CLASS[call.sentiment])}>{SENTIMENT_LABEL[call.sentiment]}</span>
-                  {call.sentimentTopic && <span className="call-tag">Тема: {TOPIC_LABEL[call.sentimentTopic]}</span>}
+                  <span className={cx('ha-risk-pill', SENTIMENT_CLASS[call.sentiment])}>{sentimentLabel(t, call.sentiment)}</span>
+                  {call.sentimentTopic && <span className="call-tag">{t('crm.telephony.calls.detail.topicPrefix')} {topicLabel(t, call.sentimentTopic)}</span>}
                 </div>
               )}
             </div>
           )}
 
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>Расшифровка</div>
-            {call.transcriptStatus === 'pending' && <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>Транскрибируется…</p>}
-            {call.transcriptStatus === 'failed' && <p style={{ fontSize: 12, color: '#cc2f47' }}>Не удалось распознать</p>}
+            <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>{t('crm.telephony.calls.detail.transcriptTitle')}</div>
+            {call.transcriptStatus === 'pending' && <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('crm.telephony.calls.detail.transcribing')}</p>}
+            {call.transcriptStatus === 'failed' && <p style={{ fontSize: 12, color: '#cc2f47' }}>{t('crm.telephony.calls.detail.transcriptFailed')}</p>}
             {call.transcript ? (
               <div className="call-transcript">{call.transcript}</div>
             ) : call.transcriptStatus !== 'pending' && call.transcriptStatus !== 'failed' ? (
-              <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>Нет расшифровки</p>
+              <p style={{ fontSize: 12, color: 'var(--fg-3)' }}>{t('crm.telephony.calls.detail.noTranscript')}</p>
             ) : null}
           </div>
 
           <div style={{ marginTop: 14 }}>
-            <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>Теги</div>
+            <div style={{ fontSize: 11.5, fontWeight: 600, marginBottom: 8 }}>{t('crm.telephony.calls.detail.tagsTitle')}</div>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 className="px-scope-input"
                 style={{ flex: 1, border: '1px solid var(--line-2)', borderRadius: 8, padding: '8px 10px', fontSize: 12.5, fontFamily: 'inherit' }}
-                placeholder="Теги через запятую"
+                placeholder={t('crm.telephony.calls.detail.tagsPlaceholder')}
                 value={tagsDraft}
                 onChange={(e) => setTagsDraft(e.target.value)}
               />
-              <button className="btn btn-sm" onClick={handleSaveTags} disabled={savingTags}>{savingTags ? 'Сохранение…' : 'Сохранить'}</button>
+              <button className="btn btn-sm" onClick={handleSaveTags} disabled={savingTags}>{savingTags ? t('crm.telephony.calls.detail.saving') : t('crm.telephony.calls.detail.save')}</button>
             </div>
           </div>
 
           {call.linkedLeadId && (
             <div style={{ marginTop: 16 }}>
               <Link to={`/leads/${call.linkedLeadId}`} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }}>
-                Открыть карточку лида
+                {t('crm.telephony.calls.detail.openLeadCard')}
               </Link>
             </div>
           )}
@@ -159,6 +162,7 @@ const CallDetail: React.FC<{ call: Call; onClose: () => void; onTagsSaved: (call
 };
 
 export const TelephonyPage: React.FC = () => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [addonEnabled, setAddonEnabled] = useState<boolean | null>(null);
   const [items, setItems] = useState<Call[]>([]);
@@ -181,7 +185,7 @@ export const TelephonyPage: React.FC = () => {
       setItems(calls.items);
       setStats(s);
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось загрузить звонки', { variant: 'error' });
+      showAlert(e?.message || t('crm.telephony.calls.loadError'), { variant: 'error' });
     } finally {
       setLoading(false);
     }
@@ -201,11 +205,11 @@ export const TelephonyPage: React.FC = () => {
     setCalling(true);
     try {
       await initiateCall(callTo.trim());
-      showAlert('Звоним вам — возьмите трубку, и мы соединим с номером', { variant: 'success' });
+      showAlert(t('crm.telephony.calls.callSuccessMsg'), { variant: 'success' });
       setCallTo('');
       await load();
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось начать звонок', { variant: 'error' });
+      showAlert(e?.message || t('crm.telephony.calls.callErrorMsg'), { variant: 'error' });
     } finally {
       setCalling(false);
     }
@@ -215,7 +219,7 @@ export const TelephonyPage: React.FC = () => {
     return (
       <MainLayout>
         <div className="px-scope">
-          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Загрузка…</div>
+          <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>{t('crm.telephony.calls.loadingPage')}</div>
         </div>
       </MainLayout>
     );
@@ -226,11 +230,11 @@ export const TelephonyPage: React.FC = () => {
       <MainLayout>
         <div className="px-scope">
           <div style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center', padding: '64px 0' }}>
-            <h1>IP-телефония</h1>
+            <h1>{t('crm.telephony.calls.addonTitle')}</h1>
             <p style={{ fontSize: 13, color: 'var(--fg-3)', marginTop: 10 }}>
-              Звонки прямо из CRM, запись разговоров, транскрипция — платное дополнение, +€14/мес поверх любого тарифа.
+              {t('crm.telephony.calls.addonBody')}
             </p>
-            <Link to="/telephony/settings" className="btn btn-primary" style={{ marginTop: 16, display: 'inline-flex' }}>Настроить телефонию</Link>
+            <Link to="/telephony/settings" className="btn btn-primary" style={{ marginTop: 16, display: 'inline-flex' }}>{t('crm.telephony.calls.addonCta')}</Link>
           </div>
         </div>
       </MainLayout>
@@ -239,12 +243,13 @@ export const TelephonyPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="telephony" />
       <div className="px-scope">
         <div className="tel-hero">
           <div>
-            <div className="kicker"><span className="dot" />{items.length} ЗВОНКОВ</div>
-            <h1>Звонки</h1>
-            <p className="sub">Журнал звонков с записью и транскрибацией разговора.</p>
+            <div className="kicker"><span className="dot" />{t('crm.telephony.calls.kicker', { count: items.length })}</div>
+            <h1>{t('crm.telephony.calls.title')}</h1>
+            <p className="sub">{t('crm.telephony.calls.subtitle')}</p>
           </div>
         </div>
 
@@ -252,42 +257,42 @@ export const TelephonyPage: React.FC = () => {
 
         {stats && (
           <div className="tel-kpis">
-            <div className="tel-kpi"><div className="l">Всего звонков</div><div className="v">{stats.totalCalls}</div></div>
-            <div className="tel-kpi"><div className="l">Пропущено</div><div className="v">{stats.missedCalls}</div></div>
-            <div className="tel-kpi"><div className="l">Средняя длительность</div><div className="v">{formatDuration(stats.avgDurationSeconds)}</div></div>
-            <div className="tel-kpi"><div className="l">Дозвон</div><div className="v">{stats.pickupRate}%</div></div>
-            <div className="tel-kpi"><div className="l">Записано разговоров</div><div className="v">{stats.recordedCalls}</div></div>
+            <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.total')}</div><div className="v">{stats.totalCalls}</div></div>
+            <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.missed')}</div><div className="v">{stats.missedCalls}</div></div>
+            <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.avgDuration')}</div><div className="v">{formatDuration(stats.avgDurationSeconds)}</div></div>
+            <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.pickupRate')}</div><div className="v">{stats.pickupRate}%</div></div>
+            <div className="tel-kpi"><div className="l">{t('crm.telephony.calls.kpis.recorded')}</div><div className="v">{stats.recordedCalls}</div></div>
           </div>
         )}
 
         <div style={{ display: 'flex', gap: 10, margin: '14px 0', flexWrap: 'wrap', alignItems: 'center' }}>
           <div className="bk-search" style={{ flex: '1 1 260px', maxWidth: 340 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.5-4.5" /></svg>
-            <input placeholder="Имя или номер телефона…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input placeholder={t('crm.telephony.calls.searchPlaceholder')} value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           <div className="bk-savedviews" style={{ flex: 'none' }}>
-            {([['all', 'Все'], ['inbound', 'Входящие'], ['outbound', 'Исходящие'], ['missed', 'Пропущенные']] as [DirFilter, string][]).map(([k, l]) => (
-              <div key={k} className={cx('bk-sv-tab', dirFilter === k && 'active')} onClick={() => setDirFilter(k)}>{l}</div>
+            {(['all', 'inbound', 'outbound', 'missed'] as DirFilter[]).map((k) => (
+              <div key={k} className={cx('bk-sv-tab', dirFilter === k && 'active')} onClick={() => setDirFilter(k)}>{t(`crm.telephony.calls.filters.${k}`)}</div>
             ))}
           </div>
           <div style={{ display: 'flex', gap: 8, flex: '1 1 260px' }}>
             <input
               className="bk-search"
               style={{ flex: 1 }}
-              placeholder="Номер для звонка, например +79991234567"
+              placeholder={t('crm.telephony.calls.callToPlaceholder')}
               value={callTo}
               onChange={(e) => setCallTo(e.target.value)}
             />
-            <button className="btn btn-primary" onClick={handleCall} disabled={calling || !callTo.trim()}>{calling ? 'Звоним…' : 'Позвонить'}</button>
+            <button className="btn btn-primary" onClick={handleCall} disabled={calling || !callTo.trim()}>{calling ? t('crm.telephony.calls.callingBtn') : t('crm.telephony.calls.callBtn')}</button>
           </div>
         </div>
 
         <div className="bk-table-wrap">
           <div style={{ display: 'grid', gridTemplateColumns: '36px 1fr 120px 100px 130px 32px', gap: 12, padding: '9px 14px', fontSize: 10.5, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '.03em', borderBottom: '1px solid var(--line-2)', background: 'var(--bg-muted)' }}>
-            <span></span><span>Контакт</span><span>Тег</span><span>Длит.</span><span>Когда</span><span></span>
+            <span></span><span>{t('crm.telephony.calls.table.contact')}</span><span>{t('crm.telephony.calls.table.tag')}</span><span>{t('crm.telephony.calls.table.duration')}</span><span>{t('crm.telephony.calls.table.when')}</span><span></span>
           </div>
           {items.length === 0 && !loading && (
-            <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>Звонков пока нет</div>
+            <div style={{ padding: 30, textAlign: 'center', color: 'var(--fg-3)', fontSize: 13 }}>{t('crm.telephony.calls.emptyMessage')}</div>
           )}
           {items.map((c) => {
             const isMissed = ['no-answer', 'busy', 'failed', 'canceled'].includes(c.status);
@@ -299,7 +304,7 @@ export const TelephonyPage: React.FC = () => {
                 </div>
                 <div>
                   <div className="call-name">{displayNumber(c)}</div>
-                  <div className="call-num">{c.linkedLeadId ? 'Связан с лидом' : ''}</div>
+                  <div className="call-num">{c.linkedLeadId ? t('crm.telephony.calls.linkedToLead') : ''}</div>
                 </div>
                 <div>{c.tags.length > 0 && <span className="call-tag">{c.tags[0]}</span>}</div>
                 <div className="call-dur">{formatDuration(c.durationSeconds)}</div>

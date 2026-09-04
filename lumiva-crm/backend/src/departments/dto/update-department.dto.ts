@@ -1,10 +1,15 @@
 // src/departments/dto/update-department.dto.ts
-import { IsString, IsOptional, IsUUID, IsBoolean, IsInt, Min } from 'class-validator';
+import { IsString, IsOptional, IsUUID, IsBoolean, IsInt, Min, MaxLength } from 'class-validator';
 
 export class UpdateDepartmentDto {
   @IsOptional()
   @IsString()
   name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  code?: string | null;
 
   @IsOptional()
   @IsString()

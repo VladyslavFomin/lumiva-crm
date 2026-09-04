@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   fetchAdapters,
   fetchIntegrations,
@@ -107,6 +108,7 @@ export const SalesIntegrationNewPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="salesIntegrations" />
       <div className="space-y-4 md:space-y-6 pb-8 max-w-3xl">
         <section className="flex items-center justify-between gap-3">
           <div>

@@ -53,12 +53,12 @@ function displayAccountBalance(account: any) {
     toNumberMoney(account?.profit ?? financial?.availableProfit) +
     toNumberMoney(account?.credit ?? financial?.creditLeverage ?? financial?.creditLeverageTotal);
 }
-function fmtDate(v: any) {
+function fmtDate(v: any, locale = 'ru-RU') {
   const ss = s(v);
   if (!ss) return '—';
   const d = new Date(ss);
   if (Number.isNaN(d.getTime())) return ss;
-  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: '2-digit' });
+  return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: '2-digit' });
 }
 function todayYmd() {
   const d = new Date();
@@ -218,7 +218,8 @@ type ClientIndexItem = {
 };
 
 const ClientAccountDetailsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const params = useParams();
   const clientId = s((params as any).id || (params as any).clientId);
 
@@ -588,7 +589,7 @@ const ClientAccountDetailsPage: React.FC = () => {
           </h1>
           {client && (
             <div className="mt-2 flex items-center gap-2 text-[13px] text-[#888] flex-wrap">
-              {siteHost && <><span>Сайт <span className="cd-mono text-[#555]">{siteHost}</span></span><span className="text-[#e7e7e7]">•</span></>}
+              {siteHost && <><span>{t('crm.clientAccountDetails.siteLabel')} <span className="cd-mono text-[#555]">{siteHost}</span></span><span className="text-[#e7e7e7]">•</span></>}
               {clientWpId && <><span>WP ID <span className="cd-mono text-[#555]">{clientWpId}</span></span><span className="text-[#e7e7e7]">•</span></>}
               <span>
                 {indexLoading
@@ -612,7 +613,7 @@ const ClientAccountDetailsPage: React.FC = () => {
             className="inline-flex items-center gap-1.5 px-3 py-[7px] border border-[#e7e7e7] rounded-[8px] bg-white text-[12.5px] text-[#222] hover:border-[#222] transition-colors"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/></svg>
-            Аналитика
+            {t('crm.clientAccountDetails.analyticsLink')}
           </Link>
           <button
             onClick={() => loadAll('full')}
@@ -652,11 +653,11 @@ const ClientAccountDetailsPage: React.FC = () => {
           <div className="grid gap-4 mb-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
             {/* EUR account card */}
             <div className="rounded-[14px] border border-[#e7e7e7] bg-white p-[22px]" style={{ borderTop: '3px solid #1f1f1f' }}>
-              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">EUR счёт</div>
+              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccountDetails.eurAccount')}</div>
               <div className={cx('cd-mono text-[18px] font-semibold tracking-[-0.02em] mt-1.5', viewAccEur ? 'text-[#222]' : 'text-[#b5b5b5]')}>
                 {viewAccEur || '—'}
               </div>
-              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mt-4">Баланс EUR</div>
+              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mt-4">{t('crm.clientAccountDetails.balanceEurLabel')}</div>
               <div className="cd-display text-[34px] font-semibold tracking-[-0.03em] text-[#222] leading-none mt-1.5">
                 {fmtMoney(viewBalanceEur)}<span className="text-[18px] text-[#888] font-medium ml-[5px]">€</span>
               </div>
@@ -666,7 +667,7 @@ const ClientAccountDetailsPage: React.FC = () => {
                   <div className={cx('cd-mono text-[12px] mt-0.5 tracking-[-0.01em]', viewIbanEur ? 'text-[#222]' : 'text-[#b5b5b5]')}>{viewIbanEur || '—'}</div>
                 </div>
                 <div className="text-right pl-4 flex-shrink-0">
-                  <div className="cd-mono text-[9.5px] tracking-[0.1em] uppercase text-[#888]">Потрачено</div>
+                  <div className="cd-mono text-[9.5px] tracking-[0.1em] uppercase text-[#888]">{t('crm.clientAccountDetails.spent')}</div>
                   <div className="cd-mono text-[13px] font-semibold text-[#222] mt-0.5 tracking-[-0.02em]">{fmtMoney(totals.eurSpent)} €</div>
                 </div>
               </div>
@@ -674,11 +675,11 @@ const ClientAccountDetailsPage: React.FC = () => {
 
             {/* USD account card */}
             <div className="rounded-[14px] border border-[#e7e7e7] bg-white p-[22px]" style={{ borderTop: '3px solid #1f8a5e' }}>
-              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">USD счёт</div>
+              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccountDetails.usdAccount')}</div>
               <div className={cx('cd-mono text-[18px] font-semibold tracking-[-0.02em] mt-1.5', viewAccUsd ? 'text-[#222]' : 'text-[#b5b5b5]')}>
                 {viewAccUsd || '—'}
               </div>
-              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mt-4">Баланс USD</div>
+              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mt-4">{t('crm.clientAccountDetails.balanceUsdLabel')}</div>
               <div className="cd-display text-[34px] font-semibold tracking-[-0.03em] text-[#222] leading-none mt-1.5">
                 {fmtMoney(viewBalanceUsd)}<span className="text-[18px] text-[#888] font-medium ml-[5px]">$</span>
               </div>
@@ -688,7 +689,7 @@ const ClientAccountDetailsPage: React.FC = () => {
                   <div className={cx('cd-mono text-[12px] mt-0.5 tracking-[-0.01em]', viewIbanUsd ? 'text-[#222]' : 'text-[#b5b5b5]')}>{viewIbanUsd || '—'}</div>
                 </div>
                 <div className="text-right pl-4 flex-shrink-0">
-                  <div className="cd-mono text-[9.5px] tracking-[0.1em] uppercase text-[#888]">Потрачено</div>
+                  <div className="cd-mono text-[9.5px] tracking-[0.1em] uppercase text-[#888]">{t('crm.clientAccountDetails.spent')}</div>
                   <div className="cd-mono text-[13px] font-semibold text-[#222] mt-0.5 tracking-[-0.02em]">{fmtMoney(totals.usdSpent)} $</div>
                 </div>
               </div>
@@ -696,7 +697,7 @@ const ClientAccountDetailsPage: React.FC = () => {
 
             {/* Contacts card */}
             <div className="rounded-[14px] border border-[#e7e7e7] bg-white p-[22px]">
-              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Контакты</div>
+              <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccountDetails.contacts')}</div>
               <div className="flex items-center gap-3 mt-2.5">
                 <div className="w-11 h-11 rounded-[12px] bg-[#222] text-white flex items-center justify-center cd-display text-[16px] font-semibold flex-shrink-0">
                   {initials(clientName || clientEmail)}
@@ -708,17 +709,17 @@ const ClientAccountDetailsPage: React.FC = () => {
               </div>
               <div className="mt-4 pt-4 border-t border-[#f0f0f0]">
                 <div className="text-[11.5px] text-[#888]">
-                  Обновлено{' '}
+                  {t('crm.clientAccountDetails.updatedLabel')}{' '}
                   <span className="cd-mono text-[#555]">
                     {clientUpdatedAt ? new Date(clientUpdatedAt).toLocaleString() : '—'}
                   </span>
                 </div>
                 <div className="flex gap-1.5 mt-3 flex-wrap">
                   <span className="inline-flex items-center gap-[5px] px-2.5 py-1 border border-[#e7e7e7] rounded-full cd-mono text-[10.5px] text-[#555]">
-                    <strong className="text-[#222]">{txnsCount}</strong> операций
+                    <strong className="text-[#222]">{txnsCount}</strong> {t('crm.clientAccountDetails.operationsCountSuffix')}
                   </span>
                   <span className="inline-flex items-center gap-[5px] px-2.5 py-1 border border-[#e7e7e7] rounded-full cd-mono text-[10.5px] text-[#555]">
-                    <strong className="text-[#222]">{transfersCount}</strong> переводов
+                    <strong className="text-[#222]">{transfersCount}</strong> {t('crm.clientAccountDetails.transfersCountSuffix')}
                   </span>
                 </div>
               </div>
@@ -731,17 +732,17 @@ const ClientAccountDetailsPage: React.FC = () => {
               {clientAccounts.length > 0 && (
                 <div className="rounded-[14px] border border-[#e7e7e7] bg-white p-[22px]">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Счета с сайта NSM</div>
+                    <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccountDetails.nsmAccountsTitle')}</div>
                     <span className="inline-flex items-center gap-1 text-[12px] text-[#555] border border-[#e7e7e7] rounded-[7px] px-[9px] py-1 cursor-pointer hover:border-[#222] hover:text-[#222] transition-colors">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                      Добавить
+                      {t('crm.clientAccountDetails.addBtn')}
                     </span>
                   </div>
                   <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
                     {clientAccounts.map((account: any, index: number) => {
                       const financial = account?.financial || {};
                       const currency = account?.currency || financial?.currency || '—';
-                      const acctNum = account?.number || `Счет ${index + 1}`;
+                      const acctNum = account?.number || t('crm.clientAccountDetails.accountFallback', { n: index + 1 });
                       const status = account?.status || '—';
                       const crmBalance = displayAccountBalance(account);
                       const operBalance = financial?.balanceOperational ?? account?.balanceOperational ?? financial?.balance ?? account?.balance;
@@ -760,14 +761,14 @@ const ClientAccountDetailsPage: React.FC = () => {
                           <div className="cd-mono text-[10.5px] text-[#888] tracking-[0.02em] mb-3.5">{currency} · <span className="text-[#1f8a5e]">{status}</span></div>
                           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                             {[
-                              { l: 'Баланс CRM', v: crmBalance, cur: currency },
-                              { l: 'Опер. баланс', v: operBalance, cur: currency },
-                              { l: 'Накоплено', v: accrued, cur: currency },
-                              { l: 'Кредитный баланс', v: credit, cur: currency, neg: toNumberMoney(credit) < 0 },
-                              { l: 'Инвестировано', v: invested, cur: currency },
-                              { l: 'Начислено', v: accruedFee, cur: currency },
-                              { l: 'Ожидается', v: expected, cur: currency },
-                              { l: 'Списание', v: writeoff, cur: currency, neg: toNumberMoney(writeoff) < 0 },
+                              { l: t('crm.clientAccountDetails.accountFields.crmBalance'), v: crmBalance, cur: currency },
+                              { l: t('crm.clientAccountDetails.accountFields.operBalance'), v: operBalance, cur: currency },
+                              { l: t('crm.clientAccountDetails.accountFields.accrued'), v: accrued, cur: currency },
+                              { l: t('crm.clientAccountDetails.accountFields.creditBalance'), v: credit, cur: currency, neg: toNumberMoney(credit) < 0 },
+                              { l: t('crm.clientAccountDetails.accountFields.invested'), v: invested, cur: currency },
+                              { l: t('crm.clientAccountDetails.accountFields.accruedFee'), v: accruedFee, cur: currency },
+                              { l: t('crm.clientAccountDetails.accountFields.expected'), v: expected, cur: currency },
+                              { l: t('crm.clientAccountDetails.accountFields.writeoff'), v: writeoff, cur: currency, neg: toNumberMoney(writeoff) < 0 },
                             ].map(({ l, v, cur, neg }) => (
                               <div key={l}>
                                 <div className="text-[11px] text-[#888]">{l}</div>
@@ -786,7 +787,7 @@ const ClientAccountDetailsPage: React.FC = () => {
 
               {financialSummary.length > 0 && (
                 <div className="rounded-[14px] border border-[#e7e7e7] bg-white p-[22px]">
-                  <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-4">Финансовые итоги</div>
+                  <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-4">{t('crm.clientAccountDetails.financialSummaryTitle')}</div>
                   <div className="flex flex-col gap-3.5">
                     {financialSummary.map((row: any, index: number) => {
                       const cur = row?.currency || '—';
@@ -802,12 +803,12 @@ const ClientAccountDetailsPage: React.FC = () => {
                           </div>
                           <div className="grid grid-cols-2 gap-x-4 gap-y-3">
                             {[
-                              { l: 'Баланс', v: balance },
-                              { l: 'Инвестировано', v: row?.invested ?? row?.investmentTotal },
-                              { l: 'Профит', v: row?.profitAccrued ?? row?.profitAccrualTotal, pos: toNumberMoney(row?.profitAccrued ?? row?.profitAccrualTotal) > 0 },
-                              { l: 'Ожидается', v: row?.expectedProfit },
-                              { l: 'Списание', v: row?.accountFee ?? row?.accountWriteOff, neg: toNumberMoney(row?.accountFee ?? row?.accountWriteOff) < 0 },
-                              { l: 'Кредит', v: row?.creditLeverage ?? row?.creditLeverageTotal, neg: toNumberMoney(row?.creditLeverage ?? row?.creditLeverageTotal) < 0 },
+                              { l: t('crm.clientAccountDetails.summaryFields.balance'), v: balance },
+                              { l: t('crm.clientAccountDetails.summaryFields.invested'), v: row?.invested ?? row?.investmentTotal },
+                              { l: t('crm.clientAccountDetails.summaryFields.profit'), v: row?.profitAccrued ?? row?.profitAccrualTotal, pos: toNumberMoney(row?.profitAccrued ?? row?.profitAccrualTotal) > 0 },
+                              { l: t('crm.clientAccountDetails.summaryFields.expected'), v: row?.expectedProfit },
+                              { l: t('crm.clientAccountDetails.summaryFields.writeoff'), v: row?.accountFee ?? row?.accountWriteOff, neg: toNumberMoney(row?.accountFee ?? row?.accountWriteOff) < 0 },
+                              { l: t('crm.clientAccountDetails.summaryFields.credit'), v: row?.creditLeverage ?? row?.creditLeverageTotal, neg: toNumberMoney(row?.creditLeverage ?? row?.creditLeverageTotal) < 0 },
                             ].map(({ l, v, pos, neg }) => (
                               <div key={l}>
                                 <div className="text-[11px] text-[#888]">{l}</div>
@@ -830,10 +831,10 @@ const ClientAccountDetailsPage: React.FC = () => {
           {investments.length > 0 && (
             <div className="rounded-[14px] border border-[#e7e7e7] bg-white p-[22px] mb-4">
               <div className="flex items-center justify-between mb-4">
-                <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Инвестиции клиента</div>
+                <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccountDetails.investmentsTitle')}</div>
                 <span className="inline-flex items-center gap-1 text-[12px] text-[#555] border border-[#e7e7e7] rounded-[7px] px-[9px] py-1 cursor-pointer hover:border-[#222] hover:text-[#222] transition-colors">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
-                  Добавить
+                  {t('crm.clientAccountDetails.addBtn')}
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
@@ -853,11 +854,11 @@ const ClientAccountDetailsPage: React.FC = () => {
                     {inv?.assetExcerpt && <div className="text-[12.5px] text-[#555] mt-2.5 leading-relaxed">{inv.assetExcerpt}</div>}
                     <div className="mt-4 pt-3.5 border-t border-[#f0f0f0] grid grid-cols-2 gap-3">
                       <div>
-                        <div className="cd-mono text-[10px] tracking-[0.06em] uppercase text-[#888]">Сумма</div>
+                        <div className="cd-mono text-[10px] tracking-[0.06em] uppercase text-[#888]">{t('crm.clientAccountDetails.investmentAmount')}</div>
                         <div className="cd-mono text-[14px] font-semibold text-[#222] mt-1 tracking-[-0.02em]">{fmtMoney(inv?.invested)} {inv?.currency || ''}</div>
                       </div>
                       <div>
-                        <div className="cd-mono text-[10px] tracking-[0.06em] uppercase text-[#888]">Ожид. профит</div>
+                        <div className="cd-mono text-[10px] tracking-[0.06em] uppercase text-[#888]">{t('crm.clientAccountDetails.investmentExpectedProfit')}</div>
                         <div className={cx('cd-mono text-[14px] font-semibold mt-1 tracking-[-0.02em]', toNumberMoney(inv?.expectedProfit) === 0 ? 'text-[#b5b5b5] font-medium' : 'text-[#222]')}>
                           {fmtMoney(inv?.expectedProfit)} {inv?.currency || ''}
                         </div>
@@ -886,14 +887,14 @@ const ClientAccountDetailsPage: React.FC = () => {
                   </button>
                 </div>
                 <div className="cd-mono text-[10.5px] text-[#888]">
-                  Записей: <strong className="text-[#222]">{txnsCount}</strong>
+                  {t('crm.clientAccountDetails.recordsWord')}: <strong className="text-[#222]">{txnsCount}</strong>
                 </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-[12.5px]">
                   <thead className="bg-[#fafafa]">
                     <tr>
-                      {['Дата', 'Название', 'EUR', 'USD', 'Статус', 'Действия'].map((h, i) => (
+                      {[t('crm.clientAccountDetails.txnsTable.colDate'), t('crm.clientAccountDetails.txnsTable.colName'), 'EUR', 'USD', t('crm.clientAccountDetails.txnsTable.colStatus'), t('crm.clientAccountDetails.txnsTable.colActions')].map((h, i) => (
                         <th key={h} className={cx('px-3.5 py-2.5 cd-mono text-[9.5px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#e7e7e7] whitespace-nowrap', i >= 2 && i <= 3 ? 'text-right' : i === 5 ? 'text-right' : 'text-left')}>
                           {h}
                         </th>
@@ -904,7 +905,7 @@ const ClientAccountDetailsPage: React.FC = () => {
                     {(txns?.items || []).map((txn: any) => (
                       <tr key={txn.id} className="border-b border-[#f0f0f0] hover:bg-[#fafafa] transition-colors">
                         <td className="px-3.5 py-3 align-top whitespace-nowrap">
-                          <span className="cd-mono text-[11.5px] text-[#888]">{fmtDate(txn.date)}</span>
+                          <span className="cd-mono text-[11.5px] text-[#888]">{fmtDate(txn.date, dateLocale)}</span>
                         </td>
                         <td className="px-3.5 py-3 align-top max-w-[200px]">
                           <div className="font-semibold text-[#222] tracking-[-0.01em] truncate">{txn.title || `#${txn.wpPostId}`}</div>
@@ -937,8 +938,8 @@ const ClientAccountDetailsPage: React.FC = () => {
                 </table>
               </div>
               <div className="px-4 py-2.5 bg-[#fafafa] border-t border-[#e7e7e7] flex items-center justify-between text-[11.5px] text-[#888]">
-                <span>Показано <span className="cd-mono text-[#555]">{txns?.items?.length ?? 0}</span> из <span className="cd-mono text-[#555]">{txnsCount}</span></span>
-                <span className="text-[#555] underline underline-offset-2 decoration-[#e7e7e7] cursor-pointer hover:text-[#222]">Все операции →</span>
+                <span>{t('crm.clientAccountDetails.shownOfFormat', { shown: txns?.items?.length ?? 0, total: txnsCount })}</span>
+                <span className="text-[#555] underline underline-offset-2 decoration-[#e7e7e7] cursor-pointer hover:text-[#222]">{t('crm.clientAccountDetails.allOperationsLink')}</span>
               </div>
             </div>
 
@@ -957,14 +958,14 @@ const ClientAccountDetailsPage: React.FC = () => {
                   </button>
                 </div>
                 <div className="cd-mono text-[10.5px] text-[#888]">
-                  Записей: <strong className="text-[#222]">{transfersCount}</strong>
+                  {t('crm.clientAccountDetails.recordsWord')}: <strong className="text-[#222]">{transfersCount}</strong>
                 </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-[12.5px]">
                   <thead className="bg-[#fafafa]">
                     <tr>
-                      {['Дата', 'Отправитель', 'Получатель', 'Сумма', 'Курс', 'Зачислено', 'Статус', 'Действия'].map((h, i) => (
+                      {[t('crm.clientAccountDetails.transfersTable.colDate'), t('crm.clientAccountDetails.transfersTable.colSender'), t('crm.clientAccountDetails.transfersTable.colRecipient'), t('crm.clientAccountDetails.transfersTable.colAmount'), t('crm.clientAccountDetails.transfersTable.colRate'), t('crm.clientAccountDetails.transfersTable.colCredited'), t('crm.clientAccountDetails.transfersTable.colStatus'), t('crm.clientAccountDetails.transfersTable.colActions')].map((h, i) => (
                         <th key={h} className={cx('px-3.5 py-2.5 cd-mono text-[9.5px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#e7e7e7] whitespace-nowrap', i >= 3 && i <= 5 ? 'text-right' : i === 7 ? 'text-right' : 'text-left')}>
                           {h}
                         </th>
@@ -988,7 +989,7 @@ const ClientAccountDetailsPage: React.FC = () => {
                       return (
                         <tr key={tr.id} className={cx('border-b border-[#f0f0f0] hover:bg-[#fafafa] transition-colors', isSent ? 'border-l-2 border-l-[#cc2f47]' : toUserId === selectedWpId ? 'border-l-2 border-l-[#1f8a5e]' : '')}>
                           <td className="px-3.5 py-3 align-top whitespace-nowrap">
-                            <span className="cd-mono text-[11.5px] text-[#888]">{fmtDate(tr.date)}</span>
+                            <span className="cd-mono text-[11.5px] text-[#888]">{fmtDate(tr.date, dateLocale)}</span>
                           </td>
                           <td className="px-3.5 py-3 align-top whitespace-nowrap">
                             <span className="font-semibold text-[#222] tracking-[-0.01em]">{wpUserLabel(fromUserId)}</span>
@@ -1030,8 +1031,8 @@ const ClientAccountDetailsPage: React.FC = () => {
                 </table>
               </div>
               <div className="px-4 py-2.5 bg-[#fafafa] border-t border-[#e7e7e7] flex items-center justify-between text-[11.5px] text-[#888]">
-                <span>Показано <span className="cd-mono text-[#555]">{transfers?.items?.length ?? 0}</span> из <span className="cd-mono text-[#555]">{transfersCount}</span></span>
-                <span className="text-[#555] underline underline-offset-2 decoration-[#e7e7e7] cursor-pointer hover:text-[#222]">Все переводы →</span>
+                <span>{t('crm.clientAccountDetails.shownOfFormat', { shown: transfers?.items?.length ?? 0, total: transfersCount })}</span>
+                <span className="text-[#555] underline underline-offset-2 decoration-[#e7e7e7] cursor-pointer hover:text-[#222]">{t('crm.clientAccountDetails.allTransfersLink')}</span>
               </div>
             </div>
           </div>
@@ -1169,7 +1170,7 @@ const TxnCreateModal: React.FC<{
     <ModalShell title={t('crm.clientAccountDetails.txnCreate.title')} subtitle={t('crm.clientAccountDetails.txnCreate.subtitle')} busy={busy} onClose={onClose} onSave={() => onCreate({ title, desc, date, currency, amount, ccpStatus })} saveLabel={t('crm.clientAccountDetails.txnCreate.save')} saveDisabled={!ok}>
       <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
         <Field label={t('crm.clientAccountDetails.txnCreate.nameLabel')} value={title} onChange={setTitle} placeholder={t('crm.clientAccountDetails.txnCreate.namePlaceholder')} />
-        <CdSelect label="Статус" value={ccpStatus} onChange={setCcpStatus} options={statusOpts} />
+        <CdSelect label={t('crm.clientAccountDetails.labels.ccpStatus')} value={ccpStatus} onChange={setCcpStatus} options={statusOpts} />
         <Field label={t('crm.clientAccountDetails.labels.date')} value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
         <CdSelect label={t('crm.clientAccountDetails.labels.currency')} value={currency} onChange={(v) => setCurrency(v as any)} options={[{ value: 'EUR', label: 'EUR' }, { value: 'USD', label: 'USD' }]} hint={<>{t('crm.clientAccountDetails.labels.available', { amount: fmtMoney(available) })}</>} />
         <Field label={t('crm.clientAccountDetails.labels.amount')} value={amount} onChange={setAmount} rightHint={!ok ? <span className="text-[#cc2f47]">{amt <= 0 ? t('crm.clientAccountDetails.txnCreate.amountHintPositive') : t('crm.clientAccountDetails.txnCreate.amountHintInsufficient')}</span> : <span className="text-[#1f8a5e]">{t('crm.common.ok')}</span>} />
@@ -1211,7 +1212,7 @@ const TxnEditModal: React.FC<{
     <ModalShell title={t('crm.clientAccountDetails.txnEdit.title', { id: (row as any).wpPostId })} subtitle={t('crm.clientAccountDetails.txnEdit.subtitle')} busy={busy} onClose={onClose} onSave={() => onSave({ title, status: (row as any).status || 'publish', ccpStatus, date, desc, spendEur: eur as any, spendUsd: usd as any } as any)} saveLabel={t('crm.common.save')} saveDisabled={!ok}>
       <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
         <Field label={t('crm.clientAccountDetails.txnEdit.nameLabel')} value={title} onChange={setTitle} />
-        <CdSelect label="Статус" value={ccpStatus || 'In progress'} onChange={setCcpStatus} options={statusOpts} />
+        <CdSelect label={t('crm.clientAccountDetails.labels.ccpStatus')} value={ccpStatus || 'In progress'} onChange={setCcpStatus} options={statusOpts} />
         <Field label={t('crm.clientAccountDetails.labels.date')} value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
         <Field label={t('crm.clientAccountDetails.txnEdit.spendEur')} value={eur} onChange={setEur} rightHint={deltaE > 0 && deltaE > balanceEur ? <span className="text-[#cc2f47]">{t('crm.clientAccountDetails.txnEdit.insufficient')}</span> : <span className="text-[#888]">Δ {fmtMoney(deltaE)}</span>} />
         <Field label={t('crm.clientAccountDetails.txnEdit.spendUsd')} value={usd} onChange={setUsd} rightHint={deltaU > 0 && deltaU > balanceUsd ? <span className="text-[#cc2f47]">{t('crm.clientAccountDetails.txnEdit.insufficient')}</span> : <span className="text-[#888]">Δ {fmtMoney(deltaU)}</span>} />
@@ -1289,7 +1290,7 @@ const TransferCreateModal: React.FC<{
           )}
         </div>
         <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
-          <CdSelect label="Статус" value={ccpStatus} onChange={setCcpStatus} options={statusOpts} />
+          <CdSelect label={t('crm.clientAccountDetails.labels.ccpStatus')} value={ccpStatus} onChange={setCcpStatus} options={statusOpts} />
           <Field label={t('crm.clientAccountDetails.labels.date')} value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
           <CdSelect label={t('crm.clientAccountDetails.transferCreate.fromCurrency')} value={fromCur} onChange={(v) => setFromCur(v as any)} options={[{ value: 'EUR', label: 'EUR' }, { value: 'USD', label: 'USD' }]} hint={<>{t('crm.clientAccountDetails.labels.available', { amount: fmtMoney(available) })}</>} />
           <CdSelect label={t('crm.clientAccountDetails.transferCreate.toCurrency')} value={toCur} onChange={(v) => setToCur(v as any)} options={[{ value: 'EUR', label: 'EUR' }, { value: 'USD', label: 'USD' }]} hint={<>{t('crm.clientAccountDetails.transferCreate.credited', { amount: fmtMoney(credited), currency: toCur })}</>} />
@@ -1351,7 +1352,7 @@ const TransferEditModal: React.FC<{
     <ModalShell title={t('crm.clientAccountDetails.transferEdit.title', { id: (row as any).wpPostId })} subtitle={t('crm.clientAccountDetails.transferEdit.subtitle')} busy={busy} onClose={onClose} onSave={() => onSave({ title, status: (row as any).status || 'publish', ccpStatus, date, fromUserId: fromWp, toUserId: toWp, fromCurrency, toCurrency, amount, rate, desc, note, currency: toCurrency })} saveLabel={t('crm.common.save')} saveDisabled={indexLoading || cannotResolve || toNumberMoney(amount) <= 0}>
       <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2">
         <Field label={t('crm.clientAccountDetails.transferEdit.nameLabel')} value={title} onChange={setTitle} />
-        <CdSelect label="Статус" value={ccpStatus || 'In progress'} onChange={setCcpStatus} options={statusOpts} />
+        <CdSelect label={t('crm.clientAccountDetails.labels.ccpStatus')} value={ccpStatus || 'In progress'} onChange={setCcpStatus} options={statusOpts} />
         <Field label={t('crm.clientAccountDetails.labels.date')} value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
         <div className="md:col-span-2 rounded-[8px] border border-[#e7e7e7] bg-[#fafafa] px-3 py-2.5 text-[12px] text-[#888]">
           {indexLoading ? t('crm.clientAccountDetails.transferEdit.participantsLoading') : (

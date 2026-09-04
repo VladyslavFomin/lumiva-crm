@@ -1,5 +1,6 @@
 // src/pages/portal/PortalDashboardPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchPortalMe,
@@ -11,22 +12,15 @@ import {
 } from '../../api/portal';
 import { clearPortalSession } from '../../portal/portalSession';
 
-const STATUS_LABEL: Record<string, string> = {
-  pending: 'Ожидает подтверждения',
-  confirmed: 'Подтверждено',
-  completed: 'Завершено',
-  cancelled_by_customer: 'Отменено вами',
-  cancelled_by_business: 'Отменено',
-  rejected: 'Отклонено',
-  no_show: 'Неявка',
-  new: 'Новый',
-  other: 'Обработка',
-};
-
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: 'numeric' });
+const STATUS_KEYS = ['pending', 'confirmed', 'completed', 'cancelled_by_customer', 'cancelled_by_business', 'rejected', 'no_show', 'new', 'other'];
 
 export const PortalDashboardPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
+  const statusLabel = (status: string) => (STATUS_KEYS.includes(status) ? t(`crm.portal.status.${status}`) : status);
+  const fmtDate = (iso: string) =>
+    new Date(iso).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short', year: 'numeric' });
+
   const { clientKey = '' } = useParams<{ clientKey: string }>();
   const navigate = useNavigate();
   const [me, setMe] = useState<PortalMe | null>(null);
@@ -51,7 +45,7 @@ export const PortalDashboardPage: React.FC = () => {
           navigate(`/portal/${clientKey}/login`, { replace: true });
           return;
         }
-        setError(e?.message || 'Не удалось загрузить личный кабинет');
+        setError(e?.message || t('crm.portal.dashboard.loadError'));
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -68,7 +62,7 @@ export const PortalDashboardPage: React.FC = () => {
   };
 
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">Загрузка…</div>;
+    return <div className="min-h-screen flex items-center justify-center text-sm text-slate-500">{t('crm.portal.dashboard.loading')}</div>;
   }
 
   return (
@@ -77,10 +71,10 @@ export const PortalDashboardPage: React.FC = () => {
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs uppercase tracking-[0.18em] text-slate-500">
-              {me?.companyName || 'Личный кабинет'}
+              {me?.companyName || t('crm.portal.dashboard.kickerFallback')}
             </div>
             <h1 className="text-2xl font-semibold text-lumiva-accent mt-1">
-              {me?.name ? `Здравствуйте, ${me.name}` : 'Личный кабинет'}
+              {me?.name ? t('crm.portal.dashboard.greetingFormat', { name: me.name }) : t('crm.portal.dashboard.kickerFallback')}
             </h1>
           </div>
           <div className="flex items-center gap-4">
@@ -89,14 +83,14 @@ export const PortalDashboardPage: React.FC = () => {
               onClick={() => navigate(`/portal/${clientKey}/tickets`)}
               className="text-sm text-lumiva-accent font-medium hover:underline"
             >
-              Поддержка →
+              {t('crm.portal.dashboard.supportLink')}
             </button>
             <button
               type="button"
               onClick={handleLogout}
               className="text-sm text-slate-500 hover:text-slate-800"
             >
-              Выйти
+              {t('crm.portal.dashboard.logoutBtn')}
             </button>
           </div>
         </div>
@@ -106,20 +100,20 @@ export const PortalDashboardPage: React.FC = () => {
         )}
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-3">Ваши бронирования</h2>
+          <h2 className="text-sm font-semibold text-slate-900 mb-3">{t('crm.portal.dashboard.bookingsTitle')}</h2>
           {bookings.length === 0 ? (
-            <div className="text-sm text-slate-500">Пока нет бронирований</div>
+            <div className="text-sm text-slate-500">{t('crm.portal.dashboard.bookingsEmpty')}</div>
           ) : (
             <div className="space-y-2">
               {bookings.map((b) => (
                 <div key={b.id} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2.5">
                   <div>
                     <div className="text-sm font-medium text-slate-800">{fmtDate(b.startAt)}</div>
-                    <div className="text-xs text-slate-500">{STATUS_LABEL[b.status] || b.status}</div>
+                    <div className="text-xs text-slate-500">{statusLabel(b.status)}</div>
                   </div>
                   {b.price && (
                     <div className="text-sm text-slate-700">
-                      {Number(b.price).toLocaleString('ru-RU')} {b.currency}
+                      {Number(b.price).toLocaleString(dateLocale)} {b.currency}
                     </div>
                   )}
                 </div>
@@ -129,9 +123,9 @@ export const PortalDashboardPage: React.FC = () => {
         </div>
 
         <div className="bg-white border border-slate-200 rounded-2xl p-5">
-          <h2 className="text-sm font-semibold text-slate-900 mb-3">Ваши заказы</h2>
+          <h2 className="text-sm font-semibold text-slate-900 mb-3">{t('crm.portal.dashboard.ordersTitle')}</h2>
           {orders.length === 0 ? (
-            <div className="text-sm text-slate-500">Пока нет заказов</div>
+            <div className="text-sm text-slate-500">{t('crm.portal.dashboard.ordersEmpty')}</div>
           ) : (
             <div className="space-y-2">
               {orders.map((o) => (
@@ -139,12 +133,12 @@ export const PortalDashboardPage: React.FC = () => {
                   <div>
                     <div className="text-sm font-medium text-slate-800">{fmtDate(o.date)}</div>
                     <div className="text-xs text-slate-500">
-                      {STATUS_LABEL[o.status] || o.status}
-                      {o.externalOrderNo ? ` · №${o.externalOrderNo}` : ''}
+                      {statusLabel(o.status)}
+                      {o.externalOrderNo ? t('crm.portal.dashboard.orderNoSuffix', { no: o.externalOrderNo }) : ''}
                     </div>
                   </div>
                   <div className="text-sm text-slate-700">
-                    {Number(o.amount).toLocaleString('ru-RU')} {o.currency}
+                    {Number(o.amount).toLocaleString(dateLocale)} {o.currency}
                   </div>
                 </div>
               ))}

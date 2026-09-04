@@ -95,20 +95,34 @@ export class DashboardService {
       summary: activitySummary(a),
     }));
 
-    // Count today's meetings from lead activities of type 'meeting' created today
+    // Встречи хранятся в Lead.meta.meetings[] (см. calendar.service.ts), а не в lead_activity —
+    // там нет и никогда не было типа 'meeting' (LeadActivityType этого не поддерживает), поэтому
+    // прежний запрос по lead_activity всегда возвращал 0 независимо от реальных встреч.
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
 
-    const todayMeetingsCount = await this.leadActivityRepo
-      .createQueryBuilder('a')
-      .where('a.tenantId = :tenantId', { tenantId })
-      .andWhere('a.type = :type', { type: 'meeting' })
-      .andWhere('a.createdAt >= :start', { start: todayStart })
-      .andWhere('a.createdAt < :end', { end: todayEnd })
-      .getCount()
-      .catch(() => 0);
+    const leadsWithMeetings = await this.leadsRepo
+      .createQueryBuilder('l')
+      .where('l.tenantId = :tenantId', { tenantId })
+      .andWhere("l.meta -> 'meetings' IS NOT NULL")
+      .select(['l.meta'])
+      .getMany();
+
+    let todayMeetingsCount = 0;
+    for (const l of leadsWithMeetings) {
+      const meetings = (l.meta as { meetings?: unknown[] } | null)?.meetings;
+      if (!Array.isArray(meetings)) continue;
+      for (const m of meetings) {
+        const meeting = m as { startsAt?: string; closedAt?: string } | null;
+        if (!meeting?.startsAt || meeting.closedAt) continue;
+        const date = new Date(meeting.startsAt);
+        if (!Number.isNaN(date.getTime()) && date >= todayStart && date < todayEnd) {
+          todayMeetingsCount++;
+        }
+      }
+    }
 
     return {
       profileCompletion: { percent, steps },

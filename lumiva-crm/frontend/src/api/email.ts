@@ -19,6 +19,7 @@ export interface EmailAccount {
   lastSyncAt?: string | null;
   syncIncoming: boolean;
   syncOutgoing: boolean;
+  syncFolder?: string | null;
   oauthProvider?: string | null;
   oauthExpiresAt?: string | null;
   hasOAuthTokens?: boolean;
@@ -59,6 +60,7 @@ export interface EmailMessage {
   subject: string | null;
   textBody: string | null;
   htmlBody: string | null;
+  attachments?: Array<{ filename: string; contentType: string; size: number; url?: string }> | null;
   contactId: string | null;
   companyId: string | null;
   leadId: string | null;
@@ -112,6 +114,7 @@ export interface CreateEmailAccountDto {
   smtpPassword?: string;
   syncIncoming?: boolean;
   syncOutgoing?: boolean;
+  syncFolder?: string;
 }
 
 export interface SendEmailDto {
@@ -269,13 +272,13 @@ export async function patchEmailAccountSignature(
 
 export async function startEmailOAuthGoogle(redirectPath?: string): Promise<{ url: string }> {
   return api.post<{ url: string }>('/email/oauth/google/start', {
-    redirect: redirectPath || '/app/email/accounts',
+    redirect: redirectPath || '/app/email',
   });
 }
 
 export async function startEmailOAuthMicrosoft(redirectPath?: string): Promise<{ url: string }> {
   return api.post<{ url: string }>('/email/oauth/microsoft/start', {
-    redirect: redirectPath || '/app/email/accounts',
+    redirect: redirectPath || '/app/email',
   });
 }
 
@@ -344,6 +347,11 @@ export async function previewStyledMail(
 export interface SendStyledEmailDto extends PreviewStyledMailDto {
   accountId: string;
   to: string[];
+  attachments?: Array<{
+    filename: string;
+    contentType: string;
+    contentBase64?: string;
+  }>;
 }
 
 export async function sendStyledMail(dto: SendStyledEmailDto): Promise<EmailMessage> {
@@ -368,6 +376,7 @@ export interface EmailTemplate {
     [key: string]: any;
   } | null;
   isActive: boolean;
+  useWrapper: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -386,6 +395,7 @@ export interface CreateEmailTemplateDto {
     [key: string]: any;
   };
   isActive?: boolean;
+  useWrapper?: boolean;
 }
 
 export interface UpdateEmailTemplateDto extends Partial<CreateEmailTemplateDto> {}

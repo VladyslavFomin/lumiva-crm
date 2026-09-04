@@ -6,8 +6,16 @@ import { Lead } from '../leads/lead.entity';
 import { Project } from '../projects/project.entity';
 import { Reservation } from '../bookings/reservation.entity';
 import { HotelReservation } from '../hotels/hotel-reservation.entity';
+import { CustomField } from '../custom-fields/custom-field.entity';
 
-export type CalendarEventType = 'lead_meeting' | 'project_task' | 'booking' | 'hotel_reservation';
+export type CalendarEventType =
+  | 'lead_meeting'
+  | 'project_task'
+  | 'booking'
+  | 'hotel_reservation'
+  | 'custom_date';
+
+const DATE_FIELD_TYPES = ['date', 'datetime', 'daterange'];
 
 export interface CalendarEventDto {
   id: string;
@@ -17,6 +25,7 @@ export interface CalendarEventDto {
   date: string;
   endDate: string | null;
   link: string;
+  assignee?: string | null;
 }
 
 @Injectable()
@@ -26,10 +35,11 @@ export class CalendarService {
     @InjectRepository(Project) private readonly projectRepo: Repository<Project>,
     @InjectRepository(Reservation) private readonly reservationRepo: Repository<Reservation>,
     @InjectRepository(HotelReservation) private readonly hotelReservationRepo: Repository<HotelReservation>,
+    @InjectRepository(CustomField) private readonly customFieldRepo: Repository<CustomField>,
   ) {}
 
   async getEvents(tenantId: string, from: Date, to: Date): Promise<CalendarEventDto[]> {
-    const [leads, projects, reservations, hotelReservations] = await Promise.all([
+    const [leads, projects, reservations, hotelReservations, projectDateFields] = await Promise.all([
       this.leadRepo.find({ where: { tenantId } }),
       this.projectRepo.find({ where: { tenantId } }),
       this.reservationRepo
@@ -45,7 +55,11 @@ export class CalendarService {
           toDate: to.toISOString().slice(0, 10),
         })
         .getMany(),
+      this.customFieldRepo.find({
+        where: { tenantId, entityType: 'project', isActive: true },
+      }),
     ]);
+    const dateFields = projectDateFields.filter((f) => DATE_FIELD_TYPES.includes(f.type));
 
     const events: CalendarEventDto[] = [];
     const inRange = (d: Date) => d >= from && d <= to;
@@ -89,6 +103,45 @@ export class CalendarService {
           endDate: null,
           link: `/projects/${project.id}`,
         });
+      }
+    }
+
+    // Custom date/datetime/daterange fields on projects — values live in Project.customFields[field.key].
+    if (dateFields.length) {
+      for (const project of projects) {
+        const values = project.customFields;
+        if (!values) continue;
+        for (const field of dateFields) {
+          const raw = values[field.key];
+          if (!raw) continue;
+          let startRaw: string | null = null;
+          let endRaw: string | null = null;
+          if (field.type === 'daterange') {
+            startRaw = raw?.start || null;
+            endRaw = raw?.end || null;
+          } else {
+            startRaw = typeof raw === 'string' ? raw : null;
+          }
+          if (!startRaw) continue;
+          const date = new Date(startRaw);
+          if (Number.isNaN(date.getTime())) continue;
+          const endDateRaw = endRaw ? new Date(endRaw) : null;
+          const endDate = endDateRaw && !Number.isNaN(endDateRaw.getTime()) ? endDateRaw : null;
+          // Range overlap, not just "start in range" — a trip that began before the visible
+          // window but is still ongoing must still show up in it.
+          const rangeEnd = endDate || date;
+          if (rangeEnd < from || date > to) continue;
+          events.push({
+            id: `custom_date:${project.id}:${field.id}`,
+            type: 'custom_date',
+            title: project.name,
+            subtitle: field.label,
+            date: date.toISOString(),
+            endDate: endDate ? endDate.toISOString() : null,
+            link: `/projects/${project.id}`,
+            assignee: project.ownerName || null,
+          });
+        }
       }
     }
 

@@ -103,10 +103,18 @@
   justify-content: center;
   transition: border-color .12s, color .12s;
 }
-.lv-view-tabs-add:hover {
+.lv-view-tabs-add:hover,
+.lv-view-tabs-add.active {
   border-color: var(--ink);
   color: var(--ink);
   border-style: solid;
+}
+.lv-view-tabs-sep {
+  align-self: center;
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--line-2);
 }
 .lv-view-tab-menu-btn {
   padding: 2px 6px;
@@ -342,6 +350,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Плотность строк (настраивается в окне «Настройки» видa «Таблица») */
+.lv-proj-table.lv-density-compact td { padding: 4px 14px; }
+.lv-proj-table.lv-density-comfortable td { padding: 10px 14px; }
+.lv-proj-table.lv-density-spacious td { padding: 16px 14px; }
 .lv-proj-table td.lv-col-dragging-td { opacity: 0.4; }
 .lv-proj-table td.lv-col-drop-target-td { box-shadow: inset 2px 0 0 var(--ink); }
 .lv-proj-table td.lv-td-popover { overflow: visible; }
@@ -583,8 +596,11 @@
   transition: all .12s;
   flex-shrink: 0;
   padding: 0;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .lv-checkbox:hover { border-color: var(--ink); }
+.lv-checkbox:focus-visible { box-shadow: 0 0 0 2px rgba(34,34,34,0.25); }
 .lv-checkbox.checked { background: var(--ink); border-color: var(--ink); color: #fff; }
 .lv-checkbox.indet  { background: var(--ink); border-color: var(--ink); color: #fff; }
 
@@ -667,6 +683,88 @@
 }
 .lv-cell-empty:hover { color: var(--fg-2); }
 
+/* url / email / phone custom-field cells: icon chip + open action, click-to-edit */
+.lv-cell-linklike {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  cursor: pointer;
+}
+.lv-link-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--fg-3, #888);
+}
+.lv-link-chip-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lv-link-open-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  color: var(--fg-3, #888);
+  flex-shrink: 0;
+  transition: background .12s, color .12s;
+}
+.lv-link-open-btn:hover { background: var(--bg-soft); color: var(--ink); }
+.lv-cell-linklike-trigger { background: none; border: 0; padding: 0; cursor: pointer; font-family: inherit; }
+.lv-cell-inline-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1.5px solid var(--ink);
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--ink);
+  outline: 0;
+  background: #fff;
+}
+.lv-cell-inline-input::placeholder { color: var(--fg-4); }
+.lv-cell-pill-readonly { cursor: default; }
+.lv-cell-pill-readonly:hover { border-color: var(--line-2); }
+.lv-cell-pill-auto { border-style: dashed; }
+.lv-cell-computed-empty { color: var(--fg-4); font-size: 12px; cursor: default; }
+
+/* «Ссылка»: попап выбора из файлов проекта */
+.lv-linkpick-popover { min-width: 240px; }
+.lv-linkpick-item-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+.lv-linkpick-empty-hint {
+  font-size: 11px;
+  color: var(--fg-3);
+  line-height: 1.4;
+  padding: 2px 8px 8px;
+}
+.lv-linkpick-manual { padding: 6px 4px 0; }
+.lv-linkpick-manual .lv-coltype-input { width: 100%; box-sizing: border-box; }
+.lv-linkpick-clear {
+  margin: 6px 4px 0;
+  font-size: 11px;
+  color: var(--fg-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 4px;
+}
+.lv-linkpick-clear:hover { color: #dc2626; }
+
 /* status pills */
 .lv-st {
   display: inline-flex;
@@ -701,16 +799,21 @@
 
 /* amount */
 .lv-cell-amount {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   font-family: var(--ff-mono);
   font-size: 12px;
   color: var(--ink);
-  text-align: right;
   letter-spacing: -0.01em;
 }
 .lv-cell-amount input {
   font-family: var(--ff-mono);
   font-size: 12px;
-  width: 100%;
+  width: 70px;
+  flex: none;
+  min-width: 0;
   text-align: right;
   border: 0;
   background: transparent;
@@ -723,6 +826,21 @@
   border-radius: 4px;
   padding: 2px 6px;
   background: #fff;
+}
+.lv-cell-amount-currency {
+  font-family: var(--ff-mono);
+  font-size: 10.5px;
+  color: var(--fg-3);
+  border: 0;
+  background: transparent;
+  outline: 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.lv-cell-amount-currency:hover,
+.lv-cell-amount-currency:focus {
+  color: var(--ink);
 }
 
 /* date */
@@ -770,11 +888,14 @@
 }
 .lv-drawer {
   padding: 18px 22px 22px 56px;
-  animation: lv-drawerIn .25s ease both;
+  animation: lv-drawerIn .25s ease;
 }
+/* Не задаём transform в конечном кадре и не используем fill-mode both/forwards:
+   задержавшийся transform (даже translateY(0)) создаёт containing block для
+   position:fixed/absolute потомков и ломает позиционирование поповеров внутри дровера. */
 @keyframes lv-drawerIn {
   from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; }
 }
 .lv-drawer-head {
   display: flex;
@@ -1066,6 +1187,248 @@
 }
 .lv-popover-link:hover { color: var(--ink); }
 
+/* add-column type picker */
+.lv-coltype-popover { min-width: 300px; }
+.lv-coltype-title { display: flex; align-items: center; gap: 6px; }
+.lv-coltype-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  background: none;
+  border-radius: 5px;
+  color: var(--fg-3);
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background .12s, color .12s;
+}
+.lv-coltype-back:hover { background: var(--bg-soft); color: var(--ink); }
+.lv-coltype-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 2px 4px 4px;
+}
+.lv-coltype-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background .1s, border-color .1s;
+}
+.lv-coltype-item:hover { background: var(--bg-soft); border-color: var(--line-2); }
+.lv-coltype-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+.lv-coltype-label { font-size: 12px; color: var(--ink); line-height: 1.25; }
+.lv-coltype-namestep { padding: 4px 6px 2px; display: flex; flex-direction: column; gap: 8px; }
+.lv-coltype-selected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--ink);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line-3);
+}
+.lv-coltype-input {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 7px 9px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--ink);
+  outline: 0;
+  transition: border-color .12s;
+}
+.lv-coltype-input:focus { border-color: var(--ink); }
+.lv-coltype-error { font-size: 11px; color: #dc2626; }
+.lv-coltype-actions { display: flex; justify-content: flex-end; gap: 12px; align-items: center; margin-top: 2px; }
+
+.lv-coltype-source { display: flex; flex-direction: column; gap: 6px; }
+.lv-coltype-source-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--fg-3); }
+.lv-coltype-source-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.lv-coltype-source-opt {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--fg-2);
+  font-size: 11.5px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: border-color .12s, color .12s, background .12s;
+}
+.lv-coltype-source-opt:hover { border-color: var(--ink); color: var(--ink); }
+.lv-coltype-source-opt.active { background: var(--ink); border-color: var(--ink); color: #fff; }
+.lv-coltype-source-hint { font-size: 10.5px; color: var(--fg-3); line-height: 1.4; }
+
+/* custom-field date/datetime picker */
+.lv-datepick-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  font-size: 12.5px;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  transition: background .1s;
+}
+.lv-datepick-trigger:hover { background: var(--bg-soft); }
+.lv-datepick-wrap-center { display: flex; justify-content: center; }
+.lv-datepick-trigger.lv-datepick-pill {
+  display: inline-flex;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+.lv-datepick-trigger.lv-datepick-pill:hover { background: rgba(59, 130, 246, 0.22); }
+.lv-datepick-trigger.lv-datepick-pill svg { opacity: 0.8; }
+.lv-datepick-pill-hint { display: none; }
+.lv-datepick-pill:hover > span:not(.lv-datepick-pill-hint) { display: none; }
+.lv-datepick-pill:hover .lv-datepick-pill-hint { display: inline; }
+.lv-datepick-trigger .placeholder { color: var(--fg-4); }
+.lv-datepick-popover { min-width: 264px; padding: 12px; }
+.lv-datepick-nav { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+.lv-datepick-select {
+  flex: 1;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--ink);
+  background: #fff;
+  outline: 0;
+  min-width: 0;
+}
+.lv-datepick-select:focus { border-color: var(--ink); }
+.lv-datepick-arrows { display: flex; gap: 2px; flex-shrink: 0; }
+.lv-datepick-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--fg-2);
+  cursor: pointer;
+  padding: 0;
+  transition: background .1s, color .1s;
+}
+.lv-datepick-arrow:hover { background: var(--bg-soft); color: var(--ink); }
+.lv-datepick-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 2px;
+}
+.lv-datepick-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  font-family: var(--ff-mono);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--fg-4);
+  padding: 4px 0;
+}
+.lv-datepick-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.lv-datepick-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background .1s, color .1s;
+}
+.lv-datepick-day:hover { background: var(--bg-soft); }
+.lv-datepick-day.other-month { color: var(--fg-4); }
+.lv-datepick-day.today { box-shadow: inset 0 0 0 1.3px var(--ink); font-weight: 600; }
+.lv-datepick-day.selected { background: var(--ink); color: #fff; font-weight: 600; }
+.lv-datepick-day.selected:hover { background: var(--ink); }
+.lv-datepick-day.in-range { background: rgba(34, 34, 34, 0.08); border-radius: 0; }
+.lv-datepick-day.in-range:hover { background: rgba(34, 34, 34, 0.14); }
+.lv-datepick-range-hint {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--bg-muted);
+  font-size: 11.5px;
+  color: var(--fg-3);
+}
+.lv-datepick-range-hint span { flex: 1; }
+.lv-datepick-range-hint span.active { color: var(--ink); font-weight: 600; }
+.lv-datepick-time {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-3);
+  font-size: 12px;
+  color: var(--fg-3);
+}
+.lv-datepick-time input {
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--ink);
+  outline: 0;
+}
+.lv-datepick-time input:focus { border-color: var(--ink); }
+.lv-datepick-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line-3);
+}
+
+/* .lv-checkbox-input is now defined globally in src/index.css (same visual everywhere). */
+
 /* owner popover */
 .lv-owner-popover {
   position: absolute;
@@ -1354,6 +1717,16 @@
 .lv-proj-table.lv-leads-table thead th.lv-col-check {
   text-align: center;
 }
+/* Кастомные колонки (Ссылка/Почта/Телефон/Дата и т.д.) — значение центрируется
+   под заголовком, а не липнет к левому краю широкой колонки. */
+.lv-proj-table thead th.lv-tcol-field,
+.lv-proj-table tbody td.lv-tcol-field {
+  text-align: center;
+}
+.lv-proj-table thead th.lv-tcol-field .lv-th-inner {
+  justify-content: center;
+}
+
 .lv-proj-table.lv-leads-table thead th.lv-tcol-center,
 .lv-proj-table.lv-leads-table tbody td.lv-tcol-center {
   text-align: center;
@@ -1393,6 +1766,39 @@
   justify-content: flex-end;
 }
 
+/* ---- Contacts list: explicit per-column widths ----
+   table-layout:fixed splits width evenly across all columns when none
+   declare a width. With 10+ columns that left ~80px/column, and the
+   manager/lead/group/actions cells used overflow:visible (for popovers
+   that this read-only list never actually opens), so their content
+   spilled into the next column and visually overlapped it — worse on
+   tablet/phone where the table sits at its 1368px min-width floor
+   instead of stretching across a wider desktop container. Fixed
+   widths below give each column enough room; overflow:visible was
+   dropped in the component in favor of the table's default ellipsis
+   clipping. The table now scrolls horizontally on narrow screens
+   instead of squeezing every column onto one page. */
+.lv-contacts-table th.col-contact,
+.lv-contacts-table td.col-contact { width: 180px; }
+.lv-contacts-table th.col-email,
+.lv-contacts-table td.col-email { width: 160px; }
+.lv-contacts-table th.col-phone,
+.lv-contacts-table td.col-phone { width: 130px; }
+.lv-contacts-table th.col-company,
+.lv-contacts-table td.col-company { width: 140px; }
+.lv-contacts-table th.col-manager,
+.lv-contacts-table td.col-manager { width: 90px; }
+.lv-contacts-table th.col-status,
+.lv-contacts-table td.col-status { width: 100px; }
+.lv-contacts-table th.col-lead,
+.lv-contacts-table td.col-lead { width: 140px; }
+.lv-contacts-table th.col-group,
+.lv-contacts-table td.col-group { width: 140px; }
+.lv-contacts-table th.col-tags,
+.lv-contacts-table td.col-tags { width: 150px; }
+.lv-contacts-table th.col-actions,
+.lv-contacts-table td.col-actions { width: 100px; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
   .lv-pt { font-size: 13px; }
@@ -1405,3 +1811,114 @@
   .lv-drawer { padding: 14px 12px 18px 12px; }
   .lv-proj-foot { flex-direction: column; align-items: flex-start; }
 }
+
+/* =========================================================
+   KANBAN board — shared across Leads / Projects / Workspace
+   Scoped under .lv-kb so it can't leak into the .lv-pt table/list
+   views that share this file. Inherits ink, fg and line color
+   tokens from .lv-pt / .lv-proj-wrap; declares its own mono and
+   display fonts since this file's --ff-mono is Poppins, not the
+   mockup's JetBrains Mono.
+   ========================================================= */
+.lv-kb {
+  --kb-ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --kb-ff-head: 'Inter Tight', 'Poppins', system-ui, -apple-system, sans-serif;
+}
+
+/* pipeline summary strip */
+.lv-kb .kb-strip { display: grid; grid-template-columns: repeat(4,1fr); border: 1px solid var(--line-2); border-radius: 10px; background: #fff; margin-bottom: 14px; overflow: hidden; }
+.lv-kb .kb-strip .cell { padding: 12px 16px; border-right: 1px solid var(--line-3); }
+.lv-kb .kb-strip .cell:last-child { border-right: 0; }
+.lv-kb .kb-strip .k { font-family: var(--kb-ff-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--fg-4); }
+.lv-kb .kb-strip .v { font-family: var(--kb-ff-head); font-size: 20px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); margin-top: 4px; line-height: 1.1; }
+.lv-kb .kb-strip .v .cur { font-size: 13px; color: var(--fg-3); font-weight: 500; margin-left: 3px; }
+.lv-kb .kb-strip .d { font-size: 11.5px; color: var(--fg-3); margin-top: 2px; }
+
+/* board */
+.lv-kb .kb-board { display: flex; gap: 12px; align-items: flex-start; overflow-x: auto; width: 100%; max-width: 100%; min-width: 0; padding-bottom: 14px; scrollbar-width: thin; }
+.lv-kb .kb-board::-webkit-scrollbar { height: 8px; }
+.lv-kb .kb-board::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 4px; }
+
+.lv-kb .kb-col { flex: 0 0 292px; width: 292px; background: var(--bg-muted); border: 1px solid var(--line-2); border-radius: 12px; display: flex; flex-direction: column; max-height: calc(100vh - 210px); transition: border-color .15s, background .15s; }
+.lv-kb .kb-col.over { border-color: var(--ink); background: #fff; }
+.lv-kb .kb-col.dim { opacity: .55; }
+
+.lv-kb .kb-col-head { padding: 11px 12px 0; position: sticky; top: 0; z-index: 2; background: inherit; border-radius: 12px 12px 0 0; }
+.lv-kb .kb-col-titlerow { display: flex; align-items: center; gap: 8px; }
+.lv-kb .kb-dot { width: 7px; height: 7px; border-radius: 2px; background: var(--fg-3); flex-shrink: 0; }
+.lv-kb .kb-col-title { font-size: 12.5px; font-weight: 500; color: var(--ink); letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-kb .kb-count { font-family: var(--kb-ff-mono); font-size: 10.5px; color: var(--fg-3); background: #fff; border: 1px solid var(--line-2); border-radius: 5px; padding: 0 5px; letter-spacing: 0.04em; }
+.lv-kb .kb-count.warn { color: #a8630f; border-color: #e8d3ac; background: #fdf7ec; }
+.lv-kb .kb-col-head .sp { flex: 1; }
+.lv-kb .kb-hbtn { width: 22px; height: 22px; border: 0; border-radius: 5px; background: none; color: var(--fg-3); display: inline-flex; align-items: center; justify-content: center; transition: background .12s, color .12s; cursor: pointer; }
+.lv-kb .kb-hbtn:hover { background: var(--line-3); color: var(--ink); }
+.lv-kb .kb-col-meta { display: flex; align-items: center; gap: 8px; margin-top: 7px; font-family: var(--kb-ff-mono); font-size: 10.5px; letter-spacing: 0.04em; color: var(--fg-3); }
+.lv-kb .kb-col-meta b { color: var(--ink); font-weight: 500; }
+.lv-kb .kb-meter { height: 2px; background: var(--line-2); border-radius: 2px; margin: 9px 0 0; overflow: hidden; }
+.lv-kb .kb-meter i { display: block; height: 100%; background: var(--ink); border-radius: 2px; }
+
+.lv-kb .kb-list { padding: 10px 10px 6px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; scrollbar-width: thin; min-height: 70px; }
+.lv-kb .kb-list::-webkit-scrollbar { width: 6px; }
+.lv-kb .kb-list::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 3px; }
+
+/* card */
+.lv-kb .kb-card { background: #fff; border: 1px solid var(--line-2); border-radius: 10px; padding: 11px 12px 10px; cursor: grab; transition: border-color .12s, box-shadow .15s, transform .12s; position: relative; }
+.lv-kb .kb-card:hover { border-color: var(--fg-3); box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+.lv-kb .kb-card.dragging { opacity: .4; transform: rotate(-.6deg); }
+.lv-kb .kb-card:active { cursor: grabbing; }
+.lv-kb .kb-card.pri-high::before { content: ''; position: absolute; left: -1px; top: 12px; bottom: 12px; width: 2px; border-radius: 2px; background: #cc2f47; }
+
+.lv-kb .kb-card-top { display: flex; align-items: flex-start; gap: 8px; }
+.lv-kb .kb-name { font-size: 13px; font-weight: 500; color: var(--ink); line-height: 1.3; letter-spacing: -0.01em; flex: 1; min-width: 0; }
+.lv-kb .kb-id { font-family: var(--kb-ff-mono); font-size: 10px; color: var(--fg-4); letter-spacing: 0.04em; flex-shrink: 0; padding-top: 2px; }
+.lv-kb .kb-sub { font-size: 11.5px; color: var(--fg-3); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.lv-kb .kb-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.lv-kb .kb-chip { font-size: 10.5px; color: var(--fg-2); border: 1px solid var(--line-2); background: var(--bg-muted); border-radius: 5px; padding: 1px 6px; line-height: 1.6; white-space: nowrap; }
+.lv-kb .kb-chip.src { font-family: var(--kb-ff-mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--fg-3); }
+.lv-kb .kb-chip-link { display: inline-flex; align-items: center; gap: 3px; text-decoration: none; color: var(--fg-2); cursor: pointer; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+.lv-kb .kb-chip-link:hover { border-color: var(--ink); color: var(--ink); }
+.lv-kb .kb-chip-link svg { flex-shrink: 0; }
+
+.lv-kb .kb-val { display: flex; align-items: baseline; gap: 6px; margin-top: 9px; }
+.lv-kb .kb-val .n { font-family: var(--kb-ff-head); font-size: 15px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); }
+.lv-kb .kb-val .c { font-size: 11px; color: var(--fg-3); }
+.lv-kb .kb-val .age { margin-left: auto; font-family: var(--kb-ff-mono); font-size: 10px; color: var(--fg-4); letter-spacing: 0.04em; }
+.lv-kb .kb-val .age.stale { color: #a8630f; }
+
+.lv-kb .kb-next { display: flex; align-items: center; gap: 6px; margin-top: 9px; padding: 6px 8px; border: 1px solid var(--line-3); background: var(--bg-muted); border-radius: 7px; font-size: 11.5px; color: var(--fg-2); }
+.lv-kb .kb-next svg { color: var(--fg-3); flex-shrink: 0; }
+.lv-kb .kb-next .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-kb .kb-next .d { font-family: var(--kb-ff-mono); font-size: 10px; color: var(--fg-3); letter-spacing: 0.04em; flex-shrink: 0; }
+.lv-kb .kb-next.over { border-color: #f0d3d8; background: #fdf4f5; color: #9c2338; }
+.lv-kb .kb-next.over svg, .lv-kb .kb-next.over .d { color: #b4293f; }
+
+.lv-kb .kb-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line-3); }
+.lv-kb .kb-ava { width: 20px; height: 20px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 9.5px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; font-family: var(--kb-ff-head); letter-spacing: 0.02em; flex-shrink: 0; }
+.lv-kb .kb-foot .sp { flex: 1; }
+.lv-kb .kb-mini { display: inline-flex; align-items: center; gap: 3px; font-family: var(--kb-ff-mono); font-size: 10px; color: var(--fg-3); letter-spacing: 0.04em; }
+.lv-kb .kb-mini svg { color: var(--fg-4); }
+.lv-kb .kb-mini.on { color: var(--ink); }
+.lv-kb .kb-mini.on svg { color: var(--ink); }
+.lv-kb .kb-prog { display: flex; gap: 2px; align-items: center; }
+.lv-kb .kb-prog i { width: 12px; height: 3px; border-radius: 2px; background: var(--line-2); }
+.lv-kb .kb-prog i.on { background: var(--ink); }
+
+/* drop placeholder / empty */
+.lv-kb .kb-ph { height: 2px; background: var(--ink); border-radius: 2px; margin: -3px 0; }
+.lv-kb .kb-empty { border: 1px dashed var(--line-2); border-radius: 10px; padding: 18px 12px; text-align: center; font-size: 11.5px; color: var(--fg-4); line-height: 1.5; }
+.lv-kb .kb-col.over .kb-empty { border-color: var(--ink); color: var(--fg-2); }
+
+.lv-kb .kb-add { margin: 0 10px 10px; padding: 7px 10px; border: 1px dashed var(--line-2); border-radius: 8px; background: none; font-family: inherit; font-size: 12px; color: var(--fg-3); display: flex; align-items: center; gap: 6px; justify-content: center; transition: border-color .12s, color .12s; cursor: pointer; }
+.lv-kb .kb-add:hover { border-color: var(--ink); border-style: solid; color: var(--ink); }
+
+/* collapsed rail */
+.lv-kb .kb-col.collapsed { flex: 0 0 46px; width: 46px; align-items: center; padding: 11px 0 12px; gap: 12px; max-height: none; }
+.lv-kb .kb-col.collapsed .kb-rail { writing-mode: vertical-rl; font-size: 12px; font-weight: 500; color: var(--ink); letter-spacing: 0.02em; white-space: nowrap; }
+.lv-kb .kb-col.collapsed .kb-count { writing-mode: horizontal-tb; }
+
+/* density */
+.lv-kb .kb-board.compact .kb-card { padding: 9px 10px; }
+.lv-kb .kb-board.compact .kb-chips, .lv-kb .kb-board.compact .kb-next, .lv-kb .kb-board.compact .kb-sub { display: none; }
+.lv-kb .kb-board.compact .kb-val { margin-top: 6px; }
+.lv-kb .kb-board.compact .kb-foot { margin-top: 8px; padding-top: 7px; }

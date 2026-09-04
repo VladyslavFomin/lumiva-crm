@@ -9,6 +9,7 @@ import {
   updateCustomObject,
   type CustomObject,
 } from '../../api/customObjects';
+import { fetchWorkspaceAreas, type WorkspaceArea } from '../../api/workspaceAreas';
 import {
   NavChevronDown,
   NavIconDots,
@@ -24,6 +25,7 @@ import {
 } from '../../workspace/workspaceEnabledViews';
 import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
 import { DataLayerNavIcon } from '../workspace/DataLayerNavIcon';
+import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type Props = {
   enabled: boolean;
@@ -50,21 +52,12 @@ const PLUS_MENU_EXTRA_VIEWS: Array<{
   { key: 'gantt', iconClass: 'text-amber-600' },
 ];
 
-const COLLAPSED_CAT_STORAGE = 'lumiva_workspace_collapsed_categories';
-const UNCATEGORIZED_KEY = '__uncategorized__';
+const COLLAPSED_AREAS_STORAGE = 'lumiva_workspace_collapsed_areas';
+const NO_AREA_KEY = '__no_area__';
 
-const CATEGORY_PRESET_KEYS = [
-  'leads',
-  'sales',
-  'projects',
-  'marketing',
-  'finance',
-  'other',
-] as const;
-
-function readCollapsedCategories(): Set<string> {
+function readCollapsedAreas(): Set<string> {
   try {
-    const raw = localStorage.getItem(COLLAPSED_CAT_STORAGE);
+    const raw = localStorage.getItem(COLLAPSED_AREAS_STORAGE);
     if (!raw) return new Set();
     const a = JSON.parse(raw) as unknown;
     if (!Array.isArray(a)) return new Set();
@@ -74,10 +67,8 @@ function readCollapsedCategories(): Set<string> {
   }
 }
 
-function workspaceCategoryStorageKey(obj: CustomObject): string {
-  const c = obj.meta?.sidebarCategory;
-  if (typeof c === 'string' && c.trim()) return c.trim();
-  return UNCATEGORIZED_KEY;
+function workspaceAreaGroupKey(obj: CustomObject): string {
+  return obj.workspaceAreaId || NO_AREA_KEY;
 }
 
 function placeFixedMenu(
@@ -117,9 +108,11 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   flushTop = false,
 }) => {
   const { t } = useTranslation();
+  const { showConfirm, showAlert } = useAlertModal();
   const navigate = useNavigate();
   const location = useLocation();
   const [objects, setObjects] = useState<CustomObject[]>([]);
+  const [areas, setAreas] = useState<WorkspaceArea[]>([]);
   const [loading, setLoading] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [dotsMenu, setDotsMenu] = useState<{ id: string; top: number; left: number } | null>(
@@ -128,47 +121,46 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   const [renameTarget, setRenameTarget] = useState<CustomObject | null>(null);
   const [renameValue, setRenameValue] = useState('');
   const [renameSaving, setRenameSaving] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<CustomObject | null>(null);
-  const [deleteSaving, setDeleteSaving] = useState(false);
   const [plusEnablingKey, setPlusEnablingKey] = useState<ExtraWorkspaceViewKey | null>(null);
   const plusEnablingRef = useRef(false);
   const createRef = useRef<HTMLDivElement | null>(null);
-  const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(readCollapsedCategories);
+  const [collapsedAreas, setCollapsedAreas] = useState<Set<string>>(readCollapsedAreas);
   const [hiddenSectionOpen, setHiddenSectionOpen] = useState(false);
-  const [categoryTarget, setCategoryTarget] = useState<CustomObject | null>(null);
-  const [categoryDraft, setCategoryDraft] = useState('');
-  const [categorySaving, setCategorySaving] = useState(false);
 
   const closeOverlays = useCallback(() => {
     setDotsMenu(null);
   }, []);
 
-  const persistCollapsedCategories = useCallback((next: Set<string>) => {
+  const persistCollapsedAreas = useCallback((next: Set<string>) => {
     try {
-      localStorage.setItem(COLLAPSED_CAT_STORAGE, JSON.stringify([...next]));
+      localStorage.setItem(COLLAPSED_AREAS_STORAGE, JSON.stringify([...next]));
     } catch {
       /* ignore */
     }
-    setCollapsedCategories(next);
+    setCollapsedAreas(next);
   }, []);
 
-  const toggleCategoryCollapsed = (catKey: string) => {
-    const next = new Set(collapsedCategories);
-    if (next.has(catKey)) next.delete(catKey);
-    else next.add(catKey);
-    persistCollapsedCategories(next);
+  const toggleAreaCollapsed = (areaKey: string) => {
+    const next = new Set(collapsedAreas);
+    if (next.has(areaKey)) next.delete(areaKey);
+    else next.add(areaKey);
+    persistCollapsedAreas(next);
   };
 
   const load = async () => {
     if (!enabled) return;
     setLoading(true);
     try {
-      const list = await fetchCustomObjects(
-        workspaceAreaIdFilter && /^[0-9a-f-]{36}$/i.test(workspaceAreaIdFilter)
-          ? workspaceAreaIdFilter
-          : undefined,
-      );
+      const [list, areaList] = await Promise.all([
+        fetchCustomObjects(
+          workspaceAreaIdFilter && /^[0-9a-f-]{36}$/i.test(workspaceAreaIdFilter)
+            ? workspaceAreaIdFilter
+            : undefined,
+        ),
+        fetchWorkspaceAreas().catch(() => []),
+      ]);
       setObjects(list);
+      setAreas(areaList);
     } catch {
       setObjects([]);
     } finally {
@@ -213,15 +205,13 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   }, [closeOverlays]);
 
   useLayoutEffect(() => {
-    if (!dotsMenu && !categoryTarget) return;
+    if (!dotsMenu) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return;
-      if (categoryTarget && !categorySaving) setCategoryTarget(null);
-      else closeOverlays();
+      if (e.key === 'Escape') closeOverlays();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [dotsMenu, categoryTarget, categorySaving, closeOverlays]);
+  }, [dotsMenu, closeOverlays]);
 
   const go = (path: string) => {
     navigate(path);
@@ -274,10 +264,16 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
     [visibleSorted],
   );
 
+  const areasById = useMemo(() => {
+    const map = new Map<string, WorkspaceArea>();
+    for (const a of areas) map.set(a.id, a);
+    return map;
+  }, [areas]);
+
   const workspaceGroups = useMemo(() => {
     const map = new Map<string, CustomObject[]>();
     for (const o of visibleSorted) {
-      const k = workspaceCategoryStorageKey(o);
+      const k = workspaceAreaGroupKey(o);
       if (!map.has(k)) map.set(k, []);
       map.get(k)!.push(o);
     }
@@ -292,48 +288,22 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
       });
     }
     const keys = [...map.keys()].sort((a, b) => {
-      if (a === UNCATEGORIZED_KEY) return 1;
-      if (b === UNCATEGORIZED_KEY) return -1;
-      return a.localeCompare(b, undefined, { sensitivity: 'base' });
+      if (a === NO_AREA_KEY) return 1;
+      if (b === NO_AREA_KEY) return -1;
+      const nameA = areasById.get(a)?.name || a;
+      const nameB = areasById.get(b)?.name || b;
+      return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' });
     });
-    return keys.map((catKey) => ({
-      catKey,
-      label:
-        catKey === UNCATEGORIZED_KEY
-          ? t('crm.sidebar.uncategorized')
-          : (CATEGORY_PRESET_KEYS as readonly string[]).includes(catKey)
-            ? t(`crm.sidebar.categoryPresets.${catKey}`)
-            : catKey,
-      items: map.get(catKey)!,
-    }));
-  }, [visibleSorted, t]);
-
-  const openCategoryModal = (obj: CustomObject) => {
-    const raw = obj.meta?.sidebarCategory;
-    setCategoryDraft(typeof raw === 'string' ? raw : '');
-    setCategoryTarget(obj);
-    setDotsMenu(null);
-  };
-
-  const saveCategory = async () => {
-    if (!categoryTarget) return;
-    setCategorySaving(true);
-    try {
-      const trimmed = categoryDraft.trim();
-      const nextMeta = {
-        ...(categoryTarget.meta && typeof categoryTarget.meta === 'object'
-          ? categoryTarget.meta
-          : {}),
-      } as Record<string, unknown>;
-      if (trimmed) nextMeta.sidebarCategory = trimmed;
-      else delete nextMeta.sidebarCategory;
-      const updated = await updateCustomObject(categoryTarget.id, { meta: nextMeta });
-      setObjects((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
-      setCategoryTarget(null);
-    } finally {
-      setCategorySaving(false);
-    }
-  };
+    return keys.map((areaKey) => {
+      const area = areaKey === NO_AREA_KEY ? null : areasById.get(areaKey) || null;
+      return {
+        areaKey,
+        area,
+        label: area ? area.name : t('crm.sidebar.noArea'),
+        items: map.get(areaKey)!,
+      };
+    });
+  }, [visibleSorted, areasById, t]);
 
   const hideWorkspaceFromSidebar = async (obj: CustomObject) => {
     setDotsMenu(null);
@@ -387,25 +357,25 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
     }
   };
 
-  const openDeleteWorkspace = (obj: CustomObject) => {
+  const openDeleteWorkspace = async (obj: CustomObject) => {
     setDotsMenu(null);
-    setDeleteTarget(obj);
-  };
-
-  const confirmDeleteWorkspace = async () => {
-    if (!deleteTarget) return;
-    setDeleteSaving(true);
+    const ok = await showConfirm(t('crm.sidebar.deleteWorkspaceConfirm', { name: obj.name }), {
+      title: t('crm.sidebar.deleteWorkspace'),
+      confirmLabel: t('crm.confirmModal.deleteLabel', { defaultValue: 'Удалить' }),
+      cancelLabel: t('crm.confirmModal.cancel', { defaultValue: 'Отмена' }),
+      danger: true,
+    });
+    if (!ok) return;
     try {
-      await deleteCustomObject(deleteTarget.id);
-      if (location.pathname.startsWith(`/workspace/${deleteTarget.id}`)) {
+      await deleteCustomObject(obj.id);
+      if (location.pathname.startsWith(`/workspace/${obj.id}`)) {
         navigate('/workspace', { replace: true });
       }
       await load();
-      setDeleteTarget(null);
     } catch {
-      // ignore
-    } finally {
-      setDeleteSaving(false);
+      showAlert(t('crm.sidebar.deleteWorkspaceFailed', { defaultValue: 'Не удалось удалить таблицу.' }), {
+        variant: 'error',
+      });
     }
   };
 
@@ -442,7 +412,6 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
   const AnalyticsIcon = NAV_ICON_MAP.analytics;
   const CalendarIcon = NAV_ICON_MAP.calendar;
   const GanttIcon = NAV_ICON_MAP.gantt;
-  const WorkspaceNewIcon = NAV_ICON_MAP.workspaceNew;
 
   const renderWorkspaceItem = (obj: CustomObject) => {
     const base = `/workspace/${obj.id}`;
@@ -680,13 +649,6 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                   <button
                     type="button"
                     className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
-                    onClick={() => openCategoryModal(obj)}
-                  >
-                    {t('crm.sidebar.categoryTitle')}
-                  </button>
-                  <button
-                    type="button"
-                    className="block w-full px-3 py-1.5 text-left text-[12px] text-slate-700 hover:bg-slate-50"
                     onClick={() => void hideWorkspaceFromSidebar(obj)}
                   >
                     {t('crm.sidebar.hideFromSidebar')}
@@ -761,31 +723,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                 <TableIcon className="text-slate-400" />
                 {t('crm.sidebar.newDataTable')}
               </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                onClick={() => go(newTableHref('kanban'))}
-              >
-                <KanbanIcon className="text-teal-600" />
-                {t('crm.sidebar.newKanban')}
-              </button>
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                onClick={() => go(newTableHref('analytics'))}
-              >
-                <AnalyticsIcon className="text-sky-600" />
-                {t('crm.sidebar.newAnalytics')}
-              </button>
               <div className="my-1.5 border-t border-slate-100" />
-              <button
-                type="button"
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
-                onClick={() => go(newTableHref('settings'))}
-              >
-                <WorkspaceNewIcon className="text-indigo-600" />
-                {t('crm.sidebar.newWorkspace')}
-              </button>
               <button
                 type="button"
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[13px] text-slate-700 hover:bg-slate-50"
@@ -815,23 +753,40 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
           !compact &&
           !inWorkspaceArea &&
           workspaceGroups.map((group) => {
-            const hideCategoryHeader =
-              workspaceGroups.length === 1 && group.catKey === UNCATEGORIZED_KEY;
+            const hideAreaHeader =
+              workspaceGroups.length === 1 && group.areaKey === NO_AREA_KEY;
             const sectionOpen =
-              hideCategoryHeader || !collapsedCategories.has(group.catKey);
+              hideAreaHeader || !collapsedAreas.has(group.areaKey);
+            const AreaIcon =
+              group.area && group.area.iconKey in NAV_ICON_MAP
+                ? NAV_ICON_MAP[group.area.iconKey as NavIconKey]
+                : NavIconFolder;
             return (
-              <div key={group.catKey} className="space-y-0.5">
-                {!hideCategoryHeader && (
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-1 rounded-lg px-1 py-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-slate-50"
-                    onClick={() => toggleCategoryCollapsed(group.catKey)}
-                    aria-expanded={sectionOpen}
-                  >
-                    <NavChevronDown expanded={sectionOpen} />
-                    <span className="min-w-0 flex-1 truncate text-left">{group.label}</span>
-                    <span className="tabular-nums text-slate-300">{group.items.length}</span>
-                  </button>
+              <div key={group.areaKey} className="space-y-0.5">
+                {!hideAreaHeader && (
+                  <div className="flex items-center gap-0.5">
+                    <button
+                      type="button"
+                      className="inline-flex shrink-0 items-center justify-center rounded-lg p-1 text-slate-400 hover:bg-slate-50"
+                      onClick={() => toggleAreaCollapsed(group.areaKey)}
+                      aria-expanded={sectionOpen}
+                      aria-label={t('crm.sidebar.toggleGroup')}
+                    >
+                      <NavChevronDown expanded={sectionOpen} />
+                    </button>
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1 py-1 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-400 hover:bg-slate-50 hover:text-slate-600"
+                      onClick={() =>
+                        group.area ? go(`/workspace/areas/${group.area.id}`) : toggleAreaCollapsed(group.areaKey)
+                      }
+                      title={group.area ? t('crm.sidebar.openArea') : undefined}
+                    >
+                      {group.area && <AreaIcon className="h-3 w-3 shrink-0 text-slate-400" />}
+                      <span className="min-w-0 flex-1 truncate">{group.label}</span>
+                      <span className="tabular-nums text-slate-300">{group.items.length}</span>
+                    </button>
+                  </div>
                 )}
                 {sectionOpen && group.items.map((obj) => renderWorkspaceItem(obj))}
               </div>
@@ -887,26 +842,37 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
             role="dialog"
             aria-modal="true"
             aria-labelledby="workspace-rename-title"
-            className="fixed inset-0 z-[10070] flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-sm"
+            className="fixed inset-0 z-[10070] flex items-center justify-center bg-black/50 p-4 backdrop-blur-[2px]"
             onClick={() => setRenameTarget(null)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
+              className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden"
               onClick={(e) => e.stopPropagation()}
             >
-              <div id="workspace-rename-title" className="mb-2 text-sm font-semibold text-slate-900">
-                {t('crm.sidebar.editWorkspace')}
-              </div>
-              <input
-                value={renameValue}
-                onChange={(e) => setRenameValue(e.target.value)}
-                className="mb-3 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
+                <h2 id="workspace-rename-title" className="text-[15px] font-semibold text-[#222] leading-snug">
+                  {t('crm.sidebar.editWorkspace')}
+                </h2>
                 <button
                   type="button"
-                  className="rounded-xl px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
+                  onClick={() => setRenameTarget(null)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f0f0f0] hover:text-[#222] transition-colors text-lg leading-none"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="px-5 py-4">
+                <input
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  className="w-full rounded-[8px] border border-[#e7e7e7] px-3 py-2 text-[13px] text-[#222] focus:outline-none focus:border-[#bbb]"
+                  autoFocus
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#f0f0f0] bg-[#fafafa]">
+                <button
+                  type="button"
+                  className="rounded-[8px] border border-[#e7e7e7] bg-white px-4 py-2 text-[12px] font-medium text-[#555] hover:border-[#ccc] hover:bg-white transition-colors"
                   onClick={() => setRenameTarget(null)}
                 >
                   {t('crm.common.cancel')}
@@ -914,7 +880,7 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
                 <button
                   type="button"
                   disabled={renameSaving || !renameValue.trim()}
-                  className="rounded-xl bg-lumiva-accent px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                  className="rounded-[8px] border border-[#222] bg-[#222] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#111] transition-colors disabled:opacity-50"
                   onClick={() => void saveRename()}
                 >
                   {t('crm.common.save')}
@@ -925,114 +891,6 @@ export const WorkspaceSidebarBlock: React.FC<Props> = ({
           document.body,
         )}
 
-      {deleteTarget &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="workspace-delete-title"
-            className="fixed inset-0 z-[10070] flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-sm"
-            onClick={() => !deleteSaving && setDeleteTarget(null)}
-          >
-            <div
-              className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div id="workspace-delete-title" className="mb-2 text-sm font-semibold text-slate-900">
-                {t('crm.sidebar.deleteWorkspace')}
-              </div>
-              <p className="mb-4 text-sm leading-relaxed text-slate-600">
-                {t('crm.sidebar.deleteWorkspaceConfirm', { name: deleteTarget.name })}
-              </p>
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="rounded-xl px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
-                  onClick={() => setDeleteTarget(null)}
-                  disabled={deleteSaving}
-                >
-                  {t('crm.common.cancel')}
-                </button>
-                <button
-                  type="button"
-                  disabled={deleteSaving}
-                  className="rounded-xl bg-rose-600 px-3 py-1.5 text-sm text-white hover:bg-rose-700 disabled:opacity-50"
-                  onClick={() => void confirmDeleteWorkspace()}
-                >
-                  {t('crm.sidebar.deleteWorkspace')}
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {categoryTarget &&
-        createPortal(
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="workspace-category-title"
-            className="fixed inset-0 z-[10070] flex items-center justify-center bg-slate-900/20 p-4 backdrop-blur-sm"
-            onClick={() => !categorySaving && setCategoryTarget(null)}
-          >
-            <div
-              className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div id="workspace-category-title" className="mb-1 text-sm font-semibold text-slate-900">
-                {t('crm.sidebar.categoryTitle')}
-              </div>
-              <p className="mb-3 text-xs leading-relaxed text-slate-500">
-                {t('crm.sidebar.categoryHint')}
-              </p>
-              <div className="mb-3 flex flex-wrap gap-1.5">
-                {CATEGORY_PRESET_KEYS.map((pk) => (
-                  <button
-                    key={pk}
-                    type="button"
-                    className={
-                      'rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors ' +
-                      (categoryDraft === pk
-                        ? 'border-teal-500 bg-teal-50 text-teal-900'
-                        : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50')
-                    }
-                    onClick={() => setCategoryDraft(pk)}
-                  >
-                    {t(`crm.sidebar.categoryPresets.${pk}`)}
-                  </button>
-                ))}
-              </div>
-              <input
-                value={categoryDraft}
-                onChange={(e) => setCategoryDraft(e.target.value)}
-                className="mb-4 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                placeholder={t('crm.sidebar.categoryCustomPlaceholder')}
-                aria-label={t('crm.sidebar.categoryCustomPlaceholder')}
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <button
-                  type="button"
-                  className="rounded-xl px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-100"
-                  onClick={() => !categorySaving && setCategoryTarget(null)}
-                  disabled={categorySaving}
-                >
-                  {t('crm.common.cancel')}
-                </button>
-                <button
-                  type="button"
-                  disabled={categorySaving}
-                  className="rounded-xl bg-lumiva-accent px-3 py-1.5 text-sm text-white disabled:opacity-50"
-                  onClick={() => void saveCategory()}
-                >
-                  {t('crm.sidebar.categorySave')}
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </div>
   );
 };

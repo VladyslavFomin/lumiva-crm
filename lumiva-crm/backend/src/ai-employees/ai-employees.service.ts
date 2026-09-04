@@ -516,35 +516,42 @@ export class AiEmployeesService {
     }
 
     const limit = getAiEmployeeLimitForPlan(tenant.plan);
-    const used = await this.activeAgentCount(tenantId);
-    if (limit != null && used >= limit) {
-      throw new BadRequestException({
-        code: 'AI_EMPLOYEE_PLAN_LIMIT',
-        message: `Your current plan allows ${limit} AI Employee${limit === 1 ? '' : 's'}. Upgrade your plan to add more AI team members.`,
-        limit,
-        used,
+    // Раньше read-then-insert без блокировки: два одновременных createAgent для одного тенанта
+    // оба читают ещё не увеличенный count и оба проходят проверку — лимит плана можно
+    // превысить на одного агента. pg_advisory_xact_lock по tenantId сериализует check+insert
+    // для одного тенанта на время транзакции (снимается сам при commit/rollback), без
+    // блокировки конкретной строки (её и нет — лимит считается по count(*), не по одной записи).
+    const agent = await this.agents.manager.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [tenantId]);
+      const used = await manager.count(AiAgent, { where: { tenantId, status: Not('disabled') } as any });
+      if (limit != null && used >= limit) {
+        throw new BadRequestException({
+          code: 'AI_EMPLOYEE_PLAN_LIMIT',
+          message: `Your current plan allows ${limit} AI Employee${limit === 1 ? '' : 's'}. Upgrade your plan to add more AI team members.`,
+          limit,
+          used,
+        });
+      }
+      const created = manager.create(AiAgent, {
+        tenantId,
+        role: role.key,
+        name: this.cleanString(input.name, role.defaultName, 190),
+        avatarUrl: input.avatarUrl ? this.cleanString(input.avatarUrl, '', 512) : null,
+        department: this.cleanString(input.department, role.department, 120),
+        jobTitle: this.cleanString(input.jobTitle, role.jobTitle, 160),
+        language: this.cleanString(input.language, 'English', 64),
+        tone: this.cleanString(input.tone, 'Professional, warm, concise', 255),
+        status: input.status ?? 'active',
+        autonomyMode: input.autonomyMode ?? 'suggest',
+        provider: this.cleanString(input.provider, 'openai_compatible', 80),
+        model: input.model ? this.cleanString(input.model, '', 128) : null,
+        dailyReportTime: this.cleanString(input.dailyReportTime, '18:00', 8),
+        scheduleMode: input.scheduleMode ?? 'manual',
+        createdBy: userId,
+        settings: input.settings ?? null,
       });
-    }
-
-    const agent = this.agents.create({
-      tenantId,
-      role: role.key,
-      name: this.cleanString(input.name, role.defaultName, 190),
-      avatarUrl: input.avatarUrl ? this.cleanString(input.avatarUrl, '', 512) : null,
-      department: this.cleanString(input.department, role.department, 120),
-      jobTitle: this.cleanString(input.jobTitle, role.jobTitle, 160),
-      language: this.cleanString(input.language, 'English', 64),
-      tone: this.cleanString(input.tone, 'Professional, warm, concise', 255),
-      status: input.status ?? 'active',
-      autonomyMode: input.autonomyMode ?? 'suggest',
-      provider: this.cleanString(input.provider, 'openai_compatible', 80),
-      model: input.model ? this.cleanString(input.model, '', 128) : null,
-      dailyReportTime: this.cleanString(input.dailyReportTime, '18:00', 8),
-      scheduleMode: input.scheduleMode ?? 'manual',
-      createdBy: userId,
-      settings: input.settings ?? null,
+      return manager.save(created);
     });
-    await this.agents.save(agent);
 
     const defaultPermissions = role.defaultPermissions.reduce<PermissionMap>(
       (acc, key) => {
@@ -640,6 +647,14 @@ export class AiEmployeesService {
     const agent = await this.getAgentEntity(tenantId, id);
     agent.status = 'disabled';
     await this.agents.save(agent);
+    // Раньше удаление агента не трогало его ещё не исполненные действия — approveAction/
+    // executeAction ищут действие только по (tenantId, id), без проверки статуса владеющего
+    // агента, так что уже предложенное send_email/assign_lead/update_lead_status можно было
+    // одобрить и исполнить уже ПОСЛЕ того, как агент "удалён".
+    await this.actions.update(
+      { tenantId, agentId: agent.id, status: In(['pending', 'approved']) },
+      { status: 'rejected' },
+    );
     await this.logEvent({
       tenantId,
       agentId: agent.id,
@@ -813,6 +828,25 @@ export class AiEmployeesService {
       executedAt: status === 'executed' ? new Date() : null,
     });
     await this.actions.save(action);
+
+    // Действия без правила согласования по умолчанию не требуют approve — но для тех из них,
+    // что реально что-то делают (AI_REAL_EXECUTABLE_ACTIONS: create_project/workspace_*), status
+    // 'executed' выше выставлялся без единого вызова dispatchRealAction — тот срабатывает только
+    // из executeAction() (после ручного approve), которая здесь не вызывается. Действие тихо
+    // считалось выполненным, ничего не делая. Дозапускаем реальное исполнение тем же путём.
+    let dispatchError: string | null = null;
+    if (!requiresApproval && this.isRealExecutable(actionType)) {
+      try {
+        await this.dispatchRealAction(tenantId, action, null);
+        await this.actions.save(action);
+      } catch (err: any) {
+        dispatchError = err?.message || 'Execution failed';
+        action.status = 'failed';
+        action.payload = { ...(action.payload || {}), execError: dispatchError };
+        await this.actions.save(action);
+      }
+    }
+
     await this.logEvent({
       tenantId,
       agentId: agent.id,
@@ -821,8 +855,8 @@ export class AiEmployeesService {
       targetType: action.targetType,
       targetId: action.targetId,
       inputSummary: action.actionType,
-      outputSummary: action.title,
-      status: requiresApproval ? 'pending' : 'success',
+      outputSummary: dispatchError || action.title,
+      status: requiresApproval ? 'pending' : dispatchError ? 'error' : 'success',
     });
     return action;
   }
@@ -1530,7 +1564,7 @@ Identity:
   private async resolveOpenAiConfig(
     agent: AiAgent,
     tenantId: string,
-  ): Promise<{ apiKey: string; baseUrl?: string; model?: string } | undefined> {
+  ): Promise<{ apiKey: string; baseUrl?: string; model?: string; provider?: 'openai' | 'anthropic' } | undefined> {
     const connectionId = agent.settings?.openaiConnectionId as string | undefined;
     if (!connectionId) return undefined;
     try {
@@ -1541,6 +1575,7 @@ Identity:
         apiKey: String(cfg.apiToken),
         baseUrl: cfg.webhookUrl ? String(cfg.webhookUrl) : undefined,
         model: cfg.model ? String(cfg.model) : undefined,
+        provider: cfg.provider === 'anthropic' ? 'anthropic' : undefined,
       };
     } catch {
       return undefined;
@@ -1567,20 +1602,23 @@ Identity:
     );
     const promptTokens = usage.prompt_tokens || 0;
     const completionTokens = usage.completion_tokens || 0;
-    const costCents = this.openai.estimateCostCents(
-      promptTokens,
-      completionTokens,
-      0.15,
-      0.6,
-    );
-    await this.quota.chargeCents(tenantId, costCents, {
-      userId: userId ?? undefined,
-      kind: 'chat',
-      model: null,
-      promptTokens,
-      completionTokens,
-      sessionId: null,
-    });
+    // Свой ключ OpenAI (BYOK) — тенант платит OpenAI напрямую, платформенную квоту не списываем.
+    if (!overrideConfig) {
+      const costCents = this.openai.estimateCostCents(
+        promptTokens,
+        completionTokens,
+        0.15,
+        0.6,
+      );
+      await this.quota.chargeCents(tenantId, costCents, {
+        userId: userId ?? undefined,
+        kind: 'chat',
+        model: null,
+        promptTokens,
+        completionTokens,
+        sessionId: null,
+      });
+    }
     return {
       text: message.content || '',
       tokensUsed: promptTokens + completionTokens,
@@ -2038,9 +2076,19 @@ ${JSON.stringify(snapshot).slice(0, 12000)}`,
     const workspaceToolName = WORKSPACE_TOOL_NAME[action.actionType];
     if (workspaceToolName) {
       const { result: existingResult, ...toolArgs } = p;
+      // Реальное разрешение на это действие уже проверено выше по стеку — canPerformAction()
+      // в createAiAction() смотрит в ai_agent_permissions (см. ACTION_PERMISSION), это отдельная,
+      // специально спроектированная под AI-сотрудников система прав, не завязанная на роль
+      // сотрудника (у агента её просто нет). userRole здесь никогда не передавался вообще —
+      // AiToolsService.checkPermission() внутри execute() тогда молча трактовал это как роль
+      // 'viewer' и блокировал те же самые уже разрешённые действия (например create_project)
+      // по совсем другой, нерелевантной здесь причине. role: 'owner' — не притворство, что
+      // агент кем-то является, а явный сигнал "решение о доступе уже принято выше",
+      // единственный существующий в RbacService способ его выразить.
       const raw = await this.aiTools.execute(workspaceToolName, JSON.stringify(toolArgs), {
         tenantId,
         userId: userId || action.agentId,
+        userRole: 'owner',
       });
       let parsed: Record<string, unknown>;
       try {

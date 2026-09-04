@@ -13,6 +13,10 @@ import { Repository } from 'typeorm';
 import { StaffUser, StaffRole } from './staff-user.entity';
 import { User } from '../users/user.entity';
 import { Tenant } from '../tenants/tenant.entity';
+import { Department } from '../departments/department.entity';
+import { LeadActivity } from '../leads/lead-activity.entity';
+import { Lead } from '../leads/lead.entity';
+import { Project } from '../projects/project.entity';
 import { MailService } from '../mail/mail.service';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
@@ -45,6 +49,9 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
 
     @InjectRepository(Tenant)
     private readonly tenantRepo: Repository<Tenant>,
+
+    @InjectRepository(Department)
+    private readonly departmentRepo: Repository<Department>,
 
     private readonly mail: MailService,
     private readonly tenantLogs: TenantLogsService,
@@ -140,6 +147,19 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * `department` (legacy строка) и `departmentId` (реальный FK на Departments) — два
+   * несинхронных поля: почти весь фронтенд (карточки Staff/Project/Lead/Sale/Company/Contact,
+   * пикеры "ответственный, сгруппированный по отделу") читает именно строку, а единственный
+   * реальный путь смены отдела пишет только FK. Держим строку в синхроне при каждой записи
+   * departmentId, а не заставляем переписывать все места чтения.
+   */
+  private async resolveDepartmentName(tenantId: string, departmentId: string | null): Promise<string | null> {
+    if (!departmentId) return null;
+    const dept = await this.departmentRepo.findOne({ where: { id: departmentId, tenantId } });
+    return dept?.name ?? null;
+  }
+
   async getOneForTenant(tenantId: string, id: string) {
     const user = await this.repo.findOne({
       where: { id, tenantId },
@@ -150,12 +170,13 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
   }
 
   async createForTenant(tenantId: string, data: CreateStaffInput) {
+    const departmentId = data.departmentId ?? null;
     const entity = this.repo.create({
       tenantId,
       email: data.email,
       fullName: data.fullName,
-      department: data.department ?? null,
-      departmentId: data.departmentId ?? null,
+      department: departmentId ? await this.resolveDepartmentName(tenantId, departmentId) : (data.department ?? null),
+      departmentId,
       role: data.role,
       avatarUrl: data.avatarUrl ?? null,
       inviteStatus: 'active',
@@ -173,6 +194,10 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     patch: Partial<StaffUser & { departmentId?: string | null }>,
   ) {
     const user = await this.getOneForTenant(tenantId, id);
+    // Логин/деактивация/синхронизация роли ищут связку users<->staff_users по (tenantId, email)
+    // — если email патчится в этом же вызове, нужен email ДО перезаписи ниже, иначе поиск
+    // в users бьёт мимо (по уже новому, ещё не существующему там значению).
+    const previousEmail = user.email;
 
     // нельзя поменять роль владельца на кого-то другого
     if (user.role === 'owner' && patch.role && patch.role !== 'owner') {
@@ -185,16 +210,23 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
     if ('departmentId' in patch) {
       user.departmentId = patch.departmentId ?? null;
       user.departmentEntity = null;
+      // Легаси-строка department всегда пересчитывается из FK — иначе она расходится
+      // с реальным отделом, и все места, что читают именно строку, показывают старое.
+      user.department = await this.resolveDepartmentName(tenantId, user.departmentId);
     }
     const saved = await this.repo.save(user);
 
-    // если поменяли роль — синхронизируем с таблицей users
-    if (patch.role) {
+    // Роль и email синхронизируются с таблицей users по одной и той же связке (tenantId,
+    // ПРЕЖНИЙ email) — раньше email вообще не синхронизировался: PATCH принимал его от
+    // любого прямого запроса, но login/deactivateForTenant продолжали искать users по
+    // старому email, так что "деактивировать" переставало реально отключать вход.
+    if (patch.role || (patch.email !== undefined && patch.email !== previousEmail)) {
       const linkedUser = await this.userRepo.findOne({
-        where: { tenantId, email: user.email },
+        where: { tenantId, email: previousEmail },
       });
       if (linkedUser) {
-        linkedUser.role = patch.role;
+        if (patch.role) linkedUser.role = patch.role;
+        if (patch.email !== undefined && patch.email !== previousEmail) linkedUser.email = saved.email;
         await this.userRepo.save(linkedUser);
       }
     }
@@ -284,7 +316,29 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       // await this.userRepo.remove(user);
     }
 
-    await this.repo.remove(staff);
+    // Жёсткое удаление раньше падало сырой FK-ошибкой, если сотрудник — руководитель
+    // отдела (departments.manager_id, RESTRICT) или хоть раз менял статус/ответственного
+    // у лида (lead_activity.userId, тоже RESTRICT): 500 вместо понятной операции. А там,
+    // где delete всё же проходил (нет ни того, ни другого), ссылки без FK-констрейнта
+    // (Project.ownerUserId(s), Lead.assignedUserId(s)) навсегда оставались висеть на
+    // удалённого сотрудника — "владелец"/"ответственный" молча ломался в UI.
+    await this.repo.manager.transaction(async (manager) => {
+      await manager.update(Department, { tenantId, managerId: id } as any, { managerId: null });
+      await manager.update(LeadActivity, { tenantId, userId: id } as any, { userId: null });
+      await manager.update(Project, { tenantId, ownerUserId: id } as any, { ownerUserId: null });
+      await manager.update(Lead, { tenantId, assignedUserId: id } as any, { assignedUserId: null });
+      await manager.query(
+        `UPDATE crm_projects SET "ownerUserIds" = array_remove("ownerUserIds", $1)
+         WHERE tenant_id = $2 AND "ownerUserIds" @> ARRAY[$1]::uuid[]`,
+        [id, tenantId],
+      );
+      await manager.query(
+        `UPDATE leads SET "assignedUserIds" = array_remove("assignedUserIds", $1)
+         WHERE "tenantId" = $2 AND "assignedUserIds" @> ARRAY[$1]::uuid[]`,
+        [id, tenantId],
+      );
+      await manager.remove(staff);
+    });
   }
 
   private assertOwnerForInvites(actorRole: string | undefined) {
@@ -355,13 +409,14 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('Нельзя отправить приглашение владельцу');
     }
 
+    const inviteDepartmentId = dto.departmentId ?? null;
     if (!staff) {
       staff = this.repo.create({
         tenantId,
         email,
         fullName,
-        department: null,
-        departmentId: dto.departmentId ?? null,
+        department: await this.resolveDepartmentName(tenantId, inviteDepartmentId),
+        departmentId: inviteDepartmentId,
         role: dto.role,
         avatarUrl: null,
         phone: null,
@@ -374,6 +429,7 @@ export class StaffUsersService implements OnModuleInit, OnModuleDestroy {
       staff.role = dto.role;
       if (dto.departmentId !== undefined) {
         staff.departmentId = dto.departmentId;
+        staff.department = await this.resolveDepartmentName(tenantId, dto.departmentId ?? null);
       }
       staff.isActive = true;
     }

@@ -1,6 +1,11 @@
 // src/pages/companies/CompanyTasksBoardPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
+import { useKanbanSensors } from '../../components/kanban/useKanbanSensors';
+import { kanbanCollisionDetection } from '../../components/kanban/kanbanCollisionDetection';
+import { useHorizontalWheelScroll } from '../../components/kanban/useHorizontalWheelScroll';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   fetchCompanyTasks,
@@ -25,6 +30,33 @@ const STATUS_COLORS: Record<CompanyTaskStatus, string> = {
   review: '#facc15',
   done: '#22c55e',
   cancelled: '#ef4444',
+};
+
+const DraggableTaskCard: React.FC<{
+  id: string;
+  className?: string;
+  onClick?: () => void;
+  children: React.ReactNode;
+}> = ({ id, className, onClick, children }) => {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  // Visual feedback while dragging comes from the floating DragOverlay, not an in-place
+  // transform — see LeadsBoardPage/ProjectsBoardPage for why an in-place transform can read as
+  // "snapping back" for a frame on a card that moves between columns.
+  const style: React.CSSProperties = { opacity: isDragging ? 0.35 : undefined };
+  return (
+    <div ref={setNodeRef} style={style} className={className} onClick={onClick} {...listeners} {...attributes}>
+      {children}
+    </div>
+  );
+};
+
+const DroppableTaskColumn: React.FC<{ id: string; className?: string; children: React.ReactNode }> = ({ id, className, children }) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`${className || ''}${isOver ? ' ring-2 ring-lumiva-accent/40' : ''}`}>
+      {children}
+    </div>
+  );
 };
 
 export const CompanyTasksBoardPage: React.FC = () => {
@@ -153,16 +185,24 @@ export const CompanyTasksBoardPage: React.FC = () => {
   const tasksByStatus = (status: CompanyTaskStatus) =>
     tasks.filter((task) => task.status === status);
 
+  const suppressCardClickRef = useRef(false);
+  const kanbanSensors = useKanbanSensors();
+  const { ref: boardScrollRef } = useHorizontalWheelScroll<HTMLDivElement>();
+  const activeDragTask = useMemo(() => allTasks.find((t) => t.id === dragTaskId) ?? null, [allTasks, dragTaskId]);
+
   const handleDragStart = (taskId: string) => {
     setDragTaskId(taskId);
   };
 
-  const handleDropTo = async (status: CompanyTaskStatus) => {
-    if (!dragTaskId) return;
-
-    const taskId = dragTaskId;
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over, delta } = event;
     setDragTaskId(null);
+    if (delta.x !== 0 || delta.y !== 0) suppressCardClickRef.current = true;
+    if (!over) return;
+    handleDropTo(String(active.id), over.id as CompanyTaskStatus);
+  };
 
+  const handleDropTo = async (taskId: string, status: CompanyTaskStatus) => {
     // Оптимистичное обновление
     setAllTasks((prev) =>
       prev.map((t) => (t.id === taskId ? { ...t, status } : t)),
@@ -280,6 +320,7 @@ export const CompanyTasksBoardPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="companyTasks" />
       <div className="space-y-4">
         {/* Заголовок */}
         <div className="flex items-center justify-between gap-3">
@@ -399,15 +440,15 @@ export const CompanyTasksBoardPage: React.FC = () => {
         </div>
 
         {/* Канбан доска */}
-        <div className="flex gap-3 overflow-x-auto pb-1">
+        <DndContext sensors={kanbanSensors} collisionDetection={kanbanCollisionDetection} onDragStart={(e) => handleDragStart(String(e.active.id))} onDragEnd={handleDragEnd}>
+        <div className="flex gap-3 overflow-x-auto pb-1 w-full min-w-0 max-w-full" ref={boardScrollRef}>
           {STATUSES.map((status) => {
             const columnTasks = tasksByStatus(status);
             return (
-              <div
+              <DroppableTaskColumn
                 key={status}
+                id={status}
                 className="flex-1 min-w-[260px] max-w-xs bg-surface-subtle border border-border-default rounded-3xl p-3 flex flex-col"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDropTo(status)}
               >
                 {/* Шапка колонки */}
                 <div className="flex items-center justify-between mb-2">
@@ -428,11 +469,13 @@ export const CompanyTasksBoardPage: React.FC = () => {
                 {/* Задачи */}
                 <div className="flex-1 space-y-2 overflow-y-auto min-h-[200px]">
                   {columnTasks.map((task) => (
-                    <div
+                    <DraggableTaskCard
                       key={task.id}
-                      draggable
-                      onDragStart={() => handleDragStart(task.id)}
-                      onClick={() => handleEditTask(task)}
+                      id={task.id}
+                      onClick={() => {
+                        if (suppressCardClickRef.current) { suppressCardClickRef.current = false; return; }
+                        handleEditTask(task);
+                      }}
                       className="bg-white border border-border-default rounded-xl p-3 cursor-pointer hover:border-lumiva-accent/30 hover:bg-surface-hover transition-colors"
                     >
                       <div className="flex items-start justify-between gap-2 mb-2">
@@ -513,13 +556,24 @@ export const CompanyTasksBoardPage: React.FC = () => {
                           </span>
                         )}
                       </div>
-                    </div>
+                    </DraggableTaskCard>
                   ))}
                 </div>
-              </div>
+              </DroppableTaskColumn>
             );
           })}
         </div>
+        <DragOverlay>
+          {activeDragTask ? (
+            <div
+              className="bg-white border border-border-default rounded-xl p-3 shadow-lg"
+              style={{ cursor: 'grabbing', maxWidth: 260 }}
+            >
+              <h3 className="text-xs font-medium text-[#111827] line-clamp-2">{activeDragTask.title}</h3>
+            </div>
+          ) : null}
+        </DragOverlay>
+        </DndContext>
       </div>
 
       {/* Модальное окно редактирования задачи */}

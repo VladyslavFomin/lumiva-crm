@@ -113,6 +113,13 @@ export async function duplicateCustomObject(objectId: string) {
   return api.post<CustomObject>(`/custom-objects/${objectId}/duplicate`, {});
 }
 
+/** Удаляет все записи объекта, оставляя колонки/статусы/связи как есть. */
+export async function clearCustomObjectRecords(objectId: string) {
+  return api.post<{ ok: boolean; deleted: number }>(`/custom-objects/${objectId}/records/clear`, {
+    confirm: 'CLEAR_ALL_RECORDS',
+  });
+}
+
 export async function fetchCustomObjectFields(objectId: string) {
   return api.get<CustomObjectField[]>(`/custom-objects/${objectId}/fields`);
 }

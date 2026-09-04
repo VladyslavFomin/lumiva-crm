@@ -836,6 +836,7 @@ export class EmailService {
       textBody: dto.textBody || null,
       meta: dto.meta || null,
       isActive: dto.isActive !== undefined ? dto.isActive : true,
+      useWrapper: dto.useWrapper !== undefined ? dto.useWrapper : true,
     });
 
     return this.templateRepo.save(template);
@@ -858,6 +859,7 @@ export class EmailService {
     if (dto.textBody !== undefined) template.textBody = dto.textBody || null;
     if (dto.meta !== undefined) template.meta = dto.meta || null;
     if (dto.isActive !== undefined) template.isActive = dto.isActive;
+    if (dto.useWrapper !== undefined) template.useWrapper = dto.useWrapper;
 
     return this.templateRepo.save(template);
   }
@@ -876,7 +878,8 @@ export class EmailService {
   interpolateTemplate(template: string, data: Record<string, any>): string {
     if (!template) return '';
 
-    let result = template.replace(/\{\{(\w+(?:\.\w+)*)\}\}/g, (match, key) => {
+    // \p{L} — буква любого алфавита (в т.ч. кириллица), с флагом u
+    let result = template.replace(/\{\{([\p{L}\p{N}_]+(?:\.[\p{L}\p{N}_]+)*)\}\}/gu, (match, key) => {
       const keys = key.split('.');
       let value: any = data;
 
@@ -892,7 +895,7 @@ export class EmailService {
     });
 
     // Простые плейсхолдеры {name}, {email} — плоские ключи верхнего уровня
-    result = result.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, key) => {
+    result = result.replace(/\{([\p{L}_][\p{L}\p{N}_]*)\}/gu, (match, key) => {
       const v = data[key];
       if (v != null && typeof v !== 'object') {
         return String(v);
@@ -912,20 +915,61 @@ export class EmailService {
     data: Record<string, any>,
   ): Promise<{ subject: string; htmlBody: string; textBody: string }> {
     const template = await this.findTemplate(tenantId, templateId);
-    
+
     const subject = template.subject
       ? this.interpolateTemplate(template.subject, data)
       : '';
-    
-    const htmlBody = template.htmlBody
+
+    const rawHtml = template.htmlBody
       ? this.interpolateTemplate(template.htmlBody, data)
       : '';
-    
-    const textBody = template.textBody
+
+    const rawText = template.textBody
       ? this.interpolateTemplate(template.textBody, data)
       : '';
 
+    if (!template.useWrapper) {
+      return { subject, htmlBody: rawHtml, textBody: rawText };
+    }
+
+    const tenant = await this.tenantRepo.findOne({ where: { id: tenantId } });
+    if (!tenant) {
+      return { subject, htmlBody: rawHtml, textBody: rawText };
+    }
+
+    const headline = subject || template.name;
+    const innerHtml = rawHtml || this.plainTextToEmailParagraphs(rawText);
+    const innerText = rawText || this.stripHtmlTags(innerHtml);
+    const baseData: Record<string, any> = {
+      ...data,
+      contentHtml: innerHtml,
+      contentText: innerText,
+      headline,
+      tenantName: tenant.name,
+      companyName: tenant.name,
+      logoUrl: this.resolveTenantLogoUrl(tenant),
+    };
+
+    const { htmlBody, textBody } = await this.wrapWithCompanyDesign(tenantId, tenant, {
+      headline,
+      innerHtml,
+      innerText,
+      baseData,
+    });
+
     return { subject, htmlBody, textBody };
+  }
+
+  /**
+   * tenant.logoUrl хранится как относительный путь (/v1/uploads/...), чтобы не ломаться при смене
+   * домена внутри приложения. Письмо открывается вне приложения (в почтовом клиенте), поэтому для
+   * {{logoUrl}} в шаблоне обёртки нужен абсолютный адрес — тот же паттерн, что и для ссылок в
+   * письмах esign/биллинга/приглашений (process.env.FRONTEND_URL).
+   */
+  private resolveTenantLogoUrl(tenant: Tenant): string {
+    if (!tenant.logoUrl) return '';
+    const base = (process.env.FRONTEND_URL || 'https://crm.lumiva.agency').replace(/\/$/, '');
+    return tenant.logoUrl.startsWith('http') ? tenant.logoUrl : `${base}${tenant.logoUrl}`;
   }
 
   private escapeHtml(s: string): string {
@@ -966,11 +1010,17 @@ export class EmailService {
     tenantName: string;
     headline: string;
     innerHtml: string;
+    logoUrl?: string;
   }): string {
-    const { tenantName, headline, innerHtml } = params;
+    const { tenantName, headline, innerHtml, logoUrl } = params;
     const safeName = this.escapeHtml(tenantName);
     const safeHeadline = this.escapeHtml(headline);
     const year = new Date().getFullYear();
+    const badge = logoUrl
+      ? `<img src="${this.escapeHtml(logoUrl)}" alt="${safeName}" style="display:block;max-height:32px;max-width:200px;" />`
+      : `<div style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.28);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#e2e8f0;">
+                        ${safeName}
+                      </div>`;
     return `<!DOCTYPE html>
 <html lang="ru">
   <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
@@ -983,9 +1033,7 @@ export class EmailService {
                 <table width="100%" cellpadding="0" cellspacing="0" style="background:radial-gradient(circle at top left,#22d3ee 0%,#0f172a 60%,#020617 100%);">
                   <tr>
                     <td style="padding:34px 28px 26px;">
-                      <div style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.28);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#e2e8f0;">
-                        ${safeName}
-                      </div>
+                      ${badge}
                       <div style="font-size:24px;line-height:1.2;font-weight:700;color:#ffffff;padding-top:14px;">
                         ${safeHeadline}
                       </div>
@@ -1034,6 +1082,7 @@ export class EmailService {
       leadId?: string;
       companyId?: string;
       saleId?: string;
+      senderEmail?: string;
     },
   ): Promise<Record<string, any>> {
     const data: Record<string, any> = {
@@ -1104,6 +1153,17 @@ export class EmailService {
       }
     }
 
+    // Кириллические алиасы для переменных в редакторе письма ({{имя}}, {{компания}}, {{сделка}})
+    if (data.имя == null && data.name != null) data.имя = data.name;
+    if (data.компания == null) {
+      const companyName = data.company?.name || data.companyName;
+      if (companyName) data.компания = companyName;
+    }
+    if (data.сделка == null && data.sale != null) {
+      data.сделка = data.sale.amount != null ? String(data.sale.amount) : '';
+    }
+    if (data.менеджер == null && opts.senderEmail) data.менеджер = opts.senderEmail;
+
     return data;
   }
 
@@ -1123,6 +1183,7 @@ export class EmailService {
       companyId?: string;
       saleId?: string;
       variables?: Record<string, any> | null;
+      senderEmail?: string;
     },
   ): Promise<{ subject: string; htmlBody: string; textBody: string }> {
     const rawText = (input.bodyText || '').trim();
@@ -1142,11 +1203,15 @@ export class EmailService {
       leadId: input.leadId,
       companyId: input.companyId,
       saleId: input.saleId,
+      senderEmail: input.senderEmail,
     });
 
-    const innerHtml = rawHtml || this.plainTextToEmailParagraphs(rawText);
-    const innerText =
-      rawText || this.stripHtmlTags(innerHtml).slice(0, 100_000) || '';
+    // Переменные вида {{имя}} подставляются и в самом тексте письма, не только в теме/обёртке
+    const innerHtmlRaw = rawHtml || this.plainTextToEmailParagraphs(rawText);
+    const innerTextRaw =
+      rawText || this.stripHtmlTags(innerHtmlRaw).slice(0, 100_000) || '';
+    const innerHtml = this.interpolateTemplate(innerHtmlRaw, merged);
+    const innerText = this.interpolateTemplate(innerTextRaw, merged);
     const headline = (input.headline || 'Сообщение').trim() || 'Сообщение';
 
     const baseData: Record<string, any> = {
@@ -1156,6 +1221,7 @@ export class EmailService {
       headline,
       tenantName: tenant.name,
       companyName: tenant.name,
+      logoUrl: this.resolveTenantLogoUrl(tenant),
     };
 
     const subjectOut = this.interpolateTemplate(
@@ -1163,48 +1229,55 @@ export class EmailService {
       baseData,
     );
 
-    let htmlBody: string;
-    let textBody: string;
+    const { htmlBody, textBody } = await this.wrapWithCompanyDesign(tenantId, tenant, {
+      headline,
+      innerHtml,
+      innerText,
+      baseData,
+    });
+
+    return { subject: subjectOut, htmlBody, textBody };
+  }
+
+  /**
+   * Оборачивает готовое содержимое (contentHtml/contentText уже должны быть в baseData) в дизайн
+   * компании: tenant.aiWrapperEmailTemplateId, если задан, иначе встроенный дизайн. Используется
+   * и для писем ИИ-ассистента (composeStyledTransactionalMail), и для обычных шаблонов с
+   * useWrapper=true (applyTemplate) — единая точка, где решается, как выглядит письмо снаружи.
+   */
+  private async wrapWithCompanyDesign(
+    tenantId: string,
+    tenant: Tenant,
+    params: { headline: string; innerHtml: string; innerText: string; baseData: Record<string, any> },
+  ): Promise<{ htmlBody: string; textBody: string }> {
+    const { headline, innerHtml, innerText, baseData } = params;
 
     if (tenant.aiWrapperEmailTemplateId) {
       try {
-        const tpl = await this.findTemplate(
-          tenantId,
-          tenant.aiWrapperEmailTemplateId,
-        );
-        htmlBody = tpl.htmlBody
-          ? this.interpolateTemplate(tpl.htmlBody, baseData)
-          : this.buildDefaultTransactionWrapperHtml({
-              tenantName: tenant.name,
-              headline,
-              innerHtml,
-            });
-        textBody = tpl.textBody
-          ? this.interpolateTemplate(tpl.textBody, baseData)
-          : `${headline}\n\n${innerText}`;
+        const tpl = await this.findTemplate(tenantId, tenant.aiWrapperEmailTemplateId);
+        return {
+          htmlBody: tpl.htmlBody
+            ? this.interpolateTemplate(tpl.htmlBody, baseData)
+            : this.buildDefaultTransactionWrapperHtml({ tenantName: tenant.name, headline, innerHtml, logoUrl: this.resolveTenantLogoUrl(tenant) }),
+          textBody: tpl.textBody
+            ? this.interpolateTemplate(tpl.textBody, baseData)
+            : `${headline}\n\n${innerText}`,
+        };
       } catch {
-        htmlBody = this.buildDefaultTransactionWrapperHtml({
-          tenantName: tenant.name,
-          headline,
-          innerHtml,
-        });
-        textBody = `${headline}\n\n${innerText}`;
+        // Обёртка указана, но не найдена/удалена — падаем во встроенный дизайн ниже.
       }
-    } else {
-      htmlBody = this.buildDefaultTransactionWrapperHtml({
-        tenantName: tenant.name,
-        headline,
-        innerHtml,
-      });
-      textBody = `${headline}\n\n${innerText}`;
     }
 
-    return { subject: subjectOut, htmlBody, textBody };
+    return {
+      htmlBody: this.buildDefaultTransactionWrapperHtml({ tenantName: tenant.name, headline, innerHtml, logoUrl: this.resolveTenantLogoUrl(tenant) }),
+      textBody: `${headline}\n\n${innerText}`,
+    };
   }
 
   async previewStyledMail(
     tenantId: string,
     dto: PreviewStyledMailDto,
+    senderEmail?: string,
   ): Promise<{ subject: string; htmlBody: string; textBody: string }> {
     return this.composeStyledTransactionalMail(tenantId, {
       subject: dto.subject,
@@ -1216,12 +1289,14 @@ export class EmailService {
       companyId: dto.companyId,
       saleId: dto.saleId,
       variables: dto.variables,
+      senderEmail,
     });
   }
 
   async sendStyledTransactionalMail(
     tenantId: string,
     dto: SendStyledEmailDto,
+    senderEmail?: string,
   ): Promise<EmailMessage> {
     const { subject, htmlBody, textBody } =
       await this.composeStyledTransactionalMail(tenantId, {
@@ -1234,6 +1309,7 @@ export class EmailService {
         companyId: dto.companyId,
         saleId: dto.saleId,
         variables: dto.variables,
+        senderEmail,
       });
 
     return this.sendEmail(
@@ -1248,6 +1324,7 @@ export class EmailService {
         leadId: dto.leadId,
         companyId: dto.companyId,
         saleId: dto.saleId,
+        attachments: dto.attachments,
       },
       await this.mergeMailInterpolationData(tenantId, {
         variables: dto.variables,
@@ -1255,6 +1332,7 @@ export class EmailService {
         leadId: dto.leadId,
         companyId: dto.companyId,
         saleId: dto.saleId,
+        senderEmail,
       }),
     );
   }

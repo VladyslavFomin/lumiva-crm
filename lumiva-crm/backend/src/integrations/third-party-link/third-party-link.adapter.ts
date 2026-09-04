@@ -46,10 +46,16 @@ type ThirdPartyConfig = {
   label?: string;
   /** Google Ads API: developer token (из Google Ads API Center) */
   developerToken?: string;
+  /** OpenAI/LLM: модель (gpt-4o-mini, claude-sonnet-5 и т.п.) */
+  model?: string;
+  /** OpenAI/LLM: провайдер ('openai' | 'anthropic'); пусто — openai */
+  provider?: 'openai' | 'anthropic';
   /** WhatsApp Cloud: verify_token для подтверждения вебхука в Meta */
   webhookVerifyToken?: string;
   /** amoCRM: опциональный секрет для входящего вебхука (?secret= или X-Lumiva-Secret) */
   amoWebhookSecret?: string;
+  /** Bitrix24: опциональный секрет для входящего вебхука (?secret=) */
+  bitrixWebhookSecret?: string;
   /** WordPress / CF7: секрет для POST /webhooks/site-forms/:id?secret= */
   webhookInboundSecret?: string;
   /** WordPress / CF7: значение поля source у создаваемого лида */
@@ -424,9 +430,14 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
       if (cfg.catalogId === 'bitrix') {
         try {
           await this.bitrixRest.callMethod(webhook, 'user.current', {});
+          const base = (process.env.PUBLIC_API_URL || '').replace(/\/$/, '');
+          const bitrixHookHint =
+            base && entity.id
+              ? ` Исходящий вебхук Bitrix24 (события ONCRMLEADADD/ONCRMLEADUPDATE): URL ${base}/v1/webhooks/bitrix/${entity.id} (при необходимости добавьте ?secret=… из поля «Секрет вебхука»).`
+              : ' Задайте PUBLIC_API_URL — в карточке подключения появится URL для вебхуков Bitrix24.';
           return {
             ok: true,
-            message: 'Битрикс24: входящий вебхук проверен (user.current)',
+            message: 'Битрикс24: входящий вебхук проверен (user.current).' + bitrixHookHint,
           };
         } catch (e) {
           return { ok: false, message: (e as Error).message };
@@ -458,12 +469,15 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
         }
       }
       if (cfg.catalogId === 'hubspot') {
-        const hsToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+        const hsToken = await this.hubspotApi.resolveAccessFromConfig({
+          apiToken: cfg.apiToken,
+          oauthRefreshToken: cfg.oauthRefreshToken,
+        });
         if (!hsToken || hsToken.length < 10) {
           return {
             ok: false,
             message:
-              'HubSpot: укажите private app access token (поле API token); при необходимости хост API — в поле Webhook URL',
+              'HubSpot: подключитесь через кнопку «Войти через HubSpot» или укажите private app access token (поле API token); при необходимости хост API — в поле Webhook URL',
           };
         }
         try {
@@ -531,7 +545,12 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
             typeof cfg.webhookUrl === 'string' && cfg.webhookUrl.trim().length > 0
               ? cfg.webhookUrl.trim()
               : undefined;
-          await this.hubspotApi.verifyAccess(token, customBase);
+          const hsToken =
+            (await this.hubspotApi.resolveAccessFromConfig({
+              apiToken: cfg.apiToken,
+              oauthRefreshToken: cfg.oauthRefreshToken,
+            })) || token;
+          await this.hubspotApi.verifyAccess(hsToken, customBase);
           return {
             ok: true,
             message: 'HubSpot: токен проверен (GET /crm/v3/owners)',
@@ -601,13 +620,14 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
       if (cfg.catalogId === 'openai') {
         const key = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
         if (!key || key.length < 20) {
-          return { ok: false, message: 'OpenAI: укажите полноценный API key (sk-... или sk-proj-...) в поле API token.' };
+          return { ok: false, message: 'OpenAI/Anthropic: укажите полноценный API key в поле API token.' };
         }
         const base = typeof cfg.webhookUrl === 'string' && cfg.webhookUrl.trim().startsWith('https://') ? cfg.webhookUrl.trim() : undefined;
+        const provider = cfg.provider === 'anthropic' ? 'anthropic' : 'openai';
         try {
-          return await this.openAiApi.verifyApiKey(key, base);
+          return await this.openAiApi.verifyApiKey(key, base, provider);
         } catch (e) {
-          return { ok: false, message: `OpenAI: ${(e as Error).message}` };
+          return { ok: false, message: `${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'}: ${(e as Error).message}` };
         }
       }
       if (cfg.catalogId === '1c') {
@@ -629,14 +649,16 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
         return await this.sapApi.testConnection(apiUrl || undefined, apiKey);
       }
       if (cfg.catalogId === 'jira') {
-        const jiraUrl = (typeof cfg.jiraUrl === 'string' ? cfg.jiraUrl.trim() : '') || (typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '');
-        const email = (typeof cfg.jiraEmail === 'string' ? cfg.jiraEmail.trim() : '') || (typeof cfg.accountEmail === 'string' ? cfg.accountEmail.trim() : '');
-        const apiToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
-        if (!jiraUrl) return { ok: false, message: 'Jira: укажите URL вашего Jira (https://company.atlassian.net) в поле Jira URL.' };
-        if (!email) return { ok: false, message: 'Jira: укажите email Atlassian аккаунта в поле Email.' };
-        if (!apiToken || apiToken.length < 8) return { ok: false, message: 'Jira: укажите API token из id.atlassian.com в поле API token.' };
         try {
-          const result = await this.jiraApi.testConnection({ jiraUrl, email, apiToken });
+          const jiraCfg = await this.jiraApi.resolveConfigAndPersist(entity);
+          if (!jiraCfg) {
+            return {
+              ok: false,
+              message:
+                'Jira: подключитесь через кнопку «Войти через Jira» или укажите Jira URL, email и API token из id.atlassian.com.',
+            };
+          }
+          const result = await this.jiraApi.testConnection(jiraCfg);
           return { ok: result.ok, message: result.message };
         } catch (e) {
           return { ok: false, message: `Jira: ${(e as Error).message}` };
@@ -715,14 +737,16 @@ export class ThirdPartyLinkAdapter implements SalesIntegrationAdapter {
     }
 
     if (cfg.catalogId === 'jira') {
-      const jiraUrl = (typeof cfg.jiraUrl === 'string' ? cfg.jiraUrl.trim() : '') || (typeof cfg.webhookUrl === 'string' ? cfg.webhookUrl.trim() : '');
-      const email = (typeof cfg.jiraEmail === 'string' ? cfg.jiraEmail.trim() : '') || (typeof cfg.accountEmail === 'string' ? cfg.accountEmail.trim() : '');
-      const apiToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
-      if (!jiraUrl) return { ok: false, message: 'Jira: укажите URL вашего Jira (https://company.atlassian.net) в поле Jira URL.' };
-      if (!email) return { ok: false, message: 'Jira: укажите email Atlassian аккаунта в поле Email.' };
-      if (!apiToken || apiToken.length < 8) return { ok: false, message: 'Jira: укажите API token из id.atlassian.com в поле API token.' };
       try {
-        const result = await this.jiraApi.testConnection({ jiraUrl, email, apiToken });
+        const jiraCfg = await this.jiraApi.resolveConfigAndPersist(entity);
+        if (!jiraCfg) {
+          return {
+            ok: false,
+            message:
+              'Jira: подключитесь через кнопку «Войти через Jira» или укажите Jira URL, email и API token из id.atlassian.com.',
+          };
+        }
+        const result = await this.jiraApi.testConnection(jiraCfg);
         return { ok: result.ok, message: result.message };
       } catch (e) {
         return { ok: false, message: `Jira: ${(e as Error).message}` };

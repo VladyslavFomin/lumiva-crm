@@ -52,4 +52,12 @@ export class SendStyledEmailDto {
   @IsOptional()
   @IsObject()
   variables?: Record<string, any>;
+
+  @IsOptional()
+  @IsArray()
+  attachments?: Array<{
+    filename: string;
+    contentType: string;
+    contentBase64?: string;
+  }>;
 }

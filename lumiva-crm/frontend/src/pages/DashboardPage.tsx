@@ -50,6 +50,34 @@ import { BirthdaysWidget } from '../dashboard/widgets/BirthdaysWidget';
 import { ProductsAnalyticsWidget } from '../dashboard/widgets/ProductsAnalyticsWidget';
 import { BookingsAnalyticsWidget } from '../dashboard/widgets/BookingsAnalyticsWidget';
 import { HotelsAnalyticsWidget } from '../dashboard/widgets/HotelsAnalyticsWidget';
+import { usePermission } from '../hooks/usePermission';
+import type { PermissionKey } from '../api/rbac';
+
+/**
+ * Which staff permission a dashboard block's DATA belongs to — same idea as MainLayout's
+ * permissionForPath, applied to widgets instead of routes. Blocks with no entry here (kpi,
+ * quick-actions, calendar, activity-feed, profile-completion, learn-inspire) are either purely
+ * personal (my tasks/my profile) or already deliberately mixed-source summaries; deep-linked
+ * items inside them still go through route-level gating when clicked.
+ */
+const WIDGET_PERMISSION: Partial<Record<string, PermissionKey>> = {
+  'leads-timeline': 'leads',
+  projects: 'projects',
+  'channels-funnel': 'leads',
+  'recent-leads': 'leads',
+  'recent-tasks': 'projects',
+  staff: 'staff',
+  funnel_today: 'leads',
+  lead_sources_week: 'leads',
+  recent_deals: 'sales',
+  birthdays: 'contacts',
+  'projects-analytics': 'projects',
+  'leads-analytics': 'leads',
+  'sales-analytics': 'sales',
+  'products-analytics': 'products',
+  'bookings-analytics': 'bookings',
+  'hotels-analytics': 'hotels',
+};
 
 interface LeadShort {
   id: string;
@@ -222,9 +250,12 @@ async function loadDashboardData(t: TranslateFn, locale: string): Promise<Dashbo
   const todayEnd = new Date(todayStart);
   todayEnd.setDate(todayEnd.getDate() + 1);
 
+  // Каждый источник — .catch() на пустое значение, не re-throw: сотруднику может быть не выдано
+  // право на лиды/проекты/продажи, и это не должно ронять весь дашборд с сырой ошибкой API —
+  // виджеты, которым эти данные нужны, сами скрываются через widgetAllowed() в DashboardPage.
   const [leadsRaw, projectsRes, salesStatsRes, homeApi] = await Promise.all([
-    fetchLeads(),
-    fetchProjects(),
+    fetchLeads().catch((err) => { console.warn('fetchLeads', err); return []; }),
+    fetchProjects().catch((err) => { console.warn('fetchProjects', err); return { items: [], total: 0 }; }),
     fetchSalesStats().catch(() => null),
     fetchDashboardHome().catch((err) => { console.warn('fetchDashboardHome', err); return null; }),
   ]);
@@ -492,7 +523,7 @@ const QUICK_ACCESS = [
   { id: 'projects' as const, labelKey: 'projectsTable' as const, href: '/projects/list', preview: 'table' as const },
   { id: 'leads' as const, labelKey: 'leadsFunnel' as const, href: '/leads', preview: 'kanban' as const },
   { id: 'analytics' as const, labelKey: 'leadsAnalytics' as const, href: '/leads/analytics', preview: 'chart' as const },
-  { id: 'calendar' as const, labelKey: 'meetingsTasks' as const, href: '/dashboard', preview: 'cal' as const },
+  { id: 'calendar' as const, labelKey: 'meetingsTasks' as const, href: '/calendar', preview: 'cal' as const },
 ];
 
 const PrevTable = () => (
@@ -589,24 +620,34 @@ const QuickAccessCard: React.FC<{ item: typeof QUICK_ACCESS[number]; t: Translat
   );
 };
 
-const QuickAccessSection: React.FC<{ t: TranslateFn }> = ({ t }) => (
-  <div className="mb-6">
-    <div className="flex items-center justify-between mb-3">
-      <div className="flex items-center gap-2">
-        <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
-        </svg>
-        <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.quickAccess.sectionTitle')}</span>
-        <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{QUICK_ACCESS.length}</span>
+const QuickAccessSection: React.FC<{ t: TranslateFn }> = ({ t }) => {
+  const canProjects = usePermission('projects');
+  const canLeads = usePermission('leads');
+  const items = QUICK_ACCESS.filter((item) => {
+    if (item.id === 'projects') return canProjects;
+    if (item.id === 'leads' || item.id === 'analytics') return canLeads;
+    return true;
+  });
+  if (!items.length) return null;
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <svg className="w-3.5 h-3.5 text-neutral-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" />
+          </svg>
+          <span className="text-[13px] font-semibold text-[#222] tracking-tight">{t('crm.dashboard.quickAccess.sectionTitle')}</span>
+          <span className="font-mono text-[10px] text-neutral-400 bg-neutral-100 px-1.5 py-0.5 rounded">{items.length}</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {items.map((item) => (
+          <QuickAccessCard key={item.id} item={item} t={t} />
+        ))}
       </div>
     </div>
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {QUICK_ACCESS.map((item) => (
-        <QuickAccessCard key={item.id} item={item} t={t} />
-      ))}
-    </div>
-  </div>
-);
+  );
+};
 
 /* ─────────────────────────────────────────────
  *  KPI STRIP
@@ -848,10 +889,39 @@ export const DashboardPage: React.FC = () => {
   const summary = data?.summary;
   const projectsSummary = data?.projectsSummary;
   const tasksSummary = data?.tasksSummary;
-  const role = (user as any)?.role || 'user';
-  const isOwner = role === 'owner' || role === 'admin' || role === 'superadmin';
 
   const [layout, setLayout] = useState<DashboardLayoutState>(() => loadDashboardLayout());
+
+  // Fixed set of hook calls (rules of hooks) covering every key WIDGET_PERMISSION/preset sources
+  // can reference — see widgetAllowed() below.
+  const permLeads = usePermission('leads');
+  const permProjects = usePermission('projects');
+  const permSales = usePermission('sales');
+  const permStaff = usePermission('staff');
+  const permProducts = usePermission('products');
+  const permBookings = usePermission('bookings');
+  const permHotels = usePermission('hotels');
+  const permContacts = usePermission('contacts');
+  const widgetPerms: Partial<Record<PermissionKey, boolean>> = {
+    leads: permLeads,
+    projects: permProjects,
+    sales: permSales,
+    staff: permStaff,
+    products: permProducts,
+    bookings: permBookings,
+    hotels: permHotels,
+    contacts: permContacts,
+  };
+  const widgetAllowed = (id: string): boolean => {
+    if (isDashboardPresetInstanceId(id)) {
+      const source = layout.presetInstances[id]?.source;
+      if (!source) return true;
+      return widgetPerms[source as PermissionKey] ?? true;
+    }
+    const perm = WIDGET_PERMISSION[id];
+    if (!perm) return true;
+    return widgetPerms[perm] ?? true;
+  };
   const [presetsModalOpen, setPresetsModalOpen] = useState(false);
   const [resizing, setResizing] = useState<{
     id: string; startX: number; startY: number; startHeight: number; startColSpan: number;
@@ -913,11 +983,12 @@ export const DashboardPage: React.FC = () => {
   const visibleIds = useMemo(() => {
     return layout.order.filter((id) => {
       if (layout.hidden.has(id)) return false;
-      if (id === 'staff' && !isOwner) return false;
       if (isDashboardPresetInstanceId(id) && !layout.presetInstances[id]) return false;
+      if (!widgetAllowed(id)) return false;
       return true;
     });
-  }, [layout, isOwner]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout, widgetPerms]);
 
   // Sidebar widgets are rendered separately, not in main grid
   const SIDEBAR_WIDGET_IDS = new Set(['profile-completion', 'learn-inspire']);
@@ -932,10 +1003,11 @@ export const DashboardPage: React.FC = () => {
   const availableToAdd = useMemo(() => {
     return ALL_DASHBOARD_WIDGET_IDS.filter((id) => {
       if (!layout.hidden.has(id)) return false;
-      if (id === 'staff' && !isOwner) return false;
+      if (!widgetAllowed(id)) return false;
       return true;
     });
-  }, [layout.hidden, isOwner]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layout.hidden, widgetPerms]);
 
   const reorderByDrag = (fromId: string, toId: string, place: 'before' | 'after') => {
     if (fromId === toId) return;

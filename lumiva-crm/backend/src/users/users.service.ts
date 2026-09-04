@@ -44,6 +44,9 @@ export class UsersService {
       avatarUrl: user.avatarUrl,
       role: user.role,
       status: user.status,
+      timezone: user.timezone,
+      preferences: user.preferences || {},
+      twoFactorEnabled: user.twoFactorEnabled,
       lastActiveAt: user.lastActiveAt
         ? user.lastActiveAt instanceof Date
           ? user.lastActiveAt.toISOString()

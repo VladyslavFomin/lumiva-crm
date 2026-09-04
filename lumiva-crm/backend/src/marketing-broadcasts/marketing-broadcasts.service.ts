@@ -1,7 +1,7 @@
 // src/marketing-broadcasts/marketing-broadcasts.service.ts
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { In, LessThan, Repository } from 'typeorm';
 import { MarketingBroadcast, BroadcastChannel, BroadcastStep } from './marketing-broadcast.entity';
 import { MarketingBroadcastRecipient } from './marketing-broadcast-recipient.entity';
 import { Lead } from '../leads/lead.entity';
@@ -10,6 +10,8 @@ import { EmailService } from '../email/email.service';
 import { SmsService } from '../sms/sms.service';
 
 const RECIPIENT_BATCH_PER_TICK = 200;
+const MAX_SEND_RETRIES = 3;
+const RETRY_BACKOFF_MS = 30 * 60 * 1000; // 30 минут между повторными попытками
 
 export interface BroadcastStats {
   total: number;
@@ -208,8 +210,20 @@ export class MarketingBroadcastsService {
     const steps = b.steps || [];
     if (!steps.length) return;
     const now = Date.now();
+    // 'failed' с retryCount < MAX_SEND_RETRIES не терминален — это ещё не исчерпанный повтор,
+    // просто ждущий бэкоффа (updatedAt старше RETRY_BACKOFF_MS). maybeComplete() ниже по-прежнему
+    // не считает его "исполненным", пока либо не уйдёт успешно, либо не исчерпает попытки.
     const pending = await this.recipientRepo.find({
-      where: { tenantId: b.tenantId, broadcastId: b.id, status: In(['pending', 'active']) },
+      where: [
+        { tenantId: b.tenantId, broadcastId: b.id, status: In(['pending', 'active']) },
+        {
+          tenantId: b.tenantId,
+          broadcastId: b.id,
+          status: 'failed',
+          retryCount: LessThan(MAX_SEND_RETRIES),
+          updatedAt: LessThan(new Date(now - RETRY_BACKOFF_MS)),
+        },
+      ],
       take: RECIPIENT_BATCH_PER_TICK,
     });
     for (const r of pending) {
@@ -243,17 +257,26 @@ export class MarketingBroadcastsService {
         r.status = nextIdx >= steps.length - 1 ? 'completed' : 'active';
         r.lastError = null;
       } catch (e: any) {
-        r.status = 'failed';
+        r.retryCount = (r.retryCount || 0) + 1;
         r.lastError = String(e?.message || e).slice(0, 500);
-        this.log.warn(`Broadcast ${b.id} recipient ${r.id} step ${nextIdx} failed: ${r.lastError}`);
+        r.status = 'failed';
+        const willRetry = r.retryCount < MAX_SEND_RETRIES;
+        this.log.warn(
+          `Broadcast ${b.id} recipient ${r.id} step ${nextIdx} failed (attempt ${r.retryCount}/${MAX_SEND_RETRIES}, ${willRetry ? 'will retry' : 'giving up'}): ${r.lastError}`,
+        );
       }
       await this.recipientRepo.save(r);
     }
   }
 
   private async maybeComplete(b: MarketingBroadcast): Promise<void> {
+    // 'failed' с оставшимися попытками — ещё не финал, иначе рассылка отчитается "завершена"
+    // прямо во время окна бэкоффа перед повтором.
     const outstanding = await this.recipientRepo.count({
-      where: { tenantId: b.tenantId, broadcastId: b.id, status: In(['pending', 'active']) },
+      where: [
+        { tenantId: b.tenantId, broadcastId: b.id, status: In(['pending', 'active']) },
+        { tenantId: b.tenantId, broadcastId: b.id, status: 'failed', retryCount: LessThan(MAX_SEND_RETRIES) },
+      ],
     });
     if (outstanding === 0) {
       b.status = 'completed';

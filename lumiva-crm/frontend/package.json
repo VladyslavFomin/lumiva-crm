@@ -16,6 +16,8 @@
     "locales:automations-form": "node scripts/apply-automations-form-locales.mjs"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
     "@sentry/react": "^10.51.0",
@@ -29,6 +31,7 @@
     "framer-motion": "^12.23.25",
     "i18next": "^24.0.0",
     "jsbarcode": "^3.12.3",
+    "lottie-react": "^3.0.0",
     "prop-types": "^15.8.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",

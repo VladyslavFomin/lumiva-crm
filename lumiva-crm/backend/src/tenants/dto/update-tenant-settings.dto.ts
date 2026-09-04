@@ -10,6 +10,7 @@ import {
   Matches,
   ValidateIf,
   IsUUID,
+  IsArray,
 } from 'class-validator';
 
 export class UpdateTenantSettingsDto {
@@ -64,4 +65,18 @@ export class UpdateTenantSettingsDto {
   @ValidateIf((_, v) => v != null && String(v).trim() !== '')
   @IsUUID()
   aiWrapperEmailTemplateId?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  documentRequisites?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  documentManagerName?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  legalRequisites?: { id: string; type: string; value: string }[] | null;
 }

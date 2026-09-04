@@ -20,6 +20,8 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 import { MulterWorkspaceUploadFilter } from './multer-workspace-upload.filter';
+import { WorkspaceAreaAccessGuard } from '../workspace-areas/workspace-area-access.guard';
+import { RequireAreaRole } from '../workspace-areas/require-area-role.decorator';
 import { CustomObjectsService } from './custom-objects.service';
 import { WORKSPACE_ATTACHMENT_MAX_BYTES } from './workspace-attachment.constants';
 import { CreateCustomObjectDto } from './dto/create-custom-object.dto';
@@ -32,8 +34,17 @@ import { CreateCustomObjectViewDto } from './dto/create-custom-object-view.dto';
 import { UpdateCustomObjectViewDto } from './dto/update-custom-object-view.dto';
 import { PushRecordsToBoardDto } from './dto/push-records-to-board.dto';
 
+function actorFromUser(user: CurrentUserPayload): { loginUserId?: string; email?: string } {
+  return { loginUserId: user.userId ?? user.id ?? user.sub, email: user.email };
+}
+
+const AREA_READ = ['owner', 'editor', 'reader', 'own_rows_only'] as const;
+const AREA_WRITE_RECORD = ['owner', 'editor', 'own_rows_only'] as const;
+const AREA_EDIT = ['owner', 'editor'] as const;
+const AREA_OWNER_ONLY = ['owner'] as const;
+
 @Controller('custom-objects')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, WorkspaceAreaAccessGuard)
 export class CustomObjectsController {
   constructor(private readonly service: CustomObjectsService) {}
 
@@ -50,6 +61,7 @@ export class CustomObjectsController {
   }
 
   @Post()
+  @RequireAreaRole(...AREA_EDIT)
   async create(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateCustomObjectDto,
@@ -58,6 +70,7 @@ export class CustomObjectsController {
   }
 
   @Post(':objectId/duplicate')
+  @RequireAreaRole(...AREA_EDIT)
   async duplicate(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -66,6 +79,7 @@ export class CustomObjectsController {
   }
 
   @Get(':objectId')
+  @RequireAreaRole(...AREA_READ)
   async getOne(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -74,6 +88,7 @@ export class CustomObjectsController {
   }
 
   @Patch(':objectId')
+  @RequireAreaRole(...AREA_OWNER_ONLY)
   async update(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -83,6 +98,7 @@ export class CustomObjectsController {
   }
 
   @Delete(':objectId')
+  @RequireAreaRole(...AREA_OWNER_ONLY)
   async delete(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -91,6 +107,7 @@ export class CustomObjectsController {
   }
 
   @Get(':objectId/fields')
+  @RequireAreaRole(...AREA_READ)
   async listFields(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -100,6 +117,7 @@ export class CustomObjectsController {
 
   /** Ключи из jsonb values по записям объекта (для сопоставления колонок с импортом). */
   @Get(':objectId/value-keys')
+  @RequireAreaRole(...AREA_READ)
   async listValueKeys(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -115,6 +133,7 @@ export class CustomObjectsController {
       limits: { fileSize: WORKSPACE_ATTACHMENT_MAX_BYTES },
     }),
   )
+  @RequireAreaRole(...AREA_EDIT)
   async uploadWorkspaceAttachment(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -135,6 +154,7 @@ export class CustomObjectsController {
   }
 
   @Post(':objectId/fields')
+  @RequireAreaRole(...AREA_EDIT)
   async createField(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -144,6 +164,7 @@ export class CustomObjectsController {
   }
 
   @Patch(':objectId/fields/:fieldId')
+  @RequireAreaRole(...AREA_EDIT)
   async updateField(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -154,6 +175,7 @@ export class CustomObjectsController {
   }
 
   @Delete(':objectId/fields/:fieldId')
+  @RequireAreaRole(...AREA_EDIT)
   async deleteField(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -163,6 +185,7 @@ export class CustomObjectsController {
   }
 
   @Get(':objectId/views')
+  @RequireAreaRole(...AREA_READ)
   async listViews(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -171,6 +194,7 @@ export class CustomObjectsController {
   }
 
   @Post(':objectId/views')
+  @RequireAreaRole(...AREA_EDIT)
   async createView(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -180,6 +204,7 @@ export class CustomObjectsController {
   }
 
   @Patch(':objectId/views/:viewId')
+  @RequireAreaRole(...AREA_EDIT)
   async updateView(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -190,6 +215,7 @@ export class CustomObjectsController {
   }
 
   @Delete(':objectId/views/:viewId')
+  @RequireAreaRole(...AREA_EDIT)
   async deleteView(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -199,6 +225,7 @@ export class CustomObjectsController {
   }
 
   @Get(':objectId/records')
+  @RequireAreaRole(...AREA_READ)
   async listRecords(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -224,15 +251,17 @@ export class CustomObjectsController {
   }
 
   @Post(':objectId/records')
+  @RequireAreaRole(...AREA_WRITE_RECORD)
   async createRecord(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Body() dto: CreateCustomObjectRecordDto,
   ) {
-    return this.service.createRecord(user.tenantId, objectId, dto);
+    return this.service.createRecord(user.tenantId, objectId, dto, actorFromUser(user));
   }
 
   @Get(':objectId/records/distinct-values')
+  @RequireAreaRole(...AREA_READ)
   async distinctFieldValues(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -242,6 +271,7 @@ export class CustomObjectsController {
   }
 
   @Post(':objectId/records/clear')
+  @RequireAreaRole(...AREA_OWNER_ONLY)
   async clearAllRecords(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -255,41 +285,61 @@ export class CustomObjectsController {
 
   /** Строки из таблицы данных → основная таблица (board) области. */
   @Post(':objectId/records/push-to-board')
+  @RequireAreaRole(...AREA_EDIT)
   async pushRecordsToBoard(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Body() dto: PushRecordsToBoardDto,
   ) {
-    return this.service.pushRecordsToBoard(user.tenantId, objectId, {
-      targetObjectId: dto.targetObjectId,
-      recordIds: dto.recordIds,
-      fieldMap: dto.fieldMap,
-      omitAutoTargetKeys: dto.omitAutoTargetKeys,
-      duplicateKeyTargetField: dto.duplicateKeyTargetField ?? null,
-      skipDuplicates: dto.skipDuplicates,
-    });
+    return this.service.pushRecordsToBoard(
+      user.tenantId,
+      objectId,
+      {
+        targetObjectId: dto.targetObjectId,
+        recordIds: dto.recordIds,
+        fieldMap: dto.fieldMap,
+        omitAutoTargetKeys: dto.omitAutoTargetKeys,
+        duplicateKeyTargetField: dto.duplicateKeyTargetField ?? null,
+        skipDuplicates: dto.skipDuplicates,
+      },
+      actorFromUser(user),
+    );
   }
 
   @Patch(':objectId/records/:recordId')
+  @RequireAreaRole(...AREA_WRITE_RECORD)
   async updateRecord(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Param('recordId', new ParseUUIDPipe()) recordId: string,
     @Body() dto: UpdateCustomObjectRecordDto,
   ) {
-    return this.service.updateRecord(user.tenantId, objectId, recordId, dto);
+    return this.service.updateRecord(
+      user.tenantId,
+      objectId,
+      recordId,
+      dto,
+      actorFromUser(user),
+    );
   }
 
   @Delete(':objectId/records/:recordId')
+  @RequireAreaRole(...AREA_WRITE_RECORD)
   async deleteRecord(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
     @Param('recordId', new ParseUUIDPipe()) recordId: string,
   ) {
-    return this.service.deleteRecord(user.tenantId, objectId, recordId);
+    return this.service.deleteRecord(
+      user.tenantId,
+      objectId,
+      recordId,
+      actorFromUser(user),
+    );
   }
 
   @Get(':objectId/analytics')
+  @RequireAreaRole(...AREA_READ)
   async getAnalytics(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -312,6 +362,7 @@ export class CustomObjectsController {
 
   @Post(':objectId/import/preview')
   @UseInterceptors(FileInterceptor('file'))
+  @RequireAreaRole(...AREA_EDIT)
   async previewImport(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,
@@ -321,6 +372,7 @@ export class CustomObjectsController {
   }
 
   @Post(':objectId/import/apply')
+  @RequireAreaRole(...AREA_EDIT)
   async applyImport(
     @CurrentUser() user: CurrentUserPayload,
     @Param('objectId', new ParseUUIDPipe()) objectId: string,

@@ -27,6 +27,11 @@ export class PlatformSettingsController {
         stripePriceProfessional: null,
         stripePriceEnterprise: null,
         stripePriceUltimate: null,
+        iyzicoApiKey: null,
+        iyzicoSecretKey: null,
+        iyzicoSandbox: true,
+        yookassaShopId: null,
+        yookassaSecretKey: null,
         billingPlans: null,
         openAiApiKey: null,
         openAiBaseUrl: null,
@@ -64,6 +69,11 @@ export class PlatformSettingsController {
       stripePriceProfessional?: string | null;
       stripePriceEnterprise?: string | null;
       stripePriceUltimate?: string | null;
+      iyzicoApiKey?: string | null;
+      iyzicoSecretKey?: string | null;
+      iyzicoSandbox?: boolean;
+      yookassaShopId?: string | null;
+      yookassaSecretKey?: string | null;
       openAiApiKey?: string | null;
       openAiBaseUrl?: string | null;
       openAiModel?: string | null;
@@ -88,6 +98,7 @@ export class PlatformSettingsController {
         description: string;
         features: string[];
         highlighted?: boolean;
+        monthlyAmounts?: { eur?: number; rub?: number; try?: number };
         i18n?: {
           en?: {
             subtitle?: string;

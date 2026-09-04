@@ -29,7 +29,7 @@ export class TelegramCrmController {
   @Get('bots')
   @RequirePermission('telegram', 'read')
   async findAllBots(@CurrentUser() user: CurrentUserPayload) {
-    return this.telegramCrmService.findAllBots(user.tenantId);
+    return this.telegramCrmService.findAllBotsPublic(user.tenantId);
   }
 
   @Get('bots/:id')
@@ -38,7 +38,13 @@ export class TelegramCrmController {
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
-    return this.telegramCrmService.findBot(user.tenantId, id);
+    return this.telegramCrmService.findBotPublic(user.tenantId, id);
+  }
+
+  @Post('bots/preview')
+  @RequirePermission('telegram', 'write')
+  async previewBotToken(@Body() body: { botToken: string }) {
+    return this.telegramCrmService.previewBotToken(body.botToken);
   }
 
   @Post('bots')
@@ -59,13 +65,99 @@ export class TelegramCrmController {
   async updateBot(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Body() body: { botToken?: string; botName?: string; botUsername?: string; webhookUrl?: string; welcomeMessage?: string; isActive?: boolean },
+    @Body() body: {
+      botToken?: string; botName?: string; botUsername?: string; webhookUrl?: string;
+      welcomeMessage?: string; isActive?: boolean; autoReply?: boolean;
+      meta?: { aiConnector?: Record<string, any>; capabilities?: Record<string, boolean>; crmLink?: Record<string, any> };
+    },
   ) {
     return this.telegramCrmService.updateBot(
       user.tenantId,
       id,
       body,
     );
+  }
+
+  // ==== FLOWS ====
+
+  @Get('bots/:id/flows')
+  @RequirePermission('telegram', 'read')
+  async getFlows(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.telegramCrmService.getFlows(user.tenantId, id);
+  }
+
+  @Post('bots/:id/flows')
+  @RequirePermission('telegram', 'write')
+  async saveFlow(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string, @Body() flow: any) {
+    const flows = await this.telegramCrmService.saveFlow(user.tenantId, id, flow);
+    return { flows };
+  }
+
+  @Delete('bots/:id/flows/:flowId')
+  @RequirePermission('telegram', 'write')
+  async deleteFlow(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string, @Param('flowId') flowId: string) {
+    const flows = await this.telegramCrmService.deleteFlow(user.tenantId, id, flowId);
+    return { flows };
+  }
+
+  @Post('bots/:id/flows/:flowId/activate')
+  @RequirePermission('telegram', 'write')
+  async activateFlow(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string, @Param('flowId') flowId: string) {
+    return this.telegramCrmService.setActiveFlow(user.tenantId, id, flowId);
+  }
+
+  @Post('bots/:id/flows/deactivate')
+  @RequirePermission('telegram', 'write')
+  async deactivateFlow(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.telegramCrmService.setActiveFlow(user.tenantId, id, null);
+  }
+
+  @Get('bots/:id/flow-stats')
+  @RequirePermission('telegram', 'read')
+  async getFlowStats(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string, @Query('flowId') flowId: string) {
+    return this.telegramCrmService.getFlowStats(user.tenantId, id, flowId);
+  }
+
+  @Get('bots/:id/funnel')
+  @RequirePermission('telegram', 'read')
+  async getFunnel(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.telegramCrmService.getFunnelSummary(user.tenantId, id);
+  }
+
+  // ==== AI CONNECTOR ====
+
+  @Post('bots/:id/ai/test-chat')
+  @RequirePermission('telegram', 'read')
+  async testChat(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { history: Array<{ role: 'user' | 'assistant'; text: string }>; message: string },
+  ) {
+    return this.telegramCrmService.sendTestMessage(user.tenantId, id, body);
+  }
+
+  // ==== SETTINGS: webhook diagnostics, commands, event log ====
+
+  @Get('bots/:id/webhook-info')
+  @RequirePermission('telegram', 'read')
+  async getWebhookInfo(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string) {
+    return this.telegramCrmService.getWebhookInfo(user.tenantId, id);
+  }
+
+  @Post('bots/:id/commands')
+  @RequirePermission('telegram', 'write')
+  async setCommands(
+    @CurrentUser() user: CurrentUserPayload,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: { commands: Array<{ command: string; description: string; targetNodeId?: string }> },
+  ) {
+    return this.telegramCrmService.setCommands(user.tenantId, id, body.commands || []);
+  }
+
+  @Get('bots/:id/log')
+  @RequirePermission('telegram', 'read')
+  async getLog(@CurrentUser() user: CurrentUserPayload, @Param('id', new ParseUUIDPipe()) id: string, @Query('kind') kind?: string) {
+    return this.telegramCrmService.getEventLog(user.tenantId, id, kind);
   }
 
   @Post('bots/:id/webhook')

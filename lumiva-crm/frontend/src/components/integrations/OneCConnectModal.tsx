@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { BlurModal } from './BlurModal';
 import { IntegrationBrandIcon } from '../../pages/automations/IntegrationBrandIcon';
 import { createIntegration } from '../../api/integrations';
-import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type Props = { open: boolean; onClose: () => void; onCreated: () => void; };
 type Step = 'guide' | 'form';
@@ -13,20 +12,22 @@ const labelCls = 'mb-1 block text-[11px] font-medium text-slate-600';
 
 export const OneCConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
   const [step, setStep] = useState<Step>('guide');
   const [form, setForm] = useState({ name: '', baseUrl: '', login: '', password: '', infobase: '', servicePath: '' });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
     setStep('guide');
     setForm({ name: '', baseUrl: '', login: '', password: '', infobase: '', servicePath: '' });
+    setError(null);
   };
   const handleClose = () => { reset(); onClose(); };
 
   const handleCreate = async () => {
+    setError(null);
     if (!form.baseUrl.trim() || !form.login.trim() || !form.password.trim()) {
-      showAlert(t('crm.integrationsHub.onec.errors.missing'), { variant: 'info' });
+      setError(t('crm.integrationsHub.onec.errors.missing'));
       return;
     }
     setSaving(true);
@@ -47,7 +48,7 @@ export const OneCConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) 
       onCreated();
       onClose();
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : t('crm.integrationsHub.onec.errors.create'), { variant: 'error' });
+      setError(e instanceof Error ? e.message : t('crm.integrationsHub.onec.errors.create'));
     } finally {
       setSaving(false);
     }
@@ -56,7 +57,7 @@ export const OneCConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) 
   if (!open) return null;
 
   return (
-    <BlurModal open={open} onClose={handleClose}>
+    <BlurModal open={open} onClose={handleClose} size="sm">
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center gap-3">
           <IntegrationBrandIcon catalogId="1c" label="1С" size={36} />
@@ -158,6 +159,7 @@ export const OneCConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) 
                 />
               </div>
             </div>
+            {error && <p className="text-[11px] text-rose-600">{error}</p>}
             <div className="flex justify-between gap-2 pt-1">
               <button type="button" onClick={() => setStep('guide')} className="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50">← {t('crm.common.back')}</button>
               <div className="flex gap-2">

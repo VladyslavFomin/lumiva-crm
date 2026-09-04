@@ -20,6 +20,7 @@ import { Sale } from '../sales/sale.entity';
 import { SalesModule } from '../sales/sales.module';
 import { CompaniesModule } from '../companies/companies.module';
 import { IntegrationsModule } from '../integrations/integrations.module';
+import { JiraInboundModule } from '../integrations/jira/jira-inbound.module';
 import { MarketingModule } from '../marketing/marketing.module';
 import { CustomObjectsModule } from '../custom-objects/custom-objects.module';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -31,6 +32,7 @@ import { HotelsModule } from '../hotels/hotels.module';
 @Module({
   imports: [
     forwardRef(() => IntegrationsModule),
+    forwardRef(() => JiraInboundModule),
     forwardRef(() => CustomObjectsModule),
     MarketingModule,
     TypeOrmModule.forFeature([

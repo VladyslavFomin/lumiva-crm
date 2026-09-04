@@ -2,11 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BlurModal } from './BlurModal';
 import { IntegrationBrandIcon } from '../../pages/automations/IntegrationBrandIcon';
+import { LottieIcon } from '../LottieIcon';
 import { integrationCatalogName } from '../../pages/automations/integrationsCatalog';
 import {
   createIntegration,
   previewGoogleSheetsIntegration,
   testIntegration,
+  startHubspotOAuth,
+  startMailchimpOAuth,
+  startJiraOAuth,
   type GoogleSheetsPreviewResult,
 } from '../../api/integrations';
 import { fetchCustomObjects, type CustomObject } from '../../api/customObjects';
@@ -98,8 +102,11 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
     phoneNumberId: '',
     calendarId: '',
     developerToken: '',
+    openaiModel: '',
+    openaiProvider: 'openai' as 'openai' | 'anthropic',
     webhookVerifyToken: '',
     amoWebhookSecret: '',
+    bitrixWebhookSecret: '',
     webhookInboundSecret: '',
     spreadsheetId: '',
     googleSheetTabName: 'Sheet1',
@@ -115,6 +122,7 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [oauthBusy, setOauthBusy] = useState(false);
   const [workspaceObjects, setWorkspaceObjects] = useState<CustomObject[]>([]);
   const [workspaceObjectsLoading, setWorkspaceObjectsLoading] = useState(false);
   const [sheetPreview, setSheetPreview] = useState<GoogleSheetsPreviewResult | null>(null);
@@ -139,8 +147,11 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
       phoneNumberId: '',
       calendarId: '',
       developerToken: '',
+    openaiModel: '',
+    openaiProvider: 'openai' as 'openai' | 'anthropic',
       webhookVerifyToken: '',
       amoWebhookSecret: '',
+    bitrixWebhookSecret: '',
       webhookInboundSecret: '',
       spreadsheetId: '',
       googleSheetTabName: 'Sheet1',
@@ -246,6 +257,48 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
       setPreviewErr((e as Error)?.message || t('crm.automations.panel.integrations.connectError'));
     } finally {
       setPreviewBusy(false);
+    }
+  };
+
+  const handleHubspotOAuth = async () => {
+    setOauthBusy(true);
+    setErr(null);
+    try {
+      const { url } = await startHubspotOAuth({ redirectPath: '/integrations-hub?tab=connections' });
+      window.location.assign(url);
+    } catch (e) {
+      setOauthBusy(false);
+      setErr(
+        e instanceof Error ? e.message : t('crm.automations.panel.integrations.connectHubspotOauthStartError'),
+      );
+    }
+  };
+
+  const handleMailchimpOAuth = async () => {
+    setOauthBusy(true);
+    setErr(null);
+    try {
+      const { url } = await startMailchimpOAuth({ redirectPath: '/integrations-hub?tab=connections' });
+      window.location.assign(url);
+    } catch (e) {
+      setOauthBusy(false);
+      setErr(
+        e instanceof Error ? e.message : t('crm.automations.panel.integrations.connectMailchimpOauthStartError'),
+      );
+    }
+  };
+
+  const handleJiraOAuth = async () => {
+    setOauthBusy(true);
+    setErr(null);
+    try {
+      const { url } = await startJiraOAuth({ redirectPath: '/integrations-hub?tab=connections' });
+      window.location.assign(url);
+    } catch (e) {
+      setOauthBusy(false);
+      setErr(
+        e instanceof Error ? e.message : t('crm.automations.panel.integrations.connectJiraOauthStartError'),
+      );
     }
   };
 
@@ -363,9 +416,18 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
           phoneNumberId: draft.phoneNumberId.trim() || undefined,
           calendarId: draft.calendarId.trim() || undefined,
           developerToken: draft.developerToken.trim() || undefined,
+          ...(catalogId === 'openai'
+            ? {
+                model: draft.openaiModel.trim() || undefined,
+                provider: draft.openaiProvider,
+              }
+            : {}),
           webhookVerifyToken: draft.webhookVerifyToken.trim() || undefined,
           ...(catalogId === 'amocrm'
             ? { amoWebhookSecret: draft.amoWebhookSecret.trim() || undefined }
+            : {}),
+          ...(catalogId === 'bitrix'
+            ? { bitrixWebhookSecret: draft.bitrixWebhookSecret.trim() || undefined }
             : {}),
           ...(catalogId === 'wordpress_cf7'
             ? { webhookInboundSecret: draft.webhookInboundSecret.trim() || undefined }
@@ -437,7 +499,15 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
         onClose();
       }}
     >
-      <div className="max-h-[min(82vh,760px)] overflow-y-auto overscroll-contain p-5 sm:p-6">
+      <div className="relative max-h-[min(82vh,760px)] overflow-y-auto overscroll-contain p-5 sm:p-6">
+        {busy && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 bg-white/85 backdrop-blur-[1px]">
+            <LottieIcon name="integration-connect" size={88} />
+            <span className="text-[11px] font-medium text-slate-600">
+              {t('crm.automations.panel.integrations.connectingInProgress')}
+            </span>
+          </div>
+        )}
         <div className="flex items-start gap-3">
           <IntegrationBrandIcon
             catalogId={catalogId}
@@ -460,7 +530,9 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                     ? t('crm.automations.panel.integrations.connectLumivaWizardAddonIntro')
                   : catalogId === 'google_sheets'
                     ? t('crm.automations.panel.integrations.connectGoogleSheetsIntro')
-                    : t('crm.automations.panel.integrations.connectIntro')}
+                    : catalogId === 'openai'
+                      ? t('crm.automations.panel.integrations.connectOpenaiIntro')
+                      : t('crm.automations.panel.integrations.connectIntro')}
             </p>
           </div>
         </div>
@@ -532,6 +604,63 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
             </div>
           ) : (
             <>
+          {catalogId === 'hubspot' && (
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled={oauthBusy}
+                onClick={() => void handleHubspotOAuth()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF7A59] px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {oauthBusy
+                  ? t('crm.automations.panel.integrations.connectHubspotOauthBusy')
+                  : t('crm.automations.panel.integrations.connectHubspotOauthConnect')}
+              </button>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                <div className="h-px flex-1 bg-slate-200" />
+                {t('crm.automations.panel.integrations.connectHubspotOauthOr')}
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+            </div>
+          )}
+          {catalogId === 'mailchimp' && (
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled={oauthBusy}
+                onClick={() => void handleMailchimpOAuth()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FFE01B] px-4 py-2.5 text-xs font-semibold text-slate-900 hover:opacity-90 disabled:opacity-50"
+              >
+                {oauthBusy
+                  ? t('crm.automations.panel.integrations.connectMailchimpOauthBusy')
+                  : t('crm.automations.panel.integrations.connectMailchimpOauthConnect')}
+              </button>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                <div className="h-px flex-1 bg-slate-200" />
+                {t('crm.automations.panel.integrations.connectMailchimpOauthOr')}
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+            </div>
+          )}
+          {catalogId === 'jira' && (
+            <div className="space-y-3">
+              <button
+                type="button"
+                disabled={oauthBusy}
+                onClick={() => void handleJiraOAuth()}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0052CC] px-4 py-2.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              >
+                {oauthBusy
+                  ? t('crm.automations.panel.integrations.connectJiraOauthBusy')
+                  : t('crm.automations.panel.integrations.connectJiraOauthConnect')}
+              </button>
+              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                <div className="h-px flex-1 bg-slate-200" />
+                {t('crm.automations.panel.integrations.connectJiraOauthOr')}
+                <div className="h-px flex-1 bg-slate-200" />
+              </div>
+            </div>
+          )}
           {catalogId !== 'wordpress_cf7' && (
           <div>
             <label className="mb-1 block text-[11px] text-slate-600">
@@ -581,6 +710,46 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                   {t('crm.automations.panel.integrations.connectMetaAdsHint')}
                 </p>
               )}
+              {catalogId === 'openai' && (
+                <p className="mt-1 text-[10px] text-slate-500 leading-snug">
+                  {t('crm.automations.panel.integrations.connectOpenaiBaseUrlHint')}
+                </p>
+              )}
+            </div>
+          )}
+          {catalogId === 'openai' && (
+            <div>
+              <label className="mb-1 block text-[11px] text-slate-600">
+                {t('crm.automations.panel.integrations.connectOpenaiProvider')}
+              </label>
+              <select
+                value={draft.openaiProvider}
+                onChange={(e) =>
+                  setDraft((d) => ({ ...d, openaiProvider: e.target.value as 'openai' | 'anthropic' }))
+                }
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs"
+              >
+                <option value="openai">OpenAI</option>
+                <option value="anthropic">Anthropic (Claude)</option>
+              </select>
+            </div>
+          )}
+          {catalogId === 'openai' && (
+            <div>
+              <label className="mb-1 block text-[11px] text-slate-600">
+                {t('crm.automations.panel.integrations.connectOpenaiModel')}
+              </label>
+              <input
+                value={draft.openaiModel}
+                onChange={(e) => setDraft((d) => ({ ...d, openaiModel: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
+                placeholder={draft.openaiProvider === 'anthropic' ? 'claude-sonnet-5' : 'gpt-4o-mini'}
+              />
+              <p className="mt-1 text-[10px] text-slate-500 leading-snug">
+                {draft.openaiProvider === 'anthropic'
+                  ? t('crm.automations.panel.integrations.connectAnthropicModelHint')
+                  : t('crm.automations.panel.integrations.connectOpenaiModelHint')}
+              </p>
             </div>
           )}
           {catalogId === 'wordpress_cf7' && (
@@ -859,6 +1028,13 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
                   {t('crm.automations.panel.integrations.connectGoogleSheetsTokenHint')}
                 </p>
               )}
+              {catalogId === 'openai' && (
+                <p className="mt-1 text-[10px] text-slate-500 leading-snug">
+                  {draft.openaiProvider === 'anthropic'
+                    ? t('crm.automations.panel.integrations.connectAnthropicTokenHint')
+                    : t('crm.automations.panel.integrations.connectOpenaiTokenHint')}
+                </p>
+              )}
             </div>
           )}
           {catalogId === 'google_sheets' && (
@@ -1122,6 +1298,24 @@ export const IntegrationThirdPartyConnectModal: React.FC<Props> = ({
               />
               <p className="mt-1 text-[10px] text-slate-500 leading-snug">
                 {t('crm.automations.panel.integrations.connectAmocrmWebhookSecretHint')}
+              </p>
+            </div>
+          )}
+          {catalogId === 'bitrix' && (
+            <div>
+              <label className="mb-1 block text-[11px] text-slate-600">
+                {t('crm.automations.panel.integrations.connectBitrixWebhookSecret')}
+              </label>
+              <input
+                type="password"
+                autoComplete="new-password"
+                value={draft.bitrixWebhookSecret}
+                onChange={(e) => setDraft((d) => ({ ...d, bitrixWebhookSecret: e.target.value }))}
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs font-mono"
+                placeholder="••••••••"
+              />
+              <p className="mt-1 text-[10px] text-slate-500 leading-snug">
+                {t('crm.automations.panel.integrations.connectBitrixWebhookSecretHint')}
               </p>
             </div>
           )}

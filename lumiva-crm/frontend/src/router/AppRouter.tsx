@@ -58,6 +58,7 @@ import { DepartmentFormPage } from '../pages/departments/DepartmentFormPage';
 import { SalesPage } from '../pages/sales/SalesPage';
 import { SalesAnalyticsPage } from '../pages/sales/SalesAnalyticsPageV2';
 import { SalesChannelsPage } from '../pages/sales/SalesChannelsPage';
+import { SalesPaymentsPage } from '../pages/sales/SalesPaymentsPage';
 import { SalesIntegrationsPage } from '../pages/sales/SalesIntegrationsPage';
 import { SalesImportPage } from '../pages/sales/SalesImportPage';
 import { SalesIntegrationNewPage } from '../pages/sales/SalesIntegrationNewPage';
@@ -78,6 +79,7 @@ import { AccountPreferencesTab } from '../pages/account/tabs/AccountPreferencesT
 import { LeadsBoardPage } from '../pages/leads/LeadsBoardPage';
 import { LeadsListPage } from '../pages/leads/LeadsListPage';
 import { LeadsCalendarPage } from '../pages/leads/LeadsCalendarPage';
+import { LeadAccessSettingsPage } from '../pages/leads/LeadAccessSettingsPage';
 import { LeadFormPage } from '../pages/leads/LeadFormPage';
 import { LeadsAnalyticsPage } from '../pages/analytics/LeadsAnalyticsPageV2';
 import { LeadsRoiPage } from '../pages/analytics/LeadsRoiPage';
@@ -184,8 +186,7 @@ import { PendingApprovalsPage } from '../pages/automations/PendingApprovalsPage'
 import { EmailAccountsPage } from '../pages/email/EmailAccountsPage';
 import { EmailAccountFormPage } from '../pages/email/EmailAccountFormPage';
 import { EmailInboxPage } from '../pages/email/EmailInboxPage';
-import { TelegramBotsPage } from '../pages/telegram-crm/TelegramBotsPage';
-import { TelegramBotFormPage } from '../pages/telegram-crm/TelegramBotFormPage';
+import { TelegramPage } from '../pages/telegram/TelegramPage';
 import TelegramInboxPage from '../pages/telegram-crm/TelegramInboxPage';
 import WhatsappInboxPage from '../pages/whatsapp-crm/WhatsappInboxPage';
 import { TelephonyPage } from '../pages/telephony/TelephonyPage';
@@ -205,6 +206,8 @@ import { WorkspaceAnalyticsPage } from '../pages/workspace/WorkspaceAnalyticsPag
 import { WorkspaceSettingsPage } from '../pages/workspace/WorkspaceSettingsPage';
 import { WorkspaceImportPage } from '../pages/workspace/WorkspaceImportPage';
 import { WorkspaceAreaHomePage } from '../pages/workspace/WorkspaceAreaHomePage';
+import { WorkspaceAreasListPage } from '../pages/workspace/WorkspaceAreasListPage';
+import { WorkspaceAreaSettingsPage } from '../pages/workspace/WorkspaceAreaSettingsPage';
 import { WorkspaceGanttViewPage } from '../pages/workspace/WorkspaceGanttViewPage';
 import { WebFormsListPage } from '../pages/web-forms/WebFormsListPage';
 import { WebFormEditorPage } from '../pages/web-forms/WebFormEditorPage';
@@ -215,17 +218,16 @@ import {
   AiEmployeesPage,
 } from '../pages/ai-employees/AiEmployeesPage';
 
-// Routes a still-onboarding tenant may reach without being bounced to the wizard.
+// Routes where the onboarding overlay must not appear on top of the page (billing/error pages
+// the user may be sent to regardless of onboarding state).
 const ONBOARDING_EXEMPT_PATHS = new Set([
-  '/onboarding',
   '/app/billing',
   '/billing',
   '/forbidden',
   '/tenant-inactive',
 ]);
 
-// Fetched once per page load (not per navigation) and cached at module scope — the wizard itself
-// does a full navigation on completion, which naturally clears this on the next load.
+// Fetched once per page load (not per navigation) and cached at module scope.
 let onboardingCheckPromise: Promise<boolean> | null = null;
 function needsOnboardingOnce(): Promise<boolean> {
   if (!onboardingCheckPromise) {
@@ -235,6 +237,12 @@ function needsOnboardingOnce(): Promise<boolean> {
       .catch(() => false);
   }
   return onboardingCheckPromise;
+}
+
+// Called once the wizard reports done (finished or skipped) so any later ProtectedRoute mount
+// (client-side navigation to another route) doesn't show the overlay again this page load.
+function markOnboardingComplete() {
+  onboardingCheckPromise = Promise.resolve(false);
 }
 
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
@@ -258,14 +266,25 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({
   if (!token) {
     return <Navigate to="/login" replace />;
   }
-  if (
+
+  const showOnboarding =
     needsOnboarding &&
     !ONBOARDING_EXEMPT_PATHS.has(location.pathname) &&
-    !isBillingLocked()
-  ) {
-    return <Navigate to="/onboarding" replace />;
-  }
-  return children;
+    !isBillingLocked();
+
+  return (
+    <>
+      {children}
+      {showOnboarding && (
+        <OnboardingWizardPage
+          onComplete={() => {
+            markOnboardingComplete();
+            setNeedsOnboarding(false);
+          }}
+        />
+      )}
+    </>
+  );
 };
 
 const LegacyAppRedirect: React.FC = () => {
@@ -374,14 +393,8 @@ export const AppRouter: React.FC = () => {
           }
         />
 
-        <Route
-          path="/onboarding"
-          element={
-            <ProtectedRoute>
-              <OnboardingWizardPage />
-            </ProtectedRoute>
-          }
-        />
+        {/* Больше не отдельная страница — визард теперь оверлей поверх CRM (см. ProtectedRoute). */}
+        <Route path="/onboarding" element={<Navigate to="/dashboard" replace />} />
 
         <Route
           path="/calendar"
@@ -459,6 +472,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <LeadsCalendarPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/leads/access"
+          element={
+            <ProtectedRoute>
+              <LeadAccessSettingsPage />
             </ProtectedRoute>
           }
         />
@@ -765,6 +786,14 @@ export const AppRouter: React.FC = () => {
           element={
             <ProtectedRoute>
               <SalesChannelsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/sales/payments"
+          element={
+            <ProtectedRoute>
+              <SalesPaymentsPage />
             </ProtectedRoute>
           }
         />
@@ -1475,23 +1504,7 @@ export const AppRouter: React.FC = () => {
           path="/telegram"
           element={
             <ProtectedRoute>
-              <TelegramBotsPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/telegram/bots/new"
-          element={
-            <ProtectedRoute>
-              <TelegramBotFormPage />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/telegram/bots/:id"
-          element={
-            <ProtectedRoute>
-              <TelegramBotFormPage />
+              <TelegramPage />
             </ProtectedRoute>
           }
         />
@@ -1637,10 +1650,26 @@ export const AppRouter: React.FC = () => {
 
         {/* -------- WORKSPACE (NO-CODE) -------- */}
         <Route
+          path="/workspace/areas"
+          element={
+            <ProtectedRoute>
+              <WorkspaceAreasListPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/workspace/areas/:areaId"
           element={
             <ProtectedRoute>
               <WorkspaceAreaHomePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/workspace/areas/:areaId/settings"
+          element={
+            <ProtectedRoute>
+              <WorkspaceAreaSettingsPage />
             </ProtectedRoute>
           }
         />

@@ -395,7 +395,11 @@ export class SalesService {
   /**
    * Список продаж конкретного арендатора
    */
-  async list(tenantId: string, query: ListSalesQueryDto) {
+  async list(
+    tenantId: string,
+    query: ListSalesQueryDto,
+    ownScopeFilter?: { sql: string; params: Record<string, unknown> },
+  ) {
     const {
       page = 1,
       pageSize = 25,
@@ -410,6 +414,12 @@ export class SalesService {
     const qb = this.saleRepo.createQueryBuilder('s');
     qb.where('s.tenantId = :tenantId', { tenantId });
     this.applyListedSalesOnlyJoin(qb);
+    // ownScopeFilter comes only from SalesController (never from client query params) — enforces
+    // the tenant's "foreign_records=hide" data-visibility rule at the SQL level, so pagination/
+    // total stay correct instead of post-filtering an already-paginated page.
+    if (ownScopeFilter) {
+      qb.andWhere(ownScopeFilter.sql, ownScopeFilter.params);
+    }
 
     const leadIdTrimmed = leadId?.trim();
     if (leadIdTrimmed) {

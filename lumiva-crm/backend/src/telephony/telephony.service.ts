@@ -183,15 +183,22 @@ export class TelephonyService {
     if (!callSid) return;
     const existing = await this.callRepo.findOne({ where: { tenantId, twilioCallSid: callSid } });
     if (existing) return;
-    await this.callRepo.save(this.callRepo.create({
-      tenantId,
-      direction: 'inbound',
-      fromNumber: params.From || null,
-      toNumber: params.To || null,
-      status: 'ringing',
-      twilioCallSid: callSid,
-      startedAt: new Date(),
-    }));
+    try {
+      await this.callRepo.save(this.callRepo.create({
+        tenantId,
+        direction: 'inbound',
+        fromNumber: params.From || null,
+        toNumber: params.To || null,
+        status: 'ringing',
+        twilioCallSid: callSid,
+        startedAt: new Date(),
+      }));
+    } catch (e) {
+      // Тот же класс гонки, что у WhatsApp-вебхука — Twilio может повторить доставку на
+      // таймаут/не-2xx, и обе доставки проходят "не существует" до того, как первая успеет
+      // сохраниться. UQ_calls_tenant_twiliocallsid ловит это на уровне БД вместо дубля звонка.
+      if ((e as { code?: string }).code !== '23505') throw e;
+    }
   }
 
   async handleStatusCallback(tenantId: string, params: Record<string, string>): Promise<void> {

@@ -403,6 +403,7 @@ export class HelpdeskService {
   ) {
     const ticket = await this.ticketRepo.findOne({ where: { id: ticketId, tenantId } });
     if (!ticket) throw new NotFoundException('Тикет не найден');
+    const previousAssignedUserId = ticket.assignedUserId;
     if (patch.status) {
       ticket.status = patch.status;
       ticket.resolvedAt = patch.status === 'resolved' ? new Date() : ticket.resolvedAt;
@@ -413,7 +414,24 @@ export class HelpdeskService {
     if (patch.category !== undefined) ticket.category = patch.category?.trim() || null;
     if (patch.entityType !== undefined) ticket.entityType = patch.entityType;
     if (patch.entityId !== undefined) ticket.entityId = patch.entityId;
-    return this.ticketRepo.save(ticket);
+    const saved = await this.ticketRepo.save(ticket);
+    // Раньше переназначение тикета никого не уведомляло — новый исполнитель узнавал об этом,
+    // только вручную открыв список тикетов (в отличие от назначения лида/задачи компании,
+    // которые уже уведомляют).
+    if (
+      patch.assignedUserId !== undefined &&
+      saved.assignedUserId &&
+      saved.assignedUserId !== previousAssignedUserId
+    ) {
+      await this.notifications.create(
+        tenantId,
+        [saved.assignedUserId],
+        `Вам назначено обращение: ${saved.subject}`,
+        saved.subject,
+        { type: 'helpdesk.ticket', ticketId: saved.id },
+      );
+    }
+    return saved;
   }
 
   // ========= portal-side (scoped to one Contact) =========

@@ -11,6 +11,9 @@ import { Contact } from '../contacts/contact.entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { AuditLogModule } from '../audit-log/audit-log.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { StaffUsersModule } from '../staff/staff-users.module';
+import { DataVisibilityModule } from '../data-visibility/data-visibility.module';
 
 @Module({
   imports: [
@@ -18,6 +21,9 @@ import { AuditLogModule } from '../audit-log/audit-log.module';
     RbacModule,
     forwardRef(() => AutomationsModule),
     AuditLogModule,
+    NotificationsModule,
+    forwardRef(() => StaffUsersModule),
+    DataVisibilityModule,
   ],
   controllers: [CompaniesController],
   providers: [CompaniesService],

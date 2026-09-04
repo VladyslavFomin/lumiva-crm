@@ -1,0 +1,50 @@
+/* ============================================
+   EMAIL ACCOUNT NEW/EDIT — scoped design system ("Почта → Новый аккаунт")
+   Ported from Claude Design (email-account-new.html / styles/email-account-new.css).
+   Reuses shared vars + .em-* primitives from ./email-settings-design.css —
+   import both together, this file only adds the page-specific .na-* rules.
+   ============================================ */
+.px-scope .na-split{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+@media (max-width:1100px){.px-scope .na-split{grid-template-columns:1fr}}
+.px-scope .na-side{display:flex;flex-direction:column;gap:14px;position:sticky;top:14px}
+
+.px-scope .na-prov{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media (max-width:760px){.px-scope .na-prov{grid-template-columns:1fr 1fr}}
+.px-scope .na-prov-card{display:flex;align-items:center;gap:10px;border:1px solid var(--line-2);border-radius:11px;background:#fff;padding:10px 11px;text-align:left;font-family:inherit;cursor:pointer;position:relative;transition:border-color .14s,box-shadow .14s}
+.px-scope .na-prov-card:hover{border-color:var(--ink)}
+.px-scope .na-prov-card.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.px-scope .na-prov-card .tx{min-width:0}
+.px-scope .na-prov-card .tx b{display:block;font-size:12.5px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.px-scope .na-prov-card .tx i{display:block;font-style:normal;font-size:10.5px;color:var(--fg-3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.px-scope .na-prov-card .tick{position:absolute;top:8px;right:8px;width:16px;height:16px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center}
+.px-scope .na-prov-card:disabled{opacity:.55;cursor:not-allowed}
+
+.px-scope .na-req{font-style:normal;font-family:var(--ff-body);font-size:9px;letter-spacing:.02em;text-transform:none;color:var(--fg-4);margin-left:6px}
+
+.px-scope .na-pw{position:relative}
+.px-scope .na-pw .em-in{padding-right:36px}
+.px-scope .na-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;border:0;background:none;border-radius:7px;color:var(--fg-3);display:flex;align-items:center;justify-content:center;transition:background .13s,color .13s}
+.px-scope .na-eye:hover{background:var(--bg-soft);color:var(--ink)}
+
+.px-scope .na-steps{display:flex;flex-direction:column}
+.px-scope .na-step{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line-3);align-items:flex-start}
+.px-scope .na-step:last-child{border-bottom:0}
+.px-scope .na-step .b{width:18px;height:18px;border-radius:50%;border:1px solid var(--line-1);color:var(--fg-3);display:flex;align-items:center;justify-content:center;font-family:var(--ff-mono);font-size:9.5px;flex-shrink:0;margin-top:1px}
+.px-scope .na-step.done .b{background:var(--ink);border-color:var(--ink);color:#fff}
+.px-scope .na-step b{display:block;font-size:12px;font-weight:500;color:var(--fg-3)}
+.px-scope .na-step.done b{color:var(--ink)}
+.px-scope .na-step i{display:block;font-style:normal;font-size:10.5px;color:var(--fg-3);margin-top:2px;line-height:1.4;font-family:var(--ff-mono)}
+
+.px-scope .na-ok{display:flex;gap:9px;align-items:flex-start;border:1px solid #d3ebdd;background:#f4faf6;border-radius:10px;padding:10px 11px;font-size:11.5px;line-height:1.5;color:#1c7a53;margin-top:10px}
+.px-scope .na-ok svg{flex-shrink:0;margin-top:1px}
+.px-scope .na-bad{display:flex;gap:9px;align-items:flex-start;border:1px solid #f0d1d6;background:#fdf5f6;border-radius:10px;padding:10px 11px;font-size:11.5px;line-height:1.5;color:#b0233a;margin-top:10px}
+.px-scope .na-bad svg{flex-shrink:0;margin-top:1px}
+
+.px-scope .na-sec p{margin:0 0 9px;font-size:11.5px;line-height:1.55;color:var(--fg-2);padding-left:11px;position:relative}
+.px-scope .na-sec p:last-child{margin-bottom:0}
+.px-scope .na-sec p::before{content:'';position:absolute;left:0;top:6px;width:4px;height:4px;border-radius:50%;background:var(--line-1)}
+
+.px-scope .na-bar{display:flex;align-items:center;gap:9px;border:1px solid var(--line-2);border-radius:12px;background:#fff;padding:11px 14px;margin-top:14px}
+.px-scope .na-bar .h{flex:1;font-size:11.5px;color:var(--fg-3)}
+.px-scope .na-bar .em-btn[disabled]{opacity:.45;cursor:not-allowed}
+.px-scope .na-bar .em-btn[disabled]:hover{border-color:var(--ink)}

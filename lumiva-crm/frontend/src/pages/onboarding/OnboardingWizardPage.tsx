@@ -1,17 +1,26 @@
 // src/pages/onboarding/OnboardingWizardPage.tsx
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   completeOnboarding,
   seedSampleData,
   type OnboardingStateDto,
 } from '../../api/onboarding';
 import { getSession } from '../../auth/session';
+import { LottieIcon } from '../../components/LottieIcon';
 
 type Step = 'welcome' | 'team' | 'sample' | 'done';
 
 const STEP_ORDER: Step[] = ['welcome', 'team', 'sample', 'done'];
 
-export const OnboardingWizardPage: React.FC = () => {
+/**
+ * Renders as an overlay on top of the real CRM (the dashboard/whatever page the user landed
+ * on renders normally underneath) rather than bouncing to a separate blank `/onboarding` page —
+ * see ProtectedRoute in AppRouter.tsx, which mounts this and supplies onComplete.
+ */
+export const OnboardingWizardPage: React.FC<{ onComplete: () => void }> = ({ onComplete }) => {
+  const { t } = useTranslation();
+  const ob = (key: string, opts?: Record<string, unknown>) => t(`crm.onboarding.${key}`, opts as any) as string;
   const session = getSession();
   const [step, setStep] = useState<Step>('welcome');
   const [seeding, setSeeding] = useState(false);
@@ -31,12 +40,9 @@ export const OnboardingWizardPage: React.FC = () => {
     setError(null);
     try {
       await completeOnboarding();
-      // Hard navigation, not react-router's navigate(): ProtectedRoute caches the onboarding
-      // check for the lifetime of the page load, so a client-side route change here would still
-      // see the stale "needs onboarding" result and bounce straight back to this page.
-      window.location.href = '/dashboard';
+      onComplete();
     } catch (e: any) {
-      setError(e?.message || 'Не удалось завершить настройку');
+      setError(e?.message || ob('finishError'));
       setFinishing(false);
     }
   };
@@ -52,15 +58,15 @@ export const OnboardingWizardPage: React.FC = () => {
       const result = await seedSampleData();
       setSeeded(result);
     } catch (e: any) {
-      setError(e?.message || 'Не удалось загрузить примеры данных');
+      setError(e?.message || ob('seedError'));
     } finally {
       setSeeding(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 md:p-8">
-      <div className="w-full max-w-xl">
+    <div className="fixed inset-0 z-[9500] bg-slate-950/50 backdrop-blur-sm flex items-center justify-center p-4 md:p-8 overflow-y-auto">
+      <div className="w-full max-w-xl my-auto">
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-1.5">
             {STEP_ORDER.map((s, i) => (
@@ -79,7 +85,7 @@ export const OnboardingWizardPage: React.FC = () => {
               onClick={skipAll}
               className="text-xs text-slate-400 hover:text-slate-600"
             >
-              Пропустить настройку →
+              {ob('skipAllBtn')}
             </button>
           )}
         </div>
@@ -88,21 +94,20 @@ export const OnboardingWizardPage: React.FC = () => {
           {step === 'welcome' && (
             <>
               <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">
-                Добро пожаловать
+                {ob('welcome.kicker')}
               </div>
               <h1 className="text-2xl font-semibold text-lumiva-accent mb-3">
-                {session?.tenantName || 'Ваш аккаунт'} готов к работе
+                {ob('welcome.titleFormat', { tenantName: session?.tenantName || ob('welcome.tenantFallback') })}
               </h1>
               <p className="text-sm text-slate-600 leading-relaxed mb-6">
-                Это займёт меньше минуты. Мы поможем пригласить команду и покажем, как выглядит
-                CRM с реальными данными — прежде чем вы начнёте вносить свои.
+                {ob('welcome.body')}
               </p>
               <button
                 type="button"
                 onClick={goNext}
                 className="w-full inline-flex items-center justify-center rounded-xl bg-lumiva-accent hover:bg-lumiva-accent-soft transition-all px-3 py-2.5 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(34,34,34,0.18)]"
               >
-                Начать
+                {ob('welcome.startBtn')}
               </button>
             </>
           )}
@@ -110,26 +115,25 @@ export const OnboardingWizardPage: React.FC = () => {
           {step === 'team' && (
             <>
               <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">
-                Шаг 2 из 4
+                {ob('team.kicker')}
               </div>
-              <h1 className="text-2xl font-semibold text-lumiva-accent mb-3">Пригласите команду</h1>
+              <h1 className="text-2xl font-semibold text-lumiva-accent mb-3">{ob('team.title')}</h1>
               <p className="text-sm text-slate-600 leading-relaxed mb-6">
-                Добавьте коллег, которые будут работать с лидами, продажами или бронированиями.
-                Это можно сделать и позже, в любой момент, в разделе «Сотрудники».
+                {ob('team.body')}
               </p>
               <div className="flex gap-2">
                 <a
                   href="/staff"
                   className="flex-1 inline-flex items-center justify-center rounded-xl border border-slate-200 hover:border-lumiva-accent transition-all px-3 py-2.5 text-sm font-medium text-lumiva-accent"
                 >
-                  Открыть «Сотрудники»
+                  {ob('team.openStaffBtn')}
                 </a>
                 <button
                   type="button"
                   onClick={goNext}
                   className="flex-1 inline-flex items-center justify-center rounded-xl bg-lumiva-accent hover:bg-lumiva-accent-soft transition-all px-3 py-2.5 text-sm font-semibold text-white"
                 >
-                  Далее
+                  {ob('team.nextBtn')}
                 </button>
               </div>
             </>
@@ -138,15 +142,13 @@ export const OnboardingWizardPage: React.FC = () => {
           {step === 'sample' && (
             <>
               <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">
-                Шаг 3 из 4
+                {ob('sample.kicker')}
               </div>
               <h1 className="text-2xl font-semibold text-lumiva-accent mb-3">
-                Заполнить примерами данных?
+                {ob('sample.title')}
               </h1>
               <p className="text-sm text-slate-600 leading-relaxed mb-6">
-                Мы добавим пару лидов, контакт, компанию и товары с пометкой «[Пример]», чтобы вы
-                сразу увидели, как работает CRM — воронку, карточки, аналитику. Всё это можно
-                удалить одной кнопкой в любой момент из настроек.
+                {ob('sample.body')}
               </p>
               {error && (
                 <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-4">
@@ -155,7 +157,7 @@ export const OnboardingWizardPage: React.FC = () => {
               )}
               {seeded ? (
                 <div className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2 mb-4">
-                  Готово — примеры данных добавлены.
+                  {ob('sample.seededMsg')}
                 </div>
               ) : null}
               <div className="flex gap-2">
@@ -165,7 +167,7 @@ export const OnboardingWizardPage: React.FC = () => {
                   className="flex-1 inline-flex items-center justify-center rounded-xl border border-slate-200 hover:border-lumiva-accent transition-all px-3 py-2.5 text-sm font-medium text-lumiva-accent disabled:opacity-60"
                   disabled={seeding}
                 >
-                  Начать с чистого листа
+                  {ob('sample.startCleanBtn')}
                 </button>
                 <button
                   type="button"
@@ -173,7 +175,7 @@ export const OnboardingWizardPage: React.FC = () => {
                   disabled={seeding}
                   className="flex-1 inline-flex items-center justify-center rounded-xl bg-lumiva-accent hover:bg-lumiva-accent-soft transition-all px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
                 >
-                  {seeding ? 'Добавляем…' : seeded ? 'Далее' : 'Заполнить примерами'}
+                  {seeding ? ob('sample.seedingBtn') : seeded ? ob('sample.nextBtn') : ob('sample.fillWithSamplesBtn')}
                 </button>
               </div>
             </>
@@ -181,14 +183,15 @@ export const OnboardingWizardPage: React.FC = () => {
 
           {step === 'done' && (
             <>
-              <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2">
-                Готово
+              <div className="flex justify-center mb-1">
+                <LottieIcon name="checklist-progress" size={72} loop={false} />
               </div>
-              <h1 className="text-2xl font-semibold text-lumiva-accent mb-3">Всё настроено</h1>
+              <div className="text-xs uppercase tracking-[0.18em] text-slate-500 mb-2 text-center">
+                {ob('done.kicker')}
+              </div>
+              <h1 className="text-2xl font-semibold text-lumiva-accent mb-3 text-center">{ob('done.title')}</h1>
               <p className="text-sm text-slate-600 leading-relaxed mb-6">
-                Можно приступать. Этот гид больше не будет показываться — вернуться к нему нельзя,
-                но всё, что вы здесь сделали (приглашения, примеры данных), останется доступно в
-                обычных разделах CRM.
+                {ob('done.body')}
               </p>
               {error && (
                 <div className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2 mb-4">
@@ -201,7 +204,7 @@ export const OnboardingWizardPage: React.FC = () => {
                 disabled={finishing}
                 className="w-full inline-flex items-center justify-center rounded-xl bg-lumiva-accent hover:bg-lumiva-accent-soft transition-all px-3 py-2.5 text-sm font-semibold text-white shadow-[0_16px_38px_rgba(34,34,34,0.18)] disabled:opacity-60"
               >
-                {finishing ? 'Открываем…' : 'Перейти в CRM'}
+                {finishing ? ob('done.openingBtn') : ob('done.goToCrmBtn')}
               </button>
             </>
           )}

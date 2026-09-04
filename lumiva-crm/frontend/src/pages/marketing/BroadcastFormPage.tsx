@@ -14,6 +14,7 @@ import {
 import { fetchSegments, type MarketingSegment } from '../../api/marketing';
 import { fetchEmailAccounts, type EmailAccount } from '../../api/email';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const emptyStep = (order: number): BroadcastStep => ({ order, delayDays: order === 0 ? 0 : 3, subject: '', body: '' });
@@ -129,6 +130,7 @@ export const BroadcastFormPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="marketingBroadcasts" />
       <div className="space-y-6 max-w-3xl">
         <div className="page-header mb-0">
           <div>

@@ -1,7 +1,12 @@
 // src/api/calendar.ts
 import { api } from './client';
 
-export type CalendarEventType = 'lead_meeting' | 'project_task' | 'booking' | 'hotel_reservation';
+export type CalendarEventType =
+  | 'lead_meeting'
+  | 'project_task'
+  | 'booking'
+  | 'hotel_reservation'
+  | 'custom_date';
 
 export interface CalendarEventDto {
   id: string;
@@ -11,6 +16,7 @@ export interface CalendarEventDto {
   date: string;
   endDate: string | null;
   link: string;
+  assignee?: string | null;
 }
 
 export function fetchCalendarEvents(from: Date, to: Date): Promise<CalendarEventDto[]> {

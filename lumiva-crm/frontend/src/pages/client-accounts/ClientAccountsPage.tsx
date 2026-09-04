@@ -52,12 +52,12 @@ function pickItems<T>(res: any): T[] {
   if (Array.isArray((res as any)?.data?.items)) return (res as any).data.items as T[];
   return [];
 }
-function fmtDate(v: any) {
+function fmtDate(v: any, locale = 'ru-RU') {
   const ss = s(v);
   if (!ss) return '—';
   const d = new Date(ss);
   if (!Number.isNaN(d.getTime())) {
-    return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: '2-digit' });
+    return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: '2-digit' });
   }
   return ss;
 }
@@ -110,16 +110,16 @@ function transferParticipantIds(tr: any, fallbackWpId?: number | null) {
   };
 }
 
-function transferTitle(tr: any, id: any) {
-  return s(tr.title) || s(tr.name) || s(tr.type) || `Перевод #${id || tr.id || ''}`;
+function transferTitle(tr: any, id: any, t: (key: string, opts?: any) => string) {
+  return s(tr.title) || s(tr.name) || s(tr.type) || t('crm.clientAccounts.transferTitle', { id: id || tr.id || '' });
 }
 
-function txnTitle(txn: any, id: any) {
+function txnTitle(txn: any, id: any, t: (key: string, opts?: any) => string) {
   const type = s(txn.type || txn.transactionType || txn.meta?.transactionType || txn.meta?.transactionTypeId);
   if (s(txn.title)) return s(txn.title);
-  if (type === 'manual_adjustment' || type === '3') return 'Финансовая операция';
+  if (type === 'manual_adjustment' || type === '3') return t('crm.clientAccounts.financialOperationLabel');
   if (type) return type.replace(/_/g, ' ');
-  return `Операция #${id || txn.id || ''}`;
+  return t('crm.clientAccounts.operationTitle', { id: id || txn.id || '' });
 }
 
 function operationDetails(row: any) {
@@ -195,7 +195,8 @@ const SpendSpark: React.FC<{ txns: any[] }> = ({ txns }) => {
 type Tab = 'overview' | 'txns' | 'transfers';
 
 const ClientAccountsPage: React.FC = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const navigate = useNavigate();
   const [importingLeadId, setImportingLeadId] = useState<string | null>(null);
   const [bulkImport, setBulkImport] = useState<{
@@ -542,7 +543,7 @@ const ClientAccountsPage: React.FC = () => {
           <div className="flex items-center gap-2 mb-1">
             <span className="w-[6px] h-[6px] rounded-full bg-[#222]" />
             <span className="cd-mono text-[10px] font-medium tracking-[0.18em] uppercase text-[#888]">
-              CCP · Финансы
+              {t('crm.clientAccounts.page.kicker')}
             </span>
           </div>
           <h1 className="cd-display text-[22px] font-semibold tracking-[-0.02em] text-[#222]">
@@ -555,13 +556,13 @@ const ClientAccountsPage: React.FC = () => {
             to="/client-accounts/operations"
             className="rounded-[8px] border border-[#e7e7e7] bg-white px-3.5 py-2 text-[12px] font-medium text-[#444] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
           >
-            Финансовые операции
+            {t('crm.clientAccounts.page.financialOpsLink')}
           </Link>
           <Link
             to="/client-accounts/sites"
             className="rounded-[8px] border border-[#e7e7e7] bg-white px-3.5 py-2 text-[12px] font-medium text-[#444] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
           >
-            Управление сайтами
+            {t('crm.clientAccounts.page.sitesManageLink')}
           </Link>
           {/* Bulk import */}
           <div className="flex items-center gap-2">
@@ -572,30 +573,30 @@ const ClientAccountsPage: React.FC = () => {
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3 3-5.5 6-5.5s6 2.5 6 5.5"/><path d="M19 8v6"/><path d="M16 11h6"/></svg>
               {bulkImport?.running
-                ? `${bulkImport.done} / ${bulkImport.total}…`
-                : 'Импортировать все лиды'}
+                ? t('crm.clientAccounts.page.bulkImportProgress', { done: bulkImport.done, total: bulkImport.total })
+                : t('crm.clientAccounts.page.bulkImportBtn')}
             </button>
             {bulkImport && !bulkImport.running && (
               <div className="flex items-center gap-2 text-[11px]">
                 {bulkImport.created > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-[#c5e3d2] bg-[#eaf4ee] px-2.5 py-[3px] text-[#175c3d] font-medium">
-                    +{bulkImport.created} создано
+                    {t('crm.clientAccounts.page.bulkCreated', { count: bulkImport.created })}
                   </span>
                 )}
                 {bulkImport.skipped > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-[#e7e7e7] bg-[#fafafa] px-2.5 py-[3px] text-[#888] font-medium">
-                    {bulkImport.skipped} пропущено
+                    {t('crm.clientAccounts.page.bulkSkipped', { count: bulkImport.skipped })}
                   </span>
                 )}
                 {bulkImport.errors > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-[#f0c8cf] bg-[#fbecef] px-2.5 py-[3px] text-[#9a1f31] font-medium">
-                    {bulkImport.errors} ошибок
+                    {t('crm.clientAccounts.page.bulkErrors', { count: bulkImport.errors })}
                   </span>
                 )}
                 <button
                   onClick={() => setBulkImport(null)}
                   className="text-[#b5b5b5] hover:text-[#555] transition-colors"
-                  aria-label="Скрыть"
+                  aria-label={t('crm.clientAccounts.page.hideAria')}
                 >×</button>
               </div>
             )}
@@ -634,7 +635,7 @@ const ClientAccountsPage: React.FC = () => {
                 value={siteId}
                 onChange={(e) => setSiteId(e.target.value)}
               >
-                {sites.length === 0 ? <option value="">Нет подключённых сайтов</option> : null}
+                {sites.length === 0 ? <option value="">{t('crm.clientAccounts.page.noSitesConnected')}</option> : null}
                 {sites.map((ss) => (
                   <option key={ss.id} value={ss.id}>
                     {(ss as any).siteHost || (ss as any).siteUrl}
@@ -657,7 +658,7 @@ const ClientAccountsPage: React.FC = () => {
               </div>
             </div>
             <div className="mt-3 flex items-center justify-between text-[11px] text-[#888]">
-              <span>Клиентов: <strong className="text-[#222]">{clients.length}</strong></span>
+              <span>{t('crm.clientAccounts.page.clientsCountLabel', { count: clients.length })}</span>
               {siteName && <span className="truncate ml-2">{siteName}</span>}
             </div>
           </div>
@@ -741,7 +742,7 @@ const ClientAccountsPage: React.FC = () => {
                             ) : (
                               <>
                                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3 3-5.5 6-5.5s6 2.5 6 5.5"/><path d="M19 8v6"/><path d="M16 11h6"/></svg>
-                                Импортировать лид
+                                {t('crm.clientAccounts.page.importLeadBtn')}
                               </>
                             )}
                           </button>
@@ -780,7 +781,7 @@ const ClientAccountsPage: React.FC = () => {
                         onClick={() => setSelected(null)}
                         className="mb-2 inline-flex items-center rounded-full border border-[#e7e7e7] bg-white px-3 py-1.5 text-[12px] font-medium text-[#444] hover:bg-[#fafafa] transition-colors"
                       >
-                        ← Назад
+                        {t('crm.clientAccounts.page.backBtn')}
                       </button>
                     )}
                     <div className="cd-display text-[18px] font-semibold text-[#222] tracking-[-0.02em] truncate">
@@ -813,7 +814,7 @@ const ClientAccountsPage: React.FC = () => {
                       to={`/app/client-accounts/${(selected as any).id}/analytics`}
                       className="rounded-[8px] border border-[#e7e7e7] bg-white px-3 py-1.5 text-[12px] font-medium text-[#444] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
                     >
-                      Аналитика
+                      {t('crm.clientAccounts.page.analyticsLink')}
                     </Link>
                     <button
                       onClick={() => loadDetails(selected)}
@@ -892,8 +893,8 @@ const ClientAccountsPage: React.FC = () => {
                 {editing && (
                   <div className="mx-5 mb-3 flex items-center gap-2 rounded-[8px] border border-[#f0d9a8] bg-[#fbf2dc] px-3.5 py-2.5 text-[12px] text-[#7a4a09]">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 20h4l10-10-4-4L4 16z"/><path d="M14 6l4 4"/></svg>
-                    Режим редактирования
-                    <span className="cd-mono ml-auto text-[11px]">баланс · номер счёта · IBAN</span>
+                    {t('crm.clientAccounts.page.editingBanner')}
+                    <span className="cd-mono ml-auto text-[11px]">{t('crm.clientAccounts.page.editingHint')}</span>
                   </div>
                 )}
               </div>
@@ -909,7 +910,7 @@ const ClientAccountsPage: React.FC = () => {
                       <div className="rounded-[12px] border border-[#e7e7e7] bg-white p-5" style={{ borderTop: '3px solid #1f1f1f' }}>
                         <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
                           <div className="min-w-0">
-                            <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Счёт · EUR</div>
+                            <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccounts.overview.eurAccountLabel')}</div>
                             <div className="mt-2">
                               {editing ? (
                                 <input
@@ -926,18 +927,18 @@ const ClientAccountsPage: React.FC = () => {
                             {!editing && (
                               <div className="mt-1.5 flex items-center gap-1 text-[11px] text-[#888]">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg>
-                                Потрачено: <span className="cd-mono">{fmtMoney(totals.eurSpent)} €</span>
+                                {t('crm.clientAccounts.accounts.spent')}: <span className="cd-mono">{fmtMoney(totals.eurSpent)} €</span>
                               </div>
                             )}
                           </div>
                           <div className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2 text-right max-w-full">
-                            <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em]">Счёт №</div>
+                            <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em]">{t('crm.clientAccounts.overview.accountNumberShort')}</div>
                             <div className="mt-0.5 cd-mono text-[11px] font-semibold text-[#222] break-all">{accEurNumber || '—'}</div>
                           </div>
                         </div>
                         <div className="border-t border-[#f0f0f0] pt-4 space-y-3">
                           <div>
-                            <div className="text-[10px] text-[#888] uppercase tracking-[0.14em] mb-1.5">Номер счёта</div>
+                            <div className="text-[10px] text-[#888] uppercase tracking-[0.14em] mb-1.5">{t('crm.clientAccounts.accounts.accountNumber')}</div>
                             {editing ? (
                               <input
                                 className="w-full rounded-[8px] border border-[#e7e7e7] bg-[#fafafa] px-3 py-2 text-[13px] text-[#222] outline-none focus:border-[#222] transition-colors"
@@ -969,7 +970,7 @@ const ClientAccountsPage: React.FC = () => {
                       <div className="rounded-[12px] border border-[#e7e7e7] bg-white p-5" style={{ borderTop: '3px solid #1f8a5e' }}>
                         <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">
                           <div className="min-w-0">
-                            <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Счёт · USD</div>
+                            <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccounts.overview.usdAccountLabel')}</div>
                             <div className="mt-2">
                               {editing ? (
                                 <input
@@ -986,18 +987,18 @@ const ClientAccountsPage: React.FC = () => {
                             {!editing && (
                               <div className="mt-1.5 flex items-center gap-1 text-[11px] text-[#888]">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/></svg>
-                                Потрачено: <span className="cd-mono">{fmtMoney(totals.usdSpent)} $</span>
+                                {t('crm.clientAccounts.accounts.spent')}: <span className="cd-mono">{fmtMoney(totals.usdSpent)} $</span>
                               </div>
                             )}
                           </div>
                           <div className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2 text-right max-w-full">
-                            <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em]">Счёт №</div>
+                            <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em]">{t('crm.clientAccounts.overview.accountNumberShort')}</div>
                             <div className="mt-0.5 cd-mono text-[11px] font-semibold text-[#222] break-all">{accUsdNumber || '—'}</div>
                           </div>
                         </div>
                         <div className="border-t border-[#f0f0f0] pt-4 space-y-3">
                           <div>
-                            <div className="text-[10px] text-[#888] uppercase tracking-[0.14em] mb-1.5">Номер счёта</div>
+                            <div className="text-[10px] text-[#888] uppercase tracking-[0.14em] mb-1.5">{t('crm.clientAccounts.accounts.accountNumber')}</div>
                             {editing ? (
                               <input
                                 className="w-full rounded-[8px] border border-[#e7e7e7] bg-[#fafafa] px-3 py-2 text-[13px] text-[#222] outline-none focus:border-[#222] transition-colors"
@@ -1029,26 +1030,26 @@ const ClientAccountsPage: React.FC = () => {
                     {/* Stats + spark row */}
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="rounded-[12px] border border-[#e7e7e7] bg-white p-4">
-                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">Сводка</div>
+                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">{t('crm.clientAccounts.overview.summaryTitle')}</div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <div className="text-[11px] text-[#888] mb-1">Операций</div>
+                            <div className="text-[11px] text-[#888] mb-1">{t('crm.clientAccounts.overview.operationsLabel')}</div>
                             <div className="cd-display text-[26px] font-semibold text-[#222] tracking-[-0.03em] leading-none">{txns.length}</div>
                           </div>
                           <div>
-                            <div className="text-[11px] text-[#888] mb-1">Переводов</div>
+                            <div className="text-[11px] text-[#888] mb-1">{t('crm.clientAccounts.overview.transfersLabel')}</div>
                             <div className="cd-display text-[26px] font-semibold text-[#222] tracking-[-0.03em] leading-none">{transfers.length}</div>
                           </div>
                         </div>
                         <div className="mt-3 text-[11px] text-[#888]">
-                          Обновлено: <span className="cd-mono text-[#222]">{fmtDate((selected as any).updatedAt)}</span>
+                          {t('crm.clientAccounts.overview.updatedLabel')} <span className="cd-mono text-[#222]">{fmtDate((selected as any).updatedAt, dateLocale)}</span>
                         </div>
                       </div>
 
                       <div className="rounded-[12px] border border-[#e7e7e7] bg-white p-4">
                         <div className="flex items-start justify-between mb-3">
-                          <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">Динамика расходов</div>
-                          <span className="text-[11px] text-[#888]">{txns.length} опер.</span>
+                          <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888]">{t('crm.clientAccounts.overview.spendDynamicsTitle')}</div>
+                          <span className="text-[11px] text-[#888]">{t('crm.clientAccounts.overview.operCountSuffix', { count: txns.length })}</span>
                         </div>
                         <SpendSpark txns={txns} />
                       </div>
@@ -1057,16 +1058,16 @@ const ClientAccountsPage: React.FC = () => {
                     {/* Financial summary */}
                     {selectedFinancialSummary.length > 0 && (
                       <div className="mt-4 rounded-[12px] border border-[#e7e7e7] bg-white p-4">
-                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">Финансовые totals сайта</div>
+                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">{t('crm.clientAccounts.overview.siteFinancialTotalsTitle')}</div>
                         <div className="space-y-2.5">
                           {selectedFinancialSummary.map((row: any, index: number) => (
                             <div key={`${row?.currency || 'total'}-${index}`} className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] p-3">
                               <div className="text-[13px] font-semibold text-[#222] mb-2">{row?.currency || '—'}</div>
                               <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
-                                <div className="text-[#888]">Инвестировано <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.invested ?? row?.investmentTotal)}</span></div>
-                                <div className="text-[#888]">Ожид. профит <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.expectedProfit)}</span></div>
-                                <div className="text-[#888]">Начислено <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.profitAccrued ?? row?.profitAccrualTotal)}</span></div>
-                                <div className="text-[#888]">Кредит <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.creditLeverage ?? row?.creditLeverageTotal)}</span></div>
+                                <div className="text-[#888]">{t('crm.clientAccounts.overview.investedLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.invested ?? row?.investmentTotal)}</span></div>
+                                <div className="text-[#888]">{t('crm.clientAccounts.overview.expectedProfitLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.expectedProfit)}</span></div>
+                                <div className="text-[#888]">{t('crm.clientAccounts.overview.accruedLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.profitAccrued ?? row?.profitAccrualTotal)}</span></div>
+                                <div className="text-[#888]">{t('crm.clientAccounts.overview.creditLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(row?.creditLeverage ?? row?.creditLeverageTotal)}</span></div>
                               </div>
                             </div>
                           ))}
@@ -1077,14 +1078,14 @@ const ClientAccountsPage: React.FC = () => {
                     {/* Investments */}
                     {selectedInvestments.length > 0 && (
                       <div className="mt-4 rounded-[12px] border border-[#e7e7e7] bg-white p-4">
-                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">Инвестиции</div>
+                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">{t('crm.clientAccounts.overview.investmentsTitle')}</div>
                         <div className="space-y-2.5">
                           {selectedInvestments.slice(0, 5).map((inv: any, index: number) => (
                             <div key={inv?.transactionId || `${inv?.assetId}-${index}`} className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] p-3">
                               <div className="text-[13px] font-semibold text-[#222]">{inv?.assetName || '—'}</div>
                               <div className="mt-0.5 text-[11px] text-[#888]">{inv?.assetCategory || '—'} · {inv?.assetCalculation || '—'}</div>
                               <div className="mt-1.5 cd-mono text-[12px] text-[#555]">
-                                {fmtMoney(inv?.invested)} {inv?.currency || ''} · ожидается {fmtMoney(inv?.expectedProfit)} {inv?.currency || ''}
+                                {fmtMoney(inv?.invested)} {inv?.currency || ''} · {t('crm.clientAccounts.overview.expectedInlineWord')} {fmtMoney(inv?.expectedProfit)} {inv?.currency || ''}
                               </div>
                             </div>
                           ))}
@@ -1095,7 +1096,7 @@ const ClientAccountsPage: React.FC = () => {
                     {/* NSM accounts */}
                     {selectedAccounts.length > 0 && (
                       <div className="mt-4 rounded-[12px] border border-[#e7e7e7] bg-white p-4">
-                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">Счета NSM</div>
+                        <div className="cd-mono text-[10px] font-medium tracking-[0.14em] uppercase text-[#888] mb-3">{t('crm.clientAccounts.overview.nsmAccountsTitle')}</div>
                         <div className="space-y-2.5">
                           {selectedAccounts.map((account: any, index: number) => {
                             const financial = account?.financial || {};
@@ -1103,17 +1104,17 @@ const ClientAccountsPage: React.FC = () => {
                             return (
                               <div key={account?.externalAccountId || account?.id || index} className="rounded-[8px] border border-[#f0f0f0] bg-[#fafafa] p-3">
                                 <div className="flex items-center justify-between mb-2">
-                                  <div className="text-[13px] font-semibold text-[#222]">{account?.number || `Счет ${index + 1}`}</div>
+                                  <div className="text-[13px] font-semibold text-[#222]">{account?.number || t('crm.clientAccounts.analytics.accountsSection.accountFallback', { n: index + 1 })}</div>
                                   <div className="cd-mono text-[10px] text-[#888]">{currency} · {account?.status || '—'}</div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
-                                  <div className="text-[#888]">Баланс CRM <span className="cd-mono text-[#222] ml-1">{fmtMoney(displayAccountBalance(account))}</span></div>
-                                  <div className="text-[#888]">Опер. баланс <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.balanceOperational ?? account?.balanceOperational ?? financial?.balance ?? account?.balance)}</span></div>
-                                  <div className="text-[#888]">Накоплено <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.profitBalance ?? account?.profitBalance ?? financial?.availableProfit ?? account?.profit)}</span></div>
-                                  <div className="text-[#888]">Кредитный баланс <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.creditBalance ?? account?.creditBalance ?? financial?.creditLeverage ?? account?.credit)}</span></div>
-                                  <div className="text-[#888]">Инвестировано <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.invested ?? financial?.investmentTotal)}</span></div>
-                                  <div className="text-[#888]">Профит <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.profitAccrued ?? financial?.profitAccrualTotal)}</span></div>
-                                  <div className="text-[#888]">Списание <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.accountFee ?? financial?.accountWriteOff)}</span></div>
+                                  <div className="text-[#888]">{t('crm.clientAccounts.overview.crmBalanceLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(displayAccountBalance(account))}</span></div>
+                                  <div className="text-[#888]">{t('crm.clientAccounts.overview.operBalanceLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.balanceOperational ?? account?.balanceOperational ?? financial?.balance ?? account?.balance)}</span></div>
+                                  <div className="text-[#888]">{t('crm.clientAccounts.overview.accruedBalanceLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.profitBalance ?? account?.profitBalance ?? financial?.availableProfit ?? account?.profit)}</span></div>
+                                  <div className="text-[#888]">{t('crm.clientAccounts.overview.creditBalanceLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.creditBalance ?? account?.creditBalance ?? financial?.creditLeverage ?? account?.credit)}</span></div>
+                                  <div className="text-[#888]">{t('crm.clientAccounts.overview.investedLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.invested ?? financial?.investmentTotal)}</span></div>
+                                  <div className="text-[#888]">{t('crm.clientAccounts.overview.profitLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.profitAccrued ?? financial?.profitAccrualTotal)}</span></div>
+                                  <div className="text-[#888]">{t('crm.clientAccounts.overview.writeoffLabel')} <span className="cd-mono text-[#222] ml-1">{fmtMoney(financial?.accountFee ?? financial?.accountWriteOff)}</span></div>
                                 </div>
                               </div>
                             );
@@ -1144,12 +1145,12 @@ const ClientAccountsPage: React.FC = () => {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="text-[13px] font-semibold text-[#222] truncate">
-                                    {txnTitle(txn, txn.wpPostId)}
+                                    {txnTitle(txn, txn.wpPostId, t)}
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#888]">
-                                    <span className="cd-mono">WP-пост #{txn.wpPostId}</span>
+                                    <span className="cd-mono">{t('crm.clientAccounts.activity.wpPostLabel', { id: txn.wpPostId })}</span>
                                     <span>·</span>
-                                    <span className="cd-mono">{fmtDate(txn.date)}</span>
+                                    <span className="cd-mono">{fmtDate(txn.date, dateLocale)}</span>
                                     <StatusBadge status={status} label={humanStatus(status, t)} />
                                   </div>
                                 </div>
@@ -1162,23 +1163,23 @@ const ClientAccountsPage: React.FC = () => {
                                     onClick={() => setEditingTxn(txn)}
                                     className="rounded-[7px] border border-[#e7e7e7] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#555] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
                                   >
-                                    Редактировать
+                                    {t('crm.clientAccounts.edit')}
                                   </button>
                                 </div>
                               </div>
                               {/* Detail cells */}
                               <div className="mt-3 grid grid-cols-3 gap-2">
                                 <div className="rounded-[7px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2">
-                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">Тип</div>
-                                  <div className="text-[12px] font-medium text-[#222] truncate">{s(txn.meta?.financialCategory || txn.type || txn.title) || 'Операция'}</div>
+                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">{t('crm.clientAccounts.activity.typeLabel')}</div>
+                                  <div className="text-[12px] font-medium text-[#222] truncate">{s(txn.meta?.financialCategory || txn.type || txn.title) || t('crm.clientAccounts.analytics.txn.tag')}</div>
                                 </div>
                                 <div className="rounded-[7px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2">
-                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">Сумма</div>
+                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">{t('crm.clientAccounts.amount')}</div>
                                   <div className="cd-mono text-[11px] text-[#222]">€{fmtMoney(txn.spendEur)}</div>
                                   <div className="cd-mono text-[11px] text-[#555]">${fmtMoney(txn.spendUsd)}</div>
                                 </div>
                                 <div className="rounded-[7px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2">
-                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">Клиент</div>
+                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">{t('crm.clientAccounts.activity.clientLabel')}</div>
                                   <div className="text-[12px] font-medium text-[#222] truncate">{getUserLabel(txn.wpUserId)}</div>
                                 </div>
                               </div>
@@ -1189,7 +1190,7 @@ const ClientAccountsPage: React.FC = () => {
                                 </div>
                               ) : (
                                 <div className="mt-2.5 rounded-[7px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2.5 text-[12px] text-[#b5b5b5] italic">
-                                  Описание не указано
+                                  {t('crm.clientAccounts.activity.noDescription')}
                                 </div>
                               )}
                             </div>
@@ -1254,12 +1255,12 @@ const ClientAccountsPage: React.FC = () => {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="min-w-0">
                                   <div className="text-[13px] font-semibold text-[#222] truncate">
-                                    {transferTitle(tr, tr.wpPostId)}
+                                    {transferTitle(tr, tr.wpPostId, t)}
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-[#888]">
-                                    <span className="cd-mono">WP-пост #{tr.wpPostId}</span>
+                                    <span className="cd-mono">{t('crm.clientAccounts.activity.wpPostLabel', { id: tr.wpPostId })}</span>
                                     <span>·</span>
-                                    <span className="cd-mono">{fmtDate(tr.date)}</span>
+                                    <span className="cd-mono">{fmtDate(tr.date, dateLocale)}</span>
                                     <StatusBadge status={status} label={humanStatus(status, t)} />
                                   </div>
                                 </div>
@@ -1269,7 +1270,7 @@ const ClientAccountsPage: React.FC = () => {
                                     onClick={() => setEditingTransfer(tr)}
                                     className="rounded-[7px] border border-[#e7e7e7] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#555] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
                                   >
-                                    Редактировать
+                                    {t('crm.clientAccounts.edit')}
                                   </button>
                                 </div>
                               </div>
@@ -1285,7 +1286,7 @@ const ClientAccountsPage: React.FC = () => {
                                   <div className="text-[12px] font-medium text-[#222] truncate">{fromLabel} → {toLabel}</div>
                                 </div>
                                 <div className="rounded-[7px] border border-[#f0f0f0] bg-[#fafafa] px-3 py-2">
-                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">Валюта</div>
+                                  <div className="text-[9px] text-[#b5b5b5] uppercase tracking-[0.12em] mb-1">{t('crm.clientAccounts.activity.currencyLabel')}</div>
                                   <div className="cd-mono text-[11px] text-[#222]">{fromCur || '—'} → {toCur || '—'}</div>
                                 </div>
                               </div>
@@ -1357,39 +1358,42 @@ const ModalShell: React.FC<{
   children: React.ReactNode;
   onClose: () => void;
   onSave: () => void;
-}> = ({ title, busy, children, onClose, onSave }) => (
-  <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
-    <div className="w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-2xl">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
-        <h2 className="cd-display text-[15px] font-semibold text-[#222]">{title}</h2>
-        <button
-          onClick={onClose}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f0f0f0] hover:text-[#222] transition-colors text-lg leading-none"
-          aria-label="Закрыть"
-        >
-          ×
-        </button>
-      </div>
-      <div className="p-5">{children}</div>
-      <div className="flex justify-end gap-2 px-5 py-4 border-t border-[#f0f0f0]">
-        <button
-          onClick={onClose}
-          disabled={busy}
-          className="rounded-[8px] border border-[#e7e7e7] px-4 py-2 text-[12px] font-medium text-[#555] hover:bg-[#fafafa] disabled:opacity-50 transition-colors"
-        >
-          Отмена
-        </button>
-        <button
-          onClick={onSave}
-          disabled={busy}
-          className="rounded-[8px] border border-[#222] bg-[#222] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#111] disabled:opacity-50 transition-colors"
-        >
-          {busy ? 'Сохранение...' : 'Сохранить'}
-        </button>
+}> = ({ title, busy, children, onClose, onSave }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
+          <h2 className="cd-display text-[15px] font-semibold text-[#222]">{title}</h2>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f0f0f0] hover:text-[#222] transition-colors text-lg leading-none"
+            aria-label={t('crm.clientAccounts.modal.closeAria')}
+          >
+            ×
+          </button>
+        </div>
+        <div className="p-5">{children}</div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-[#f0f0f0]">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-[8px] border border-[#e7e7e7] px-4 py-2 text-[12px] font-medium text-[#555] hover:bg-[#fafafa] disabled:opacity-50 transition-colors"
+          >
+            {t('crm.clientAccounts.cancel')}
+          </button>
+          <button
+            onClick={onSave}
+            disabled={busy}
+            className="rounded-[8px] border border-[#222] bg-[#222] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#111] disabled:opacity-50 transition-colors"
+          >
+            {busy ? t('crm.clientAccounts.saving') : t('crm.clientAccounts.save')}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ── Form field ────────────────────────────────────────────────────────── */
 const TextField: React.FC<{
@@ -1423,7 +1427,8 @@ const TxnEditModal: React.FC<{
   onClose: () => void;
   onSave: (patch: any) => void;
 }> = ({ row, busy, onClose, onSave }) => {
-  const [title, setTitle] = useState(String((row as any).title || txnTitle(row, (row as any).wpPostId)));
+  const { t } = useTranslation();
+  const [title, setTitle] = useState(String((row as any).title || txnTitle(row, (row as any).wpPostId, t)));
   const [date, setDate] = useState(String((row as any).date || ''));
   const [ccpStatus, setCcpStatus] = useState(String((row as any).ccpStatus || 'Done'));
   const [spendEur, setSpendEur] = useState(String((row as any).spendEur ?? '0'));
@@ -1432,19 +1437,19 @@ const TxnEditModal: React.FC<{
 
   return (
     <ModalShell
-      title={`Редактировать операцию #${(row as any).wpPostId}`}
+      title={t('crm.clientAccounts.modal.editTxnTitle', { id: (row as any).wpPostId })}
       busy={busy}
       onClose={onClose}
       onSave={() => onSave({ title, date, ccpStatus, spendEur, spendUsd, desc })}
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <TextField label="Название" value={title} onChange={setTitle} />
-        <TextField label="Статус" value={ccpStatus} onChange={setCcpStatus} />
-        <TextField label="Дата" value={date} onChange={setDate} />
+        <TextField label={t('crm.clientAccounts.modal.nameLabel')} value={title} onChange={setTitle} />
+        <TextField label={t('crm.clientAccounts.modal.statusLabel')} value={ccpStatus} onChange={setCcpStatus} />
+        <TextField label={t('crm.clientAccounts.modal.dateLabel')} value={date} onChange={setDate} />
         <TextField label="EUR" value={spendEur} onChange={setSpendEur} />
         <TextField label="USD" value={spendUsd} onChange={setSpendUsd} />
         <div className="md:col-span-2">
-          <TextField label="Описание / назначение" value={desc} onChange={setDesc} textarea />
+          <TextField label={t('crm.clientAccounts.modal.descriptionPurposeLabel')} value={desc} onChange={setDesc} textarea />
         </div>
       </div>
     </ModalShell>
@@ -1459,8 +1464,9 @@ const TransferEditModal: React.FC<{
   onClose: () => void;
   onSave: (patch: any) => void;
 }> = ({ row, busy, fallbackWpUserId, onClose, onSave }) => {
+  const { t } = useTranslation();
   const ids = transferParticipantIds(row, fallbackWpUserId);
-  const [title, setTitle] = useState(String((row as any).title || transferTitle(row, (row as any).wpPostId)));
+  const [title, setTitle] = useState(String((row as any).title || transferTitle(row, (row as any).wpPostId, t)));
   const [date, setDate] = useState(String((row as any).date || ''));
   const [ccpStatus, setCcpStatus] = useState(String((row as any).ccpStatus || 'Done'));
   const [fromUserId, setFromUserId] = useState(String(ids.fromId || ''));
@@ -1474,26 +1480,26 @@ const TransferEditModal: React.FC<{
 
   return (
     <ModalShell
-      title={`Редактировать перевод #${(row as any).wpPostId}`}
+      title={t('crm.clientAccounts.modal.editTransferTitle', { id: (row as any).wpPostId })}
       busy={busy}
       onClose={onClose}
       onSave={() => onSave({ title, date, ccpStatus, fromUserId, toUserId, fromCurrency, toCurrency, amount, rate, desc, note })}
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <TextField label="Название" value={title} onChange={setTitle} />
-        <TextField label="Статус" value={ccpStatus} onChange={setCcpStatus} />
-        <TextField label="Дата" value={date} onChange={setDate} />
-        <TextField label="Отправитель WP ID" value={fromUserId} onChange={setFromUserId} />
-        <TextField label="Получатель WP ID" value={toUserId} onChange={setToUserId} />
-        <TextField label="Сумма" value={amount} onChange={setAmount} />
-        <TextField label="Валюта списания" value={fromCurrency} onChange={setFromCurrency} />
-        <TextField label="Валюта зачисления" value={toCurrency} onChange={setToCurrency} />
-        <TextField label="Курс" value={rate} onChange={setRate} />
+        <TextField label={t('crm.clientAccounts.modal.nameLabel')} value={title} onChange={setTitle} />
+        <TextField label={t('crm.clientAccounts.modal.statusLabel')} value={ccpStatus} onChange={setCcpStatus} />
+        <TextField label={t('crm.clientAccounts.modal.dateLabel')} value={date} onChange={setDate} />
+        <TextField label={t('crm.clientAccounts.modal.senderWpIdLabel')} value={fromUserId} onChange={setFromUserId} />
+        <TextField label={t('crm.clientAccounts.modal.recipientWpIdLabel')} value={toUserId} onChange={setToUserId} />
+        <TextField label={t('crm.clientAccounts.amount')} value={amount} onChange={setAmount} />
+        <TextField label={t('crm.clientAccounts.fromCurrency')} value={fromCurrency} onChange={setFromCurrency} />
+        <TextField label={t('crm.clientAccounts.toCurrency')} value={toCurrency} onChange={setToCurrency} />
+        <TextField label={t('crm.clientAccounts.rate')} value={rate} onChange={setRate} />
         <div className="md:col-span-2">
-          <TextField label="Описание" value={desc} onChange={setDesc} textarea />
+          <TextField label={t('crm.clientAccounts.modal.descriptionLabel')} value={desc} onChange={setDesc} textarea />
         </div>
         <div className="md:col-span-2">
-          <TextField label="Примечание / детали" value={note} onChange={setNote} textarea />
+          <TextField label={t('crm.clientAccounts.modal.noteDetailsLabel')} value={note} onChange={setNote} textarea />
         </div>
       </div>
     </ModalShell>

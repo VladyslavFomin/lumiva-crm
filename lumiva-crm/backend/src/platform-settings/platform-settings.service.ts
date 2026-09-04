@@ -29,6 +29,12 @@ export interface BillingPlanContent {
     en?: BillingPlanLocaleContent;
     tr?: BillingPlanLocaleContent;
   };
+  /**
+   * Реальные суммы к списанию за месяц, по одной на каждую валюту провайдера (eur→Stripe,
+   * rub→ЮKassa, try→iyzico). `price` остаётся свободным текстом только для витрины — сумму
+   * чекаута читаем отсюда, а не парсим регэкспом из `price` (см. billing.service.ts).
+   */
+  monthlyAmounts?: { eur?: number; rub?: number; try?: number };
 }
 
 @Injectable()
@@ -59,6 +65,7 @@ export class PlatformSettingsService {
           'Проекты и задачи',
           'Интеграции CF7 / WooCommerce',
         ],
+        monthlyAmounts: { eur: 14 },
       },
       {
         code: 'professional',
@@ -75,6 +82,7 @@ export class PlatformSettingsService {
           'Sales pipeline + KPI аналитика',
           'Расширенные права и процессы команд',
         ],
+        monthlyAmounts: { eur: 23 },
       },
       {
         code: 'enterprise',
@@ -92,6 +100,7 @@ export class PlatformSettingsService {
           'Поддержка 24/7 с SLA',
         ],
         highlighted: true,
+        monthlyAmounts: { eur: 40 },
       },
       {
         code: 'ultimate',
@@ -108,6 +117,7 @@ export class PlatformSettingsService {
           'Миграция и сопровождение релизов',
           'Экспертная поддержка сложных интеграций',
         ],
+        monthlyAmounts: { eur: 52 },
       },
     ];
   }
@@ -128,6 +138,7 @@ export class PlatformSettingsService {
         en: {},
         tr: {},
       },
+      monthlyAmounts: fallback.find((f) => f.code === code)?.monthlyAmounts || {},
     });
     const items = input
       .map((raw) => {
@@ -155,6 +166,18 @@ export class PlatformSettingsService {
           };
           return locale;
         };
+        const monthlyAmountsRaw = (src.monthlyAmounts && typeof src.monthlyAmounts === 'object'
+          ? src.monthlyAmounts
+          : {}) as Record<string, unknown>;
+        const sanitizeAmount = (v: unknown): number | undefined => {
+          const n = Number(v);
+          return Number.isFinite(n) && n > 0 ? n : undefined;
+        };
+        const monthlyAmounts: BillingPlanContent['monthlyAmounts'] = {
+          eur: sanitizeAmount(monthlyAmountsRaw.eur),
+          rub: sanitizeAmount(monthlyAmountsRaw.rub),
+          try: sanitizeAmount(monthlyAmountsRaw.try),
+        };
         return {
           code,
           title: String(src.title || '').trim() || fallback.find((f) => f.code === code)?.title || code,
@@ -167,6 +190,10 @@ export class PlatformSettingsService {
             en: sanitizeLocale('en'),
             tr: sanitizeLocale('tr'),
           },
+          monthlyAmounts:
+            monthlyAmounts.eur || monthlyAmounts.rub || monthlyAmounts.try
+              ? monthlyAmounts
+              : fallback.find((f) => f.code === code)?.monthlyAmounts || {},
         } as BillingPlanContent;
       })
       .filter(Boolean) as BillingPlanContent[];
@@ -318,6 +345,30 @@ export class PlatformSettingsService {
     return out;
   }
 
+  /**
+   * Client id/secret платформенного OAuth-приложения для конкретного каталога (Slack, HubSpot,
+   * Mailchimp, Jira, …) — БД (integration_oauth_apps, редактируется в pl1) приоритетнее env
+   * INTEGRATION_OAUTH_<SUFFIX>_CLIENT_*. Секреты возвращаются только внутри бэкенда (не в DTO наружу).
+   */
+  async getGenericIntegrationOAuthConfig(
+    catalogId: string,
+  ): Promise<{ clientId: string | null; clientSecret: string | null }> {
+    const current = await this.getSettings();
+    const fromDb =
+      current?.integrationOAuthApps && typeof current.integrationOAuthApps === 'object'
+        ? current.integrationOAuthApps
+        : {};
+    const row = fromDb[catalogId] as
+      | { clientId?: string | null; clientSecret?: string | null }
+      | undefined;
+    const envSuffix = CATALOG_ID_TO_ENV_SUFFIX[catalogId] || catalogId.toUpperCase();
+    const envId = process.env[`INTEGRATION_OAUTH_${envSuffix}_CLIENT_ID`]?.trim() || null;
+    const envSecret = process.env[`INTEGRATION_OAUTH_${envSuffix}_CLIENT_SECRET`]?.trim() || null;
+    const clientId = (row?.clientId && String(row.clientId).trim()) || envId;
+    const clientSecret = (row?.clientSecret && String(row.clientSecret).trim()) || envSecret;
+    return { clientId, clientSecret };
+  }
+
   async updateSettings(payload: {
     telegramBotToken?: string | null;
     telegramChatId?: string | null;
@@ -334,6 +385,11 @@ export class PlatformSettingsService {
     stripePriceProfessional?: string | null;
     stripePriceEnterprise?: string | null;
     stripePriceUltimate?: string | null;
+    iyzicoApiKey?: string | null;
+    iyzicoSecretKey?: string | null;
+    iyzicoSandbox?: boolean;
+    yookassaShopId?: string | null;
+    yookassaSecretKey?: string | null;
     billingPlans?: BillingPlanContent[] | null;
     openAiApiKey?: string | null;
     openAiBaseUrl?: string | null;
@@ -370,6 +426,11 @@ export class PlatformSettingsService {
         stripePriceProfessional: payload.stripePriceProfessional ?? null,
         stripePriceEnterprise: payload.stripePriceEnterprise ?? null,
         stripePriceUltimate: payload.stripePriceUltimate ?? null,
+        iyzicoApiKey: payload.iyzicoApiKey ?? null,
+        iyzicoSecretKey: payload.iyzicoSecretKey ?? null,
+        iyzicoSandbox: payload.iyzicoSandbox ?? true,
+        yookassaShopId: payload.yookassaShopId ?? null,
+        yookassaSecretKey: payload.yookassaSecretKey ?? null,
         billingPlans: this.sanitizeBillingPlans(payload.billingPlans),
         openAiApiKey: payload.openAiApiKey ?? null,
         openAiBaseUrl: payload.openAiBaseUrl ?? null,
@@ -431,6 +492,11 @@ export class PlatformSettingsService {
       if (payload.stripePriceUltimate !== undefined) {
         current.stripePriceUltimate = payload.stripePriceUltimate;
       }
+      if (payload.iyzicoApiKey !== undefined) current.iyzicoApiKey = payload.iyzicoApiKey;
+      if (payload.iyzicoSecretKey !== undefined) current.iyzicoSecretKey = payload.iyzicoSecretKey;
+      if (payload.iyzicoSandbox !== undefined) current.iyzicoSandbox = payload.iyzicoSandbox;
+      if (payload.yookassaShopId !== undefined) current.yookassaShopId = payload.yookassaShopId;
+      if (payload.yookassaSecretKey !== undefined) current.yookassaSecretKey = payload.yookassaSecretKey;
       if (payload.billingPlans !== undefined) {
         current.billingPlans = payload.billingPlans ? this.sanitizeBillingPlans(payload.billingPlans) : null;
       }

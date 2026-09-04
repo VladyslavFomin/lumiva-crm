@@ -2,19 +2,20 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import './ProjectsListPage.css';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { AutomationPanel } from '../../components/AutomationPanel';
 import { fetchProject, fetchProjects } from '../../api/projects';
 import type { Project, ProjectTask } from './projectTypes';
 import { useTranslation } from 'react-i18next';
 import { fetchLeadsList } from '../../api/leads';
 import { fetchCompanies } from '../../api/companies';
+import { fetchStaff, type StaffUser } from '../../api/staff';
+import { fetchCustomFields, type CustomField } from '../../api/custom-fields';
+import { assigneeEntryDisplayLabel } from './taskAssignees';
 import { ProjectsViewsBar } from './ProjectsViewsBar';
-import {
-  filterProjectsForCustomView,
-  loadProjectsViewsState,
-  type ProjectsViewSettings,
-} from './projectsViewsStore';
-import { toLocalDateKey } from '../../utils/calendarLocalDates';
+import type { ProjectsViewSettings } from './projectsViewSettings';
+import type { ProjectTable } from '../../api/projectTables';
+import { toLocalDateKey, dayKeysFromStartEndStrings } from '../../utils/calendarLocalDates';
 
 const toDateKey = (value: string | Date) => {
   if (value instanceof Date) {
@@ -24,6 +25,16 @@ const toDateKey = (value: string | Date) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
   return toLocalDateKey(parsed);
+};
+
+const formatDeadlineCell = (item: { deadlineKey: string; endDeadlineKey?: string }, locale: string) => {
+  const fmt = (key: string) => {
+    const d = new Date(`${key}T00:00:00`);
+    return Number.isNaN(d.getTime())
+      ? key
+      : d.toLocaleDateString(locale, { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  return item.endDeadlineKey ? `${fmt(item.deadlineKey)} – ${fmt(item.endDeadlineKey)}` : fmt(item.deadlineKey);
 };
 
 const monthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
@@ -42,13 +53,18 @@ type CalendarItem = {
   companyName: string;
   amount: number;
   currency: string;
-  taskId: string;
-  taskTitle: string;
-  taskStatus: ProjectTask['status'];
-  priority: ProjectTask['priority'];
+  kind: 'task' | 'field';
+  itemId: string;
+  title: string;
+  taskStatus: ProjectTask['status'] | null;
+  priority: ProjectTask['priority'] | null;
   assignees: string[];
   deadlineKey: string;
+  /** Только для kind:'field' с диапазоном дат — последний день диапазона (включительно). */
+  endDeadlineKey?: string;
 };
+
+const DATE_FIELD_TYPES = ['date', 'datetime', 'daterange'];
 
 export const ProjectsCalendarPage: React.FC = () => {
   const { t, i18n } = useTranslation();
@@ -63,32 +79,37 @@ export const ProjectsCalendarPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState('');
   const [companyFilter, setCompanyFilter] = useState('');
   const [projectCompanyMap, setProjectCompanyMap] = useState<Record<string, string>>({});
+  const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [dateCustomFields, setDateCustomFields] = useState<CustomField[]>([]);
   const [activeViewSettings, setActiveViewSettings] = useState<ProjectsViewSettings>({});
   const [automationOpen, setAutomationOpen] = useState(false);
+  const [resolvedTables, setResolvedTables] = useState<ProjectTable[]>([]);
 
-  const activeViewId = searchParams.get('view');
-  const activeCustomView = useMemo(() => {
-    if (!activeViewId) return null;
-    return loadProjectsViewsState().customViews.find((v) => v.id === activeViewId) ?? null;
-  }, [activeViewId]);
-
-  const visibleProjects = useMemo(
-    () => filterProjectsForCustomView(projects, activeCustomView),
-    [projects, activeCustomView],
+  const tableIdParam = searchParams.get('table');
+  const defaultTable = useMemo(
+    () => resolvedTables.find((tbl) => tbl.slug === 'main') || null,
+    [resolvedTables],
   );
+  const activeTableId = tableIdParam || defaultTable?.id || '';
 
-  const openView = (type: 'table' | 'kanban' | 'calendar', viewId?: string) => {
+  // Данные каждой таблицы уже изолированы на бэкенде (?tableId=), клиентской фильтрации не нужно.
+  const visibleProjects = projects;
+
+  const openType = (type: 'table' | 'kanban' | 'calendar') => {
     const basePath =
       type === 'table'
         ? '/projects'
         : type === 'kanban'
           ? '/projects/board'
           : '/projects/calendar';
-    navigate(viewId ? `${basePath}?view=${viewId}` : basePath);
+    navigate(activeTableId ? `${basePath}?table=${activeTableId}` : basePath);
+  };
+  const changeTable = (tableId: string) => {
+    navigate(`/projects/calendar?table=${tableId}`);
   };
 
   const handleCreate = () => {
-    const q = activeViewId ? `?view=${encodeURIComponent(activeViewId)}` : '';
+    const q = activeTableId ? `?table=${encodeURIComponent(activeTableId)}` : '';
     navigate(`/projects/new${q}`);
   };
 
@@ -97,8 +118,19 @@ export const ProjectsCalendarPage: React.FC = () => {
     setLoading(true);
     setError(null);
 
-    Promise.all([fetchProjects(), fetchLeadsList(), fetchCompanies({ limit: 500 })])
-      .then(async ([res, leads, companies]) => {
+    Promise.all([
+      fetchProjects({ tableId: tableIdParam ?? undefined }),
+      fetchLeadsList(),
+      fetchCompanies({ limit: 500 }),
+      fetchStaff(),
+      fetchCustomFields('project').catch(() => []),
+    ])
+      .then(async ([res, leads, companies, staffList, customFields]) => {
+        if (!alive) return;
+        setStaff(staffList);
+        setDateCustomFields(
+          customFields.filter((f) => f.isActive && DATE_FIELD_TYPES.includes(f.type)),
+        );
         if (!alive) return;
         const activeLeads = leads.filter((lead) => !Boolean(lead.meta?.deleted));
         const leadToCompanyId: Record<string, string> = {};
@@ -137,7 +169,7 @@ export const ProjectsCalendarPage: React.FC = () => {
     return () => {
       alive = false;
     };
-  }, [t]);
+  }, [t, tableIdParam]);
 
   const locale = i18n.language.startsWith('tr')
     ? 'tr-TR'
@@ -161,26 +193,62 @@ export const ProjectsCalendarPage: React.FC = () => {
   const calendarItems = useMemo<CalendarItem[]>(() => {
     const out: CalendarItem[] = [];
     visibleProjects.forEach((project) => {
+      const companyName = projectCompanyMap[project.id] || t('crm.projects.calendar.noCompany');
+      const amount = Number(project.amount) || 0;
+      const currency = project.currency || 'EUR';
+      const ownerAssignees = project.ownerUserIds?.length
+        ? project.ownerUserIds
+        : project.ownerUserId
+          ? [project.ownerUserId]
+          : project.owner
+            ? project.owner.split(/[,;/]+/).map((name) => name.trim()).filter(Boolean)
+            : [];
       (project.tasks || []).forEach((task) => {
         const deadlineKey = toDateKey(task.deadline || '');
         if (!deadlineKey) return;
         out.push({
           projectId: project.id,
           projectName: project.name,
-          companyName: projectCompanyMap[project.id] || t('crm.projects.calendar.noCompany'),
-          amount: Number(project.amount) || 0,
-          currency: project.currency || 'EUR',
-          taskId: task.id,
-          taskTitle: task.title,
+          companyName,
+          amount,
+          currency,
+          kind: 'task',
+          itemId: task.id,
+          title: task.title,
           taskStatus: task.status,
           priority: task.priority,
           assignees: task.assignees || [],
           deadlineKey,
         });
       });
+      dateCustomFields.forEach((field) => {
+        const raw = project.customFields?.[field.key];
+        if (!raw) return;
+        const startValue = field.type === 'daterange' ? raw?.start : raw;
+        if (!startValue) return;
+        const deadlineKey = toDateKey(startValue);
+        if (!deadlineKey) return;
+        const endValue = field.type === 'daterange' ? raw?.end : null;
+        const endDeadlineKey = endValue ? toDateKey(endValue) : undefined;
+        out.push({
+          projectId: project.id,
+          projectName: project.name,
+          companyName,
+          amount,
+          currency,
+          kind: 'field',
+          itemId: `field:${field.id}`,
+          title: field.label,
+          taskStatus: null,
+          priority: null,
+          assignees: ownerAssignees,
+          deadlineKey,
+          endDeadlineKey: endDeadlineKey && endDeadlineKey > deadlineKey ? endDeadlineKey : undefined,
+        });
+      });
     });
     return out;
-  }, [visibleProjects, projectCompanyMap, t]);
+  }, [visibleProjects, projectCompanyMap, dateCustomFields, t]);
 
   const allAssignees = useMemo(() => {
     const set = new Set<string>();
@@ -190,7 +258,9 @@ export const ProjectsCalendarPage: React.FC = () => {
 
   const allStatuses = useMemo(() => {
     const set = new Set<string>();
-    calendarItems.forEach((item) => set.add(item.taskStatus));
+    calendarItems.forEach((item) => {
+      if (item.taskStatus) set.add(item.taskStatus);
+    });
     return Array.from(set);
   }, [calendarItems]);
 
@@ -214,7 +284,8 @@ export const ProjectsCalendarPage: React.FC = () => {
       if (assigneeFilter && !item.assignees.includes(assigneeFilter)) return false;
       if (statusFilter && item.taskStatus !== statusFilter) return false;
       if (companyFilter && item.companyName !== companyFilter) return false;
-      if (item.deadlineKey < rangeStartKey || item.deadlineKey > rangeEndKey) return false;
+      const effectiveEnd = item.endDeadlineKey || item.deadlineKey;
+      if (effectiveEnd < rangeStartKey || item.deadlineKey > rangeEndKey) return false;
       return true;
     });
   }, [
@@ -258,9 +329,14 @@ export const ProjectsCalendarPage: React.FC = () => {
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarItem[]>();
     filteredItems.forEach((item) => {
-      const list = map.get(item.deadlineKey) || [];
-      list.push(item);
-      map.set(item.deadlineKey, list);
+      const keys = item.endDeadlineKey
+        ? dayKeysFromStartEndStrings(item.deadlineKey, item.endDeadlineKey).slice(0, 366)
+        : [item.deadlineKey];
+      keys.forEach((key) => {
+        const list = map.get(key) || [];
+        list.push(item);
+        map.set(key, list);
+      });
     });
     return map;
   }, [filteredItems]);
@@ -268,13 +344,14 @@ export const ProjectsCalendarPage: React.FC = () => {
   const upcoming = useMemo(() => {
     const todayKey = toDateKey(new Date());
     return [...filteredItems]
-      .filter((item) => item.deadlineKey >= todayKey)
+      .filter((item) => (item.endDeadlineKey || item.deadlineKey) >= todayKey)
       .sort((a, b) => a.deadlineKey.localeCompare(b.deadlineKey))
       .slice(0, 12);
   }, [filteredItems]);
 
   return (
     <MainLayout>
+      <PageHelpButton topic="projects" />
       <div
         className="lv-pt w-full pb-8 min-w-0 space-y-5"
         style={{ marginLeft: -24, marginRight: -24, paddingLeft: 24, paddingRight: 24, width: 'calc(100% + 48px)' }}
@@ -307,9 +384,11 @@ export const ProjectsCalendarPage: React.FC = () => {
 
         <ProjectsViewsBar
           currentType="calendar"
-          activeViewId={activeViewId}
-          onOpenView={openView}
+          activeTableId={activeTableId}
+          onOpenType={openType}
+          onTableChange={changeTable}
           onSettingsChange={setActiveViewSettings}
+          onTablesChange={setResolvedTables}
           projectCount={visibleProjects.length}
         />
 
@@ -347,9 +426,9 @@ export const ProjectsCalendarPage: React.FC = () => {
               className="px-3 py-2 text-xs rounded-xl border border-slate-300 bg-white text-slate-700"
             >
               <option value="">{t('crm.projects.calendar.filters.allAssignees')}</option>
-              {allAssignees.map((name) => (
-                <option key={name} value={name}>
-                  {name}
+              {allAssignees.map((id) => (
+                <option key={id} value={id}>
+                  {assigneeEntryDisplayLabel(staff, id)}
                 </option>
               ))}
             </select>
@@ -458,13 +537,13 @@ export const ProjectsCalendarPage: React.FC = () => {
                       <div className="space-y-1">
                         {tasks.slice(0, 3).map((item) => (
                           <button
-                            key={item.taskId}
+                            key={`${item.kind}-${item.itemId}`}
                             type="button"
                             onClick={() => navigate(`/projects/${item.projectId}`)}
                             className="w-full text-left rounded-lg border border-slate-200 bg-slate-50 px-2 py-1 hover:bg-slate-100"
                           >
                             <div className="text-[10px] font-semibold text-slate-800 truncate">{item.projectName}</div>
-                            <div className="text-[10px] text-slate-600 truncate">{item.taskTitle}</div>
+                            <div className="text-[10px] text-slate-600 truncate">{item.title}</div>
                           </button>
                         ))}
                         {tasks.length > 3 && (
@@ -499,8 +578,10 @@ export const ProjectsCalendarPage: React.FC = () => {
               </thead>
               <tbody>
                 {upcoming.map((item) => (
-                  <tr key={`${item.projectId}-${item.taskId}`} className="border-t border-slate-200">
-                    <td className="px-2 py-1.5 text-slate-700">{item.deadlineKey}</td>
+                  <tr key={`${item.projectId}-${item.kind}-${item.itemId}`} className="border-t border-slate-200">
+                    <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">
+                      {formatDeadlineCell(item, locale)}
+                    </td>
                     <td className="px-2 py-1.5">
                       <button
                         type="button"
@@ -510,13 +591,15 @@ export const ProjectsCalendarPage: React.FC = () => {
                         {item.projectName}
                       </button>
                     </td>
-                    <td className="px-2 py-1.5 text-slate-700">{item.taskTitle}</td>
+                    <td className="px-2 py-1.5 text-slate-700">{item.title}</td>
                     <td className="px-2 py-1.5 text-slate-600">
                       {item.companyName || t('crm.projects.calendar.noCompany')}
                     </td>
                     <td className="px-2 py-1.5 text-slate-600">
                       {item.assignees.length
-                        ? item.assignees.join(', ')
+                        ? item.assignees
+                            .map((id) => assigneeEntryDisplayLabel(staff, id))
+                            .join(', ')
                         : t('crm.projects.common.emptyValue')}
                     </td>
                     <td className="px-2 py-1.5 text-slate-700">

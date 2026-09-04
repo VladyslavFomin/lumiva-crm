@@ -19,9 +19,14 @@ export class EsignTemplate {
   @Column({ type: 'varchar', length: 64, default: 'Договор' })
   kind: string;
 
-  /** Unrendered body — may contain {{contact.name}} / {{tenant.name}} / {{date}} placeholders. */
+  /** Unrendered body — contains {KEY} placeholders (see esign-keys.ts), e.g. {NAME}, {AMOUNT}. */
   @Column({ type: 'text' })
   bodyTemplate: string;
+
+  /** File name pattern used when exporting a document issued from this template — {KEY}
+   * tokens are substituted the same way as the body. E.g. "{KIND}-{NAME}-{CONTRACT_DATE}". */
+  @Column({ type: 'varchar', length: 255, default: '{KIND}-{NAME}-{CONTRACT_DATE}' })
+  fileNamePattern: string;
 
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

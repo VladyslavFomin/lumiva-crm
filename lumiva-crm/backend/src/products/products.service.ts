@@ -806,6 +806,24 @@ export class ProductsService {
     if (rows.length) await this.changeLogs.save(rows);
   }
 
+  /** Нет тенант-настройки валюты по умолчанию — раньше новый товар без явной currency молча
+   * получал 'EUR', даже если у тенанта все остальные товары в другой валюте (напр. TRY).
+   * Берём фактическую валюту большинства уже существующих товаров; 'EUR' — только если
+   * товаров ещё нет вообще (первый товар тенанта). */
+  async resolveDefaultCurrency(tenantId: string): Promise<string> {
+    const row = await this.products
+      .createQueryBuilder('p')
+      .select('p.currency', 'currency')
+      .addSelect('COUNT(*)', 'cnt')
+      .where('p.tenantId = :tenantId', { tenantId })
+      .andWhere('p.isDeleted = false')
+      .groupBy('p.currency')
+      .orderBy('cnt', 'DESC')
+      .limit(1)
+      .getRawOne<{ currency: string; cnt: string }>();
+    return row?.currency || 'EUR';
+  }
+
   async createProduct(
     tenantId: string,
     dto: {
@@ -852,6 +870,9 @@ export class ProductsService {
     await this.assertUniqueBarcode(tenantId, barcode);
     const slug = await this.uniqueProductSlug(tenantId, dto.slug || name);
     const customFields = await this.normalizeCustomFieldValues(tenantId, dto.customFields);
+    const currency = dto.currency
+      ? this.cleanString(dto.currency, 'EUR', 3).toUpperCase()
+      : await this.resolveDefaultCurrency(tenantId);
     const product = this.products.create({
       tenantId,
       name,
@@ -861,7 +882,7 @@ export class ProductsService {
       status: (PRODUCT_STATUSES.includes(dto.status as ProductStatus) ? dto.status : 'active') as ProductStatus,
       price: String(Number(dto.price) || 0),
       costPrice: dto.costPrice != null ? String(Number(dto.costPrice)) : null,
-      currency: this.cleanString(dto.currency, 'EUR', 3).toUpperCase(),
+      currency,
       unit: dto.unit ? this.cleanString(dto.unit, '', 32) : null,
       lowStockThreshold: dto.lowStockThreshold != null ? Number(dto.lowStockThreshold) : null,
       images: Array.isArray(dto.images) ? dto.images : [],
@@ -948,13 +969,13 @@ export class ProductsService {
     const product = await this.products.findOne({ where: { tenantId, id, isDeleted: false } });
     if (!product) throw new NotFoundException('Товар не найден');
 
-    const before = {
-      price: product.price,
-      costPrice: product.costPrice,
-      status: product.status,
-      sku: product.sku,
-      barcode: product.barcode,
-    };
+    // Раньше в историю попадали только эти 5 полей — остальные (включая customFields и все
+    // jsonb/массивы) можно было менять без единого следа в "Истории изменений", хотя раздел
+    // претендует показывать её целиком. Снэпшотим ВСЕ поля, реально пришедшие в патче, а не
+    // фиксированный список — тогда список отслеживаемых полей не расходится с DTO сам по себе.
+    const trackedFields = Object.keys(dto) as Array<keyof typeof dto>;
+    const before: Record<string, unknown> = {};
+    for (const f of trackedFields) before[f as string] = (product as any)[f];
 
     if (dto.name !== undefined) product.name = this.cleanString(dto.name, product.name, 255);
     if (dto.sku !== undefined) {
@@ -1033,13 +1054,30 @@ export class ProductsService {
 
     const saved = await this.products.save(product);
 
-    await this.writeChangeLog(tenantId, id, userId, [
-      { field: 'price', oldValue: before.price, newValue: saved.price },
-      { field: 'costPrice', oldValue: before.costPrice, newValue: saved.costPrice },
-      { field: 'status', oldValue: before.status, newValue: saved.status },
-      { field: 'sku', oldValue: before.sku, newValue: saved.sku },
-      { field: 'barcode', oldValue: before.barcode, newValue: saved.barcode },
-    ]);
+    // JSON.stringify-сравнение (не writeChangeLog'а собственный String()-фильтр — тот считает
+    // любые два объекта/массива равными, потому что оба стрингуются в "[object Object]").
+    // Для сложных значений (jsonb/массивы) в лог идёт "(изменено)" — не красивый point-in-time
+    // диф, но само изменение больше не тонет молча, как раньше.
+    const changeRows = trackedFields
+      .map((f) => {
+        const field = f as string;
+        const oldValue = before[field];
+        const newValue = (saved as any)[field];
+        const oldJson = JSON.stringify(oldValue);
+        const newJson = JSON.stringify(newValue);
+        if (oldJson === newJson) return null;
+        const isPlain = (v: unknown) => v == null || typeof v !== 'object';
+        // Компактный превью, а не "(изменено)" для обеих сторон — иначе writeChangeLog's
+        // собственный String()-фильтр счёл бы одинаковую метку "без изменений" и выбросил
+        // запись, которую мы только что определили как реально изменившуюся.
+        return {
+          field,
+          oldValue: isPlain(oldValue) ? (oldValue as string | number | boolean | null) : (oldJson || '').slice(0, 200),
+          newValue: isPlain(newValue) ? (newValue as string | number | boolean | null) : (newJson || '').slice(0, 200),
+        };
+      })
+      .filter((c): c is NonNullable<typeof c> => c !== null);
+    await this.writeChangeLog(tenantId, id, userId, changeRows);
 
     if (before.price !== saved.price || before.costPrice !== saved.costPrice) {
       try {
@@ -1246,11 +1284,15 @@ export class ProductsService {
   /* ------------------------------------------------------------------ variants */
 
   private async recalcProductQuantity(tenantId: string, productId: string) {
-    const activeVariants = await this.variants.find({
-      where: { tenantId, productId, isActive: true },
-    });
-    const total = activeVariants.reduce((sum, v) => sum + (v.quantity || 0), 0);
-    await this.products.update({ tenantId, id: productId }, { quantity: total });
+    // Атомарный пересчёт подзапросом — см. комментарий в recordStockMovement про ту же
+    // гонку на read-then-write денормализованной суммы.
+    await this.products.query(
+      `UPDATE products SET quantity = COALESCE(
+         (SELECT SUM(quantity) FROM product_variants
+          WHERE "tenantId" = $1 AND "productId" = $2 AND "isActive" = true), 0)
+       WHERE "tenantId" = $1 AND id = $2`,
+      [tenantId, productId],
+    );
   }
 
   async listVariants(tenantId: string, productId: string) {
@@ -1441,38 +1483,82 @@ export class ProductsService {
       : await this.getOrCreateDefaultLocation(tenantId);
     if (!location) throw new NotFoundException('Склад не найден');
 
-    const rows = await this.locationStock.find({
-      where: {
-        tenantId,
-        productId: input.productId,
-        variantId: input.variantId === null ? IsNull() : input.variantId,
-      },
+    // Раньше это было read-then-write без блокировки строки/транзакции: два одновременных
+    // изменения остатка (например, вебхук витрины сработал дважды) читали один и тот же
+    // стартовый остаток и применяли дельту поверх друг друга — одно из двух списаний
+    // терялось. Атомарный `UPDATE ... SET quantity = quantity + delta RETURNING quantity`
+    // не может потерять конкурентное изменение (Postgres сериализует UPDATE-ы одной строки).
+    const variantCond = input.variantId === null ? IsNull() : input.variantId;
+    const existing = await this.locationStock.findOne({
+      where: { tenantId, productId: input.productId, variantId: variantCond, locationId: location.id },
     });
-    const previousTotal = rows.reduce((sum, r) => sum + (r.quantity || 0), 0);
-    let row = rows.find((r) => r.locationId === location.id) || null;
-    const previousAtLocation = row?.quantity || 0;
-    const resultingAtLocation = Math.max(0, previousAtLocation + input.quantityDelta);
-    if (row) {
-      row.quantity = resultingAtLocation;
-      await this.locationStock.save(row);
+    let row: ProductLocationStock;
+    if (existing) {
+      const result = await this.locationStock
+        .createQueryBuilder()
+        .update(ProductLocationStock)
+        .set({ quantity: () => `GREATEST(0, quantity + ${Number(input.quantityDelta)})` })
+        .where('id = :id', { id: existing.id })
+        .returning('*')
+        .execute();
+      row = result.raw[0];
     } else {
-      row = await this.locationStock.save(
-        this.locationStock.create({
-          tenantId,
-          productId: input.productId,
-          variantId: input.variantId,
-          locationId: location.id,
-          quantity: resultingAtLocation,
-        }),
-      );
+      try {
+        row = await this.locationStock.save(
+          this.locationStock.create({
+            tenantId,
+            productId: input.productId,
+            variantId: input.variantId,
+            locationId: location.id,
+            quantity: Math.max(0, input.quantityDelta),
+          }),
+        );
+      } catch (e) {
+        // Проиграли гонку первой вставки этой строки — кто-то другой успел первым между
+        // нашим find и save; строка уже существует, применяем дельту атомарным UPDATE.
+        if ((e as { code?: string }).code !== '23505') throw e;
+        const raced = await this.locationStock.findOneOrFail({
+          where: { tenantId, productId: input.productId, variantId: variantCond, locationId: location.id },
+        });
+        const result = await this.locationStock
+          .createQueryBuilder()
+          .update(ProductLocationStock)
+          .set({ quantity: () => `GREATEST(0, quantity + ${Number(input.quantityDelta)})` })
+          .where('id = :id', { id: raced.id })
+          .returning('*')
+          .execute();
+        row = result.raw[0];
+      }
     }
-    const resultingTotal = previousTotal - previousAtLocation + resultingAtLocation;
+    const resultingAtLocation = row.quantity;
+    const previousAtLocation = existing?.quantity || 0;
+    const otherLocationsRows = await this.locationStock.find({
+      where: { tenantId, productId: input.productId, variantId: variantCond },
+    });
+    const resultingTotal = otherLocationsRows.reduce(
+      (sum, r) => sum + (r.locationId === location.id ? resultingAtLocation : r.quantity || 0),
+      0,
+    );
+    const previousTotal = resultingTotal - resultingAtLocation + previousAtLocation;
 
+    // Ниже — та же гонка, что была у product_location_stock, только на денормализованной
+    // сумме Product/ProductVariant.quantity: писать туда посчитанный в JS `resultingTotal`
+    // напрямую (`save(product)`/`update(...,{quantity})`) при конкурентных вызовах теряет
+    // обновления так же — побеждает не "правильный", а "кто последний записал". Пересчитываем
+    // сумму подзапросом ВНУТРИ самого UPDATE (тот же приём, что и для location_stock выше) —
+    // при каждой записи строка блокируется и сумма считается заново из уже закоммиченных
+    // строк-источников, так что параллельные вызовы не затирают друг друга.
     let productForNotify: Product | null = null;
     if (input.variantId) {
       const variant = await this.variants.findOne({ where: { tenantId, id: input.variantId } });
       if (!variant) throw new NotFoundException('Вариант не найден');
-      await this.variants.update({ tenantId, id: input.variantId }, { quantity: resultingTotal });
+      await this.variants.query(
+        `UPDATE product_variants SET quantity = COALESCE(
+           (SELECT SUM(quantity) FROM product_location_stock
+            WHERE "tenantId" = $1 AND "productId" = $2 AND "variantId" = $3), 0)
+         WHERE "tenantId" = $1 AND id = $3`,
+        [tenantId, input.productId, input.variantId],
+      );
       await this.recalcProductQuantity(tenantId, input.productId);
       productForNotify = await this.products.findOne({ where: { tenantId, id: input.productId } });
     } else {
@@ -1481,9 +1567,14 @@ export class ProductsService {
       if (product.isVariable) {
         throw new BadRequestException('У вариативного товара остаток редактируется на уровне варианта');
       }
-      product.quantity = resultingTotal;
-      await this.products.save(product);
-      productForNotify = product;
+      await this.products.query(
+        `UPDATE products SET quantity = COALESCE(
+           (SELECT SUM(quantity) FROM product_location_stock
+            WHERE "tenantId" = $1 AND "productId" = $2 AND "variantId" IS NULL), 0)
+         WHERE "tenantId" = $1 AND id = $2`,
+        [tenantId, input.productId],
+      );
+      productForNotify = await this.products.findOne({ where: { tenantId, id: input.productId } });
     }
     if (productForNotify && input.quantityDelta < 0) {
       this.notifyLowStock(tenantId, productForNotify, previousTotal, resultingTotal).catch(() => {});

@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
+import { Inject, Injectable, Logger, forwardRef, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike } from 'typeorm';
@@ -9,6 +9,7 @@ import { Sale } from '../sales/sale.entity';
 import { Project } from '../projects/project.entity';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
 import { MarketingService } from '../marketing/marketing.service';
+import { resolveMarketQuery } from '../marketing/marketing-market-catalog';
 import { LeadsService } from '../leads/leads.service';
 import { NotesService } from '../notes/notes.service';
 import { ProjectsService } from '../projects/projects.service';
@@ -19,6 +20,11 @@ import { AiQuotaService } from './ai-quota.service';
 import { CustomObjectsService } from '../custom-objects/custom-objects.service';
 import type { CreateCustomObjectDto } from '../custom-objects/dto/create-custom-object.dto';
 import type { CustomObjectFieldType } from '../custom-objects/custom-object-field.entity';
+import { CustomFieldsService } from '../custom-fields/custom-fields.service';
+import {
+  EntityType as CustomFieldEntityType,
+  FieldType as CustomFieldType,
+} from '../custom-fields/custom-field.entity';
 import { SalesImportService } from '../sales/sales-import.service';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { AiOpenAiService } from './ai-openai.service';
@@ -60,12 +66,21 @@ import { ProductsService } from '../products/products.service';
 import { BookingsCatalogService } from '../bookings/bookings-catalog.service';
 import { BookingsStaffService } from '../bookings/bookings-staff.service';
 import { BookingsAvailabilityService } from '../bookings/bookings-availability.service';
+import { BookingsAnalyticsService } from '../bookings/bookings-analytics.service';
 import { ReservationsService } from '../bookings/reservations.service';
 import { HotelsService } from '../hotels/hotels.service';
 import { HotelRoomTypesService } from '../hotels/hotel-room-types.service';
 import { HotelsPricingService } from '../hotels/hotels-pricing.service';
+import { HotelAnalyticsService } from '../hotels/hotel-analytics.service';
+import { HotelRoomUnitsService } from '../hotels/hotel-room-units.service';
 import { HotelReservationsService } from '../hotels/hotel-reservations.service';
 import type { HotelReservationInput } from '../hotels/hotel-reservations.service';
+import { RbacService } from '../rbac/rbac.service';
+import type { PermissionKey } from '../rbac/permission.types';
+import { ProjectStatusesService } from '../projects/project-statuses.service';
+import { ProjectTableMembersService } from '../project-tables/project-table-members.service';
+import { ProjectTablesService } from '../project-tables/project-tables.service';
+import type { ProjectTableRole } from '../project-tables/project-table-role';
 
 const WORKSPACE_EXTRA_VIEWS = ['kanban', 'calendar', 'analytics'] as const;
 
@@ -119,11 +134,11 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'crm_search_companies',
-      description: 'Поиск компаний по названию.',
+      description: 'Поиск компаний по названию, юр.названию, email или сайту.',
       parameters: {
         type: 'object',
         properties: {
-          query: { type: 'string', description: 'Подстрока названия' },
+          query: { type: 'string', description: 'Подстрока названия / юр.названия / email / сайта' },
           limit: { type: 'integer', default: 10 },
         },
         required: ['query'],
@@ -153,6 +168,7 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
         'Агрегированная аналитика маркетинга (трафик/каналы): сессии, лиды, расход, выручка. ' +
         'Передавай from/to (YYYY-MM-DD) для нужного интервала. ' +
         'Опционально dataSource — ключ конкретного источника (например google_ads_5094620264) для разбивки по одному каналу/аккаунту; список источников с именами возвращается в dataSources+dataSourceLabels. ' +
+        'Опционально market — ISO2 код рынка/страны (GB, TR, RU, DE…) или название на RU/EN/TR — для сегментации именно по этой стране; см. описание параметра. ' +
         'displayCurrency (ISO 4217): revenue/cost пересчитываются в эту валюту. ' +
         'Чтобы узнать доступные источники и имена аккаунтов — используй crm_marketing_integrations. ' +
         'Чтобы записать каналы в таблицу рабочей области — crm_workspace_import_marketing_channels.',
@@ -166,6 +182,11 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
             description:
               'Опционально: ключ источника данных (google_ads_<cid>, ga4_<id>, yandex_metrika, meta_ads и т.д.). Если не задан — агрегат по всем источникам.',
           },
+          market: {
+            type: 'string',
+            description:
+              'Опционально: страна/рынок для фильтрации (например "GB", "Великобритания", "UK"). ВАЖНО: у большинства рекламных источников (кроме GA4) нет отдельного поля страны — рынок определяется по тегу в начале названия кампании или по названию страны в тексте. Если инструмент вернул ok:false/unknownMarket или matchedRows:0, НЕ показывай пользователю общие данные под видом отчёта по этой стране — сначала вызови crm_marketing_markets, чтобы увидеть реальный список рынков, и сверься с пользователем.',
+          },
           displayCurrency: {
             type: 'string',
             description:
@@ -178,11 +199,11 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
   {
     type: 'function',
     function: {
-      name: 'crm_marketing_daily_series',
+      name: 'crm_marketing_markets',
       description:
-        'Дневной ряд метрик маркетинга для построения тренда: за каждый день возвращает sessions, clicks, impressions, cost, leads. ' +
-        'Используй, когда пользователь спрашивает о динамике / тренде по времени или хочет сравнить периоды. ' +
-        'Опционально dataSource — фильтр по конкретному каналу (google_ads_<cid>, ga4_<id> и т.д.).',
+        'Реальный список рынков/стран, присутствующих в рекламных данных за период (не догадка, а факт из БД): для каждого рынка — расход, сессии, клики, кол-во кампаний. ' +
+        'ВСЕГДА вызывай этот инструмент ПЕРЕД тем, как отвечать на вопрос про рекламу/расход по конкретной стране или сравнивать страны между собой — иначе есть риск незаметно показать данные по всем странам под видом одной. ' +
+        'В ответе есть unclassified — кампании, для которых рынок определить не удалось (их бюджет НЕ входит ни в один market); если он большой относительно totalCost — предупреди пользователя, что часть расходов не сегментирована, а не умалчивай об этом.',
       parameters: {
         type: 'object',
         properties: {
@@ -191,6 +212,32 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           dataSource: {
             type: 'string',
             description: 'Опционально: ключ источника (google_ads_<cid>, meta_ads и т.д.).',
+          },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'crm_marketing_daily_series',
+      description:
+        'Дневной ряд метрик маркетинга для построения тренда: за каждый день возвращает sessions, clicks, impressions, cost, leads. ' +
+        'Используй, когда пользователь спрашивает о динамике / тренде по времени или хочет сравнить периоды. ' +
+        'Опционально dataSource — фильтр по конкретному каналу (google_ads_<cid>, ga4_<id> и т.д.). ' +
+        'Опционально market — см. описание в crm_marketing_overview; так же требует проверки через crm_marketing_markets при неуверенности.',
+      parameters: {
+        type: 'object',
+        properties: {
+          from: { type: 'string', description: 'YYYY-MM-DD' },
+          to: { type: 'string', description: 'YYYY-MM-DD' },
+          dataSource: {
+            type: 'string',
+            description: 'Опционально: ключ источника (google_ads_<cid>, meta_ads и т.д.).',
+          },
+          market: {
+            type: 'string',
+            description: 'Опционально: ISO2 код рынка/страны или название на RU/EN/TR.',
           },
         },
       },
@@ -222,10 +269,16 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_list_projects',
       description:
-        'Последние проекты в модуле «Проекты» (сделки с суммой/статусом). Это не рабочая область (/workspace).',
+        'Проекты в модуле «Проекты» (сделки с суммой/статусом) с фильтрами. Это не рабочая область (/workspace).',
       parameters: {
         type: 'object',
         properties: {
+          status: { type: 'string', description: 'Фильтр по статусу проекта (точное значение — узнай реальные статусы через crm_change_project_status при неуверенности)' },
+          leadId: { type: 'string', description: 'Фильтр по связанному лиду (UUID)' },
+          companyId: { type: 'string', description: 'Фильтр по связанной компании (UUID)' },
+          contactId: { type: 'string', description: 'Фильтр по связанному контакту (UUID)' },
+          q: { type: 'string', description: 'Поиск по названию проекта (ILIKE)' },
+          page: { type: 'integer', default: 1 },
           limit: { type: 'integer', default: 15 },
         },
       },
@@ -275,7 +328,8 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_create_project',
       description:
-        'Создать проект в модуле «Проекты». Не создаёт таблицу в рабочей области (/workspace) — для того есть crm_workspace_create_table.',
+        'Создать проект в модуле «Проекты». Не создаёт таблицу в рабочей области (/workspace) — для того есть crm_workspace_create_table. ' +
+        'Чтобы сразу заполнить кастомные колонки (Ссылка/Почта/Телефон и т.д.) — передай customFields: { <key>: <значение> }; ключи и типы узнай через crm_project_list_columns заранее (при необходимости создай недостающие через crm_project_create_column до вызова этого инструмента).',
       parameters: {
         type: 'object',
         properties: {
@@ -284,6 +338,12 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           amount: { type: 'number' },
           currency: { type: 'string' },
           status: { type: 'string' },
+          leadId: { type: 'string' },
+          companyId: { type: 'string' },
+          customFields: {
+            type: 'object',
+            description: 'Значения кастомных колонок проекта — { <key>: <значение> }.',
+          },
         },
         required: ['name'],
       },
@@ -415,11 +475,16 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     type: 'function',
     function: {
       name: 'crm_workspace_list_records',
-      description: 'Последние записи таблицы рабочей области.',
+      description:
+        'Записи таблицы рабочей области с поиском/страницами. Лимит 50 за раз — если total больше, используй search чтобы сузить, или увеличивай page; в ответе moreRecordsAvailable покажет, что это не все записи.',
       parameters: {
         type: 'object',
         properties: {
           objectId: { type: 'string' },
+          search: { type: 'string', description: 'Полнотекстовый поиск по значениям полей записи' },
+          sortBy: { type: 'string', description: 'Ключ поля для сортировки (опционально)' },
+          sortOrder: { type: 'string', enum: ['ASC', 'DESC'] },
+          page: { type: 'integer', default: 1 },
           limit: { type: 'integer', description: '1–50', default: 20 },
         },
         required: ['objectId'],
@@ -446,7 +511,8 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
     function: {
       name: 'crm_workspace_import_marketing_channels',
       description:
-        'Выгрузить в рабочую область строки по рекламе/маркетингу из CRM (агрегаты по каналам: source, medium, campaign, сессии, клики, лиды, выручка, расход и т.д.). Один вызов: создаёт таблицу с колонками и заполняет данными из marketing_traffic; таблица привязывается к области тенанта. Используй, когда пользователь просит перенести рекламу/каналы/метрику в рабочую область.',
+        'Выгрузить в рабочую область строки по рекламе/маркетингу из CRM (агрегаты по каналам: source, medium, campaign, сессии, клики, лиды, выручка, расход и т.д.). Один вызов: создаёт таблицу с колонками и заполняет данными из marketing_traffic; таблица привязывается к области тенанта. Используй, когда пользователь просит перенести рекламу/каналы/метрику в рабочую область. ' +
+        'Если пользователь просит таблицу ПО КОНКРЕТНОЙ СТРАНЕ/РЫНКУ — ОБЯЗАТЕЛЬНО передай market (иначе таблица будет содержать данные по ВСЕМ странам, но с названием одной — это вводит в заблуждение); при неуверенности сперва проверь crm_marketing_markets.',
       parameters: {
         type: 'object',
         properties: {
@@ -454,6 +520,15 @@ export const AI_TOOL_DEFINITIONS: unknown[] = [
           description: { type: 'string', description: 'Описание таблицы (опционально)' },
           from: { type: 'string', description: 'YYYY-MM-DD начало периода' },
           to: { type: 'string', description: 'YYYY-MM-DD конец периода' },
+          dataSource: {
+            type: 'string',
+            description: 'Опционально: ключ источника (google_ads_<cid>, meta_ads и т.д.).',
+          },
+          market: {
+            type: 'string',
+            description:
+              'Опционально: ISO2 код рынка/страны или название на RU/EN/TR — например "GB"/"Великобритания". Если рынок не распознан или после фильтра 0 строк, инструмент вернёт ошибку вместо пустой/неверной таблицы.',
+          },
           maxRows: {
             type: 'integer',
             description: 'Макс. строк каналов (1–300), по умолчанию 120',
@@ -684,6 +759,14 @@ type ToolCtx = {
    * — если задано LUMIVA_AI_LEADS_TENANT_WIDE=true|1 — все лиды тенанта для любой роли (осторожно на shared-аккаунтах).
    */
   userRole?: string;
+  /**
+   * id строки staff_users (не users.id) для звонящего сотрудника — нужен, чтобы AI-инструменты
+   * уважали персональные исключения (staff_user_permissions), а не только роль. См.
+   * checkPermission() и CurrentUserPayload.staffUserId. Отсутствует для запросов не от живого
+   * залогиненного сотрудника (напр. автономные AI-агенты) — в этом случае персональные
+   * исключения просто не проверяются, остаётся только роль.
+   */
+  staffUserId?: string | null;
   /** Telegram-контекст: заполняется когда запрос пришёл через Telegram-бот */
   telegramUsername?: string;
   telegramChatId?: string;
@@ -738,12 +821,86 @@ export class AiToolsService {
     private readonly bookingsCatalog: BookingsCatalogService,
     private readonly bookingsStaff: BookingsStaffService,
     private readonly bookingsAvailability: BookingsAvailabilityService,
+    private readonly bookingsAnalytics: BookingsAnalyticsService,
     private readonly reservationsService: ReservationsService,
     private readonly hotelsService: HotelsService,
     private readonly hotelRoomTypesService: HotelRoomTypesService,
     private readonly hotelsPricingService: HotelsPricingService,
+    private readonly hotelAnalyticsService: HotelAnalyticsService,
+    private readonly hotelRoomUnitsService: HotelRoomUnitsService,
     private readonly hotelReservationsService: HotelReservationsService,
+    private readonly customFieldsService: CustomFieldsService,
+    private readonly rbac: RbacService,
+    private readonly projectStatuses: ProjectStatusesService,
+    private readonly projectTableMembers: ProjectTableMembersService,
+    private readonly projectTables: ProjectTablesService,
   ) {}
+
+  /**
+   * Та же проверка, что RbacGuard/@RequirePermission делает для REST — до этого AI-инструменты
+   * писали в Companies/Contacts/Sales/Projects напрямую через *Service, минуя RBAC вообще, и
+   * пользователь с ролью, которой обычный API/UI запретит запись, мог сделать то же самое через
+   * чат. resource — тот же PermissionKey, что и в @RequirePermission(resource, action) контроллера
+   * (action не проверяется и RbacGuard'ом — см. rbac.guard.ts).
+   */
+  private async checkPermission(
+    ctx: ToolCtx,
+    resource: PermissionKey,
+  ): Promise<{ ok: true } | { ok: false; error: string; hint: string }> {
+    const role = (ctx.userRole || 'viewer') as Parameters<RbacService['can']>[1];
+    // canForUser (not can) — respects a personal allow/deny override for this specific staff
+    // member (staff_user_permissions), same as the REST API's RbacGuard. Without this, an
+    // explicit personal deny in Staff Permissions had zero effect through the AI chat — the
+    // exact gap this pass fixes.
+    const allowed = await this.rbac.canForUser(ctx.tenantId, ctx.staffUserId || '', role, resource);
+    if (allowed) return { ok: true };
+    return {
+      ok: false,
+      error: 'forbidden_insufficient_permissions',
+      hint: `Роль пользователя не имеет права на "${resource}" — сообщи об этом пользователю, не пытайся обойти другим инструментом.`,
+    };
+  }
+
+  /**
+   * Реплицирует ProjectTableAccessGuard (project-table-access.guard.ts) для AI-инструментов
+   * записи по проектам: дефолтная таблица ("main") ведёт себя как раньше (без доп. проверки —
+   * её уже покрывает checkPermission(ctx, 'projects') у вызывающего инструмента), а
+   * НЕ-дефолтные таблицы приватны — нужно явное членство в таблице с одной из allowedRoles
+   * ролей.
+   */
+  private async checkProjectTableAccess(
+    ctx: ToolCtx,
+    projectId: string,
+    allowedRoles: ProjectTableRole[],
+  ): Promise<{ ok: true } | { ok: false; error: string; hint: string }> {
+    const project = await this.projectsRepo.findOne({
+      where: { id: projectId, tenantId: ctx.tenantId } as any,
+      select: ['id', 'tableId'] as any,
+    });
+    if (!project?.tableId) return { ok: true };
+    let table: { id: string; slug: string } | null = null;
+    try {
+      table = await this.projectTables.getOne(ctx.tenantId, project.tableId);
+    } catch {
+      return { ok: true }; // не найдена — пусть ошибку вернёт сам projectsService
+    }
+    if (!table || table.slug === 'main') return { ok: true };
+    const staffUserId = await this.projectTableMembers.resolveStaffUserId(ctx.tenantId, {
+      loginUserId: ctx.userId,
+      email: ctx.userEmail,
+    });
+    const effectiveRole = staffUserId
+      ? await this.projectTableMembers.resolveEffectiveRole(ctx.tenantId, table.id, staffUserId)
+      : null;
+    if (!effectiveRole || !allowedRoles.includes(effectiveRole)) {
+      return {
+        ok: false,
+        error: 'no_table_access',
+        hint: 'У пользователя нет доступа к этой (не дефолтной) таблице проектов — сообщи об этом, не пытайся выполнить действие иначе.',
+      };
+    }
+    return { ok: true };
+  }
 
   private crmFrontendBase(): string {
     return (process.env.FRONTEND_URL || '').replace(/\/$/, '');
@@ -883,80 +1040,149 @@ export class AiToolsService {
     // Изоляция тенантов: tenant только из JWT (ctx). Модель не может сменить песочницу через аргументы.
     delete args.tenantId;
     delete args.tenant_id;
+    // Короткая форма checkPermission для кейсов switch ниже, которые раньше не проверяли права
+    // вообще (прочитать/изменить лиды/сделки/отели/автоматизации и т.п. через AI можно было
+    // независимо от роли или персональных исключений — тот же класс пробела, что чинился в
+    // остальных 41 уже проверяемых инструментах). null = разрешено, иначе — готовый JSON-ответ
+    // с отказом, который нужно сразу вернуть из case.
+    const gate = async (key: PermissionKey): Promise<string | null> => {
+      const perm = await this.checkPermission(ctx, key);
+      return perm.ok ? null : JSON.stringify(perm);
+    };
     try {
       switch (name) {
-        case 'crm_list_leads':
+        case 'crm_list_leads': {
+          const g = await gate('leads'); if (g) return g;
           return JSON.stringify(await this.toolListLeads(ctx, args));
-        case 'crm_search_leads':
+        }
+        case 'crm_search_leads': {
+          const g = await gate('leads'); if (g) return g;
           return JSON.stringify(await this.toolSearchLeads(ctx, args));
-        case 'crm_search_companies':
+        }
+        case 'crm_search_companies': {
+          const g = await gate('companies'); if (g) return g;
           return JSON.stringify(await this.toolSearchCompanies(ctx.tenantId, args));
-        case 'crm_sales_summary':
+        }
+        case 'crm_sales_summary': {
+          const g = await gate('sales'); if (g) return g;
           return JSON.stringify(await this.toolSalesSummary(ctx.tenantId, args));
-        case 'crm_marketing_overview':
+        }
+        case 'crm_marketing_overview': {
+          const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(await this.toolMarketing(ctx.tenantId, args));
-        case 'crm_marketing_daily_series':
+        }
+        case 'crm_marketing_markets': {
+          const g = await gate('marketing'); if (g) return g;
+          return JSON.stringify(await this.toolMarketingMarkets(ctx.tenantId, args));
+        }
+        case 'crm_marketing_daily_series': {
+          const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(await this.toolMarketingDailySeries(ctx.tenantId, args));
-        case 'crm_marketing_integrations':
+        }
+        case 'crm_marketing_integrations': {
+          const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(await this.toolMarketingIntegrations(ctx.tenantId));
-        case 'crm_list_integrations':
+        }
+        case 'crm_list_integrations': {
+          const g = await gate('settings'); if (g) return g;
           return JSON.stringify(await this.toolIntegrations(ctx.tenantId));
-        case 'crm_list_projects':
+        }
+        case 'crm_list_projects': {
+          const g = await gate('projects'); if (g) return g;
           return JSON.stringify(await this.toolProjects(ctx.tenantId, args));
+        }
         case 'crm_create_lead':
           return JSON.stringify(
             await this.toolCreateLead(ctx.tenantId, args, ctx),
           );
-        case 'crm_create_note':
+        case 'crm_create_note': {
+          const g = await gate('notes'); if (g) return g;
           return JSON.stringify(
             await this.toolCreateNote(ctx.tenantId, ctx.userId, ctx.userEmail, args),
           );
+        }
         case 'crm_create_project':
           return JSON.stringify(
-            await this.toolCreateProject(ctx.tenantId, ctx.userId, ctx.userEmail, args),
+            await this.toolCreateProject(ctx.tenantId, ctx.userId, ctx.userEmail, args, ctx),
           );
-        case 'crm_workspace_list_tables':
+        case 'crm_workspace_list_tables': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceListTables(ctx.tenantId));
-        case 'crm_workspace_describe_table':
+        }
+        case 'crm_workspace_describe_table': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(
             await this.toolWorkspaceDescribeTable(ctx.tenantId, args),
           );
-        case 'crm_workspace_create_table':
+        }
+        case 'crm_workspace_create_table': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceCreateTable(ctx.tenantId, args));
-        case 'crm_workspace_add_field':
+        }
+        case 'crm_workspace_add_field': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceAddField(ctx.tenantId, args));
-        case 'crm_workspace_enable_views':
+        }
+        case 'crm_workspace_enable_views': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceEnableViews(ctx.tenantId, args));
-        case 'crm_workspace_add_record':
+        }
+        case 'crm_workspace_add_record': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceAddRecord(ctx.tenantId, args));
-        case 'crm_workspace_list_records':
+        }
+        case 'crm_workspace_list_records': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceListRecords(ctx.tenantId, args));
-        case 'crm_workspace_analytics':
+        }
+        case 'crm_workspace_analytics': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceAnalytics(ctx.tenantId, args));
-        case 'crm_workspace_import_marketing_channels':
+        }
+        case 'crm_workspace_import_marketing_channels': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(
             await this.toolWorkspaceImportMarketingChannels(ctx.tenantId, args),
           );
-        case 'crm_sales_import_apply':
+        }
+        case 'crm_sales_import_apply': {
+          const g = await gate('sales_manage_import'); if (g) return g;
           return JSON.stringify(
             await this.toolSalesImportApply(ctx.tenantId, args),
           );
-        case 'crm_workspace_bulk_add_records':
+        }
+        case 'crm_workspace_bulk_add_records': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(
             await this.toolWorkspaceBulkAddRecords(ctx.tenantId, args),
           );
-        case 'crm_workspace_import_file':
+        }
+        case 'crm_workspace_import_file': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(await this.toolWorkspaceImportFile(ctx.tenantId, args));
+        }
         case 'crm_get_lead':
           return JSON.stringify(await this.toolGetLead(ctx, args));
         case 'crm_update_lead':
           return JSON.stringify(await this.toolUpdateLead(ctx, args));
-        case 'crm_get_project':
+        case 'crm_get_project': {
+          const g = await gate('projects'); if (g) return g;
           return JSON.stringify(await this.toolGetProject(ctx.tenantId, args));
+        }
         case 'crm_update_project':
           return JSON.stringify(
             await this.toolUpdateProject(ctx.tenantId, ctx, args),
           );
+        case 'crm_project_list_columns': {
+          const g = await gate('projects'); if (g) return g;
+          return JSON.stringify(await this.toolProjectListColumns(ctx.tenantId));
+        }
+        case 'crm_project_create_column': {
+          const g = await gate('projects_manage'); if (g) return g;
+          return JSON.stringify(
+            await this.toolProjectCreateColumn(ctx.tenantId, args),
+          );
+        }
         case 'crm_change_project_status':
           return JSON.stringify(
             await this.toolChangeProjectStatus(ctx.tenantId, ctx, args),
@@ -965,52 +1191,74 @@ export class AiToolsService {
           return JSON.stringify(
             await this.toolSoftDeleteProject(ctx.tenantId, ctx, args),
           );
-        case 'crm_list_sales':
+        case 'crm_list_sales': {
+          const g = await gate('sales'); if (g) return g;
           return JSON.stringify(await this.toolListSales(ctx.tenantId, args));
-        case 'crm_get_sale':
+        }
+        case 'crm_get_sale': {
+          const g = await gate('sales'); if (g) return g;
           return JSON.stringify(await this.toolGetSale(ctx.tenantId, args));
+        }
         case 'crm_update_sale':
-          return JSON.stringify(await this.toolUpdateSale(ctx.tenantId, args));
+          return JSON.stringify(await this.toolUpdateSale(ctx, args));
         case 'crm_create_company':
-          return JSON.stringify(await this.toolCreateCompany(ctx.tenantId, args));
-        case 'crm_get_company':
+          return JSON.stringify(await this.toolCreateCompany(ctx, args));
+        case 'crm_get_company': {
+          const g = await gate('companies'); if (g) return g;
           return JSON.stringify(await this.toolGetCompany(ctx.tenantId, args));
+        }
         case 'crm_update_company':
-          return JSON.stringify(await this.toolUpdateCompany(ctx.tenantId, args));
+          return JSON.stringify(await this.toolUpdateCompany(ctx, args));
         case 'crm_delete_company':
-          return JSON.stringify(await this.toolDeleteCompany(ctx.tenantId, args));
-        case 'crm_list_contacts':
+          return JSON.stringify(await this.toolDeleteCompany(ctx, args));
+        case 'crm_list_contacts': {
+          const g = await gate('contacts'); if (g) return g;
           return JSON.stringify(await this.toolListContacts(ctx.tenantId, args));
-        case 'crm_get_contact':
+        }
+        case 'crm_get_contact': {
+          const g = await gate('contacts'); if (g) return g;
           return JSON.stringify(await this.toolGetContact(ctx.tenantId, args));
+        }
         case 'crm_create_contact':
-          return JSON.stringify(await this.toolCreateContact(ctx.tenantId, args));
+          return JSON.stringify(await this.toolCreateContact(ctx, args));
         case 'crm_update_contact':
-          return JSON.stringify(await this.toolUpdateContact(ctx.tenantId, args));
+          return JSON.stringify(await this.toolUpdateContact(ctx, args));
         case 'crm_delete_contact':
-          return JSON.stringify(await this.toolDeleteContact(ctx.tenantId, args));
-        case 'crm_list_notes':
+          return JSON.stringify(await this.toolDeleteContact(ctx, args));
+        case 'crm_list_notes': {
+          const g = await gate('notes'); if (g) return g;
           return JSON.stringify(await this.toolListNotes(ctx.tenantId, ctx, args));
-        case 'crm_update_note':
+        }
+        case 'crm_update_note': {
+          const g = await gate('notes'); if (g) return g;
           return JSON.stringify(
             await this.toolUpdateNote(ctx.tenantId, ctx, args),
           );
-        case 'crm_delete_note':
+        }
+        case 'crm_delete_note': {
+          const g = await gate('notes'); if (g) return g;
           return JSON.stringify(
             await this.toolDeleteNote(ctx.tenantId, ctx, args),
           );
-        case 'crm_workspace_update_record':
+        }
+        case 'crm_workspace_update_record': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(
             await this.toolWorkspaceUpdateRecord(ctx.tenantId, args),
           );
-        case 'crm_workspace_delete_record':
+        }
+        case 'crm_workspace_delete_record': {
+          const g = await gate('custom_objects'); if (g) return g;
           return JSON.stringify(
             await this.toolWorkspaceDeleteRecord(ctx.tenantId, args),
           );
-        case 'crm_sync_marketing_integration':
+        }
+        case 'crm_sync_marketing_integration': {
+          const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(
             await this.toolSyncMarketingIntegration(ctx.tenantId, args),
           );
+        }
         case 'crm_generate_image':
           return JSON.stringify(
             await this.toolGenerateImage(ctx.tenantId, ctx.userId, args),
@@ -1019,31 +1267,37 @@ export class AiToolsService {
           return JSON.stringify(
             await this.toolSaveMemory(ctx.tenantId, ctx.userId, args),
           );
-        case 'crm_list_staff_members':
+        case 'crm_list_staff_members': {
+          const g = await gate('staff'); if (g) return g;
           return JSON.stringify(await this.toolListStaffMembers(ctx.tenantId, args));
+        }
         case 'crm_list_ai_employees':
           return JSON.stringify(await this.toolListAiEmployees(ctx.tenantId));
         case 'crm_assign_ai_employee_task':
           return JSON.stringify(await this.toolAssignAiEmployeeTask(ctx, args));
         case 'crm_ask_ai_employee':
           return JSON.stringify(await this.toolAskAiEmployee(ctx, args));
-        case 'crm_send_bulk_email':
+        case 'crm_send_bulk_email': {
+          const g = await gate('email'); if (g) return g;
           return JSON.stringify(await this.toolSendBulkEmail(ctx, args));
-        case 'crm_list_company_tasks':
+        }
+        case 'crm_list_company_tasks': {
+          const g = await gate('companies_manage_tasks'); if (g) return g;
           return JSON.stringify(
             await this.toolListCompanyTasks(ctx.tenantId, args),
           );
+        }
         case 'crm_create_company_task':
           return JSON.stringify(
-            await this.toolCreateCompanyTask(ctx.tenantId, args),
+            await this.toolCreateCompanyTask(ctx, args),
           );
         case 'crm_update_company_task':
           return JSON.stringify(
-            await this.toolUpdateCompanyTask(ctx.tenantId, args),
+            await this.toolUpdateCompanyTask(ctx, args),
           );
         case 'crm_delete_company_task':
           return JSON.stringify(
-            await this.toolDeleteCompanyTask(ctx.tenantId, args),
+            await this.toolDeleteCompanyTask(ctx, args),
           );
         case 'crm_list_lead_meetings':
           return JSON.stringify(await this.toolListLeadMeetings(ctx, args));
@@ -1057,120 +1311,239 @@ export class AiToolsService {
           return JSON.stringify(
             await this.toolRemoveLeadMeeting(ctx, args),
           );
-        case 'crm_list_email_accounts':
+        case 'crm_list_email_accounts': {
+          const g = await gate('email'); if (g) return g;
           return JSON.stringify(await this.toolListEmailAccounts(ctx.tenantId));
-        case 'crm_list_email_templates':
+        }
+        case 'crm_list_email_templates': {
+          const g = await gate('email'); if (g) return g;
           return JSON.stringify(await this.toolListEmailTemplates(ctx.tenantId, args));
-        case 'crm_preview_email_template':
+        }
+        case 'crm_preview_email_template': {
+          const g = await gate('email'); if (g) return g;
           return JSON.stringify(
             await this.toolPreviewEmailTemplate(ctx.tenantId, args),
           );
-        case 'crm_draft_client_email':
+        }
+        case 'crm_draft_client_email': {
+          const g = await gate('email'); if (g) return g;
           return JSON.stringify(await this.toolDraftClientEmail(ctx.tenantId, args));
-        case 'crm_send_approved_client_email':
+        }
+        case 'crm_send_approved_client_email': {
+          const g = await gate('email'); if (g) return g;
           return JSON.stringify(
             await this.toolSendApprovedClientEmail(ctx.tenantId, args),
           );
-        case 'crm_list_automations':
+        }
+        case 'crm_list_automations': {
+          const g = await gate('tools_automation'); if (g) return g;
           return JSON.stringify(await this.toolListAutomations(ctx.tenantId, args));
-        case 'crm_create_automation':
+        }
+        case 'crm_create_automation': {
+          const g = await gate('tools_automation'); if (g) return g;
           return JSON.stringify(await this.toolCreateAutomation(ctx.tenantId, args));
-        case 'crm_update_automation':
+        }
+        case 'crm_update_automation': {
+          const g = await gate('tools_automation'); if (g) return g;
           return JSON.stringify(await this.toolUpdateAutomation(ctx.tenantId, args));
-        case 'crm_delete_automation':
+        }
+        case 'crm_delete_automation': {
+          const g = await gate('tools_automation'); if (g) return g;
           return JSON.stringify(await this.toolDeleteAutomation(ctx.tenantId, args));
-        case 'crm_preview_crm_report':
+        }
+        case 'crm_preview_crm_report': {
+          const g = await gate('analytics'); if (g) return g;
           return JSON.stringify(await this.toolPreviewCrmReport(ctx.tenantId, args));
-        case 'crm_send_crm_report_email':
+        }
+        case 'crm_send_crm_report_email': {
+          const g = await gate('analytics'); if (g) return g;
           return JSON.stringify(await this.toolSendCrmReportEmail(ctx.tenantId, args));
-        case 'crm_mailchimp_subscribe':
+        }
+        case 'crm_mailchimp_subscribe': {
+          const g = await gate('marketing'); if (g) return g;
           return JSON.stringify(
             await this.toolMailchimpSubscribe(ctx.tenantId, args),
           );
+        }
 
         // ---- Товары ----
-        case 'crm_product_search':
+        case 'crm_product_create':
+          return JSON.stringify(await this.toolProductCreate(ctx, args));
+        case 'crm_product_create_category':
+          return JSON.stringify(await this.toolProductCreateCategory(ctx, args));
+        case 'crm_product_search': {
+          const g = await gate('products'); if (g) return g;
           return JSON.stringify(await this.toolProductSearch(ctx.tenantId, args));
-        case 'crm_product_get':
+        }
+        case 'crm_product_get': {
+          const g = await gate('products'); if (g) return g;
           return JSON.stringify(await this.toolProductGet(ctx.tenantId, args));
-        case 'crm_product_list_categories':
+        }
+        case 'crm_product_list_categories': {
+          const g = await gate('products'); if (g) return g;
           return JSON.stringify(await this.productsService.listCategories(ctx.tenantId));
+        }
         case 'crm_product_update_price':
           return JSON.stringify(await this.toolProductUpdatePrice(ctx, args));
         case 'crm_product_update_status':
           return JSON.stringify(await this.toolProductUpdateStatus(ctx, args));
         case 'crm_product_bulk_update':
-          return JSON.stringify(await this.toolProductBulkUpdate(ctx.tenantId, args));
+          return JSON.stringify(await this.toolProductBulkUpdate(ctx, args));
         case 'crm_product_adjust_stock':
           return JSON.stringify(await this.toolProductAdjustStock(ctx, args));
 
         // ---- Бронирования ----
-        case 'crm_booking_list_locations':
+        case 'crm_booking_list_locations': {
+          const g = await gate('bookings'); if (g) return g;
           return JSON.stringify(await this.bookingsCatalog.listLocations(ctx.tenantId));
-        case 'crm_booking_list_services':
+        }
+        case 'crm_booking_list_services': {
+          const g = await gate('bookings'); if (g) return g;
           return JSON.stringify(await this.bookingsCatalog.listServices(ctx.tenantId));
-        case 'crm_booking_list_resources':
+        }
+        case 'crm_booking_list_resources': {
+          const g = await gate('bookings'); if (g) return g;
           return JSON.stringify(await this.bookingsCatalog.listResources(ctx.tenantId));
-        case 'crm_booking_list_staff':
+        }
+        case 'crm_booking_list_staff': {
+          const g = await gate('bookings'); if (g) return g;
           return JSON.stringify(await this.bookingsStaff.listStaff(ctx.tenantId));
-        case 'crm_booking_check_availability':
+        }
+        case 'crm_booking_check_availability': {
+          const g = await gate('bookings'); if (g) return g;
           return JSON.stringify(await this.toolBookingCheckAvailability(ctx.tenantId, args));
-        case 'crm_booking_search':
+        }
+        case 'crm_booking_search': {
+          const g = await gate('bookings'); if (g) return g;
           return JSON.stringify(await this.toolBookingSearch(ctx.tenantId, args));
-        case 'crm_booking_get':
+        }
+        case 'crm_booking_get': {
+          const g = await gate('bookings'); if (g) return g;
           return JSON.stringify(
             await this.reservationsService.findOne(ctx.tenantId, String(args.reservationId || '')),
           );
+        }
         case 'crm_booking_create':
           return JSON.stringify(await this.toolBookingCreate(ctx, args));
-        case 'crm_booking_reschedule':
-          return JSON.stringify(await this.toolBookingReschedule(ctx, args));
-        case 'crm_booking_confirm':
-          return JSON.stringify(await this.toolBookingTransition(ctx, args, 'userConfirmedStatusChange', 'confirm'));
-        case 'crm_booking_cancel':
-          return JSON.stringify(await this.toolBookingTransition(ctx, args, 'userConfirmedCancel', 'cancelByBusiness'));
-        case 'crm_booking_reject':
-          return JSON.stringify(await this.toolBookingTransition(ctx, args, 'userConfirmedStatusChange', 'reject'));
-        case 'crm_booking_check_in':
-          return JSON.stringify(await this.toolBookingTransition(ctx, args, null, 'checkIn'));
-        case 'crm_booking_complete':
-          return JSON.stringify(await this.toolBookingTransition(ctx, args, null, 'complete'));
-        case 'crm_booking_mark_no_show':
-          return JSON.stringify(await this.toolBookingTransition(ctx, args, null, 'markNoShow'));
+        case 'crm_booking_update':
+          return JSON.stringify(await this.toolBookingUpdate(ctx, args));
+        case 'crm_booking_set_status': {
+          const action = String(args.action || '');
+          const map: Record<
+            string,
+            { confirmField: string | null; method: 'confirm' | 'cancelByBusiness' | 'reject' | 'checkIn' | 'complete' | 'markNoShow' }
+          > = {
+            confirm: { confirmField: 'userConfirmed', method: 'confirm' },
+            cancel: { confirmField: 'userConfirmed', method: 'cancelByBusiness' },
+            reject: { confirmField: 'userConfirmed', method: 'reject' },
+            check_in: { confirmField: null, method: 'checkIn' },
+            complete: { confirmField: null, method: 'complete' },
+            mark_no_show: { confirmField: null, method: 'markNoShow' },
+          };
+          const cfg = map[action];
+          if (!cfg) return JSON.stringify({ ok: false, error: 'invalid_action', allowed: Object.keys(map) });
+          return JSON.stringify(await this.toolBookingTransition(ctx, args, cfg.confirmField, cfg.method));
+        }
+        case 'crm_booking_manage_location':
+          return JSON.stringify(await this.toolBookingManageLocation(ctx, args));
+        case 'crm_booking_manage_service':
+          return JSON.stringify(await this.toolBookingManageService(ctx, args));
+        case 'crm_booking_manage_resource':
+          return JSON.stringify(await this.toolBookingManageResource(ctx, args));
+        case 'crm_booking_manage_location_closure':
+          return JSON.stringify(await this.toolBookingManageLocationClosure(ctx, args));
+        case 'crm_booking_manage_staff_profile':
+          return JSON.stringify(await this.toolBookingManageStaffProfile(ctx, args));
+        case 'crm_booking_manage_staff_time_off':
+          return JSON.stringify(await this.toolBookingManageStaffTimeOff(ctx, args));
+        case 'crm_booking_analytics': {
+          const g = await gate('bookings'); if (g) return g;
+          return JSON.stringify(await this.toolBookingAnalytics(ctx.tenantId, args));
+        }
 
         // ---- Система резервации / Отели ----
-        case 'crm_hotel_list':
+        case 'crm_hotel_list': {
+          const g = await gate('hotels'); if (g) return g;
           return JSON.stringify(await this.hotelsService.list(ctx.tenantId));
-        case 'crm_hotel_get':
+        }
+        case 'crm_hotel_get': {
+          const g = await gate('hotels'); if (g) return g;
           return JSON.stringify(await this.hotelsService.get(ctx.tenantId, String(args.hotelId || '')));
-        case 'crm_hotel_list_room_types':
+        }
+        case 'crm_hotel_list_room_types': {
+          const g = await gate('hotels'); if (g) return g;
           return JSON.stringify(
             await this.hotelRoomTypesService.list(ctx.tenantId, String(args.hotelId || '')),
           );
-        case 'crm_hotel_list_market_groups':
+        }
+        case 'crm_hotel_list_market_groups': {
+          const g = await gate('hotels'); if (g) return g;
           return JSON.stringify(
             await this.hotelsPricingService.listMarketGroups(ctx.tenantId, String(args.hotelId || '')),
           );
-        case 'crm_hotel_get_daily_rates':
+        }
+        case 'crm_hotel_list_markets': {
+          const g = await gate('hotels'); if (g) return g;
+          return JSON.stringify(await this.toolHotelListMarketPrices(ctx.tenantId, args));
+        }
+        case 'crm_hotel_create':
+          return JSON.stringify(await this.toolHotelCreate(ctx, args));
+        case 'crm_hotel_create_room_type':
+          return JSON.stringify(await this.toolHotelCreateRoomType(ctx, args));
+        case 'crm_hotel_list_room_units': {
+          const g = await gate('hotels'); if (g) return g;
+          return JSON.stringify(await this.toolHotelListRoomUnits(ctx.tenantId, args));
+        }
+        case 'crm_hotel_manage_room_unit':
+          return JSON.stringify(await this.toolHotelManageRoomUnit(ctx, args));
+        case 'crm_hotel_list_occupancy_types': {
+          const g = await gate('hotels'); if (g) return g;
+          return JSON.stringify(await this.toolHotelListOccupancyTypes(ctx.tenantId, args));
+        }
+        case 'crm_hotel_manage_occupancy_type':
+          return JSON.stringify(await this.toolHotelManageOccupancyType(ctx, args));
+        case 'crm_hotel_update_room_type':
+          return JSON.stringify(await this.toolHotelUpdateRoomType(ctx, args));
+        case 'crm_hotel_analytics': {
+          const g = await gate('hotels'); if (g) return g;
+          return JSON.stringify(await this.toolHotelAnalytics(ctx.tenantId, args));
+        }
+        case 'crm_hotel_get_daily_rates': {
+          const g = await gate('hotels'); if (g) return g;
           return JSON.stringify(await this.toolHotelGetDailyRates(ctx.tenantId, args));
-        case 'crm_hotel_update_rate':
+        }
+        case 'crm_hotel_update_rate': {
+          const g = await gate('hotels_manage_pricing'); if (g) return g;
           return JSON.stringify(await this.toolHotelUpdateRate(ctx.tenantId, args));
-        case 'crm_hotel_set_stop_sale':
+        }
+        case 'crm_hotel_set_stop_sale': {
+          const g = await gate('hotels_manage_pricing'); if (g) return g;
           return JSON.stringify(await this.toolHotelSetStopSale(ctx.tenantId, args));
-        case 'crm_hotel_reservation_search':
+        }
+        case 'crm_hotel_reservation_search': {
+          const g = await gate('hotels'); if (g) return g;
           return JSON.stringify(await this.hotelReservationsService.list(ctx.tenantId, {
             hotelId: args.hotelId ? String(args.hotelId) : undefined,
             roomTypeId: args.roomTypeId ? String(args.roomTypeId) : undefined,
             status: args.status ? String(args.status) : undefined,
+            market: args.market ? String(args.market) : undefined,
+            search: args.search ? String(args.search) : undefined,
           }));
-        case 'crm_hotel_reservation_get':
+        }
+        case 'crm_hotel_reservation_get': {
+          const g = await gate('hotels'); if (g) return g;
           return JSON.stringify(
             await this.hotelReservationsService.get(ctx.tenantId, String(args.reservationId || '')),
           );
-        case 'crm_hotel_reservation_create':
+        }
+        case 'crm_hotel_reservation_create': {
+          const g = await gate('hotels_manage_reservations'); if (g) return g;
           return JSON.stringify(await this.toolHotelReservationCreate(ctx.tenantId, args));
-        case 'crm_hotel_reservation_update':
+        }
+        case 'crm_hotel_reservation_update': {
+          const g = await gate('hotels_manage_reservations'); if (g) return g;
           return JSON.stringify(await this.toolHotelReservationUpdate(ctx.tenantId, args));
+        }
 
         default:
           return JSON.stringify({ error: 'unknown_tool', name });
@@ -1201,7 +1574,74 @@ export class AiToolsService {
     return this.productsService.getProduct(tenantId, String(args.productId || ''));
   }
 
+  /** categoryId (реальный UUID) в приоритете; иначе резолвит category по имени (без учёта
+   * регистра) среди уже существующих категорий тенанта, а если такой нет — создаёт новую. Раньше
+   * запрос "добавь в категорию Продукты" без готового UUID просто не создавал категорию. */
+  private async resolveOrCreateCategoryId(
+    tenantId: string,
+    categoryId?: string,
+    categoryName?: string,
+  ): Promise<{ categoryId: string | undefined; createdCategory: boolean }> {
+    if (categoryId) return { categoryId, createdCategory: false };
+    const name = categoryName?.trim();
+    if (!name) return { categoryId: undefined, createdCategory: false };
+    const existing = await this.productsService.listCategories(tenantId);
+    const match = existing.find((c) => c.name.trim().toLowerCase() === name.toLowerCase());
+    if (match) return { categoryId: match.id, createdCategory: false };
+    const created = await this.productsService.createCategory(tenantId, { name });
+    return { categoryId: created.id, createdCategory: true };
+  }
+
+  private async toolProductCreateCategory(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'products_manage_fields');
+    if (!perm.ok) return perm;
+    const name = String(args.name || '').trim();
+    if (!name) return { ok: false, error: 'name_required' };
+    const category = await this.productsService.createCategory(ctx.tenantId, {
+      name,
+      parentId: args.parentId ? String(args.parentId) : undefined,
+      color: args.color ? String(args.color) : undefined,
+    });
+    return { ok: true, category: { id: category.id, name: category.name, slug: category.slug } };
+  }
+
+  private async toolProductCreate(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'products');
+    if (!perm.ok) return perm;
+    const name = String(args.name || '').trim();
+    if (!name) return { ok: false, error: 'name_required' };
+    const { categoryId, createdCategory } = await this.resolveOrCreateCategoryId(
+      ctx.tenantId,
+      args.categoryId ? String(args.categoryId) : undefined,
+      args.category ? String(args.category) : undefined,
+    );
+    const currency = args.currency
+      ? String(args.currency)
+      : await this.productsService.resolveDefaultCurrency(ctx.tenantId);
+    const product = await this.productsService.createProduct(ctx.tenantId, {
+      name,
+      sku: args.sku ? String(args.sku) : undefined,
+      description: args.description ? String(args.description) : undefined,
+      categoryId,
+      status: args.status ? String(args.status) : undefined,
+      price: args.price !== undefined ? Number(args.price) : undefined,
+      costPrice: args.costPrice !== undefined ? Number(args.costPrice) : undefined,
+      currency,
+      unit: args.unit ? String(args.unit) : undefined,
+      quantity: args.quantity !== undefined ? Number(args.quantity) : undefined,
+      barcode: args.barcode ? String(args.barcode) : undefined,
+      tags: Array.isArray(args.tags) ? (args.tags as unknown[]).map(String) : undefined,
+    });
+    return {
+      ok: true,
+      product: { id: product.id, name: product.name, sku: product.sku, price: product.price, currency: product.currency, quantity: product.quantity },
+      ...(createdCategory ? { createdCategory: true, categoryId } : {}),
+    };
+  }
+
   private async toolProductUpdatePrice(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'products');
+    if (!perm.ok) return perm;
     if (args.userConfirmedPriceChange !== true) {
       return {
         ok: false,
@@ -1223,6 +1663,8 @@ export class AiToolsService {
   }
 
   private async toolProductUpdateStatus(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'products');
+    if (!perm.ok) return perm;
     if (args.userConfirmedStatusChange !== true) {
       return {
         ok: false,
@@ -1242,7 +1684,9 @@ export class AiToolsService {
     return { ok: true, product };
   }
 
-  private async toolProductBulkUpdate(tenantId: string, args: Record<string, unknown>) {
+  private async toolProductBulkUpdate(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'products');
+    if (!perm.ok) return perm;
     if (args.userConfirmedBulkUpdate !== true) {
       return {
         ok: false,
@@ -1254,7 +1698,7 @@ export class AiToolsService {
       ? (args.productIds as unknown[]).map((v) => String(v)).filter(Boolean)
       : [];
     if (!productIds.length) return { ok: false, error: 'productIds_required' };
-    const result = await this.productsService.bulkUpdateProducts(tenantId, {
+    const result = await this.productsService.bulkUpdateProducts(ctx.tenantId, {
       productIds,
       categoryId: args.categoryId ? String(args.categoryId) : undefined,
       status: args.status ? String(args.status) : undefined,
@@ -1265,6 +1709,8 @@ export class AiToolsService {
   }
 
   private async toolProductAdjustStock(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'products_manage_stock');
+    if (!perm.ok) return perm;
     if (args.userConfirmedStockAdjust !== true) {
       return {
         ok: false,
@@ -1302,16 +1748,39 @@ export class AiToolsService {
 
   private async toolBookingSearch(tenantId: string, args: Record<string, unknown>) {
     const limit = Math.min(50, Math.max(1, Number(args.limit) || 15));
-    const all = await this.reservationsService.list(tenantId, {
-      search: args.query ? String(args.query) : undefined,
-      from: args.from ? String(args.from) : undefined,
-      to: args.to ? String(args.to) : undefined,
+    const query = args.query ? String(args.query) : undefined;
+    const from = args.from ? String(args.from) : undefined;
+    const to = args.to ? String(args.to) : undefined;
+    const baseFilters = {
+      from,
+      to,
       status: args.status ? String(args.status) : undefined,
-    });
-    return all.slice(0, limit);
+      staffUserId: args.staffUserId ? String(args.staffUserId) : undefined,
+      locationId: args.locationId ? String(args.locationId) : undefined,
+      serviceId: args.serviceId ? String(args.serviceId) : undefined,
+    };
+    const primary = await this.reservationsService.list(tenantId, { ...baseFilters, search: query });
+    const results = primary.slice(0, limit);
+    if (results.length || !query || !(from || to)) {
+      return { results };
+    }
+    // Раньше модель должна была САМА догадаться повторить вызов без имени, когда поиск с
+    // именем дал пусто (напр. "Александр" в базе vs "Александра" у пользователя) — на
+    // практике она чаще просто сообщала "не найдено", не пытаясь ещё раз. Теперь второй,
+    // более широкий поиск (без query) выполняется здесь же, за один вызов инструмента.
+    const byDate = await this.reservationsService.list(tenantId, { ...baseFilters, search: undefined });
+    return {
+      results: [],
+      note: byDate.length
+        ? `По имени "${query}" на эту дату/период ничего не найдено, но БЕЗ фильтра по имени нашлось ${byDate.length} запись(ей) — см. possibleMatchesByDate. Имя в базе может отличаться от того, что назвал пользователь (опечатка/другое имя, напр. "Александр" вместо "Александра"). Покажи пользователю найденные записи (имя из базы, время, услугу) и уточни, это ли нужная — НЕ говори просто "не найдено".`
+        : `Ничего не найдено ни по имени "${query}", ни по тому же периоду без фильтра по имени — похоже, брони на этот период действительно нет.`,
+      possibleMatchesByDate: byDate.slice(0, limit),
+    };
   }
 
   private async toolBookingCreate(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings');
+    if (!perm.ok) return perm;
     if (args.userConfirmedBooking !== true) {
       return {
         ok: false,
@@ -1350,12 +1819,37 @@ export class AiToolsService {
     return { ok: true, reservation };
   }
 
-  private async toolBookingReschedule(ctx: ToolCtx, args: Record<string, unknown>) {
-    if (args.userConfirmedReschedule !== true) {
+  /**
+   * Если reservationId не найден — не просто "not found": ищем среди броней тенанта
+   * ближайший по расстоянию Левенштейна id (см. ReservationsService.findNearestByTypo) —
+   * частый случай, когда модель перепечатывает UUID из своего же текста и путает 1 символ.
+   * Найденное только ПРЕДЛАГАЕМ модели (не подставляем и не выполняем автоматически).
+   */
+  private async suggestReservationIdOnNotFound(tenantId: string, wrongId: string) {
+    const near = await this.reservationsService.findNearestByTypo(tenantId, wrongId).catch(() => null);
+    if (!near) return { ok: false, error: 'reservation_not_found' };
+    return {
+      ok: false,
+      error: 'reservation_not_found',
+      hint: 'reservationId не существует — похоже на опечатку в UUID (модель могла перепечатать его из своего текста, а не взять из результата инструмента). Ниже — ближайшая реальная запись по этому тенанту; если это она, повтори вызов с её настоящим id, ничего не выдумывая.',
+      closestMatch: {
+        id: near.id,
+        customerName: near.customerName,
+        startAt: near.startAt,
+        serviceId: near.serviceId,
+        staffUserId: near.staffUserId,
+      },
+    };
+  }
+
+  private async toolBookingUpdate(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings');
+    if (!perm.ok) return perm;
+    if (args.userConfirmedChange !== true) {
       return {
         ok: false,
-        error: 'userConfirmedReschedule_must_be_true',
-        hint: 'Сначала озвучь новое время пользователю и дождись согласия.',
+        error: 'userConfirmedChange_must_be_true',
+        hint: 'Сначала озвучь пользователю, что именно меняется в брони, и дождись согласия.',
       };
     }
     const reservationId = String(args.reservationId || '');
@@ -1364,17 +1858,28 @@ export class AiToolsService {
       ctx.tenantId,
       ctx.userEmail,
     );
+    // Раньше здесь пропускались только startAt/endAt/staffUserId/resourceId — смена услуги
+    // (serviceId) не имела параметра в схеме инструмента вообще, из-за чего модель не могла
+    // её передать: сервис-слой (ReservationsService.update) и так принимает любое поле брони.
     const dto: Record<string, unknown> = {};
-    if (args.startAt !== undefined) dto.startAt = String(args.startAt);
-    if (args.endAt !== undefined) dto.endAt = String(args.endAt);
-    if (args.staffUserId !== undefined) dto.staffUserId = String(args.staffUserId);
-    if (args.resourceId !== undefined) dto.resourceId = String(args.resourceId);
-    const reservation = await this.reservationsService.update(
-      ctx.tenantId,
-      reservationId,
-      dto,
-      actingStaffUserId,
-    );
+    for (const key of [
+      'startAt', 'endAt', 'staffUserId', 'resourceId', 'serviceId', 'locationId',
+      'customerName', 'customerPhone', 'customerEmail', 'participants',
+      'price', 'currency', 'paymentStatus',
+    ]) {
+      if (args[key] === undefined) continue;
+      dto[key] = key === 'participants' ? Number(args[key]) : args[key];
+    }
+    if (!Object.keys(dto).length) return { ok: false, error: 'no_fields_to_update' };
+    let reservation;
+    try {
+      reservation = await this.reservationsService.update(ctx.tenantId, reservationId, dto, actingStaffUserId);
+    } catch (e: any) {
+      if (e instanceof NotFoundException) {
+        return this.suggestReservationIdOnNotFound(ctx.tenantId, reservationId);
+      }
+      throw e;
+    }
     return { ok: true, reservation };
   }
 
@@ -1384,6 +1889,8 @@ export class AiToolsService {
     confirmField: string | null,
     method: 'confirm' | 'cancelByBusiness' | 'reject' | 'checkIn' | 'complete' | 'markNoShow',
   ) {
+    const perm = await this.checkPermission(ctx, 'bookings');
+    if (!perm.ok) return perm;
     if (confirmField && args[confirmField] !== true) {
       return {
         ok: false,
@@ -1397,8 +1904,212 @@ export class AiToolsService {
       ctx.tenantId,
       ctx.userEmail,
     );
-    const reservation = await this.reservationsService[method](ctx.tenantId, reservationId, actingStaffUserId);
+    let reservation;
+    try {
+      reservation = await this.reservationsService[method](ctx.tenantId, reservationId, actingStaffUserId);
+    } catch (e: any) {
+      if (e instanceof NotFoundException) {
+        return this.suggestReservationIdOnNotFound(ctx.tenantId, reservationId);
+      }
+      throw e;
+    }
     return { ok: true, reservation };
+  }
+
+  private async toolBookingManageLocation(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings_manage_settings');
+    if (!perm.ok) return perm;
+    const action = String(args.action || '');
+    if (action === 'create') {
+      const name = String(args.name || '').trim();
+      if (!name) return { ok: false, error: 'name_required' };
+      const location = await this.bookingsCatalog.createLocation(ctx.tenantId, {
+        name,
+        address: args.address ? String(args.address) : undefined,
+        timezone: args.timezone ? String(args.timezone) : undefined,
+        phone: args.phone ? String(args.phone) : undefined,
+        email: args.email ? String(args.email) : undefined,
+        notes: args.notes ? String(args.notes) : undefined,
+      } as any);
+      return { ok: true, location: { id: location.id, name: location.name } };
+    }
+    const id = String(args.locationId || '').trim();
+    if (!id) return { ok: false, error: 'locationId_required' };
+    if (action === 'delete') {
+      await this.bookingsCatalog.deleteLocation(ctx.tenantId, id);
+      return { ok: true, locationId: id, deleted: true };
+    }
+    if (action === 'update') {
+      const patch = this.pickArgs(args, ['locationId', 'action']);
+      if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
+      const location = await this.bookingsCatalog.updateLocation(ctx.tenantId, id, patch as any);
+      return { ok: true, location };
+    }
+    return { ok: false, error: 'invalid_action', allowed: ['create', 'update', 'delete'] };
+  }
+
+  private async toolBookingManageService(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings_manage_settings');
+    if (!perm.ok) return perm;
+    const action = String(args.action || '');
+    if (action === 'create') {
+      const name = String(args.name || '').trim();
+      if (!name) return { ok: false, error: 'name_required' };
+      const service = await this.bookingsCatalog.createService(ctx.tenantId, {
+        name,
+        category: args.category ? String(args.category) : undefined,
+        color: args.color ? String(args.color) : undefined,
+        durationMinutes: args.durationMinutes !== undefined ? Number(args.durationMinutes) : undefined,
+        price: args.price !== undefined ? String(args.price) : undefined,
+        currency: args.currency ? String(args.currency) : undefined,
+        capacityMin: args.capacityMin !== undefined ? Number(args.capacityMin) : undefined,
+        capacityMax: args.capacityMax !== undefined ? Number(args.capacityMax) : undefined,
+        locationIds: Array.isArray(args.locationIds) ? (args.locationIds as unknown[]).map(String) : undefined,
+        staffUserIds: Array.isArray(args.staffUserIds) ? (args.staffUserIds as unknown[]).map(String) : undefined,
+        autoConfirm: typeof args.autoConfirm === 'boolean' ? args.autoConfirm : undefined,
+      } as any);
+      return { ok: true, service: { id: service.id, name: service.name } };
+    }
+    const id = String(args.serviceId || '').trim();
+    if (!id) return { ok: false, error: 'serviceId_required' };
+    if (action === 'delete') {
+      await this.bookingsCatalog.deleteService(ctx.tenantId, id);
+      return { ok: true, serviceId: id, deleted: true };
+    }
+    if (action === 'update') {
+      const patch = this.pickArgs(args, ['serviceId', 'action']);
+      if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
+      const service = await this.bookingsCatalog.updateService(ctx.tenantId, id, patch as any);
+      return { ok: true, service };
+    }
+    return { ok: false, error: 'invalid_action', allowed: ['create', 'update', 'delete'] };
+  }
+
+  private async toolBookingManageResource(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings_manage_settings');
+    if (!perm.ok) return perm;
+    const action = String(args.action || '');
+    if (action === 'create') {
+      const name = String(args.name || '').trim();
+      const locationId = String(args.locationId || '').trim();
+      const type = String(args.type || '').trim();
+      if (!name || !locationId || !type) {
+        return { ok: false, error: 'name_locationId_type_required' };
+      }
+      const resource = await this.bookingsCatalog.createResource(ctx.tenantId, {
+        name,
+        locationId,
+        type,
+        quantity: args.quantity !== undefined ? Number(args.quantity) : undefined,
+        capacity: args.capacity !== undefined ? Number(args.capacity) : undefined,
+        assignedServiceIds: Array.isArray(args.assignedServiceIds)
+          ? (args.assignedServiceIds as unknown[]).map(String)
+          : undefined,
+      } as any);
+      return { ok: true, resource: { id: resource.id, name: resource.name, type: resource.type } };
+    }
+    const id = String(args.resourceId || '').trim();
+    if (!id) return { ok: false, error: 'resourceId_required' };
+    if (action === 'delete') {
+      await this.bookingsCatalog.deleteResource(ctx.tenantId, id);
+      return { ok: true, resourceId: id, deleted: true };
+    }
+    if (action === 'update') {
+      const patch = this.pickArgs(args, ['resourceId', 'action']);
+      if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
+      const resource = await this.bookingsCatalog.updateResource(ctx.tenantId, id, patch as any);
+      return { ok: true, resource };
+    }
+    return { ok: false, error: 'invalid_action', allowed: ['create', 'update', 'delete'] };
+  }
+
+  private async toolBookingManageLocationClosure(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings_manage_settings');
+    if (!perm.ok) return perm;
+    const action = String(args.action || '');
+    const locationId = String(args.locationId || '').trim();
+    if (!locationId) return { ok: false, error: 'locationId_required' };
+    if (action === 'add') {
+      const date = String(args.date || '').trim();
+      if (!date) return { ok: false, error: 'date_required' };
+      const location = await this.bookingsCatalog.addLocationClosure(ctx.tenantId, locationId, {
+        date,
+        reason: args.reason ? String(args.reason) : null,
+        customHours: Array.isArray(args.customHours) ? (args.customHours as any) : undefined,
+      });
+      return { ok: true, closures: location.closures };
+    }
+    if (action === 'remove') {
+      const index = Number(args.index);
+      if (!Number.isFinite(index)) return { ok: false, error: 'index_required' };
+      const location = await this.bookingsCatalog.removeLocationClosure(ctx.tenantId, locationId, index);
+      return { ok: true, closures: location.closures };
+    }
+    return { ok: false, error: 'invalid_action', allowed: ['add', 'remove'] };
+  }
+
+  private async toolBookingManageStaffProfile(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings_manage_settings');
+    if (!perm.ok) return perm;
+    const staffUserId = String(args.staffUserId || '').trim();
+    if (!staffUserId) return { ok: false, error: 'staffUserId_required' };
+    const patch: Record<string, unknown> = {};
+    if (args.weeklyAvailability !== undefined && typeof args.weeklyAvailability === 'object') {
+      patch.weeklyAvailability = args.weeklyAvailability;
+    }
+    if (typeof args.availableForBooking === 'boolean') patch.availableForBooking = args.availableForBooking;
+    if (Array.isArray(args.assignedLocationIds)) patch.assignedLocationIds = (args.assignedLocationIds as unknown[]).map(String);
+    if (Array.isArray(args.assignedServiceIds)) patch.assignedServiceIds = (args.assignedServiceIds as unknown[]).map(String);
+    if (args.maxSimultaneousBookings !== undefined) patch.maxSimultaneousBookings = Number(args.maxSimultaneousBookings);
+    if (args.calendarColor !== undefined) patch.calendarColor = String(args.calendarColor);
+    if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
+    const profile = await this.bookingsStaff.upsertProfile(ctx.tenantId, staffUserId, patch as any);
+    return {
+      ok: true,
+      profile: {
+        staffUserId: profile.staffUserId,
+        availableForBooking: profile.availableForBooking,
+        assignedLocationIds: profile.assignedLocationIds,
+        assignedServiceIds: profile.assignedServiceIds,
+        weeklyAvailability: profile.weeklyAvailability,
+        maxSimultaneousBookings: profile.maxSimultaneousBookings,
+        calendarColor: profile.calendarColor,
+      },
+    };
+  }
+
+  private async toolBookingManageStaffTimeOff(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'bookings_manage_settings');
+    if (!perm.ok) return perm;
+    const action = String(args.action || '');
+    const staffUserId = String(args.staffUserId || '').trim();
+    if (!staffUserId) return { ok: false, error: 'staffUserId_required' };
+    if (action === 'add') {
+      const from = String(args.from || '').trim();
+      const to = String(args.to || '').trim();
+      if (!from || !to) return { ok: false, error: 'from_to_required' };
+      const profile = await this.bookingsAvailability.addStaffTimeOff(ctx.tenantId, staffUserId, {
+        from,
+        to,
+        reason: args.reason ? String(args.reason) : null,
+      });
+      return { ok: true, timeOff: profile.timeOff };
+    }
+    if (action === 'remove') {
+      const index = Number(args.index);
+      if (!Number.isFinite(index)) return { ok: false, error: 'index_required' };
+      const profile = await this.bookingsAvailability.removeStaffTimeOff(ctx.tenantId, staffUserId, index);
+      if (!profile) return { ok: false, error: 'staff_profile_not_found' };
+      return { ok: true, timeOff: profile.timeOff };
+    }
+    return { ok: false, error: 'invalid_action', allowed: ['add', 'remove'] };
+  }
+
+  private async toolBookingAnalytics(tenantId: string, args: Record<string, unknown>) {
+    const from = args.from ? String(args.from) : undefined;
+    const to = args.to ? String(args.to) : undefined;
+    const summary = await this.bookingsAnalytics.getSummary(tenantId, from, to);
+    return { ok: true, from: from ?? null, to: to ?? null, summary };
   }
 
   /* ---------- Система резервации / Отели ---------- */
@@ -1466,12 +2177,166 @@ export class AiToolsService {
     return { ok: true, ...result };
   }
 
+  private async toolHotelCreate(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'hotels');
+    if (!perm.ok) return perm;
+    const name = String(args.name || '').trim();
+    if (!name) return { ok: false, error: 'name_required' };
+    const hotel = await this.hotelsService.create(ctx.tenantId, {
+      name,
+      city: args.city ? String(args.city) : undefined,
+      country: args.country ? String(args.country) : undefined,
+      stars: args.stars !== undefined ? Number(args.stars) : undefined,
+      currency: args.currency ? String(args.currency) : undefined,
+      address: args.address ? String(args.address) : undefined,
+    } as any);
+    return { ok: true, hotel: { id: hotel.id, name: hotel.name } };
+  }
+
+  private async toolHotelCreateRoomType(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'hotels');
+    if (!perm.ok) return perm;
+    const hotelId = String(args.hotelId || '').trim();
+    const name = String(args.name || '').trim();
+    if (!hotelId || !name) return { ok: false, error: 'hotelId_and_name_required' };
+    const roomType = await this.hotelRoomTypesService.create(ctx.tenantId, hotelId, {
+      name,
+      sizeM2: args.sizeM2 !== undefined ? String(args.sizeM2) : undefined,
+      capacityLabel: args.capacityLabel ? String(args.capacityLabel) : undefined,
+      basePrice: args.basePrice !== undefined ? String(args.basePrice) : undefined,
+      currency: args.currency ? String(args.currency) : undefined,
+      quantity: args.quantity !== undefined ? Number(args.quantity) : undefined,
+      amenities: Array.isArray(args.amenities) ? (args.amenities as unknown[]).map(String) : undefined,
+    } as any);
+    return {
+      ok: true,
+      roomType: { id: roomType.id, name: roomType.name },
+      note: 'Автоматически созданы два базовых варианта размещения (SGL, 2 AD) — при необходимости измени/добавь через crm_hotel_create_occupancy_type.',
+    };
+  }
+
+  private async toolHotelListRoomUnits(tenantId: string, args: Record<string, unknown>) {
+    return {
+      ok: true,
+      units: await this.hotelRoomUnitsService.list(tenantId, {
+        hotelId: args.hotelId ? String(args.hotelId) : undefined,
+        roomTypeId: args.roomTypeId ? String(args.roomTypeId) : undefined,
+      }),
+    };
+  }
+
+  private async toolHotelManageRoomUnit(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'hotels');
+    if (!perm.ok) return perm;
+    const action = String(args.action || '');
+    if (action === 'create') {
+      const roomTypeId = String(args.roomTypeId || '').trim();
+      const label = String(args.label || '').trim();
+      if (!roomTypeId || !label) return { ok: false, error: 'roomTypeId_and_label_required' };
+      const unit = await this.hotelRoomUnitsService.create(ctx.tenantId, {
+        roomTypeId,
+        label,
+        note: args.note ? String(args.note) : undefined,
+      });
+      return { ok: true, unit: { id: unit.id, label: unit.label } };
+    }
+    const id = String(args.roomUnitId || '').trim();
+    if (!id) return { ok: false, error: 'roomUnitId_required' };
+    if (action === 'delete') {
+      return this.hotelRoomUnitsService.remove(ctx.tenantId, id);
+    }
+    if (action === 'update') {
+      const patch = this.pickArgs(args, ['roomUnitId', 'action']);
+      if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
+      const unit = await this.hotelRoomUnitsService.update(ctx.tenantId, id, patch as any);
+      return { ok: true, unit };
+    }
+    return { ok: false, error: 'invalid_action', allowed: ['create', 'update', 'delete'] };
+  }
+
+  private async toolHotelListOccupancyTypes(tenantId: string, args: Record<string, unknown>) {
+    const roomTypeId = String(args.roomTypeId || '').trim();
+    if (!roomTypeId) return { ok: false, error: 'roomTypeId_required' };
+    return { ok: true, occupancyTypes: await this.hotelRoomTypesService.listOccupancyTypes(tenantId, roomTypeId) };
+  }
+
+  private async toolHotelManageOccupancyType(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'hotels_manage_pricing');
+    if (!perm.ok) return perm;
+    const action = String(args.action || '');
+    if (action === 'create') {
+      const roomTypeId = String(args.roomTypeId || '').trim();
+      if (!roomTypeId) return { ok: false, error: 'roomTypeId_required' };
+      const row = await this.hotelRoomTypesService.createOccupancyType(ctx.tenantId, roomTypeId, {
+        label: args.label ? String(args.label) : undefined,
+        coefficient: args.coefficient !== undefined ? String(args.coefficient) : undefined,
+        paidChildCount: args.paidChildCount !== undefined ? Number(args.paidChildCount) : undefined,
+        sortOrder: args.sortOrder !== undefined ? Number(args.sortOrder) : undefined,
+      } as any);
+      return { ok: true, occupancyType: row };
+    }
+    const id = String(args.occupancyTypeId || '').trim();
+    if (!id) return { ok: false, error: 'occupancyTypeId_required' };
+    if (action === 'remove') {
+      return this.hotelRoomTypesService.removeOccupancyType(ctx.tenantId, id);
+    }
+    if (action === 'update') {
+      const patch = this.pickArgs(args, ['occupancyTypeId', 'action']);
+      if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
+      const row = await this.hotelRoomTypesService.updateOccupancyType(ctx.tenantId, id, patch as any);
+      return { ok: true, occupancyType: row };
+    }
+    return { ok: false, error: 'invalid_action', allowed: ['create', 'update', 'remove'] };
+  }
+
+  private async toolHotelUpdateRoomType(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'hotels');
+    if (!perm.ok) return perm;
+    const id = String(args.roomTypeId || '').trim();
+    if (!id) return { ok: false, error: 'roomTypeId_required' };
+    const patch: Record<string, unknown> = {};
+    if (args.name !== undefined) patch.name = String(args.name);
+    if (args.sizeM2 !== undefined) patch.sizeM2 = String(args.sizeM2);
+    if (args.capacityLabel !== undefined) patch.capacityLabel = String(args.capacityLabel);
+    if (args.quantity !== undefined) patch.quantity = Number(args.quantity);
+    if (args.amenities !== undefined && Array.isArray(args.amenities)) {
+      patch.amenities = (args.amenities as unknown[]).map(String);
+    }
+    if (args.coverPhotoUrl !== undefined) patch.coverPhotoUrl = String(args.coverPhotoUrl);
+    if (args.stopSale !== undefined) patch.stopSale = Boolean(args.stopSale);
+    if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
+    const roomType = await this.hotelRoomTypesService.update(ctx.tenantId, id, patch as any);
+    return { ok: true, roomType };
+  }
+
+  private async toolHotelAnalytics(tenantId: string, args: Record<string, unknown>) {
+    const summary = await this.hotelAnalyticsService.getSummary(tenantId, {
+      hotelIds: args.hotelId ? String(args.hotelId) : undefined,
+      roomTypeId: args.roomTypeId ? String(args.roomTypeId) : undefined,
+      dateFrom: args.from ? String(args.from) : undefined,
+      dateTo: args.to ? String(args.to) : undefined,
+      marketId: args.market ? String(args.market) : undefined,
+      agencyId: args.agencyId ? String(args.agencyId) : undefined,
+    } as any);
+    return { ok: true, ...summary };
+  }
+
+  private async toolHotelListMarketPrices(tenantId: string, args: Record<string, unknown>) {
+    const roomTypeId = String(args.roomTypeId || '');
+    if (!roomTypeId) return { ok: false, error: 'roomTypeId_required' };
+    const rows = await this.hotelRoomTypesService.listMarketPrices(tenantId, roomTypeId);
+    return {
+      ok: true,
+      markets: rows.map((m) => ({ marketId: m.marketId, code: m.code, name: m.name, price: m.price })),
+    };
+  }
+
   private async toolHotelReservationCreate(tenantId: string, args: Record<string, unknown>) {
     if (args.userConfirmedReservation !== true) {
       return {
         ok: false,
         error: 'userConfirmedReservation_must_be_true',
-        hint: 'Сначала озвучь отель, тип номера, даты и имя гостя пользователю и дождись согласия.',
+        hint: 'Сначала озвучь отель, тип номера, даты, имя гостя И цену за ночь пользователю и дождись согласия.',
       };
     }
     const hotelId = String(args.hotelId || '');
@@ -1482,6 +2347,27 @@ export class AiToolsService {
     if (!hotelId || !roomTypeId || !guestName || !checkIn || !checkOut) {
       return { ok: false, error: 'hotelId_roomTypeId_guestName_checkIn_checkOut_required' };
     }
+    const market = args.market ? String(args.market) : undefined;
+    let grossPerNight = args.grossPerNight !== undefined ? String(args.grossPerNight) : undefined;
+    let marketPriceNote: string | undefined;
+    // Раньше цена бралась ровно тем, что пришло от модели (или не бралась вовсе) — плоский
+    // per-market тариф (см. crm_hotel_list_markets / listMarketPrices), настроенный для этого
+    // типа номера, никогда не проверялся, хотя именно он должен перекрывать Brutto/ночь при
+    // выбранном рынке.
+    if (market && !grossPerNight) {
+      const rows = await this.hotelRoomTypesService.listMarketPrices(tenantId, roomTypeId);
+      const q = market.trim().toLowerCase();
+      const match = rows.find(
+        (m) => m.code?.toLowerCase() === q || m.name?.toLowerCase() === q,
+      );
+      if (match && Number(match.price) > 0) {
+        grossPerNight = String(match.price);
+        marketPriceNote = `Цена ${match.price} автоматически взята из настроенного тарифа рынка "${match.name}" (${match.code}) для этого типа номера.`;
+      } else {
+        marketPriceNote =
+          'Для указанного market нет настроенного тарифа (или он равен 0) — цену нужно указать явно через grossPerNight/ppPerNight/costPerNight; используй crm_hotel_list_markets, чтобы увидеть реальные тарифы по рынкам, не угадывай цену.';
+      }
+    }
     const dto: HotelReservationInput = {
       hotelId,
       roomTypeId,
@@ -1491,14 +2377,14 @@ export class AiToolsService {
       guestEmail: args.guestEmail ? String(args.guestEmail) : undefined,
       guestPhone: args.guestPhone ? String(args.guestPhone) : undefined,
       pax: args.pax !== undefined ? Number(args.pax) : undefined,
-      market: args.market ? String(args.market) : undefined,
+      market,
       costPerNight: args.costPerNight !== undefined ? String(args.costPerNight) : undefined,
       ppPerNight: args.ppPerNight !== undefined ? String(args.ppPerNight) : undefined,
-      grossPerNight: args.grossPerNight !== undefined ? String(args.grossPerNight) : undefined,
+      grossPerNight,
       discountPct: args.discountPct !== undefined ? String(args.discountPct) : undefined,
     };
     const reservation = await this.hotelReservationsService.create(tenantId, dto);
-    return { ok: true, reservation };
+    return { ok: true, reservation, ...(marketPriceNote ? { marketPriceNote } : {}) };
   }
 
   private async toolHotelReservationUpdate(tenantId: string, args: Record<string, unknown>) {
@@ -1609,13 +2495,11 @@ export class AiToolsService {
     const q = String(args.query || '').trim();
     const limit = Math.min(30, Math.max(1, Number(args.limit) || 10));
     if (!q) return { companies: [] };
-    const rows = await this.companiesRepo.find({
-      where: { tenantId, name: ILike(`%${q}%`) },
-      take: limit,
-      order: { createdAt: 'DESC' },
-    });
+    // Раньше искало только по name напрямую через репозиторий — CompaniesService.findAll уже
+    // ищет по name/legalName/email/website, здесь дублировали более слабую версию.
+    const { items } = await this.companies.findAll(tenantId, { search: q, limit });
     return {
-      companies: rows.map((c) => ({
+      companies: items.map((c) => ({
         id: c.id,
         name: c.name,
         industry: c.industry,
@@ -1642,6 +2526,46 @@ export class AiToolsService {
     };
   }
 
+  /**
+   * Разбирает args.market: пусто → { code: undefined }; известное значение (ISO2 или RU/EN/TR
+   * название из каталога) → { code }; нераспознанное → { code: undefined, unknownRaw } —
+   * вызывающий метод НЕ должен в этом случае молча вернуть нефильтрованные данные.
+   */
+  private resolveMarketArg(
+    args: Record<string, unknown>,
+  ): { code?: string; unknownRaw?: string } {
+    const raw = args.market ? String(args.market).trim() : '';
+    if (!raw) return {};
+    const code = resolveMarketQuery(raw);
+    return code ? { code } : { unknownRaw: raw };
+  }
+
+  private async toolMarketingMarkets(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ) {
+    const from = args.from ? String(args.from) : undefined;
+    const to = args.to ? String(args.to) : undefined;
+    const dataSource = args.dataSource ? String(args.dataSource).trim() : undefined;
+    const { markets, unclassified } = await this.marketing.getMarketingMarketsBreakdown(
+      tenantId,
+      from,
+      to,
+      dataSource,
+    );
+    const totalCost = markets.reduce((s, m) => s + m.cost, 0) + unclassified.cost;
+    return {
+      from: from ?? null,
+      to: to ?? null,
+      markets,
+      unclassified,
+      note:
+        unclassified.cost > 0
+          ? `Расход по кампаниям без определённого рынка: ${unclassified.cost.toFixed(2)} из ${totalCost.toFixed(2)} суммарно — эти кампании НЕ входят ни в один market ниже.`
+          : undefined,
+    };
+  }
+
   private async toolMarketing(
     tenantId: string,
     args: Record<string, unknown>,
@@ -1649,10 +2573,27 @@ export class AiToolsService {
     const from = args.from ? String(args.from) : undefined;
     const to = args.to ? String(args.to) : undefined;
     const dataSourceFilter = args.dataSource ? String(args.dataSource).trim() : undefined;
+    const { code: marketCode, unknownRaw: unknownMarket } = this.resolveMarketArg(args);
     const displayOptRaw = args.displayCurrency
       ? String(args.displayCurrency).toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3)
       : '';
     const displayOpt = /^[A-Z]{3}$/.test(displayOptRaw) ? displayOptRaw : null;
+
+    if (unknownMarket) {
+      const { markets } = await this.marketing.getMarketingMarketsBreakdown(
+        tenantId,
+        from,
+        to,
+        dataSourceFilter,
+      );
+      return {
+        ok: false,
+        error: 'unknown_market',
+        requestedMarket: unknownMarket,
+        hint: 'Этот рынок не распознан справочником. Не показывай пользователю нефильтрованные данные под этим названием — уточни у пользователя код страны или используй один из availableMarkets.',
+        availableMarkets: markets.map((m) => ({ code: m.code, label: m.label, cost: m.cost })),
+      };
+    }
 
     const stats = await this.marketing.getTrafficChannelsStats(
       tenantId,
@@ -1660,6 +2601,7 @@ export class AiToolsService {
       to,
       dataSourceFilter,
       500,
+      marketCode,
     );
 
     let fx: {
@@ -1740,6 +2682,13 @@ export class AiToolsService {
       topChannels,
       dataSources,
       ...(dataSourceFilter ? { filteredByDataSource: dataSourceFilter } : {}),
+      ...(marketCode
+        ? {
+            filteredByMarket: marketCode,
+            marketFilterNote:
+              'Фильтр по рынку эвристический (GA4 country / тег в названии кампании / название страны в тексте), т.к. у большинства рекламных источников нет отдельного поля страны. Если totalCost выглядит подозрительно маленьким или большим, сверься с crm_marketing_markets.',
+          }
+        : {}),
     };
 
     if (fx) {
@@ -1760,12 +2709,31 @@ export class AiToolsService {
     const from = args.from ? String(args.from) : undefined;
     const to = args.to ? String(args.to) : undefined;
     const dataSource = args.dataSource ? String(args.dataSource).trim() : undefined;
+    const { code: marketCode, unknownRaw: unknownMarket } = this.resolveMarketArg(args);
+
+    if (unknownMarket) {
+      const { markets } = await this.marketing.getMarketingMarketsBreakdown(
+        tenantId,
+        from,
+        to,
+        dataSource,
+      );
+      return {
+        ok: false,
+        error: 'unknown_market',
+        requestedMarket: unknownMarket,
+        hint: 'Этот рынок не распознан справочником. Не показывай нефильтрованный ряд под этим названием — уточни у пользователя или используй один из availableMarkets.',
+        availableMarkets: markets.map((m) => ({ code: m.code, label: m.label, cost: m.cost })),
+      };
+    }
 
     const { series } = await this.marketing.getTrafficDailySeries(
       tenantId,
       from,
       to,
       dataSource,
+      undefined,
+      marketCode,
     );
 
     // Сжатый формат для экономии токенов: массив массивов [date, sessions, clicks, impressions, cost, leads]
@@ -1786,6 +2754,7 @@ export class AiToolsService {
       from: from ?? null,
       to: to ?? null,
       ...(dataSource ? { dataSource } : {}),
+      ...(marketCode ? { filteredByMarket: marketCode } : {}),
       totalDays: rows.length,
       totals: { sessions: totalSessions, cost: totalCost, leads: totalLeads },
       series: rows,
@@ -1925,13 +2894,23 @@ export class AiToolsService {
     args: Record<string, unknown>,
   ) {
     const limit = Math.min(40, Math.max(1, Number(args.limit) || 15));
-    const rows = await this.projectsRepo.find({
-      where: { tenantId },
-      order: { updatedAt: 'DESC' },
-      take: limit,
+    const page = Math.max(1, Number(args.page) || 1);
+    // Раньше это был прямой repo.find({where:{tenantId}}) без единого фильтра — тенант с
+    // сотнями проектов физически не мог получить через ИИ ничего, кроме последних 40.
+    const { items, total } = await this.projectsService.findAllForTenant({
+      tenantId,
+      status: args.status ? (String(args.status) as ProjectStatus) : undefined,
+      leadId: args.leadId ? String(args.leadId) : undefined,
+      companyId: args.companyId ? String(args.companyId) : undefined,
+      contactId: args.contactId ? String(args.contactId) : undefined,
+      q: args.q ? String(args.q) : undefined,
+      limit,
+      offset: (page - 1) * limit,
     });
     return {
-      projects: rows.map((p) => ({
+      total,
+      page,
+      projects: items.map((p) => ({
         id: p.id,
         name: p.name,
         status: p.status,
@@ -1946,6 +2925,10 @@ export class AiToolsService {
     args: Record<string, unknown>,
     ctx?: ToolCtx,
   ) {
+    if (ctx) {
+      const perm = await this.checkPermission(ctx, 'leads');
+      if (!perm.ok) return perm;
+    }
     const tgMeta = ctx?.telegramChatId
       ? { telegram: { chatId: ctx.telegramChatId, username: ctx.telegramUsername ?? null } }
       : undefined;
@@ -1995,24 +2978,34 @@ export class AiToolsService {
     userId: string,
     userEmail: string | undefined,
     args: Record<string, unknown>,
+    ctx: ToolCtx,
   ) {
+    {
+      const perm = await this.checkPermission(ctx, 'projects');
+      if (!perm.ok) return perm;
+    }
     const amt =
       args.amount != null && args.amount !== ''
         ? String(Number(args.amount))
         : '0';
-    const allowed: ProjectStatus[] = [
-      'Новый',
-      'В работе',
-      'На проверке',
-      'Заморожен',
-      'Закрыт',
-      'Выиграно',
-      'Проиграно',
-    ];
+    // Статусы проектов настраиваются тенантом (см. project-statuses.service.ts) и НЕ
+    // ограничены фиксированным списком — раньше здесь был хардкод, и любой кастомный/
+    // переименованный статус молча подменялся на "Новый" без предупреждения модели.
     const rawStatus = args.status ? String(args.status).trim() : '';
-    const status: ProjectStatus = allowed.includes(rawStatus as ProjectStatus)
-      ? (rawStatus as ProjectStatus)
-      : 'Новый';
+    let status: ProjectStatus = 'Новый';
+    if (rawStatus) {
+      const valid = await this.projectStatuses.isValidValue(tenantId, rawStatus);
+      if (!valid) {
+        const statuses = await this.projectStatuses.findAll(tenantId);
+        return {
+          ok: false,
+          error: 'invalid_status',
+          allowed: statuses.map((s) => s.value),
+          hint: 'Статус не совпадает ни с одним настроенным статусом этого тенанта — уточни у пользователя точное название, не создавай проект с другим статусом молча.',
+        };
+      }
+      status = rawStatus as ProjectStatus;
+    }
     const proj = await this.projectsService.createForTenant(
       tenantId,
       {
@@ -2021,6 +3014,12 @@ export class AiToolsService {
         amount: amt,
         currency: args.currency ? String(args.currency) : 'EUR',
         status,
+        leadId: args.leadId ? String(args.leadId) : undefined,
+        companyId: args.companyId ? String(args.companyId) : undefined,
+        customFields:
+          args.customFields && typeof args.customFields === 'object'
+            ? (args.customFields as Record<string, any>)
+            : undefined,
       },
       { userId, email: userEmail },
     );
@@ -2233,15 +3232,25 @@ export class AiToolsService {
     const objectId = String(args.objectId || '').trim();
     if (!objectId) return { ok: false, error: 'objectId_required' };
     const limit = Math.min(50, Math.max(1, Number(args.limit) || 20));
+    const page = Math.max(1, Number(args.page) || 1);
+    const search = args.search ? String(args.search) : undefined;
+    const sortBy = args.sortBy ? String(args.sortBy) : undefined;
+    const sortOrder = args.sortOrder === 'ASC' || args.sortOrder === 'DESC' ? args.sortOrder : undefined;
     try {
+      // Раньше передавался только limit (жёсткий потолок 50, без поиска/страницы) — сервис
+      // уже умеет искать по values::text и листать через offset, здесь этим не пользовались.
       const { items, total } = await this.customObjects.listRecords(
         tenantId,
         objectId,
-        { limit },
+        { limit, offset: (page - 1) * limit, search, sortBy, sortOrder },
       );
       return {
         ok: true,
         total,
+        page,
+        ...(total > page * limit
+          ? { moreRecordsAvailable: true, hint: 'Есть ещё записи за пределами этой страницы — увеличь page или сузи search, не утверждай, что это все записи.' }
+          : {}),
         records: items.map((r) => ({
           id: r.id,
           values: r.values,
@@ -2321,27 +3330,47 @@ export class AiToolsService {
     if (!tableName) return { ok: false, error: 'tableName_required' };
     const from = args.from ? String(args.from) : undefined;
     const to = args.to ? String(args.to) : undefined;
+    const dataSourceFilter = args.dataSource ? String(args.dataSource).trim() : undefined;
     const maxRows = Math.min(300, Math.max(1, Number(args.maxRows) || 120));
     const description = args.description
       ? String(args.description).trim()
       : undefined;
+    const { code: marketCode, unknownRaw: unknownMarket } = this.resolveMarketArg(args);
+
+    if (unknownMarket) {
+      const { markets } = await this.marketing.getMarketingMarketsBreakdown(
+        tenantId,
+        from,
+        to,
+        dataSourceFilter,
+      );
+      return {
+        ok: false,
+        error: 'unknown_market',
+        requestedMarket: unknownMarket,
+        hint: 'Этот рынок не распознан справочником. НЕ создавай таблицу с нефильтрованными данными под этим названием — уточни у пользователя или используй один из availableMarkets.',
+        availableMarkets: markets.map((m) => ({ code: m.code, label: m.label, cost: m.cost })),
+      };
+    }
 
     const itemsLimit = Math.min(50_000, Math.max(maxRows * 15, 6_000));
     const stats = await this.marketing.getTrafficChannelsStats(
       tenantId,
       from,
       to,
-      undefined,
+      dataSourceFilter,
       itemsLimit,
+      marketCode,
     );
 
     const items = (stats.items || []).slice(0, maxRows);
     if (!items.length) {
       return {
         ok: false,
-        error: 'no_marketing_channel_rows',
-        hint:
-          'В CRM нет агрегированных строк по каналам за выбранный период (таблица marketing_traffic пуста или даты не попадают в данные). Проверьте период и импорт трафика / интеграции.',
+        error: marketCode ? 'no_rows_for_market' : 'no_marketing_channel_rows',
+        hint: marketCode
+          ? `За выбранный период нет ни одной строки, распознанной как рынок ${marketCode}. НЕ создавай таблицу с данными по всем странам под этим названием — сообщи пользователю, что по этому рынку данных не найдено (проверь crm_marketing_markets на предмет реального написания рынка в кампаниях).`
+          : 'В CRM нет агрегированных строк по каналам за выбранный период (таблица marketing_traffic пуста или даты не попадают в данные). Проверьте период и импорт трафика / интеграции.',
         period: { from: stats.from, to: stats.to },
         totalRawRowsInDb: stats.totalRows,
         dataSources: stats.dataSources || [],
@@ -2371,7 +3400,9 @@ export class AiToolsService {
       name: tableName,
       description:
         description ||
-        'Каналы маркетинга / рекламы (выгрузка из CRM, marketing_traffic)',
+        (marketCode
+          ? `Каналы маркетинга / рекламы, отфильтровано по рынку ${marketCode} (эвристика: GA4 country / тег кампании / название страны в тексте; выгрузка из CRM, marketing_traffic)`
+          : 'Каналы маркетинга / рекламы (выгрузка из CRM, marketing_traffic)'),
       meta: { enabledViews: ['table', 'analytics'] },
       fields: columnDefs.map((c) => ({
         key: c.key,
@@ -2435,6 +3466,13 @@ export class AiToolsService {
         clicks: stats.totalClicks,
         impressions: stats.totalImpressions,
       },
+      ...(marketCode
+        ? {
+            filteredByMarket: marketCode,
+            marketFilterNote:
+              'Фильтр по рынку эвристический (GA4 country / тег в названии кампании / название страны в тексте) — сообщи об этом пользователю, если он спросит про точность.',
+          }
+        : {}),
       ...this.workspaceToolLinkPayload(workspaceAreaId, created.id, analyticsUrlPath),
     };
   }
@@ -2539,6 +3577,34 @@ export class AiToolsService {
     }
   }
 
+  /** Тот же BYOK-override, что и в AiAssistantService.resolveTenantOpenAiOverride — свой ключ
+   * OpenAI (Интеграции → OpenAI) тенанта, если подключён. Раньше toolGenerateImage (и REST
+   * /ai/image) полностью игнорировали BYOK: картинка всегда генерировалась на платформенном
+   * ключе, а платформенная квота при этом ещё и списывалась — двойной ущерб для тенанта,
+   * у которого уже настроен свой ключ и он ожидает не тратить лимитированную квоту чата. */
+  private async resolveTenantOpenAiOverride(
+    tenantId: string,
+  ): Promise<{ apiKey: string; baseUrl?: string; model?: string; provider?: 'openai' | 'anthropic' } | undefined> {
+    try {
+      const list = await this.integrationsService.findAllForTenant(tenantId);
+      const conn = list.find(
+        (c) => c.kind === 'third_party_link' && c.linkCatalogId === 'openai' && c.isEnabled,
+      );
+      if (!conn) return undefined;
+      const full = await this.integrationsService.findOneForTenant(tenantId, conn.id);
+      const cfg = full.config as Record<string, any> | null | undefined;
+      if (!cfg?.apiToken) return undefined;
+      return {
+        apiKey: String(cfg.apiToken),
+        baseUrl: cfg.webhookUrl ? String(cfg.webhookUrl) : undefined,
+        model: cfg.model ? String(cfg.model) : undefined,
+        provider: cfg.provider === 'anthropic' ? 'anthropic' : undefined,
+      };
+    } catch {
+      return undefined;
+    }
+  }
+
   private async toolGenerateImage(
     tenantId: string,
     userId: string,
@@ -2556,14 +3622,17 @@ export class AiToolsService {
       cfg?.aiImageCostCents != null && cfg.aiImageCostCents > 0
         ? cfg.aiImageCostCents
         : 8;
-    const img = await this.openai.generateImage({ prompt, size });
-    await this.quota.chargeCents(tenantId, cost, {
-      userId,
-      kind: 'image',
-      model: cfg?.openAiImageModel || 'dall-e-3',
-      promptTokens: 0,
-      completionTokens: 0,
-    });
+    const openAiOverride = await this.resolveTenantOpenAiOverride(tenantId);
+    const img = await this.openai.generateImage({ prompt, size }, openAiOverride);
+    if (!openAiOverride || openAiOverride.provider === 'anthropic') {
+      await this.quota.chargeCents(tenantId, cost, {
+        userId,
+        kind: 'image',
+        model: cfg?.openAiImageModel || 'dall-e-3',
+        promptTokens: 0,
+        completionTokens: 0,
+      });
+    }
     return {
       ok: true,
       url: img.url,
@@ -2671,12 +3740,20 @@ export class AiToolsService {
   }
 
   private async toolUpdateLead(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'leads');
+    if (!perm.ok) return perm;
     const id = String(args.leadId || '').trim();
     if (!id) return { ok: false, error: 'leadId_required' };
     const existing = await this.leadsService.findOneForTenant(ctx.tenantId, id);
     const acc = await this.checkLeadAccessible(ctx, existing);
     if (!acc.ok) return { ok: false, error: acc.error };
     const patch = this.pickArgs(args, ['leadId']);
+    // crm_update_lead's схема сейчас не рекламирует amount модели, но patch не валидируется по
+    // схеме — проверяем на всякий случай теми же granular-правами, что и REST PATCH /leads/:id.
+    if (patch.amount !== undefined) {
+      const permAmount = await this.checkPermission(ctx, 'leads_edit_amount');
+      if (!permAmount.ok) return permAmount;
+    }
     if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
     const updated = await this.leadsService.updateForTenant(
       ctx.tenantId,
@@ -2698,11 +3775,27 @@ export class AiToolsService {
     ctx: ToolCtx,
     args: Record<string, unknown>,
   ) {
+    const perm = await this.checkPermission(ctx, 'projects');
+    if (!perm.ok) {
+      return perm;
+    }
     const id = String(args.projectId || '').trim();
     if (!id) return { ok: false, error: 'projectId_required' };
+    const tableAccess = await this.checkProjectTableAccess(ctx, id, ['owner', 'editor']);
+    if (!tableAccess.ok) return tableAccess;
     const patch = this.pickArgs(args, ['projectId']);
     if (patch.amount !== undefined && typeof patch.amount === 'number') {
       patch.amount = String(patch.amount);
+    }
+    // Те же granular-права, что и в PATCH /projects/:id (leads/projects controllers) — раньше
+    // AI мог менять сумму и переназначать владельца проекта без единой проверки прав вообще.
+    if (patch.amount !== undefined) {
+      const permAmount = await this.checkPermission(ctx, 'projects_edit_amount');
+      if (!permAmount.ok) return permAmount;
+    }
+    if (patch.ownerUserId !== undefined || patch.ownerUserIds !== undefined || patch.ownerName !== undefined) {
+      const permOwner = await this.checkPermission(ctx, 'projects_edit_owner');
+      if (!permOwner.ok) return permOwner;
     }
     if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
     const actor = { userId: ctx.userId, email: ctx.userEmail };
@@ -2715,29 +3808,142 @@ export class AiToolsService {
     return { ok: true, project: this.serializeProject(updated) };
   }
 
-  private readonly allowedProjectStatuses: ProjectStatus[] = [
-    'Новый',
-    'В работе',
-    'На проверке',
-    'Заморожен',
-    'Закрыт',
-    'Выиграно',
-    'Проиграно',
+  private readonly allowedProjectColumnTypes: CustomFieldType[] = [
+    CustomFieldType.TEXT,
+    CustomFieldType.TEXTAREA,
+    CustomFieldType.NUMBER,
+    CustomFieldType.EMAIL,
+    CustomFieldType.PHONE,
+    CustomFieldType.DATE,
+    CustomFieldType.DATETIME,
+    CustomFieldType.DATERANGE,
+    CustomFieldType.BOOLEAN,
+    CustomFieldType.SELECT,
+    CustomFieldType.MULTISELECT,
+    CustomFieldType.URL,
   ];
+
+  /** Тот же слаг-алгоритм, что и на фронте (normalizeCustomFieldKey) — совпадающие ключи не критичны, но лучше держать в одном стиле. */
+  private slugifyColumnKey(value: string): string {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 48);
+  }
+
+  private async toolProjectListColumns(tenantId: string) {
+    const fields = await this.customFieldsService.findByEntityType(
+      tenantId,
+      CustomFieldEntityType.PROJECT,
+    );
+    return {
+      ok: true,
+      columns: fields.map((f) => ({
+        id: f.id,
+        key: f.key,
+        label: f.label,
+        type: f.type,
+        options: f.options ?? undefined,
+        source: (f.meta as any)?.source || 'manual',
+      })),
+    };
+  }
+
+  private async toolProjectCreateColumn(
+    tenantId: string,
+    args: Record<string, unknown>,
+  ) {
+    const label = String(args.label || '').trim();
+    const type = String(args.type || '').trim() as CustomFieldType;
+    if (!label) return { ok: false, error: 'label_required' };
+    if (!this.allowedProjectColumnTypes.includes(type)) {
+      return {
+        ok: false,
+        error: 'invalid_type',
+        allowed: this.allowedProjectColumnTypes,
+      };
+    }
+    const needsOptions = type === CustomFieldType.SELECT || type === CustomFieldType.MULTISELECT;
+    const rawOptions = Array.isArray(args.options)
+      ? (args.options as unknown[]).map((v) => String(v).trim()).filter(Boolean)
+      : [];
+    if (needsOptions && !rawOptions.length) {
+      return { ok: false, error: 'options_required_for_select_type' };
+    }
+    const options = needsOptions
+      ? rawOptions.map((optLabel) => ({ value: this.slugifyColumnKey(optLabel) || optLabel, label: optLabel }))
+      : undefined;
+
+    const source = args.source === 'lead' || args.source === 'company' ? args.source : undefined;
+    const meta =
+      (type === CustomFieldType.EMAIL || type === CustomFieldType.PHONE) && source
+        ? { source }
+        : undefined;
+
+    const existing = await this.customFieldsService.findByEntityType(
+      tenantId,
+      CustomFieldEntityType.PROJECT,
+    );
+    const baseKey = this.slugifyColumnKey(label) || 'field';
+    const existingKeys = new Set(existing.map((f) => f.key));
+    let key = `cf_${baseKey}`;
+    let suffix = 2;
+    while (existingKeys.has(key)) {
+      key = `cf_${baseKey}_${suffix}`;
+      suffix += 1;
+    }
+
+    try {
+      const created = await this.customFieldsService.create(tenantId, {
+        entityType: CustomFieldEntityType.PROJECT,
+        key,
+        label,
+        type,
+        options,
+        order: existing.length,
+        isActive: true,
+        meta,
+      });
+      return {
+        ok: true,
+        column: {
+          id: created.id,
+          key: created.key,
+          label: created.label,
+          type: created.type,
+          options: created.options ?? undefined,
+        },
+      };
+    } catch (e: any) {
+      return { ok: false, error: e?.message || 'create_column_failed' };
+    }
+  }
 
   private async toolChangeProjectStatus(
     tenantId: string,
     ctx: ToolCtx,
     args: Record<string, unknown>,
   ) {
+    const perm = await this.checkPermission(ctx, 'projects');
+    if (!perm.ok) return perm;
     const id = String(args.projectId || '').trim();
     const status = String(args.status || '').trim() as ProjectStatus;
     if (!id) return { ok: false, error: 'projectId_required' };
-    if (!this.allowedProjectStatuses.includes(status)) {
+    const tableAccess = await this.checkProjectTableAccess(ctx, id, ['owner', 'editor']);
+    if (!tableAccess.ok) return tableAccess;
+    // Статусы тенант-специфичны и настраиваются в /projects/settings — раньше здесь был
+    // хардкод из 7 старых значений, из-за чего переименованные/добавленные тенантом статусы
+    // отклонялись как "неверные".
+    const valid = await this.projectStatuses.isValidValue(tenantId, status);
+    if (!valid) {
+      const statuses = await this.projectStatuses.findAll(tenantId);
       return {
         ok: false,
         error: 'invalid_status',
-        allowed: this.allowedProjectStatuses,
+        allowed: statuses.map((s) => s.value),
+        hint: 'Статус не совпадает ни с одним настроенным статусом этого тенанта — уточни у пользователя точное название.',
       };
     }
     const actor = { userId: ctx.userId, email: ctx.userEmail };
@@ -2755,8 +3961,12 @@ export class AiToolsService {
     ctx: ToolCtx,
     args: Record<string, unknown>,
   ) {
+    const perm = await this.checkPermission(ctx, 'projects_manage_trash');
+    if (!perm.ok) return perm;
     const id = String(args.projectId || '').trim();
     if (!id) return { ok: false, error: 'projectId_required' };
+    const tableAccess = await this.checkProjectTableAccess(ctx, id, ['owner', 'editor']);
+    if (!tableAccess.ok) return tableAccess;
     const actor = { userId: ctx.userId, email: ctx.userEmail };
     await this.projectsService.softDeleteForTenant(tenantId, id, actor);
     return { ok: true, projectId: id, deleted: true };
@@ -2800,12 +4010,14 @@ export class AiToolsService {
     return { ok: true, ...detail };
   }
 
-  private async toolUpdateSale(tenantId: string, args: Record<string, unknown>) {
+  private async toolUpdateSale(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'sales');
+    if (!perm.ok) return perm;
     const id = String(args.saleId || '').trim();
     if (!id) return { ok: false, error: 'saleId_required' };
     const patch = this.pickArgs(args, ['saleId']);
     if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
-    const updated = await this.sales.update(tenantId, id, patch as any);
+    const updated = await this.sales.update(ctx.tenantId, id, patch as any);
     return {
       ok: true,
       sale: {
@@ -2819,11 +4031,13 @@ export class AiToolsService {
     };
   }
 
-  private async toolCreateCompany(tenantId: string, args: Record<string, unknown>) {
+  private async toolCreateCompany(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'companies');
+    if (!perm.ok) return perm;
     const name = String(args.name || '').trim();
     if (!name) return { ok: false, error: 'name_required' };
     const dto = { ...this.pickArgs(args, []), name } as unknown as CreateCompanyDto;
-    const c = await this.companies.create(tenantId, dto);
+    const c = await this.companies.create(ctx.tenantId, dto);
     return { ok: true, company: { id: c.id, name: c.name } };
   }
 
@@ -2851,27 +4065,39 @@ export class AiToolsService {
     };
   }
 
-  private async toolUpdateCompany(tenantId: string, args: Record<string, unknown>) {
+  private async toolUpdateCompany(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'companies');
+    if (!perm.ok) return perm;
     const id = String(args.companyId || '').trim();
     if (!id) return { ok: false, error: 'companyId_required' };
     const patch = this.pickArgs(args, ['companyId']) as UpdateCompanyDto;
     if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
-    const c = await this.companies.update(tenantId, id, patch);
+    const c = await this.companies.update(ctx.tenantId, id, patch);
     return { ok: true, company: { id: c.id, name: c.name } };
   }
 
-  private async toolDeleteCompany(tenantId: string, args: Record<string, unknown>) {
+  private async toolDeleteCompany(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'companies');
+    if (!perm.ok) return perm;
     const id = String(args.companyId || '').trim();
     if (!id) return { ok: false, error: 'companyId_required' };
-    await this.companies.delete(tenantId, id);
+    await this.companies.delete(ctx.tenantId, id);
     return { ok: true, companyId: id, deleted: true };
   }
 
   private async toolListContacts(tenantId: string, args: Record<string, unknown>) {
     const limit = Math.min(80, Math.max(1, Number(args.limit) || 30));
     const search = args.search ? String(args.search) : undefined;
+    const status = args.status ? String(args.status) : undefined;
+    const assignedUserId = args.assignedUserId ? String(args.assignedUserId) : undefined;
+    const tags = Array.isArray(args.tags)
+      ? (args.tags as unknown[]).map((t) => String(t).trim()).filter(Boolean)
+      : undefined;
     const { items, total } = await this.contacts.findAll(tenantId, {
       search,
+      status,
+      assignedUserId,
+      tags,
       limit,
     });
     return {
@@ -2915,7 +4141,9 @@ export class AiToolsService {
     };
   }
 
-  private async toolCreateContact(tenantId: string, args: Record<string, unknown>) {
+  private async toolCreateContact(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'contacts');
+    if (!perm.ok) return perm;
     const has =
       String(args.email || '').trim() ||
       String(args.firstName || '').trim() ||
@@ -2928,23 +4156,27 @@ export class AiToolsService {
       };
     }
     const dto = this.pickArgs(args, []) as CreateContactDto;
-    const c = await this.contacts.create(tenantId, dto);
+    const c = await this.contacts.create(ctx.tenantId, dto);
     return { ok: true, contact: { id: c.id, fullName: c.fullName, email: c.email } };
   }
 
-  private async toolUpdateContact(tenantId: string, args: Record<string, unknown>) {
+  private async toolUpdateContact(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'contacts');
+    if (!perm.ok) return perm;
     const id = String(args.contactId || '').trim();
     if (!id) return { ok: false, error: 'contactId_required' };
     const patch = this.pickArgs(args, ['contactId']) as UpdateContactDto;
     if (!Object.keys(patch).length) return { ok: false, error: 'no_fields_to_update' };
-    const c = await this.contacts.update(tenantId, id, patch);
+    const c = await this.contacts.update(ctx.tenantId, id, patch);
     return { ok: true, contact: { id: c.id, fullName: c.fullName, email: c.email } };
   }
 
-  private async toolDeleteContact(tenantId: string, args: Record<string, unknown>) {
+  private async toolDeleteContact(ctx: ToolCtx, args: Record<string, unknown>) {
+    const perm = await this.checkPermission(ctx, 'contacts');
+    if (!perm.ok) return perm;
     const id = String(args.contactId || '').trim();
     if (!id) return { ok: false, error: 'contactId_required' };
-    await this.contacts.delete(tenantId, id);
+    await this.contacts.delete(ctx.tenantId, id);
     return { ok: true, contactId: id, deleted: true };
   }
 
@@ -3075,9 +4307,12 @@ export class AiToolsService {
   }
 
   private async toolCreateCompanyTask(
-    tenantId: string,
+    ctx: ToolCtx,
     args: Record<string, unknown>,
   ) {
+    const perm = await this.checkPermission(ctx, 'companies_manage_tasks');
+    if (!perm.ok) return perm;
+    const tenantId = ctx.tenantId;
     const companyId = String(args.companyId || '').trim();
     const title = String(args.title || '').trim();
     if (!companyId || !title) return { ok: false, error: 'companyId_and_title_required' };
@@ -3089,9 +4324,12 @@ export class AiToolsService {
   }
 
   private async toolUpdateCompanyTask(
-    tenantId: string,
+    ctx: ToolCtx,
     args: Record<string, unknown>,
   ) {
+    const perm = await this.checkPermission(ctx, 'companies_manage_tasks');
+    if (!perm.ok) return perm;
+    const tenantId = ctx.tenantId;
     const taskId = String(args.taskId || '').trim();
     if (!taskId) return { ok: false, error: 'taskId_required' };
     const patch = this.pickArgs(args, ['taskId']) as unknown as UpdateCompanyTaskDto;
@@ -3101,9 +4339,12 @@ export class AiToolsService {
   }
 
   private async toolDeleteCompanyTask(
-    tenantId: string,
+    ctx: ToolCtx,
     args: Record<string, unknown>,
   ) {
+    const perm = await this.checkPermission(ctx, 'companies_manage_tasks');
+    if (!perm.ok) return perm;
+    const tenantId = ctx.tenantId;
     const taskId = String(args.taskId || '').trim();
     if (!taskId) return { ok: false, error: 'taskId_required' };
     await this.companies.deleteTask(tenantId, taskId);

@@ -21,12 +21,24 @@ const PAGE_BG = '#fafafa';
 const TEXT = '#18181b';
 const MUTED = '#71717a';
 
-/** Общая оболочка письма: заголовок-блок + контент + опциональная кнопка */
-function shell(
-  headline: string,
-  innerHtml: string,
-  cta?: { label: string; href: string },
-): string {
+/**
+ * Тело письма (то, что реально сохраняется в htmlBody): контент + опциональная кнопка,
+ * БЕЗ шапки/футера компании — они подставляются автоматически из обёртки
+ * (Настройки компании → «Обёртка для писем») при отправке, см. useWrapper на шаблоне.
+ */
+function fragment(innerHtml: string, cta?: { label: string; href: string }): string {
+  const ctaRow = cta
+    ? `<p style="margin:20px 0 0;"><a href="${cta.href}" style="display:inline-block;padding:12px 22px;background:${ACCENT};color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:14px;">${cta.label}</a></p>`
+    : '';
+  return `${innerHtml}${ctaRow}`;
+}
+
+/**
+ * Полноценный HTML-документ ИСКЛЮЧИТЕЛЬНО для миниатюры в «Библиотеке заготовок» —
+ * показывает, как контент будет выглядеть внутри дизайна компании (условно, на дефолтной теме).
+ * В реальное письмо не идёт.
+ */
+function previewShell(headline: string, innerHtml: string, cta?: { label: string; href: string }): string {
   const ctaRow = cta
     ? `<tr><td style="padding:8px 28px 28px;"><a href="${cta.href}" style="display:inline-block;padding:12px 22px;background:${ACCENT};color:#ffffff;text-decoration:none;border-radius:10px;font-weight:600;font-size:14px;">${cta.label}</a></td></tr>`
     : '';
@@ -72,16 +84,35 @@ export interface EmailTemplatePresetContent {
   subject: string;
   htmlBody: string;
   textBody: string;
+  /** Только для миниатюры в библиотеке заготовок — не сохраняется как содержимое шаблона. */
+  previewHtml: string;
+}
+
+/** Собирает один пункт библиотеки заготовок: реальный фрагмент + макет для миниатюры. */
+function preset(
+  id: EmailTemplatePresetId,
+  subject: string,
+  headline: string,
+  innerHtml: string,
+  textBody: string,
+  cta: { label: string; href: string },
+): EmailTemplatePresetContent {
+  return {
+    id,
+    subject,
+    htmlBody: fragment(innerHtml, cta),
+    textBody,
+    previewHtml: previewShell(headline, innerHtml, cta),
+  };
 }
 
 export const EMAIL_TEMPLATE_PRESET_CONTENTS: readonly EmailTemplatePresetContent[] =
   [
-    {
-      id: 'lead_new',
-      subject: 'Новый лид: {{lead.name}}',
-      htmlBody: shell(
-        'Новый лид',
-        `<p style="margin:0 0 16px;">Здравствуйте!</p>
+    preset(
+      'lead_new',
+      'Новый лид: {{lead.name}}',
+      'Новый лид',
+      `<p style="margin:0 0 16px;">Здравствуйте!</p>
 <p style="margin:0 0 16px;">В CRM появился новый лид — кратко по карточке:</p>
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid ${BORDER};border-radius:12px;overflow:hidden;">
   <tr><td style="padding:12px 16px;background:#f4f4f5;font-size:12px;color:${MUTED};width:36%;">Имя</td><td style="padding:12px 16px;font-weight:600;">{{lead.name}}</td></tr>
@@ -89,136 +120,110 @@ export const EMAIL_TEMPLATE_PRESET_CONTENTS: readonly EmailTemplatePresetContent
   <tr><td style="padding:12px 16px;border-top:1px solid ${BORDER};font-size:12px;color:${MUTED};">Телефон</td><td style="padding:12px 16px;border-top:1px solid ${BORDER};">{{lead.phone}}</td></tr>
   <tr><td style="padding:12px 16px;border-top:1px solid ${BORDER};font-size:12px;color:${MUTED};">Статус</td><td style="padding:12px 16px;border-top:1px solid ${BORDER};">{{lead.status}}</td></tr>
 </table>`,
-        { label: 'Открыть карточку в CRM', href: '#' },
-      ),
-      textBody:
-        'Новый лид в CRM.\nИмя: {{lead.name}}\nEmail: {{lead.email}}\nТелефон: {{lead.phone}}\nСтатус: {{lead.status}}',
-    },
-    {
-      id: 'lead_status',
-      subject: '{{lead.name}} — новый статус: {{lead.status}}',
-      htmlBody: shell(
-        'Лид изменил статус',
-        `<p style="margin:0 0 16px;">Здравствуйте!</p>
+      'Новый лид в CRM.\nИмя: {{lead.name}}\nEmail: {{lead.email}}\nТелефон: {{lead.phone}}\nСтатус: {{lead.status}}',
+      { label: 'Открыть карточку в CRM', href: '#' },
+    ),
+    preset(
+      'lead_status',
+      '{{lead.name}} — новый статус: {{lead.status}}',
+      'Лид изменил статус',
+      `<p style="margin:0 0 16px;">Здравствуйте!</p>
 <p style="margin:0 0 16px;">По лиду <strong>{{lead.name}}</strong> обновился этап воронки.</p>
 <p style="margin:0;padding:16px;background:#f4f4f5;border-radius:12px;border:1px solid ${BORDER};">
   <span style="font-size:12px;color:${MUTED};display:block;margin-bottom:6px;">Текущий статус</span>
   <span style="font-size:18px;font-weight:700;color:${ACCENT};">{{lead.status}}</span>
 </p>
 <p style="margin:16px 0 0;font-size:14px;color:${MUTED};">Контакты: {{lead.email}} · {{lead.phone}}</p>`,
-        { label: 'Перейти к лиду', href: '#' },
-      ),
-      textBody:
-        'Лид {{lead.name}} сменил статус на {{lead.status}}.\nEmail: {{lead.email}}\nТелефон: {{lead.phone}}',
-    },
-    {
-      id: 'project_new',
-      subject: 'Новый проект: {{project.name}}',
-      htmlBody: shell(
-        'Новый проект',
-        `<p style="margin:0 0 16px;">В CRM создан проект (сделка).</p>
+      'Лид {{lead.name}} сменил статус на {{lead.status}}.\nEmail: {{lead.email}}\nТелефон: {{lead.phone}}',
+      { label: 'Перейти к лиду', href: '#' },
+    ),
+    preset(
+      'project_new',
+      'Новый проект: {{project.name}}',
+      'Новый проект',
+      `<p style="margin:0 0 16px;">В CRM создан проект (сделка).</p>
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid ${BORDER};border-radius:12px;">
   <tr><td style="padding:12px 16px;background:#f4f4f5;font-size:12px;color:${MUTED};">Название</td><td style="padding:12px 16px;font-weight:600;">{{project.name}}</td></tr>
   <tr><td style="padding:12px 16px;border-top:1px solid ${BORDER};font-size:12px;color:${MUTED};">Статус</td><td style="padding:12px 16px;border-top:1px solid ${BORDER};">{{project.status}}</td></tr>
   <tr><td style="padding:12px 16px;border-top:1px solid ${BORDER};font-size:12px;color:${MUTED};">Сумма</td><td style="padding:12px 16px;border-top:1px solid ${BORDER};">{{project.amount}} {{project.currency}}</td></tr>
 </table>`,
-        { label: 'Открыть проект', href: '#' },
-      ),
-      textBody:
-        'Новый проект: {{project.name}}\nСтатус: {{project.status}}\nСумма: {{project.amount}} {{project.currency}}',
-    },
-    {
-      id: 'sale_new',
-      subject: 'Фиксация продажи: {{sale.id}}',
-      htmlBody: shell(
-        'Новая продажа',
-        `<p style="margin:0 0 16px;">Зафиксирована продажа в CRM.</p>
+      'Новый проект: {{project.name}}\nСтатус: {{project.status}}\nСумма: {{project.amount}} {{project.currency}}',
+      { label: 'Открыть проект', href: '#' },
+    ),
+    preset(
+      'sale_new',
+      'Фиксация продажи: {{sale.id}}',
+      'Новая продажа',
+      `<p style="margin:0 0 16px;">Зафиксирована продажа в CRM.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid ${BORDER};border-radius:12px;">
   <tr><td style="padding:12px 16px;background:#f4f4f5;font-size:12px;color:${MUTED};">Сумма</td><td style="padding:12px 16px;font-weight:700;font-size:18px;color:${ACCENT};">{{sale.amount}} {{sale.currency}}</td></tr>
   <tr><td style="padding:12px 16px;border-top:1px solid ${BORDER};font-size:12px;color:${MUTED};">Статус</td><td style="padding:12px 16px;border-top:1px solid ${BORDER};">{{sale.status}}</td></tr>
 </table>
 <p style="margin:16px 0 0;font-size:14px;color:${MUTED};">При необходимости добавьте ссылку на счёт или акт во вложении в редакторе.</p>`,
-        { label: 'Подробнее в CRM', href: '#' },
-      ),
-      textBody:
-        'Новая продажа.\nСумма: {{sale.amount}} {{sale.currency}}\nСтатус: {{sale.status}}',
-    },
-    {
-      id: 'client_broadcast',
-      subject: 'Новости для вас, {{contact.fullName}}',
-      htmlBody: shell(
-        'Рассылка клиентам',
-        `<p style="margin:0 0 12px;">Здравствуйте, {{contact.fullName}}!</p>
+      'Новая продажа.\nСумма: {{sale.amount}} {{sale.currency}}\nСтатус: {{sale.status}}',
+      { label: 'Подробнее в CRM', href: '#' },
+    ),
+    preset(
+      'client_broadcast',
+      'Новости для вас, {{contact.fullName}}',
+      'Рассылка клиентам',
+      `<p style="margin:0 0 12px;">Здравствуйте, {{contact.fullName}}!</p>
 <p style="margin:0 0 16px;">Кратко рассказываем, что изменилось для вас за последнее время (замените этот абзац на свой текст).</p>
 <ul style="margin:0;padding-left:20px;color:${TEXT};">
   <li style="margin-bottom:8px;">Пункт 1 — продукт или услуга</li>
   <li style="margin-bottom:8px;">Пункт 2 — выгода или кейс</li>
   <li>Пункт 3 — призыв к действию</li>
 </ul>`,
-        { label: 'Узнать подробнее', href: '#' },
-      ),
-      textBody:
-        'Здравствуйте, {{contact.fullName}}!\n\n[Вставьте текст рассылки.]\n\nС уважением,\nВаша команда',
-    },
-    {
-      id: 'funnel_nurture',
-      subject: '{{lead.name}}, продолжим диалог?',
-      htmlBody: shell(
-        'Воронка: следующий шаг',
-        `<p style="margin:0 0 16px;">Здравствуйте, {{lead.name}}!</p>
+      'Здравствуйте, {{contact.fullName}}!\n\n[Вставьте текст рассылки.]\n\nС уважением,\nВаша команда',
+      { label: 'Узнать подробнее', href: '#' },
+    ),
+    preset(
+      'funnel_nurture',
+      '{{lead.name}}, продолжим диалог?',
+      'Воронка: следующий шаг',
+      `<p style="margin:0 0 16px;">Здравствуйте, {{lead.name}}!</p>
 <p style="margin:0 0 16px;">Мы заметили ваш интерес и хотим помочь с следующим шагом — выберите удобный вариант или ответьте на это письмо.</p>
 <p style="margin:0;padding:14px 16px;background:#f4f4f5;border-radius:12px;border-left:4px solid ${ACCENT};font-size:14px;">
   Здесь можно описать оффер, дедлайн или бонус за ответ до указанной даты.
 </p>`,
-        { label: 'Запланировать звонок', href: '#' },
-      ),
-      textBody:
-        'Здравствуйте, {{lead.name}}!\n\nМы хотим помочь с вашим запросом. Ответьте на письмо или перейдите по ссылке из HTML-версии.',
-    },
-    {
-      id: 'meeting_reminder',
-      subject: 'Напоминание: встреча с {{lead.name}}',
-      htmlBody: shell(
-        'Напоминание о встрече',
-        `<p style="margin:0 0 16px;">Здравствуйте!</p>
+      'Здравствуйте, {{lead.name}}!\n\nМы хотим помочь с вашим запросом. Ответьте на письмо или перейдите по ссылке из HTML-версии.',
+      { label: 'Запланировать звонок', href: '#' },
+    ),
+    preset(
+      'meeting_reminder',
+      'Напоминание: встреча с {{lead.name}}',
+      'Напоминание о встрече',
+      `<p style="margin:0 0 16px;">Здравствуйте!</p>
 <p style="margin:0 0 12px;">Напоминаем о запланированной встрече по лиду <strong>{{lead.name}}</strong>.</p>
 <p style="margin:0;padding:16px;background:#f4f4f5;border-radius:12px;font-size:14px;">
   Подставьте дату/время и ссылку на видеозвонок вместо этого текста (или используйте переменные из вашего сценария).
 </p>`,
-        { label: 'Добавить в календарь', href: '#' },
-      ),
-      textBody:
-        'Напоминание о встрече.\nЛид: {{lead.name}}\nEmail: {{lead.email}}\n\n[Укажите дату и время вручную или через сценарий.]',
-    },
-    {
-      id: 'thank_you_post_sale',
-      subject: 'Спасибо за сделку, {{contact.fullName}}!',
-      htmlBody: shell(
-        'Благодарность после сделки',
-        `<p style="margin:0 0 16px;">Здравствуйте, {{contact.fullName}}!</p>
+      'Напоминание о встрече.\nЛид: {{lead.name}}\nEmail: {{lead.email}}\n\n[Укажите дату и время вручную или через сценарий.]',
+      { label: 'Добавить в календарь', href: '#' },
+    ),
+    preset(
+      'thank_you_post_sale',
+      'Спасибо за сделку, {{contact.fullName}}!',
+      'Благодарность после сделки',
+      `<p style="margin:0 0 16px;">Здравствуйте, {{contact.fullName}}!</p>
 <p style="margin:0 0 16px;">Спасибо, что выбрали нас. Ниже — краткая сводка; при необходимости добавьте реквизиты и ссылку на оплату.</p>
 <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border:1px solid ${BORDER};border-radius:12px;">
   <tr><td style="padding:12px 16px;background:#f4f4f5;font-size:12px;color:${MUTED};">Проект / сделка</td><td style="padding:12px 16px;">{{project.name}}</td></tr>
   <tr><td style="padding:12px 16px;border-top:1px solid ${BORDER};font-size:12px;color:${MUTED};">Сумма</td><td style="padding:12px 16px;border-top:1px solid ${BORDER};font-weight:600;">{{project.amount}} {{project.currency}}</td></tr>
 </table>`,
-        { label: 'Связаться с менеджером', href: '#' },
-      ),
-      textBody:
-        'Спасибо, {{contact.fullName}}!\nМы ценим сотрудничество.\nПроект: {{project.name}}\nСумма: {{project.amount}} {{project.currency}}',
-    },
-    {
-      id: 'reactivation',
-      subject: 'Давно не общались — {{company.name}}',
-      htmlBody: shell(
-        'Реактивация',
-        `<p style="margin:0 0 16px;">Здравствуйте!</p>
+      'Спасибо, {{contact.fullName}}!\nМы ценим сотрудничество.\nПроект: {{project.name}}\nСумма: {{project.amount}} {{project.currency}}',
+      { label: 'Связаться с менеджером', href: '#' },
+    ),
+    preset(
+      'reactivation',
+      'Давно не общались — {{company.name}}',
+      'Реактивация',
+      `<p style="margin:0 0 16px;">Здравствуйте!</p>
 <p style="margin:0 0 16px;">Мы по {{company.name}} давно не получали от вас новостей. Если тема актуальна — ответьте на письмо или нажмите кнопку.</p>
 <p style="margin:0;font-size:14px;color:${MUTED};">Персонализируйте текст: добавьте имя контакта ({{contact.fullName}}) и конкретное предложение.</p>`,
-        { label: 'Хочу продолжить', href: '#' },
-      ),
-      textBody:
-        'Здравствуйте!\n\nМы хотели бы возобновить диалог по {{company.name}}.\n\nС уважением,\n[Подпись]',
-    },
+      'Здравствуйте!\n\nМы хотели бы возобновить диалог по {{company.name}}.\n\nС уважением,\n[Подпись]',
+      { label: 'Хочу продолжить', href: '#' },
+    ),
   ];
 
 export function getEmailTemplatePreset(

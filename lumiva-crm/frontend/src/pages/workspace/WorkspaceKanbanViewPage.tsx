@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import { DndContext, DragOverlay, useDraggable, useDroppable, type DragEndEvent } from '@dnd-kit/core';
+import { useKanbanSensors } from '../../components/kanban/useKanbanSensors';
+import { kanbanCollisionDetection } from '../../components/kanban/kanbanCollisionDetection';
+import { useHorizontalWheelScroll } from '../../components/kanban/useHorizontalWheelScroll';
+import '../projects/ProjectsListPage.css';
 import { ApiError } from '../../api/client';
 import { MainLayout } from '../../layout/MainLayout';
 import {
@@ -20,6 +25,9 @@ import { pickStatusLikeField } from '../../components/workspace/workspaceStatusF
 import { WorkspaceViewTabs } from '../../components/workspace/WorkspaceViewTabs';
 import { useWorkspaceViewAccess } from '../../workspace/useWorkspaceViewAccess';
 import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import { WsAreaBar } from '../../components/workspace/WsAreaBar';
+import { fetchWorkspaceArea, type WorkspaceArea } from '../../api/workspaceAreas';
+import './WorkspaceArea.css';
 
 const FALLBACK_STATUSES = [
   { value: 'working_on_it', label: 'Working on it' },
@@ -41,29 +49,44 @@ const normalizeOptionValue = (value: string) =>
     .replace(/[^a-z0-9_а-яё-]/gi, '');
 const hashString = (input: string) =>
   input.split('').reduce((acc, ch) => (acc * 31 + ch.charCodeAt(0)) % 997, 7);
-const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
-  const normalized = String(hex || '').trim().replace('#', '');
-  if (!/^[0-9a-fA-F]{3,8}$/.test(normalized)) return null;
-  const short = normalized.length === 3 || normalized.length === 4;
-  const full = short
-    ? normalized
-        .slice(0, 3)
-        .split('')
-        .map((ch) => ch + ch)
-        .join('')
-    : normalized.slice(0, 6);
-  const int = Number.parseInt(full, 16);
-  if (!Number.isFinite(int)) return null;
-  return { r: (int >> 16) & 255, g: (int >> 8) & 255, b: int & 255 };
-};
-const pickTextColorForBg = (hex: string) => {
-  const rgb = hexToRgb(hex);
-  if (!rgb) return '#0f172a';
-  const luminance = (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255;
-  return luminance > 0.6 ? '#0f172a' : '#ffffff';
-};
 
 type StatusOption = { value: string; label: string; color: string };
+
+const DraggableRecordCard: React.FC<{
+  id: string;
+  className?: string;
+  onClick?: () => void;
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  children: React.ReactNode;
+}> = ({ id, className, onClick, onKeyDown, children }) => {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id });
+  // Visual feedback while dragging comes from the floating DragOverlay, not an in-place
+  // transform — see LeadsBoardPage/ProjectsBoardPage for why an in-place transform can read as
+  // "snapping back" for a frame on a card that moves between columns.
+  const style: React.CSSProperties = { opacity: isDragging ? 0.35 : undefined };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={className}
+      {...attributes}
+      {...listeners}
+      onClick={onClick}
+      onKeyDown={onKeyDown}
+    >
+      {children}
+    </div>
+  );
+};
+
+const DroppableRecordColumn: React.FC<{ id: string; className?: string; children: React.ReactNode }> = ({ id, className, children }) => {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`${className || ''}${isOver ? ' over' : ''}`}>
+      {children}
+    </div>
+  );
+};
 
 export const WorkspaceKanbanViewPage: React.FC = () => {
   const { t } = useTranslation();
@@ -71,13 +94,14 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
   useWorkspaceViewAccess(objectId, 'kanban');
   const [fields, setFields] = useState<CustomObjectField[]>([]);
   const [objectMeta, setObjectMeta] = useState<CustomObject['meta'] | null>(null);
+  const [objectName, setObjectName] = useState('');
+  const [area, setArea] = useState<WorkspaceArea | null>(null);
   const [records, setRecords] = useState<CustomObjectRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [moveError, setMoveError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [activeDropStatus, setActiveDropStatus] = useState<string | null>(null);
   const [activeRecord, setActiveRecord] = useState<CustomObjectRecord | null>(null);
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [savingRecordId, setSavingRecordId] = useState<string | null>(null);
@@ -94,6 +118,9 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
 
   /** Подавить клик сразу после drag-and-drop (иначе откроется дровер). */
   const dragEndTsRef = useRef(0);
+  const kanbanSensors = useKanbanSensors();
+  const { ref: boardScrollRef } = useHorizontalWheelScroll<HTMLDivElement>();
+  const activeDragRecord = useMemo(() => records.find((r) => r.id === draggingId) ?? null, [records, draggingId]);
   /** После переноса — карточка наверху колонки + подсветка. */
   const [pinnedKanban, setPinnedKanban] = useState<{
     recordId: string;
@@ -129,6 +156,14 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
       setRecords(result.items);
       setStaff(staffList);
       setObjectMeta((object?.meta as Record<string, any> | null) || null);
+      setObjectName(object?.name || '');
+      if (object?.workspaceAreaId) {
+        fetchWorkspaceArea(object.workspaceAreaId)
+          .then(setArea)
+          .catch(() => setArea(null));
+      } else {
+        setArea(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -180,6 +215,25 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
       fields.find((f) => f.key === 'name') ||
       fields.find((f) => f.key === 'title') ||
       fields[0],
+    [fields],
+  );
+  /** Числовое поле для суммы/полоски в шапке колонки — первое поле типа number, если оно есть. */
+  const amountField = useMemo(() => fields.find((f) => f.type === 'number'), [fields]);
+  /** Поле ответственного — та же эвристика, что и в WorkspaceRecordDetailDrawer. */
+  const ownerField = useMemo(
+    () =>
+      fields.find(
+        (f) =>
+          f.key.includes('owner') ||
+          f.key.includes('assignee') ||
+          f.key.includes('person') ||
+          f.key.includes('responsible'),
+      ),
+    [fields],
+  );
+  /** Доп. бейдж на карточке — поле-источник, если оно есть. */
+  const sourceField = useMemo(
+    () => fields.find((f) => /source|channel|utm/i.test(f.key)),
     [fields],
   );
 
@@ -419,6 +473,17 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
         return { label, value };
       })
       .filter(Boolean) as Array<{ label: string; value: string }>;
+  const getOwnerInitials = (record: CustomObjectRecord) => {
+    if (!ownerField) return '';
+    const raw = String(record.values?.[ownerField.key] || '').trim();
+    if (!raw) return '';
+    const first = raw.split(/[,;/]+/)[0].trim();
+    const parts = first.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return first.slice(0, 2).toUpperCase();
+  };
+  const getSourceLabel = (record: CustomObjectRecord) =>
+    sourceField ? String(record.values?.[sourceField.key] || '').trim() : '';
 
   const columns = useMemo(
     () =>
@@ -440,11 +505,15 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
           const tb = new Date(b.updatedAt || b.createdAt || 0).getTime();
           return tb - ta;
         });
+        const sum = amountField
+          ? filtered.reduce((acc, r) => acc + (Number(r.values?.[amountField.key]) || 0), 0)
+          : 0;
         return {
           status: statusItem.value,
           label: statusItem.label,
           color: statusItem.color,
           items: sorted,
+          sum,
         };
       }),
     [
@@ -455,14 +524,18 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
       cardTitleField,
       cardClientField,
       pinnedKanban,
+      amountField,
     ],
+  );
+  const maxColumnSum = useMemo(
+    () => Math.max(1, ...columns.map((c) => c.sum)),
+    [columns],
   );
 
   const moveTo = async (record: CustomObjectRecord, nextStatus: string) => {
     const currentStatus = getRecordStatus(record);
     if (currentStatus === nextStatus) {
       setDraggingId(null);
-      setActiveDropStatus(null);
       return;
     }
 
@@ -508,12 +581,27 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
     } finally {
       setSaving(null);
       setDraggingId(null);
-      setActiveDropStatus(null);
       pinClearTimerRef.current = window.setTimeout(() => {
         pinClearTimerRef.current = null;
         setPinnedKanban(null);
       }, 10000);
     }
+  };
+
+  const handleKanbanDragStart = (id: string) => {
+    setDraggingId(id);
+  };
+
+  const handleKanbanDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    dragEndTsRef.current = Date.now();
+    if (!over) {
+      setDraggingId(null);
+      return;
+    }
+    const rec = records.find((r) => r.id === String(active.id));
+    if (rec) void moveTo(rec, String(over.id));
+    else setDraggingId(null);
   };
 
   const createCard = async (columnStatus: string) => {
@@ -538,7 +626,16 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
 
   return (
     <MainLayout>
-      <div className="max-w-[120rem] mx-auto space-y-4">
+      <div className="lv-kb ws-page max-w-[120rem] mx-auto space-y-4">
+        {area && (
+          <WsAreaBar
+            areaId={area.id}
+            areaName={area.name}
+            areaIconKey={area.iconKey}
+            current={objectName}
+            kind={getWorkspaceTableKind(objectMeta as Record<string, unknown> | null)}
+          />
+        )}
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.kanban.title')}</h1>
@@ -561,86 +658,60 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
             </button>
           </div>
         )}
-        <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="lv-toolbar">
+          <div className="lv-tb-search" style={{ width: 288 }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path d="M21 21l-4.5-4.5" />
+            </svg>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('crm.workspace.kanban.searchPlaceholder')}
-              className="w-full md:w-72 rounded-lg border border-slate-300 px-3 py-2 text-sm"
             />
-            <div className="ml-auto text-xs text-slate-500">
-              {t('crm.workspace.kanban.cardsTotal', { count: records.length })}
-            </div>
+          </div>
+          <div className="lv-toolbar-spacer" />
+          <div className="text-xs" style={{ color: 'var(--fg-3)' }}>
+            {t('crm.workspace.kanban.cardsTotal', { count: records.length })}
           </div>
         </div>
 
         {loading ? (
           <div className="text-sm text-slate-500">{t('crm.workspace.common.loading')}</div>
         ) : (
-          <div className="flex gap-4 overflow-x-auto pb-1">
+          <DndContext sensors={kanbanSensors} collisionDetection={kanbanCollisionDetection} onDragStart={(e) => handleKanbanDragStart(String(e.active.id))} onDragEnd={handleKanbanDragEnd}>
+          <div className="kb-board" ref={boardScrollRef}>
             {columns.map((col) => (
-              <div
-                key={col.status}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setActiveDropStatus(col.status);
-                }}
-                onDragLeave={() => setActiveDropStatus((prev) => (prev === col.status ? null : prev))}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  const rawId =
-                    e.dataTransfer.getData('application/x-lumiva-kanban-id') ||
-                    e.dataTransfer.getData('text/plain') ||
-                    draggingId;
-                  const rec = rawId ? records.find((r) => r.id === rawId) : undefined;
-                  if (rec) void moveTo(rec, col.status);
-                  else {
-                    setDraggingId(null);
-                    setActiveDropStatus(null);
-                  }
-                }}
-                className={`rounded-2xl border bg-white p-3 min-h-52 min-w-[280px] md:min-w-[320px] flex-1 transition-all duration-200 ${
-                  activeDropStatus === col.status
-                    ? 'border-slate-300 shadow-[0_12px_26px_rgba(15,23,42,0.12)]'
-                    : 'border-slate-200'
-                }`}
-                style={{ borderTop: `3px solid ${col.color}` }}
-              >
-                <div className="mb-3 flex items-center justify-between">
-                  <div
-                    className="rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase tracking-[0.12em]"
-                    style={{ backgroundColor: col.color, color: pickTextColorForBg(col.color) }}
-                  >
-                    {col.label}
+              <DroppableRecordColumn key={col.status} id={col.status} className="kb-col">
+                <div className="kb-col-head">
+                  <div className="kb-col-titlerow">
+                    <span className="kb-dot" style={{ background: col.color }} />
+                    <span className="kb-col-title">{col.label}</span>
+                    <span className="kb-count">{col.items.length}</span>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600">
-                    {col.items.length}
-                  </span>
+                  {amountField && (
+                    <>
+                      <div className="kb-col-meta">
+                        <span>
+                          <b>{new Intl.NumberFormat('ru-RU').format(col.sum)}</b>
+                        </span>
+                      </div>
+                      <div className="kb-meter">
+                        <i style={{ width: `${Math.round((col.sum / maxColumnSum) * 100)}%`, background: col.color }} />
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="space-y-2">
+                <div className="kb-list">
+                  {col.items.length === 0 && (
+                    <div className="kb-empty">
+                      {draggingId ? t('crm.workspace.kanban.dropHere') : t('crm.workspace.kanban.empty')}
+                    </div>
+                  )}
                   {col.items.map((item) => (
-                    <div
+                    <DraggableRecordCard
                       key={item.id}
-                      role="button"
-                      tabIndex={0}
-                      draggable
-
-                      onDragStart={(e) => {
-                        setDraggingId(item.id);
-                        try {
-                          e.dataTransfer.setData('application/x-lumiva-kanban-id', item.id);
-                          e.dataTransfer.setData('text/plain', item.id);
-                          e.dataTransfer.effectAllowed = 'move';
-                        } catch {
-                          // ignore
-                        }
-                      }}
-                      onDragEnd={() => {
-                        dragEndTsRef.current = Date.now();
-                        setDraggingId(null);
-                        setActiveDropStatus(null);
-                      }}
+                      id={item.id}
                       onClick={() => {
                         if (Date.now() - dragEndTsRef.current < 280) return;
                         setActiveRecord(item);
@@ -651,44 +722,51 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
                           setActiveRecord(item);
                         }
                       }}
-                      className={`rounded-xl border p-3 bg-slate-50 transition-all duration-200 hover:-translate-y-0.5 hover:bg-white hover:shadow-sm cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-sky-300 ${
-                        pinnedKanban?.recordId === item.id
-                          ? 'ring-2 ring-sky-500 border-sky-300 shadow-md bg-white'
-                          : 'border-slate-200'
+                      className={`kb-card${draggingId === item.id ? ' dragging' : ''}${
+                        pinnedKanban?.recordId === item.id ? ' pri-high' : ''
                       }`}
                     >
-                      <div className="text-sm font-medium text-slate-800">
+                      <div className="kb-name">
                         {getCardTitle(item)}
                       </div>
                       {getCardClient(item) && (
-                        <div className="mt-1 inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-600">
-                          {getCardClient(item)}
+                        <div className="kb-chips">
+                          <span className="kb-chip">{getCardClient(item)}</span>
                         </div>
                       )}
                       {getCardExtraPairs(item).length > 0 && (
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        <div className="kb-chips">
                           {getCardExtraPairs(item).slice(0, 4).map((pair) => (
                             <span
                               key={`${item.id}-${pair.label}`}
-                              className="inline-flex rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] text-slate-600"
+                              className="kb-chip"
                             >
                               {pair.label}: {pair.value}
                             </span>
                           ))}
                         </div>
                       )}
-                      <div className="text-xs text-slate-500 mt-1">
-                        {String(item.values?.description || '')}
-                      </div>
-                      {saving === item.id && (
-                        <div className="text-[11px] text-slate-400 mt-2">{t('crm.workspace.common.updating')}</div>
+                      {String(item.values?.description || '') && (
+                        <div className="kb-sub" style={{ marginTop: 8 }}>
+                          {String(item.values?.description || '')}
+                        </div>
                       )}
-                    </div>
+                      {(getOwnerInitials(item) || getSourceLabel(item)) && (
+                        <div className="kb-foot">
+                          {getOwnerInitials(item) && <span className="kb-ava">{getOwnerInitials(item)}</span>}
+                          <span className="sp" />
+                          {getSourceLabel(item) && <span className="kb-mini">{getSourceLabel(item)}</span>}
+                        </div>
+                      )}
+                      {saving === item.id && (
+                        <div className="text-[11px] mt-2" style={{ color: 'var(--fg-4)' }}>{t('crm.workspace.common.updating')}</div>
+                      )}
+                    </DraggableRecordCard>
                   ))}
                 </div>
 
                 {addingToColumn === col.status ? (
-                  <div className="mt-2 space-y-1.5">
+                  <div className="mt-2 space-y-1.5" style={{ padding: '0 10px 10px' }}>
                     <input
                       autoFocus
                       value={newCardDraft}
@@ -722,14 +800,25 @@ export const WorkspaceKanbanViewPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => { setAddingToColumn(col.status); setNewCardDraft(''); }}
-                    className="mt-2 w-full rounded-lg border border-dashed border-slate-200 py-1.5 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600 transition-colors"
+                    className="kb-add"
                   >
                     + {t('crm.workspace.kanban.addCard')}
                   </button>
                 )}
-              </div>
+              </DroppableRecordColumn>
             ))}
           </div>
+          <DragOverlay>
+            {/* DragOverlay portals to document.body, outside the .lv-kb scope its CSS classes rely on — re-establish it here (a real DOM ancestor, not just a class on the same node). */}
+            {activeDragRecord ? (
+              <div className="lv-kb">
+                <div className="kb-card" style={{ cursor: 'grabbing', width: 268, boxShadow: '0 12px 28px rgba(16,24,40,.18)' }}>
+                  <div className="kb-name">{getCardTitle(activeDragRecord)}</div>
+                </div>
+              </div>
+            ) : null}
+          </DragOverlay>
+          </DndContext>
         )}
 
         <WorkspaceRecordDetailDrawer

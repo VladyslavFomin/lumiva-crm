@@ -40,8 +40,14 @@ import { GoogleCalendarOAuthStartDto } from './dto/google-calendar-oauth-start.d
 import { GoogleCalendarOAuthService } from './google-calendar/google-calendar-oauth.service';
 import { OutlookCalendarOAuthStartDto } from './dto/outlook-calendar-oauth-start.dto';
 import { OutlookCalendarOAuthService } from './outlook/outlook-calendar-oauth.service';
+import { SlackOAuthService } from './slack/slack-oauth.service';
+import { HubspotOAuthService } from './hubspot/hubspot-oauth.service';
+import { MailchimpOAuthService } from './mailchimp/mailchimp-oauth.service';
+import { JiraOAuthService } from './jira/jira-oauth.service';
 
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.decorator';
 
@@ -55,6 +61,10 @@ export class IntegrationsController {
     private readonly googleSheetsSync: GoogleSheetsSyncService,
     private readonly googleCalendarOAuth: GoogleCalendarOAuthService,
     private readonly outlookCalendarOAuth: OutlookCalendarOAuthService,
+    private readonly slackOAuth: SlackOAuthService,
+    private readonly hubspotOAuth: HubspotOAuthService,
+    private readonly mailchimpOAuth: MailchimpOAuthService,
+    private readonly jiraOAuth: JiraOAuthService,
   ) {}
 
   /**
@@ -62,7 +72,8 @@ export class IntegrationsController {
    * GET /v1/integrations
    */
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'read')
   async list(
     @CurrentUser() user: CurrentUserPayload,
   ): Promise<IntegrationConnectionDto[]> {
@@ -74,7 +85,8 @@ export class IntegrationsController {
    * GET /v1/integrations/adapters
    */
   @Get('adapters')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'read')
   async listAdapters(): Promise<{ kind: IntegrationKind; label: string }[]> {
     return this.registry.listAdapters();
   }
@@ -84,7 +96,8 @@ export class IntegrationsController {
    * GET /v1/integrations/oauth-readiness
    */
   @Get('oauth-readiness')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'read')
   async oauthReadiness(): Promise<Record<string, { oauthReady: boolean }>> {
     return this.platformSettings.getIntegrationOauthReadinessMap();
   }
@@ -94,7 +107,8 @@ export class IntegrationsController {
    * GET /v1/integrations/hub/catalog
    */
   @Get('hub/catalog')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'read')
   async getHubCatalog(): Promise<IntegrationHubCatalogEntry[]> {
     return this.integrationHubCatalog.getCatalog();
   }
@@ -104,7 +118,8 @@ export class IntegrationsController {
    * POST /v1/integrations/google-sheets/preview
    */
   @Post('google-sheets/preview')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async previewGoogleSheets(
     @Body() dto: GoogleSheetsPreviewDto,
   ): Promise<GoogleSheetsPreviewResult> {
@@ -116,7 +131,8 @@ export class IntegrationsController {
    * POST /v1/integrations/marketing/:marketingId/meta-ads-workspace-preview
    */
   @Post('marketing/:marketingId/meta-ads-workspace-preview')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async metaAdsWorkspacePreviewFromMarketing(
     @CurrentUser() user: CurrentUserPayload,
     @Param('marketingId') marketingId: string,
@@ -134,7 +150,8 @@ export class IntegrationsController {
    * POST /v1/integrations/marketing/:marketingId/meta-ads-workspace-sync
    */
   @Post('marketing/:marketingId/meta-ads-workspace-sync')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async metaAdsWorkspaceSyncFromMarketing(
     @CurrentUser() user: CurrentUserPayload,
     @Param('marketingId') marketingId: string,
@@ -157,7 +174,8 @@ export class IntegrationsController {
    * POST /v1/integrations/marketing/:marketingId/ga4-workspace-preview
    */
   @Post('marketing/:marketingId/ga4-workspace-preview')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async ga4WorkspacePreviewFromMarketing(
     @CurrentUser() user: CurrentUserPayload,
     @Param('marketingId') marketingId: string,
@@ -175,7 +193,8 @@ export class IntegrationsController {
    * POST /v1/integrations/marketing/:marketingId/ga4-workspace-sync
    */
   @Post('marketing/:marketingId/ga4-workspace-sync')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async ga4WorkspaceSyncFromMarketing(
     @CurrentUser() user: CurrentUserPayload,
     @Param('marketingId') marketingId: string,
@@ -198,7 +217,8 @@ export class IntegrationsController {
    * POST /v1/integrations
    */
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async create(
     @CurrentUser() user: CurrentUserPayload,
     @Body() dto: CreateIntegrationConnectionDto,
@@ -211,7 +231,8 @@ export class IntegrationsController {
    * `{PUBLIC_API_URL}/v1/integrations/google-calendar/oauth/callback`
    */
   @Post('google-calendar/oauth/start')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async googleCalendarOauthStart(
     @CurrentUser() user: CurrentUserPayload,
     @Body() body: GoogleCalendarOAuthStartDto,
@@ -265,7 +286,8 @@ export class IntegrationsController {
    * `{PUBLIC_API_URL}/v1/integrations/outlook-calendar/oauth/callback`
    */
   @Post('outlook-calendar/oauth/start')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async outlookCalendarOauthStart(
     @CurrentUser() user: CurrentUserPayload,
     @Body() body: OutlookCalendarOAuthStartDto,
@@ -315,11 +337,196 @@ export class IntegrationsController {
   }
 
   /**
+   * OAuth Slack v2 (scope incoming-webhook). Зарегистрируйте redirect в api.slack.com/apps:
+   * `{PUBLIC_API_URL}/v1/integrations/slack/oauth/callback`
+   */
+  @Post('slack/oauth/start')
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
+  async slackOauthStart(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { redirectPath?: string },
+  ): Promise<{ url: string }> {
+    const tenantId = user.tenantId;
+    if (!tenantId) throw new BadRequestException('No tenant in auth payload');
+    const uid = String(user.userId || user.id || user.sub || '').trim();
+    if (!uid) throw new BadRequestException('No user id in auth payload');
+    const url = await this.slackOAuth.buildAuthorizeUrl(tenantId, uid, body?.redirectPath);
+    return { url };
+  }
+
+  /**
+   * Публичный callback Slack (без JWT): целостность через подписанный state.
+   */
+  @Get('slack/oauth/callback')
+  async slackOauthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') oauthError: string | undefined,
+    @Res() res: Response,
+  ) {
+    const frontend = (
+      process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
+    ).replace(/\/$/, '');
+    const fail = () =>
+      res.redirect(`${frontend}/integrations-hub?tab=connections&slackOAuth=error`);
+    if (oauthError || !code?.trim() || !state?.trim()) {
+      return fail();
+    }
+    try {
+      const path = await this.slackOAuth.completeRedirect(code.trim(), state.trim());
+      const rel = path.startsWith('/') ? path : `/${path}`;
+      return res.redirect(`${frontend}${rel}`);
+    } catch {
+      return fail();
+    }
+  }
+
+  /**
+   * OAuth HubSpot. Зарегистрируйте redirect в app.hubspot.com (Developer Account → App → Auth):
+   * `{PUBLIC_API_URL}/v1/integrations/hubspot/oauth/callback`
+   */
+  @Post('hubspot/oauth/start')
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
+  async hubspotOauthStart(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { redirectPath?: string },
+  ): Promise<{ url: string }> {
+    const tenantId = user.tenantId;
+    if (!tenantId) throw new BadRequestException('No tenant in auth payload');
+    const uid = String(user.userId || user.id || user.sub || '').trim();
+    if (!uid) throw new BadRequestException('No user id in auth payload');
+    const url = await this.hubspotOAuth.buildAuthorizeUrl(tenantId, uid, body?.redirectPath);
+    return { url };
+  }
+
+  /**
+   * Публичный callback HubSpot (без JWT): целостность через подписанный state.
+   */
+  @Get('hubspot/oauth/callback')
+  async hubspotOauthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') oauthError: string | undefined,
+    @Res() res: Response,
+  ) {
+    const frontend = (
+      process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
+    ).replace(/\/$/, '');
+    const fail = () =>
+      res.redirect(`${frontend}/integrations-hub?tab=connections&hubspotOAuth=error`);
+    if (oauthError || !code?.trim() || !state?.trim()) {
+      return fail();
+    }
+    try {
+      const path = await this.hubspotOAuth.completeRedirect(code.trim(), state.trim());
+      const rel = path.startsWith('/') ? path : `/${path}`;
+      return res.redirect(`${frontend}${rel}`);
+    } catch {
+      return fail();
+    }
+  }
+
+  /**
+   * OAuth Mailchimp. Зарегистрируйте redirect в admin.mailchimp.com (Account → Extras → Registered Apps):
+   * `{PUBLIC_API_URL}/v1/integrations/mailchimp/oauth/callback`
+   */
+  @Post('mailchimp/oauth/start')
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
+  async mailchimpOauthStart(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { redirectPath?: string },
+  ): Promise<{ url: string }> {
+    const tenantId = user.tenantId;
+    if (!tenantId) throw new BadRequestException('No tenant in auth payload');
+    const uid = String(user.userId || user.id || user.sub || '').trim();
+    if (!uid) throw new BadRequestException('No user id in auth payload');
+    const url = await this.mailchimpOAuth.buildAuthorizeUrl(tenantId, uid, body?.redirectPath);
+    return { url };
+  }
+
+  /**
+   * Публичный callback Mailchimp (без JWT): целостность через подписанный state.
+   */
+  @Get('mailchimp/oauth/callback')
+  async mailchimpOauthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') oauthError: string | undefined,
+    @Res() res: Response,
+  ) {
+    const frontend = (
+      process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
+    ).replace(/\/$/, '');
+    const fail = () =>
+      res.redirect(`${frontend}/integrations-hub?tab=connections&mailchimpOAuth=error`);
+    if (oauthError || !code?.trim() || !state?.trim()) {
+      return fail();
+    }
+    try {
+      const path = await this.mailchimpOAuth.completeRedirect(code.trim(), state.trim());
+      const rel = path.startsWith('/') ? path : `/${path}`;
+      return res.redirect(`${frontend}${rel}`);
+    } catch {
+      return fail();
+    }
+  }
+
+  /**
+   * OAuth Jira (Atlassian 3LO). Зарегистрируйте redirect в developer.atlassian.com/console/myapps:
+   * `{PUBLIC_API_URL}/v1/integrations/jira/oauth/callback`
+   */
+  @Post('jira/oauth/start')
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
+  async jiraOauthStart(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { redirectPath?: string },
+  ): Promise<{ url: string }> {
+    const tenantId = user.tenantId;
+    if (!tenantId) throw new BadRequestException('No tenant in auth payload');
+    const uid = String(user.userId || user.id || user.sub || '').trim();
+    if (!uid) throw new BadRequestException('No user id in auth payload');
+    const url = await this.jiraOAuth.buildAuthorizeUrl(tenantId, uid, body?.redirectPath);
+    return { url };
+  }
+
+  /**
+   * Публичный callback Jira (без JWT): целостность через подписанный state.
+   */
+  @Get('jira/oauth/callback')
+  async jiraOauthCallback(
+    @Query('code') code: string | undefined,
+    @Query('state') state: string | undefined,
+    @Query('error') oauthError: string | undefined,
+    @Res() res: Response,
+  ) {
+    const frontend = (
+      process.env.FRONTEND_URL || 'https://crm.lumiva.agency'
+    ).replace(/\/$/, '');
+    const fail = () =>
+      res.redirect(`${frontend}/integrations-hub?tab=connections&jiraOAuth=error`);
+    if (oauthError || !code?.trim() || !state?.trim()) {
+      return fail();
+    }
+    try {
+      const path = await this.jiraOAuth.completeRedirect(code.trim(), state.trim());
+      const rel = path.startsWith('/') ? path : `/${path}`;
+      return res.redirect(`${frontend}${rel}`);
+    } catch {
+      return fail();
+    }
+  }
+
+  /**
    * Снимок события из Google (Meet, участники, описание). Только события с меткой Lumiva в private props.
    * GET /v1/integrations/google-calendar/events/:eventId
    */
   @Get('google-calendar/events/:eventId')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'read')
   async googleCalendarEventSnapshot(
     @CurrentUser() user: CurrentUserPayload,
     @Param('eventId') eventId: string,
@@ -335,7 +542,8 @@ export class IntegrationsController {
    * GET /v1/integrations/:id
    */
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'read')
   async getOne(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -348,7 +556,8 @@ export class IntegrationsController {
    * PATCH /v1/integrations/:id
    */
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async update(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -362,7 +571,8 @@ export class IntegrationsController {
    * DELETE /v1/integrations/:id
    */
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async remove(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -376,7 +586,8 @@ export class IntegrationsController {
    * POST /v1/integrations/:id/test
    */
   @Post(':id/test')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async test(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -389,7 +600,8 @@ export class IntegrationsController {
    * POST /v1/integrations/:id/woo-workspace-preview
    */
   @Post(':id/woo-workspace-preview')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async wooWorkspacePreview(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -407,7 +619,8 @@ export class IntegrationsController {
    * POST /v1/integrations/:id/meta-ads-workspace-preview
    */
   @Post(':id/meta-ads-workspace-preview')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async metaAdsWorkspacePreview(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,
@@ -426,7 +639,8 @@ export class IntegrationsController {
    * Тело (опционально): { customObjectId, wooWorkspaceImport | metaAdsWorkspaceImport: { enabledWooColumns, wooColumnToFieldKey, statusFieldKey } }
    */
   @Post(':id/sync')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('tools_automation', 'write')
   async sync(
     @CurrentUser() user: CurrentUserPayload,
     @Param('id') id: string,

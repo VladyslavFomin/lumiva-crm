@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   fetchSalesChannels,
   updateSalesChannel,
@@ -327,6 +328,7 @@ export const SalesChannelsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="salesChannels" />
       <div className="space-y-4 md:space-y-6 pb-8">
         <section className="page-header">
           <div>

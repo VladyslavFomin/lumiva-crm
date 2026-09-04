@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { ProductsSubnav } from './ProductsSubnav';
 import {
@@ -91,6 +92,7 @@ export const ProductAttributesPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="productAttributes" />
       <div className="px-scope">
         <div className="px-head">
           <div>

@@ -27,6 +27,9 @@ export class Department {
   @Column({ type: 'varchar', length: 190 })
   name!: string;
 
+  @Column({ type: 'varchar', length: 24, nullable: true })
+  code!: string | null;
+
   @Column({ type: 'text', nullable: true })
   description!: string | null;
 
@@ -53,8 +56,12 @@ export class Department {
   @Column({ name: 'manager_id', type: 'uuid', nullable: true })
   managerId!: string | null;
 
-  // Сотрудники отдела (через связь в StaffUser)
-  @OneToMany(() => StaffUser, (staff) => staff.department)
+  // Сотрудники отдела (через связь в StaffUser). Раньше указывало на `staff.department` —
+  // это обычная строковая колонка (легаси-имя отдела), а не relation-свойство; TypeORM не
+  // мог бы построить JOIN по этой inverse-стороне. Безвредно, пока ничто не запрашивает
+  // `relations: ['staff']` на этой стороне (сервис заполняет .staff вручную) — но "выстрелило"
+  // бы в момент, когда кто-то добавит такой JOIN.
+  @OneToMany(() => StaffUser, (staff) => staff.departmentEntity)
   staff!: StaffUser[];
 
   // Порядок отображения

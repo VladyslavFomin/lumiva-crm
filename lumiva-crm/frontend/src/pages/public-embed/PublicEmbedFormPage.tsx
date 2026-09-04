@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams, useSearchParams } from 'react-router-dom';
 import {
   fetchPublicEmbedConfig,
@@ -44,6 +45,8 @@ function moneyLabel(value: unknown) {
 }
 
 export const PublicEmbedFormPage: React.FC = () => {
+  const { t } = useTranslation();
+  const fp = (key: string, opts?: Record<string, unknown>) => t(`crm.embedFields.formPage.${key}`, opts as any) as string;
   const { publicId } = useParams<{ publicId: string }>();
   const [search] = useSearchParams();
   const previewToken =
@@ -68,7 +71,7 @@ export const PublicEmbedFormPage: React.FC = () => {
     fetchPublicEmbedConfig(publicId, isPreview ? previewToken : null)
       .then(setConfig)
       .catch((e) => {
-        setError(e?.message || 'Failed to load form');
+        setError(e?.message || fp('loadError'));
       })
       .finally(() => setLoading(false));
   }, [publicId, isPreview, previewToken]);
@@ -142,7 +145,7 @@ export const PublicEmbedFormPage: React.FC = () => {
       setAttachmentIds((a) => [...a, r.id]);
       setField(field.id, r.name);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Upload failed');
+      setError(e instanceof Error ? e.message : fp('uploadError'));
     } finally {
       setFileBusy(false);
     }
@@ -174,7 +177,7 @@ export const PublicEmbedFormPage: React.FC = () => {
       setResultCode(res.orderCode || res.bookingCode || null);
       setDone(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Submit failed');
+      setError(err instanceof Error ? err.message : fp('submitError'));
     } finally {
       setSending(false);
     }
@@ -211,12 +214,12 @@ export const PublicEmbedFormPage: React.FC = () => {
         <p className="text-base font-medium" style={{ color: d['textColor'] as string }}>
           {config.successMessage ||
             (isPreview
-              ? 'Превью: форма валидна, лид в CRM не создаётся.'
-              : 'Спасибо! Заявка отправлена.')}
+              ? fp('previewDoneMessage')
+              : fp('thanksMessage'))}
         </p>
         {resultCode && (
           <p className="text-sm mt-2" style={{ color: d['textColor'] as string }}>
-            Код: <strong>{resultCode}</strong>
+            {fp('codeLabel')} <strong>{resultCode}</strong>
           </p>
         )}
       </div>
@@ -398,7 +401,7 @@ export const PublicEmbedFormPage: React.FC = () => {
       {steps.length && settings.showProgress !== false ? (
         <div className="mb-4">
           <div className="flex items-center justify-between text-xs mb-2" style={{ color: d['textColor'] as string }}>
-            <span>{activeStep?.title || `Шаг ${activeStepIndex + 1}`}</span>
+            <span>{activeStep?.title || fp('stepFallback', { n: activeStepIndex + 1 })}</span>
             <span>{activeStepIndex + 1} / {steps.length}</span>
           </div>
           <div className="h-2 rounded-full overflow-hidden" style={{ background: String(d['borderColor'] || '#e5e7eb') }}>
@@ -472,7 +475,7 @@ export const PublicEmbedFormPage: React.FC = () => {
                   className="w-full text-sm"
                 />
                 <p className="text-[11px] text-slate-500 mt-1">
-                  PDF, DOC, DOCX · до 12 МБ
+                  {fp('fileHint')}
                 </p>
               </div>
             );
@@ -562,10 +565,10 @@ export const PublicEmbedFormPage: React.FC = () => {
                       }}
                     >
                       {k === 'whatsapp'
-                        ? 'WhatsApp'
+                        ? fp('messagingWhatsapp')
                         : k === 'telegram'
-                          ? 'Telegram'
-                          : 'E-mail'}
+                          ? fp('messagingTelegram')
+                          : fp('messagingEmail')}
                     </button>
                   ))}
                 </div>
@@ -732,7 +735,7 @@ export const PublicEmbedFormPage: React.FC = () => {
               fontWeight: Number(d['buttonFontWeight'] || 600),
             }}
           >
-            {String(settings.backText || 'Назад')}
+            {String(settings.backText || fp('backBtn'))}
           </button>
         ) : null}
         <button
@@ -741,7 +744,7 @@ export const PublicEmbedFormPage: React.FC = () => {
           onClick={() => {
             if (!isLastStep) {
               if (!validateCurrentStep()) {
-                setError('Заполните обязательные поля текущего шага.');
+                setError(fp('requiredFieldsError'));
                 return;
               }
               setError(null);
@@ -763,7 +766,7 @@ export const PublicEmbedFormPage: React.FC = () => {
             } as React.CSSProperties
           }
         >
-          {sending ? '…' : isLastStep ? String(settings.submitText || 'Отправить') : String(settings.nextText || 'Далее')}
+          {sending ? '…' : isLastStep ? String(settings.submitText || fp('submitBtn')) : String(settings.nextText || fp('nextBtn'))}
         </button>
       </div>
       </div>

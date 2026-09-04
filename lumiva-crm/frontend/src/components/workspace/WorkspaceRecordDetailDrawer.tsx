@@ -18,6 +18,8 @@ import { getWorkspaceFieldValueStorageKey } from '../../workspace/workspaceField
 import { isRenderableWorkspaceDateField } from '../../workspace/workspaceDateField';
 import { isWorkspaceEntityRefField, isWorkspaceReadOnlyField } from '../../workspace/workspaceEntityRef';
 import { WorkspaceCrmEntityMultiField } from './WorkspaceCrmEntityMultiField';
+import { getWorkspaceDataLink } from '../../workspace/workspaceRecordLink';
+import '../../pages/workspace/WorkspaceArea.css';
 
 const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
   const normalized = String(hex || '').trim().replace('#', '');
@@ -190,34 +192,41 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
 
   if (!activeRecord) return null;
 
+  const sourceLink = getWorkspaceDataLink(activeRecord.meta as Record<string, unknown> | null);
+
   return (
-    <div className="fixed inset-0" style={{ zIndex: overlayZIndex }}>
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div
-        className={`absolute right-0 top-0 h-full w-full bg-white border-l border-slate-200 shadow-2xl overflow-y-auto ${
-          shelfLayout ? 'max-w-2xl p-5' : 'max-w-xl p-4'
-        }`}
-      >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-slate-900">
-            {String(
-              activeRecord.values?.[titleField?.key || 'name'] || t('crm.workspace.recordDrawer.recordFallback'),
+    <div className="ws-page ws-scrim" style={{ zIndex: overlayZIndex }} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={`ws-drawer${shelfLayout ? '' : ''}`} style={{ width: shelfLayout ? 'min(680px,100%)' : 'min(560px,100%)' }}>
+        <div className="ws-drawer-head">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h2>
+              {String(
+                activeRecord.values?.[titleField?.key || 'name'] || t('crm.workspace.recordDrawer.recordFallback'),
+              )}
+            </h2>
+            {sourceLink && (
+              <div className="s">
+                {t('crm.workspace.recordDrawer.sourceRow')}
+                {' · '}
+                {new Date(sourceLink.pushedAt).toLocaleDateString()}
+              </div>
             )}
-          </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full border border-slate-300 px-2 py-1 text-xs"
+            className="tb-icon-btn"
           >
             {t('crm.workspace.recordDrawer.close')}
           </button>
         </div>
 
         <div
-          className={
+          className="ws-drawer-body"
+          style={
             shelfLayout
-              ? 'grid gap-3 sm:grid-cols-2'
-              : 'space-y-3'
+              ? { display: 'grid', gap: 12, gridTemplateColumns: 'repeat(2, minmax(0,1fr))' }
+              : undefined
           }
         >
           {orderedColumns.map((field) => {
@@ -225,19 +234,10 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
             return (
             <div
               key={field.id}
-              className={
-                shelfLayout
-                  ? 'rounded-xl border border-slate-200/90 bg-gradient-to-b from-white to-slate-50/80 p-3 shadow-sm'
-                  : ''
-              }
+              className={shelfLayout ? 'ws-field' : 'ws-field'}
+              style={shelfLayout ? { border: '1px solid var(--line-2)', borderRadius: 10, padding: 10, background: '#fff' } : undefined}
             >
-              <label
-                className={
-                  shelfLayout
-                    ? 'block text-[10px] font-medium uppercase tracking-wide text-slate-400 mb-1.5'
-                    : 'block text-xs text-slate-500 mb-1'
-                }
-              >
+              <label>
                 {field.label}
               </label>
               {isWorkspaceReadOnlyField(field) ? (
@@ -505,92 +505,94 @@ export const WorkspaceRecordDetailDrawer: React.FC<WorkspaceRecordDetailDrawerPr
             </div>
             );
           })}
-        </div>
 
-        <div className="mt-6 pt-4 border-t border-slate-200">
-          <div className="text-sm font-semibold text-slate-900 mb-2">
-            {t('crm.workspace.recordDrawer.activity')}
-          </div>
-          <div className="space-y-2 max-h-40 overflow-auto">
-            <div className="text-xs text-slate-500">
-              {t('crm.workspace.common.created')}: {new Date(activeRecord.createdAt).toLocaleString()}
+          <div style={{ borderTop: '1px solid var(--line-2)', paddingTop: 14, marginTop: 6, gridColumn: shelfLayout ? '1 / -1' : undefined }}>
+            <div className="ws-k" style={{ marginBottom: 8 }}>
+              {t('crm.workspace.recordDrawer.activity')}
             </div>
-            <div className="text-xs text-slate-500">
-              {t('crm.workspace.recordDrawer.updatedAtLabel')}:{' '}
-              {new Date(activeRecord.updatedAt).toLocaleString()}
-            </div>
-            {(activityByRecord[activeRecord.id] || []).map((item) => (
-              <div key={item.id} className="text-xs text-slate-600 rounded-lg bg-slate-50 px-2 py-1">
-                {item.text} · {new Date(item.createdAt).toLocaleString()}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-slate-200">
-          <div className="text-sm font-semibold text-slate-900 mb-2">
-            {t('crm.workspace.recordDrawer.comments')}
-          </div>
-          <div className="space-y-2 max-h-40 overflow-auto mb-2">
-            {(commentsByRecord[activeRecord.id] || []).map((comment) => (
-              <div key={comment.id} className="rounded-lg border border-slate-200 bg-white px-2 py-1.5">
-                <div className="text-[11px] text-slate-500">
-                  {comment.author} · {new Date(comment.createdAt).toLocaleString()}
+            <div style={{ maxHeight: 160, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <p className="ws-note">
+                {t('crm.workspace.common.created')}: {new Date(activeRecord.createdAt).toLocaleString()}
+              </p>
+              <p className="ws-note">
+                {t('crm.workspace.recordDrawer.updatedAtLabel')}:{' '}
+                {new Date(activeRecord.updatedAt).toLocaleString()}
+              </p>
+              {(activityByRecord[activeRecord.id] || []).map((item) => (
+                <div key={item.id} className="ws-note" style={{ background: 'var(--bg-muted)', borderRadius: 8, padding: '6px 8px' }}>
+                  {item.text} · {new Date(item.createdAt).toLocaleString()}
                 </div>
-                <div className="text-xs text-slate-700 mt-0.5">{comment.text}</div>
-              </div>
-            ))}
-            {(commentsByRecord[activeRecord.id] || []).length === 0 && (
-              <div className="text-xs text-slate-400">{t('crm.workspace.recordDrawer.noCommentsYet')}</div>
-            )}
+              ))}
+            </div>
           </div>
-          <div className="flex gap-2">
-            <input
-              value={commentDraft}
-              onChange={(e) => setCommentDraft(e.target.value)}
-              placeholder={t('crm.workspace.recordDrawer.commentPlaceholder')}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                if (!commentDraft.trim()) return;
-                setCommentsByRecord((prev) => {
-                  const list = prev[activeRecord.id] || [];
-                  return {
-                    ...prev,
-                    [activeRecord.id]: [
-                      {
-                        id: crypto.randomUUID(),
-                        text: commentDraft.trim(),
-                        createdAt: new Date().toISOString(),
-                        author: t('crm.workspace.recordDrawer.authorYou'),
-                      },
-                      ...list,
-                    ],
-                  };
-                });
-                pushActivity(activeRecord.id, t('crm.workspace.recordDrawer.addedComment'));
-                setCommentDraft('');
-              }}
-              className="px-3 py-2 rounded-lg bg-slate-900 text-white text-sm"
-            >
-              {t('crm.workspace.recordDrawer.send')}
-            </button>
+
+          <div style={{ borderTop: '1px solid var(--line-2)', paddingTop: 14, gridColumn: shelfLayout ? '1 / -1' : undefined }}>
+            <div className="ws-k" style={{ marginBottom: 8 }}>
+              {t('crm.workspace.recordDrawer.comments')}
+            </div>
+            <div style={{ maxHeight: 160, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 8 }}>
+              {(commentsByRecord[activeRecord.id] || []).map((comment) => (
+                <div key={comment.id} style={{ border: '1px solid var(--line-2)', borderRadius: 8, padding: '6px 10px', background: '#fff' }}>
+                  <div className="ws-note">
+                    {comment.author} · {new Date(comment.createdAt).toLocaleString()}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: 'var(--ink)', marginTop: 2 }}>{comment.text}</div>
+                </div>
+              ))}
+              {(commentsByRecord[activeRecord.id] || []).length === 0 && (
+                <p className="ws-note">{t('crm.workspace.recordDrawer.noCommentsYet')}</p>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                value={commentDraft}
+                onChange={(e) => setCommentDraft(e.target.value)}
+                placeholder={t('crm.workspace.recordDrawer.commentPlaceholder')}
+                className="ws-input"
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (!commentDraft.trim()) return;
+                  setCommentsByRecord((prev) => {
+                    const list = prev[activeRecord.id] || [];
+                    return {
+                      ...prev,
+                      [activeRecord.id]: [
+                        {
+                          id: crypto.randomUUID(),
+                          text: commentDraft.trim(),
+                          createdAt: new Date().toISOString(),
+                          author: t('crm.workspace.recordDrawer.authorYou'),
+                        },
+                        ...list,
+                      ],
+                    };
+                  });
+                  pushActivity(activeRecord.id, t('crm.workspace.recordDrawer.addedComment'));
+                  setCommentDraft('');
+                }}
+                className="btn btn-primary btn-sm"
+              >
+                {t('crm.workspace.recordDrawer.send')}
+              </button>
+            </div>
           </div>
         </div>
 
-        <div className="mt-5 pt-4 border-t border-slate-200 flex items-center justify-between">
-          <div className="text-xs text-slate-500">
+        <div className="ws-drawer-foot">
+          <span className="cnt">
             {savingRecordId === activeRecord.id
               ? t('crm.workspace.recordDrawer.savingChanges')
               : t('crm.workspace.recordDrawer.allSynced')}
-          </div>
+          </span>
+          <span className="sp" />
           {showAddFieldButton && onAddField && (
             <button
               type="button"
               onClick={onAddField}
-              className="btn-secondary"
+              className="tb-icon-btn"
             >
               {t('crm.workspace.recordDrawer.addField')}
             </button>

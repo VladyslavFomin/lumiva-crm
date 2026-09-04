@@ -24,4 +24,10 @@ export class AutomationsSchedulerService {
   async resumeDueExecutions() {
     await this.automationsService.resumeDueExecutions();
   }
+
+  // every 5 minutes — closes out executions left in 'pending' by a crashed process
+  @Cron('*/5 * * * *')
+  async cleanupStuckPendingExecutions() {
+    await this.automationsService.cleanupStuckPendingExecutions();
+  }
 }

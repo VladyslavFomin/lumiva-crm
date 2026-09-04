@@ -14,6 +14,7 @@ import { Lead } from './lead.entity';
 import { Site } from '../sites/site.entity';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
+import { ConvertLeadDto } from './dto/convert-lead.dto';
 import { Sale } from '../sales/sale.entity';
 import { Project } from '../projects/project.entity';
 import { AutomationsService } from '../automations/automations.service';
@@ -21,6 +22,11 @@ import { IntegrationsService } from '../integrations/integrations.service';
 import { TriggerEvent } from '../automations/automation.entity';
 import { isOriginAllowedForSite } from '../embed-forms/embed-origin.util';
 import { AiEmployeesService } from '../ai-employees/ai-employees.service';
+import { LeadActivityService } from './lead-activity.service';
+import { ContactsService } from '../contacts/contacts.service';
+import { Contact } from '../contacts/contact.entity';
+import { CompaniesService } from '../companies/companies.service';
+import { Company } from '../companies/company.entity';
 
 // Типы для статистики (форма ответа под фронт)
 export interface LeadStatusStat {
@@ -140,6 +146,11 @@ export class LeadsService {
 
     @Inject(forwardRef(() => AiEmployeesService))
     private readonly aiEmployeesService: AiEmployeesService,
+
+    private readonly leadActivityService: LeadActivityService,
+
+    private readonly contactsService: ContactsService,
+    private readonly companiesService: CompaniesService,
   ) {}
 
   /** meta.deleted — корзина; не участвует в агрегатах и ROI */
@@ -187,10 +198,15 @@ export class LeadsService {
   }
 
   async listForTenant(tenantId: string): Promise<Lead[]> {
-    return this.leadsRepo.find({
+    const leads = await this.leadsRepo.find({
       where: { tenantId },
       order: { createdAt: 'DESC' },
     });
+    const commentsCounts = await this.leadActivityService.getCommentsCountByTenant(tenantId);
+    for (const lead of leads) {
+      lead.commentsCount = commentsCounts[lead.id] ?? 0;
+    }
+    return leads;
   }
 
   async findOneForTenant(tenantId: string, id: string): Promise<Lead> {
@@ -217,6 +233,7 @@ export class LeadsService {
   async createForTenant(
     tenantId: string,
     dto: CreateLeadDto,
+    actorUserId?: string | null,
   ): Promise<Lead> {
     const normalizedAssignees = this.normalizeAssignees(dto);
     const lead = this.leadsRepo.create({
@@ -249,6 +266,11 @@ export class LeadsService {
 
       meta: dto.meta ?? null,
       customFields: dto.customFields ?? null,
+
+      amount: dto.amount ?? '0',
+      currency: dto.currency || 'TRY',
+      tasks: dto.tasks ?? null,
+      comments: dto.comments ?? null,
     });
 
     const saved = await this.leadsRepo.save(lead);
@@ -281,6 +303,17 @@ export class LeadsService {
 
     void this.aiEmployeesService.onLeadCreated(tenantId, saved.id).catch(() => undefined);
 
+    try {
+      await this.leadActivityService.add({
+        tenantId,
+        leadId: saved.id,
+        type: 'created',
+        userId: actorUserId ?? null,
+      });
+    } catch (error) {
+      console.error('Failed to log lead activity:', error);
+    }
+
     return saved;
   }
 
@@ -288,8 +321,15 @@ export class LeadsService {
     tenantId: string,
     id: string,
     dto: UpdateLeadDto,
+    actorUserId?: string | null,
   ): Promise<Lead> {
     const lead = await this.findOneForTenant(tenantId, id);
+    // ВАЖНО: захватываем ДО применения патча ниже — иначе oldStatus/oldAssignedTo будут уже
+    // новыми значениями (lead.status и т.п. мутируются в этом же объекте несколькими строками
+    // ниже), и сравнение "изменился ли статус" всегда будет ложным.
+    const oldStatus = lead.status;
+    const oldAssignedTo = lead.assignedTo;
+    const oldAssignedUserId = lead.assignedUserId;
     const previousMeetings = Array.isArray((lead.meta as { meetings?: unknown[] })?.meetings)
       ? JSON.parse(
           JSON.stringify((lead.meta as { meetings?: unknown[] }).meetings),
@@ -313,6 +353,10 @@ export class LeadsService {
     if (dto.siteId !== undefined) lead.siteId = dto.siteId;
     if (dto.contactId !== undefined) lead.contactId = dto.contactId ?? null;
     if (dto.companyId !== undefined) lead.companyId = dto.companyId ?? null;
+    if (dto.amount !== undefined) lead.amount = dto.amount;
+    if (dto.currency !== undefined) lead.currency = dto.currency;
+    if (dto.tasks !== undefined) lead.tasks = dto.tasks;
+    if (dto.comments !== undefined) lead.comments = dto.comments as any;
 
     // ответственный
     const shouldUpdateAssignees =
@@ -328,7 +372,6 @@ export class LeadsService {
       lead.assignedToList = normalizedAssignees.assignedToList;
     }
 
-    const oldStatus = lead.status;
     const wasTrash = this.isLeadMetaDeleted(lead);
     const saved = await this.leadsRepo.save(lead);
     const nowTrash = this.isLeadMetaDeleted(saved);
@@ -403,7 +446,150 @@ export class LeadsService {
       /* ignore calendar sync */
     }
 
+    try {
+      if (dto.status !== undefined && dto.status !== oldStatus) {
+        await this.leadActivityService.add({
+          tenantId,
+          leadId: saved.id,
+          type: 'status_changed',
+          userId: actorUserId ?? null,
+          fromValue: oldStatus,
+          toValue: saved.status,
+        });
+      }
+
+      if (shouldUpdateAssignees && saved.assignedUserId !== oldAssignedUserId) {
+        // assignedTo — это display-имя, которое передаёт вызывающая сторона (не резолвится
+        // сервером) и не всегда присутствует в патче — поэтому сравниваем реальный id, а для
+        // отображения в истории берём имя, если оно было передано, иначе сам id.
+        await this.leadActivityService.add({
+          tenantId,
+          leadId: saved.id,
+          type: 'assignee_changed',
+          userId: actorUserId ?? null,
+          fromValue: oldAssignedTo || oldAssignedUserId || null,
+          toValue: saved.assignedTo || saved.assignedUserId || null,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to log lead activity:', error);
+    }
+
     return saved;
+  }
+
+  /**
+   * Конвертация лида в клиента: находит-или-создаёт Contact (по phone/email,
+   * приоритет телефону — как в resolveLeadAndContact для bookings/sales) и,
+   * если указано явно, Company. Никогда не угадывает компанию по имени лида —
+   * на Lead нет отдельного поля названия компании, только связь через
+   * companyId/уже привязанный контакт.
+   */
+  async convertForTenant(
+    tenantId: string,
+    id: string,
+    dto: ConvertLeadDto,
+    actorUserId?: string | null,
+  ): Promise<{
+    lead: Lead;
+    contact: Contact;
+    company: Company | null;
+    contactCreated: boolean;
+    companyCreated: boolean;
+  }> {
+    const lead = await this.findOneForTenant(tenantId, id);
+
+    // ---- Company: явная связь на лиде побеждает; иначе — только если явно указано имя ----
+    let company: Company | null = null;
+    let companyCreated = false;
+    if (lead.companyId) {
+      company = await this.companiesService.findOne(tenantId, lead.companyId);
+    } else if (dto.companyName?.trim()) {
+      const name = dto.companyName.trim();
+      company = await this.companiesService.findByNameOrWebsite(tenantId, name);
+      if (!company) {
+        company = await this.companiesService.create(
+          tenantId,
+          {
+            name,
+            taxId: dto.taxId,
+            industry: dto.industry,
+            size: dto.size,
+            phone: lead.phone || undefined,
+            email: lead.email || undefined,
+            country: lead.country || undefined,
+          },
+          actorUserId,
+        );
+        companyCreated = true;
+      }
+    }
+
+    // ---- Contact: явная связь на лиде побеждает; иначе матч по phone/email; иначе создаём ----
+    // Три сервиса (Companies/Contacts/Leads), три собственных репозитория — единой БД-транзакции
+    // на весь convertForTenant() не сделать без сквозного EntityManager через все три. Раз
+    // компания уже могла быть создана шагом выше — при падении шага контакта подчищаем её сами
+    // (best-effort компенсация), а не оставляем безымянный сиротский Company навсегда.
+    let contact: Contact;
+    let contactCreated = false;
+    try {
+      if (lead.contactId) {
+        contact = await this.contactsService.findOne(tenantId, lead.contactId);
+      } else {
+        const phone = lead.phone?.trim() || undefined;
+        const email = lead.email?.trim() || undefined;
+        const existing =
+          (phone && (await this.contactsService.findByEmailOrPhone(tenantId, undefined, phone))) ||
+          (email && (await this.contactsService.findByEmailOrPhone(tenantId, email, undefined))) ||
+          null;
+        if (existing) {
+          contact = existing;
+        } else {
+          const [firstName, ...rest] = (lead.name || '').trim().split(/\s+/).filter(Boolean);
+          contact = await this.contactsService.create(
+            tenantId,
+            {
+              firstName: firstName || undefined,
+              lastName: rest.length ? rest.join(' ') : undefined,
+              email,
+              phone,
+              country: lead.country || undefined,
+              companyId: company?.id,
+              position: dto.position,
+              city: dto.city,
+              telegram: dto.telegram,
+              linkedin: dto.linkedin,
+              status: 'active',
+            },
+            actorUserId,
+          );
+          contactCreated = true;
+        }
+      }
+    } catch (error) {
+      if (companyCreated && company) {
+        await this.companiesService.delete(tenantId, company.id).catch(() => undefined);
+      }
+      throw error;
+    }
+
+    // Если компания не указана явно, но у найденного/созданного контакта она уже есть —
+    // используем её, а не оставляем лид без компании.
+    if (!company && contact.companyId) {
+      company = await this.companiesService.findOne(tenantId, contact.companyId);
+    }
+
+    // ---- Привязка обратно к лиду — идемпотентно, никогда не перезаписываем уже заполненное ----
+    const patch: UpdateLeadDto = {};
+    if (!lead.contactId) patch.contactId = contact.id;
+    if (!lead.companyId && company) patch.companyId = company.id;
+    if (dto.markWon && lead.status !== 'won') patch.status = 'won';
+
+    const updatedLead = Object.keys(patch).length
+      ? await this.updateForTenant(tenantId, id, patch)
+      : lead;
+
+    return { lead: updatedLead, contact, company, contactCreated, companyCreated };
   }
 
   async removeForTenant(tenantId: string, id: string): Promise<void> {
@@ -705,10 +891,12 @@ export class LeadsService {
     tenantId: string,
     from?: string,
     to?: string,
+    restrictToLeadIds?: string[] | null,
   ): Promise<LeadStats> {
     // БЕЗ QueryBuilder — чтобы не ловить alias-ошибки
+    const restrictSet = restrictToLeadIds ? new Set(restrictToLeadIds) : null;
     const all = (await this.listForTenant(tenantId)).filter(
-      (l) => !this.isLeadOmittedFromDashboardStats(l),
+      (l) => !this.isLeadOmittedFromDashboardStats(l) && (!restrictSet || restrictSet.has(l.id)),
     );
 
     let leads = all;
@@ -969,10 +1157,13 @@ export class LeadsService {
     tenantId: string,
     from?: string,
     to?: string,
+    restrictToLeadIds?: string[] | null,
   ): Promise<LostLeadsStats> {
     const allLost = (
       await this.leadsRepo.find({
-        where: { tenantId, status: 'lost' },
+        where: restrictToLeadIds
+          ? { tenantId, status: 'lost', id: In(restrictToLeadIds) }
+          : { tenantId, status: 'lost' },
         order: { createdAt: 'DESC' },
       })
     ).filter((l) => !this.isLeadMetaDeleted(l));
@@ -1094,15 +1285,16 @@ export class LeadsService {
       from?: string;
       to?: string;
       source?: 'sales' | 'projects';
+      restrictToLeadIds?: string[] | null;
     } & RoiCurrencyOptions,
   ): Promise<LeadsRoiStats> {
-    const { from, to, source } = opts || {};
+    const { from, to, source, restrictToLeadIds } = opts || {};
 
     if (source === 'projects') {
-      return this.getProjectsRoiForTenantInternal(tenantId, from, to, opts);
+      return this.getProjectsRoiForTenantInternal(tenantId, from, to, opts, restrictToLeadIds);
     }
     // по умолчанию считаем по продажам
-    return this.getSalesRoiForTenantInternal(tenantId, from, to, opts);
+    return this.getSalesRoiForTenantInternal(tenantId, from, to, opts, restrictToLeadIds);
   }
 
   // ====== ROI ДЛЯ ЛИДОВ ПО ПРОДАЖАМ (sales) ======
@@ -1111,6 +1303,7 @@ export class LeadsService {
     from?: string,
     to?: string,
     options?: RoiCurrencyOptions,
+    restrictToLeadIds?: string[] | null,
   ): Promise<LeadsRoiStats> {
     const qb = this.salesRepo
       .createQueryBuilder('s')
@@ -1130,6 +1323,10 @@ export class LeadsService {
       .where('l."tenantId" = :tenantId', { tenantId })
       .andWhere('s.lead_id IS NOT NULL');
 
+    if (restrictToLeadIds) {
+      if (!restrictToLeadIds.length) return this.buildRoiStats([], [], options);
+      qb.andWhere('l.id IN (:...restrictToLeadIds)', { restrictToLeadIds });
+    }
     if (from) {
       qb.andWhere('s."createdAt" >= :from', { from });
     }
@@ -1166,6 +1363,7 @@ private async getProjectsRoiForTenantInternal(
   from?: string,
   to?: string,
   options?: RoiCurrencyOptions,
+  restrictToLeadIds?: string[] | null,
 ): Promise<LeadsRoiStats> {
   const qb = this.projectsRepo
     .createQueryBuilder('p')
@@ -1182,6 +1380,10 @@ private async getProjectsRoiForTenantInternal(
     // 👇 здесь была ошибка: isDeleted vs is_deleted
     .andWhere('p."is_deleted" = false');
 
+  if (restrictToLeadIds) {
+    if (!restrictToLeadIds.length) return this.buildRoiStats([], [], options);
+    qb.andWhere('l.id IN (:...restrictToLeadIds)', { restrictToLeadIds });
+  }
   if (from) {
     qb.andWhere('p."created_at" >= :from', { from });
   }
@@ -1378,33 +1580,34 @@ private async getProjectsRoiForTenantInternal(
 
   // ===== DASHBOARD WIDGETS =====
 
-  async getFunnelToday(tenantId: string): Promise<{ statuses: Array<{ status: string; count: number }> }> {
+  async getFunnelToday(tenantId: string, restrictToLeadIds?: string[] | null): Promise<{ statuses: Array<{ status: string; count: number }> }> {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    const rows = await this.leadsRepo
+    if (restrictToLeadIds && !restrictToLeadIds.length) return { statuses: [] };
+    const qb = this.leadsRepo
       .createQueryBuilder('l')
       .select('l.status', 'status')
       .addSelect('COUNT(*)', 'count')
       .where('l.tenantId = :tenantId', { tenantId })
-      .andWhere('l.createdAt >= :todayStart', { todayStart })
-      .groupBy('l.status')
-      .getRawMany();
+      .andWhere('l.createdAt >= :todayStart', { todayStart });
+    if (restrictToLeadIds) qb.andWhere('l.id IN (:...restrictToLeadIds)', { restrictToLeadIds });
+    const rows = await qb.groupBy('l.status').getRawMany();
     return { statuses: rows.map((r) => ({ status: r.status, count: Number(r.count) })) };
   }
 
-  async getSourcesWeekly(tenantId: string): Promise<{ sources: Array<{ source: string; count: number }> }> {
+  async getSourcesWeekly(tenantId: string, restrictToLeadIds?: string[] | null): Promise<{ sources: Array<{ source: string; count: number }> }> {
     const weekAgo = new Date();
     weekAgo.setDate(weekAgo.getDate() - 7);
     weekAgo.setHours(0, 0, 0, 0);
-    const rows = await this.leadsRepo
+    if (restrictToLeadIds && !restrictToLeadIds.length) return { sources: [] };
+    const qb = this.leadsRepo
       .createQueryBuilder('l')
       .select("COALESCE(l.source, 'unknown')", 'source')
       .addSelect('COUNT(*)', 'count')
       .where('l.tenantId = :tenantId', { tenantId })
-      .andWhere('l.createdAt >= :weekAgo', { weekAgo })
-      .groupBy("COALESCE(l.source, 'unknown')")
-      .orderBy('count', 'DESC')
-      .getRawMany();
+      .andWhere('l.createdAt >= :weekAgo', { weekAgo });
+    if (restrictToLeadIds) qb.andWhere('l.id IN (:...restrictToLeadIds)', { restrictToLeadIds });
+    const rows = await qb.groupBy("COALESCE(l.source, 'unknown')").orderBy('count', 'DESC').getRawMany();
     return { sources: rows.map((r) => ({ source: r.source, count: Number(r.count) })) };
   }
 }

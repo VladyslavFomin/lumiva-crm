@@ -3,6 +3,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import {
   previewProductImport,
@@ -111,6 +112,7 @@ export const ProductImportPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="productImport" />
       <div className="px-scope">
         <button type="button" className="px-back" onClick={() => navigate('/products')}>
           ← {t('crm.products.list.title')}

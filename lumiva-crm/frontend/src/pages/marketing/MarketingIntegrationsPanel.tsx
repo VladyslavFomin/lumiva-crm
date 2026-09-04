@@ -28,6 +28,8 @@ export type MarketingIntegrationProviderKey =
   | 'google_ads'
   | 'google_analytics'
   | 'yandex_metrika'
+  | 'yandex_direct'
+  | 'vk_ads'
   | 'meta_ads';
 
 type ProviderKey = MarketingIntegrationProviderKey;
@@ -115,13 +117,15 @@ function rowIsGa4Provider(provider: string): boolean {
   );
 }
 
-const PROVIDER_KEYS: ProviderKey[] = ['google_ads', 'meta_ads', 'google_analytics', 'yandex_metrika'];
+const PROVIDER_KEYS: ProviderKey[] = ['google_ads', 'meta_ads', 'google_analytics', 'yandex_metrika', 'yandex_direct', 'vk_ads'];
 
 const PROVIDER_META: Record<ProviderKey, { brand: string; logo: string; ds: string; status: 'live' | 'beta' }> = {
   google_ads:       { brand: '#EA4335', logo: 'G', ds: 'google_ads', status: 'beta' },
   meta_ads:         { brand: '#0866FF', logo: 'M', ds: 'meta_ads',   status: 'beta' },
   google_analytics: { brand: '#0F9D58', logo: 'A', ds: 'ga4',        status: 'live' },
   yandex_metrika:   { brand: '#FC3F1D', logo: 'Я', ds: 'yandex_metrika', status: 'live' },
+  yandex_direct:    { brand: '#FFCC00', logo: 'Я', ds: 'yandex_direct', status: 'beta' },
+  vk_ads:           { brand: '#0077FF', logo: 'VK', ds: 'vk_ads',    status: 'beta' },
 };
 
 const inputCls =
@@ -161,6 +165,10 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   const { showConfirm } = useAlertModal();
   const embedded = variant === 'embedded';
   const modal = variant === 'modal';
+  /** Модалка «Настроить X» из хаба интеграций и встроенная вкладка «Маркетинг» используют одинаковый карточный UI. */
+  const cardLayout = embedded || modal;
+  /** В модалке одного провайдера список и каталог сужаются только до него — без остальных 5 источников. */
+  const scopedProvider = modal ? initialProvider : null;
   const [list, setList] = useState<MarketingIntegrationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +209,10 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
   const [ymToken, setYmToken] = useState('');
   const [ymGoal, setYmGoal] = useState('');
   const [ymRev, setYmRev] = useState('');
+  const [ydToken, setYdToken] = useState('');
+  const [ydClientLogin, setYdClientLogin] = useState('');
+  const [vkClientId, setVkClientId] = useState('');
+  const [vkClientSecret, setVkClientSecret] = useState('');
   const [metaToken, setMetaToken] = useState('');
   const [metaConv, setMetaConv] = useState('');
   const [metaRevAct, setMetaRevAct] = useState('');
@@ -230,6 +242,14 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
         {
           key: 'yandex_metrika' as const,
           label: t('crm.marketingIntegrations.providers.yandex_metrika'),
+        },
+        {
+          key: 'yandex_direct' as const,
+          label: t('crm.marketingIntegrations.providers.yandex_direct'),
+        },
+        {
+          key: 'vk_ads' as const,
+          label: t('crm.marketingIntegrations.providers.vk_ads'),
         },
         { key: 'meta_ads' as const, label: t('crm.marketingIntegrations.providers.meta_ads') },
       ] as const,
@@ -338,6 +358,40 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
       return {
         provider: 'yandex_metrika',
         kind: 'analytics',
+        name: n,
+        isActive: true,
+        primaryId: pid || undefined,
+        settings,
+      };
+    }
+    if (provider === 'yandex_direct') {
+      const settings: Record<string, string> = { currency: cur };
+      const put = (k: string, v: string) => {
+        const tv = v.trim();
+        if (tv) settings[k] = tv;
+      };
+      put('oauthToken', ydToken);
+      put('clientLogin', ydClientLogin);
+      return {
+        provider: 'yandex_direct',
+        kind: 'ads',
+        name: n,
+        isActive: true,
+        primaryId: pid || undefined,
+        settings,
+      };
+    }
+    if (provider === 'vk_ads') {
+      const settings: Record<string, string> = { currency: cur };
+      const put = (k: string, v: string) => {
+        const tv = v.trim();
+        if (tv) settings[k] = tv;
+      };
+      put('clientId', vkClientId);
+      put('clientSecret', vkClientSecret);
+      return {
+        provider: 'vk_ads',
+        kind: 'ads',
         name: n,
         isActive: true,
         primaryId: pid || undefined,
@@ -770,24 +824,27 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
         </div>
       )}
 
-      {embedded && (
+      {cardLayout && (() => {
+        const visibleList = scopedProvider ? list.filter((r) => r.provider === scopedProvider) : list;
+        const catalogKeys = scopedProvider ? [scopedProvider] : PROVIDER_KEYS;
+        return (
         <div>
           {/* ── CONNECTED SOURCES ── */}
           <div className="flex items-center gap-2.5 mb-4">
             <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#888] font-medium whitespace-nowrap">
-              Подключённые источники · {list.length}
+              Подключённые источники · {visibleList.length}
             </span>
             <div className="flex-1 h-px bg-[#f0f0f0]" />
           </div>
 
           {loading && <p className="text-xs text-[#888] mb-4">Загрузка…</p>}
 
-          {!loading && list.length === 0 && (
+          {!loading && visibleList.length === 0 && (
             <p className="text-xs text-[#888] italic mb-6">Нет подключённых источников.</p>
           )}
 
           <div className="flex flex-col gap-3 mb-7">
-            {list.map((row) => {
+            {visibleList.map((row) => {
               const pm = PROVIDER_META[row.provider as ProviderKey];
               const brand = pm?.brand ?? '#222';
               const logo = pm?.logo ?? row.provider[0]?.toUpperCase() ?? '?';
@@ -970,8 +1027,8 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
             <div className="flex-1 h-px bg-[#f0f0f0]" />
           </div>
 
-          <div className="grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4 mb-6">
-            {PROVIDER_KEYS.map((pk) => {
+          <div className={`grid gap-3.5 mb-6 ${scopedProvider ? 'sm:grid-cols-1 max-w-sm' : 'sm:grid-cols-2 xl:grid-cols-4'}`}>
+            {catalogKeys.map((pk) => {
               const pm = PROVIDER_META[pk];
               const connectedCount = list.filter((r) => r.provider === pk).length;
               const isConnected = connectedCount > 0;
@@ -1115,6 +1172,20 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                       <div><label className={labelCls}>{t('crm.marketingIntegrations.form.ym.revenueMetric')}</label><input className={inputCls} value={ymRev} onChange={(e) => setYmRev(e.target.value)}/></div>
                     </div>
                   )}
+                  {/* Yandex Direct creds */}
+                  {activeAddProvider === 'yandex_direct' && (
+                    <div className={`${credentialsBlock} space-y-3`}>
+                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.yd.token')}</label><input type="password" autoComplete="new-password" className={inputCls} value={ydToken} onChange={(e) => setYdToken(e.target.value)}/></div>
+                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.yd.clientLogin')}</label><input className={inputCls} value={ydClientLogin} onChange={(e) => setYdClientLogin(e.target.value)}/></div>
+                    </div>
+                  )}
+                  {/* VK Ads creds */}
+                  {activeAddProvider === 'vk_ads' && (
+                    <div className={`${credentialsBlock} space-y-3`}>
+                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.vk.clientId')}</label><input className={inputCls} value={vkClientId} onChange={(e) => setVkClientId(e.target.value)}/></div>
+                      <div><label className={labelCls}>{t('crm.marketingIntegrations.form.vk.clientSecret')}</label><input type="password" autoComplete="new-password" className={inputCls} value={vkClientSecret} onChange={(e) => setVkClientSecret(e.target.value)}/></div>
+                    </div>
+                  )}
                   <div className="flex flex-col sm:flex-row gap-2 sm:flex-wrap sm:items-center pt-1">
                     {activeAddProvider === 'google_ads' && adsOAuthWizard && (
                       <button type="button" onClick={() => void startGoogleAdsOAuthCreate()} disabled={creating} className={`${btnPrimary} w-full sm:w-auto`}>
@@ -1139,9 +1210,10 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
             </div>
           )}
         </div>
-      )}
+        );
+      })()}
 
-      {!embedded && <div className="grid grid-cols-1 gap-6 items-start xl:grid-cols-2 xl:gap-8">
+      {variant === 'standalone' && <div className="grid grid-cols-1 gap-6 items-start xl:grid-cols-2 xl:gap-8">
         <section className={`min-w-0 ${formPanel}`}>
           <h2 className={marketingSectionTitle}>{t('crm.marketingIntegrations.form.title')}</h2>
           <p className={`${marketingSectionSub} mb-5`}>{t('crm.marketingIntegrations.form.intro')}</p>
@@ -1397,6 +1469,49 @@ export const MarketingIntegrationsPanel: React.FC<MarketingIntegrationsPanelProp
                   <label className={labelCls}>{t('crm.marketingIntegrations.form.ym.revenueMetric')}</label>
                   <input className={inputCls} value={ymRev} onChange={(e) => setYmRev(e.target.value)} />
                 </div>
+              </div>
+            )}
+
+            {provider === 'yandex_direct' && (
+              <div className={`${credentialsBlock} space-y-3`}>
+                <div>
+                  <label className={labelCls}>{t('crm.marketingIntegrations.form.yd.token')}</label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    className={inputCls}
+                    value={ydToken}
+                    onChange={(e) => setYdToken(e.target.value)}
+                  />
+                  <p className="mt-1 text-[10px] text-[#222222]/45">{t('crm.marketingIntegrations.form.yd.tokenHint')}</p>
+                </div>
+                <div>
+                  <label className={labelCls}>
+                    {t('crm.marketingIntegrations.form.yd.clientLogin')} <span className="font-normal text-[#222222]/40">{t('crm.common.optional')}</span>
+                  </label>
+                  <input className={inputCls} value={ydClientLogin} onChange={(e) => setYdClientLogin(e.target.value)} />
+                  <p className="mt-1 text-[10px] text-[#222222]/45">{t('crm.marketingIntegrations.form.yd.clientLoginHint')}</p>
+                </div>
+              </div>
+            )}
+
+            {provider === 'vk_ads' && (
+              <div className={credentialsGrid}>
+                <div>
+                  <label className={labelCls}>{t('crm.marketingIntegrations.form.vk.clientId')}</label>
+                  <input className={inputCls} value={vkClientId} onChange={(e) => setVkClientId(e.target.value)} />
+                </div>
+                <div>
+                  <label className={labelCls}>{t('crm.marketingIntegrations.form.vk.clientSecret')}</label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    className={inputCls}
+                    value={vkClientSecret}
+                    onChange={(e) => setVkClientSecret(e.target.value)}
+                  />
+                </div>
+                <p className="sm:col-span-2 text-[10px] text-[#222222]/45">{t('crm.marketingIntegrations.form.vk.hint')}</p>
               </div>
             )}
 

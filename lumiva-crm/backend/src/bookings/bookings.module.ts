@@ -38,6 +38,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { RbacModule } from '../rbac/rbac.module';
 import { AutomationsModule } from '../automations/automations.module';
 import { TenantsModule } from '../tenants/tenants.module';
+import { StaffUsersModule } from '../staff/staff-users.module';
 
 @Module({
   imports: [
@@ -60,6 +61,7 @@ import { TenantsModule } from '../tenants/tenants.module';
     RbacModule,
     forwardRef(() => AutomationsModule),
     TenantsModule,
+    forwardRef(() => StaffUsersModule),
   ],
   controllers: [
     BookingsController,

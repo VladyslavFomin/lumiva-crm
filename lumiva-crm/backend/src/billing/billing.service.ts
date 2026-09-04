@@ -5,6 +5,10 @@ import Stripe from 'stripe';
 import { Tenant } from '../tenants/tenant.entity';
 import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { buildPlanEntitlements, normalizeTenantPlan, isComponentAllowedByPlan } from '../tenants/plan-entitlements';
+import { TenantPlanActivationService, type BillingProviderCode } from './providers/tenant-plan-activation.service';
+import { PaymentProviderResolverService } from './providers/payment-provider-resolver.service';
+import { YookassaBillingProvider } from './providers/yookassa-billing.provider';
+import { IyzicoBillingProvider } from './providers/iyzico-billing.provider';
 
 type PlanCode = 'standard' | 'professional' | 'enterprise' | 'ultimate';
 type BillingPeriod = 'month' | 'year';
@@ -32,6 +36,10 @@ export class BillingService {
     @InjectRepository(Tenant)
     private readonly tenantsRepo: Repository<Tenant>,
     private readonly settings: PlatformSettingsService,
+    private readonly planActivation: TenantPlanActivationService,
+    private readonly providerResolver: PaymentProviderResolverService,
+    private readonly yookassaProvider: YookassaBillingProvider,
+    private readonly iyzicoProvider: IyzicoBillingProvider,
   ) {}
 
   private getStripeClient(secretKey: string) {
@@ -75,17 +83,6 @@ export class BillingService {
     return priceId;
   }
 
-  private parseMonthlyAmountFromPrice(priceRaw: string | null | undefined, fallback: number): number {
-    const raw = String(priceRaw || '').trim();
-    if (!raw) return fallback;
-    const normalized = raw.replace(',', '.');
-    const match = normalized.match(/(\d+(\.\d+)?)/);
-    if (!match) return fallback;
-    const parsed = Number(match[1]);
-    if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
-    return parsed;
-  }
-
   private getYearlyDiscount(plan: PlanCode): number {
     if (plan === 'standard') return 0.1;
     if (plan === 'professional') return 0.12;
@@ -93,12 +90,8 @@ export class BillingService {
     return 0.2;
   }
 
-  private addMonths(baseDate: Date, months: number): Date {
-    const next = new Date(baseDate.getTime());
-    next.setMonth(next.getMonth() + months);
-    return next;
-  }
-
+  /** Тонкий Stripe-адаптер над провайдер-независимым ядром активации тарифа (см.
+   * providers/tenant-plan-activation.service.ts) — раньше вся эта логика жила прямо здесь. */
   private async applyPaidSession(session: Stripe.Checkout.Session): Promise<{ applied: boolean }> {
     const pt = session.metadata?.purchaseType;
     if (pt === 'ai_prepaid' || pt === 'storage_pack') return { applied: false };
@@ -108,35 +101,13 @@ export class BillingService {
     const period = (session.metadata?.period || 'month') as BillingPeriod;
     if (!tenantId) return { applied: false };
 
-    const tenant = await this.getTenantOrFail(tenantId);
-    if (tenant.lastBillingSessionId && tenant.lastBillingSessionId === session.id) {
-      return { applied: false };
-    }
-
-    tenant.plan = normalizeTenantPlan(plan);
-    const ent = buildPlanEntitlements({
-      plan: tenant.plan,
-      enabledModules: tenant.enabledModules,
-      enabledComponents: tenant.enabledComponents,
+    return this.planActivation.activatePaidCheckout({
+      tenantId,
+      plan,
+      period,
+      provider: 'stripe',
+      externalRef: session.id,
     });
-    tenant.plan = ent.normalizedPlan;
-    tenant.enabledModules = ent.enabledModules;
-    tenant.enabledComponents = ent.enabledComponents;
-
-    const months = period === 'year' ? 12 : 1;
-    const now = Date.now();
-    const base =
-      tenant.activeUntil && tenant.activeUntil.getTime() > now
-        ? tenant.activeUntil
-        : new Date(now);
-    tenant.activeUntil = this.addMonths(base, months);
-    tenant.lastBillingSessionId = session.id;
-    if (tenant.status !== 'blocked') {
-      tenant.status = 'active';
-    }
-
-    await this.tenantsRepo.save(tenant);
-    return { applied: true };
   }
 
   private async applyAddonSession(session: Stripe.Checkout.Session): Promise<{ applied: boolean }> {
@@ -150,30 +121,45 @@ export class BillingService {
       return { applied: false };
     }
 
-    const tenant = await this.getTenantOrFail(tenantId);
-    if (tenant.stripeAuxLastSessionId && tenant.stripeAuxLastSessionId === session.id) {
-      return { applied: false };
-    }
-
-    if (purchaseType === 'ai_prepaid') {
-      const cents = parseInt(String(meta.creditsCents || '0'), 10) || 0;
-      if (cents > 0) {
-        tenant.aiPrepaidCents = (tenant.aiPrepaidCents || 0) + cents;
+    // Этот путь аддитивный (aiPrepaidCents/storageExtraBytes НАКАПЛИВАЮТСЯ, не присваиваются),
+    // и до фикса вызывался из двух независимых HTTP-путей для одной и той же Stripe-сессии —
+    // вебхука и клиентского checkout-confirm сразу после редиректа успеха. Обычный
+    // check-then-save без блокировки строки давал окно: обе стороны читают
+    // stripeAuxLastSessionId ДО того, как любая успела сохранить новое значение, обе видят
+    // несовпадение и обе начисляют — тенант получает кредит дважды за одну покупку.
+    // SELECT ... FOR UPDATE внутри транзакции сериализует конкурентные вызовы по этой строке:
+    // вторая транзакция ждёт первую и видит уже обновлённый stripeAuxLastSessionId.
+    return this.tenantsRepo.manager.transaction(async (manager) => {
+      const tenant = await manager
+        .createQueryBuilder(Tenant, 'tenant')
+        .setLock('pessimistic_write')
+        .where('tenant.id = :id', { id: tenantId })
+        .getOne();
+      if (!tenant) throw new BadRequestException('Tenant not found');
+      if (tenant.stripeAuxLastSessionId && tenant.stripeAuxLastSessionId === session.id) {
+        return { applied: false };
       }
-    } else if (purchaseType === 'storage_pack') {
-      let bytes = BigInt(String(meta.storageBytes || '0'));
-      if (bytes <= 0n) {
-        bytes = BigInt(1024 * 1024 * 1024);
-      }
-      const cur = BigInt(tenant.storageExtraBytes || '0');
-      tenant.storageExtraBytes = (cur + bytes).toString();
-    } else if (purchaseType === 'telephony_addon') {
-      tenant.telephonyAddonEnabled = true;
-    }
 
-    tenant.stripeAuxLastSessionId = session.id;
-    await this.tenantsRepo.save(tenant);
-    return { applied: true };
+      if (purchaseType === 'ai_prepaid') {
+        const cents = parseInt(String(meta.creditsCents || '0'), 10) || 0;
+        if (cents > 0) {
+          tenant.aiPrepaidCents = (tenant.aiPrepaidCents || 0) + cents;
+        }
+      } else if (purchaseType === 'storage_pack') {
+        let bytes = BigInt(String(meta.storageBytes || '0'));
+        if (bytes <= 0n) {
+          bytes = BigInt(1024 * 1024 * 1024);
+        }
+        const cur = BigInt(tenant.storageExtraBytes || '0');
+        tenant.storageExtraBytes = (cur + bytes).toString();
+      } else if (purchaseType === 'telephony_addon') {
+        tenant.telephonyAddonEnabled = true;
+      }
+
+      tenant.stripeAuxLastSessionId = session.id;
+      await manager.save(tenant);
+      return { applied: true };
+    });
   }
 
   async getCatalog() {
@@ -214,14 +200,69 @@ export class BillingService {
     await this.tenantsRepo.save(tenant);
   }
 
+  /** Считает итоговую сумму периода (месяц/год со скидкой) из месячной суммы в нужной валюте. */
+  private computePeriodAmount(monthly: number, period: BillingPeriod, plan: PlanCode): number {
+    const yearlyDiscount = this.getYearlyDiscount(plan);
+    return period === 'year'
+      ? Math.round(monthly * 12 * (1 - yearlyDiscount) * 100) / 100
+      : monthly;
+  }
+
   async createCheckoutSession(input: {
     tenantId?: string | null;
     plan: PlanCode;
     period: BillingPeriod;
     successUrl: string;
     cancelUrl: string;
-  }) {
+    ip?: string;
+  }): Promise<{ id: string; url: string | null; provider: BillingProviderCode; ref?: string }> {
     const tenant = await this.getTenantOrFail(input.tenantId);
+    const period = input.period || 'month';
+    const catalog = await this.settings.getBillingPlans();
+    const fromCatalog = catalog.find((p) => p.code === input.plan);
+    const provider = await this.providerResolver.resolveForTenant(tenant);
+    const yearlyDiscount = this.getYearlyDiscount(input.plan);
+    const lineName = `${fromCatalog?.title || input.plan} · ${
+      period === 'year' ? `12 месяцев (-${Math.round(yearlyDiscount * 100)}%)` : '1 месяц'
+    }`;
+
+    if (provider === 'yookassa') {
+      const monthlyRub = fromCatalog?.monthlyAmounts?.rub;
+      if (!monthlyRub) {
+        throw new BadRequestException(
+          `YooKassa RUB price for "${input.plan}" is not configured`,
+        );
+      }
+      const totalRub = this.computePeriodAmount(monthlyRub, period, input.plan);
+      const result = await this.yookassaProvider.createCheckout({
+        tenant,
+        plan: input.plan,
+        period,
+        amountRub: totalRub,
+        lineName,
+        returnUrl: input.successUrl,
+      });
+      return { id: result.ref, url: result.url, provider: 'yookassa', ref: result.ref };
+    }
+
+    if (provider === 'iyzico') {
+      const monthlyTry = fromCatalog?.monthlyAmounts?.try;
+      if (!monthlyTry) {
+        throw new BadRequestException(`iyzico TRY price for "${input.plan}" is not configured`);
+      }
+      const totalTry = this.computePeriodAmount(monthlyTry, period, input.plan);
+      const result = await this.iyzicoProvider.createCheckout({
+        tenant,
+        plan: input.plan,
+        period,
+        amountTry: totalTry,
+        lineName,
+        ip: input.ip || '0.0.0.0',
+        locale: tenant.uiLanguage === 'tr' ? 'tr' : 'en',
+      });
+      return { id: '', url: result.url, provider: 'iyzico' };
+    }
+
     const cfg = await this.settings.getSettings();
     const secretKey =
       cfg?.stripeSecretKey?.trim() || process.env.STRIPE_SECRET_KEY?.trim();
@@ -229,25 +270,15 @@ export class BillingService {
       throw new BadRequestException('Stripe is not configured');
     }
     const stripe = this.getStripeClient(secretKey);
-    const period = input.period || 'month';
-    const catalog = await this.settings.getBillingPlans();
-    const fromCatalog = catalog.find((p) => p.code === input.plan);
     const fallbackByPlan: Record<PlanCode, number> = {
       standard: 14,
       professional: 23,
       enterprise: 40,
       ultimate: 52,
     };
-    const monthly = this.parseMonthlyAmountFromPrice(fromCatalog?.price as string | undefined, fallbackByPlan[input.plan]);
-    const yearlyDiscount = this.getYearlyDiscount(input.plan);
-    const totalEur =
-      period === 'year'
-        ? Math.round(monthly * 12 * (1 - yearlyDiscount) * 100) / 100
-        : monthly;
+    const monthly = fromCatalog?.monthlyAmounts?.eur || fallbackByPlan[input.plan];
+    const totalEur = this.computePeriodAmount(monthly, period, input.plan);
     const amountCents = Math.max(1, Math.round(totalEur * 100));
-    const lineName = `${fromCatalog?.title || input.plan} · ${
-      period === 'year' ? `12 месяцев (-${Math.round(yearlyDiscount * 100)}%)` : '1 месяц'
-    }`;
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -278,7 +309,28 @@ export class BillingService {
     return {
       id: session.id,
       url: session.url,
+      provider: 'stripe',
     };
+  }
+
+  /** Перепроверяет статус YooKassa-платежа server-to-server (никогда не доверяем вебхуку/query) и активирует тариф. */
+  async confirmYookassaCheckout(input: { tenantId?: string | null; paymentId: string }) {
+    const tenant = await this.getTenantOrFail(input.tenantId);
+    const result = await this.yookassaProvider.verifyAndActivate(input.paymentId);
+    if (result.tenantId && result.tenantId !== tenant.id) {
+      throw new BadRequestException('Payment tenant mismatch');
+    }
+    return { ok: result.ok };
+  }
+
+  async handleYookassaWebhook(body: { object?: { id?: string } }): Promise<void> {
+    const paymentId = body?.object?.id;
+    if (!paymentId) return;
+    await this.yookassaProvider.verifyAndActivate(paymentId);
+  }
+
+  async handleIyzicoCallback(token: string): Promise<{ status: 'paid' | 'failed' }> {
+    return this.iyzicoProvider.handleCallback(token);
   }
 
   async confirmCheckoutSession(input: { tenantId?: string | null; sessionId: string }) {

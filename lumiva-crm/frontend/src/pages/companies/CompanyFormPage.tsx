@@ -1,10 +1,13 @@
 // src/pages/companies/CompanyFormPage.tsx
 import React, { useState, useEffect } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { fetchCompany, createCompany, updateCompany, type CreateCompanyDto } from '../../api/companies';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { LegalRequisitesEditor } from '../../legal/LegalRequisitesEditor';
+import type { LegalRequisiteItem } from '../../legal/legalRequisites';
 
 const INK = '#222';
 const FG3 = '#888';
@@ -35,9 +38,12 @@ export const CompanyFormPage: React.FC = () => {
   const [staff, setStaff] = useState<StaffUser[]>([]);
   const [assignedUserId, setAssignedUserId] = useState('');
   const [assignedTo, setAssignedTo] = useState('');
+  const [legalRequisites, setLegalRequisites] = useState<LegalRequisiteItem[]>([]);
 
   const [form, setForm] = useState<CreateCompanyDto>({
     name: '',
+    legalName: '',
+    taxId: '',
     email: '',
     phone: '',
     website: '',
@@ -65,6 +71,8 @@ export const CompanyFormPage: React.FC = () => {
       .then((c) => {
         setForm({
           name: c.name,
+          legalName: c.legalName || '',
+          taxId: c.taxId || '',
           email: c.email || '',
           phone: c.phone || '',
           website: c.website || '',
@@ -78,6 +86,7 @@ export const CompanyFormPage: React.FC = () => {
         });
         if (c.assignedUserId) setAssignedUserId(c.assignedUserId);
         if (c.assignedTo) setAssignedTo(c.assignedTo);
+        setLegalRequisites(c.legalRequisites || []);
       })
       .catch((e) => setError(e.message || t('crm.companies.form.errors.loadFailed')))
       .finally(() => setLoading(false));
@@ -97,6 +106,7 @@ export const CompanyFormPage: React.FC = () => {
         ...form,
         assignedUserId: assignedUserId || undefined,
         assignedTo: staffMember?.fullName || staffMember?.email || assignedTo || undefined,
+        legalRequisites,
       };
       if (id) {
         await updateCompany(id, payload);
@@ -123,6 +133,7 @@ export const CompanyFormPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="companies" />
       <div style={{ color: INK }}>
         {/* ── Header ────────────────────────────────────────────── */}
         <div style={{ borderBottom: `1px solid ${LINE}`, paddingBottom: 20, marginBottom: 28 }}>
@@ -141,6 +152,14 @@ export const CompanyFormPage: React.FC = () => {
               <h1 style={{ fontSize: 26, fontWeight: 500, letterSpacing: '-0.02em', color: INK, marginTop: 6, lineHeight: 1.1 }}>
                 {form.name.trim() || (isNew ? 'Название компании' : '—')}
               </h1>
+              {isNew && (
+                <div style={{ marginTop: 8, fontSize: 12, color: FG3, maxWidth: 480 }}>
+                  {t('crm.companies.form.newColdStartHint', {
+                    defaultValue:
+                      'Обычно компания появляется автоматически при конвертации лида в клиента. Создавайте вручную, если работа уже началась без лида.',
+                  })}
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {!isNew && (
@@ -186,6 +205,19 @@ export const CompanyFormPage: React.FC = () => {
                   placeholder="ООО Ромашка"
                   required
                 />
+              </div>
+
+              {/* Legal name + Tax ID */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className={lblCls}>{t('crm.companies.form.fields.legalName')}</label>
+                  <input className={inpCls} value={form.legalName} onChange={(e) => set('legalName', e.target.value)} placeholder={t('crm.companies.form.fields.legalNamePlaceholder')} />
+                </div>
+                <div>
+                  <label className={lblCls}>{t('crm.companies.form.fields.taxId')}</label>
+                  <input className={inpCls} value={form.taxId} onChange={(e) => set('taxId', e.target.value)} placeholder={t('crm.companies.form.fields.taxIdPlaceholder')} />
+                  <p className="mt-1 text-[11px]" style={{ color: FG3 }}>{t('crm.companies.form.fields.taxIdHint')}</p>
+                </div>
               </div>
 
               {/* Email + Phone */}
@@ -249,6 +281,16 @@ export const CompanyFormPage: React.FC = () => {
                   onChange={(e) => set('address', e.target.value)}
                   rows={2}
                   style={{ resize: 'vertical' }}
+                />
+              </div>
+
+              {/* Реквизиты и юр. данные */}
+              <div style={{ border: `1px solid ${LINE}`, borderRadius: 12, padding: 16 }}>
+                <label className={lblCls}>{t('crm.companies.form.fields.legalRequisites')}</label>
+                <LegalRequisitesEditor
+                  value={legalRequisites}
+                  onChange={setLegalRequisites}
+                  hint={t('crm.companies.form.fields.legalRequisitesHint')}
                 />
               </div>
             </div>

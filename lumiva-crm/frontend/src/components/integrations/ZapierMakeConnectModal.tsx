@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { BlurModal } from './BlurModal';
 import { IntegrationBrandIcon } from '../../pages/automations/IntegrationBrandIcon';
 import { createIntegration } from '../../api/integrations';
-import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type Platform = 'zapier' | 'make';
 
@@ -31,7 +30,6 @@ export const ZapierMakeConnectModal: React.FC<Props> = ({
   onCreated,
 }) => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
   const platform = (catalogId as Platform) === 'make' ? 'make' : 'zapier';
   const platformLabel = platform === 'make' ? 'Make' : 'Zapier';
 
@@ -43,15 +41,18 @@ export const ZapierMakeConnectModal: React.FC<Props> = ({
   });
   const [saving, setSaving] = useState(false);
   const [step, setStep] = useState<'outbound' | 'inbound' | 'done'>('outbound');
+  const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
     setForm({ name: '', outboundWebhookUrl: '', inboundToken: generateToken(), defaultLeadSource: platform });
     setStep('outbound');
+    setError(null);
   };
 
   const handleClose = () => { reset(); onClose(); };
 
   const handleCreate = async () => {
+    setError(null);
     setSaving(true);
     try {
       await createIntegration({
@@ -67,7 +68,7 @@ export const ZapierMakeConnectModal: React.FC<Props> = ({
       setStep('done');
       onCreated();
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : t('crm.salesIntegrations.errors.create'), { variant: 'error' });
+      setError(e instanceof Error ? e.message : t('crm.salesIntegrations.errors.create'));
     } finally {
       setSaving(false);
     }
@@ -81,7 +82,7 @@ export const ZapierMakeConnectModal: React.FC<Props> = ({
       : 'https://hooks.zapier.com/hooks/catch/...';
 
   return (
-    <BlurModal open={open} onClose={handleClose}>
+    <BlurModal open={open} onClose={handleClose} size="sm">
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center gap-3">
           <IntegrationBrandIcon catalogId={platform} label={platformLabel} size={36} />
@@ -236,6 +237,7 @@ export const ZapierMakeConnectModal: React.FC<Props> = ({
               </p>
             </div>
 
+            {error && <p className="text-[11px] text-rose-600">{error}</p>}
             <div className="flex justify-between gap-2 pt-1">
               <button type="button" onClick={() => setStep('outbound')}
                 className="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50">

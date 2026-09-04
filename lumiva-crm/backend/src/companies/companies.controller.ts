@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
   ParseUUIDPipe,
+  NotFoundException,
 } from '@nestjs/common';
 import { CompaniesService } from './companies.service';
 import { CreateCompanyDto } from './dto/create-company.dto';
@@ -25,11 +26,45 @@ import {
 } from '../common/decorators/current-user.decorator';
 import { RequirePermission } from '../rbac/require-permission.decorator';
 import { RbacGuard } from '../rbac/rbac.guard';
+import { DataVisibilityService } from '../data-visibility/data-visibility.service';
+import type { Company } from './company.entity';
 
 @Controller('companies')
 @UseGuards(JwtAuthGuard, RbacGuard)
 export class CompaniesController {
-  constructor(private readonly companiesService: CompaniesService) {}
+  constructor(
+    private readonly companiesService: CompaniesService,
+    private readonly dataVisibility: DataVisibilityService,
+  ) {}
+
+  /** Same shape as ContactsController.resolveVisibility/maskOne — see comments there. Company has
+   * no separate "detail" fields worth masking (foreign_records='masked' behaves like 'full' for
+   * companies), only email/phone under contact_masking. */
+  private async resolveVisibility(user: CurrentUserPayload): Promise<{
+    forceOwnOnly: string | null;
+    contactMaskingMode: string; // 'show' | 'mask_until_assigned' | 'always_mask'
+    staffId: string | null;
+  }> {
+    const ctx = await this.dataVisibility.getRequestContext(user.tenantId, user);
+    if (ctx.privileged) return { forceOwnOnly: null, contactMaskingMode: 'show', staffId: ctx.staffId };
+
+    const [foreignRecords, contactMasking] = await Promise.all([
+      this.dataVisibility.getRuleValue(user.tenantId, user.role as any, 'foreign_records'),
+      this.dataVisibility.getRuleValue(user.tenantId, user.role as any, 'contact_masking'),
+    ]);
+    return {
+      forceOwnOnly: foreignRecords === 'hide' ? ctx.staffId : null,
+      contactMaskingMode: contactMasking,
+      staffId: ctx.staffId,
+    };
+  }
+
+  private maskOne(company: Company, staffId: string | null, contactMaskingMode: string): Company {
+    const isOwn = !!(staffId && company.assignedUserId === staffId);
+    const maskContact = contactMaskingMode === 'always_mask' || (contactMaskingMode === 'mask_until_assigned' && !isOwn);
+    if (!maskContact) return company;
+    return { ...company, phone: null, email: null };
+  }
 
   @Get()
   @RequirePermission('companies', 'read')
@@ -45,16 +80,20 @@ export class CompaniesController {
     @Query('offset') offset?: string,
   ) {
     const tagsArray = tags ? tags.split(',').filter(Boolean) : undefined;
-    return this.companiesService.findAll(user.tenantId, {
+    const visibility = await this.resolveVisibility(user);
+    const effectiveAssignedUserId = visibility.forceOwnOnly ?? assignedUserId;
+    const result = await this.companiesService.findAll(user.tenantId, {
       search,
       status,
       type,
       industry,
-      assignedUserId,
+      assignedUserId: effectiveAssignedUserId,
       tags: tagsArray,
       limit: limit ? parseInt(limit, 10) : undefined,
       offset: offset ? parseInt(offset, 10) : undefined,
     });
+    const items = result.items.map((c) => this.maskOne(c, visibility.staffId, visibility.contactMaskingMode));
+    return { ...result, items };
   }
 
   @Get(':id')
@@ -64,10 +103,15 @@ export class CompaniesController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Query('withRelations') withRelations?: string,
   ) {
-    if (withRelations === 'true') {
-      return this.companiesService.findOneWithRelations(user.tenantId, id);
+    const company =
+      withRelations === 'true'
+        ? await this.companiesService.findOneWithRelations(user.tenantId, id)
+        : await this.companiesService.findOne(user.tenantId, id);
+    const visibility = await this.resolveVisibility(user);
+    if (visibility.forceOwnOnly && (company as unknown as Company).assignedUserId !== visibility.forceOwnOnly) {
+      throw new NotFoundException('Company not found');
     }
-    return this.companiesService.findOne(user.tenantId, id);
+    return this.maskOne(company as unknown as Company, visibility.staffId, visibility.contactMaskingMode);
   }
 
   @Post()

@@ -13,6 +13,7 @@ import { CcpTransferEntity } from './entities/ccp-transfer.entity';
 
 // ✅ токены (tenant token из CRM)
 import { ApiTokensModule } from '../../api-tokens/api-tokens.module';
+import { RbacModule } from '../../rbac/rbac.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { ApiTokensModule } from '../../api-tokens/api-tokens.module';
       CcpTransferEntity,
     ]),
     ApiTokensModule,
+    RbacModule,
   ],
   controllers: [CcpController, CcpIngestController, CcpPublicController],
   providers: [CcpService],

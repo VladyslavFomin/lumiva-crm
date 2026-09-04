@@ -13,6 +13,9 @@ export interface MeDto {
   avatarUrl: string | null;
   role: string | null;
   status?: string | null;
+  timezone?: string | null;
+  preferences?: Record<string, any> | null;
+  twoFactorEnabled?: boolean;
   lastActiveAt?: string | null;
   createdAt: string;
   updatedAt: string;

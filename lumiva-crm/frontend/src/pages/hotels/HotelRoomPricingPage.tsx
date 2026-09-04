@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { resolvePublicAssetUrl } from '../../api/client';
 import { HotelsSubnav } from './HotelsSubnav';
@@ -30,6 +32,7 @@ import {
 import './hotels-design.css';
 
 const RoomGalleryTab: React.FC<{ hotelId: string; roomTypeId: string }> = ({ hotelId, roomTypeId }) => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [photos, setPhotos] = useState<HotelPhoto[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -39,7 +42,7 @@ const RoomGalleryTab: React.FC<{ hotelId: string; roomTypeId: string }> = ({ hot
   const load = () => {
     fetchGalleryPhotos(hotelId, { roomTypeId })
       .then(setPhotos)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.gallery.loadError'), { variant: 'error' }));
   };
 
   useEffect(() => {
@@ -51,7 +54,7 @@ const RoomGalleryTab: React.FC<{ hotelId: string; roomTypeId: string }> = ({ hot
     setUploading(true);
     Promise.all(Array.from(files).map((file) => uploadGalleryPhoto(hotelId, file, { roomTypeId })))
       .then(() => load())
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.gallery.uploadError'), { variant: 'error' }))
       .finally(() => setUploading(false));
   };
 
@@ -69,13 +72,13 @@ const RoomGalleryTab: React.FC<{ hotelId: string; roomTypeId: string }> = ({ hot
             style={{ backgroundImage: `url(${resolvePublicAssetUrl(p.url)})`, cursor: 'pointer' }}
             onClick={() => setEditingPhoto(p)}
           >
-            <button onClick={(e) => { e.stopPropagation(); setEditingPhoto(p); }} title="Редактировать">
+            <button onClick={(e) => { e.stopPropagation(); setEditingPhoto(p); }} title={t('crm.hotels.roomPricing.gallery.edit')}>
               <Ic d={HTL_ICON.pencil} size={11} />
             </button>
           </div>
         ))}
         <div className="htl-gallery-dropzone" onClick={() => addInputRef.current?.click()}>
-          {uploading ? <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Загрузка…</span> : '+'}
+          {uploading ? <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.hotels.roomPricing.gallery.uploading')}</span> : '+'}
           <input
             ref={addInputRef}
             type="file"
@@ -105,41 +108,42 @@ function fmtEUR(v: number) {
   return v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 }
 
-const INFO_FIELDS: Array<{ key: string; label: string; type: 'text' | 'bool' }> = [
-  { key: 'qty', label: 'Количество номеров', type: 'text' },
-  { key: 'area', label: 'м²', type: 'text' },
-  { key: 'capacity', label: 'Вместимость', type: 'text' },
-  { key: 'layout', label: 'В номере', type: 'text' },
-  { key: 'accessible', label: 'Для гостей с ОВ', type: 'text' },
-  { key: 'bed', label: 'Тип кровати', type: 'text' },
-  { key: 'balcony', label: 'Балкон или терраса', type: 'bool' },
-  { key: 'shower', label: 'Душ / душевая кабина', type: 'bool' },
-  { key: 'jacuzzi', label: 'Джакузи', type: 'bool' },
-  { key: 'bath', label: 'Ванная', type: 'bool' },
-  { key: 'toilet', label: 'Туалет', type: 'bool' },
-  { key: 'livingArea', label: 'Гостиная зона', type: 'bool' },
-  { key: 'workArea', label: 'Рабочая зона', type: 'bool' },
-  { key: 'safe', label: 'Электронный сейф (бесплатно)', type: 'bool' },
-  { key: 'phone', label: 'Телефон', type: 'bool' },
-  { key: 'tv', label: 'ЖК ТВ (спутниковое)', type: 'bool' },
-  { key: 'musicCh', label: 'Музыкальные каналы (по ТВ)', type: 'bool' },
-  { key: 'minibar', label: 'Минибар (бесплатно)', type: 'bool' },
-  { key: 'floor', label: 'Половое покрытие', type: 'text' },
-  { key: 'turndown', label: 'Turn-down сервис', type: 'bool' },
-  { key: 'robe', label: 'Халат', type: 'bool' },
-  { key: 'slippers', label: 'Тапочки', type: 'bool' },
-  { key: 'dryer', label: 'Фен', type: 'bool' },
-  { key: 'wifi', label: 'Беспроводной интернет в номере', type: 'bool' },
-  { key: 'ac', label: 'Кондиционер', type: 'text' },
-  { key: 'kettle', label: 'Чайник', type: 'bool' },
-  { key: 'teaCoffee', label: 'Чай, кофе', type: 'bool' },
-  { key: 'nespresso', label: 'Кофемашина Nespresso', type: 'bool' },
-  { key: 'cleaning', label: 'Уборка номера', type: 'text' },
-  { key: 'linen', label: 'Смена белья и полотенец', type: 'text' },
-  { key: 'view', label: 'Вид', type: 'text' },
+const INFO_FIELD_KEYS: Array<{ key: string; type: 'text' | 'bool' }> = [
+  { key: 'qty', type: 'text' },
+  { key: 'area', type: 'text' },
+  { key: 'capacity', type: 'text' },
+  { key: 'layout', type: 'text' },
+  { key: 'accessible', type: 'text' },
+  { key: 'bed', type: 'text' },
+  { key: 'balcony', type: 'bool' },
+  { key: 'shower', type: 'bool' },
+  { key: 'jacuzzi', type: 'bool' },
+  { key: 'bath', type: 'bool' },
+  { key: 'toilet', type: 'bool' },
+  { key: 'livingArea', type: 'bool' },
+  { key: 'workArea', type: 'bool' },
+  { key: 'safe', type: 'bool' },
+  { key: 'phone', type: 'bool' },
+  { key: 'tv', type: 'bool' },
+  { key: 'musicCh', type: 'bool' },
+  { key: 'minibar', type: 'bool' },
+  { key: 'floor', type: 'text' },
+  { key: 'turndown', type: 'bool' },
+  { key: 'robe', type: 'bool' },
+  { key: 'slippers', type: 'bool' },
+  { key: 'dryer', type: 'bool' },
+  { key: 'wifi', type: 'bool' },
+  { key: 'ac', type: 'text' },
+  { key: 'kettle', type: 'bool' },
+  { key: 'teaCoffee', type: 'bool' },
+  { key: 'nespresso', type: 'bool' },
+  { key: 'cleaning', type: 'text' },
+  { key: 'linen', type: 'text' },
+  { key: 'view', type: 'text' },
 ];
 
 const InfoTab: React.FC<{ roomType: HotelRoomType; onSaved: () => void }> = ({ roomType, onSaved }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [data, setData] = useState<Record<string, string | boolean>>(roomType.infoFields || {});
 
@@ -148,16 +152,16 @@ const InfoTab: React.FC<{ roomType: HotelRoomType; onSaved: () => void }> = ({ r
   const update = (key: string, val: string | boolean) => {
     const next = { ...data, [key]: val };
     setData(next);
-    updateRoomTypeInfo(roomType.id, { [key]: val }).then(onSaved).catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+    updateRoomTypeInfo(roomType.id, { [key]: val }).then(onSaved).catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }));
   };
 
   return (
     <div className="occ-wrap">
       <table className="occ-table info-table">
         <tbody>
-          {INFO_FIELDS.map((f) => (
+          {INFO_FIELD_KEYS.map((f) => (
             <tr key={f.key}>
-              <td className="occ-name" style={{ width: 260 }}>{f.label}</td>
+              <td className="occ-name" style={{ width: 260 }}>{t(`crm.hotels.roomPricing.infoFields.${f.key}`)}</td>
               <td className="price-cell" style={{ textAlign: 'left' }}>
                 {f.type === 'bool' ? (
                   <button className={`bool-toggle${data[f.key] ? ' on' : ''}`} onClick={() => update(f.key, !data[f.key])}>
@@ -180,6 +184,7 @@ const InfoTab: React.FC<{ roomType: HotelRoomType; onSaved: () => void }> = ({ r
 };
 
 export const HotelRoomPricingPage: React.FC = () => {
+  const { t } = useTranslation();
   const { roomTypeId } = useParams<{ roomTypeId: string }>();
   const navigate = useNavigate();
   const { showAlert, showConfirm } = useAlertModal();
@@ -204,10 +209,10 @@ export const HotelRoomPricingPage: React.FC = () => {
         return fetchHotel(rt.hotelId);
       })
       .then((h) => setHotelName(h.name))
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить номер', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.loadRoomError'), { variant: 'error' }));
     fetchOccupancyTypes(roomTypeId)
       .then(setOccupancyTypes)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить размещения', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.loadOccupancyError'), { variant: 'error' }));
   };
 
   useEffect(() => {
@@ -220,7 +225,7 @@ export const HotelRoomPricingPage: React.FC = () => {
     if (!roomType) return;
     fetchRoomPricing(roomType.hotelId, roomType.id)
       .then(setPricing)
-      .catch((e) => showAlert(e.message || 'Не удалось рассчитать цены', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.calcError'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomType]);
 
@@ -228,7 +233,7 @@ export const HotelRoomPricingPage: React.FC = () => {
     if (!roomType) return;
     updateRoomType(roomType.id, { ppNetOffset: offset })
       .then(() => load())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }));
   };
 
   const updateCoef = (id: string, coefficient: string) => {
@@ -237,7 +242,7 @@ export const HotelRoomPricingPage: React.FC = () => {
         load();
         if (roomType) fetchRoomPricing(roomType.hotelId, roomType.id).then(setPricing);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveError'), { variant: 'error' }));
   };
 
   const reloadPricing = () => {
@@ -248,7 +253,7 @@ export const HotelRoomPricingPage: React.FC = () => {
     const price = value.trim() === '' ? null : value.trim();
     setOccupancyOverride(occId, periodId, price)
       .then(() => reloadPricing())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить цену', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.saveCellError'), { variant: 'error' }))
       .finally(() => setEditingCell(null));
   };
 
@@ -259,13 +264,13 @@ export const HotelRoomPricingPage: React.FC = () => {
         load();
         reloadPricing();
       })
-      .catch((e) => showAlert(e.message || 'Не удалось переименовать', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.renameError'), { variant: 'error' }));
   };
 
   const removeOccupancyRow = async (row: { id: string; label: string }) => {
-    const ok = await showConfirm(`Удалить строку размещения «${row.label}»?`, {
-      title: 'Удалить размещение',
-      confirmLabel: 'Удалить',
+    const ok = await showConfirm(t('crm.hotels.roomPricing.deleteRowConfirm.body', { label: row.label }), {
+      title: t('crm.hotels.roomPricing.deleteRowConfirm.title'),
+      confirmLabel: t('crm.hotels.roomPricing.deleteRowConfirm.confirmLabel'),
       danger: true,
     });
     if (!ok) return;
@@ -274,7 +279,7 @@ export const HotelRoomPricingPage: React.FC = () => {
         load();
         reloadPricing();
       })
-      .catch((e) => showAlert(e.message || 'Не удалось удалить строку', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.deleteRowError'), { variant: 'error' }));
   };
 
   const toggleRowSelected = (id: string) =>
@@ -289,8 +294,8 @@ export const HotelRoomPricingPage: React.FC = () => {
   const bulkDeleteRows = async () => {
     if (!selectedRows.length) return;
     const ok = await showConfirm(
-      `Удалить ${selectedRows.length} строк${selectedRows.length === 1 ? 'у' : ''} размещения? Это действие нельзя отменить.`,
-      { title: 'Удалить выбранные строки', confirmLabel: 'Удалить', danger: true },
+      t(selectedRows.length === 1 ? 'crm.hotels.roomPricing.bulkDeleteConfirm.bodyOne' : 'crm.hotels.roomPricing.bulkDeleteConfirm.bodyOther', { count: selectedRows.length }),
+      { title: t('crm.hotels.roomPricing.bulkDeleteConfirm.title'), confirmLabel: t('crm.hotels.roomPricing.bulkDeleteConfirm.confirmLabel'), danger: true },
     );
     if (!ok) return;
     setBulkDeleting(true);
@@ -300,20 +305,20 @@ export const HotelRoomPricingPage: React.FC = () => {
         load();
         reloadPricing();
       })
-      .catch((e) => showAlert(e.message || 'Не удалось удалить строки', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.deleteRowsError'), { variant: 'error' }))
       .finally(() => setBulkDeleting(false));
   };
 
   const addRow = () => {
     if (!roomTypeId || !roomType) return;
     createOccupancyType(roomTypeId, {
-      label: 'Новое размещение',
+      label: t('crm.hotels.roomPricing.newRowLabel'),
       coefficient: roomType.pricingMode === 'fixed_rate' ? '25' : '2',
       paidChildCount: 0,
       sortOrder: occupancyTypes.length,
     })
       .then(() => load())
-      .catch((e) => showAlert(e.message || 'Не удалось добавить строку', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.addRowError'), { variant: 'error' }));
   };
 
   if (!roomType || !pricing) return null;
@@ -321,25 +326,26 @@ export const HotelRoomPricingPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="hotelPricing" />
       <div className="px-scope">
         <HotelsSubnav active="hotels" />
         <div className="htl-hero">
           <div>
-            <div className="kicker"><span className="dot" />РЕДАКТИРОВАНИЕ НОМЕРА</div>
-            <h1>Редактировать номер</h1>
-            <p className="sub">Периоды и базовая цена (PP Net) берутся из «Цены и рынки». Цена = PP Net этого номера × коэффициент размещения.</p>
+            <div className="kicker"><span className="dot" />{t('crm.hotels.roomPricing.kicker')}</div>
+            <h1>{t('crm.hotels.roomPricing.title')}</h1>
+            <p className="sub">{t('crm.hotels.roomPricing.subtitle')}</p>
           </div>
           <div className="htl-hero-r">
             <div style={{ fontSize: 13, fontWeight: 500, alignSelf: 'center' }}>{hotelName} · {roomType.name}</div>
-            <button className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />Импорт Excel</button>
-            <button className="btn" onClick={() => navigate('/hotels/pricing')}><Ic d={HTL_ICON.settings} size={13} />Цены и рынки</button>
+            <button className="btn" onClick={() => setShowImport(true)}><Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.roomPricing.importBtn')}</button>
+            <button className="btn" onClick={() => navigate('/hotels/pricing')}><Ic d={HTL_ICON.settings} size={13} />{t('crm.hotels.roomPricing.marketPricingBtn')}</button>
           </div>
         </div>
 
         <div className="htl-detail-tabs" style={{ marginTop: 16 }}>
-          <div className={`htl-detail-tab${tab === 'pricing' ? ' active' : ''}`} onClick={() => setTab('pricing')}>Цены с размещением</div>
-          <div className={`htl-detail-tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>Информация по номеру</div>
-          <div className={`htl-detail-tab${tab === 'gallery' ? ' active' : ''}`} onClick={() => setTab('gallery')}>Галерея</div>
+          <div className={`htl-detail-tab${tab === 'pricing' ? ' active' : ''}`} onClick={() => setTab('pricing')}>{t('crm.hotels.roomPricing.tabs.pricing')}</div>
+          <div className={`htl-detail-tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>{t('crm.hotels.roomPricing.tabs.info')}</div>
+          <div className={`htl-detail-tab${tab === 'gallery' ? ' active' : ''}`} onClick={() => setTab('gallery')}>{t('crm.hotels.roomPricing.tabs.gallery')}</div>
         </div>
 
         {tab === 'info' ? (
@@ -351,17 +357,17 @@ export const HotelRoomPricingPage: React.FC = () => {
             {!isFixedRate && (
               <div className="pp-offset-box">
                 <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
-                  Базовая цена (PP Net) из «Цены и рынки»:{' '}
+                  {t('crm.hotels.roomPricing.offsetBox.basePriceLabel')}{' '}
                   <b style={{ color: 'var(--ink)', fontFamily: 'var(--ff-mono)' }}>
                     {pricing.periods.length ? `${Math.min(...pricing.periods.map((p) => p.referenceNetPP))}–${Math.max(...pricing.periods.map((p) => p.referenceNetPP))} €` : '—'}
                   </b>
                 </span>
                 <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>·</span>
-                <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>Разница цены относительно базы:</span>
+                <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.hotels.roomPricing.offsetBox.diffLabel')}</span>
                 <input value={offset} onChange={(e) => setOffset(e.target.value)} onBlur={saveOffset} />
-                <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>€ / ночь</span>
+                <span style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>{t('crm.hotels.roomPricing.offsetBox.perNight')}</span>
                 <span style={{ fontSize: 11, color: 'var(--fg-3)', marginLeft: 'auto' }}>
-                  Итоговый PP Net для {roomType.name}:{' '}
+                  {t('crm.hotels.roomPricing.offsetBox.totalLabel', { name: roomType.name })}{' '}
                   <b style={{ color: 'var(--ink)', fontFamily: 'var(--ff-mono)' }}>
                     {pricing.periods.length ? `${Math.min(...pricing.periods.map((p) => p.effectiveBasePP))}–${Math.max(...pricing.periods.map((p) => p.effectiveBasePP))} €` : '—'}
                   </b>
@@ -378,12 +384,12 @@ export const HotelRoomPricingPage: React.FC = () => {
                         type="checkbox"
                         checked={selectedRows.length > 0 && selectedRows.length === pricing.occupancyRows.length}
                         onChange={toggleAllSelected}
-                        title="Выбрать все"
+                        title={t('crm.hotels.roomPricing.table.selectAll')}
                       />
                     </th>
                     <th className="occ-h" rowSpan={2}>{roomType.name}</th>
-                    <th rowSpan={2}>{isFixedRate ? 'Коэф.' : 'Коэф.'}</th>
-                    <th rowSpan={2}>Paid C.</th>
+                    <th rowSpan={2}>{t('crm.hotels.roomPricing.table.coefficient')}</th>
+                    <th rowSpan={2}>{t('crm.hotels.roomPricing.table.paidChildren')}</th>
                     {pricing.periods.map((p) => <th key={p.id}>{p.startDate}</th>)}
                   </tr>
                   <tr className="range2">
@@ -393,7 +399,7 @@ export const HotelRoomPricingPage: React.FC = () => {
                 <tbody>
                   <tr className="pp-row">
                     <td></td>
-                    <td className="occ-name">{!isFixedRate && Number(offset) !== 0 ? 'PP Net (база + разница)' : 'PP Net (база)'}</td>
+                    <td className="occ-name">{!isFixedRate && Number(offset) !== 0 ? t('crm.hotels.roomPricing.table.ppNetBaseWithDiff') : t('crm.hotels.roomPricing.table.ppNetBase')}</td>
                     <td></td><td></td>
                     {pricing.periods.map((p) => <td key={p.id}>{fmtEUR(p.effectiveBasePP)}</td>)}
                   </tr>
@@ -423,10 +429,10 @@ export const HotelRoomPricingPage: React.FC = () => {
                           />
                         ) : (
                           <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-                            <span style={{ cursor: 'pointer' }} onClick={() => setEditingLabelId(row.id)} title="Переименовать">{row.label}</span>
+                            <span style={{ cursor: 'pointer' }} onClick={() => setEditingLabelId(row.id)} title={t('crm.hotels.roomPricing.table.rename')}>{row.label}</span>
                             <button
                               style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
-                              title="Удалить строку"
+                              title={t('crm.hotels.roomPricing.table.deleteRow')}
                               onClick={() => removeOccupancyRow(row)}
                             >
                               ×
@@ -446,7 +452,7 @@ export const HotelRoomPricingPage: React.FC = () => {
                             key={p.id}
                             className="price-cell"
                             style={isOverridden ? { background: '#fff8e1' } : undefined}
-                            title={isOverridden ? 'Ручное значение — переопределяет расчёт по коэффициенту' : 'Рассчитано по коэффициенту'}
+                            title={isOverridden ? t('crm.hotels.roomPricing.table.manualOverrideTitle') : t('crm.hotels.roomPricing.table.calculatedTitle')}
                             onClick={() => setEditingCell({ occId: row.id, periodId: p.id })}
                           >
                             {isEditing ? (
@@ -473,10 +479,9 @@ export const HotelRoomPricingPage: React.FC = () => {
             </div>
 
             <div className="occ-add-row">
-              <button className="btn btn-sm" onClick={addRow}><Ic d={HTL_ICON.plus} size={13} />Добавить тип размещения</button>
+              <button className="btn btn-sm" onClick={addRow}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.roomPricing.addRow')}</button>
               <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
-                Периоды синхронизированы с «Цены и рынки» — новые периоды добавляются там. Жёлтые ячейки —
-                вручную заданные цены (переопределяют расчёт по коэффициенту); очистите значение, чтобы вернуть расчёт по формуле.
+                {t('crm.hotels.roomPricing.footnote')}
               </span>
             </div>
           </>
@@ -486,13 +491,13 @@ export const HotelRoomPricingPage: React.FC = () => {
       {selectedRows.length > 0 && (
         <div className="px-scope">
           <div className="bk-bulkbar">
-            <div className="bk-bulkbar-count"><strong>{selectedRows.length}</strong> ВЫБРАНО</div>
+            <div className="bk-bulkbar-count"><strong>{selectedRows.length}</strong> {t('crm.hotels.roomPricing.bulkbar.selected')}</div>
             <div className="bk-bulkbar-divider" />
             <button type="button" className="bk-bulkbar-btn danger" disabled={bulkDeleting} onClick={bulkDeleteRows}>
-              <Ic d={HTL_ICON.x} size={13} />Удалить выбранные
+              <Ic d={HTL_ICON.x} size={13} />{t('crm.hotels.roomPricing.bulkbar.deleteSelected')}
             </button>
             <div className="bk-bulkbar-divider" />
-            <button type="button" className="bk-bulkbar-close" onClick={() => setSelectedRows([])} aria-label="Снять выбор">×</button>
+            <button type="button" className="bk-bulkbar-close" onClick={() => setSelectedRows([])} aria-label={t('crm.hotels.roomPricing.bulkbar.closeAria')}>×</button>
           </div>
         </div>
       )}
@@ -518,6 +523,7 @@ const RoomPricingImportModal: React.FC<{
   onClose: () => void;
   onDone: () => void;
 }> = ({ hotelId, roomTypeId, onClose, onDone }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [preview, setPreview] = useState<HotelRoomPricingImportPreview | null>(null);
   const [busy, setBusy] = useState(false);
@@ -532,7 +538,7 @@ const RoomPricingImportModal: React.FC<{
     setBusy(true);
     previewRoomPricingImport(file)
       .then(setPreview)
-      .catch((e) => showAlert(e.message || 'Не удалось прочитать файл', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.importModal.readError'), { variant: 'error' }))
       .finally(() => setBusy(false));
   };
 
@@ -541,7 +547,7 @@ const RoomPricingImportModal: React.FC<{
     setBusy(true);
     applyRoomPricingImport({ importId: preview.importId, hotelId, roomTypeId })
       .then(setResult)
-      .catch((e) => showAlert(e.message || 'Не удалось применить импорт', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.roomPricing.importModal.applyError'), { variant: 'error' }))
       .finally(() => setBusy(false));
   };
 
@@ -550,23 +556,19 @@ const RoomPricingImportModal: React.FC<{
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="bk-modal-head">
-          <h3>Импорт цен с размещением</h3>
+          <h3>{t('crm.hotels.roomPricing.importModal.title')}</h3>
           <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
         <div className="bk-modal-body">
           {!preview && !result && (
             <div style={{ border: '1.5px dashed var(--line-2)', borderRadius: 12, padding: '28px 20px', textAlign: 'center', color: 'var(--fg-3)' }}>
               <Ic d={HTL_ICON.download} size={22} style={{ margin: '0 auto 10px' }} />
-              <div style={{ fontSize: 13, marginBottom: 4 }}>Загрузите лист «Цены с размещением»</div>
+              <div style={{ fontSize: 13, marginBottom: 4 }}>{t('crm.hotels.roomPricing.importModal.dropHint')}</div>
               <div style={{ fontSize: 11.5 }}>
-                Формат: строка дат начала периода, строка дат конца периода (по колонкам), затем строки размещений
-                (SGL, 2 AD, ...) со значениями по тем же колонкам. Строка "PP in DBL"/базовая цена игнорируется —
-                она берётся из «Цены и рынки». Периоды должны уже существовать на странице «Цены и рынки» (по датам) —
-                создайте их там, если нет. Строки размещений, которых ещё нет на этой странице, будут созданы
-                автоматически.
+                {t('crm.hotels.roomPricing.importModal.formatHint')}
               </div>
               <label className="btn btn-sm" style={{ marginTop: 14, display: 'inline-flex', cursor: 'pointer' }}>
-                Выбрать файл
+                {t('crm.hotels.roomPricing.importModal.chooseFile')}
                 <input
                   type="file"
                   accept=".xlsx,.xls,.csv"
@@ -578,30 +580,30 @@ const RoomPricingImportModal: React.FC<{
           )}
           {preview && !result && (
             <div style={{ fontSize: 12.5, color: 'var(--fg-3)' }}>
-              Найдено периодов: <b style={{ color: 'var(--ink)' }}>{preview.periods.length}</b> ({preview.periods.map((p) => `${p.startDate}–${p.endDate}`).join(', ')}).<br />
-              Найдено строк размещения: <b style={{ color: 'var(--ink)' }}>{preview.occupancyLabels.length}</b> ({preview.occupancyLabels.join(', ')}).
+              {t('crm.hotels.roomPricing.importModal.foundPeriods')} <b style={{ color: 'var(--ink)' }}>{preview.periods.length}</b> ({preview.periods.map((p) => `${p.startDate}–${p.endDate}`).join(', ')}).<br />
+              {t('crm.hotels.roomPricing.importModal.foundOccupancy')} <b style={{ color: 'var(--ink)' }}>{preview.occupancyLabels.length}</b> ({preview.occupancyLabels.join(', ')}).
             </div>
           )}
           {result && (
             <div>
-              <div style={{ fontSize: 13, marginBottom: 4 }}>Обновлено <b>{result.cellsSet}</b> ячеек из {result.total} строк размещения.</div>
+              <div style={{ fontSize: 13, marginBottom: 4 }}>{t('crm.hotels.roomPricing.importModal.updatedPrefix')} <b>{result.cellsSet}</b> {t('crm.hotels.roomPricing.importModal.updatedSuffix', { total: result.total })}</div>
               {result.occupancyRowsCreated.length > 0 && (
                 <div style={{ fontSize: 12.5, color: 'var(--fg-3)', marginBottom: 8 }}>
-                  Созданы новые строки размещения: {result.occupancyRowsCreated.join(', ')}.
+                  {t('crm.hotels.roomPricing.importModal.createdRows', { names: result.occupancyRowsCreated.join(', ') })}
                 </div>
               )}
               {result.errors.length > 0 && (
                 <div style={{ maxHeight: 200, overflowY: 'auto', fontSize: 12, color: '#cc2f47' }}>
-                  {result.errors.map((e, i) => <div key={i}>{e.row ? `Строка ${e.row}: ` : ''}{e.message}</div>)}
+                  {result.errors.map((e, i) => <div key={i}>{e.row ? t('crm.hotels.roomPricing.importModal.rowError', { row: e.row, message: e.message }) : t('crm.hotels.roomPricing.importModal.rowErrorNoRow', { message: e.message })}</div>)}
                 </div>
               )}
             </div>
           )}
         </div>
         <div className="bk-modal-foot">
-          <button className="btn" onClick={onClose}>{result ? 'Закрыть' : 'Отмена'}</button>
-          {preview && !result && <button className="btn btn-primary" disabled={busy} onClick={handleApply}><Ic d={HTL_ICON.check} size={14} />Загрузить</button>}
-          {result && <button className="btn btn-primary" onClick={onDone}>Готово</button>}
+          <button className="btn" onClick={onClose}>{result ? t('crm.hotels.roomPricing.importModal.close') : t('crm.hotels.roomPricing.importModal.cancel')}</button>
+          {preview && !result && <button className="btn btn-primary" disabled={busy} onClick={handleApply}><Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.roomPricing.importModal.upload')}</button>}
+          {result && <button className="btn btn-primary" onClick={onDone}>{t('crm.hotels.roomPricing.importModal.done')}</button>}
         </div>
       </div>
     </div>

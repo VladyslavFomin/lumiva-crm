@@ -16,6 +16,7 @@ export type YookassaPayment = {
   amount: { value: string; currency: string };
   confirmation?: { type: string; confirmation_url?: string };
   description?: string;
+  metadata?: Record<string, string>;
 };
 
 /**

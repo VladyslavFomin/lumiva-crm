@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { BlurModal } from './BlurModal';
 import { IntegrationBrandIcon } from '../../pages/automations/IntegrationBrandIcon';
 import { createIntegration } from '../../api/integrations';
-import { useAlertModal } from '../../contexts/AlertModalContext';
 
 type Props = { open: boolean; onClose: () => void; onCreated: () => void; };
 type Step = 'guide' | 'form' | 'done';
@@ -19,7 +18,6 @@ function generateToken(): string {
 
 export const JiraConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
   const [step, setStep] = useState<Step>('guide');
   const [form, setForm] = useState({
     name: '',
@@ -31,17 +29,20 @@ export const JiraConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) 
   });
   const [saving, setSaving] = useState(false);
   const [createdId, setCreatedId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const reset = () => {
     setStep('guide');
     setForm({ name: '', jiraUrl: '', email: '', apiToken: '', projectKey: '', inboundToken: generateToken() });
     setCreatedId(null);
+    setError(null);
   };
   const handleClose = () => { reset(); onClose(); };
 
   const handleCreate = async () => {
+    setError(null);
     if (!form.jiraUrl.trim() || !form.email.trim() || !form.apiToken.trim()) {
-      showAlert(t('crm.integrationsHub.jira.errors.missing'), { variant: 'info' });
+      setError(t('crm.integrationsHub.jira.errors.missing'));
       return;
     }
     setSaving(true);
@@ -63,7 +64,7 @@ export const JiraConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) 
       setStep('done');
       onCreated();
     } catch (e) {
-      showAlert(e instanceof Error ? e.message : t('crm.integrationsHub.jira.errors.create'), { variant: 'error' });
+      setError(e instanceof Error ? e.message : t('crm.integrationsHub.jira.errors.create'));
     } finally {
       setSaving(false);
     }
@@ -72,7 +73,7 @@ export const JiraConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) 
   if (!open) return null;
 
   return (
-    <BlurModal open={open} onClose={handleClose}>
+    <BlurModal open={open} onClose={handleClose} size="sm">
       <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
         <div className="mb-5 flex items-center gap-3">
           <IntegrationBrandIcon catalogId="jira" label="Jira" size={36} />
@@ -176,6 +177,7 @@ export const JiraConnectModal: React.FC<Props> = ({ open, onClose, onCreated }) 
                 />
               </div>
             </div>
+            {error && <p className="text-[11px] text-rose-600">{error}</p>}
             <div className="flex justify-between gap-2 pt-1">
               <button type="button" onClick={() => setStep('guide')} className="rounded-full border border-slate-200 px-4 py-2 text-xs text-slate-700 hover:bg-slate-50">← {t('crm.common.back')}</button>
               <div className="flex gap-2">

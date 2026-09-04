@@ -50,6 +50,11 @@ export class BookingsAvailabilityService {
     const { tenantId, staffUserId, resourceId, startAt, endAt, excludeReservationId } = input;
     if (!staffUserId && !resourceId) return { ok: true };
 
+    if (staffUserId) {
+      const scheduleCheck = await this.checkStaffSchedule(tenantId, staffUserId, startAt, endAt);
+      if (!scheduleCheck.ok) return scheduleCheck;
+    }
+
     const qb = this.reservationsRepo
       .createQueryBuilder('r')
       .where('r.tenantId = :tenantId', { tenantId })
@@ -78,6 +83,66 @@ export class BookingsAvailabilityService {
         .getOne();
       if (resourceConflict) {
         return { ok: false, reason: 'Ресурс уже занят в это время' };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  private static readonly WEEKDAY_KEYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+
+  /**
+   * Отпуск/выходной и недельный график мастера (booking_staff_profiles.timeOff/
+   * weeklyAvailability) — раньше сохранялись через upsertStaffWeeklyAvailability/
+   * addStaffTimeOff, но нигде не читались: слот-инспектор и создание брони уверенно
+   * подтверждали время, когда мастер в отпуске. Нет профиля/графика — как раньше,
+   * без ограничений (не отказываем тенантам, которые это не настраивали).
+   */
+  private async checkStaffSchedule(
+    tenantId: string,
+    staffUserId: string,
+    startAt: Date,
+    endAt: Date,
+  ): Promise<ConflictCheckResult> {
+    const profile = await this.staffProfilesRepo.findOne({ where: { tenantId, staffUserId } });
+    if (!profile) return { ok: true };
+
+    for (const off of profile.timeOff || []) {
+      const from = new Date(off.from);
+      // "YYYY-MM-DD" без времени парсится как полночь UTC — без этого последний день отпуска
+      // считался бы свободным для записи (см. тот же баг в reservations.service.ts::list).
+      const to = /^\d{4}-\d{2}-\d{2}$/.test((off.to || '').trim())
+        ? new Date(`${off.to.trim()}T23:59:59.999Z`)
+        : new Date(off.to);
+      if (startAt < to && endAt > from) {
+        return {
+          ok: false,
+          reason: off.reason
+            ? `Мастер недоступен (${off.reason})`
+            : 'Мастер недоступен в этот период (отпуск/выходной)',
+        };
+      }
+    }
+
+    const weekly = profile.weeklyAvailability;
+    if (weekly && Object.keys(weekly).length) {
+      const dayKey = BookingsAvailabilityService.WEEKDAY_KEYS[startAt.getDay()];
+      const periods = weekly[dayKey] || [];
+      if (!periods.length) {
+        return { ok: false, reason: 'У мастера нет рабочих часов в этот день' };
+      }
+      const toMinutes = (d: Date) => d.getHours() * 60 + d.getMinutes();
+      const parseHm = (s: string) => {
+        const [h, m] = s.split(':').map((n) => Number(n) || 0);
+        return h * 60 + m;
+      };
+      const slotStart = toMinutes(startAt);
+      const slotEnd = toMinutes(endAt);
+      const fitsSomePeriod = periods.some(
+        (p) => slotStart >= parseHm(p.start) && slotEnd <= parseHm(p.end),
+      );
+      if (!fitsSomePeriod) {
+        return { ok: false, reason: 'Время вне рабочих часов мастера' };
       }
     }
 
@@ -228,7 +293,7 @@ export class BookingsAvailabilityService {
     tenantId: string,
     input: { fromStaffUserId: string; toStaffUserId: string | null; fromDate: string; toDate: string },
     actingStaffUserId: string | null,
-  ): Promise<{ reassignedCount: number }> {
+  ): Promise<{ reassignedCount: number; skippedCount: number }> {
     const rangeStart = new Date(`${input.fromDate}T00:00:00`);
     const rangeEnd = new Date(`${input.toDate}T23:59:59`);
 
@@ -240,7 +305,24 @@ export class BookingsAvailabilityService {
       .andWhere('r.startAt BETWEEN :rangeStart AND :rangeEnd', { rangeStart, rangeEnd })
       .getMany();
 
+    let skippedCount = 0;
     for (const reservation of reservations) {
+      // Раньше переносило на нового мастера без единой проверки занятости — двойные
+      // брони. "Распределить автоматически" (toStaffUserId=null) снимает мастера
+      // целиком, конфликтовать не с чем — проверяем только реальную передачу другому.
+      if (input.toStaffUserId) {
+        const conflict = await this.checkConflict({
+          tenantId,
+          staffUserId: input.toStaffUserId,
+          startAt: reservation.startAt,
+          endAt: reservation.endAt,
+          excludeReservationId: reservation.id,
+        });
+        if (!conflict.ok) {
+          skippedCount += 1;
+          continue;
+        }
+      }
       reservation.staffUserId = input.toStaffUserId;
       await this.reservationsRepo.save(reservation);
       await this.activityRepo.save(
@@ -256,7 +338,7 @@ export class BookingsAvailabilityService {
       );
     }
 
-    return { reassignedCount: reservations.length };
+    return { reassignedCount: reservations.length - skippedCount, skippedCount };
   }
 
   /** Slot Inspector: почему слот доступен/недоступен + правила проекта + конфликт мастера/ресурса. */

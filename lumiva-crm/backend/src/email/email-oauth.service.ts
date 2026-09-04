@@ -156,7 +156,7 @@ export class EmailOAuthService {
     });
     const path = decoded.redirect.startsWith('/')
       ? decoded.redirect
-      : `/${decoded.redirect || 'app/email/accounts'}`;
+      : `/${decoded.redirect || 'app/email'}`;
     return { redirect: path };
   }
 
@@ -229,7 +229,7 @@ export class EmailOAuthService {
     });
     const path = decoded.redirect.startsWith('/')
       ? decoded.redirect
-      : `/${decoded.redirect || 'app/email/accounts'}`;
+      : `/${decoded.redirect || 'app/email'}`;
     return { redirect: path };
   }
 

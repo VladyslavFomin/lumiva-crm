@@ -78,7 +78,7 @@ export function AiChatMarkdown({ text, variant }: Props) {
               className={
                 variant === 'user'
                   ? 'my-2 overflow-x-auto rounded-xl bg-black/25 p-3 text-xs text-white/95'
-                  : 'my-2 overflow-x-auto rounded-xl bg-slate-900 p-3 text-xs text-slate-100'
+                  : 'my-2 overflow-x-auto rounded-xl bg-[#0f172a] p-3 text-xs text-[#e2e8f0]'
               }
             >
               {children}

@@ -20,6 +20,9 @@ import {
   fetchMarketingIntegrations,
   type MarketingIntegrationRow,
 } from '../../api/marketing';
+import { fetchCustomObjects, type CustomObject } from '../../api/customObjects';
+import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import { WorkspaceSourceIcon } from './WorkspaceSourceIcon';
 function newId() {
   try {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -49,10 +52,12 @@ export const WorkspaceAreaIntegrationsModal: React.FC<Props> = ({
   const [connections, setConnections] = useState<IntegrationConnectionDto[]>([]);
   const [marketingRows, setMarketingRows] = useState<MarketingIntegrationRow[]>([]);
   const [bindings, setBindings] = useState<WorkspaceIntegrationBinding[]>([]);
+  const [dataTables, setDataTables] = useState<CustomObject[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [pickKey, setPickKey] = useState('');
   const [pickConn, setPickConn] = useState('');
+  const [pickTarget, setPickTarget] = useState('');
   const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -63,14 +68,16 @@ export const WorkspaceAreaIntegrationsModal: React.FC<Props> = ({
       fetchIntegrationHubCatalog(),
       fetchIntegrations(),
       fetchMarketingIntegrations().catch(() => [] as MarketingIntegrationRow[]),
+      fetchCustomObjects(area.id).catch(() => [] as CustomObject[]),
     ])
-      .then(([cat, conn, mkt]) => {
+      .then(([cat, conn, mkt, objs]) => {
         setCatalog(cat);
         setConnections(conn.filter((c) => !c.isDeleted && c.isEnabled));
         setMarketingRows(Array.isArray(mkt) ? mkt : []);
+        setDataTables(objs.filter((o) => getWorkspaceTableKind(o.meta) === 'data'));
       })
       .finally(() => setLoading(false));
-  }, [open]);
+  }, [open, area.id]);
 
   useEffect(() => {
     if (!open) return;
@@ -86,6 +93,7 @@ export const WorkspaceAreaIntegrationsModal: React.FC<Props> = ({
         label: String(x.label || ''),
         connectionId: x.connectionId ?? null,
         marketingIntegrationId: x.marketingIntegrationId ?? null,
+        targetObjectId: x.targetObjectId ?? null,
       })),
     );
   }, [open, area]);
@@ -139,6 +147,7 @@ export const WorkspaceAreaIntegrationsModal: React.FC<Props> = ({
       label: integrationCatalogName(pickKey, t),
       connectionId: fromMkt ? null : pickConn || null,
       marketingIntegrationId: fromMkt ? pickConn.slice(4) : null,
+      targetObjectId: pickTarget || null,
     };
   };
 
@@ -148,10 +157,17 @@ export const WorkspaceAreaIntegrationsModal: React.FC<Props> = ({
     setBindings((prev) => [...prev, row]);
     setPickKey('');
     setPickConn('');
+    setPickTarget('');
   };
 
   const removeBinding = (id: string) => {
     setBindings((prev) => prev.filter((b) => b.id !== id));
+  };
+
+  const setBindingTarget = (id: string, targetObjectId: string) => {
+    setBindings((prev) =>
+      prev.map((b) => (b.id === id ? { ...b, targetObjectId: targetObjectId || null } : b)),
+    );
   };
 
   const save = async () => {
@@ -234,9 +250,27 @@ export const WorkspaceAreaIntegrationsModal: React.FC<Props> = ({
                   {bindings.map((b) => (
                     <li
                       key={b.id}
-                      className="flex items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                     >
-                      <span className="min-w-0 truncate font-medium text-slate-800">{b.label}</span>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-white text-slate-500">
+                        <WorkspaceSourceIcon catalogKey={b.catalogKey} className="!h-[13px] !w-[13px]" />
+                      </span>
+                      <span className="min-w-0 flex-1 truncate font-medium text-slate-800">{b.label}</span>
+                      {dataTables.length > 0 && (
+                        <select
+                          value={b.targetObjectId || ''}
+                          onChange={(e) => setBindingTarget(b.id, e.target.value)}
+                          className="max-w-[160px] shrink-0 rounded-lg border border-slate-300 px-2 py-1 text-xs"
+                          title={t('crm.workspace.area.bindingTargetTable')}
+                        >
+                          <option value="">{t('crm.workspace.area.bindingTargetNone')}</option>
+                          {dataTables.map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <button
                         type="button"
                         className="shrink-0 text-rose-600 text-xs"
@@ -291,6 +325,21 @@ export const WorkspaceAreaIntegrationsModal: React.FC<Props> = ({
                   <p className="text-xs leading-relaxed text-amber-800">
                     {t('crm.workspace.area.connectionPickEmpty')}
                   </p>
+                )}
+                {dataTables.length > 0 && (
+                  <select
+                    value={pickTarget}
+                    onChange={(e) => setPickTarget(e.target.value)}
+                    disabled={!pickKey}
+                    className="w-full rounded-lg border border-slate-300 px-2 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  >
+                    <option value="">{t('crm.workspace.area.bindingTargetNone')}</option>
+                    {dataTables.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.name}
+                      </option>
+                    ))}
+                  </select>
                 )}
                 <button
                   type="button"

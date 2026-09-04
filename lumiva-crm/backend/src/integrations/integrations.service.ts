@@ -37,6 +37,7 @@ import { applyWorkspaceImportAggregation } from './workspace-import-aggregate.ut
 import axios from 'axios';
 import { CustomObjectsService } from '../custom-objects/custom-objects.service';
 import { WorkspaceAreasService } from '../workspace-areas/workspace-areas.service';
+import { WorkspaceAreaActivityLogService } from '../workspace-areas/workspace-area-activity-log.service';
 import { SlackWebhookService } from './slack/slack-webhook.service';
 import { TeamsWebhookService } from './teams/teams-webhook.service';
 import { ZapierHookService } from './zapier/zapier-hook.service';
@@ -150,6 +151,7 @@ export class IntegrationsService {
 
     private readonly customObjectsService: CustomObjectsService,
     private readonly workspaceAreasService: WorkspaceAreasService,
+    private readonly workspaceAreaActivityLog: WorkspaceAreaActivityLogService,
     private readonly wooCommerceAdapter: WooCommerceAdapter,
 
     private readonly marketingService: MarketingService,
@@ -995,6 +997,15 @@ export class IntegrationsService {
     return this.toDto(entity, { includeFullConfig: true });
   }
 
+  /** Сырая entity (не DTO) — нужна там, где конфиг может быть переписан обратно (напр. ротация OAuth refresh token у Jira). */
+  async findEntityForTenant(tenantId: string, id: string): Promise<IntegrationConnection> {
+    const entity = await this.repo.findOne({
+      where: { id, tenantId, isDeleted: false } as any,
+    });
+    if (!entity) throw new NotFoundException('Интеграция не найдена');
+    return entity;
+  }
+
   async createForTenant(
     tenantId: string,
     dto: CreateIntegrationConnectionDto,
@@ -1191,6 +1202,7 @@ export class IntegrationsService {
       entity.lastSyncStatus = result.ok ? 'ok' : 'error';
       entity.lastError = result.ok ? null : result.message ?? null;
       await this.repo.save(entity);
+      await this.logWorkspaceSync(tenantId, customObjectIdForWorkspace, entity.name, result);
       return result;
     }
 
@@ -1262,6 +1274,7 @@ export class IntegrationsService {
       entity.lastError = result.ok ? null : result.message ?? null;
 
       await this.repo.save(entity);
+      await this.logWorkspaceSync(tenantId, customObjectIdForWorkspace, entity.name, result);
 
       if (result.ok && entity.kind === 'third_party_link') {
         let cfgCatalog: string | undefined;
@@ -1316,8 +1329,43 @@ export class IntegrationsService {
       entity.lastSyncStatus = 'error';
       entity.lastError = msg;
       await this.repo.save(entity);
+      await this.logWorkspaceSync(tenantId, customObjectIdForWorkspace, entity.name, {
+        ok: false,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        message: msg,
+      });
 
       return { ok: false, created: 0, updated: 0, skipped: 0, message: msg };
+    }
+  }
+
+  /** Пишет событие в журнал области, только если этот запуск синка целился в конкретную
+   * таблицу рабочей области — иначе (обычный синк продаж без workspace-таблицы) молчим. */
+  private async logWorkspaceSync(
+    tenantId: string,
+    customObjectId: string | undefined,
+    connectionName: string,
+    result: SyncResult,
+  ): Promise<void> {
+    if (!customObjectId) return;
+    try {
+      const obj = await this.customObjectsService.getObject(tenantId, customObjectId);
+      await this.workspaceAreaActivityLog.log(
+        tenantId,
+        obj.workspaceAreaId,
+        result.ok ? 'sync' : 'error',
+        result.ok
+          ? `Синхронизация «${connectionName}»`
+          : `Ошибка синхронизации «${connectionName}»`,
+        result.ok
+          ? `Добавлено ${result.created}, обновлено ${result.updated}, пропущено ${result.skipped}`
+          : result.message || null,
+        { relatedObjectId: customObjectId },
+      );
+    } catch {
+      // getObject 404 or similar — nothing meaningful to log against
     }
   }
 
@@ -1511,8 +1559,8 @@ export class IntegrationsService {
     accessToken: string,
     to: string,
     body: string,
-  ): Promise<void> {
-    await this.whatsappCloud.sendTextMessage({ phoneNumberId, accessToken, to, body });
+  ): Promise<{ messageId?: string }> {
+    return this.whatsappCloud.sendTextMessage({ phoneNumberId, accessToken, to, body });
   }
 
   async getGoogleCalendarCredentialsForConnection(
@@ -1603,11 +1651,18 @@ export class IntegrationsService {
       return null;
     }
     if (cfg.catalogId !== 'outlook') return null;
-    return this.outlookCalendar.resolveAccessFromConfig({
+    const resolved = await this.outlookCalendar.resolveAccessFromConfig({
       apiToken: cfg.apiToken,
       oauthRefreshToken: cfg.oauthRefreshToken,
       calendarId: cfg.calendarId,
     });
+    if (resolved?.rotatedRefreshToken) {
+      // Иначе после нескольких автоматических обновлений Microsoft в какой-то момент
+      // инвалидирует исходный refresh_token (обычная ротация для offline_access), и
+      // синхронизация календаря начинает падать invalid_grant без предупреждения.
+      await this.patchOutlookCalendarOAuthTokens(tenantId, connectionId, resolved.rotatedRefreshToken).catch(() => undefined);
+    }
+    return resolved ? { accessToken: resolved.accessToken, calendarGraphId: resolved.calendarGraphId } : null;
   }
 
   async createOutlookCalendarOAuthConnection(
@@ -1664,8 +1719,8 @@ export class IntegrationsService {
       startIsoUtc: string;
       endIsoUtc: string;
     },
-  ): Promise<void> {
-    await this.outlookCalendar.insertEvent({
+  ): Promise<{ id?: string }> {
+    return this.outlookCalendar.insertEvent({
       accessToken,
       calendarGraphId,
       subject: params.subject,
@@ -1769,18 +1824,27 @@ export class IntegrationsService {
     if (!entity || entity.kind !== 'third_party_link' || !entity.configJson) {
       return null;
     }
-    let cfg: { catalogId?: string; webhookUrl?: string; apiToken?: string };
+    let cfg: {
+      catalogId?: string;
+      webhookUrl?: string;
+      apiToken?: string;
+      oauthRefreshToken?: string;
+    };
     try {
       cfg = JSON.parse(entity.configJson) as {
         catalogId?: string;
         webhookUrl?: string;
         apiToken?: string;
+        oauthRefreshToken?: string;
       };
     } catch {
       return null;
     }
     if (cfg.catalogId !== 'hubspot') return null;
-    const accessToken = typeof cfg.apiToken === 'string' ? cfg.apiToken.trim() : '';
+    const accessToken = await this.hubspotApi.resolveAccessFromConfig({
+      apiToken: cfg.apiToken,
+      oauthRefreshToken: cfg.oauthRefreshToken,
+    });
     if (!accessToken) return null;
     const customBase =
       typeof cfg.webhookUrl === 'string' && cfg.webhookUrl.trim().length > 0

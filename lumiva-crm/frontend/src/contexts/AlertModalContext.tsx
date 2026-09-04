@@ -8,6 +8,7 @@ import React, {
   useState,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { LottieIcon } from '../components/LottieIcon';
 
 export type AlertModalVariant = 'info' | 'error' | 'success';
 
@@ -21,6 +22,15 @@ export type ShowConfirmOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   danger?: boolean;
+};
+
+export type ShowPromptOptions = {
+  title?: string;
+  label?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
 };
 
 type AlertModalState = {
@@ -38,9 +48,20 @@ type ConfirmModalState = {
   resolve: (value: boolean) => void;
 } | null;
 
+type PromptModalState = {
+  title?: string;
+  label?: string;
+  placeholder?: string;
+  defaultValue?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  resolve: (value: string | null) => void;
+} | null;
+
 type AlertModalContextValue = {
   showAlert: (message: string, options?: ShowAlertOptions) => void;
   showConfirm: (message: string, options?: ShowConfirmOptions) => Promise<boolean>;
+  showPrompt: (options?: ShowPromptOptions) => Promise<string | null>;
 };
 
 const AlertModalContext = createContext<AlertModalContextValue | null>(null);
@@ -90,12 +111,22 @@ function AlertModalDialog({
         className={`w-full max-w-md rounded-2xl border bg-slate-900 shadow-2xl shadow-black/50 overflow-hidden ${ring}`}
       >
         <div className="flex items-start justify-between gap-3 border-b border-slate-800/90 px-5 py-4">
-          <h2
-            id="global-alert-modal-title"
-            className="text-base font-semibold text-slate-50 leading-snug pr-2"
-          >
-            {resolvedTitle}
-          </h2>
+          <div className="flex items-center gap-2.5 min-w-0">
+            {(state.variant === 'success' || state.variant === 'error') && (
+              <LottieIcon
+                name={state.variant === 'success' ? 'success-check' : 'error-alert'}
+                size={32}
+                loop={false}
+                className="shrink-0"
+              />
+            )}
+            <h2
+              id="global-alert-modal-title"
+              className="text-base font-semibold text-slate-50 leading-snug pr-2"
+            >
+              {resolvedTitle}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -163,9 +194,12 @@ function ConfirmDialog({
       <div className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
-          <h2 className="text-[15px] font-semibold text-[#222] leading-snug">
-            {title}
-          </h2>
+          <div className="flex items-center gap-2 min-w-0">
+            {state.danger && <LottieIcon name="delete-trash" size={30} segment={[0, 32]} className="shrink-0" />}
+            <h2 className="text-[15px] font-semibold text-[#222] leading-snug">
+              {title}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onCancel}
@@ -206,6 +240,104 @@ function ConfirmDialog({
   );
 }
 
+/* ── Prompt dialog (single text input) ───────────────────────────────────── */
+function PromptDialog({
+  state,
+  onConfirm,
+  onCancel,
+}: {
+  state: NonNullable<PromptModalState>;
+  onConfirm: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useTranslation();
+  const [value, setValue] = useState(state.defaultValue ?? '');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  const title = state.title ?? t('crm.promptModal.defaultTitle', { defaultValue: 'Введите значение' });
+  const confirmLabel = state.confirmLabel ?? t('crm.promptModal.confirm', { defaultValue: 'ОК' });
+  const cancelLabel = state.cancelLabel ?? t('crm.confirmModal.cancel', { defaultValue: 'Отмена' });
+
+  const submit = () => {
+    if (!value.trim()) return;
+    onConfirm(value.trim());
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-[8600] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[2px]"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCancel();
+      }}
+    >
+      <form
+        className="w-full max-w-sm rounded-[16px] border border-[#e7e7e7] bg-white shadow-[0_24px_64px_rgba(0,0,0,0.14)] overflow-hidden"
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
+          <h2 className="text-[15px] font-semibold text-[#222] leading-snug">{title}</h2>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f0f0f0] hover:text-[#222] transition-colors text-lg leading-none"
+          >
+            ×
+          </button>
+        </div>
+        <div className="px-5 py-4">
+          {state.label && (
+            <label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wide text-[#888]">
+              {state.label}
+            </label>
+          )}
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder={state.placeholder}
+            className="w-full rounded-[10px] border border-[#e7e7e7] bg-white px-3 py-2 text-[13px] text-[#222] outline-none focus:border-[#999] transition-colors"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-[#f0f0f0] bg-[#fafafa]">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-[8px] border border-[#e7e7e7] bg-white px-4 py-2 text-[12px] font-medium text-[#555] hover:border-[#ccc] hover:bg-white transition-colors"
+          >
+            {cancelLabel}
+          </button>
+          <button
+            type="submit"
+            disabled={!value.trim()}
+            className="rounded-[8px] border border-[#222] bg-[#222] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#111] transition-colors disabled:opacity-50 disabled:cursor-default"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /* ── Provider ──────────────────────────────────────────────────────────── */
 export function AlertModalProvider({
   children,
@@ -214,7 +346,9 @@ export function AlertModalProvider({
 }) {
   const [alertState, setAlertState] = useState<AlertModalState>(null);
   const [confirmState, setConfirmState] = useState<ConfirmModalState>(null);
+  const [promptState, setPromptState] = useState<PromptModalState>(null);
   const confirmResolveRef = useRef<((v: boolean) => void) | null>(null);
+  const promptResolveRef = useRef<((v: string | null) => void) | null>(null);
 
   const showAlert = useCallback(
     (message: string, options?: ShowAlertOptions) => {
@@ -244,6 +378,24 @@ export function AlertModalProvider({
     [],
   );
 
+  const showPrompt = useCallback(
+    (options?: ShowPromptOptions): Promise<string | null> => {
+      return new Promise<string | null>((resolve) => {
+        promptResolveRef.current = resolve;
+        setPromptState({
+          title: options?.title,
+          label: options?.label,
+          placeholder: options?.placeholder,
+          defaultValue: options?.defaultValue,
+          confirmLabel: options?.confirmLabel,
+          cancelLabel: options?.cancelLabel,
+          resolve,
+        });
+      });
+    },
+    [],
+  );
+
   const closeAlert = useCallback(() => setAlertState(null), []);
 
   const handleConfirm = useCallback(() => {
@@ -258,7 +410,22 @@ export function AlertModalProvider({
     setConfirmState(null);
   }, []);
 
-  const value = useMemo(() => ({ showAlert, showConfirm }), [showAlert, showConfirm]);
+  const handlePromptConfirm = useCallback((v: string) => {
+    promptResolveRef.current?.(v);
+    promptResolveRef.current = null;
+    setPromptState(null);
+  }, []);
+
+  const handlePromptCancel = useCallback(() => {
+    promptResolveRef.current?.(null);
+    promptResolveRef.current = null;
+    setPromptState(null);
+  }, []);
+
+  const value = useMemo(
+    () => ({ showAlert, showConfirm, showPrompt }),
+    [showAlert, showConfirm, showPrompt],
+  );
 
   return (
     <AlertModalContext.Provider value={value}>
@@ -269,6 +436,13 @@ export function AlertModalProvider({
           state={confirmState}
           onConfirm={handleConfirm}
           onCancel={handleCancel}
+        />
+      ) : null}
+      {promptState ? (
+        <PromptDialog
+          state={promptState}
+          onConfirm={handlePromptConfirm}
+          onCancel={handlePromptCancel}
         />
       ) : null}
     </AlertModalContext.Provider>

@@ -16,6 +16,9 @@ import { CompanyTask, CompanyTaskStatus } from './company-task.entity';
 import { CreateCompanyTaskDto } from './dto/create-company-task.dto';
 import { UpdateCompanyTaskDto } from './dto/update-company-task.dto';
 import { AuditLogService } from '../audit-log/audit-log.service';
+import { AuditLogChange } from '../audit-log/audit-log.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { StaffUsersService } from '../staff/staff-users.service';
 
 @Injectable()
 export class CompaniesService {
@@ -33,7 +36,25 @@ export class CompaniesService {
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
     private readonly auditLog: AuditLogService,
+    private readonly notifications: NotificationsService,
+    private readonly staffUsersService: StaffUsersService,
   ) {}
+
+  /** Уведомляет в колокольчик новоназначенного ответственного (только если поле реально
+   * изменилось — не спамим на каждое сохранение без смены ответственного). */
+  private async notifySingleAssignee(
+    tenantId: string,
+    previousStaffId: string | null | undefined,
+    nextStaffId: string | null | undefined,
+    title: string,
+    body: string,
+    meta: Record<string, unknown>,
+  ): Promise<void> {
+    if (!nextStaffId || nextStaffId === previousStaffId) return;
+    const userIds = await this.staffUsersService.resolveNotificationUserIdsForTenant(tenantId, [nextStaffId]);
+    if (!userIds.length) return;
+    await this.notifications.create(tenantId, userIds, title, body, meta);
+  }
 
   /**
    * Получить все компании тенанта
@@ -222,6 +243,9 @@ export class CompaniesService {
       assignedTo: dto.assignedTo || null,
       status: dto.status || 'active',
       customFields: dto.customFields || null,
+      legalRequisites: Array.isArray(dto.legalRequisites)
+        ? dto.legalRequisites.filter((it) => it && it.value && String(it.value).trim())
+        : null,
     });
 
     const saved = await this.repo.save(company);
@@ -251,6 +275,15 @@ export class CompaniesService {
       actorUserId: actorUserId ?? null,
     });
 
+    await this.notifySingleAssignee(
+      tenantId,
+      null,
+      saved.assignedUserId,
+      'Вам назначена компания',
+      saved.name,
+      { type: 'company.assigned', companyId: saved.id, link: `/companies/${saved.id}` },
+    ).catch(() => undefined);
+
     return saved;
   }
 
@@ -264,7 +297,7 @@ export class CompaniesService {
     actorUserId?: string | null,
   ): Promise<Company> {
     const company = await this.findOne(tenantId, id);
-    const before = { name: company.name, email: company.email, status: company.status, assignedUserId: company.assignedUserId };
+    const before = { name: company.name, email: company.email, status: company.status, assignedUserId: company.assignedUserId, customFields: JSON.stringify(company.customFields ?? null) };
 
     // Обновляем поля
     if (dto.name !== undefined) company.name = dto.name;
@@ -291,6 +324,11 @@ export class CompaniesService {
     if (dto.assignedTo !== undefined) company.assignedTo = dto.assignedTo || null;
     if (dto.status !== undefined) company.status = dto.status;
     if (dto.customFields !== undefined) company.customFields = dto.customFields;
+    if (dto.legalRequisites !== undefined) {
+      company.legalRequisites = Array.isArray(dto.legalRequisites)
+        ? dto.legalRequisites.filter((it) => it && it.value && String(it.value).trim())
+        : null;
+    }
 
     const saved = await this.repo.save(company);
 
@@ -310,9 +348,23 @@ export class CompaniesService {
       console.error('Failed to trigger automation:', error);
     }
 
-    const changes = (['name', 'email', 'status', 'assignedUserId'] as const)
+    await this.notifySingleAssignee(
+      tenantId,
+      before.assignedUserId,
+      saved.assignedUserId,
+      'Вам назначена компания',
+      saved.name,
+      { type: 'company.assigned', companyId: saved.id, link: `/companies/${saved.id}` },
+    ).catch(() => undefined);
+
+    const changes: AuditLogChange[] = (['name', 'email', 'status', 'assignedUserId'] as const)
       .filter((field) => before[field] !== saved[field])
       .map((field) => ({ field, oldValue: before[field] ?? null, newValue: (saved[field] as string | null) ?? null }));
+    // Кастомные поля раньше не попадали в audit log, хотя принимаются и сохраняются тем же
+    // update() — их можно было менять без единого следа в истории изменений компании.
+    if (before.customFields !== JSON.stringify(saved.customFields ?? null)) {
+      changes.push({ field: 'customFields', oldValue: null, newValue: null });
+    }
     void this.auditLog.log({
       tenantId,
       entityType: 'company',
@@ -624,6 +676,14 @@ export class CompaniesService {
     } catch (error) {
       console.error('Failed to trigger automation:', error);
     }
+    await this.notifySingleAssignee(
+      tenantId,
+      null,
+      saved.assignedUserId,
+      'Вам назначена задача',
+      saved.title,
+      { type: 'company_task.assigned', taskId: saved.id, companyId: saved.companyId, link: `/companies/${saved.companyId}` },
+    ).catch(() => undefined);
     return saved;
   }
 
@@ -637,6 +697,7 @@ export class CompaniesService {
   ): Promise<CompanyTask> {
     const task = await this.findTask(tenantId, taskId);
     const beforeStatus = task.status;
+    const beforeAssignedUserId = task.assignedUserId;
 
     if (dto.title !== undefined) task.title = dto.title;
     if (dto.description !== undefined) task.description = dto.description || null;
@@ -696,6 +757,14 @@ export class CompaniesService {
         console.error('Failed to trigger automation:', error);
       }
     }
+    await this.notifySingleAssignee(
+      tenantId,
+      beforeAssignedUserId,
+      saved.assignedUserId,
+      'Вам назначена задача',
+      saved.title,
+      { type: 'company_task.assigned', taskId: saved.id, companyId: saved.companyId, link: `/companies/${saved.companyId}` },
+    ).catch(() => undefined);
     return saved;
   }
 

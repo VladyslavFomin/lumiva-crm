@@ -10,7 +10,7 @@ import {
 import { ModuleRef } from '@nestjs/core';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import axios from 'axios';
 import { TelegramBot } from './telegram-bot.entity';
 import { TelegramContact } from './telegram-contact.entity';
@@ -22,9 +22,38 @@ import { NotesService } from '../notes/notes.service';
 import { EntityType, NoteType } from '../notes/dto/create-note.dto';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
+import { BookingsAvailabilityService } from '../bookings/bookings-availability.service';
+import { BookingsCatalogService } from '../bookings/bookings-catalog.service';
+import { BookingsStaffService } from '../bookings/bookings-staff.service';
+import { ReservationsService } from '../bookings/reservations.service';
+import {
+  TelegramAiToolsService,
+  TELEGRAM_TOOL_DEFINITIONS,
+  type TelegramToolContext,
+} from './telegram-ai-tools';
+import {
+  buildDefaultFlows,
+  type Flow,
+  type FlowNode,
+  type FlowsMap,
+} from './telegram-flow.types';
 // Types only — no circular import at JS module load time
 type AiAssistantService = import('../ai/ai-assistant.service').AiAssistantService;
 type AiOpenAiService = import('../ai/ai-openai.service').AiOpenAiService;
+type ChatMessage = import('../ai/ai-openai.service').ChatMessage;
+
+interface FlowState {
+  flowId: string;
+  nodeId: string;
+  collected: Record<string, any>;
+  visited: string[];
+  recentMessages: string[];
+  pausedUntil?: string | null;
+}
+
+export interface TraceStep { step: string; detail: string; ms: number }
+
+const DEFAULT_STOP_WORDS = ['жалоба', 'суд', 'верните деньги', 'обман', 'разводилово'];
 
 const TG_MSG_LIMIT = 4000;
 const EXTERNAL_HISTORY_MAX = 16;
@@ -149,6 +178,11 @@ export class TelegramCrmService {
     private readonly leadsService: LeadsService,
     @Inject(forwardRef(() => NotesService))
     private readonly notesService: NotesService,
+    private readonly bookingsAvailability: BookingsAvailabilityService,
+    private readonly bookingsCatalog: BookingsCatalogService,
+    private readonly bookingsStaff: BookingsStaffService,
+    private readonly reservationsService: ReservationsService,
+    private readonly telegramTools: TelegramAiToolsService,
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -161,10 +195,17 @@ export class TelegramCrmService {
   private polling() { return this.moduleRef.get(require('./telegram-polling.service').TelegramPollingService, { strict: false }); }
 
   // ── Bot CRUD ─────────────────────────────────────────────────────────────
+  // findAllBots/findBot return the raw entity (real botToken) — used internally throughout this
+  // service for Telegram API calls. The *Public variants below mask the token and are what the
+  // controller returns to the frontend.
 
   async findAllBots(tenantId?: string): Promise<TelegramBot[]> {
     if (tenantId) return this.botRepo.find({ where: { tenantId }, order: { createdAt: 'DESC' } });
     return this.botRepo.find({ order: { createdAt: 'DESC' } });
+  }
+
+  async findAllBotsPublic(tenantId: string): Promise<TelegramBot[]> {
+    return (await this.findAllBots(tenantId)).map((b) => this.toPublicBot(b));
   }
 
   async findBotByToken(botToken: string): Promise<TelegramBot | null> {
@@ -175,6 +216,10 @@ export class TelegramCrmService {
     const bot = await this.botRepo.findOne({ where: { id, tenantId } });
     if (!bot) throw new NotFoundException('Telegram bot not found');
     return bot;
+  }
+
+  async findBotPublic(tenantId: string, id: string): Promise<TelegramBot> {
+    return this.toPublicBot(await this.findBot(tenantId, id));
   }
 
   async createBot(tenantId: string, botToken: string, webhookUrl?: string): Promise<TelegramBot> {
@@ -188,6 +233,7 @@ export class TelegramCrmService {
         botName: botInfo.first_name || null,
         webhookUrl: webhookUrl || null,
         status: 'active',
+        meta: { flows: buildDefaultFlows() },
       });
       const saved = await this.botRepo.save(bot);
       if (webhookUrl) {
@@ -195,7 +241,7 @@ export class TelegramCrmService {
       } else {
         this.polling().startPollingBot(saved.id, saved.botToken);
       }
-      return saved;
+      return this.toPublicBot(saved);
     } catch (error: any) {
       throw new BadRequestException(`Invalid bot token: ${error.message}`);
     }
@@ -203,7 +249,12 @@ export class TelegramCrmService {
 
   async updateBot(tenantId: string, id: string, data: {
     botToken?: string; botName?: string; botUsername?: string;
-    webhookUrl?: string; welcomeMessage?: string; isActive?: boolean;
+    webhookUrl?: string; welcomeMessage?: string; isActive?: boolean; autoReply?: boolean;
+    meta?: {
+      aiConnector?: Record<string, any>;
+      capabilities?: Record<string, boolean>;
+      crmLink?: Record<string, any>;
+    };
   }): Promise<TelegramBot> {
     const bot = await this.findBot(tenantId, id);
     if (data.botToken && data.botToken !== bot.botToken) {
@@ -231,7 +282,17 @@ export class TelegramCrmService {
     }
     if (data.welcomeMessage !== undefined) bot.welcomeMessage = data.welcomeMessage;
     if (data.isActive !== undefined) bot.status = data.isActive ? 'active' : 'inactive';
-    return this.botRepo.save(bot);
+    if (data.autoReply !== undefined) bot.autoReply = data.autoReply;
+    if (data.meta) {
+      bot.meta = {
+        ...(bot.meta || {}),
+        ...(data.meta.aiConnector ? { aiConnector: { ...(bot.meta?.aiConnector || {}), ...data.meta.aiConnector } } : {}),
+        ...(data.meta.capabilities ? { capabilities: { ...(bot.meta?.capabilities || {}), ...data.meta.capabilities } } : {}),
+        ...(data.meta.crmLink ? { crmLink: { ...(bot.meta?.crmLink || {}), ...data.meta.crmLink } } : {}),
+      };
+    }
+    const saved = await this.botRepo.save(bot);
+    return this.toPublicBot(saved);
   }
 
   async setWebhook(tenantId: string, botId: string, webhookUrl: string): Promise<void> {
@@ -342,7 +403,10 @@ export class TelegramCrmService {
     });
     await this.messageRepo.save(telegramMessage);
 
-    await this.syncInboundToLeadNote(tenantId, bot, contact, telegramUserId, message, telegramMessage.id);
+    const capabilities = this.getCapabilities(bot);
+    if (capabilities.leadCreation !== false) {
+      await this.syncInboundToLeadNote(tenantId, bot, contact, telegramUserId, message, telegramMessage.id);
+    }
 
     try {
       await this.automationsService.triggerAutomation(
@@ -352,7 +416,7 @@ export class TelegramCrmService {
       );
     } catch { /* non-critical */ }
 
-    // AI response for external users
+    // AI/flow response for external users
     let text = message.text || '';
     if (isVoice) {
       const fileId = (message.voice || message.audio)?.file_id;
@@ -365,7 +429,7 @@ export class TelegramCrmService {
       }
     }
     if (text) {
-      await this.handleExternalUserMessage(bot, contact, chatId, text);
+      await this.routeExternalMessage(bot, contact, chatId, text);
     }
 
     bot.lastSyncAt = new Date();
@@ -494,6 +558,7 @@ export class TelegramCrmService {
         tenantId: bot.tenantId,
         userId: recipient.staffUserId,
         userRole: staffUser?.role ?? undefined,
+        staffUserId: recipient.staffUserId,
         telegramUsername: recipient.telegramUsername ?? undefined,
         telegramChatId: String(chatId),
         sessionId: recipient.aiSessionId || null,
@@ -961,12 +1026,17 @@ export class TelegramCrmService {
         const displayName = this.buildTelegramDisplayName(message, telegramUserId);
         const un = message.from?.username ? String(message.from.username).trim() : '';
         const phone = phoneRaw && String(phoneRaw).trim().startsWith('+') ? String(phoneRaw).trim() : digits ? `+${digits}` : undefined;
+        const crmLink = (bot.meta?.crmLink || {}) as { stage?: string; source?: string; distributionUserIds?: string[] };
+        const assignedUserId = await this.nextRoundRobinAssignee(bot, crmLink.distributionUserIds);
         lead = await this.leadsService.createForTenant(tenantId, {
           name: displayName,
           ...(phone ? { phone } : {}),
-          source: 'telegram', status: 'new',
+          source: crmLink.source?.trim() || 'telegram',
+          status: crmLink.stage?.trim() || 'new',
+          ...(assignedUserId ? { assignedUserId } : {}),
           meta: { telegramUserId, telegramUsername: un || null, telegramBotId: bot.id },
         });
+        await this.logEvent(bot, 'ok', `crm · lead создан из чата ${un ? `@${un}` : telegramUserId}`);
       }
       if (contact.leadId !== lead.id) {
         contact.leadId = lead.id;
@@ -992,5 +1062,756 @@ export class TelegramCrmService {
     } catch (e) {
       this.log.warn(`Telegram CRM: syncInboundToLeadNote failed: ${(e as Error).message}`);
     }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Token masking, capabilities, event log
+  // ══════════════════════════════════════════════════════════════════════════
+
+  private maskToken(token: string): string {
+    if (!token || token.length < 10) return '••••••••';
+    return `${token.slice(0, 4)}${'•'.repeat(10)}${token.slice(-3)}`;
+  }
+
+  /** Never round-trip the real bot token to the frontend outside the create/edit form's own echo. */
+  private toPublicBot(bot: TelegramBot): TelegramBot {
+    return { ...bot, botToken: this.maskToken(bot.botToken) } as TelegramBot;
+  }
+
+  private getCapabilities(bot: TelegramBot): Record<string, boolean> {
+    const caps = (bot.meta?.capabilities || {}) as Record<string, boolean>;
+    return {
+      aiAutoReply: caps.aiAutoReply !== false,
+      humanHandoff: caps.humanHandoff !== false,
+      leadCreation: caps.leadCreation !== false,
+      bookingIntegration: caps.bookingIntegration !== false,
+      payments: caps.payments === true, // off by default — payment charging isn't implemented
+      files: caps.files !== false,
+      broadcast: caps.broadcast === true, // off by default — segment broadcast isn't implemented
+      staffNotifications: caps.staffNotifications !== false,
+      offHours: caps.offHours === true,
+      dailyDigest: caps.dailyDigest === true,
+    };
+  }
+
+  /** Appends to the bot's capped rolling event log (in-memory mutation only — relies on the
+   * caller's own botRepo.save(bot) shortly after, matching this service's existing pattern of
+   * mutating `bot` in-memory across a request and persisting once at the end). */
+  private logEvent(bot: TelegramBot, kind: 'ok' | 'er' | 'wr', message: string): void {
+    const log: Array<{ t: string; k: string; m: string }> = Array.isArray(bot.meta?.eventLog) ? bot.meta.eventLog : [];
+    const entry = { t: new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), k: kind, m: message };
+    bot.meta = { ...(bot.meta || {}), eventLog: [entry, ...log].slice(0, 200) };
+  }
+
+  private async nextRoundRobinAssignee(bot: TelegramBot, ids?: string[]): Promise<string | undefined> {
+    if (!ids?.length) return undefined;
+    const crmLink = (bot.meta?.crmLink || {}) as any;
+    const idx = ((crmLink.lastAssignedIndex ?? -1) + 1) % ids.length;
+    bot.meta = { ...(bot.meta || {}), crmLink: { ...crmLink, lastAssignedIndex: idx } };
+    return ids[idx];
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Flow builder — CRUD, aggregation, funnel
+  // ══════════════════════════════════════════════════════════════════════════
+
+  private getFlowsFromMeta(bot: TelegramBot): FlowsMap {
+    return bot.meta?.flows && Object.keys(bot.meta.flows).length ? bot.meta.flows : buildDefaultFlows();
+  }
+
+  async getFlows(tenantId: string, botId: string): Promise<{ flows: FlowsMap; activeFlowId: string | null }> {
+    const bot = await this.findBot(tenantId, botId);
+    if (!bot.meta?.flows || !Object.keys(bot.meta.flows).length) {
+      bot.meta = { ...(bot.meta || {}), flows: buildDefaultFlows() };
+      await this.botRepo.save(bot);
+    }
+    return { flows: bot.meta.flows, activeFlowId: bot.meta.activeFlowId || null };
+  }
+
+  async saveFlow(tenantId: string, botId: string, flow: Flow): Promise<FlowsMap> {
+    const bot = await this.findBot(tenantId, botId);
+    const flows = { ...(bot.meta?.flows || buildDefaultFlows()), [flow.id]: flow };
+    bot.meta = { ...(bot.meta || {}), flows };
+    await this.botRepo.save(bot);
+    return flows;
+  }
+
+  async deleteFlow(tenantId: string, botId: string, flowId: string): Promise<FlowsMap> {
+    const bot = await this.findBot(tenantId, botId);
+    const flows = { ...(bot.meta?.flows || {}) };
+    delete flows[flowId];
+    const activeFlowId = bot.meta?.activeFlowId === flowId ? null : bot.meta?.activeFlowId ?? null;
+    bot.meta = { ...(bot.meta || {}), flows, activeFlowId };
+    await this.botRepo.save(bot);
+    return flows;
+  }
+
+  async setActiveFlow(tenantId: string, botId: string, flowId: string | null): Promise<TelegramBot> {
+    const bot = await this.findBot(tenantId, botId);
+    bot.meta = { ...(bot.meta || {}), activeFlowId: flowId };
+    await this.botRepo.save(bot);
+    return this.toPublicBot(bot);
+  }
+
+  /** How many contacts on this flow have visited each node — backs the tree UI's "512 · 88%" labels. */
+  async getFlowStats(tenantId: string, botId: string, flowId: string): Promise<Record<string, number>> {
+    const contacts = await this.contactRepo.find({ where: { tenantId, botId } });
+    const stats: Record<string, number> = {};
+    for (const c of contacts) {
+      const state = (c.meta as any)?.flow;
+      if (!state || state.flowId !== flowId) continue;
+      for (const nodeId of state.visited || []) stats[nodeId] = (stats[nodeId] || 0) + 1;
+    }
+    return stats;
+  }
+
+  /** Real funnel counts derived from actual TelegramContact/Lead rows — no hardcoded numbers. */
+  async getFunnelSummary(tenantId: string, botId: string): Promise<Array<{ nm: string; cnt: number }>> {
+    const contacts = await this.contactRepo.find({ where: { tenantId, botId } });
+    const opened = contacts.length;
+    const reachedMenu = contacts.filter((c) => (((c.meta as any)?.flow?.visited as string[]) || []).length > 1).length;
+    const leftContact = contacts.filter((c) => !!c.telegramPhone).length;
+    const leadIds = [...new Set(contacts.filter((c) => c.leadId).map((c) => c.leadId as string))];
+    let qualified = 0;
+    if (leadIds.length) {
+      const leads = await this.leadRepo.find({ where: { id: In(leadIds), tenantId } });
+      qualified = leads.filter((l) => l.status && l.status !== 'new').length;
+    }
+    return [
+      { nm: 'Открыли бота', cnt: opened },
+      { nm: 'Дошли до меню', cnt: reachedMenu },
+      { nm: 'Оставили контакт', cnt: leftContact },
+      { nm: 'Лид в CRM', cnt: leadIds.length },
+      { nm: 'Квалифицирован', cnt: qualified },
+    ];
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Event log / webhook diagnostics / commands / token preview
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async getEventLog(tenantId: string, botId: string, kind?: string): Promise<Array<{ t: string; k: string; m: string }>> {
+    const bot = await this.findBot(tenantId, botId);
+    const log: Array<{ t: string; k: string; m: string }> = Array.isArray(bot.meta?.eventLog) ? bot.meta.eventLog : [];
+    if (!kind || kind === 'all') return log;
+    if (kind === 'errors') return log.filter((l) => l.k === 'er');
+    if (kind === 'ai') return log.filter((l) => l.m.startsWith('ai ·') || l.m.startsWith('crm ·'));
+    return log;
+  }
+
+  async getWebhookInfo(tenantId: string, botId: string): Promise<any> {
+    const bot = await this.findBot(tenantId, botId);
+    try {
+      const res = await axios.get(`https://api.telegram.org/bot${bot.botToken}/getWebhookInfo`);
+      return res.data?.result || {};
+    } catch (e: any) {
+      throw new BadRequestException(`Не удалось получить webhook info: ${e.message}`);
+    }
+  }
+
+  async previewBotToken(botToken: string): Promise<any> {
+    try {
+      const { data } = await axios.get(`https://api.telegram.org/bot${botToken}/getMe`);
+      if (!data.ok) throw new Error(data.description || 'Telegram отклонил токен');
+      return data.result;
+    } catch (e: any) {
+      throw new BadRequestException(`Неверный токен: ${e.message}`);
+    }
+  }
+
+  async setCommands(
+    tenantId: string,
+    botId: string,
+    commands: Array<{ command: string; description: string; targetNodeId?: string }>,
+  ): Promise<Array<{ command: string; description: string; targetNodeId?: string }>> {
+    const bot = await this.findBot(tenantId, botId);
+    const cleaned = commands
+      .filter((c) => c.command?.trim())
+      .map((c) => ({ command: c.command.replace(/^\//, '').trim().toLowerCase(), description: (c.description || '').slice(0, 256), targetNodeId: c.targetNodeId }));
+    try {
+      await axios.post(`https://api.telegram.org/bot${bot.botToken}/setMyCommands`, {
+        commands: cleaned.map((c) => ({ command: c.command, description: c.description || c.command })),
+      });
+    } catch (e: any) {
+      throw new BadRequestException(`Telegram отклонил команды: ${e.message}`);
+    }
+    bot.meta = { ...(bot.meta || {}), commands: cleaned };
+    this.logEvent(bot, 'ok', `команды бота обновлены (${cleaned.length})`);
+    await this.botRepo.save(bot);
+    return cleaned;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Generic flow interpreter (runtime)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  private norm(s: string): string {
+    return String(s || '').trim().toLowerCase();
+  }
+
+  private render(text: string, contact: Pick<TelegramContact, 'telegramFirstName' | 'telegramUsername'>): string {
+    return (text || '')
+      .replace(/\{\{\s*first_name\s*\}\}/g, contact.telegramFirstName || 'друг')
+      .replace(/\{\{\s*username\s*\}\}/g, contact.telegramUsername ? `@${contact.telegramUsername}` : '');
+  }
+
+  private async send(bot: TelegramBot, chatId: string, text: string, dryRun: boolean, trace?: TraceStep[], label = 'bot'): Promise<void> {
+    if (!text) return;
+    if (dryRun) { trace?.push({ step: label, detail: text, ms: 0 }); return; }
+    await this.sendTgHtml(bot.botToken, chatId, escHtml(text));
+  }
+
+  private async sendButtons(bot: TelegramBot, chatId: string, text: string, options: Array<{ label: string }>, dryRun: boolean, trace?: TraceStep[]): Promise<void> {
+    if (dryRun) { trace?.push({ step: 'bot', detail: `${text}\n[ ${options.map((o) => o.label).join(' | ')} ]`, ms: 0 }); return; }
+    try {
+      await axios.post(`https://api.telegram.org/bot${bot.botToken}/sendMessage`, {
+        chat_id: chatId,
+        text: escHtml(text),
+        parse_mode: 'HTML',
+        reply_markup: options.length ? { keyboard: options.map((o) => [{ text: o.label }]), resize_keyboard: true, one_time_keyboard: true } : { remove_keyboard: true },
+      });
+    } catch {
+      await this.sendTgHtml(bot.botToken, chatId, escHtml(text));
+    }
+  }
+
+  private async setFlowState(contact: TelegramContact, state: FlowState, dryRun: boolean): Promise<void> {
+    if (dryRun) return;
+    contact.meta = { ...(contact.meta || {}), flow: state };
+    await this.contactRepo.save(contact);
+  }
+
+  private async resolveButtonOptions(bot: TelegramBot, node: FlowNode, state: FlowState): Promise<Array<{ id: string; label: string; nextNodeId?: string }>> {
+    if (node.source === 'booking_services') {
+      const services = await this.bookingsCatalog.listServices(bot.tenantId).catch(() => [] as any[]);
+      return services.slice(0, 8).map((s: any) => ({ id: s.id, label: s.name, nextNodeId: node.childIds?.[0] }));
+    }
+    if (node.source === 'booking_staff') {
+      const staff = await this.bookingsStaff.listStaff(bot.tenantId).catch(() => [] as any[]);
+      const opts = staff.filter((s: any) => s.staffUser).slice(0, 7).map((s: any) => ({ id: s.staffUserId, label: s.staffUser.fullName || 'Специалист', nextNodeId: node.childIds?.[0] }));
+      opts.push({ id: 'any', label: 'Любой свободный', nextNodeId: node.childIds?.[0] });
+      return opts;
+    }
+    if (node.source === 'booking_slots') {
+      return this.resolveSlotOptions(bot, state, node.childIds?.[0]);
+    }
+    return (node.options || []).map((o) => ({ id: o.id, label: o.label, nextNodeId: o.nextNodeId }));
+  }
+
+  private async resolveSlotOptions(bot: TelegramBot, state: FlowState, nextNodeId?: string): Promise<Array<{ id: string; label: string; nextNodeId?: string }>> {
+    const services = await this.bookingsCatalog.listServices(bot.tenantId).catch(() => [] as any[]);
+    const service = services.find((s: any) => s.id === state.collected.serviceId);
+    const durationMin = Number(service?.durationMinutes || 60);
+    const staffUserId = state.collected.staffUserId && state.collected.staffUserId !== 'any' ? state.collected.staffUserId : undefined;
+    const found: Array<{ id: string; label: string; nextNodeId?: string }> = [];
+    const now = new Date();
+    for (let day = 0; day < 10 && found.length < 6; day++) {
+      const base = new Date(now);
+      base.setDate(base.getDate() + day);
+      for (let hour = 9; hour < 20 && found.length < 6; hour++) {
+        for (const min of [0, 30]) {
+          const startAt = new Date(base);
+          startAt.setHours(hour, min, 0, 0);
+          if (startAt <= now) continue;
+          const endAt = new Date(startAt.getTime() + durationMin * 60_000);
+          const check = await this.bookingsAvailability.inspectSlot(bot.tenantId, { staffUserId, startAt, endAt }).catch(() => ({ ok: false }) as any);
+          if (check.ok) {
+            found.push({
+              id: `${startAt.toISOString()}|${endAt.toISOString()}`,
+              label: startAt.toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }),
+              nextNodeId,
+            });
+          }
+        }
+      }
+    }
+    return found;
+  }
+
+  private evalCond(node: FlowNode, state: FlowState): boolean {
+    const field = node.condField || '';
+    let actual: any;
+    if (field === 'repeatCount') {
+      const seen = new Set<string>();
+      actual = state.recentMessages.filter((m) => (seen.has(m) ? true : (seen.add(m), false))).length;
+    } else if (field.startsWith('collected.')) {
+      actual = state.collected[field.slice('collected.'.length)];
+    }
+    if (node.condOp === 'exists') return actual !== undefined && actual !== null && actual !== '';
+    if (node.condOp === 'gte') return Number(actual || 0) >= Number(node.condValue || 0);
+    return String(actual ?? '') === String(node.condValue ?? '');
+  }
+
+  private async writeField(bot: TelegramBot, contact: TelegramContact, fieldTarget: string | undefined, value: string, state: FlowState, dryRun: boolean): Promise<void> {
+    if (!fieldTarget || dryRun) { if (fieldTarget?.startsWith('collected.')) state.collected[fieldTarget.slice('collected.'.length)] = value; return; }
+    if (fieldTarget === 'contact.firstName') {
+      contact.telegramFirstName = value;
+      await this.contactRepo.save(contact);
+      return;
+    }
+    if (fieldTarget === 'contact.phone') {
+      contact.telegramPhone = value;
+      await this.contactRepo.save(contact);
+      if (contact.leadId) await this.leadRepo.update({ id: contact.leadId, tenantId: bot.tenantId }, { phone: value }).catch(() => undefined);
+      return;
+    }
+    if (fieldTarget.startsWith('lead.customFields.')) {
+      const key = fieldTarget.slice('lead.customFields.'.length);
+      if (contact.leadId) {
+        const lead = await this.leadRepo.findOne({ where: { id: contact.leadId, tenantId: bot.tenantId } });
+        if (lead) {
+          lead.customFields = { ...(lead.customFields || {}), [key]: value };
+          await this.leadRepo.save(lead);
+        }
+      }
+      state.collected[key] = value;
+      return;
+    }
+    if (fieldTarget.startsWith('collected.')) state.collected[fieldTarget.slice('collected.'.length)] = value;
+  }
+
+  private async runCrmAction(bot: TelegramBot, contact: TelegramContact, node: FlowNode, state: FlowState, dryRun: boolean, trace?: TraceStep[]): Promise<void> {
+    if (node.crmAction === 'create_lead') {
+      trace?.push({ step: 'crm', detail: 'лид создаётся автоматически при первом сообщении', ms: 0 });
+      return;
+    }
+    if (node.crmAction === 'create_reservation') {
+      if (dryRun) { trace?.push({ step: 'crm', detail: 'создание брони (тестовый прогон — не сохраняется)', ms: 0 }); return; }
+      const locations = await this.bookingsCatalog.listLocations(bot.tenantId).catch(() => [] as any[]);
+      const location = locations[0];
+      if (!location || !state.collected.startAt || !state.collected.endAt) {
+        trace?.push({ step: 'crm', detail: 'не хватает данных для создания брони', ms: 0 });
+        return;
+      }
+      const contactName = [contact.telegramFirstName, contact.telegramLastName].filter(Boolean).join(' ') || (contact.telegramUsername ? `@${contact.telegramUsername}` : 'Telegram клиент');
+      const reservation = await this.reservationsService
+        .create(bot.tenantId, {
+          locationId: location.id,
+          serviceId: state.collected.serviceId,
+          staffUserId: state.collected.staffUserId && state.collected.staffUserId !== 'any' ? state.collected.staffUserId : undefined,
+          startAt: state.collected.startAt,
+          endAt: state.collected.endAt,
+          customerName: contactName,
+          customerPhone: contact.telegramPhone || undefined,
+          source: 'telegram',
+          customFields: { telegramContactId: contact.id, telegramBotId: bot.id },
+        }, null)
+        .catch((e: any) => { trace?.push({ step: 'crm', detail: `ошибка создания брони: ${e.message}`, ms: 0 }); return null; });
+      if (reservation) {
+        state.collected.reservationId = reservation.id;
+        this.logEvent(bot, 'ok', `crm · бронь создана из чата (${contactName})`);
+        await this.botRepo.save(bot);
+      }
+      return;
+    }
+    if (node.crmAction === 'update_lead_stage' && contact.leadId && !dryRun) {
+      const status = node.text?.trim();
+      if (status) await this.leadRepo.update({ id: contact.leadId, tenantId: bot.tenantId }, { status }).catch(() => undefined);
+    }
+  }
+
+  private async scheduleDelay(contact: TelegramContact, node: FlowNode, dryRun: boolean): Promise<void> {
+    if (dryRun) return;
+    const minutes = node.afterMinutes ?? 60;
+    const dueAt = new Date(Date.now() + minutes * 60_000).toISOString();
+    const meta = (contact.meta || {}) as any;
+    const pending: any[] = Array.isArray(meta.pendingReminders) ? meta.pendingReminders : [];
+    pending.push({ nodeId: node.id, text: node.text, dueAt, sent: false });
+    contact.meta = { ...meta, pendingReminders: pending };
+    await this.contactRepo.save(contact);
+  }
+
+  private async escalateToHuman(bot: TelegramBot, contact: TelegramContact, department: string | undefined, pauseMinutes: number | undefined, reason: string, dryRun: boolean): Promise<void> {
+    if (dryRun) return;
+    const pause = pauseMinutes ?? Number(bot.meta?.aiConnector?.escalation?.pauseMinutes) ?? 30;
+    const recipients: any[] = (bot.meta?.recipients as any[]) || [];
+    const filtered = department ? recipients.filter((r) => r.role === department) : [];
+    const list = filtered.length ? filtered : recipients;
+    const contactName = [contact.telegramFirstName, contact.telegramLastName].filter(Boolean).join(' ') || (contact.telegramUsername ? `@${contact.telegramUsername}` : contact.telegramUserId);
+    const msg = `🔔 <b>Диалог передан вам</b>\nПричина: ${escHtml(reason)}\nКлиент: ${escHtml(contactName)}${contact.telegramPhone ? `\nТелефон: ${contact.telegramPhone}` : ''}`;
+    for (const r of list) {
+      if (r.telegramChatId) await this.sendTgHtml(bot.botToken, String(r.telegramChatId), msg).catch(() => undefined);
+    }
+
+    // Раньше эскалация «бот передал диалог человеку» была видна только тем, у кого привязан
+    // Telegram (сообщение выше) — сотрудник без привязки не узнавал о передаче вовсе. Дублируем
+    // в колокольчик in-app уведомлений для всех получателей с привязанной учётной записью.
+    // Ленивый ModuleRef.get — тот же приём, что уже используется в этом сервисе для
+    // AiAssistantService/HelpdeskService, чтобы не заводить статический импорт NotificationsModule
+    // и не расширять и без того хрупкий граф forwardRef этого модуля.
+    try {
+      const staffIds = list.map((r) => r.staffUserId).filter(Boolean);
+      if (staffIds.length) {
+        const staffRows = await this.staffRepo.find({ where: { id: In(staffIds), tenantId: bot.tenantId } });
+        const userIds = staffRows.map((s) => s.externalId).filter((id): id is string => !!id);
+        if (userIds.length) {
+          const { NotificationsService } = await import('../notifications/notifications.service.js');
+          const notifications = this.moduleRef.get(NotificationsService, { strict: false });
+          await notifications.create(
+            bot.tenantId,
+            userIds,
+            'Диалог передан вам',
+            `${contactName}${reason ? ` · ${reason}` : ''}`,
+            { type: 'telegram.handoff', botId: bot.id, contactId: contact.id, link: '/telegram' },
+          );
+        }
+      }
+    } catch (e) {
+      this.log.warn(`Failed to create in-app notification for telegram handoff: ${(e as Error)?.message}`);
+    }
+
+    this.logEvent(bot, 'wr', `ai · эскалация: ${reason}`);
+    await this.botRepo.save(bot);
+    contact.meta = { ...(contact.meta || {}), flow: { ...(contact.meta as any)?.flow, pausedUntil: new Date(Date.now() + pause * 60_000).toISOString() } };
+    await this.contactRepo.save(contact);
+  }
+
+  /** Narrow tool-calling AI turn for `ai`-type flow nodes and freeform-mode AI Connector overrides.
+   * Never uses the unrestricted staff AiToolsService registry. */
+  private async runAiTurn(
+    bot: TelegramBot,
+    contact: TelegramContact,
+    state: FlowState,
+    incomingText: string,
+    dryRun: boolean,
+  ): Promise<{ reply: string; escalate: boolean; escalateReason?: string; trace: TraceStep[] }> {
+    const trace: TraceStep[] = [];
+    const t0 = Date.now();
+    const ai = (bot.meta?.aiConnector || {}) as any;
+    const escalation = ai.escalation || {};
+    const stopWords: string[] = Array.isArray(escalation.stopWords) && escalation.stopWords.length ? escalation.stopWords : DEFAULT_STOP_WORDS;
+    const repeatThreshold = Number(escalation.repeatThreshold) || 2;
+
+    const lower = incomingText.trim().toLowerCase();
+    const hitStopWord = stopWords.find((w: string) => lower.includes(w.toLowerCase()));
+    state.recentMessages = [...(state.recentMessages || []), lower].slice(-6);
+    const repeatCount = state.recentMessages.filter((m) => m === lower).length;
+    trace.push({ step: 'lookup', detail: `Контакт #${contact.id.slice(0, 8)}${contact.leadId ? `, лид #${contact.leadId.slice(0, 8)}` : ''}`, ms: Date.now() - t0 });
+
+    if (hitStopWord) {
+      trace.push({ step: 'escalate', detail: `Стоп-слово «${hitStopWord}»`, ms: 0 });
+      return { reply: '', escalate: true, escalateReason: `стоп-слово «${hitStopWord}»`, trace };
+    }
+    if (repeatCount > repeatThreshold) {
+      trace.push({ step: 'escalate', detail: `Клиент повторил один и тот же вопрос ${repeatCount} раза`, ms: 0 });
+      return { reply: '', escalate: true, escalateReason: 'повторяющийся вопрос', trace };
+    }
+
+    const enabledFunctions = new Set<string>(Object.entries(ai.functions || {}).filter(([, v]) => v).map(([k]) => k));
+    const kb: Array<{ name: string; content: string; kind?: string; storagePath?: string; updatedAt?: string }> = Array.isArray(ai.knowledgeBase) ? ai.knowledgeBase : [];
+    const kbText = kb.filter((k) => (k.kind || 'text') === 'text').map((k) => `### ${k.name}\n${k.content}`).join('\n\n').slice(0, 6000);
+    const persona = (ai.systemPrompt || bot.welcomeMessage || 'Отвечай клиентам дружелюбно и по делу.').trim();
+    const system = `${persona}\n\nТекущая дата: ${new Date().toISOString().slice(0, 10)}. Отвечай на языке пользователя, кратко.` + (kbText ? `\n\nБаза знаний:\n${kbText}` : '');
+
+    const meta = (contact.meta || {}) as any;
+    const history: ChatMessage[] = Array.isArray(meta.aiChat) ? meta.aiChat.slice(-EXTERNAL_HISTORY_MAX) : [];
+    let messages: ChatMessage[] = [{ role: 'system', content: system }, ...history, { role: 'user', content: incomingText }];
+
+    const knowledgeFiles = kb.filter((k) => k.kind === 'file' && k.storagePath).map((k) => ({ name: k.name, storagePath: k.storagePath as string }));
+    const toolCtx: TelegramToolContext = { tenantId: bot.tenantId, botId: bot.id, chatId: contact.telegramUserId, telegramUserId: contact.telegramUserId, enabledFunctions, knowledgeFiles };
+
+    let finalReply = '';
+    let escalate = false;
+    let escalateReason: string | undefined;
+    let totalPrompt = 0;
+    let totalCompletion = 0;
+
+    for (let round = 0; round < 4; round++) {
+      const stepStart = Date.now();
+      const { message: assistantMsg, usage } = await this.oai().chatCompletionWithConfig({
+        messages,
+        tools: TELEGRAM_TOOL_DEFINITIONS,
+        modelOverride: ai.model,
+        temperatureOverride: typeof ai.temperature === 'number' ? ai.temperature : 0.3,
+      });
+      totalPrompt += usage.prompt_tokens || 0;
+      totalCompletion += usage.completion_tokens || 0;
+      trace.push({ step: `модель · раунд ${round + 1}`, detail: `${usage.prompt_tokens || 0}+${usage.completion_tokens || 0} токенов`, ms: Date.now() - stepStart });
+
+      const calls = assistantMsg.tool_calls;
+      if (!calls?.length) {
+        finalReply = assistantMsg.content || '';
+        messages = [...messages, assistantMsg];
+        break;
+      }
+      messages = [...messages, assistantMsg];
+      for (const c of calls) {
+        const tStart = Date.now();
+        const result = await this.telegramTools.execute(c.function?.name || '', c.function?.arguments || '{}', toolCtx);
+        trace.push({ step: `функция · ${c.function?.name}`, detail: result.result.slice(0, 160), ms: Date.now() - tStart });
+        if (result.escalate) { escalate = true; escalateReason = result.escalateReason; }
+        messages = [...messages, { role: 'tool', tool_call_id: c.id, name: c.function?.name, content: result.result } as ChatMessage];
+      }
+      if (escalate) break;
+    }
+
+    if (!dryRun) {
+      const newHistory = [...history, { role: 'user' as const, content: incomingText }, ...(finalReply ? [{ role: 'assistant' as const, content: finalReply }] : [])];
+      contact.meta = { ...(contact.meta || {}), aiChat: newHistory.slice(-EXTERNAL_HISTORY_MAX) };
+      await this.contactRepo.save(contact);
+      this.logEvent(bot, 'ok', `ai · ответ сгенерирован, ${totalPrompt + totalCompletion} токенов`);
+      bot.meta = { ...(bot.meta || {}), lastTrace: trace };
+      await this.botRepo.save(bot);
+    }
+
+    return { reply: finalReply, escalate, escalateReason, trace };
+  }
+
+  /** Enters a node: sends its side-effect (message/buttons/CRM action/handoff/...), then either
+   * auto-advances to the next node (msg/cond/crm/delay/hook — capped hop count) or parks the
+   * conversation at a waiting node (buttons/ask/ai) until the next incoming message. */
+  private async enterNode(
+    bot: TelegramBot,
+    flow: Flow,
+    node: FlowNode,
+    contact: TelegramContact,
+    state: FlowState,
+    chatId: string,
+    dryRun: boolean,
+    trace?: TraceStep[],
+    hops = 0,
+  ): Promise<void> {
+    if (hops > 6) { await this.setFlowState(contact, state, dryRun); return; }
+    state.visited = state.visited.includes(node.id) ? state.visited : [...state.visited, node.id];
+
+    switch (node.type) {
+      case 'msg': {
+        await this.send(bot, chatId, this.render(node.text, contact), dryRun, trace);
+        if (node.nextNodeId && flow.nodes[node.nextNodeId]) {
+          return this.enterNode(bot, flow, flow.nodes[node.nextNodeId], contact, state, chatId, dryRun, trace, hops + 1);
+        }
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        return;
+      }
+      case 'buttons': {
+        const options = await this.resolveButtonOptions(bot, node, state);
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        await this.sendButtons(bot, chatId, this.render(node.text, contact), options, dryRun, trace);
+        return;
+      }
+      case 'ask': {
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        await this.send(bot, chatId, this.render(node.text, contact), dryRun, trace);
+        return;
+      }
+      case 'ai': {
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        if (node.text?.trim()) await this.send(bot, chatId, this.render(node.text, contact), dryRun, trace, 'system');
+        return;
+      }
+      case 'cond': {
+        const ok = this.evalCond(node, state);
+        const nextId = ok ? node.trueNodeId : node.falseNodeId;
+        if (nextId && flow.nodes[nextId]) return this.enterNode(bot, flow, flow.nodes[nextId], contact, state, chatId, dryRun, trace, hops + 1);
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        return;
+      }
+      case 'crm': {
+        await this.runCrmAction(bot, contact, node, state, dryRun, trace);
+        if (node.nextNodeId && flow.nodes[node.nextNodeId]) return this.enterNode(bot, flow, flow.nodes[node.nextNodeId], contact, state, chatId, dryRun, trace, hops + 1);
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        return;
+      }
+      case 'human': {
+        await this.escalateToHuman(bot, contact, node.department, node.pauseMinutes, 'сценарий передал диалог сотруднику', dryRun);
+        await this.send(bot, chatId, this.render(node.text, contact) || 'Передаю вас сотруднику — он свяжется с вами.', dryRun, trace);
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        return;
+      }
+      case 'delay': {
+        await this.scheduleDelay(contact, node, dryRun);
+        if (node.nextNodeId && flow.nodes[node.nextNodeId]) return this.enterNode(bot, flow, flow.nodes[node.nextNodeId], contact, state, chatId, dryRun, trace, hops + 1);
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        return;
+      }
+      case 'hook': {
+        const flows = this.getFlowsFromMeta(bot);
+        const targetFlow = node.targetFlowId ? flows[node.targetFlowId] : undefined;
+        if (!targetFlow) { state.nodeId = node.id; await this.setFlowState(contact, state, dryRun); return; }
+        const newState: FlowState = { flowId: targetFlow.id, nodeId: targetFlow.startNodeId, collected: state.collected, visited: [], recentMessages: [] };
+        Object.assign(state, newState);
+        return this.enterNode(bot, targetFlow, targetFlow.nodes[targetFlow.startNodeId], contact, state, chatId, dryRun, trace, hops + 1);
+      }
+      case 'pay': {
+        await this.send(bot, chatId, this.render(node.text, contact) || 'Для оплаты с вами свяжется администратор.', dryRun, trace);
+        state.nodeId = node.id;
+        await this.setFlowState(contact, state, dryRun);
+        return;
+      }
+    }
+  }
+
+  /** Resumes a waiting node (buttons/ask/ai) with the incoming message, then chains into enterNode. */
+  private async resumeNode(
+    bot: TelegramBot,
+    flow: Flow,
+    node: FlowNode,
+    contact: TelegramContact,
+    state: FlowState,
+    chatId: string,
+    incomingText: string,
+    dryRun: boolean,
+    trace?: TraceStep[],
+  ): Promise<void> {
+    if (node.type === 'buttons') {
+      const options = await this.resolveButtonOptions(bot, node, state);
+      const match = options.find((o) => this.norm(o.label) === this.norm(incomingText));
+      if (!match) {
+        await this.send(bot, chatId, 'Пожалуйста, выберите один из вариантов ниже.', dryRun, trace);
+        await this.sendButtons(bot, chatId, this.render(node.text, contact), options, dryRun, trace);
+        return;
+      }
+      if (node.source === 'booking_services') state.collected.serviceId = match.id;
+      else if (node.source === 'booking_staff') state.collected.staffUserId = match.id;
+      else if (node.source === 'booking_slots') { const [s, e] = String(match.id).split('|'); state.collected.startAt = s; state.collected.endAt = e; }
+      const nextId = match.nextNodeId;
+      if (!nextId || !flow.nodes[nextId]) { await this.setFlowState(contact, state, dryRun); return; }
+      return this.enterNode(bot, flow, flow.nodes[nextId], contact, state, chatId, dryRun, trace);
+    }
+    if (node.type === 'ask') {
+      const value = incomingText.trim();
+      if (node.validation === 'phone' && !/[\d+][\d\s\-()]{5,}/.test(value)) {
+        await this.send(bot, chatId, 'Похоже, это не похоже на номер телефона. Пришлите номер ещё раз.', dryRun, trace);
+        return;
+      }
+      await this.writeField(bot, contact, node.fieldTarget, value, state, dryRun);
+      if (node.nextNodeId && flow.nodes[node.nextNodeId]) return this.enterNode(bot, flow, flow.nodes[node.nextNodeId], contact, state, chatId, dryRun, trace);
+      await this.setFlowState(contact, state, dryRun);
+      return;
+    }
+    if (node.type === 'ai') {
+      const { reply, escalate, escalateReason, trace: t2 } = await this.runAiTurn(bot, contact, state, incomingText, dryRun);
+      if (trace) trace.push(...t2);
+      if (reply) await this.send(bot, chatId, reply, dryRun, trace);
+      if (escalate) {
+        await this.escalateToHuman(bot, contact, node.department, node.pauseMinutes, escalateReason || 'модель запросила передачу', dryRun);
+        if (!dryRun && !reply) await this.send(bot, chatId, 'Передаю вас сотруднику — он ответит вам здесь в ближайшее время.', dryRun, trace);
+      } else if (node.aiNextNodeId && flow.nodes[node.aiNextNodeId]) {
+        return this.enterNode(bot, flow, flow.nodes[node.aiNextNodeId], contact, state, chatId, dryRun, trace);
+      }
+      await this.setFlowState(contact, state, dryRun);
+      return;
+    }
+    return this.enterNode(bot, flow, node, contact, state, chatId, dryRun, trace);
+  }
+
+  /** Top-level external-message router: universal /stop opt-out, then flow-mode interpreter or
+   * (when the bot has no active flow) today's unchanged free-form AI chat. */
+  async routeExternalMessage(bot: TelegramBot, contact: TelegramContact, chatId: string, text: string): Promise<void> {
+    const trimmed = text.trim();
+    const lower = trimmed.toLowerCase();
+
+    if (lower === '/stop') {
+      contact.status = 'unsubscribed';
+      await this.contactRepo.save(contact);
+      await this.sendTgHtml(bot.botToken, chatId, 'Вы отписаны от сообщений этого бота. Чтобы возобновить — напишите /start.');
+      this.logEvent(bot, 'ok', `contact · ${contact.telegramUsername ? `@${contact.telegramUsername}` : contact.telegramUserId} отписался (/stop)`);
+      await this.botRepo.save(bot);
+      return;
+    }
+    if (contact.status === 'unsubscribed' && lower !== '/start') return; // respects the opt-out — bot stays silent
+    if (contact.status === 'unsubscribed' && lower === '/start') {
+      contact.status = 'active';
+      await this.contactRepo.save(contact);
+    }
+
+    const capabilities = this.getCapabilities(bot);
+    const activeFlowId = bot.meta?.activeFlowId as string | null | undefined;
+
+    if (!activeFlowId) {
+      if (capabilities.aiAutoReply === false) return;
+      return this.handleExternalUserMessage(bot, contact, chatId, text);
+    }
+
+    const flows = this.getFlowsFromMeta(bot);
+    const flow = flows[activeFlowId];
+    if (!flow) return this.handleExternalUserMessage(bot, contact, chatId, text);
+
+    const meta = (contact.meta || {}) as any;
+    let state: FlowState | undefined = meta.flow;
+
+    if (!state || state.flowId !== activeFlowId) {
+      state = { flowId: flow.id, nodeId: flow.startNodeId, collected: {}, visited: [], recentMessages: [] };
+      return this.enterNode(bot, flow, flow.nodes[flow.startNodeId], contact, state, chatId, false);
+    }
+
+    if (state.pausedUntil && new Date(state.pausedUntil).getTime() > Date.now()) return; // silent while a human has the thread
+
+    if (lower === '/start' || lower === '/menu') {
+      state = { flowId: flow.id, nodeId: flow.startNodeId, collected: {}, visited: [], recentMessages: [] };
+      return this.enterNode(bot, flow, flow.nodes[flow.startNodeId], contact, state, chatId, false);
+    }
+
+    const customCommands: Array<{ command: string; targetNodeId?: string }> = Array.isArray(bot.meta?.commands) ? bot.meta.commands : [];
+    const cmdMatch = lower.startsWith('/') ? customCommands.find((c) => this.norm(c.command) === lower.replace(/^\//, '')) : undefined;
+    if (cmdMatch?.targetNodeId && flow.nodes[cmdMatch.targetNodeId]) {
+      return this.enterNode(bot, flow, flow.nodes[cmdMatch.targetNodeId], contact, state, chatId, false);
+    }
+
+    const node = flow.nodes[state.nodeId];
+    if (!node) return this.enterNode(bot, flow, flow.nodes[flow.startNodeId], contact, state, chatId, false);
+    if (node.type === 'buttons' || node.type === 'ask' || node.type === 'ai') {
+      return this.resumeNode(bot, flow, node, contact, state, chatId, text, false);
+    }
+    return this.enterNode(bot, flow, flow.nodes[flow.startNodeId], contact, state, chatId, false);
+  }
+
+  /** Dry-run entry point behind the AI tab's "Проверка в чате" — same interpreter, no Telegram
+   * HTTP calls, no contact/lead writes. History is passed in and out by the caller (frontend
+   * React state), not persisted server-side. */
+  async sendTestMessage(
+    tenantId: string,
+    botId: string,
+    input: { history: Array<{ role: 'user' | 'assistant'; text: string }>; message: string },
+  ): Promise<{ reply: string; trace: TraceStep[] }> {
+    const bot = await this.findBot(tenantId, botId);
+    const trace: TraceStep[] = [];
+    const fakeContact = {
+      id: 'test-session', tenantId, telegramUserId: 'test', telegramUsername: 'test_client',
+      telegramFirstName: 'Тест', telegramLastName: null, telegramPhone: null, leadId: null, status: 'active',
+      meta: { aiChat: input.history.map((h) => ({ role: h.role, content: h.text })) },
+    } as unknown as TelegramContact;
+
+    const activeFlowId = bot.meta?.activeFlowId as string | null | undefined;
+    if (activeFlowId) {
+      const flows = this.getFlowsFromMeta(bot);
+      const flow = flows[activeFlowId];
+      if (flow) {
+        const state: FlowState = { flowId: flow.id, nodeId: flow.startNodeId, collected: {}, visited: [], recentMessages: [] };
+        await this.enterNode(bot, flow, flow.nodes[flow.startNodeId], fakeContact, state, 'test', true, trace);
+        const current = flow.nodes[state.nodeId];
+        if (current && (current.type === 'buttons' || current.type === 'ask' || current.type === 'ai')) {
+          await this.resumeNode(bot, flow, current, fakeContact, state, 'test', input.message, true, trace);
+        }
+        const reply = trace.filter((s) => s.step === 'bot' || s.step === 'system').map((s) => s.detail).join('\n\n');
+        return { reply, trace };
+      }
+    }
+
+    // Freeform dry run — mirrors handleExternalUserMessage's prompt shape without persisting.
+    const persona = bot.welcomeMessage?.trim() || 'Помогай клиентам с вопросами, будь дружелюбным и краткими.';
+    const now = new Date().toISOString().slice(0, 10);
+    const ai = (bot.meta?.aiConnector || {}) as any;
+    const kb: Array<{ name: string; content: string; kind?: string }> = Array.isArray(ai.knowledgeBase) ? ai.knowledgeBase : [];
+    const kbText = kb.filter((k) => (k.kind || 'text') === 'text').map((k) => `### ${k.name}\n${k.content}`).join('\n\n').slice(0, 6000);
+    const systemPrompt = `${ai.systemPrompt?.trim() || persona}\n\nТекущая дата: ${now}. Отвечай на языке пользователя.` + (kbText ? `\n\nБаза знаний:\n${kbText}` : '');
+    const history = input.history.map((h) => ({ role: h.role, content: h.text }));
+    const messages = [{ role: 'system', content: systemPrompt }, ...history, { role: 'user', content: input.message }] as any[];
+    const t0 = Date.now();
+    const result = await this.oai().chatCompletionWithConfig({
+      messages,
+      modelOverride: ai.model,
+      temperatureOverride: typeof ai.temperature === 'number' ? ai.temperature : 0.3,
+    });
+    trace.push({ step: 'модель', detail: `${result.usage.prompt_tokens || 0}+${result.usage.completion_tokens || 0} токенов`, ms: Date.now() - t0 });
+    return { reply: (result.message.content || '').trim(), trace };
   }
 }

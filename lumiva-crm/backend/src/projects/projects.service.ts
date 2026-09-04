@@ -1,5 +1,5 @@
 // backend/src/projects/projects.service.ts
-import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, ILike, In } from 'typeorm';
 import { Project, ProjectStatus } from './project.entity';
@@ -9,6 +9,11 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { Lead } from '../leads/lead.entity';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
+import { ProjectStatusesService } from './project-statuses.service';
+import { ProjectTablesService } from '../project-tables/project-tables.service';
+import { StaffUser } from '../staff/staff-user.entity';
+import { NotificationsService } from '../notifications/notifications.service';
+import { StaffUsersService } from '../staff/staff-users.service';
 
 const normalizeTasks = (tasks?: any[]) => {
   if (!Array.isArray(tasks)) return null;
@@ -45,9 +50,66 @@ export class ProjectsService {
     private readonly activityRepo: Repository<ProjectActivity>,
     @InjectRepository(Lead)
     private readonly leadRepo: Repository<Lead>,
+    @InjectRepository(StaffUser)
+    private readonly staffRepo: Repository<StaffUser>,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
+    private readonly statusesService: ProjectStatusesService,
+    private readonly tablesService: ProjectTablesService,
+    private readonly notifications: NotificationsService,
+    private readonly staffUsersService: StaffUsersService,
   ) {}
+
+  private extractOwnerStaffIds(project: Pick<Project, 'ownerUserId' | 'ownerUserIds'>): string[] {
+    const ids = new Set<string>();
+    if (project.ownerUserId) ids.add(project.ownerUserId);
+    (project.ownerUserIds || []).forEach((id) => id && ids.add(id));
+    return [...ids];
+  }
+
+  /** Уведомляет в колокольчик только НОВЫХ ответственных по проекту (сравнение со
+   * старым составом), чтобы не спамить при каждом сохранении без смены владельца. */
+  private async notifyNewProjectOwners(
+    tenantId: string,
+    previousStaffIds: string[],
+    project: Project,
+    actorEmail?: string | null,
+  ): Promise<void> {
+    const nextIds = this.extractOwnerStaffIds(project);
+    const newIds = nextIds.filter((id) => !previousStaffIds.includes(id));
+    if (!newIds.length) return;
+
+    let actorStaffId: string | null = null;
+    const email = actorEmail?.trim();
+    if (email) {
+      const actorStaff = await this.staffRepo
+        .createQueryBuilder('staff')
+        .where('staff.tenantId = :tenantId', { tenantId })
+        .andWhere('LOWER(staff.email) = LOWER(:email)', { email })
+        .getOne();
+      actorStaffId = actorStaff?.id ?? null;
+    }
+    const filteredIds = newIds.filter((id) => id !== actorStaffId);
+    if (!filteredIds.length) return;
+
+    const userIds = await this.staffUsersService.resolveNotificationUserIdsForTenant(tenantId, filteredIds);
+    if (!userIds.length) return;
+
+    await this.notifications.create(
+      tenantId,
+      userIds,
+      'Вам назначен проект',
+      project.name || 'Новый проект',
+      { type: 'project.assigned', projectId: project.id, link: `/projects/${project.id}` },
+    );
+  }
+
+  private async assertValidStatus(tenantId: string, status: string): Promise<void> {
+    const ok = await this.statusesService.isValidValue(tenantId, status);
+    if (!ok) {
+      throw new BadRequestException(`Unknown project status: "${status}"`);
+    }
+  }
 
   async createActivity(params: {
     tenantId: string;
@@ -80,6 +142,7 @@ export class ProjectsService {
   // ===== Список проектов арендатора с фильтрами =====
   async findAllForTenant(options: {
     tenantId: string;
+    tableId?: string;
     status?: ProjectStatus;
     leadId?: string;
     companyId?: string;
@@ -93,6 +156,7 @@ export class ProjectsService {
   }) {
     const {
       tenantId,
+      tableId,
       status,
       leadId,
       companyId,
@@ -108,6 +172,10 @@ export class ProjectsService {
     const where: any = {
       tenantId,
     };
+
+    if (tableId) {
+      where.tableId = tableId;
+    }
 
     if (onlyDeleted) {
       where.isDeleted = true;
@@ -163,6 +231,7 @@ export class ProjectsService {
     dto: CreateProjectDto,
     actor?: { userId?: string; email?: string; name?: string },
   ) {
+    await this.assertValidStatus(tenantId, dto.status ?? 'Новый');
     const tagsArray =
       dto.tags && dto.tags.trim().length
         ? dto.tags
@@ -195,8 +264,10 @@ export class ProjectsService {
         : dto.ownerUserId
           ? [dto.ownerUserId]
           : null;
+    const tableId = dto.tableId || (await this.tablesService.ensureDefaultTable(tenantId)).id;
     const project = this.repo.create({
       tenantId,
+      tableId,
       name: dto.name,
       description: dto.description ?? null,
       amount: dto.amount ?? 0,
@@ -213,6 +284,7 @@ export class ProjectsService {
       relatedProjectIds: dto.relatedProjectIds ?? null,
       briefFileName: dto.briefFileName ?? null,
       briefFileUrl: dto.briefFileUrl ?? null,
+      files: dto.files ?? null,
       tasks: normalizeTasks(dto.tasks) ?? [],
       comments: dto.comments ?? [],
       customFields: dto.customFields ?? null,
@@ -242,6 +314,7 @@ export class ProjectsService {
     } catch (error) {
       console.error('Failed to trigger automation:', error);
     }
+    await this.notifyNewProjectOwners(tenantId, [], saved, actor?.email).catch(() => undefined);
     return saved;
   }
 
@@ -254,6 +327,10 @@ export class ProjectsService {
   ) {
     const project = await this.findOneForTenant(tenantId, id);
     const before = { ...project };
+
+    if (dto.status !== undefined && dto.status !== project.status) {
+      await this.assertValidStatus(tenantId, dto.status);
+    }
 
     // ---- Теги: строка → массив ----
     if (dto.tags !== undefined) {
@@ -308,13 +385,22 @@ export class ProjectsService {
               dto.ownerUserId
             ? [dto.ownerUserId]
             : null;
-      if (Object.prototype.hasOwnProperty.call(dto, 'ownerUserIds')) {
+      const idsPatched =
+        Object.prototype.hasOwnProperty.call(dto, 'ownerUserIds') ||
+        Object.prototype.hasOwnProperty.call(dto, 'ownerUserId');
+      if (idsPatched) {
+        // ownerUserId/ownerUserIds — одно и то же владение в двух представлениях.
+        // Раньше патч только по ownerUserId (так делает AI-инструмент toolUpdateProject)
+        // обновлял лишь одиночный id, а массив ownerUserIds оставался прежним — везде,
+        // где отображение владельца предпочитает массив (он и выигрывал), проект
+        // продолжал показывать старого владельца после переназначения через AI.
         project.ownerUserIds = ownerIds;
-      }
-      if (Object.prototype.hasOwnProperty.call(dto, 'ownerUserId')) {
-        project.ownerUserId = ownerIds?.[0] ?? dto.ownerUserId ?? null;
-      } else if (ownerIds?.length) {
-        project.ownerUserId = ownerIds[0];
+        project.ownerUserId = ownerIds?.[0] ?? null;
+        if (!Object.prototype.hasOwnProperty.call(dto, 'ownerName')) {
+          // Текстовое имя описывало старого владельца — при смене id само по себе
+          // больше не актуально, лучше пусто, чем неверно.
+          project.ownerName = null;
+        }
       }
       if (Object.prototype.hasOwnProperty.call(dto, 'ownerName')) {
         project.ownerName = dto.ownerName ?? null;
@@ -338,6 +424,9 @@ export class ProjectsService {
     if (dto.briefFileUrl !== undefined) {
       project.briefFileUrl = dto.briefFileUrl;
     }
+    if (dto.files !== undefined) {
+      project.files = dto.files;
+    }
 
     // ---- Задачи и комментарии ----
     if (dto.tasks !== undefined) {
@@ -348,7 +437,14 @@ export class ProjectsService {
       project.comments = dto.comments;
     }
     if (dto.customFields !== undefined) {
-      project.customFields = dto.customFields;
+      // Мёрджим поверх текущего значения из БД (а не заменяем целиком) — иначе
+      // клиент с устаревшим локальным снепшотом customFields при сохранении
+      // одного поля стирает остальные поля, если они были изменены где-то ещё
+      // (другая вкладка/сессия) уже после того, как клиент их у себя загрузил.
+      project.customFields = {
+        ...((project.customFields ?? {}) as Record<string, any>),
+        ...(dto.customFields as Record<string, any>),
+      };
     }
     if (dto.isArchived !== undefined) {
       project.isArchived = dto.isArchived;
@@ -359,12 +455,16 @@ export class ProjectsService {
     const statusChanged = before.status !== saved.status;
     const changes: Array<{ field: string; from: any; to: any }> = [];
     const pushChange = (field: keyof Project) => {
-      if ((before as any)[field] !== (saved as any)[field]) {
-        changes.push({
-          field,
-          from: (before as any)[field],
-          to: (saved as any)[field],
-        });
+      const fromValue = (before as any)[field];
+      const toValue = (saved as any)[field];
+      // ownerUserIds (и любой другой массив в этом списке) пересобирается в новый массив-
+      // литерал при каждом сохранении владельца, даже когда содержимое не изменилось — `!==`
+      // сравнивает ссылки, а не содержимое, и писал в историю ложное "изменение" на каждый save.
+      const changed = Array.isArray(fromValue) || Array.isArray(toValue)
+        ? JSON.stringify(fromValue) !== JSON.stringify(toValue)
+        : fromValue !== toValue;
+      if (changed) {
+        changes.push({ field, from: fromValue, to: toValue });
       }
     };
     [
@@ -398,6 +498,28 @@ export class ProjectsService {
         to: Array.isArray(saved.tasks) ? saved.tasks.length : 0,
       });
     }
+    // Комментарии (jsonb) раньше вообще не попадали в историю активности проекта, в отличие
+    // от задач и кастомных полей — то же поле, тот же update(), но невидимо в "Активности".
+    if (dto.comments !== undefined) {
+      changes.push({
+        field: 'comments',
+        from: Array.isArray(before.comments) ? before.comments.length : 0,
+        to: Array.isArray(saved.comments) ? saved.comments.length : 0,
+      });
+    }
+    // ---- Кастомные поля: диф по каждому ключу (label подтягивается на фронте по схеме) ----
+    if (dto.customFields !== undefined) {
+      const beforeCF = (before.customFields ?? {}) as Record<string, any>;
+      const afterCF = (saved.customFields ?? {}) as Record<string, any>;
+      const cfKeys = new Set([...Object.keys(beforeCF), ...Object.keys(afterCF)]);
+      for (const key of cfKeys) {
+        const fromVal = beforeCF[key] ?? null;
+        const toVal = afterCF[key] ?? null;
+        if (JSON.stringify(fromVal) !== JSON.stringify(toVal)) {
+          changes.push({ field: `customFields.${key}`, from: fromVal, to: toVal });
+        }
+      }
+    }
     if (changes.length) {
       await this.createActivity({
         tenantId,
@@ -425,6 +547,7 @@ export class ProjectsService {
         console.error('Failed to trigger automation:', error);
       }
     }
+    await this.notifyNewProjectOwners(tenantId, this.extractOwnerStaffIds(before as Project), saved, actor?.email).catch(() => undefined);
     return saved;
   }
 
@@ -473,6 +596,7 @@ export class ProjectsService {
     status: ProjectStatus,
     actor?: { userId?: string; email?: string; name?: string },
   ) {
+    await this.assertValidStatus(tenantId, status);
     const project = await this.findOneForTenant(tenantId, id);
     const before = project.status;
     project.status = status;

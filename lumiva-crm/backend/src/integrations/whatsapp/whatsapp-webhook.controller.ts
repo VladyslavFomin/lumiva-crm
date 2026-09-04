@@ -42,11 +42,12 @@ export class WhatsappWebhookController {
     @Param('connectionId') connectionId: string,
     @Body() body: unknown,
   ): Promise<{ ok: true }> {
-    try {
-      await this.svc.handleInbound(connectionId, body);
-    } catch (e) {
-      this.log.error((e as Error).stack || (e as Error).message);
-    }
+    // Fire-and-forget (как у Telegram-вебхука) — раньше ждали полную обработку (запись в БД +
+    // создание лида + заметка) перед ответом. Meta ретраит вебхук при медленном/неудачном
+    // ответе, а неуникальный check-then-insert по waMessageId/waPhoneDigits именно в этом окне
+    // мог задвоить сообщение/контакт/лида. Немедленный ok закрывает окно гонки в источнике.
+    this.svc.handleInbound(connectionId, body)
+      .catch((e) => this.log.error((e as Error).stack || (e as Error).message));
     return { ok: true };
   }
 }

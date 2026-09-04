@@ -14,14 +14,17 @@ import { SmsMessage } from '../sms/sms-message.entity';
 import { Tenant } from '../tenants/tenant.entity';
 import { Contact } from '../contacts/contact.entity';
 import { StaffUser } from '../staff/staff-user.entity';
+import { MarketingTraffic } from '../marketing/marketing-traffic.entity';
 import { RbacModule } from '../rbac/rbac.module';
 import { CompaniesModule } from '../companies/companies.module';
+import { MarketingModule } from '../marketing/marketing.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Lead, Sale, Product, Reservation, HotelReservation, Hotel, Call, SmsMessage, Tenant, Contact, StaffUser]),
+    TypeOrmModule.forFeature([Lead, Sale, Product, Reservation, HotelReservation, Hotel, Call, SmsMessage, Tenant, Contact, StaffUser, MarketingTraffic]),
     RbacModule,
     CompaniesModule,
+    MarketingModule,
   ],
   controllers: [BiDashboardController],
   providers: [BiDashboardService],

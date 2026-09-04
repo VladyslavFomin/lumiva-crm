@@ -15,6 +15,7 @@ export const BI_ICON = {
   companies: <><rect x="3" y="10" width="7" height="11" /><rect x="14" y="4" width="7" height="17" /><path d="M6 14h1M6 17h1M17 8h1M17 11h1M17 14h1" /></>,
   flag: <><path d="M5 3v18" /><path d="M5 4h13l-3 4.5L18 13H5" /></>,
   staff: <><circle cx="9" cy="7" r="4" /><path d="M2 21v-2a5 5 0 015-5h4a5 5 0 015 5v2" /><path d="M17 8a3 3 0 010 6" /><path d="M22 21v-2a4 4 0 00-3-3.87" /></>,
+  marketing: <><path d="M3 11l18-7v16l-18-7z" /><path d="M3 11v6a2 2 0 002 2h2" /><path d="M11 17l1 4h2" /></>,
 };
 
 export const Ic: React.FC<{ d: React.ReactNode; size?: number; sw?: number; style?: React.CSSProperties }> = ({

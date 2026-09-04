@@ -5,10 +5,11 @@ import { AiSmartSearchBar } from '../../components/ai/AiSmartSearchBar';
 import { AiDuplicatesModal } from '../../components/ai/AiDuplicatesModal';
 import type { AiSmartSearchFilters } from '../../api/ai';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { Lead, LeadStatus } from '../../api/leads';
-import { fetchLeads, updateLead } from '../../api/leads';
+import { fetchLeads, updateLead, fetchLeadAccessGrants } from '../../api/leads';
 import { fetchCompanies, fetchCompany, type Company } from '../../api/companies';
 import { fetchContacts, type Contact } from '../../api/contacts';
 import { fetchStaff, type StaffUser } from '../../api/staff';
@@ -33,6 +34,7 @@ import { parseCrmEntityIdsFromCell } from '../../workspace/workspaceCrmEntityIds
 import { getFixedPopoverLayout, type FixedPopoverLayout } from '../../utils/tablePopoverFixedPosition';
 import '../projects/ProjectsListPage.css';
 import { LeadsCsvImportModal } from './LeadsCsvImportModal';
+import { LottieIcon } from '../../components/LottieIcon';
 
 type LeadListColumn =
   | { id: string; label: string }
@@ -55,7 +57,7 @@ function resolveLocale(lang: string) {
 
 export const LeadsListPage: React.FC = () => {
   const { t, i18n } = useTranslation();
-  const { showConfirm } = useAlertModal();
+  const { showConfirm, showAlert } = useAlertModal();
   const locale = resolveLocale(i18n.language);
   const [searchParams] = useSearchParams();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -111,6 +113,7 @@ export const LeadsListPage: React.FC = () => {
   const [draggingGroupId, setDraggingGroupId] = useState<string | null>(null);
   const [dragOverGroupId, setDragOverGroupId] = useState<string | null>(null);
   const [staff, setStaff] = useState<StaffUser[]>([]);
+  const [canManageAccess, setCanManageAccess] = useState(false);
   const [assigneeEditorLeadId, setAssigneeEditorLeadId] = useState<string | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState('');
   const [assigneeDraftIds, setAssigneeDraftIds] = useState<string[]>([]);
@@ -263,6 +266,15 @@ export const LeadsListPage: React.FC = () => {
     patch: Partial<Lead>,
     apiPatch: any,
   ) => {
+    const current = leads.find((l) => l.id === id);
+    if (current && current.canEdit === false) {
+      showAlert(t('crm.leads.access.forbiddenEdit'));
+      return;
+    }
+    if (current && current.canReassign === false && ('assignedUserId' in apiPatch || 'assignedUserIds' in apiPatch || 'assignedTo' in apiPatch || 'assignedToList' in apiPatch)) {
+      showAlert(t('crm.leads.access.forbiddenReassign'));
+      return;
+    }
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
     try {
       const updated = await updateLead(id, apiPatch);
@@ -312,6 +324,10 @@ export const LeadsListPage: React.FC = () => {
   };
 
   const openAssigneeEditor = (lead: Lead) => {
+    if (lead.canReassign === false) {
+      showAlert(t('crm.leads.access.forbiddenReassign'));
+      return;
+    }
     const ids: string[] = lead.assignedUserIds?.length
       ? [...lead.assignedUserIds]
       : lead.assignedUserId
@@ -981,8 +997,16 @@ export const LeadsListPage: React.FC = () => {
     setCustomGroups(next.map((group, order) => ({ ...group, order })));
   };
 
+  const editableSelectedIds = () => {
+    const editableIds = selectedLeadIds.filter((id) => leads.find((l) => l.id === id)?.canEdit !== false);
+    if (editableIds.length < selectedLeadIds.length) {
+      showAlert(t('crm.leads.access.forbiddenEditSome'));
+    }
+    return editableIds;
+  };
+
   const applyBulkStatus = async (status: LeadStatus) => {
-    const ids = [...selectedLeadIds];
+    const ids = editableSelectedIds();
     setLeads((prev) =>
       prev.map((lead) =>
         ids.includes(lead.id) ? { ...lead, status } : lead,
@@ -994,7 +1018,7 @@ export const LeadsListPage: React.FC = () => {
   };
 
   const archiveSelected = async () => {
-    const ids = [...selectedLeadIds];
+    const ids = editableSelectedIds();
     const archivedAt = new Date().toISOString();
     setLeads((prev) =>
       prev.map((lead) =>
@@ -1021,7 +1045,7 @@ export const LeadsListPage: React.FC = () => {
   };
 
   const deleteSelected = async () => {
-    const ids = [...selectedLeadIds];
+    const ids = editableSelectedIds();
     const deletedAt = new Date().toISOString();
     setLeads((prev) =>
       prev.map((lead) =>
@@ -1520,6 +1544,21 @@ export const LeadsListPage: React.FC = () => {
     };
   }, []);
 
+  // Реальная проверка прав — та же самая, что делает бэкенд для этих роутов, а не эвристика по роли.
+  useEffect(() => {
+    let alive = true;
+    fetchLeadAccessGrants()
+      .then(() => {
+        if (alive) setCanManageAccess(true);
+      })
+      .catch(() => {
+        if (alive) setCanManageAccess(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   useEffect(() => {
     let alive = true;
     fetchCustomFields('lead')
@@ -1645,6 +1684,7 @@ export const LeadsListPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="leads" />
       <ViewNameModal
         open={nameModalOpen}
         title={
@@ -1703,6 +1743,11 @@ export const LeadsListPage: React.FC = () => {
           <button type="button" className="lv-view-tab" onClick={goCalendar}>
             {calendarLabel}
           </button>
+          {canManageAccess && (
+            <button type="button" className="lv-view-tab" onClick={() => navigate('/leads/access')}>
+              {t('crm.leads.access.tabLabel')}
+            </button>
+          )}
           {customViews.map((view) => (
             <button
               key={view.id}
@@ -2206,7 +2251,10 @@ export const LeadsListPage: React.FC = () => {
                     {!filteredLeads.length && !error && (
                       <tr>
                         <td colSpan={orderedColumns.length + 1} style={{ padding: '32px 14px', textAlign: 'center', fontSize: 12, color: 'var(--fg-3)' }}>
-                          {t('crm.leads.list.empty')}
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                            <LottieIcon name="empty-pulse" size={72} />
+                            <span style={{ marginTop: 4 }}>{t('crm.leads.list.empty')}</span>
+                          </div>
                         </td>
                       </tr>
                     )}

@@ -5,10 +5,17 @@ import type { StaffRole } from './staff'; // берём тот же union, чт�
 export type PermissionKey =
   | 'leads'
   | 'leads_view_roi'
+  | 'leads_edit_amount'
+  | 'leads_create'
+  | 'leads_manage_import'
   | 'projects'
   | 'projects_manage_trash'
+  | 'projects_edit_amount'
+  | 'projects_edit_owner'
+  | 'projects_manage'
   | 'sales'
   | 'sales_manage_import'
+  | 'client_accounts'
   | 'staff'
   | 'finance'
   | 'analytics'
@@ -39,7 +46,14 @@ export type PermissionKey =
   | 'hotels_manage_reservations';
 
 export type RolePermissionMatrix = Record<StaffRole, PermissionKey[]>;
-export type UserPermissionMatrix = Record<string, PermissionKey[]>;
+
+/**
+ * Per-user overrides on top of the role matrix. Key present + `true` = explicit grant (wins over
+ * a role-level deny); key present + `false` = explicit deny (wins over a role-level grant,
+ * including the "new module, fail open" default); key absent = inherit from role. Real,
+ * backend-enforced shape — see RbacGuard.canForUser on the backend.
+ */
+export type UserPermissionMatrix = Record<string, Partial<Record<PermissionKey, boolean>>>;
 
 // ---------- GET ----------
 export async function fetchStaffPermissions(): Promise<RolePermissionMatrix> {

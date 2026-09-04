@@ -42,6 +42,23 @@ export class ErrorBoundary extends React.Component<
         return;
       }
     }
+    // Same self-heal as the vite:preloadError listener in main.tsx, for a stale-chunk failure
+    // that reaches here instead (e.g. a dynamic import() outside Vite's own preload machinery).
+    // A tab left open across a live deploy references JS chunk filenames that no longer exist —
+    // reload once to pick up the current build instead of stranding the user on a crash screen.
+    const isStaleChunkError =
+      message.includes('dynamically imported module') ||
+      message.includes('Importing a module script failed') ||
+      message.includes('Failed to fetch');
+    if (isStaleChunkError && typeof window !== 'undefined') {
+      const key = 'lumiva_chunk_reload_once_v1';
+      const last = Number(sessionStorage.getItem(key) || '0');
+      if (!last || Date.now() - last > 60_000) {
+        sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+        return;
+      }
+    }
     try {
       const Sentry = (window as any).__sentry__;
       if (Sentry) Sentry.captureException(error, { extra: { componentStack: info.componentStack } });

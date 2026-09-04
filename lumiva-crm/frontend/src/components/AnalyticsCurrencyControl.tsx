@@ -54,7 +54,11 @@ export const AnalyticsCurrencyControl: React.FC<AnalyticsCurrencyControlProps> =
             ...state,
             currencyMode: 'converted',
             displayCurrency: nextCurrency,
-            rates: { ...state.rates, [nextCurrency]: 1 },
+            // Начинаем с чистой карты курсов, а не мёрджим со старой: иначе курс-заглушка
+            // предыдущей выбранной валюты (тоже [prevCurrency]: 1, когда та была целью)
+            // остаётся в объекте и молча принимается за настоящий курс конвертации в неё,
+            // выдавая неверную (но не помеченную как missingRate) сумму до ответа /fx-rates.
+            rates: { [nextCurrency]: 1 },
           });
         }}
       >

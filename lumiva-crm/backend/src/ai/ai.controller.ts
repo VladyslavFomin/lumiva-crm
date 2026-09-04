@@ -9,6 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 import {
   CurrentUser,
   type CurrentUserPayload,
@@ -25,7 +27,7 @@ import { PlatformSettingsService } from '../platform-settings/platform-settings.
 import { isDefaultAiChatTitle } from './ai-chat-title.util';
 
 @Controller('ai')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RbacGuard)
 export class AiController {
   constructor(
     private readonly assistant: AiAssistantService,
@@ -60,6 +62,7 @@ export class AiController {
   }
 
   @Post('chat')
+  @RequirePermission('chat', 'write')
   async chat(
     @CurrentUser() user: CurrentUserPayload,
     @Body()
@@ -92,6 +95,7 @@ export class AiController {
       userId: user.userId!,
       userEmail: user.email,
       userRole: user.role,
+      staffUserId: user.staffUserId,
       sessionId: body.sessionId,
       message: body.message || '',
       salesImportContext: body.salesImportContext,
@@ -175,17 +179,22 @@ export class AiController {
       cfg?.aiImageCostCents != null && cfg.aiImageCostCents > 0
         ? cfg.aiImageCostCents
         : 8;
-    const img = await this.openai.generateImage({
-      prompt,
-      size: body.size,
-    });
-    await this.quota.chargeCents(user.tenantId, cost, {
-      userId: user.userId!,
-      kind: 'image',
-      model: cfg?.openAiImageModel || 'dall-e-3',
-      promptTokens: 0,
-      completionTokens: 0,
-    });
+    const openAiOverride = await this.assistant.resolveTenantOpenAiOverride(user.tenantId);
+    const img = await this.openai.generateImage(
+      { prompt, size: body.size },
+      openAiOverride,
+    );
+    // BYOK (свой ключ OpenAI) — тенант уже платит своему провайдеру напрямую за эту
+    // генерацию, платформенную AI-квоту не списываем (как и для обычного чата).
+    if (!openAiOverride || openAiOverride.provider === 'anthropic') {
+      await this.quota.chargeCents(user.tenantId, cost, {
+        userId: user.userId!,
+        kind: 'image',
+        model: cfg?.openAiImageModel || 'dall-e-3',
+        promptTokens: 0,
+        completionTokens: 0,
+      });
+    }
 
     const sid = body.sessionId ? String(body.sessionId).trim() : '';
     if (sid) {
@@ -306,6 +315,14 @@ export class AiController {
     @Param('leadId') leadId: string,
   ) {
     return this.assistant.generateOutreachEmail(user.tenantId, user.userId!, leadId);
+  }
+
+  @Post('project-tasks')
+  async generateProjectTasks(
+    @CurrentUser() user: CurrentUserPayload,
+    @Body() body: { projectName?: string; prompt?: string },
+  ) {
+    return this.assistant.generateProjectTasks(user.tenantId, user.userId!, body || {});
   }
 
   @Post('find-duplicates')

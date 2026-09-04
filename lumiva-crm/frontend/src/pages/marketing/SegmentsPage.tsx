@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   createSegment,
   fetchSegments,
@@ -172,6 +173,7 @@ export const SegmentsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="marketingSegments" />
       <div className="space-y-4 pb-8 md:space-y-6">
         <section
           className="rounded-2xl border bg-white px-5 py-5 shadow-sm md:px-7 md:py-6"

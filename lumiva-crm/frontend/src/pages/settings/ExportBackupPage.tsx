@@ -1,5 +1,6 @@
 // src/pages/settings/ExportBackupPage.tsx
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { API_BASE } from '../../api/client';
@@ -7,6 +8,8 @@ import { getAccessToken } from '../../auth/session';
 import '../telephony/telephony-design.css';
 
 export const ExportBackupPage: React.FC = () => {
+  const { t } = useTranslation();
+  const eb = (key: string, opts?: Record<string, unknown>) => t(`crm.settings.exportBackup.${key}`, opts as any) as string;
   const { showAlert } = useAlertModal();
   const [downloading, setDownloading] = useState(false);
 
@@ -17,7 +20,7 @@ export const ExportBackupPage: React.FC = () => {
       const res = await fetch(`${API_BASE}/export/backup`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      if (!res.ok) throw new Error(`Не удалось сформировать выгрузку (${res.status})`);
+      if (!res.ok) throw new Error(eb('generateErrorFormat', { status: res.status }));
       const blob = await res.blob();
       const disposition = res.headers.get('Content-Disposition') || '';
       const match = disposition.match(/filename="([^"]+)"/);
@@ -29,7 +32,7 @@ export const ExportBackupPage: React.FC = () => {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      showAlert(e?.message || 'Не удалось скачать резервную копию', { variant: 'error' });
+      showAlert(e?.message || eb('downloadError'), { variant: 'error' });
     } finally {
       setDownloading(false);
     }
@@ -40,11 +43,9 @@ export const ExportBackupPage: React.FC = () => {
       <div className="px-scope">
         <div className="tel-hero">
           <div>
-            <h1>Экспорт и резервная копия</h1>
+            <h1>{eb('title')}</h1>
             <p className="sub">
-              Одним файлом — все ваши лиды, контакты, компании, продажи, товары, бронирования,
-              брони отелей, проекты и сотрудники в формате JSON. Полезно для бэкапа или переноса
-              данных.
+              {eb('subtitle')}
             </p>
           </div>
         </div>
@@ -52,10 +53,9 @@ export const ExportBackupPage: React.FC = () => {
         <div className="ha-section">
           <div className="ha-section-head">
             <div>
-              <h3>Полная выгрузка тенанта</h3>
+              <h3>{eb('fullExportTitle')}</h3>
               <div className="sub">
-                Отдельные CSV-выгрузки по каждому модулю доступны в соответствующих разделах —
-                здесь единый файл со всеми данными сразу.
+                {eb('fullExportHint')}
               </div>
             </div>
           </div>
@@ -65,7 +65,7 @@ export const ExportBackupPage: React.FC = () => {
             onClick={handleDownload}
             disabled={downloading}
           >
-            {downloading ? 'Формируем…' : 'Скачать резервную копию (JSON)'}
+            {downloading ? eb('generatingBtn') : eb('downloadBtn')}
           </button>
         </div>
       </div>

@@ -1,29 +1,44 @@
 // src/pages/calendar/TeamCalendarPage.tsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { fetchCalendarEvents, type CalendarEventDto, type CalendarEventType } from '../../api/calendar';
-import { toLocalDateKey } from '../../utils/calendarLocalDates';
+import { toLocalDateKey, dayKeysFromStartEndStrings } from '../../utils/calendarLocalDates';
+
+const formatEventRange = (e: CalendarEventDto, locale: string) => {
+  if (!e.endDate) return null;
+  const start = new Date(e.date);
+  const end = new Date(e.endDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return null;
+  if (toLocalDateKey(start) === toLocalDateKey(end)) return null;
+  const fmt = (d: Date) => d.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
+  return `${fmt(start)} – ${fmt(end)}`;
+};
 
 const monthStart = (date: Date) => new Date(date.getFullYear(), date.getMonth(), 1);
 const monthEnd = (date: Date) => new Date(date.getFullYear(), date.getMonth() + 1, 0);
 const addDays = (date: Date, days: number) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
 
-const TYPE_META: Record<CalendarEventType, { label: string; color: string; dot: string }> = {
-  lead_meeting: { label: 'Встречи (лиды)', color: '#3b6cb6', dot: 'bg-[#3b6cb6]' },
-  project_task: { label: 'Задачи проектов', color: '#a06b1a', dot: 'bg-[#a06b1a]' },
-  booking: { label: 'Бронирования', color: '#1f8a5e', dot: 'bg-[#1f8a5e]' },
-  hotel_reservation: { label: 'Заезды в отели', color: '#7a4fc9', dot: 'bg-[#7a4fc9]' },
+const TYPE_META: Record<CalendarEventType, { labelKey: string; color: string; dot: string }> = {
+  lead_meeting: { labelKey: 'leadMeeting', color: '#3b6cb6', dot: 'bg-[#3b6cb6]' },
+  project_task: { labelKey: 'projectTask', color: '#a06b1a', dot: 'bg-[#a06b1a]' },
+  booking: { labelKey: 'booking', color: '#1f8a5e', dot: 'bg-[#1f8a5e]' },
+  hotel_reservation: { labelKey: 'hotelReservation', color: '#7a4fc9', dot: 'bg-[#7a4fc9]' },
+  custom_date: { labelKey: 'customField', color: '#c2410c', dot: 'bg-[#c2410c]' },
 };
 
 export const TeamCalendarPage: React.FC = () => {
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const [cursor, setCursor] = useState(() => monthStart(new Date()));
   const [events, setEvents] = useState<CalendarEventDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hiddenTypes, setHiddenTypes] = useState<Set<CalendarEventType>>(new Set());
+
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
 
   useEffect(() => {
     let alive = true;
@@ -38,7 +53,7 @@ export const TeamCalendarPage: React.FC = () => {
         if (alive) setEvents(data);
       })
       .catch((e: any) => {
-        if (alive) setError(e?.message || 'Не удалось загрузить календарь');
+        if (alive) setError(e?.message || t('crm.calendar.loadError'));
       })
       .finally(() => {
         if (alive) setLoading(false);
@@ -46,9 +61,10 @@ export const TeamCalendarPage: React.FC = () => {
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor]);
 
-  const monthLabel = cursor.toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' });
+  const monthLabel = cursor.toLocaleDateString(dateLocale, { month: 'long', year: 'numeric' });
 
   const visibleEvents = useMemo(
     () => events.filter((e) => !hiddenTypes.has(e.type)),
@@ -58,10 +74,14 @@ export const TeamCalendarPage: React.FC = () => {
   const byDay = useMemo(() => {
     const map = new Map<string, CalendarEventDto[]>();
     for (const e of visibleEvents) {
-      const key = toLocalDateKey(e.date);
-      const list = map.get(key) || [];
-      list.push(e);
-      map.set(key, list);
+      const keys = e.endDate
+        ? dayKeysFromStartEndStrings(e.date, e.endDate).slice(0, 366)
+        : [toLocalDateKey(e.date)];
+      for (const key of keys) {
+        const list = map.get(key) || [];
+        list.push(e);
+        map.set(key, list);
+      }
     }
     return map;
   }, [visibleEvents]);
@@ -101,14 +121,22 @@ export const TeamCalendarPage: React.FC = () => {
     });
   };
 
+  const weekdayLabels = [
+    t('crm.calendar.weekdays.mon'),
+    t('crm.calendar.weekdays.tue'),
+    t('crm.calendar.weekdays.wed'),
+    t('crm.calendar.weekdays.thu'),
+    t('crm.calendar.weekdays.fri'),
+    t('crm.calendar.weekdays.sat'),
+    t('crm.calendar.weekdays.sun'),
+  ];
+
   return (
     <MainLayout>
       <div className="w-full pb-8 min-w-0 space-y-5">
         <div>
-          <h1 className="text-xl font-semibold text-slate-900">Календарь команды</h1>
-          <div className="text-xs text-slate-500 mt-1">
-            Встречи по лидам, дедлайны задач проектов, бронирования и заезды в отели — в одном месте.
-          </div>
+          <h1 className="text-xl font-semibold text-slate-900">{t('crm.calendar.title')}</h1>
+          <div className="text-xs text-slate-500 mt-1">{t('crm.calendar.subtitle')}</div>
         </div>
 
         {error && (
@@ -132,7 +160,7 @@ export const TeamCalendarPage: React.FC = () => {
                   }`}
                 >
                   <span className={`h-2 w-2 rounded-full ${active ? meta.dot : 'bg-slate-300'}`} />
-                  {meta.label}
+                  {t(`crm.calendar.types.${meta.labelKey}`)}
                 </button>
               );
             })}
@@ -159,11 +187,11 @@ export const TeamCalendarPage: React.FC = () => {
           </div>
 
           {loading ? (
-            <div className="text-xs text-slate-500">Загрузка…</div>
+            <div className="text-xs text-slate-500">{t('crm.calendar.loading')}</div>
           ) : (
             <>
               <div className="grid grid-cols-7 gap-2 text-[11px] text-slate-500 mb-2">
-                {['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'].map((d) => (
+                {weekdayLabels.map((d) => (
                   <div key={d} className="px-2 py-1">
                     {d}
                   </div>
@@ -199,7 +227,9 @@ export const TeamCalendarPage: React.FC = () => {
                           </button>
                         ))}
                         {dayEvents.length > 3 && (
-                          <div className="text-[10px] text-slate-500">ещё {dayEvents.length - 3}</div>
+                          <div className="text-[10px] text-slate-500">
+                            {t('crm.calendar.moreCount', { count: dayEvents.length - 3 })}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -211,27 +241,29 @@ export const TeamCalendarPage: React.FC = () => {
         </div>
 
         <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
-          <h2 className="text-sm font-semibold text-slate-900 mb-3">Ближайшие события</h2>
+          <h2 className="text-sm font-semibold text-slate-900 mb-3">{t('crm.calendar.upcoming.title')}</h2>
           <div className="overflow-x-auto">
             <table className="min-w-[600px] w-full text-xs">
               <thead className="text-slate-500">
                 <tr>
-                  <th className="text-left px-2 py-1">Дата</th>
-                  <th className="text-left px-2 py-1">Тип</th>
-                  <th className="text-left px-2 py-1">Событие</th>
-                  <th className="text-left px-2 py-1">Детали</th>
+                  <th className="text-left px-2 py-1">{t('crm.calendar.upcoming.colDate')}</th>
+                  <th className="text-left px-2 py-1">{t('crm.calendar.upcoming.colType')}</th>
+                  <th className="text-left px-2 py-1">{t('crm.calendar.upcoming.colEvent')}</th>
+                  <th className="text-left px-2 py-1">{t('crm.calendar.upcoming.colDetails')}</th>
+                  <th className="text-left px-2 py-1">{t('crm.calendar.upcoming.colAssignee')}</th>
                 </tr>
               </thead>
               <tbody>
                 {upcoming.map((e) => (
                   <tr key={e.id} className="border-t border-slate-200">
                     <td className="px-2 py-1.5 text-slate-700 whitespace-nowrap">
-                      {new Date(e.date).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' })}
+                      {formatEventRange(e, dateLocale) ||
+                        new Date(e.date).toLocaleDateString(dateLocale, { day: '2-digit', month: 'short' })}
                     </td>
                     <td className="px-2 py-1.5">
                       <span className="inline-flex items-center gap-1.5 text-slate-600">
                         <span className={`h-1.5 w-1.5 rounded-full ${TYPE_META[e.type].dot}`} />
-                        {TYPE_META[e.type].label}
+                        {t(`crm.calendar.types.${TYPE_META[e.type].labelKey}`)}
                       </span>
                     </td>
                     <td className="px-2 py-1.5">
@@ -244,12 +276,13 @@ export const TeamCalendarPage: React.FC = () => {
                       </button>
                     </td>
                     <td className="px-2 py-1.5 text-slate-600">{e.subtitle || '—'}</td>
+                    <td className="px-2 py-1.5 text-slate-600">{e.assignee || '—'}</td>
                   </tr>
                 ))}
                 {!upcoming.length && !loading && (
                   <tr>
-                    <td colSpan={4} className="px-2 py-3 text-center text-slate-500">
-                      Ничего не запланировано
+                    <td colSpan={5} className="px-2 py-3 text-center text-slate-500">
+                      {t('crm.calendar.upcoming.empty')}
                     </td>
                   </tr>
                 )}

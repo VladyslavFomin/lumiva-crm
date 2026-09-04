@@ -1,0 +1,252 @@
+/* ============================================
+   TELEGRAM — scoped design system ("Telegram-боты")
+   Ported from Claude Design (telegram.html / components/telegram.jsx / styles/telegram.css).
+   Follows the same .px-scope convention as ../hotels/hotels-design.css,
+   ../telephony/telephony-design.css etc — variables and generic px-scope primitives are
+   redeclared here too so this module works standalone.
+   ============================================ */
+
+.px-scope {
+  --ink: #222;
+  --ink-soft: #2f2f2f;
+  --fg-1: #222;
+  --fg-2: #555;
+  --fg-3: #888;
+  --fg-4: #b5b5b5;
+  --line-1: #1f1f1f;
+  --line-2: #e7e7e7;
+  --line-3: #f0f0f0;
+  --bg: #fff;
+  --bg-muted: #fafafa;
+  --bg-soft: #f5f5f5;
+  --ff-display: 'Inter Tight', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --ff-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--fg-1);
+  font-family: 'Inter', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+}
+.px-scope h1, .px-scope h2, .px-scope h3, .px-scope h4 {
+  font-family: var(--ff-display);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--ink);
+}
+.px-scope button { font-family: inherit; cursor: pointer; }
+.px-scope svg { display: block; }
+.px-scope .kicker{display:inline-flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .kicker .dot{width:6px;height:6px;border-radius:50%;background:var(--ink)}
+
+.px-scope .px-subnav{display:flex;gap:4px;border-bottom:1px solid var(--line-2);margin-bottom:20px;overflow-x:auto;scrollbar-width:none}
+.px-scope .px-subnav::-webkit-scrollbar{display:none}
+.px-scope .px-subnav a,.px-scope .px-subnav button{display:inline-flex;align-items:center;gap:7px;padding:10px 14px;font-size:13px;color:var(--fg-3);border-bottom:1.5px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:color .12s,border-color .12s;text-decoration:none;background:none;border-top:0;border-left:0;border-right:0;cursor:pointer;font-family:inherit}
+.px-scope .px-subnav a.active,.px-scope .px-subnav button.active{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+.px-scope .px-subnav a:hover,.px-scope .px-subnav button:hover{color:var(--ink)}
+
+/* shared button/input primitives */
+.px-scope .btn{display:inline-flex;align-items:center;gap:7px;padding:9px 14px;border-radius:9px;font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;border:1px solid var(--line-2);background:#fff;color:var(--ink);transition:background .12s,border-color .12s;text-decoration:none}
+.px-scope .btn:hover{border-color:var(--ink)}
+.px-scope .btn:disabled{opacity:.5;cursor:default}
+.px-scope .btn-sm{padding:7px 11px;font-size:12px}
+.px-scope .btn-primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.px-scope .btn-primary:hover{background:#000}
+
+.px-scope .bk-badge{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:6px;font-size:10.5px;font-weight:500;border:1px solid;white-space:nowrap}
+.px-scope .bk-badge.confirmed{background:#eef3f9;color:#1769d1;border-color:#bcd0e6}
+.px-scope .bk-badge.noshow{background:#f5f5f5;color:#666;border-color:#ddd}
+.px-scope .bk-badge.cancelled{background:#fdf2f4;color:#9a1f31;border-color:#f0c8cf}
+.px-scope .bk-badge.pending{background:#fdf8ec;color:#7a4a09;border-color:#f0d9a8}
+
+/* ── Telegram module ──────────────────────────────────────────────── */
+
+.px-scope .tg-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.px-scope .tg-hero h1{font-family:var(--ff-display);font-size:24px;font-weight:600;letter-spacing:-.02em;color:var(--ink);margin:8px 0 4px}
+.px-scope .tg-hero .sub{font-size:13px;color:var(--fg-3);max-width:600px;line-height:1.5}
+.px-scope .tg-hero-r{display:flex;gap:8px;flex-shrink:0;align-items:center}
+
+.px-scope .tg-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line-2);margin:18px 0 18px;overflow-x:auto;scrollbar-width:none}
+.px-scope .tg-tabs::-webkit-scrollbar{display:none}
+.px-scope .tg-tab{padding:9px 14px;font-size:13px;font-weight:500;color:var(--fg-3);cursor:pointer;border-bottom:2px solid transparent;display:flex;align-items:center;gap:7px;white-space:nowrap}
+.px-scope .tg-tab.active{color:var(--ink);border-color:var(--ink)}
+.px-scope .tg-tab:hover{color:var(--ink)}
+.px-scope .tg-tab .n{font-family:var(--ff-mono);font-size:10.5px;color:var(--fg-3);background:var(--bg-muted);border-radius:5px;padding:1px 5px}
+
+.px-scope .tg-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+@media (max-width:1180px){.px-scope .tg-kpis{grid-template-columns:repeat(2,1fr)}}
+.px-scope .tg-kpi{border:1px solid var(--line-2);border-radius:12px;padding:13px 15px;background:#fff}
+.px-scope .tg-kpi .l{font-size:11px;color:var(--fg-3);margin-bottom:6px}
+.px-scope .tg-kpi .v{font-family:var(--ff-display);font-size:21px;font-weight:600;color:var(--ink);letter-spacing:-.01em}
+.px-scope .tg-kpi .d{font-size:11px;margin-top:4px;color:var(--fg-3)}
+.px-scope .tg-kpi .d.up{color:#1f8a5e}
+.px-scope .tg-kpi .d.down{color:#cc2f47}
+.px-scope .tg-spark{display:flex;align-items:flex-end;gap:2px;height:20px;margin-top:8px}
+.px-scope .tg-spark i{flex:1;background:var(--line-2);border-radius:1px;min-height:2px}
+.px-scope .tg-spark i.hi{background:var(--ink)}
+
+.px-scope .tg-split{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:1240px){.px-scope .tg-split{grid-template-columns:1fr}}
+.px-scope .tg-split.wide{grid-template-columns:minmax(0,1fr) 400px}
+
+.px-scope .tg-card{border:1px solid var(--line-2);border-radius:14px;background:#fff}
+.px-scope .tg-card-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:15px 18px;border-bottom:1px solid var(--line-3);flex-wrap:wrap}
+.px-scope .tg-card-head h3{font-size:14px;font-weight:600;color:var(--ink);display:flex;align-items:center;gap:8px}
+.px-scope .tg-card-head .sub{font-size:11.5px;color:var(--fg-3);margin-top:3px;line-height:1.45}
+.px-scope .tg-card-body{padding:16px 18px}
+.px-scope .tg-card-body.tight{padding:0}
+.px-scope .tg-card-foot{padding:12px 18px;border-top:1px solid var(--line-3);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+
+.px-scope .tg-bot{display:grid;grid-template-columns:44px minmax(0,1fr) 150px 130px 110px 28px;gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line-3);cursor:pointer}
+@media (max-width:900px){.px-scope .tg-bot{grid-template-columns:44px minmax(0,1fr) 28px}.px-scope .tg-bot-metric{display:none}}
+.px-scope .tg-bot:last-child{border-bottom:none}
+.px-scope .tg-bot:hover{background:var(--bg-muted)}
+.px-scope .tg-bot.sel{background:var(--bg-muted);box-shadow:inset 2px 0 0 var(--ink)}
+.px-scope .tg-bot-ava{width:42px;height:42px;border-radius:11px;background:linear-gradient(160deg,#2aa3dd,#1c7fb4);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;flex-shrink:0}
+.px-scope .tg-bot-ava.off{background:var(--bg-muted);color:var(--fg-3)}
+.px-scope .tg-bot-name{font-weight:600;font-size:13.5px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.px-scope .tg-bot-user{font-family:var(--ff-mono);font-size:11.5px;color:var(--fg-3);margin-top:2px}
+.px-scope .tg-bot-metric{font-size:11.5px;color:var(--fg-3)}
+.px-scope .tg-bot-metric b{display:block;font-family:var(--ff-mono);font-size:13px;color:var(--ink);font-weight:600}
+
+.px-scope .tg-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.px-scope .tg-dot.ok{background:#1f8a5e}
+.px-scope .tg-dot.warn{background:#c98a12}
+.px-scope .tg-dot.err{background:#cc2f47}
+.px-scope .tg-dot.off{background:var(--line-2)}
+
+.px-scope .tg-alert{display:flex;gap:10px;align-items:flex-start;padding:11px 13px;border:1px solid #f0c8cf;background:#fdf2f4;border-radius:10px;font-size:12px;color:#8d2032;line-height:1.5}
+.px-scope .tg-alert.warn{border-color:#f0d9a8;background:#fdf8ec;color:#7a4a09}
+.px-scope .tg-alert.info{border-color:var(--line-2);background:var(--bg-muted);color:var(--fg-2)}
+.px-scope .tg-alert code{font-family:var(--ff-mono);font-size:11px}
+
+.px-scope .tg-kv{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line-3);font-size:12.5px}
+.px-scope .tg-kv:last-child{border-bottom:none}
+.px-scope .tg-kv .k{color:var(--fg-3);flex-shrink:0}
+.px-scope .tg-kv .v{color:var(--ink);text-align:right;font-weight:500;min-width:0;overflow-wrap:anywhere}
+.px-scope .tg-kv .v.mono{font-family:var(--ff-mono);font-size:11.5px;font-weight:400}
+
+.px-scope .tg-label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3);font-family:var(--ff-mono);margin-bottom:7px;display:block}
+.px-scope .tg-input,.px-scope .tg-area,.px-scope .tg-select{width:100%;border:1px solid var(--line-2);border-radius:9px;padding:9px 11px;font-size:13px;font-family:inherit;color:var(--ink);background:#fff}
+.px-scope .tg-input:focus,.px-scope .tg-area:focus,.px-scope .tg-select:focus{outline:none;border-color:var(--ink)}
+.px-scope .tg-area{resize:vertical;min-height:74px;line-height:1.55}
+.px-scope .tg-input.mono{font-family:var(--ff-mono);font-size:12px}
+.px-scope .tg-field{margin-bottom:14px}
+.px-scope .tg-field .hint{font-size:11px;color:var(--fg-3);margin-top:5px;line-height:1.45}
+.px-scope .tg-row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:520px){.px-scope .tg-row2{grid-template-columns:1fr}}
+
+.px-scope .tg-switch{width:38px;height:22px;border-radius:12px;background:var(--line-2);position:relative;cursor:pointer;flex-shrink:0;transition:background .15s}
+.px-scope .tg-switch.on{background:var(--ink)}
+.px-scope .tg-switch i{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:left .15s}
+.px-scope .tg-switch.on i{left:18px}
+
+.px-scope .tg-toggle-row{display:flex;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line-3)}
+.px-scope .tg-toggle-row:last-child{border-bottom:none}
+.px-scope .tg-toggle-row .t{font-weight:600;font-size:12.5px;color:var(--ink)}
+.px-scope .tg-toggle-row .d{font-size:11.5px;color:var(--fg-3);margin-top:3px;line-height:1.45;max-width:520px}
+.px-scope .tg-toggle-row .ic{width:30px;height:30px;border-radius:8px;border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;color:var(--fg-2);flex-shrink:0}
+
+.px-scope .tg-seg{display:inline-flex;border:1px solid var(--line-2);border-radius:9px;overflow:hidden;background:#fff}
+.px-scope .tg-seg button{padding:7px 12px;font-size:12px;color:var(--fg-3);background:none;border:none;cursor:pointer;font-family:inherit;border-right:1px solid var(--line-3)}
+.px-scope .tg-seg button:last-child{border-right:none}
+.px-scope .tg-seg button.on{background:var(--ink);color:#fff}
+
+.px-scope .tg-variants{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.px-scope .tg-variant{border:1px solid var(--line-2);border-radius:12px;padding:14px 15px;cursor:pointer;background:#fff;transition:border-color .15s}
+.px-scope .tg-variant:hover{border-color:var(--fg-3)}
+.px-scope .tg-variant.on{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.px-scope .tg-variant .n{font-weight:600;font-size:13px;color:var(--ink);display:flex;align-items:center;justify-content:space-between;gap:8px}
+.px-scope .tg-variant .d{font-size:11.5px;color:var(--fg-3);margin-top:6px;line-height:1.5}
+.px-scope .tg-variant .m{font-family:var(--ff-mono);font-size:10.5px;color:var(--fg-3);margin-top:10px;display:flex;gap:10px;flex-wrap:wrap}
+.px-scope .tg-variant-actions{display:flex;gap:6px;margin-top:10px}
+
+.px-scope .tg-flow{padding:18px;background:#fff;background-image:radial-gradient(var(--line-3) 1px,transparent 1px);background-size:22px 22px;border-radius:0 0 14px 14px;overflow-x:auto}
+.px-scope .tg-branch{position:relative}
+.px-scope .tg-branch .kids{margin-left:22px;padding-left:20px;border-left:1px solid var(--line-2)}
+.px-scope .tg-node{position:relative;display:flex;gap:11px;align-items:flex-start;border:1px solid var(--line-2);border-radius:11px;background:#fff;padding:11px 13px;margin-bottom:10px;cursor:pointer;max-width:640px;transition:border-color .15s,box-shadow .15s}
+.px-scope .tg-node:hover{border-color:var(--fg-3)}
+.px-scope .tg-node.sel{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.px-scope .tg-node.ghost{border-style:dashed;color:var(--fg-3);background:transparent}
+.px-scope .kids>.tg-branch>.tg-node::before{content:"";position:absolute;left:-21px;top:20px;width:20px;height:1px;background:var(--line-2)}
+.px-scope .tg-node-ic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;background:var(--bg-muted);color:var(--fg-2);border:1px solid var(--line-3)}
+.px-scope .tg-node-ic.ai{background:#f1f4f9;color:#2c5c96;border-color:#c9d8ea}
+.px-scope .tg-node-ic.human{background:#fdf8ec;color:#7a4a09;border-color:#f0d9a8}
+.px-scope .tg-node-ic.crm{background:#eef6f1;color:#175c3d;border-color:#c5e3d2}
+.px-scope .tg-node-ic.cond{background:#f5f1fa;color:#5a3a86;border-color:#dcd0f0}
+.px-scope .tg-node-b{min-width:0;flex:1}
+.px-scope .tg-node-t{font-size:11px;font-family:var(--ff-mono);letter-spacing:.05em;text-transform:uppercase;color:var(--fg-3)}
+.px-scope .tg-node-n{font-weight:600;font-size:13px;color:var(--ink);margin-top:2px}
+.px-scope .tg-node-p{font-size:12px;color:var(--fg-2);margin-top:5px;line-height:1.5}
+.px-scope .tg-node-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.px-scope .tg-chip{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid var(--line-2);background:var(--bg-muted);color:var(--fg-2);white-space:nowrap}
+.px-scope .tg-chip.key{background:#fff;border-color:var(--ink);color:var(--ink);font-weight:500}
+.px-scope .tg-chip.mono{font-family:var(--ff-mono);font-size:10.5px}
+.px-scope .tg-node-stat{font-family:var(--ff-mono);font-size:10.5px;color:var(--fg-3);flex-shrink:0;text-align:right;line-height:1.5}
+.px-scope .tg-node-del{color:var(--fg-3);flex-shrink:0}
+.px-scope .tg-node-del:hover{color:#cc2f47}
+
+.px-scope .tg-palette{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.px-scope .tg-pal{display:flex;gap:9px;align-items:center;border:1px solid var(--line-2);border-radius:9px;padding:9px 10px;font-size:12px;color:var(--ink);cursor:pointer;background:#fff}
+.px-scope .tg-pal:hover{border-color:var(--ink)}
+.px-scope .tg-pal .ic{width:24px;height:24px;border-radius:6px;background:var(--bg-muted);display:flex;align-items:center;justify-content:center;color:var(--fg-2);flex-shrink:0}
+
+.px-scope .tg-funnel{display:flex;flex-direction:column;gap:2px}
+.px-scope .tg-fstage{display:grid;grid-template-columns:170px minmax(0,1fr) 92px 76px;gap:14px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line-3);font-size:12.5px}
+.px-scope .tg-fstage:last-child{border-bottom:none}
+.px-scope .tg-fstage .nm{font-weight:500;color:var(--ink)}
+.px-scope .tg-fstage .nm span{display:block;font-size:11px;color:var(--fg-3);font-weight:400;margin-top:2px}
+.px-scope .tg-fbar{height:22px;background:var(--bg-muted);border-radius:5px;overflow:hidden}
+.px-scope .tg-fbar i{display:block;height:100%;background:var(--ink);border-radius:5px}
+.px-scope .tg-fstage .cnt{font-family:var(--ff-mono);font-size:13px;color:var(--ink);text-align:right;font-weight:600}
+.px-scope .tg-fstage .pc{font-family:var(--ff-mono);font-size:11.5px;color:var(--fg-3);text-align:right}
+
+.px-scope .tg-preview{background:#e9edf1;border-radius:12px;border:1px solid var(--line-2);overflow:hidden}
+.px-scope .tg-preview-head{display:flex;align-items:center;gap:10px;padding:10px 13px;background:#fff;border-bottom:1px solid var(--line-2)}
+.px-scope .tg-preview-head .ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(160deg,#2aa3dd,#1c7fb4);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.px-scope .tg-preview-head .nm{font-size:12.5px;font-weight:600;color:var(--ink)}
+.px-scope .tg-preview-head .st{font-size:10.5px;color:#1f8a5e}
+.px-scope .tg-msgs{padding:14px;display:flex;flex-direction:column;gap:7px;max-height:400px;overflow-y:auto}
+.px-scope .tg-msg{max-width:82%;padding:8px 12px;border-radius:13px;font-size:12.5px;line-height:1.5;position:relative;white-space:pre-wrap}
+.px-scope .tg-msg.in{align-self:flex-start;background:#fff;color:var(--ink);border-bottom-left-radius:4px}
+.px-scope .tg-msg.out{align-self:flex-end;background:#dcf0fb;color:#0f3d55;border-bottom-right-radius:4px}
+.px-scope .tg-msg .who{font-size:9.5px;font-family:var(--ff-mono);opacity:.6;display:block;margin-bottom:3px}
+.px-scope .tg-preview-input{display:flex;gap:8px;padding:10px 12px;background:#fff;border-top:1px solid var(--line-2)}
+.px-scope .tg-preview-input input{flex:1;border:none;font-size:12.5px;font-family:inherit;background:none}
+.px-scope .tg-preview-input input:focus{outline:none}
+.px-scope .tg-preview-input button{width:30px;height:30px;border-radius:50%;background:var(--ink);color:#fff;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0}
+
+.px-scope .tg-trace{border:1px solid var(--line-2);border-radius:10px;padding:12px 13px;font-size:11.5px;color:var(--fg-2);line-height:1.6;background:var(--bg-muted)}
+.px-scope .tg-trace .step{display:flex;gap:8px;align-items:baseline}
+.px-scope .tg-trace .step b{font-family:var(--ff-mono);font-size:10.5px;color:var(--ink);flex-shrink:0}
+
+.px-scope .tg-cmd{display:grid;grid-template-columns:120px minmax(0,1fr) 28px;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--line-3);font-size:12.5px}
+.px-scope .tg-cmd:last-child{border-bottom:none}
+.px-scope .tg-cmd .c{font-family:var(--ff-mono);font-size:12px;color:var(--ink);font-weight:500}
+.px-scope .tg-cmd .d{color:var(--fg-3);font-size:12px}
+.px-scope .tg-log{font-family:var(--ff-mono);font-size:11.5px;line-height:1.75;color:var(--fg-2);max-height:280px;overflow-y:auto}
+.px-scope .tg-log div{display:flex;gap:10px}
+.px-scope .tg-log .t{color:var(--fg-3);flex-shrink:0}
+.px-scope .tg-log .ok{color:#1f8a5e}
+.px-scope .tg-log .er{color:#cc2f47}
+.px-scope .tg-log .wr{color:#c98a12}
+
+.px-scope .tg-modal-back{position:fixed;inset:0;background:rgba(16,20,26,.44);display:flex;align-items:flex-start;justify-content:center;padding:48px 20px;z-index:60;overflow-y:auto}
+.px-scope .tg-modal{background:#fff;border-radius:16px;width:100%;max-width:640px;box-shadow:0 24px 60px rgba(16,24,40,.22);overflow:hidden}
+.px-scope .tg-modal-head{padding:18px 22px;border-bottom:1px solid var(--line-3);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.px-scope .tg-modal-head h3{font-family:var(--ff-display);font-size:17px;font-weight:600;color:var(--ink)}
+.px-scope .tg-modal-head .sub{font-size:12px;color:var(--fg-3);margin-top:4px}
+.px-scope .tg-modal-body{padding:20px 22px;max-height:60vh;overflow-y:auto}
+.px-scope .tg-modal-foot{padding:14px 22px;border-top:1px solid var(--line-3);display:flex;justify-content:space-between;gap:10px;align-items:center}
+.px-scope .tg-steps{display:flex;gap:0;margin-bottom:20px}
+.px-scope .tg-step{flex:1;display:flex;flex-direction:column;gap:7px;font-size:11px;color:var(--fg-3)}
+.px-scope .tg-step .bar{height:3px;border-radius:2px;background:var(--line-2)}
+.px-scope .tg-step.done .bar,.px-scope .tg-step.on .bar{background:var(--ink)}
+.px-scope .tg-step.on{color:var(--ink);font-weight:600}
+.px-scope .tg-step:not(:last-child){padding-right:6px}
+.px-scope .tg-copy{display:flex;gap:8px;align-items:center;border:1px solid var(--line-2);border-radius:9px;padding:8px 10px;font-family:var(--ff-mono);font-size:11.5px;color:var(--ink);background:var(--bg-muted);overflow-wrap:anywhere}
+.px-scope .tg-copy button{margin-left:auto;flex-shrink:0}
+.px-scope .tg-check{display:flex;gap:9px;align-items:flex-start;font-size:12.5px;color:var(--fg-2);padding:7px 0;line-height:1.5}
+.px-scope .tg-check .ic{color:#1f8a5e;flex-shrink:0;margin-top:1px}
+.px-scope .tg-check .ic.off{color:var(--fg-3)}
+
+.px-scope .tg-empty{padding:32px 20px;text-align:center;color:var(--fg-3);font-size:12.5px}

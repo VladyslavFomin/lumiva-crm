@@ -8,6 +8,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   Index,
 } from 'typeorm';
 import { Tenant } from '../tenants/tenant.entity';
@@ -124,5 +125,11 @@ export class Contact {
 
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
+
+  // Only ever set by deduplication merges (see DeduplicationService) — required for
+  // repo.softDelete()/restore() to work at all (TypeORM throws MissingDeleteDateColumnError
+  // without it). Standard find()/count() calls exclude soft-deleted rows automatically.
+  @DeleteDateColumn({ type: 'timestamptz', name: 'deleted_at' })
+  deletedAt?: Date | null;
 }
 

@@ -41,6 +41,10 @@ export class CustomObjectRecord {
   @Column({ type: 'jsonb', nullable: true })
   meta: Record<string, any> | null;
 
+  /** Кто создал строку — используется ролью own_rows_only (нет FK: сотрудник может быть удалён). */
+  @Column({ type: 'uuid', nullable: true })
+  createdByUserId: string | null;
+
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;
 

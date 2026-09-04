@@ -5,6 +5,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { MarketingController } from './marketing.controller';
 import { MarketingService } from './marketing.service';
 import { MarketingSyncService } from './marketing-sync.service';
+import { YandexDirectApiService } from './yandex-direct/yandex-direct-api.service';
+import { VkAdsApiService } from './vk-ads/vk-ads-api.service';
 
 import { MarketingTraffic } from './marketing-traffic.entity';
 import { MarketingUtmTemplate } from './marketing-utm-template.entity';
@@ -45,7 +47,7 @@ import { LeadsModule } from '../leads/leads.module';
     forwardRef(() => LeadsModule),
   ],
   controllers: [MarketingController],
-  providers: [MarketingService, MarketingSyncService, ApiTokenGuard],
+  providers: [MarketingService, MarketingSyncService, ApiTokenGuard, YandexDirectApiService, VkAdsApiService],
   exports: [MarketingService],
 })
 export class MarketingModule {}

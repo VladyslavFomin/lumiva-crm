@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { Ic, HTL_ICON } from './HotelIcons';
 import {
@@ -9,12 +10,6 @@ import {
   type HotelRoomDateOverride,
   type HotelMonthFillStats,
 } from '../../api/hotels';
-
-const MONTH_NAMES = [
-  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
-  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь',
-];
-const DOW = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
 function pad2(n: number) {
   return String(n).padStart(2, '0');
@@ -33,6 +28,9 @@ interface DayCell {
 }
 
 export const HotelPricingCalendar: React.FC<{ roomTypes: HotelRoomType[] }> = ({ roomTypes }) => {
+  const { t } = useTranslation();
+  const monthNames = t('crm.hotels.calendarCommon.months', { returnObjects: true }) as string[];
+  const dow = t('crm.hotels.calendarCommon.dow', { returnObjects: true }) as string[];
   const { showAlert } = useAlertModal();
   const now = new Date();
   const [year] = useState(now.getFullYear());
@@ -58,7 +56,7 @@ export const HotelPricingCalendar: React.FC<{ roomTypes: HotelRoomType[] }> = ({
         setOverrides(o);
         setFill(f);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить календарь', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricingCalendar.loadError'), { variant: 'error' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomTypeId, year, month]);
 
@@ -98,11 +96,11 @@ export const HotelPricingCalendar: React.FC<{ roomTypes: HotelRoomType[] }> = ({
         });
         setEditDay(null);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить дату', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.pricingCalendar.saveError'), { variant: 'error' }));
   };
 
   if (!roomTypes.length) {
-    return <div style={{ padding: 24, color: 'var(--fg-3)', fontSize: 13 }}>Сначала добавьте тип номера.</div>;
+    return <div style={{ padding: 24, color: 'var(--fg-3)', fontSize: 13 }}>{t('crm.hotels.pricingCalendar.needRoomType')}</div>;
   }
 
   return (
@@ -115,14 +113,14 @@ export const HotelPricingCalendar: React.FC<{ roomTypes: HotelRoomType[] }> = ({
         </select>
         <div className="pcal-month-nav">
           <button onClick={() => setMonth((m) => Math.max(0, m - 1))}><Ic d={HTL_ICON.chev} size={14} sw={2} style={{ transform: 'rotate(90deg)' }} /></button>
-          <div className="pcal-month-label">{MONTH_NAMES[month]} {year}</div>
+          <div className="pcal-month-label">{monthNames[month]} {year}</div>
           <button onClick={() => setMonth((m) => Math.min(11, m + 1))}><Ic d={HTL_ICON.chev} size={14} sw={2} style={{ transform: 'rotate(-90deg)' }} /></button>
         </div>
-        <button className="btn btn-sm"><Ic d={HTL_ICON.copy} size={13} />Копировать на др. месяц</button>
+        <button className="btn btn-sm"><Ic d={HTL_ICON.copy} size={13} />{t('crm.hotels.pricingCalendar.copyToMonth')}</button>
       </div>
 
       <div className="pcal-grid">
-        {DOW.map((d) => <div key={d} className="pcal-dow">{d}</div>)}
+        {dow.map((d) => <div key={d} className="pcal-dow">{d}</div>)}
         {cells.map((c, i) =>
           c ? (
             <div
@@ -144,26 +142,26 @@ export const HotelPricingCalendar: React.FC<{ roomTypes: HotelRoomType[] }> = ({
       </div>
 
       <div className="pcal-legend">
-        <span><i style={{ background: '#fff' }} />Обычная цена</span>
-        <span><i style={{ background: 'var(--bg-muted)' }} />Выходные (+$18)</span>
-        <span><i style={{ background: '#fdecea' }} />Скидка на дату</span>
-        <span><i style={{ background: 'repeating-linear-gradient(135deg,#f5f5f5,#f5f5f5 3px,#ededed 3px,#ededed 6px)' }} />Закрыто для продаж</span>
+        <span><i style={{ background: '#fff' }} />{t('crm.hotels.pricingCalendar.legend.normal')}</span>
+        <span><i style={{ background: 'var(--bg-muted)' }} />{t('crm.hotels.pricingCalendar.legend.weekend')}</span>
+        <span><i style={{ background: '#fdecea' }} />{t('crm.hotels.pricingCalendar.legend.discount')}</span>
+        <span><i style={{ background: 'repeating-linear-gradient(135deg,#f5f5f5,#f5f5f5 3px,#ededed 3px,#ededed 6px)' }} />{t('crm.hotels.pricingCalendar.legend.closed')}</span>
       </div>
 
       {fill && (
         <div className="htl-occ-strip">
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
-              <span style={{ color: 'var(--fg-3)' }}>Заполненность «{roomType?.name}» на {MONTH_NAMES[month]}</span>
-              <span style={{ fontFamily: 'var(--ff-mono)', fontWeight: 600 }}>{fill.occupied} / {fill.total} занято</span>
+              <span style={{ color: 'var(--fg-3)' }}>{t('crm.hotels.pricingCalendar.fillStrip.titleFor', { name: roomType?.name, month: monthNames[month] })}</span>
+              <span style={{ fontFamily: 'var(--ff-mono)', fontWeight: 600 }}>{t('crm.hotels.pricingCalendar.fillStrip.occupiedOf', { occupied: fill.occupied, total: fill.total })}</span>
             </div>
             <div className="htl-fill-bar"><div className="fill" style={{ width: `${fill.occupancyPct}%` }} /></div>
           </div>
           <div className="htl-fill-stats">
-            <span>Всего: <b>{fill.total}</b></span>
-            <span>Занято: <b>{fill.occupied}</b></span>
-            <span>Свободно: <b>{fill.free}</b></span>
-            <span>Загрузка: <b>{fill.occupancyPct}%</b></span>
+            <span>{t('crm.hotels.pricingCalendar.fillStrip.total')} <b>{fill.total}</b></span>
+            <span>{t('crm.hotels.pricingCalendar.fillStrip.occupied')} <b>{fill.occupied}</b></span>
+            <span>{t('crm.hotels.pricingCalendar.fillStrip.free')} <b>{fill.free}</b></span>
+            <span>{t('crm.hotels.pricingCalendar.fillStrip.occupancy')} <b>{fill.occupancyPct}%</b></span>
           </div>
         </div>
       )}
@@ -178,20 +176,20 @@ export const HotelPricingCalendar: React.FC<{ roomTypes: HotelRoomType[] }> = ({
               top: Math.min(editDay.y, window.innerHeight - 260),
             }}
           >
-            <h4>{editDay.day} {MONTH_NAMES[month]} {year}</h4>
-            <label>Цена за ночь ($)</label>
+            <h4>{editDay.day} {monthNames[month]} {year}</h4>
+            <label>{t('crm.hotels.pricingCalendar.editor.priceLabel')}</label>
             <input id="htl-edit-price" defaultValue={Math.round(editDay.price)} />
             <div className="row2">
-              <div><label>Скидка, %</label><input id="htl-edit-discount" defaultValue={editDay.discountPct} /></div>
-              <div><label>Мин. ночей</label><input id="htl-edit-min-nights" defaultValue={1} /></div>
+              <div><label>{t('crm.hotels.pricingCalendar.editor.discountLabel')}</label><input id="htl-edit-discount" defaultValue={editDay.discountPct} /></div>
+              <div><label>{t('crm.hotels.pricingCalendar.editor.minNightsLabel')}</label><input id="htl-edit-min-nights" defaultValue={1} /></div>
             </div>
-            <label>Доступность</label>
+            <label>{t('crm.hotels.pricingCalendar.editor.availabilityLabel')}</label>
             <select id="htl-edit-blocked" defaultValue={editDay.blocked ? 'closed' : 'open'}>
-              <option value="open">Открыто для продаж</option>
-              <option value="closed">Закрыто (стоп-продажа)</option>
+              <option value="open">{t('crm.hotels.pricingCalendar.editor.open')}</option>
+              <option value="closed">{t('crm.hotels.pricingCalendar.editor.closed')}</option>
             </select>
             <div className="pcal-editor-foot">
-              <button className="btn btn-sm" style={{ flex: 1 }} onClick={() => setEditDay(null)}>Отмена</button>
+              <button className="btn btn-sm" style={{ flex: 1 }} onClick={() => setEditDay(null)}>{t('crm.hotels.pricingCalendar.editor.cancel')}</button>
               <button
                 className="btn btn-primary btn-sm"
                 style={{ flex: 1 }}
@@ -203,7 +201,7 @@ export const HotelPricingCalendar: React.FC<{ roomTypes: HotelRoomType[] }> = ({
                   saveDay({ price, discountPct, minNights: Number(minNights) || 1, blocked });
                 }}
               >
-                Сохранить
+                {t('crm.hotels.pricingCalendar.editor.save')}
               </button>
             </div>
           </div>

@@ -17,6 +17,7 @@ import {
 } from './analyticsStorage';
 import type { Project } from '../pages/projects/projectTypes';
 import { loadAnalyticsItemsForSource } from './analyticsPresetData';
+import { usePermission } from '../hooks/usePermission';
 
 type TabId = DashboardPresetSource;
 
@@ -55,7 +56,20 @@ export const DashboardAddPresetsModal: React.FC<{
   widgetTitle: (id: string) => string;
 }> = ({ onClose, onPick, hiddenStandardIds, onAddStandard, widgetTitle }) => {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<TabId>('sales');
+  const canSales = usePermission('sales');
+  const canProjects = usePermission('projects');
+  const canLeads = usePermission('leads');
+  const allowedTabs: Record<TabId, boolean> = { sales: canSales, projects: canProjects, leads: canLeads };
+  const [tab, setTabRaw] = useState<TabId>('sales');
+  const setTab = (id: TabId) => {
+    if (allowedTabs[id]) setTabRaw(id);
+  };
+  useEffect(() => {
+    if (allowedTabs[tab]) return;
+    const firstAllowed = (['sales', 'projects', 'leads'] as TabId[]).find((id) => allowedTabs[id]);
+    if (firstAllowed) setTabRaw(firstAllowed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canSales, canProjects, canLeads]);
   const [tick, setTick] = useState(0);
   /** Реальные данные API для превью (один запрос на вкладку) */
   const [previewItems, setPreviewItems] = useState<Project[] | null>(null);
@@ -90,11 +104,12 @@ export const DashboardAddPresetsModal: React.FC<{
     };
   }, [tab, refresh]);
 
-  const tabs: { id: TabId; label: string }[] = [
+  const allTabs: { id: TabId; label: string }[] = [
     { id: 'sales', label: t('crm.dashboard.presets.tabSales') },
     { id: 'projects', label: t('crm.dashboard.presets.tabProjects') },
     { id: 'leads', label: t('crm.dashboard.presets.tabLeads') },
   ];
+  const tabs = allTabs.filter((x) => allowedTabs[x.id]);
 
   const rows: PresetRow[] = useMemo(() => {
     const saved = loadAnalyticsWidgetsFromStorage(tab);

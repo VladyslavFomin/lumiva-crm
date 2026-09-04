@@ -10,6 +10,7 @@ import {
   type BroadcastStatus,
 } from '../../api/marketing-broadcasts';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 
 const STATUS_BADGE: Record<BroadcastStatus, string> = {
@@ -70,6 +71,7 @@ export const BroadcastsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="marketingBroadcasts" />
       <div className="space-y-5">
         <div className="page-header mb-0">
           <div>

@@ -1,5 +1,6 @@
 // src/api/settings.ts
 import { api } from './client';
+import type { LegalRequisiteItem } from '../legal/legalRequisites';
 
 /**
  * Как backend toRelativeUploadsUrl: полный URL с /uploads/... → /v1/uploads/...
@@ -33,6 +34,12 @@ export interface CompanySettings {
   ownerName?: string | null;
   ownerEmail?: string | null;
   notes?: string | null;
+  /** Реквизиты компании (ИНН/VKN и т.п.) — используются в документах как {ORG_TAX} */
+  documentRequisites?: string | null;
+  /** Ответственный по умолчанию для документов — ключ {MANAGER} */
+  documentManagerName?: string | null;
+  /** Структурированный список реквизитов (заменяет documentRequisites) — ключ {ORG_TAX} */
+  legalRequisites?: LegalRequisiteItem[];
   createdAt: string;
   updatedAt: string;
   /** байты */
@@ -63,6 +70,9 @@ export async function updateCompanySettings(payload: {
   logoUrl?: string | null;
   uiLanguage?: string | null;
   aiWrapperEmailTemplateId?: string | null;
+  documentRequisites?: string | null;
+  documentManagerName?: string | null;
+  legalRequisites?: LegalRequisiteItem[];
 }): Promise<CompanySettings> {
   return api.patch<CompanySettings>('/tenants/settings', payload);
 }

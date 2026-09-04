@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useAlertModal } from '../../contexts/AlertModalContext';
 import { resolvePublicAssetUrl } from '../../api/client';
 import { HotelsSubnav } from './HotelsSubnav';
@@ -56,7 +59,6 @@ import {
   type HotelPeriodPriceSummaryRow,
   type HotelRoomUnit,
   type HotelRoomUnitHousekeepingStatus,
-  HOTEL_ROOM_UNIT_HOUSEKEEPING_LABELS_RU,
 } from '../../api/hotels';
 import './hotels-design.css';
 
@@ -73,6 +75,7 @@ const RoomTypeModal: React.FC<{
   onClose: () => void;
   onSaved: () => void;
 }> = ({ hotelId, initial, onClose, onSaved }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(initial?.name || '');
@@ -84,7 +87,7 @@ const RoomTypeModal: React.FC<{
 
   const handleSave = () => {
     if (!name.trim()) {
-      showAlert('Укажите название типа номера', { variant: 'error' });
+      showAlert(t('crm.hotels.detail.roomTypeModal.nameRequired'), { variant: 'error' });
       return;
     }
     const dto = {
@@ -99,7 +102,7 @@ const RoomTypeModal: React.FC<{
     const req = initial ? updateRoomType(initial.id, dto) : createRoomType(hotelId, dto);
     req
       .then(() => onSaved())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.roomTypeModal.saveError'), { variant: 'error' }))
       .finally(() => setSaving(false));
   };
 
@@ -108,27 +111,27 @@ const RoomTypeModal: React.FC<{
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="bk-modal-head">
-          <h3>{initial ? 'Изменить тип номера' : 'Новый тип номера'}</h3>
+          <h3>{initial ? t('crm.hotels.detail.roomTypeModal.titleEdit') : t('crm.hotels.detail.roomTypeModal.titleNew')}</h3>
           <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
         <div className="bk-modal-body">
-          <label>Название типа</label>
-          <input placeholder="Например, Deluxe Twin" value={name} onChange={(e) => setName(e.target.value)} />
+          <label>{t('crm.hotels.detail.roomTypeModal.nameLabel')}</label>
+          <input placeholder={t('crm.hotels.detail.roomTypeModal.namePlaceholder')} value={name} onChange={(e) => setName(e.target.value)} />
           <div className="bk-row2">
-            <div><label>Площадь, м²</label><input placeholder="28" value={sizeM2 || ''} onChange={(e) => setSizeM2(e.target.value)} /></div>
-            <div><label>Кол-во номеров этого типа</label><input placeholder="18" value={quantity} onChange={(e) => setQuantity(e.target.value)} /></div>
+            <div><label>{t('crm.hotels.detail.roomTypeModal.sizeLabel')}</label><input placeholder="28" value={sizeM2 || ''} onChange={(e) => setSizeM2(e.target.value)} /></div>
+            <div><label>{t('crm.hotels.detail.roomTypeModal.quantityLabel')}</label><input placeholder="18" value={quantity} onChange={(e) => setQuantity(e.target.value)} /></div>
           </div>
           <div className="bk-row2">
-            <div><label>Вместимость</label><input placeholder="2 взрослых + 1 ребёнок" value={capacityLabel || ''} onChange={(e) => setCapacityLabel(e.target.value)} /></div>
-            <div><label>Базовая цена / ночь</label><input placeholder="142" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></div>
+            <div><label>{t('crm.hotels.detail.roomTypeModal.capacityLabel')}</label><input placeholder={t('crm.hotels.detail.roomTypeModal.capacityPlaceholder')} value={capacityLabel || ''} onChange={(e) => setCapacityLabel(e.target.value)} /></div>
+            <div><label>{t('crm.hotels.detail.roomTypeModal.basePriceLabel')}</label><input placeholder="142" value={basePrice} onChange={(e) => setBasePrice(e.target.value)} /></div>
           </div>
-          <label>Удобства (через запятую)</label>
-          <input placeholder="Wi-Fi, Вид на море, Мини-бар" value={amenities} onChange={(e) => setAmenities(e.target.value)} />
+          <label>{t('crm.hotels.detail.roomTypeModal.amenitiesLabel')}</label>
+          <input placeholder={t('crm.hotels.detail.roomTypeModal.amenitiesPlaceholder')} value={amenities} onChange={(e) => setAmenities(e.target.value)} />
         </div>
         <div className="bk-modal-foot">
-          <button className="btn" onClick={onClose}>Отмена</button>
+          <button className="btn" onClick={onClose}>{t('crm.hotels.detail.roomTypeModal.cancel')}</button>
           <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
-            <Ic d={HTL_ICON.check} size={14} />{initial ? 'Сохранить' : 'Создать тип номера'}
+            <Ic d={HTL_ICON.check} size={14} />{initial ? t('crm.hotels.detail.roomTypeModal.save') : t('crm.hotels.detail.roomTypeModal.create')}
           </button>
         </div>
       </div>
@@ -149,27 +152,31 @@ export const HousekeepingBadge: React.FC<{ status: HotelRoomUnitHousekeepingStat
   status,
   onClick,
   title,
-}) => (
-  <span
-    onClick={onClick}
-    title={title || HOTEL_ROOM_UNIT_HOUSEKEEPING_LABELS_RU[status]}
-    style={{
-      display: 'inline-block',
-      width: 8,
-      height: 8,
-      borderRadius: '50%',
-      background: HOUSEKEEPING_COLORS[status],
-      cursor: onClick ? 'pointer' : 'default',
-      flexShrink: 0,
-    }}
-  />
-);
+}) => {
+  const { t } = useTranslation();
+  return (
+    <span
+      onClick={onClick}
+      title={title || t(`crm.hotels.detail.housekeeping.${status}`)}
+      style={{
+        display: 'inline-block',
+        width: 8,
+        height: 8,
+        borderRadius: '50%',
+        background: HOUSEKEEPING_COLORS[status],
+        cursor: onClick ? 'pointer' : 'default',
+        flexShrink: 0,
+      }}
+    />
+  );
+};
 
 const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: HotelRoomUnit[]; onChanged: () => void }> = ({
   roomTypeId,
   units,
   onChanged,
 }) => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [adding, setAdding] = useState(false);
   const [newLabel, setNewLabel] = useState('');
@@ -177,7 +184,7 @@ const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: H
 
   const cycleStatus = (u: HotelRoomUnit) => {
     const next = HOUSEKEEPING_CYCLE[(HOUSEKEEPING_CYCLE.indexOf(u.housekeepingStatus) + 1) % HOUSEKEEPING_CYCLE.length];
-    updateRoomUnitHousekeeping(u.id, next).then(onChanged).catch((e) => showAlert(e.message || 'Не удалось изменить статус', { variant: 'error' }));
+    updateRoomUnitHousekeeping(u.id, next).then(onChanged).catch((e) => showAlert(e.message || t('crm.hotels.detail.roomUnits.statusError'), { variant: 'error' }));
   };
 
   const handleAdd = () => {
@@ -185,23 +192,23 @@ const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: H
     if (!label) { setAdding(false); return; }
     createRoomUnit({ roomTypeId, label })
       .then(() => { setNewLabel(''); setAdding(false); onChanged(); })
-      .catch((e) => showAlert(e.message || 'Не удалось добавить номер', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.roomUnits.addError'), { variant: 'error' }));
   };
 
   const handleRemove = async (u: HotelRoomUnit) => {
-    const ok = await showConfirm(`Удалить номер «${u.label}»?`, { title: 'Удалить номер', confirmLabel: 'Удалить', danger: true });
+    const ok = await showConfirm(t('crm.hotels.detail.roomUnits.removeConfirmBody', { label: u.label }), { title: t('crm.hotels.detail.roomUnits.removeConfirmTitle'), confirmLabel: t('crm.hotels.detail.roomUnits.confirmLabel'), danger: true });
     if (!ok) return;
-    deleteRoomUnit(u.id).then(onChanged).catch((e) => showAlert(e.message || 'Не удалось удалить номер', { variant: 'error' }));
+    deleteRoomUnit(u.id).then(onChanged).catch((e) => showAlert(e.message || t('crm.hotels.detail.roomUnits.removeError'), { variant: 'error' }));
   };
 
   return (
     <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px dashed var(--line-2)' }}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-        <span style={{ fontSize: 11, color: 'var(--fg-3)', marginRight: 2 }}>Номера:</span>
+        <span style={{ fontSize: 11, color: 'var(--fg-3)', marginRight: 2 }}>{t('crm.hotels.detail.roomUnits.label')}</span>
         {activeUnits.map((u) => (
           <span
             key={u.id}
-            title={`${u.label} — ${HOTEL_ROOM_UNIT_HOUSEKEEPING_LABELS_RU[u.housekeepingStatus]} (клик — сменить статус)`}
+            title={t('crm.hotels.detail.roomUnits.statusChangeHint', { label: u.label, status: t(`crm.hotels.detail.housekeeping.${u.housekeepingStatus}`) })}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, background: 'var(--surface-2)', border: '1px solid var(--line-2)', borderRadius: 999, padding: '2px 7px' }}
           >
             <HousekeepingBadge status={u.housekeepingStatus} onClick={() => cycleStatus(u)} />
@@ -209,7 +216,7 @@ const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: H
             <button
               type="button"
               onClick={() => handleRemove(u)}
-              title="Удалить номер"
+              title={t('crm.hotels.detail.roomUnits.removeTitle')}
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: '#9a1f31', display: 'flex' }}
             >
               <Ic d={HTL_ICON.x} size={10} />
@@ -219,7 +226,7 @@ const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: H
         {adding ? (
           <input
             autoFocus
-            placeholder="204"
+            placeholder={t('crm.hotels.detail.roomUnits.addPlaceholder')}
             value={newLabel}
             onChange={(e) => setNewLabel(e.target.value)}
             onKeyDown={(e) => {
@@ -233,7 +240,7 @@ const RoomUnitsSection: React.FC<{ hotelId: string; roomTypeId: string; units: H
           <button
             type="button"
             onClick={() => setAdding(true)}
-            title="Добавить номер"
+            title={t('crm.hotels.detail.roomUnits.addTitle')}
             style={{ display: 'inline-flex', alignItems: 'center', background: 'none', border: '1px dashed var(--line-2)', borderRadius: 999, padding: '2px 7px', cursor: 'pointer', color: 'var(--fg-3)' }}
           >
             <Ic d={HTL_ICON.plus} size={10} />
@@ -249,6 +256,7 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
   roomTypes,
   onChanged,
 }) => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const navigate = useNavigate();
   const [modalState, setModalState] = useState<'new' | HotelRoomType | null>(null);
@@ -269,43 +277,43 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
     const n = Math.max(0, parseInt(val, 10) || 0);
     updateRoomType(id, { quantity: n })
       .then(() => onChanged())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.roomsTab.saveError'), { variant: 'error' }))
       .finally(() => setEditingQty(null));
   };
 
   const handleDelete = async (r: HotelRoomType) => {
-    const ok = await showConfirm(`Удалить тип номера «${r.name}»? Это действие нельзя отменить.`, {
-      title: 'Удалить тип номера',
-      confirmLabel: 'Удалить',
+    const ok = await showConfirm(t('crm.hotels.detail.roomsTab.deleteConfirmBody', { name: r.name }), {
+      title: t('crm.hotels.detail.roomsTab.deleteConfirmTitle'),
+      confirmLabel: t('crm.hotels.detail.roomsTab.confirmLabel'),
       danger: true,
     });
     if (!ok) return;
     deleteRoomType(r.id)
       .then(() => onChanged())
-      .catch((e) => showAlert(e.message || 'Не удалось удалить тип номера', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.roomsTab.deleteError'), { variant: 'error' }));
   };
 
   const toggleStopSale = (r: HotelRoomType) => {
     updateRoomType(r.id, { stopSale: !r.stopSale })
       .then(() => onChanged())
-      .catch((e) => showAlert(e.message || 'Не удалось изменить стоп-продажу', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.roomsTab.toggleStopError'), { variant: 'error' }));
   };
 
   const coverInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const handleCoverFile = (r: HotelRoomType, file: File) => {
     uploadRoomTypeCover(r.id, file)
       .then(() => onChanged())
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.roomsTab.uploadError'), { variant: 'error' }));
   };
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
         <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>
-          {roomTypes.length} типа номеров · <b style={{ color: 'var(--ink)' }}>{totalRooms}</b> номеров всего
+          {t('crm.hotels.detail.roomsTab.countSummary', { count: roomTypes.length, total: totalRooms })}
         </div>
         <button className="btn btn-primary btn-sm" onClick={() => setModalState('new')}>
-          <Ic d={HTL_ICON.plus} size={13} />Тип номера
+          <Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.detail.roomsTab.addType')}
         </button>
       </div>
 
@@ -317,11 +325,11 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
               style={r.coverPhotoUrl ? { backgroundImage: `url(${resolvePublicAssetUrl(r.coverPhotoUrl)})` } : undefined}
               onClick={() => coverInputRefs.current[r.id]?.click()}
             >
-              {!r.coverPhotoUrl && <span className="rm-card-photo-placeholder"><Ic d={HTL_ICON.plus} size={16} />Добавить фото</span>}
+              {!r.coverPhotoUrl && <span className="rm-card-photo-placeholder"><Ic d={HTL_ICON.plus} size={16} />{t('crm.hotels.detail.roomsTab.addPhotoPlaceholder')}</span>}
               <button
                 type="button"
                 className="rm-card-photo-btn"
-                title="Изменить фото"
+                title={t('crm.hotels.detail.roomsTab.changePhotoTitle')}
                 onClick={(e) => { e.stopPropagation(); coverInputRefs.current[r.id]?.click(); }}
               >
                 <Ic d={HTL_ICON.pencil} size={12} />
@@ -342,40 +350,40 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
               <div>
                 <div className="rm-card-name">
                   {r.name}
-                  {r.stopSale && <span className="ppt-stop-badge" style={{ marginLeft: 8 }}>СТОП-ПРОДАЖА</span>}
+                  {r.stopSale && <span className="ppt-stop-badge" style={{ marginLeft: 8 }}>{t('crm.hotels.detail.roomsTab.stopBadge')}</span>}
                 </div>
                 <div className="rm-card-meta">{r.sizeM2 ? `${r.sizeM2} м² · ` : ''}{r.capacityLabel}</div>
               </div>
               <div style={{ display: 'flex', gap: 4 }}>
                 <button
                   style={{ background: 'none', border: 'none', color: r.stopSale ? '#d64545' : 'var(--fg-3)', cursor: 'pointer' }}
-                  title={r.stopSale ? 'Снять стоп-продажу' : 'Поставить стоп-продажу на весь тип номера'}
+                  title={r.stopSale ? t('crm.hotels.detail.roomsTab.unstopTitle') : t('crm.hotels.detail.roomsTab.stopTitle')}
                   onClick={() => toggleStopSale(r)}
                 >
                   <Ic d={HTL_ICON.ban} size={14} />
                 </button>
                 <button
                   style={{ background: 'none', border: 'none', color: 'var(--fg-3)', cursor: 'pointer' }}
-                  title="Изменить"
+                  title={t('crm.hotels.detail.roomsTab.editTitle')}
                   onClick={() => setModalState(r)}
                 >
                   <Ic d={HTL_ICON.pencil} size={14} />
                 </button>
                 <button
                   style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer' }}
-                  title="Удалить"
+                  title={t('crm.hotels.detail.roomsTab.deleteTitle')}
                   onClick={() => handleDelete(r)}
                 >
                   <Ic d={HTL_ICON.x} size={14} />
                 </button>
               </div>
             </div>
-            <div className="rm-card-price">${r.basePrice}<small>/ ночь, база</small></div>
-            <div className="rm-card-tags">{r.amenities.map((t) => <span key={t} className="rm-tag">{t}</span>)}</div>
+            <div className="rm-card-price">${r.basePrice}<small>{t('crm.hotels.detail.roomsTab.perNightBase')}</small></div>
+            <div className="rm-card-tags">{r.amenities.map((tg) => <span key={tg} className="rm-tag">{tg}</span>)}</div>
             <div className="rm-card-foot">
               {editingQty === r.id ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>Кол-во номеров:</span>
+                  <span style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>{t('crm.hotels.detail.roomsTab.quantityLabel')}</span>
                   <input
                     autoFocus
                     type="number"
@@ -392,13 +400,13 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
                 <span
                   style={{ fontSize: 11.5, color: 'var(--fg-3)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}
                   onClick={() => setEditingQty(r.id)}
-                  title="Изменить количество номеров"
+                  title={t('crm.hotels.detail.roomsTab.editQuantityTitle')}
                 >
-                  Кол-во номеров: <b style={{ color: 'var(--ink)' }}>{r.quantity}</b>
+                  {t('crm.hotels.detail.roomsTab.quantityLabel')} <b style={{ color: 'var(--ink)' }}>{r.quantity}</b>
                   <Ic d={HTL_ICON.pencil} size={12} />
                 </span>
               )}
-              <button className="btn btn-sm" onClick={() => navigate(`/hotels/room-types/${r.id}/pricing`)}>Редактировать цены</button>
+              <button className="btn btn-sm" onClick={() => navigate(`/hotels/room-types/${r.id}/pricing`)}>{t('crm.hotels.detail.roomsTab.editPrices')}</button>
             </div>
             <RoomUnitsSection
               hotelId={hotelId}
@@ -426,6 +434,7 @@ const RoomsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[]; onChange
 };
 
 const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({ hotelId, roomTypes }) => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [markets, setMarkets] = useState<HotelMarket[]>([]);
   const [pricesByRoom, setPricesByRoom] = useState<Record<string, HotelRoomMarketPrice[]>>({});
@@ -437,10 +446,10 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
   const load = () => {
     fetchMarkets(hotelId)
       .then(setMarkets)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить рынки', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.loadMarketsError'), { variant: 'error' }));
     Promise.all(roomTypes.map((r) => fetchMarketPrices(r.id).then((p) => [r.id, p] as const)))
       .then((pairs) => setPricesByRoom(Object.fromEntries(pairs)))
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить цены', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.loadPricesError'), { variant: 'error' }));
   };
 
   useEffect(() => {
@@ -462,12 +471,12 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
           return { ...prev, [roomId]: list };
         });
       })
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить цену', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.saveCellError'), { variant: 'error' }));
   };
 
   const addMarket = () => {
     if (!newMarketCode.trim() || !newMarketName.trim()) {
-      showAlert('Укажите код и название рынка', { variant: 'error' });
+      showAlert(t('crm.hotels.detail.marketsTab.addModal.required'), { variant: 'error' });
       return;
     }
     createMarket(hotelId, { code: newMarketCode, name: newMarketName })
@@ -477,7 +486,7 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
         setNewMarketName('');
         load();
       })
-      .catch((e) => showAlert(e.message || 'Не удалось добавить рынок', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.addError'), { variant: 'error' }));
   };
 
   const renameMarket = (id: string, name: string) => {
@@ -487,34 +496,34 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
     }
     updateMarket(id, { name })
       .then(() => load())
-      .catch((e) => showAlert(e.message || 'Не удалось переименовать рынок', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.renameError'), { variant: 'error' }))
       .finally(() => setEditingMarketId(null));
   };
 
   const removeMarket = async (m: HotelMarket) => {
-    const ok = await showConfirm(`Удалить рынок «${m.name}»? Цены по этому рынку будут удалены.`, {
-      title: 'Удалить рынок',
-      confirmLabel: 'Удалить',
+    const ok = await showConfirm(t('crm.hotels.detail.marketsTab.deleteConfirmBody', { name: m.name }), {
+      title: t('crm.hotels.detail.marketsTab.deleteConfirmTitle'),
+      confirmLabel: t('crm.hotels.detail.marketsTab.confirmLabel'),
       danger: true,
     });
     if (!ok) return;
     deleteMarket(m.id)
       .then(() => load())
-      .catch((e) => showAlert(e.message || 'Не удалось удалить рынок', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.marketsTab.deleteError'), { variant: 'error' }));
   };
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, flexWrap: 'wrap', gap: 10 }}>
-        <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>Разные цены для разных рынков продаж. База — внутренний рынок.</div>
-        <button className="btn btn-sm" onClick={() => setShowAddMarket(true)}><Ic d={HTL_ICON.plus} size={13} />Добавить рынок</button>
+        <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{t('crm.hotels.detail.marketsTab.subtitle')}</div>
+        <button className="btn btn-sm" onClick={() => setShowAddMarket(true)}><Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.detail.marketsTab.addMarket')}</button>
       </div>
       <div className="mkt-table-wrap">
         <table className="mkt-table">
           <thead>
             <tr>
-              <th>Тип номера</th>
-              <th>База ($)</th>
+              <th>{t('crm.hotels.detail.marketsTab.colRoomType')}</th>
+              <th>{t('crm.hotels.detail.marketsTab.colBase')}</th>
               {markets.map((m) => (
                 <th key={m.id}>
                   {editingMarketId === m.id ? (
@@ -531,10 +540,10 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
                   ) : (
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                       <span className="mkt-flag">{m.code.toUpperCase()}</span>
-                      <span style={{ cursor: 'pointer' }} onClick={() => setEditingMarketId(m.id)} title="Переименовать">{m.name}</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => setEditingMarketId(m.id)} title={t('crm.hotels.detail.marketsTab.rename')}>{m.name}</span>
                       <button
                         style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}
-                        title="Удалить рынок"
+                        title={t('crm.hotels.detail.marketsTab.deleteTitle')}
                         onClick={() => removeMarket(m)}
                       >
                         ×
@@ -575,18 +584,18 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
           <div className="bk-modal-back" onClick={() => setShowAddMarket(false)} />
           <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
             <div className="bk-modal-head">
-              <h3>Новый рынок</h3>
+              <h3>{t('crm.hotels.detail.marketsTab.addModal.title')}</h3>
               <button onClick={() => setShowAddMarket(false)}><Ic d={HTL_ICON.x} size={16} /></button>
             </div>
             <div className="bk-modal-body">
-              <label>Код (напр. DE, RU, UK)</label>
+              <label>{t('crm.hotels.detail.marketsTab.addModal.codeLabel')}</label>
               <input value={newMarketCode} onChange={(e) => setNewMarketCode(e.target.value)} />
-              <label>Название</label>
+              <label>{t('crm.hotels.detail.marketsTab.addModal.nameLabel')}</label>
               <input value={newMarketName} onChange={(e) => setNewMarketName(e.target.value)} />
             </div>
             <div className="bk-modal-foot">
-              <button className="btn" onClick={() => setShowAddMarket(false)}>Отмена</button>
-              <button className="btn btn-primary" onClick={addMarket}><Ic d={HTL_ICON.check} size={14} />Добавить</button>
+              <button className="btn" onClick={() => setShowAddMarket(false)}>{t('crm.hotels.detail.marketsTab.addModal.cancel')}</button>
+              <button className="btn btn-primary" onClick={addMarket}><Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.detail.marketsTab.addModal.submit')}</button>
             </div>
           </div>
         </div>
@@ -595,37 +604,37 @@ const MarketsTab: React.FC<{ hotelId: string; roomTypes: HotelRoomType[] }> = ({
   );
 };
 
-const HOTEL_INFO_FIELDS: Array<{ key: string; label: string; type: 'text' | 'bool' }> = [
-  { key: 'yearOpened', label: 'Год открытия', type: 'text' },
-  { key: 'lastRenovation', label: 'Последняя реновация', type: 'text' },
-  { key: 'category', label: 'Категория', type: 'text' },
-  { key: 'concept', label: 'Концепция', type: 'text' },
-  { key: 'heatingCooling', label: 'Отопление и охлаждение', type: 'text' },
-  { key: 'totalAreaM2', label: 'Общая площадь', type: 'text' },
-  { key: 'investor', label: 'Инвестор', type: 'text' },
-  { key: 'accessibility', label: 'Для гостей с ограниченными возможностями', type: 'text' },
-  { key: 'conferenceHalls', label: 'Конференц-залы', type: 'text' },
-  { key: 'parking', label: 'Парковка', type: 'text' },
-  { key: 'creditCards', label: 'Кредитные карты', type: 'text' },
-  { key: 'elevators', label: 'Лифт', type: 'text' },
-  { key: 'petsHookahPolicy', label: 'Домашние животные/Кальян', type: 'text' },
-  { key: 'phone1', label: 'Телефон', type: 'text' },
-  { key: 'phone2', label: 'Телефон 2', type: 'text' },
-  { key: 'email1', label: 'Эл. Почта 1', type: 'text' },
-  { key: 'email2', label: 'Эл. Почта 2', type: 'text' },
-  { key: 'website', label: 'Веб сайт', type: 'text' },
-  { key: 'airportDistance', label: 'Аэропорт', type: 'text' },
-  { key: 'cityCenterDistance', label: 'Центр города', type: 'text' },
-  { key: 'nearestTown', label: 'Ближайший населённый пункт', type: 'text' },
-  { key: 'transport', label: 'Транспорт', type: 'text' },
-  { key: 'buildingsCount', label: 'Количество зданий', type: 'text' },
-  { key: 'floorsCount', label: 'Количество этажей', type: 'text' },
-  { key: 'roomsBreakdown', label: 'Количество номеров', type: 'text' },
-  { key: 'bedsBreakdown', label: 'Количество кроватей', type: 'text' },
-  { key: 'disabledAccessRooms', label: 'Номера для гостей с ОВ', type: 'text' },
-  { key: 'beachDescription', label: 'Расположение пляжа', type: 'text' },
-  { key: 'beachLength', label: 'Протяжённость пляжа', type: 'text' },
-  { key: 'poolsDescription', label: 'Бассейны (названия, площадь)', type: 'text' },
+const HOTEL_INFO_FIELD_KEYS: Array<{ key: string; type: 'text' | 'bool' }> = [
+  { key: 'yearOpened', type: 'text' },
+  { key: 'lastRenovation', type: 'text' },
+  { key: 'category', type: 'text' },
+  { key: 'concept', type: 'text' },
+  { key: 'heatingCooling', type: 'text' },
+  { key: 'totalAreaM2', type: 'text' },
+  { key: 'investor', type: 'text' },
+  { key: 'accessibility', type: 'text' },
+  { key: 'conferenceHalls', type: 'text' },
+  { key: 'parking', type: 'text' },
+  { key: 'creditCards', type: 'text' },
+  { key: 'elevators', type: 'text' },
+  { key: 'petsHookahPolicy', type: 'text' },
+  { key: 'phone1', type: 'text' },
+  { key: 'phone2', type: 'text' },
+  { key: 'email1', type: 'text' },
+  { key: 'email2', type: 'text' },
+  { key: 'website', type: 'text' },
+  { key: 'airportDistance', type: 'text' },
+  { key: 'cityCenterDistance', type: 'text' },
+  { key: 'nearestTown', type: 'text' },
+  { key: 'transport', type: 'text' },
+  { key: 'buildingsCount', type: 'text' },
+  { key: 'floorsCount', type: 'text' },
+  { key: 'roomsBreakdown', type: 'text' },
+  { key: 'bedsBreakdown', type: 'text' },
+  { key: 'disabledAccessRooms', type: 'text' },
+  { key: 'beachDescription', type: 'text' },
+  { key: 'beachLength', type: 'text' },
+  { key: 'poolsDescription', type: 'text' },
 ];
 
 interface BlockColumnDef {
@@ -633,56 +642,58 @@ interface BlockColumnDef {
   label: string;
 }
 
-const FACTSHEET_BLOCK_DEFS: Array<{ kind: HotelFactsheetItemKind; title: string; columns: BlockColumnDef[] }> = [
-  {
-    kind: 'restaurant',
-    title: 'Рестораны',
-    columns: [
-      { key: 'name', label: 'Название' },
-      { key: 'extra.mealType', label: 'Питание' },
-      { key: 'description', label: 'Описание' },
-      { key: 'hours', label: 'Часы работы' },
-    ],
-  },
-  {
-    kind: 'bar',
-    title: 'Бары',
-    columns: [
-      { key: 'name', label: 'Название' },
-      { key: 'description', label: 'Описание' },
-      { key: 'hours', label: 'Часы работы' },
-    ],
-  },
-  {
-    kind: 'pool',
-    title: 'Бассейны',
-    columns: [
-      { key: 'name', label: 'Название' },
-      { key: 'extra.areaM2', label: 'Площадь' },
-      { key: 'extra.depth', label: 'Глубина' },
-      { key: 'description', label: 'Описание' },
-      { key: 'hours', label: 'Часы работы' },
-    ],
-  },
-  {
-    kind: 'miniclub',
-    title: 'Мини-клуб',
-    columns: [
-      { key: 'name', label: 'Возрастная группа' },
-      { key: 'description', label: 'Активности' },
-      { key: 'hours', label: 'Часы работы' },
-    ],
-  },
-  {
-    kind: 'service',
-    title: 'Услуги',
-    columns: [
-      { key: 'name', label: 'Название' },
-      { key: 'description', label: 'Описание' },
-      { key: 'paid', label: 'Платно' },
-    ],
-  },
-];
+function getFactsheetBlockDefs(t: TFunction): Array<{ kind: HotelFactsheetItemKind; title: string; columns: BlockColumnDef[] }> {
+  return [
+    {
+      kind: 'restaurant',
+      title: t('crm.hotels.detail.factsheet.restaurant.title'),
+      columns: [
+        { key: 'name', label: t('crm.hotels.detail.factsheet.restaurant.colName') },
+        { key: 'extra.mealType', label: t('crm.hotels.detail.factsheet.restaurant.colMealType') },
+        { key: 'description', label: t('crm.hotels.detail.factsheet.restaurant.colDescription') },
+        { key: 'hours', label: t('crm.hotels.detail.factsheet.restaurant.colHours') },
+      ],
+    },
+    {
+      kind: 'bar',
+      title: t('crm.hotels.detail.factsheet.bar.title'),
+      columns: [
+        { key: 'name', label: t('crm.hotels.detail.factsheet.bar.colName') },
+        { key: 'description', label: t('crm.hotels.detail.factsheet.bar.colDescription') },
+        { key: 'hours', label: t('crm.hotels.detail.factsheet.bar.colHours') },
+      ],
+    },
+    {
+      kind: 'pool',
+      title: t('crm.hotels.detail.factsheet.pool.title'),
+      columns: [
+        { key: 'name', label: t('crm.hotels.detail.factsheet.pool.colName') },
+        { key: 'extra.areaM2', label: t('crm.hotels.detail.factsheet.pool.colArea') },
+        { key: 'extra.depth', label: t('crm.hotels.detail.factsheet.pool.colDepth') },
+        { key: 'description', label: t('crm.hotels.detail.factsheet.pool.colDescription') },
+        { key: 'hours', label: t('crm.hotels.detail.factsheet.pool.colHours') },
+      ],
+    },
+    {
+      kind: 'miniclub',
+      title: t('crm.hotels.detail.factsheet.miniclub.title'),
+      columns: [
+        { key: 'name', label: t('crm.hotels.detail.factsheet.miniclub.colAgeGroup') },
+        { key: 'description', label: t('crm.hotels.detail.factsheet.miniclub.colActivities') },
+        { key: 'hours', label: t('crm.hotels.detail.factsheet.miniclub.colHours') },
+      ],
+    },
+    {
+      kind: 'service',
+      title: t('crm.hotels.detail.factsheet.service.title'),
+      columns: [
+        { key: 'name', label: t('crm.hotels.detail.factsheet.service.colName') },
+        { key: 'description', label: t('crm.hotels.detail.factsheet.service.colDescription') },
+        { key: 'paid', label: t('crm.hotels.detail.factsheet.service.colPaid') },
+      ],
+    },
+  ];
+}
 
 function getColVal(item: HotelFactsheetItem, col: BlockColumnDef): string {
   if (col.key === 'name') return item.name;
@@ -711,6 +722,7 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
   title,
   columns,
 }) => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [items, setItems] = useState<HotelFactsheetItem[]>([]);
   const [draft, setDraft] = useState<Record<string, string>>({});
@@ -719,7 +731,7 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
   const load = () => {
     fetchFactsheetItems(hotelId, kind)
       .then(setItems)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить данные', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.factsheet.loadError'), { variant: 'error' }));
   };
 
   useEffect(() => {
@@ -735,24 +747,24 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
       : { extra: { ...item.extra, [col.key.slice('extra.'.length)]: val } };
     updateFactsheetItem(item.id, patch)
       .then(load)
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.factsheet.saveError'), { variant: 'error' }));
   };
 
   const togglePaid = (item: HotelFactsheetItem) => {
     updateFactsheetItem(item.id, { paid: !item.paid })
       .then(load)
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.factsheet.saveError'), { variant: 'error' }));
   };
 
   const removeRow = async (item: HotelFactsheetItem) => {
-    const ok = await showConfirm(`Удалить «${item.name}»?`, { title: 'Удалить запись', confirmLabel: 'Удалить', danger: true });
+    const ok = await showConfirm(t('crm.hotels.detail.factsheet.deleteConfirmBody', { name: item.name }), { title: t('crm.hotels.detail.factsheet.deleteConfirmTitle'), confirmLabel: t('crm.hotels.detail.factsheet.confirmLabel'), danger: true });
     if (!ok) return;
-    removeFactsheetItem(item.id).then(load).catch((e) => showAlert(e.message || 'Не удалось удалить', { variant: 'error' }));
+    removeFactsheetItem(item.id).then(load).catch((e) => showAlert(e.message || t('crm.hotels.detail.factsheet.deleteError'), { variant: 'error' }));
   };
 
   const addRow = () => {
     if (!draft.name?.trim()) {
-      showAlert('Укажите название', { variant: 'error' });
+      showAlert(t('crm.hotels.detail.factsheet.nameRequired'), { variant: 'error' });
       return;
     }
     createFactsheetItem(hotelId, buildItemInput(kind, draft, columns))
@@ -761,7 +773,7 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
         setAdding(false);
         load();
       })
-      .catch((e) => showAlert(e.message || 'Не удалось добавить', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.factsheet.addError'), { variant: 'error' }));
   };
 
   return (
@@ -799,7 +811,7 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
                 <td>
                   <button
                     style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer' }}
-                    title="Удалить"
+                    title={t('crm.hotels.detail.factsheet.delete')}
                     onClick={() => removeRow(item)}
                   >
                     <Ic d={HTL_ICON.x} size={13} />
@@ -830,7 +842,7 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
                   </td>
                 ))}
                 <td>
-                  <button style={{ background: 'none', border: 'none', color: '#1f8a5e', cursor: 'pointer' }} onClick={addRow} title="Добавить">
+                  <button style={{ background: 'none', border: 'none', color: '#1f8a5e', cursor: 'pointer' }} onClick={addRow} title={t('crm.hotels.detail.factsheet.add')}>
                     <Ic d={HTL_ICON.check} size={14} />
                   </button>
                 </td>
@@ -841,7 +853,7 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
       </div>
       {!adding && (
         <div className="occ-add-row">
-          <button className="btn btn-sm" onClick={() => setAdding(true)}><Ic d={HTL_ICON.plus} size={12} />Добавить</button>
+          <button className="btn btn-sm" onClick={() => setAdding(true)}><Ic d={HTL_ICON.plus} size={12} />{t('crm.hotels.detail.factsheet.add')}</button>
         </div>
       )}
     </div>
@@ -849,15 +861,17 @@ const FactsheetBlockSection: React.FC<{ hotelId: string; kind: HotelFactsheetIte
 };
 
 const HotelInfoImportModal: React.FC<{ hotelId: string; onClose: () => void; onApplied: () => void }> = ({ hotelId, onClose, onApplied }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [preview, setPreview] = useState<HotelInfoImportPreview | null>(null);
   const [applying, setApplying] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const factsheetBlockDefs = useMemo(() => getFactsheetBlockDefs(t), [t]);
 
   const handleFile = (file: File) => {
     previewHotelInfoImport(file)
       .then(setPreview)
-      .catch((e) => showAlert(e.message || 'Не удалось прочитать файл', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.importModal.readError'), { variant: 'error' }));
   };
 
   const apply = () => {
@@ -865,7 +879,7 @@ const HotelInfoImportModal: React.FC<{ hotelId: string; onClose: () => void; onA
     setApplying(true);
     applyHotelInfoImport({ importId: preview.importId, hotelId })
       .then(() => { onApplied(); onClose(); })
-      .catch((e) => showAlert(e.message || 'Не удалось применить импорт', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.importModal.applyError'), { variant: 'error' }))
       .finally(() => setApplying(false));
   };
 
@@ -874,7 +888,7 @@ const HotelInfoImportModal: React.FC<{ hotelId: string; onClose: () => void; onA
       <div className="bk-modal-back" onClick={onClose} />
       <div className="bk-modal" onClick={(e) => e.stopPropagation()}>
         <div className="bk-modal-head">
-          <h3>Импорт данных отеля из Excel</h3>
+          <h3>{t('crm.hotels.detail.importModal.title')}</h3>
           <button onClick={onClose}><Ic d={HTL_ICON.x} size={16} /></button>
         </div>
         <div className="bk-modal-body">
@@ -883,7 +897,7 @@ const HotelInfoImportModal: React.FC<{ hotelId: string; onClose: () => void; onA
               onClick={() => inputRef.current?.click()}
               style={{ border: '1.5px dashed var(--line-2)', borderRadius: 10, padding: 24, textAlign: 'center', cursor: 'pointer', color: 'var(--fg-3)', fontSize: 12.5 }}
             >
-              Выберите файл .xlsx (скачайте шаблон через «Скачать Excel», заполните и загрузите обратно)
+              {t('crm.hotels.detail.importModal.dropHint')}
               <input
                 ref={inputRef}
                 type="file"
@@ -894,23 +908,23 @@ const HotelInfoImportModal: React.FC<{ hotelId: string; onClose: () => void; onA
             </div>
           ) : (
             <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
-              <div>Общих полей найдено: <b>{preview.infoFieldsCount}</b></div>
-              {FACTSHEET_BLOCK_DEFS.map((b) => (
+              <div>{t('crm.hotels.detail.importModal.fieldsFoundPrefix')} <b>{preview.infoFieldsCount}</b></div>
+              {factsheetBlockDefs.map((b) => (
                 <div key={b.kind}>{b.title}: <b>{preview.itemCounts[b.kind] || 0}</b></div>
               ))}
               {preview.unmatchedLabels.length > 0 && (
                 <div style={{ marginTop: 8, color: '#a06b1a' }}>
-                  Не распознаны подписи: {preview.unmatchedLabels.join(', ')}
+                  {t('crm.hotels.detail.importModal.unmatchedLabelsPrefix')} {preview.unmatchedLabels.join(', ')}
                 </div>
               )}
             </div>
           )}
         </div>
         <div className="bk-modal-foot">
-          <button className="btn" onClick={onClose}>Отмена</button>
+          <button className="btn" onClick={onClose}>{t('crm.hotels.detail.importModal.cancel')}</button>
           {preview && (
             <button className="btn btn-primary" disabled={applying} onClick={apply}>
-              <Ic d={HTL_ICON.check} size={14} />Применить
+              <Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.detail.importModal.apply')}
             </button>
           )}
         </div>
@@ -920,6 +934,7 @@ const HotelInfoImportModal: React.FC<{ hotelId: string; onClose: () => void; onA
 };
 
 const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, onSaved }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [data, setData] = useState<Record<string, string | boolean>>(hotel.infoFields || {});
   const [showImport, setShowImport] = useState(false);
@@ -928,6 +943,7 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
   const [riskBad, setRiskBad] = useState(hotel.riskThresholdBadPct ?? '');
   const [riskWarn, setRiskWarn] = useState(hotel.riskThresholdWarnPct ?? '');
   const [savingPricingSettings, setSavingPricingSettings] = useState(false);
+  const factsheetBlockDefs = useMemo(() => getFactsheetBlockDefs(t), [t]);
 
   useEffect(() => setData(hotel.infoFields || {}), [hotel]);
   useEffect(() => {
@@ -939,7 +955,7 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
   const update = (key: string, val: string | boolean) => {
     const next = { ...data, [key]: val };
     setData(next);
-    updateHotelInfo(hotel.id, { [key]: val }).then(onSaved).catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }));
+    updateHotelInfo(hotel.id, { [key]: val }).then(onSaved).catch((e) => showAlert(e.message || t('crm.hotels.detail.infoTab.saveError'), { variant: 'error' }));
   };
 
   const savePricingSettings = () => {
@@ -950,18 +966,18 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
       riskThresholdWarnPct: riskWarn || null,
     })
       .then(() => onSaved())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.infoTab.saveError'), { variant: 'error' }))
       .finally(() => setSavingPricingSettings(false));
   };
 
   return (
     <div>
       <div className="ha-section-head" style={{ marginBottom: 10 }}>
-        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Аналитика и риски</div>
+        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{t('crm.hotels.detail.infoTab.analyticsTitle')}</div>
       </div>
       <div style={{ maxWidth: 520, marginBottom: 24 }}>
         <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
-          Плановая выручка на сезон ({hotel.currency})
+          {t('crm.hotels.detail.infoTab.revenueTargetLabel', { currency: hotel.currency })}
         </label>
         <input
           value={revenueTarget}
@@ -971,51 +987,51 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
         <div className="bk-row2">
           <div>
             <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
-              Риск: низкая загрузка ниже, %
+              {t('crm.hotels.detail.infoTab.riskBadLabel')}
             </label>
             <input
               value={riskBad}
               onChange={(e) => setRiskBad(e.target.value)}
-              placeholder="45 (по умолчанию)"
+              placeholder={t('crm.hotels.detail.infoTab.riskBadPlaceholder')}
               style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
             />
           </div>
           <div>
             <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>
-              Риск: внимание ниже, %
+              {t('crm.hotels.detail.infoTab.riskWarnLabel')}
             </label>
             <input
               value={riskWarn}
               onChange={(e) => setRiskWarn(e.target.value)}
-              placeholder="65 (по умолчанию)"
+              placeholder={t('crm.hotels.detail.infoTab.riskWarnPlaceholder')}
               style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--line-2)', borderRadius: 8 }}
             />
           </div>
         </div>
         <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
           <button className="btn btn-sm btn-primary" disabled={savingPricingSettings} onClick={savePricingSettings}>
-            <Ic d={HTL_ICON.check} size={13} />Сохранить
+            <Ic d={HTL_ICON.check} size={13} />{t('crm.hotels.detail.infoTab.save')}
           </button>
         </div>
       </div>
 
       <div className="ha-section-head" style={{ marginBottom: 10 }}>
-        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Фактшит</div>
+        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{t('crm.hotels.detail.infoTab.factsheetTitle')}</div>
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 12 }}>
-        <button className="btn btn-sm" onClick={() => exportHotelInfo(hotel.id, hotel.name).catch((e) => showAlert(e.message || 'Не удалось экспортировать', { variant: 'error' }))}>
-          <Ic d={HTL_ICON.download} size={13} />Скачать Excel
+        <button className="btn btn-sm" onClick={() => exportHotelInfo(hotel.id, hotel.name).catch((e) => showAlert(e.message || t('crm.hotels.detail.infoTab.exportError'), { variant: 'error' }))}>
+          <Ic d={HTL_ICON.download} size={13} />{t('crm.hotels.detail.infoTab.downloadExcel')}
         </button>
         <button className="btn btn-sm" onClick={() => setShowImport(true)}>
-          <Ic d={HTL_ICON.plus} size={13} />Загрузить Excel
+          <Ic d={HTL_ICON.plus} size={13} />{t('crm.hotels.detail.infoTab.uploadExcel')}
         </button>
       </div>
       <div className="occ-wrap">
         <table className="occ-table info-table">
           <tbody>
-            {HOTEL_INFO_FIELDS.map((f) => (
+            {HOTEL_INFO_FIELD_KEYS.map((f) => (
               <tr key={f.key}>
-                <td className="occ-name" style={{ width: 280 }}>{f.label}</td>
+                <td className="occ-name" style={{ width: 280 }}>{t(`crm.hotels.detail.infoFields.${f.key}`)}</td>
                 <td className="price-cell" style={{ textAlign: 'left' }}>
                   {f.type === 'bool' ? (
                     <button className={`bool-toggle${data[f.key] ? ' on' : ''}`} onClick={() => update(f.key, !data[f.key])}>
@@ -1035,7 +1051,7 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
         </table>
       </div>
 
-      {FACTSHEET_BLOCK_DEFS.map((b) => (
+      {factsheetBlockDefs.map((b) => (
         <FactsheetBlockSection key={`${b.kind}-${blocksKey}`} hotelId={hotel.id} kind={b.kind} title={b.title} columns={b.columns} />
       ))}
 
@@ -1051,6 +1067,7 @@ const HotelInfoTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, 
 };
 
 const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
+  const { t } = useTranslation();
   const { showAlert, showConfirm } = useAlertModal();
   const [categories, setCategories] = useState<HotelGalleryCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | 'all' | 'none'>('all');
@@ -1064,12 +1081,12 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
   const loadCategories = () => {
     fetchGalleryCategories(hotelId)
       .then(setCategories)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить категории', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.gallery.loadCategoriesError'), { variant: 'error' }));
   };
   const loadPhotos = () => {
     fetchGalleryPhotos(hotelId, {})
       .then(setPhotos)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.gallery.loadPhotosError'), { variant: 'error' }));
   };
 
   useEffect(() => {
@@ -1093,21 +1110,21 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
         loadCategories();
         setActiveCategoryId(c.id);
       })
-      .catch((e) => showAlert(e.message || 'Не удалось добавить категорию', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.gallery.addCategoryError'), { variant: 'error' }));
   };
 
   const renameCategory = (id: string, name: string) => {
     if (!name.trim()) { setEditingCatId(null); return; }
     renameGalleryCategory(id, name)
       .then(() => loadCategories())
-      .catch((e) => showAlert(e.message || 'Не удалось переименовать категорию', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.gallery.renameCategoryError'), { variant: 'error' }))
       .finally(() => setEditingCatId(null));
   };
 
   const removeCat = async (c: HotelGalleryCategory) => {
-    const ok = await showConfirm(`Удалить категорию «${c.name}»? Фото останутся, но станут без категории.`, {
-      title: 'Удалить категорию',
-      confirmLabel: 'Удалить',
+    const ok = await showConfirm(t('crm.hotels.detail.gallery.deleteCategoryBody', { name: c.name }), {
+      title: t('crm.hotels.detail.gallery.deleteCategoryTitle'),
+      confirmLabel: t('crm.hotels.detail.gallery.confirmLabel'),
       danger: true,
     });
     if (!ok) return;
@@ -1117,7 +1134,7 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
         loadCategories();
         loadPhotos();
       })
-      .catch((e) => showAlert(e.message || 'Не удалось удалить категорию', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.gallery.removeCategoryError'), { variant: 'error' }));
   };
 
   const [editingPhoto, setEditingPhoto] = useState<HotelPhoto | null>(null);
@@ -1127,15 +1144,15 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
     setUploading(true);
     Promise.all(Array.from(files).map((file) => uploadGalleryPhoto(hotelId, file, { categoryId })))
       .then(() => loadPhotos())
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить фото', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.gallery.uploadError'), { variant: 'error' }))
       .finally(() => setUploading(false));
   };
 
   return (
     <div>
       <div className="htl-gallery-cats">
-        <div className={`htl-gallery-cat${activeCategoryId === 'all' ? ' active' : ''}`} onClick={() => setActiveCategoryId('all')}>Все фото</div>
-        <div className={`htl-gallery-cat${activeCategoryId === 'none' ? ' active' : ''}`} onClick={() => setActiveCategoryId('none')}>Без категории</div>
+        <div className={`htl-gallery-cat${activeCategoryId === 'all' ? ' active' : ''}`} onClick={() => setActiveCategoryId('all')}>{t('crm.hotels.detail.gallery.allPhotos')}</div>
+        <div className={`htl-gallery-cat${activeCategoryId === 'none' ? ' active' : ''}`} onClick={() => setActiveCategoryId('none')}>{t('crm.hotels.detail.gallery.noCategory')}</div>
         {categories.map((c) => (
           <div
             key={c.id}
@@ -1155,9 +1172,9 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
                 onBlur={(e) => renameCategory(c.id, e.target.value)}
               />
             ) : (
-              <span onDoubleClick={(e) => { e.stopPropagation(); setEditingCatId(c.id); }} title="Двойной клик — переименовать">{c.name}</span>
+              <span onDoubleClick={(e) => { e.stopPropagation(); setEditingCatId(c.id); }} title={t('crm.hotels.detail.gallery.renameHint')}>{c.name}</span>
             )}
-            <button onClick={(e) => { e.stopPropagation(); removeCat(c); }} title="Удалить категорию" style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
+            <button onClick={(e) => { e.stopPropagation(); removeCat(c); }} title={t('crm.hotels.detail.gallery.deleteCategoryTitle')} style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer', padding: 0, fontSize: 13, lineHeight: 1 }}>×</button>
           </div>
         ))}
         {showAddCat ? (
@@ -1165,14 +1182,14 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
             <input
               ref={newCatNameRef}
               autoFocus
-              placeholder="Название категории"
+              placeholder={t('crm.hotels.detail.gallery.addCategoryPlaceholder')}
               style={{ padding: '6px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
               onKeyDown={(e) => { if (e.key === 'Enter') addCategory(); if (e.key === 'Escape') setShowAddCat(false); }}
             />
-            <button className="btn btn-sm" onClick={addCategory}>Добавить</button>
+            <button className="btn btn-sm" onClick={addCategory}>{t('crm.hotels.detail.gallery.add')}</button>
           </span>
         ) : (
-          <button className="htl-gallery-add" onClick={() => setShowAddCat(true)}><Ic d={HTL_ICON.plus} size={12} />Категория</button>
+          <button className="htl-gallery-add" onClick={() => setShowAddCat(true)}><Ic d={HTL_ICON.plus} size={12} />{t('crm.hotels.detail.gallery.categoryBtn')}</button>
         )}
       </div>
 
@@ -1188,13 +1205,13 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
             style={{ backgroundImage: `url(${resolvePublicAssetUrl(p.url)})`, cursor: 'pointer' }}
             onClick={() => setEditingPhoto(p)}
           >
-            <button onClick={(e) => { e.stopPropagation(); setEditingPhoto(p); }} title="Редактировать">
+            <button onClick={(e) => { e.stopPropagation(); setEditingPhoto(p); }} title={t('crm.hotels.detail.gallery.edit')}>
               <Ic d={HTL_ICON.pencil} size={11} />
             </button>
           </div>
         ))}
         <div className="htl-gallery-dropzone" onClick={() => addInputRef.current?.click()}>
-          {uploading ? <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>Загрузка…</span> : '+'}
+          {uploading ? <span style={{ fontSize: 11, color: 'var(--fg-3)' }}>{t('crm.hotels.detail.gallery.uploading')}</span> : '+'}
           <input
             ref={addInputRef}
             type="file"
@@ -1222,6 +1239,7 @@ const HotelGalleryTab: React.FC<{ hotelId: string }> = ({ hotelId }) => {
 };
 
 const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, onSaved }) => {
+  const { t } = useTranslation();
   const { showAlert } = useAlertModal();
   const [name, setName] = useState(hotel.name);
   const [checkIn, setCheckIn] = useState(hotel.checkInTime);
@@ -1255,7 +1273,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
     setSavingBasics(true);
     updateHotel(hotel.id, { name, checkInTime: checkIn, checkOutTime: checkOut, allowOverbooking })
       .then(() => onSaved())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.settings.saveError'), { variant: 'error' }))
       .finally(() => setSavingBasics(false));
   };
 
@@ -1264,7 +1282,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
     setSavingLinks(true);
     updateHotel(hotel.id, { quickLinks: next })
       .then(() => onSaved())
-      .catch((e) => showAlert(e.message || 'Не удалось сохранить ссылки', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.settings.saveLinksError'), { variant: 'error' }))
       .finally(() => setSavingLinks(false));
   };
 
@@ -1279,7 +1297,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
     setRegeneratingToken(true);
     regenerateFeedToken(hotel.id)
       .then((r) => setFeedToken(r.token))
-      .catch((e) => showAlert(e.message || 'Не удалось обновить токен', { variant: 'error' }))
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.settings.regenerateError'), { variant: 'error' }))
       .finally(() => setRegeneratingToken(false));
   };
 
@@ -1287,16 +1305,16 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
 
   const copy = (text: string) => {
     navigator.clipboard?.writeText(text)
-      .then(() => showAlert('Ссылка скопирована', { variant: 'success' }))
-      .catch(() => showAlert('Не удалось скопировать', { variant: 'error' }));
+      .then(() => showAlert(t('crm.hotels.detail.settings.copiedMsg'), { variant: 'success' }))
+      .catch(() => showAlert(t('crm.hotels.detail.settings.copyError'), { variant: 'error' }));
   };
 
   return (
     <div style={{ maxWidth: 640 }}>
       <div className="ha-section-head" style={{ marginBottom: 10 }}>
-        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Основное</div>
+        <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{t('crm.hotels.detail.settings.basicsTitle')}</div>
       </div>
-      <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Название отеля</label>
+      <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>{t('crm.hotels.detail.settings.nameLabel')}</label>
       <input
         value={name}
         onChange={(e) => setName(e.target.value)}
@@ -1304,7 +1322,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
       />
       <div className="bk-row2">
         <div>
-          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Заезд с</label>
+          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>{t('crm.hotels.detail.settings.checkInLabel')}</label>
           <input
             value={checkIn}
             onChange={(e) => setCheckIn(e.target.value)}
@@ -1312,7 +1330,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
           />
         </div>
         <div>
-          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>Выезд до</label>
+          <label style={{ fontSize: 11, color: 'var(--fg-3)', display: 'block', marginBottom: 4 }}>{t('crm.hotels.detail.settings.checkOutLabel')}</label>
           <input
             value={checkOut}
             onChange={(e) => setCheckOut(e.target.value)}
@@ -1322,58 +1340,58 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
       </div>
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 12.5, cursor: 'pointer' }}>
         <input type="checkbox" checked={allowOverbooking} onChange={(e) => setAllowOverbooking(e.target.checked)} />
-        Разрешить овербукинг (отключает проверку доступности номеров при создании броней)
+        {t('crm.hotels.detail.settings.overbookingLabel')}
       </label>
       <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
         <button className="btn btn-primary" disabled={savingBasics} onClick={saveBasics}>
-          <Ic d={HTL_ICON.check} size={14} />Сохранить
+          <Ic d={HTL_ICON.check} size={14} />{t('crm.hotels.detail.settings.save')}
         </button>
       </div>
 
       <div className="ha-section-head" style={{ marginTop: 28, marginBottom: 10 }}>
         <div>
-          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Быстрые ссылки</div>
-          <div className="sub" style={{ marginTop: 2 }}>Google, TripAdvisor, Booking.com и другие страницы отеля</div>
+          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{t('crm.hotels.detail.settings.quickLinksTitle')}</div>
+          <div className="sub" style={{ marginTop: 2 }}>{t('crm.hotels.detail.settings.quickLinksHint')}</div>
         </div>
       </div>
       {links.map((l, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
           <input
-            placeholder="Название"
+            placeholder={t('crm.hotels.detail.settings.labelPlaceholder')}
             value={l.label}
             onChange={(e) => editLink(i, { label: e.target.value })}
             onBlur={commitLinks}
             style={{ flex: '0 0 160px', padding: '8px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
           />
           <input
-            placeholder="https://…"
+            placeholder={t('crm.hotels.detail.settings.urlPlaceholder')}
             value={l.url}
             onChange={(e) => editLink(i, { url: e.target.value })}
             onBlur={commitLinks}
             style={{ flex: 1, padding: '8px 10px', border: '1px solid var(--line-2)', borderRadius: 8, fontSize: 12.5 }}
           />
           {l.url && (
-            <a href={l.url} target="_blank" rel="noreferrer" className="btn btn-sm" title="Открыть ссылку">
-              Открыть
+            <a href={l.url} target="_blank" rel="noreferrer" className="btn btn-sm" title={t('crm.hotels.detail.settings.openTitle')}>
+              {t('crm.hotels.detail.settings.open')}
             </a>
           )}
           <button
             style={{ background: 'none', border: 'none', color: '#9a1f31', cursor: 'pointer' }}
             onClick={() => removeLink(i)}
-            title="Удалить"
+            title={t('crm.hotels.detail.settings.delete')}
             disabled={savingLinks}
           >
             <Ic d={HTL_ICON.x} size={14} />
           </button>
         </div>
       ))}
-      <button className="htl-gallery-add" onClick={addLink}><Ic d={HTL_ICON.plus} size={12} />Добавить ссылку</button>
+      <button className="htl-gallery-add" onClick={addLink}><Ic d={HTL_ICON.plus} size={12} />{t('crm.hotels.detail.settings.addLink')}</button>
 
       <div className="ha-section-head" style={{ marginTop: 28, marginBottom: 10 }}>
         <div>
-          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>XML/JSON лента (номера и цены)</div>
+          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{t('crm.hotels.detail.settings.feedTitle')}</div>
           <div className="sub" style={{ marginTop: 2 }}>
-            Публичная ссылка для партнёров/каналов — доступна без входа в CRM, только по этому токену.
+            {t('crm.hotels.detail.settings.feedHint')}
           </div>
         </div>
       </div>
@@ -1381,28 +1399,28 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
         <code style={{ flex: 1, fontSize: 11, padding: '8px 10px', background: 'var(--bg-muted)', borderRadius: 7, overflowX: 'auto', whiteSpace: 'nowrap' }}>
           {feedBase}/json
         </code>
-        <button className="btn btn-sm" disabled={!feedToken} onClick={() => copy(`${feedBase}/json`)}>Копировать</button>
+        <button className="btn btn-sm" disabled={!feedToken} onClick={() => copy(`${feedBase}/json`)}>{t('crm.hotels.detail.settings.copy')}</button>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
         <code style={{ flex: 1, fontSize: 11, padding: '8px 10px', background: 'var(--bg-muted)', borderRadius: 7, overflowX: 'auto', whiteSpace: 'nowrap' }}>
           {feedBase}/xml
         </code>
-        <button className="btn btn-sm" disabled={!feedToken} onClick={() => copy(`${feedBase}/xml`)}>Копировать</button>
+        <button className="btn btn-sm" disabled={!feedToken} onClick={() => copy(`${feedBase}/xml`)}>{t('crm.hotels.detail.settings.copy')}</button>
       </div>
       <button className="btn btn-sm" disabled={regeneratingToken} onClick={regenerateToken}>
-        Обновить токен (старые ссылки перестанут работать)
+        {t('crm.hotels.detail.settings.regenerateToken')}
       </button>
 
       <div className="ha-section-head" style={{ marginTop: 28, marginBottom: 10 }}>
         <div>
-          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>Средняя цена по периодам</div>
-          <div className="sub" style={{ marginTop: 2 }}>Прайсовая Net PP из «Цены и рынки», по базовому типу номера</div>
+          <div className="sub" style={{ fontWeight: 600, color: 'var(--ink)', fontSize: 12.5 }}>{t('crm.hotels.detail.settings.periodPricingTitle')}</div>
+          <div className="sub" style={{ marginTop: 2 }}>{t('crm.hotels.detail.settings.periodPricingHint')}</div>
         </div>
       </div>
       <div className="pace-table-wrap">
         <table className="pace-table">
           <thead>
-            <tr><th>Период</th><th>Средняя цена</th></tr>
+            <tr><th>{t('crm.hotels.detail.settings.colPeriod')}</th><th>{t('crm.hotels.detail.settings.colAvgPrice')}</th></tr>
           </thead>
           <tbody>
             {periodSummary.map((p) => (
@@ -1412,7 +1430,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
               </tr>
             ))}
             {periodSummary.length === 0 && (
-              <tr><td colSpan={2} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>Нет периодов — задайте их в «Цены и рынки»</td></tr>
+              <tr><td colSpan={2} style={{ color: 'var(--fg-4)', fontStyle: 'italic' }}>{t('crm.hotels.detail.settings.noPeriods')}</td></tr>
             )}
           </tbody>
         </table>
@@ -1422,6 +1440,7 @@ const SettingsTab: React.FC<{ hotel: Hotel; onSaved: () => void }> = ({ hotel, o
 };
 
 export const HotelDetailPage: React.FC = () => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const { showAlert } = useAlertModal();
   const [hotel, setHotel] = useState<Hotel | null>(null);
@@ -1433,10 +1452,10 @@ export const HotelDetailPage: React.FC = () => {
     if (!id) return;
     fetchHotel(id)
       .then((h) => setHotel(h))
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить отель', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.loadHotelError'), { variant: 'error' }));
     fetchRoomTypes(id)
       .then(setRoomTypes)
-      .catch((e) => showAlert(e.message || 'Не удалось загрузить типы номеров', { variant: 'error' }));
+      .catch((e) => showAlert(e.message || t('crm.hotels.detail.loadRoomTypesError'), { variant: 'error' }));
   };
 
   useEffect(() => {
@@ -1450,6 +1469,7 @@ export const HotelDetailPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="hotelCard" />
       <div className="px-scope">
         <HotelsSubnav active="hotels" />
         <div
@@ -1459,11 +1479,11 @@ export const HotelDetailPage: React.FC = () => {
           <div style={{ background: 'rgba(255,255,255,.92)', borderRadius: 10, padding: '8px 14px' }}>
             <div style={{ fontFamily: 'var(--ff-display)', fontWeight: 600, fontSize: 16 }}>{hotel.name}</div>
             <div style={{ fontSize: 11.5, color: 'var(--fg-3)' }}>
-              {[hotel.city, hotel.country].filter(Boolean).join(', ')} · {hotel.stars}★ · {totalRooms} номеров
+              {[hotel.city, hotel.country].filter(Boolean).join(', ')} · {hotel.stars}★ · {totalRooms} {t('crm.hotels.detail.header.roomsCountSuffix')}
             </div>
           </div>
           <button className="htl-cover-upload-btn" onClick={() => coverInputRef.current?.click()}>
-            <Ic d={HTL_ICON.pencil} size={12} />Фото
+            <Ic d={HTL_ICON.pencil} size={12} />{t('crm.hotels.detail.header.changePhoto')}
           </button>
           <input
             ref={coverInputRef}
@@ -1475,7 +1495,7 @@ export const HotelDetailPage: React.FC = () => {
               if (file) {
                 uploadHotelCover(hotel.id, file)
                   .then(() => load())
-                  .catch((e2) => showAlert(e2.message || 'Не удалось загрузить фото', { variant: 'error' }));
+                  .catch((e2) => showAlert(e2.message || t('crm.hotels.detail.uploadCoverError'), { variant: 'error' }));
               }
               e.target.value = '';
             }}
@@ -1483,19 +1503,19 @@ export const HotelDetailPage: React.FC = () => {
         </div>
 
         <div className="htl-info-grid">
-          <div className="htl-info-item"><div className="l">Загрузка сегодня</div><div className="v">{hotel.occupancyToday}%</div></div>
-          <div className="htl-info-item"><div className="l">Средний ADR</div><div className="v">${hotel.adr}</div></div>
-          <div className="htl-info-item"><div className="l">Типов номеров</div><div className="v">{hotel.roomTypesCount}</div></div>
-          <div className="htl-info-item"><div className="l">Рынков подключено</div><div className="v">{hotel.marketsCount}</div></div>
+          <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.occupancyToday')}</div><div className="v">{hotel.occupancyToday}%</div></div>
+          <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.adr')}</div><div className="v">${hotel.adr}</div></div>
+          <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.roomTypesCount')}</div><div className="v">{hotel.roomTypesCount}</div></div>
+          <div className="htl-info-item"><div className="l">{t('crm.hotels.detail.header.marketsCount')}</div><div className="v">{hotel.marketsCount}</div></div>
         </div>
 
         <div className="htl-detail-tabs">
-          <div className={`htl-detail-tab${tab === 'rooms' ? ' active' : ''}`} onClick={() => setTab('rooms')}>Номера</div>
-          <div className={`htl-detail-tab${tab === 'calendar' ? ' active' : ''}`} onClick={() => setTab('calendar')}>Календарь цен</div>
-          <div className={`htl-detail-tab${tab === 'markets' ? ' active' : ''}`} onClick={() => setTab('markets')}>Рынки и цены</div>
-          <div className={`htl-detail-tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>Информация об отеле</div>
-          <div className={`htl-detail-tab${tab === 'gallery' ? ' active' : ''}`} onClick={() => setTab('gallery')}>Галерея</div>
-          <div className={`htl-detail-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>Настройки отеля</div>
+          <div className={`htl-detail-tab${tab === 'rooms' ? ' active' : ''}`} onClick={() => setTab('rooms')}>{t('crm.hotels.detail.tabs.rooms')}</div>
+          <div className={`htl-detail-tab${tab === 'calendar' ? ' active' : ''}`} onClick={() => setTab('calendar')}>{t('crm.hotels.detail.tabs.calendar')}</div>
+          <div className={`htl-detail-tab${tab === 'markets' ? ' active' : ''}`} onClick={() => setTab('markets')}>{t('crm.hotels.detail.tabs.markets')}</div>
+          <div className={`htl-detail-tab${tab === 'info' ? ' active' : ''}`} onClick={() => setTab('info')}>{t('crm.hotels.detail.tabs.info')}</div>
+          <div className={`htl-detail-tab${tab === 'gallery' ? ' active' : ''}`} onClick={() => setTab('gallery')}>{t('crm.hotels.detail.tabs.gallery')}</div>
+          <div className={`htl-detail-tab${tab === 'settings' ? ' active' : ''}`} onClick={() => setTab('settings')}>{t('crm.hotels.detail.tabs.settings')}</div>
         </div>
 
         {tab === 'rooms' && <RoomsTab hotelId={hotel.id} roomTypes={roomTypes} onChanged={load} />}

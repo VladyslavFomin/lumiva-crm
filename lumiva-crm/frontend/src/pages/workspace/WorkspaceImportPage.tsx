@@ -32,12 +32,15 @@ import {
   resolveIntegrationIdsForWorkspaceBindings,
   resolveMarketingIntegrationIdsForWorkspaceBindings,
   workspaceBindingHasActiveIntegration,
+  type WorkspaceArea,
   type WorkspaceIntegrationBinding,
 } from '../../api/workspaceAreas';
 import type { MarketingIntegrationRow } from '../../api/marketing';
 import { fetchMarketingIntegrations } from '../../api/marketing';
 import { normalizeOptionToken } from '../../workspace/normalizeOptionToken';
 import { getWorkspaceTableKind } from '../../workspace/workspaceTableKind';
+import { WsAreaBar } from '../../components/workspace/WsAreaBar';
+import './WorkspaceArea.css';
 
 /** Как в таблице/канбане по умолчанию — только если в файле нет ни одного значения статуса */
 const DEFAULT_STATUS_FIELD_OPTIONS: Array<{ value: string; label: string }> = [
@@ -254,6 +257,8 @@ export const WorkspaceImportPage: React.FC = () => {
     Record<string, ChannelImportState>
   >({});
   const [importTableKind, setImportTableKind] = useState<'data' | 'board' | null>(null);
+  const [objectName, setObjectName] = useState('');
+  const [areaInfo, setAreaInfo] = useState<WorkspaceArea | null>(null);
 
   const marketingMetaRows = useMemo(() => {
     if (!areaIntegrationBindings.length || !marketingIntegrations.length) return [];
@@ -320,7 +325,10 @@ export const WorkspaceImportPage: React.FC = () => {
       .catch(() => {});
     fetchCustomObject(objectId)
       .then((o) => {
-        if (!cancelled) setImportTableKind(getWorkspaceTableKind(o.meta as Record<string, unknown> | null));
+        if (!cancelled) {
+          setImportTableKind(getWorkspaceTableKind(o.meta as Record<string, unknown> | null));
+          setObjectName(o.name || '');
+        }
       })
       .catch(() => {
         if (!cancelled) setImportTableKind(null);
@@ -329,6 +337,24 @@ export const WorkspaceImportPage: React.FC = () => {
       cancelled = true;
     };
   }, [objectId]);
+
+  useEffect(() => {
+    if (!workspaceAreaIdForLink) {
+      setAreaInfo(null);
+      return;
+    }
+    let cancelled = false;
+    fetchWorkspaceArea(workspaceAreaIdForLink)
+      .then((a) => {
+        if (!cancelled) setAreaInfo(a);
+      })
+      .catch(() => {
+        if (!cancelled) setAreaInfo(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceAreaIdForLink]);
 
   useEffect(() => {
     const onVis = () => {
@@ -1066,33 +1092,68 @@ export const WorkspaceImportPage: React.FC = () => {
     }
   };
 
+  const importStep: 'file' | 'map' | 'done' = !file ? 'file' : !preview ? 'file' : message ? 'done' : 'map';
+
   return (
     <MainLayout>
-      <div className="max-w-5xl mx-auto space-y-4">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-slate-900">{t('crm.workspace.import.title')}</h1>
-          <button
-            type="button"
-            onClick={() => navigate(`/workspace/${objectId}/table`)}
-            className="px-3 py-2 rounded-xl border border-slate-300 text-sm"
-          >
-            {t('crm.workspace.import.backToTable')}
-          </button>
+      <div className="ws-page max-w-5xl mx-auto space-y-4">
+        {areaInfo && (
+          <WsAreaBar
+            areaId={areaInfo.id}
+            areaName={areaInfo.name}
+            areaIconKey={areaInfo.iconKey}
+            current={t('crm.workspace.import.title')}
+          />
+        )}
+        <div className="page-head">
+          <div>
+            <h1>{t('crm.workspace.import.title')}</h1>
+            <div className="sub">{objectName}</div>
+          </div>
+          <div className="page-head-actions">
+            <button type="button" className="tb-icon-btn" onClick={() => navigate(`/workspace/${objectId}/table`)}>
+              {t('crm.workspace.import.backToTable')}
+            </button>
+          </div>
+        </div>
+
+        <div className="ws-steps">
+          {(
+            [
+              ['file', t('crm.workspace.import.stepFile')],
+              ['map', t('crm.workspace.import.stepMap')],
+              ['done', t('crm.workspace.import.stepDone')],
+            ] as const
+          ).map(([k, l], i, arr) => {
+            const order = ['file', 'map', 'done'] as const;
+            const curIdx = order.indexOf(importStep);
+            const thisIdx = order.indexOf(k);
+            return (
+              <React.Fragment key={k}>
+                <div className={`ws-step${importStep === k ? ' on' : ''}${thisIdx < curIdx ? ' done' : ''}`}>
+                  <span className="n">{thisIdx < curIdx ? '✓' : i + 1}</span>
+                  <span className="t">{l}</span>
+                </div>
+                {i < arr.length - 1 && <span className="ar">→</span>}
+              </React.Fragment>
+            );
+          })}
+          {file && <span className="ws-note" style={{ marginLeft: 'auto' }}>{file.name}</span>}
         </div>
 
         {importTableKind === 'board' && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 leading-relaxed">
-            {t('crm.workspace.import.boardTableHint')}
+          <div className="ws-hint">
+            <span>{t('crm.workspace.import.boardTableHint')}</span>
           </div>
         )}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="ws-sec">
+          <div className="ws-sec-head">
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold text-slate-900">
+              <h2>
                 {t('crm.workspace.import.areaIntegrationsTitle')}
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5 max-w-2xl">
+              <p className="s">
                 {t('crm.workspace.import.areaIntegrationsSubtitle')}
               </p>
               <Link
@@ -1103,6 +1164,7 @@ export const WorkspaceImportPage: React.FC = () => {
               </Link>
             </div>
           </div>
+          <div className="ws-sec-body">
           {channelImportLoading && (
             <div className="text-sm text-slate-500">{t('crm.workspace.common.loading')}</div>
           )}
@@ -1842,9 +1904,19 @@ export const WorkspaceImportPage: React.FC = () => {
                   )}
               </>
             )}
+          </div>
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
+
+        {importStep === 'file' && (
+        <div className="ws-sec">
+          <div className="ws-sec-head">
+            <div>
+              <h2>{t('crm.workspace.import.fileSectionTitle')}</h2>
+              <div className="s">{t('crm.workspace.import.fileSectionHint')}</div>
+            </div>
+          </div>
+          <div className="ws-sec-body">
+          <div className="ws-drop" style={{ textAlign: 'left', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12, padding: 16 }}>
             <input
               id="workspace-import-file"
               type="file"
@@ -1854,7 +1926,8 @@ export const WorkspaceImportPage: React.FC = () => {
             />
             <label
               htmlFor="workspace-import-file"
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-lumiva-accent bg-lumiva-accent px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-lumiva-accent-soft hover:shadow-md"
+              className="btn btn-primary btn-sm"
+              style={{ cursor: 'pointer' }}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1870,67 +1943,77 @@ export const WorkspaceImportPage: React.FC = () => {
               </svg>
               {t('crm.workspace.import.chooseFile')}
             </label>
-            <div className="text-sm text-slate-600">
+            <div className="ws-note">
               {file ? file.name : t('crm.workspace.import.fileNotSelected')}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handlePreview}
-            disabled={!file || loading}
-            className="px-3 py-2 rounded-lg bg-lumiva-accent text-white text-sm transition-colors hover:bg-lumiva-accent-soft disabled:opacity-60"
-          >
-            {loading ? t('crm.workspace.import.reading') : t('crm.workspace.import.preview')}
-          </button>
+          <div className="ws-sec-foot">
+            <span className="sp" />
+            <button
+              type="button"
+              onClick={handlePreview}
+              disabled={!file || loading}
+              className="btn btn-primary btn-sm"
+            >
+              {loading ? t('crm.workspace.import.reading') : t('crm.workspace.import.preview')}
+            </button>
+          </div>
+          </div>
         </div>
+        )}
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-          <div className="flex items-center justify-between gap-2">
+        {importStep === 'file' && (
+        <div className="ws-sec">
+          <div className="ws-sec-head">
             <div>
-              <h2 className="text-base font-semibold text-slate-900">{t('crm.workspace.import.importViaApi')}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <h2>{t('crm.workspace.import.importViaApi')}</h2>
+              <div className="s">
                 {t('crm.workspace.import.importViaApiHint')}
-              </p>
+              </div>
             </div>
-            <span className="rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[11px] text-amber-700">
-              {t('crm.workspace.import.soon')}
-            </span>
+            <span className="sp" />
+            <span className="ws-badge">{t('crm.workspace.import.soon')}</span>
           </div>
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
-            POST <span className="font-mono">/public/custom-objects/:slug/ingest</span>
-          </div>
-          <div className="text-xs text-slate-500">
-            {t('crm.workspace.import.apiSectionHint')}
+          <div className="ws-sec-body">
+            <div className="ws-note" style={{ border: '1px solid var(--line-2)', borderRadius: 8, background: 'var(--bg-muted)', padding: '8px 12px', fontFamily: 'var(--ws-ff-mono)' }}>
+              POST /public/custom-objects/:slug/ingest
+            </div>
+            <p className="ws-note" style={{ marginTop: 8 }}>
+              {t('crm.workspace.import.apiSectionHint')}
+            </p>
           </div>
         </div>
+        )}
 
-        {preview && (
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 space-y-3">
-            <div className="text-sm text-slate-700">
-              {t('crm.workspace.import.columnsRows', {
-                cols: preview.columns.length,
-                rows: preview.totalRows,
-              })}
-            </div>
-            {preview.headerRowNumber ? (
-              <div className="text-xs text-slate-500">
-                {t('crm.workspace.import.headerRow', { n: preview.headerRowNumber })}
+        {preview && importStep === 'map' && (
+          <div className="ws-sec">
+            <div className="ws-sec-head">
+              <div>
+                <h2>{t('crm.workspace.import.stepMap')}</h2>
+                <div className="s">
+                  {t('crm.workspace.import.columnsRows', {
+                    cols: preview.columns.length,
+                    rows: preview.totalRows,
+                  })}
+                  {preview.headerRowNumber
+                    ? ` · ${t('crm.workspace.import.headerRow', { n: preview.headerRowNumber })}`
+                    : ''}
+                </div>
               </div>
-            ) : null}
-            <div className="text-xs text-slate-500">
-              {t('crm.workspace.import.mapped', {
-                mapped: mappedCount,
-                total: preview.columns.length,
-              })}
+              <span className="sp" />
+              <span className="ws-badge">
+                {t('crm.workspace.import.mapped', { mapped: mappedCount, total: preview.columns.length })}
+              </span>
             </div>
+            <div className="ws-sec-body">
             {groupField && (
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
-                <div className="text-sm font-medium text-slate-700">{t('crm.workspace.import.importTargetGroup')}</div>
-                <div className="flex flex-wrap items-center gap-2">
+              <div className="ws-field" style={{ marginBottom: 14 }}>
+                <label>{t('crm.workspace.import.importTargetGroup')}</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
                   <select
                     value={importGroupMode}
                     onChange={(e) => setImportGroupMode(e.target.value as 'keep' | 'existing' | 'new')}
-                    className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                    className="ws-input"
                   >
                     <option value="keep">{t('crm.workspace.import.groupKeep')}</option>
                     <option value="existing">{t('crm.workspace.import.groupExisting')}</option>
@@ -1940,7 +2023,8 @@ export const WorkspaceImportPage: React.FC = () => {
                     <select
                       value={targetGroup}
                       onChange={(e) => setTargetGroup(e.target.value)}
-                      className="min-w-[220px] rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                      className="ws-input"
+                      style={{ minWidth: 220 }}
                     >
                       {existingGroups.map((groupName) => (
                         <option key={groupName} value={groupName}>
@@ -1954,67 +2038,106 @@ export const WorkspaceImportPage: React.FC = () => {
                       value={targetGroup}
                       onChange={(e) => setTargetGroup(e.target.value)}
                       placeholder={t('crm.workspace.import.newGroupName')}
-                      className="min-w-[220px] rounded-lg border border-slate-300 px-2 py-1.5 text-sm bg-white"
+                      className="ws-input"
+                      style={{ minWidth: 220 }}
                     />
                   )}
                 </div>
               </div>
             )}
-            <div className="grid grid-cols-1 gap-2">
-              {preview.columns.map((column) => (
-                <div key={column} className="flex items-center gap-2">
-                  <div className="w-48 text-sm text-slate-700">{column}</div>
-                  <select
-                    value={columnToField[column] || ''}
-                    onChange={(e) =>
-                      setColumnToField((prev) => ({
-                        ...prev,
-                        [column]: e.target.value,
-                      }))
-                    }
-                    className="flex-1 rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
-                  >
-                    <option value="">{t('crm.workspace.import.notMapped')}</option>
-                    {fieldOptions.map((field) => (
-                      <option key={field.value} value={field.value}>
-                        {field.label}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => void createFieldFromColumn(column)}
-                    disabled={creatingForColumn === column}
-                    className="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs hover:bg-slate-50 disabled:opacity-60"
-                  >
-                    {creatingForColumn === column ? t('crm.workspace.import.creatingField') : t('crm.workspace.import.createField')}
-                  </button>
-                </div>
-              ))}
+            <table className="ws-bind">
+              <thead>
+                <tr>
+                  <th>{t('crm.workspace.import.fileColumn')}</th>
+                  <th>{t('crm.workspace.tableSettings.sectionFields')}</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {preview.columns.map((column) => (
+                  <tr key={column}>
+                    <td className="col">{column}</td>
+                    <td>
+                      <select
+                        value={columnToField[column] || ''}
+                        onChange={(e) =>
+                          setColumnToField((prev) => ({
+                            ...prev,
+                            [column]: e.target.value,
+                          }))
+                        }
+                        className="ws-input"
+                        style={{ width: 220 }}
+                      >
+                        <option value="">{t('crm.workspace.import.notMapped')}</option>
+                        {fieldOptions.map((field) => (
+                          <option key={field.value} value={field.value}>
+                            {field.label}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td style={{ textAlign: 'right' }}>
+                      <button
+                        type="button"
+                        onClick={() => void createFieldFromColumn(column)}
+                        disabled={creatingForColumn === column}
+                        className="tb-icon-btn"
+                      >
+                        {creatingForColumn === column ? t('crm.workspace.import.creatingField') : t('crm.workspace.import.createField')}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             </div>
-
-            <button
-              type="button"
-              onClick={handleApply}
-              disabled={applying}
-              className="px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm disabled:opacity-60"
-            >
-              {applying ? t('crm.workspace.import.applying') : t('crm.workspace.import.apply')}
-            </button>
+            <div className="ws-sec-foot">
+              <span className="sp" />
+              <button
+                type="button"
+                onClick={handleApply}
+                disabled={applying}
+                className="btn btn-primary btn-sm"
+              >
+                {applying ? t('crm.workspace.import.applying') : t('crm.workspace.import.apply')}
+              </button>
+            </div>
           </div>
         )}
 
-        {message && <div className="text-sm text-slate-700">{message}</div>}
-        {applyErrors.length > 0 && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-            <div className="text-sm font-medium text-amber-900">
-              {t('crm.workspace.import.rowErrors', { count: applyErrors.length })}
+        {importStep === 'done' && message && (
+          <div className="ws-sec">
+            <div className="ws-sec-head">
+              <div>
+                <h2>{t('crm.workspace.import.stepDone')}</h2>
+                <div className="s">{message}</div>
+              </div>
             </div>
-            <div className="max-h-64 overflow-auto space-y-1">
+            <div className="ws-sec-body">
+              <div className="ws-hint" style={{ marginBottom: 0 }}>
+                <span>{t('crm.workspace.import.nextStepHint')}</span>
+              </div>
+            </div>
+            <div className="ws-sec-foot">
+              <span className="sp" />
+              <a className="tb-icon-btn" href={`/workspace/${objectId}/table`}>{t('crm.workspace.import.backToTable')}</a>
+            </div>
+          </div>
+        )}
+        {applyErrors.length > 0 && (
+          <div className="ws-sec">
+            <div className="ws-sec-head">
+              <div>
+                <h2>{t('crm.workspace.import.rowErrors', { count: applyErrors.length })}</h2>
+              </div>
+            </div>
+            <div className="ws-sec-body" style={{ maxHeight: 260, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
               {applyErrors.map((error, idx) => (
                 <div
                   key={`${error.row}-${idx}`}
-                  className="text-xs text-amber-900 rounded-lg border border-amber-200 bg-white px-2 py-1.5"
+                  className="ws-note"
+                  style={{ border: '1px solid #f0d3d8', borderRadius: 8, background: '#fdf4f5', padding: '6px 10px', color: '#9c2338' }}
                 >
                   Row {error.row}: {error.reason}
                 </div>

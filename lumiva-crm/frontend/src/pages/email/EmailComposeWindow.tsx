@@ -21,7 +21,7 @@ function fileToBase64(file: File): Promise<string> {
 
 export type EmailComposeWindowProps = {
   open: boolean;
-  mode: 'new' | 'reply';
+  mode: 'new' | 'reply' | 'forward';
   accounts: EmailAccount[];
   accountId: string;
   onAccountChange: (id: string) => void;
@@ -190,7 +190,7 @@ export const EmailComposeWindow: React.FC<EmailComposeWindowProps> = ({
           onMouseDown={onHeaderMouseDown}
         >
           <span id="email-compose-win-title" className="text-sm font-semibold text-slate-800">
-            {mode === 'reply' ? t('crm.email.inbox.replyTitle') : t('crm.email.inbox.composeTitle')}
+            {mode === 'reply' ? t('crm.email.inbox.replyTitle') : mode === 'forward' ? 'Переслать письмо' : t('crm.email.inbox.composeTitle')}
           </span>
           <div className="flex items-center gap-2" onMouseDown={(e) => e.stopPropagation()}>
             <button

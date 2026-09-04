@@ -312,6 +312,81 @@ export async function startGoogleCalendarOAuth(body: {
   return api.post<{ url: string }>('/integrations/google-calendar/oauth/start', body);
 }
 
+export async function startSlackOAuth(body: {
+  redirectPath?: string;
+}): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/integrations/slack/oauth/start', body);
+}
+
+export async function startHubspotOAuth(body: {
+  redirectPath?: string;
+}): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/integrations/hubspot/oauth/start', body);
+}
+
+export async function startMailchimpOAuth(body: {
+  redirectPath?: string;
+}): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/integrations/mailchimp/oauth/start', body);
+}
+
+export async function startJiraOAuth(body: {
+  redirectPath?: string;
+}): Promise<{ url: string }> {
+  return api.post<{ url: string }>('/integrations/jira/oauth/start', body);
+}
+
+export type JiraLinkedIssue = {
+  key: string;
+  url: string;
+  status: string | null;
+  connectionId: string;
+  linkedAt: string;
+};
+
+export type JiraLinkEntityType = 'lead' | 'sale' | 'project';
+
+export type ExternalLinkInfo = {
+  provider: 'bitrix' | 'amocrm' | 'hubspot';
+  id: string;
+  label: string;
+  url: string | null;
+};
+
+export async function fetchExternalLinks(
+  entityType: JiraLinkEntityType,
+  entityId: string,
+): Promise<ExternalLinkInfo[]> {
+  return api.get(`/integrations/external-links/${entityType}/${entityId}`);
+}
+
+export async function fetchJiraProjects(
+  connectionId: string,
+): Promise<Array<{ id: string; key: string; name: string }>> {
+  return api.get(`/integrations/jira/link/${connectionId}/projects`);
+}
+
+export async function fetchLinkedJiraIssue(
+  entityType: JiraLinkEntityType,
+  entityId: string,
+): Promise<JiraLinkedIssue | null> {
+  return api.get(`/integrations/jira/link/${entityType}/${entityId}`);
+}
+
+export async function createAndLinkJiraIssue(
+  entityType: JiraLinkEntityType,
+  entityId: string,
+  body: {
+    connectionId: string;
+    projectKey: string;
+    summary: string;
+    description?: string;
+    issueType?: string;
+  },
+): Promise<JiraLinkedIssue> {
+  return api.post(`/integrations/jira/link/${entityType}/${entityId}`, body);
+}
+
 export async function startOutlookCalendarOAuth(body: {
   intent: 'create' | 'reconnect';
   redirectPath?: string;

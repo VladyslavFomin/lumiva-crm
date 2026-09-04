@@ -1,11 +1,18 @@
 // src/pages/projects/ProjectsAnalyticsPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useTranslation } from 'react-i18next';
 import { requestAddDashboardPreset } from '../../dashboard/dashboardLayout';
 import { notifyAnalyticsWidgetsChanged } from '../../dashboard/analyticsStorage';
 import { fetchProjects } from '../../api/projects';
 import type { Project } from './projectTypes';
+import { AnalyticsCurrencyControl } from '../../components/AnalyticsCurrencyControl';
+import { useMarketingDisplayCurrencyPrefs } from '../marketing/MarketingDisplayCurrencyToolbar';
+import {
+  convertMarketingAmount,
+  normalizeMarketingDisplayCurrency,
+} from '../marketing/marketingDisplayCurrencyStorage';
 import {
   Area,
   AreaChart,
@@ -517,10 +524,32 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     [t],
   );
 
+  const currenciesPresent = useMemo(
+    () => Array.from(new Set(items.map((p) => (p.currency || 'EUR').toUpperCase().slice(0, 8)))),
+    [items],
+  );
+  const { state: currencyPrefs, setState: setCurrencyPrefs } = useMarketingDisplayCurrencyPrefs(currenciesPresent);
+  const reportCurrency = normalizeMarketingDisplayCurrency(currencyPrefs.displayCurrency);
+  const convertedItemsResult = useMemo(() => {
+    const displayCurrency = normalizeMarketingDisplayCurrency(currencyPrefs.displayCurrency);
+    const rates = { ...currencyPrefs.rates, [displayCurrency]: 1 };
+    let missing = false;
+    const converted = items.map((p) => {
+      const sourceAmount = Number(p.amount) || 0;
+      const sourceCurrency = String(p.currency || 'EUR').toUpperCase().slice(0, 8) || 'EUR';
+      const result = convertMarketingAmount(sourceAmount, sourceCurrency, 'converted', displayCurrency, rates);
+      if (result.missingRate) missing = true;
+      return { ...p, amount: result.value, currency: result.currency };
+    });
+    return { items: converted, missing };
+  }, [items, currencyPrefs]);
+  const displayItems = convertedItemsResult.items;
+  const currencyRateMissing = convertedItemsResult.missing;
+
   const searchedItems = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (!query) return items;
-    return items.filter((item) => {
+    if (!query) return displayItems;
+    return displayItems.filter((item) => {
       const customText = Object.entries(item.customFields || {})
         .map(([key, value]) => `${key} ${Array.isArray(value) ? value.join(' ') : String(value ?? '')}`)
         .join(' ');
@@ -544,7 +573,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         .toLowerCase()
         .includes(query);
     });
-  }, [items, search, analyticsFields]);
+  }, [displayItems, search, analyticsFields]);
 
   const periodItems = useMemo(() => {
     if (period === 'all' || period === 'custom') return searchedItems;
@@ -837,7 +866,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
     return map;
   }, [isWorkspaceMode, statusChartData, categoryChartData, owners, tags, analyticsFields, filteredItems]);
 
-  const currency = filteredItems[0]?.currency || 'EUR';
+  const currency = reportCurrency;
   const formatAmount = (amount: number) => {
     const formatted = new Intl.NumberFormat(locale).format(amount);
     return t('crm.projects.common.amountWithCurrency', {
@@ -2300,7 +2329,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         chartOptions.find((c) => c.id === colKey)?.label ||
         analyticsFieldMap.get(colKey.replace('field:', ''))?.label ||
         colKey;
-      const pivotCurrency = widgetItems[0]?.currency || 'EUR';
+      const pivotCurrency = reportCurrency;
       const formatPivotCell = (n: number, m: PivotMeasureConfig) => {
         if (m.mode === 'count') return n.toLocaleString(locale);
         if (m.mode === 'sum' && (m.valueField === 'amount' || !m.valueField)) {
@@ -3045,6 +3074,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
 
   return (
     <MainLayout>
+      <PageHelpButton topic="projectsAnalytics" />
       <div className="min-h-screen pb-10 text-[#222]">
         {shareToast && (
           <div className="pointer-events-none fixed bottom-6 left-1/2 z-[100] -translate-x-1/2 rounded-xl bg-[#222] px-5 py-3 text-sm text-white shadow-lg">
@@ -3116,6 +3146,7 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
                 <span className="text-xs uppercase tracking-[0.16em] text-neutral-400">Период</span>
                 <span className="font-medium">{periodRangeLabel}</span>
               </div>
+              <AnalyticsCurrencyControl state={currencyPrefs} onStateChange={setCurrencyPrefs} />
               <button
                 type="button"
                 className="hidden sm:inline-flex items-center gap-2 btn-secondary"
@@ -3181,6 +3212,12 @@ export const ProjectsAnalyticsPage: React.FC<ProjectsAnalyticsPageProps> = ({
         {error && (
           <div className="text-[12px] text-rose-600 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
             {error}
+          </div>
+        )}
+
+        {currencyRateMissing && (
+          <div className="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+            Не удалось получить курс для части проектов — их суммы показаны в исходной валюте и могут искажать общий итог.
           </div>
         )}
 

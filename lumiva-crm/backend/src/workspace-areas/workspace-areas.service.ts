@@ -11,9 +11,14 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { WorkspaceArea } from './workspace-area.entity';
 import { CustomObject } from '../custom-objects/custom-object.entity';
+import { CustomObjectRecord } from '../custom-objects/custom-object-record.entity';
+import { StaffUser } from '../staff/staff-user.entity';
+import { getWorkspaceTableKind } from '../custom-objects/workspace-table-kind';
+import { parseWorkspaceIntegrationBindings } from './workspace-integration-binding';
 import { IntegrationConnection } from '../integrations/integration-connection.entity';
 import { CreateWorkspaceAreaDto } from './dto/create-workspace-area.dto';
 import { UpdateWorkspaceAreaDto } from './dto/update-workspace-area.dto';
+import { WorkspaceAreaMembersService } from './workspace-area-members.service';
 
 @Injectable()
 export class WorkspaceAreasService {
@@ -22,6 +27,11 @@ export class WorkspaceAreasService {
     private readonly areaRepo: Repository<WorkspaceArea>,
     @InjectRepository(CustomObject)
     private readonly objectRepo: Repository<CustomObject>,
+    @InjectRepository(CustomObjectRecord)
+    private readonly recordRepo: Repository<CustomObjectRecord>,
+    @InjectRepository(StaffUser)
+    private readonly staffRepo: Repository<StaffUser>,
+    private readonly members: WorkspaceAreaMembersService,
   ) {}
 
   private slugify(input: string) {
@@ -72,14 +82,63 @@ export class WorkspaceAreasService {
       .where('tenantId = :tid', { tid: tenantId })
       .andWhere('workspaceAreaId IS NULL')
       .execute();
+
+    await this.seedOwnerMembership(tenantId, saved.id);
   }
 
-  async list(tenantId: string): Promise<WorkspaceArea[]> {
+  /** Владельцы тенанта автоматически становятся владельцами новой области —
+   * иначе после включения проверки прав по областям они бы потеряли доступ. */
+  private async seedOwnerMembership(tenantId: string, workspaceAreaId: string): Promise<void> {
+    const owners = await this.staffRepo.find({ where: { tenantId, role: 'owner' } });
+    for (const owner of owners) {
+      await this.members.addMember(tenantId, workspaceAreaId, owner.id, 'owner', null);
+    }
+  }
+
+  async list(tenantId: string, includeArchived = false): Promise<WorkspaceArea[]> {
     await this.ensureDefaultArea(tenantId);
-    return this.areaRepo.find({
+    const rows = await this.areaRepo.find({
       where: { tenantId },
       order: { sortOrder: 'ASC', createdAt: 'ASC' },
     });
+    if (includeArchived) return rows;
+    return rows.filter((r) => !r.meta?.archivedAt);
+  }
+
+  /** Агрегаты для карточки области в списке всех областей — 3 запроса вместо N+1. */
+  async getSummary(tenantId: string, areaId: string) {
+    await this.getOne(tenantId, areaId);
+
+    const objects = await this.objectRepo.find({
+      where: { tenantId, workspaceAreaId: areaId },
+      select: ['id', 'meta'],
+    });
+    const boardCount = objects.filter(
+      (o) => getWorkspaceTableKind(o.meta as Record<string, any>) === 'board',
+    ).length;
+    const dataCount = objects.length - boardCount;
+
+    const recordCount = objects.length
+      ? await this.recordRepo
+          .createQueryBuilder('r')
+          .where('r.tenantId = :tenantId', { tenantId })
+          .andWhere('r.objectId IN (:...ids)', { ids: objects.map((o) => o.id) })
+          .getCount()
+      : 0;
+
+    const memberCount = await this.members.countMembers(tenantId, areaId);
+
+    const area = await this.getOne(tenantId, areaId);
+    const sourceCount = parseWorkspaceIntegrationBindings(area.meta).length;
+
+    return {
+      tableCount: boardCount + dataCount,
+      boardCount,
+      dataCount,
+      recordCount,
+      memberCount,
+      sourceCount,
+    };
   }
 
   async getOne(tenantId: string, id: string): Promise<WorkspaceArea> {
@@ -196,10 +255,14 @@ export class WorkspaceAreasService {
     return false;
   }
 
-  async create(tenantId: string, dto: CreateWorkspaceAreaDto): Promise<WorkspaceArea> {
+  async create(
+    tenantId: string,
+    dto: CreateWorkspaceAreaDto,
+    creatorStaffUserId?: string,
+  ): Promise<WorkspaceArea> {
     await this.ensureDefaultArea(tenantId);
     const slug = await this.uniqueSlug(tenantId, dto.slug || dto.name);
-    return this.areaRepo.save(
+    const saved = await this.areaRepo.save(
       this.areaRepo.create({
         tenantId,
         name: dto.name.trim(),
@@ -212,6 +275,11 @@ export class WorkspaceAreasService {
         sortOrder: dto.sortOrder ?? 0,
       }),
     );
+    await this.seedOwnerMembership(tenantId, saved.id);
+    if (creatorStaffUserId) {
+      await this.members.addMember(tenantId, saved.id, creatorStaffUserId, 'owner', creatorStaffUserId);
+    }
+    return saved;
   }
 
   async update(

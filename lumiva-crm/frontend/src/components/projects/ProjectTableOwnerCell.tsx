@@ -73,12 +73,15 @@ export const ProjectTableOwnerCell: React.FC<Props> = ({
     const selected = staff.filter((u) => draftIds.includes(u.id));
     const names = selected.map((u) => u.fullName);
     try {
-      const updated = await updateProject({
-        ...project,
-        owner: names.length ? names.join(', ') : null,
-        ownerUserId: selected.length ? selected[0].id : null,
-        ownerUserIds: selected.length ? selected.map((u) => u.id) : [],
-      });
+      const updated = await updateProject(
+        {
+          ...project,
+          owner: names.length ? names.join(', ') : null,
+          ownerUserId: selected.length ? selected[0].id : null,
+          ownerUserIds: selected.length ? selected.map((u) => u.id) : [],
+        },
+        { excludeStatus: true },
+      );
       onUpdated(updated);
     } catch (err) {
       console.error(err);

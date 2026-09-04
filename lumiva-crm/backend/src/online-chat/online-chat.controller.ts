@@ -18,6 +18,8 @@ import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserPayload } from '../common/decorators/current-user.interface';
 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RbacGuard } from '../rbac/rbac.guard';
+import { RequirePermission } from '../rbac/require-permission.decorator';
 import { SendChatMessageDto } from './dto/send-chat-message.dto';
 
 @Controller()
@@ -32,7 +34,8 @@ export class OnlineChatController {
    * ==========================================================*/
 
   // GET /v1/online-chat/sessions
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('chat', 'read')
   @Get('online-chat/sessions')
   async listSessions(
     @CurrentUser() user: CurrentUserPayload,
@@ -47,7 +50,8 @@ export class OnlineChatController {
   }
 
   // GET /v1/online-chat/sessions/:id/messages
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('chat', 'read')
   @Get('online-chat/sessions/:id/messages')
   async getMessages(
     @CurrentUser() user: CurrentUserPayload,
@@ -56,7 +60,8 @@ export class OnlineChatController {
     return this.chat.getMessages(user.tenantId, sessionId);
   }
     // DELETE /v1/online-chat/sessions/:id
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('chat', 'write')
   @Delete('online-chat/sessions/:id')
   async deleteSession(
     @CurrentUser() user: CurrentUserPayload,
@@ -67,7 +72,8 @@ export class OnlineChatController {
   }
 
   // POST /v1/online-chat/sessions/:id/messages
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('chat', 'write')
   @Post('online-chat/sessions/:id/messages')
   async sendStaffMessage(
     @CurrentUser() user: CurrentUserPayload,
@@ -83,7 +89,8 @@ export class OnlineChatController {
   }
 
   // DEBUG: /v1/online-chat/debug/current-user
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('chat', 'read')
   @Get('online-chat/debug/current-user')
   async debugCurrentUser(@CurrentUser() user: CurrentUserPayload) {
     this.logger.debug(
@@ -93,7 +100,8 @@ export class OnlineChatController {
   }
 
   // DEBUG: /v1/online-chat/debug/sessions-current
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RbacGuard)
+  @RequirePermission('chat', 'read')
   @Get('online-chat/debug/sessions-current')
   async debugSessionsCurrent(@CurrentUser() user: CurrentUserPayload) {
     if (!user?.tenantId) return [];

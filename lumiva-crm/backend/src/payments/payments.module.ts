@@ -10,9 +10,10 @@ import { PaymentsController } from './payments.controller';
 import { IyzicoApiService } from '../integrations/iyzico/iyzico-api.service';
 import { PaytrApiService } from '../integrations/paytr/paytr-api.service';
 import { YookassaApiService } from '../integrations/yookassa/yookassa-api.service';
+import { RbacModule } from '../rbac/rbac.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Payment, Sale, IntegrationConnection])],
+  imports: [TypeOrmModule.forFeature([Payment, Sale, IntegrationConnection]), RbacModule],
   controllers: [PaymentsController],
   providers: [PaymentsService, IyzicoApiService, PaytrApiService, YookassaApiService],
   exports: [PaymentsService],

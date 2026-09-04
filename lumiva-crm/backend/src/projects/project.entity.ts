@@ -12,6 +12,17 @@ import { Tenant } from '../tenants/tenant.entity';
 import { Lead } from '../leads/lead.entity';
 import { Company } from '../companies/company.entity';
 import { Contact } from '../contacts/contact.entity';
+import { ProjectTable } from '../project-tables/project-table.entity';
+
+export type ProjectFileProvider = 'google_drive' | 'onedrive' | 'other';
+
+export interface ProjectFileLink {
+  id: string;
+  label: string;
+  url: string;
+  provider: ProjectFileProvider;
+  createdAt: string;
+}
 
 export type ProjectStatus =
   | 'Новый'
@@ -34,6 +45,14 @@ export class Project {
 
   @Column({ name: 'tenant_id' })
   tenantId: string;
+
+  // ==== ТАБЛИЦА (отдельный, шарируемый набор проектов) ====
+  @ManyToOne(() => ProjectTable, { nullable: true })
+  @JoinColumn({ name: 'table_id' })
+  table: ProjectTable | null;
+
+  @Column({ name: 'table_id', type: 'uuid', nullable: true })
+  tableId: string | null;
 
   // ==== СВЯЗЬ С ЛИДОМ ====
   @ManyToOne(() => Lead, (lead) => lead.projects, { nullable: true })
@@ -102,12 +121,16 @@ export class Project {
   @Column({ type: 'simple-array', nullable: true })
   relatedProjectIds: string[] | null; // id других проектов
 
-  // ==== FILE META (ТЗ / СМЕТА / ДОГОВОР) ====
+  // ==== FILE META (ТЗ / СМЕТА / ДОГОВОР) — устаревшее одиночное поле, оставлено для совместимости ====
   @Column({ type: 'varchar', length: 512, nullable: true })
   briefFileName: string | null;
 
   @Column({ type: 'varchar', length: 2048, nullable: true })
   briefFileUrl: string | null;
+
+  // ==== FILES (список ссылок: ТЗ / смета / договор и т.д., с провайдером для иконки) ====
+  @Column({ type: 'jsonb', nullable: true })
+  files: ProjectFileLink[] | null;
 
   // ==== ЗАДАЧИ ПРОЕКТА ====
   @Column({ type: 'simple-json', nullable: true })

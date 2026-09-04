@@ -11,7 +11,7 @@ describe('JiraApiService', () => {
   };
 
   beforeEach(() => {
-    svc = new JiraApiService();
+    svc = new JiraApiService({} as never, {} as never);
     jest.restoreAllMocks();
   });
 

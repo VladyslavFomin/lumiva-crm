@@ -8,6 +8,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   Index,
 } from 'typeorm';
 import { Tenant } from '../tenants/tenant.entity';
@@ -39,6 +40,15 @@ export class Company {
 
   @Column({ type: 'varchar', length: 50, nullable: true })
   taxId: string | null; // ИНН / Tax ID
+
+  /**
+   * Структурированный список юр./банковских реквизитов клиента ({ id, type, value }[], см.
+   * src/common/legal-requisites.ts) — используется в документах («Мои документы») как
+   * {COMPANY_REQUISITES}. Тип выбирается из каталога, сгруппированного по направлению
+   * (СНГ/Турция/Европа/Общие: ИНН, БИК, IBAN, ФИО директора, действует на основании и т.п.).
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  legalRequisites: { id: string; type: string; value: string }[] | null;
 
   // ==== КОНТАКТНАЯ ИНФОРМАЦИЯ ====
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -135,6 +145,12 @@ export class Company {
 
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
+
+  // Only ever set by deduplication merges (see DeduplicationService) — required for
+  // repo.softDelete()/restore() to work at all (TypeORM throws MissingDeleteDateColumnError
+  // without it). Standard find()/count() calls exclude soft-deleted rows automatically.
+  @DeleteDateColumn({ type: 'timestamptz', name: 'deleted_at' })
+  deletedAt?: Date | null;
 }
 
 

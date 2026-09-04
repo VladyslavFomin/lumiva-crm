@@ -8,6 +8,7 @@ import {
   JoinColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 import { Tenant } from '../tenants/tenant.entity';
 import { Site } from '../sites/site.entity';
@@ -16,6 +17,23 @@ import { Project } from '../projects/project.entity';
 import { Company } from '../companies/company.entity';
 import { Contact } from '../contacts/contact.entity';
 import { Reservation } from '../bookings/reservation.entity';
+
+export interface LeadTask {
+  id: string;
+  title: string;
+  done: boolean;
+  deadline: string | null;
+}
+
+export interface LeadComment {
+  id: string;
+  author: string;
+  createdAt: string;
+  text: string;
+  mentions?: string[];
+  parentId?: string | null;
+  likedBy?: string[];
+}
 
 @Entity('leads')
 export class Lead {
@@ -133,6 +151,32 @@ export class Lead {
   @Column({ type: 'jsonb', nullable: true })
   customFields: Record<string, any> | null;
 
+  // ==== СДЕЛКА ====
+  @Column({ type: 'numeric', precision: 14, scale: 2, default: 0 })
+  amount: string; // numeric → string в JS, как у Project.amount
+
+  @Column({ type: 'char', length: 3, default: 'TRY' })
+  currency: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  tasks: LeadTask[] | null; // лёгкий чек-лист шагов (прогресс + «следующий шаг»)
+
+  // ==== КОММЕНТАРИИ (с упоминаниями/лайками/ответами — как у Project.comments) ====
+  @Column({ type: 'jsonb', nullable: true })
+  comments: LeadComment[] | null;
+
+  /** Посчитано в LeadsService.listForTenant, не хранится в БД. */
+  commentsCount?: number;
+
+  /** Посчитано в LeadsController для текущего пользователя, не хранится в БД — см.
+   * LeadAccessService. 'owner' покрывает и полный доступ (owner/manager/руководитель отдела),
+   * и назначенные лиды. */
+  myAccessTier?: 'none' | 'viewer' | 'analyst' | 'editor' | 'owner';
+  canViewAnalytics?: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  canReassign?: boolean;
+
   // ==== ACTIVITY ====
   @OneToMany(() => LeadActivity, (a) => a.lead)
   activity: LeadActivity[];
@@ -143,4 +187,10 @@ export class Lead {
 
   @UpdateDateColumn({ type: 'timestamptz' })
   updatedAt: Date;
+
+  // Only ever set by deduplication merges (see DeduplicationService) — required for
+  // repo.softDelete()/restore() to work at all (TypeORM throws MissingDeleteDateColumnError
+  // without it). Standard find()/count() calls exclude soft-deleted rows automatically.
+  @DeleteDateColumn({ type: 'timestamptz', name: 'deleted_at' })
+  deletedAt?: Date | null;
 }

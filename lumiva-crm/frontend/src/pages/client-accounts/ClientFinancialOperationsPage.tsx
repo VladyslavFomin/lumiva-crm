@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { MainLayout } from '../../layout/MainLayout';
 import { ccpApi, type CcpClient, type CcpSite, type CcpTransfer, type CcpTxn } from '../../api/ccp';
 
@@ -14,12 +16,12 @@ function fmtMoney(value: unknown) {
   if (!Number.isFinite(n)) return s(value) || '0';
   return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-function fmtDate(value: unknown) {
+function fmtDate(value: unknown, locale = 'ru-RU') {
   const raw = s(value);
   if (!raw) return '—';
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return raw;
-  return d.toLocaleDateString('ru-RU', { year: 'numeric', month: 'short', day: '2-digit' });
+  return d.toLocaleDateString(locale, { year: 'numeric', month: 'short', day: '2-digit' });
 }
 function pickItems<T>(res: any): T[] {
   if (!res) return [];
@@ -32,7 +34,8 @@ function initials(name: string) {
   return (name || '?').split(/[\s@.]+/).filter(Boolean).slice(0, 2).map((p: string) => p[0]).join('').toUpperCase();
 }
 
-/* Extract recipient name from WP comment like "Перевод средств пользователю Имя Фамилия" */
+/* Extract recipient name from WP comment like "Перевод средств пользователю Имя Фамилия" —
+   this parses raw external CCP/WordPress data, not UI text, so the Russian regex stays literal. */
 function recipientFromComment(comment: string | null | undefined): string | null {
   if (!comment) return null;
   const m = comment.match(/пользователю\s+(.+)/i);
@@ -40,19 +43,19 @@ function recipientFromComment(comment: string | null | undefined): string | null
   if (/transfer to user/i.test(comment)) return null; // generic, not useful
   return null;
 }
-function humanStatus(value: unknown) {
+function humanStatus(value: unknown, t: TFunction) {
   const v = s(value).toLowerCase();
   if (!v) return '—';
-  if (['done', 'completed', 'success', 'accepted'].includes(v) || /выполн|опубл|publish/.test(v)) return 'Выполнено';
-  if (['pending', 'in_progress', 'in progress', 'processing'].includes(v) || /ожида|чернов|draft/.test(v)) return 'В процессе';
-  if (['rejected', 'cancelled', 'canceled', 'failed', 'error'].includes(v) || /ошиб|reject|cancel|fail/.test(v)) return 'Ошибка';
+  if (['done', 'completed', 'success', 'accepted'].includes(v) || /выполн|опубл|publish/.test(v)) return t('crm.clientAccounts.financialOps.humanStatus.done');
+  if (['pending', 'in_progress', 'in progress', 'processing'].includes(v) || /ожида|чернов|draft/.test(v)) return t('crm.clientAccounts.financialOps.humanStatus.progress');
+  if (['rejected', 'cancelled', 'canceled', 'failed', 'error'].includes(v) || /ошиб|reject|cancel|fail/.test(v)) return t('crm.clientAccounts.financialOps.humanStatus.fail');
   return s(value);
 }
-function operationTitle(row: any, fallback: string) {
+function operationTitle(row: any, fallback: string, t: TFunction) {
   const type = s(row.type || row.transactionType || row.meta?.transactionType || row.meta?.transactionTypeId);
   const title = s(row.title);
   if (title && !/^\d+$/.test(title.trim())) return title;
-  if (type === 'manual_adjustment' || type === '3') return 'Финансовая операция';
+  if (type === 'manual_adjustment' || type === '3') return t('crm.clientAccounts.financialOps.operationFallback');
   if (type && !/^\d+$/.test(type.trim())) return type.replace(/_/g, ' ');
   return fallback;
 }
@@ -82,12 +85,13 @@ const BADGE_STYLE: Record<BadgeKind, { wrap: string; dot: string }> = {
   neutral:  { wrap: 'text-[#555] border-[#e7e7e7] bg-[#fafafa]',    dot: 'bg-[#888]' },
 };
 const StatusBadge: React.FC<{ status?: string | null }> = ({ status }) => {
+  const { t } = useTranslation();
   const kind = statusKind(status);
   const { wrap, dot } = BADGE_STYLE[kind];
   return (
     <span className={cx('inline-flex items-center gap-[5px] rounded-full border px-[9px] py-[3px] text-[11px] font-medium', wrap)}>
       <span className={cx('w-[5px] h-[5px] rounded-full flex-shrink-0', dot)} />
-      {humanStatus(status)}
+      {humanStatus(status, t)}
     </span>
   );
 };
@@ -164,6 +168,9 @@ function deduplicateTransferRows(rows: OperationRow[]): OperationRow[] {
 }
 
 export default function ClientFinancialOperationsPage() {
+  const { t, i18n } = useTranslation();
+  const fo = (key: string, opts?: Record<string, unknown>) => t(`crm.clientAccounts.financialOps.${key}`, opts as any) as string;
+  const dateLocale = i18n.language?.startsWith('tr') ? 'tr-TR' : i18n.language?.startsWith('en') ? 'en-US' : 'ru-RU';
   const [sites, setSites] = useState<CcpSite[]>([]);
   const [siteId, setSiteId] = useState('');
   const [clients, setClients] = useState<CcpClient[]>([]);
@@ -184,8 +191,9 @@ export default function ClientFinancialOperationsPage() {
         setSites(res || []);
         if (res?.[0]?.id) setSiteId(res[0].id);
       })
-      .catch((e: any) => setError(e?.message || 'Не удалось загрузить сайты'));
+      .catch((e: any) => setError(e?.message || fo('loadSitesError')));
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const load = async () => {
@@ -202,10 +210,10 @@ export default function ClientFinancialOperationsPage() {
       setTxns(txnsRes.status === 'fulfilled' ? pickItems<CcpTxn>(txnsRes.value) : []);
       setTransfers(transfersRes.status === 'fulfilled' ? pickItems<CcpTransfer>(transfersRes.value) : []);
       if (txnsRes.status === 'rejected' && transfersRes.status === 'rejected') {
-        setError('Не удалось загрузить операции и переводы');
+        setError(fo('loadOpsError'));
       }
     } catch (e: any) {
-      setError(e?.message || 'Не удалось загрузить финансовые операции');
+      setError(e?.message || fo('loadFinOpsError'));
     } finally {
       setLoading(false);
     }
@@ -235,13 +243,6 @@ export default function ClientFinancialOperationsPage() {
     return client ? (client.name || client.email) : `WP#${id}`;
   };
 
-  /* Full label for edit modal */
-  const userLabel = (id: number | null) => {
-    if (!id) return '—';
-    const client: any = clientByWpId.get(id);
-    return client ? `${client.name || client.email} · WP#${id}` : `WP#${id}`;
-  };
-
   const allRows = useMemo<OperationRow[]>(() => {
     /* WP creates 3 records per transfer: 1 Transfer post + 2 Txn posts (debit/credit).
        The Transfer post is canonical — show only it, drop all transfer-type txns. */
@@ -259,7 +260,7 @@ export default function ClientFinancialOperationsPage() {
           clientId: Number(txn.wpUserId) || null,
           fromId: Number(txn.wpUserId) || null,
           toId: null,
-          title: operationTitle(txn, `Операция #${txn.wpPostId}`),
+          title: operationTitle(txn, fo('txnFallback', { id: txn.wpPostId }), t),
           amount: s(amount || 0),
           currency,
           status: txn.ccpStatus || txn.status,
@@ -304,7 +305,7 @@ export default function ClientFinancialOperationsPage() {
         clientId: resolvedFromId || resolvedToId,
         fromId: resolvedFromId,
         toId: resolvedToId,
-        title: operationTitle(transfer, `Перевод #${transfer.wpPostId}`),
+        title: operationTitle(transfer, fo('transferFallback', { id: transfer.wpPostId }), t),
         amount: s(transfer.amount || transfer.meta?.ccp_tr_amount || 0),
         currency: s(transfer.fromCurrency || transfer.meta?.ccp_tr_from_cur || transfer.currency || '—'),
         rate: transfer.rate || transfer.meta?.ccp_tr_rate,
@@ -321,7 +322,7 @@ export default function ClientFinancialOperationsPage() {
       const bt = Date.parse(b.date || '') || 0;
       return bt - at;
     });
-  }, [txns, transfers, siteHostMap, siteId]);
+  }, [txns, transfers, siteHostMap, siteId, t]);
 
   const rows = useMemo(() => {
     return allRows.filter((row) => {
@@ -416,14 +417,14 @@ export default function ClientFinancialOperationsPage() {
           <div className="flex items-center gap-2 mb-1">
             <span className="w-[6px] h-[6px] rounded-full bg-[#222]" />
             <span className="cd-mono text-[10px] font-medium tracking-[0.18em] uppercase text-[#888]">
-              CCP · Финансы
+              {fo('kicker')}
             </span>
           </div>
           <h1 className="cd-display text-[22px] font-semibold tracking-[-0.02em] text-[#222]">
-            Финансовые операции
+            {fo('title')}
           </h1>
           <p className="mt-0.5 text-[13px] text-[#888]">
-            Все списания, пополнения и переводы по клиентским кабинетам — в одной ленте
+            {fo('subtitle')}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -431,13 +432,13 @@ export default function ClientFinancialOperationsPage() {
             to="/client-accounts"
             className="rounded-[8px] border border-[#e7e7e7] bg-white px-3.5 py-2 text-[12px] font-medium text-[#444] hover:border-[#ccc] hover:bg-[#fafafa] transition-colors"
           >
-            Счета клиентов
+            {fo('accountsLink')}
           </Link>
           <button
             onClick={load}
             className="rounded-[8px] border border-[#222] bg-[#222] px-3.5 py-2 text-[12px] font-medium text-white hover:bg-[#111] transition-colors"
           >
-            Обновить
+            {fo('refreshBtn')}
           </button>
         </div>
       </div>
@@ -451,31 +452,31 @@ export default function ClientFinancialOperationsPage() {
         {[
           {
             icon: <path d="M3 17l6-6 4 4 8-9"/>,
-            label: 'Оборот EUR',
+            label: fo('kpis.turnoverEur'),
             value: fmtMoney(kpi.eurTotal),
             sym: 'EUR',
-            sub: 'за последние 30 дней',
+            sub: fo('kpis.last30days'),
           },
           {
             icon: <path d="M3 17l6-6 4 4 8-9"/>,
-            label: 'Оборот USD',
+            label: fo('kpis.turnoverUsd'),
             value: fmtMoney(kpi.usdTotal),
             sym: 'USD',
-            sub: 'за последние 30 дней',
+            sub: fo('kpis.last30days'),
           },
           {
             icon: <><path d="M5 3v18l2-1.5L9 21l2-1.5L13 21l2-1.5L17 21l2-1.5V3l-2 1.5L15 3l-2 1.5L11 3 9 4.5 7 3 5 4.5z"/><path d="M8 8h8M8 12h8M8 16h5"/></>,
-            label: 'Операций',
+            label: fo('kpis.operations'),
             value: String(kpi.txnCount),
             sym: '',
-            sub: `${kpi.inProgress} в процессе`,
+            sub: fo('kpis.inProgressSuffix', { count: kpi.inProgress }),
           },
           {
             icon: <><path d="M7 4v13M7 4L4 7M7 4l3 3"/><path d="M17 20V7M17 20l3-3M17 20l-3-3"/></>,
-            label: 'Переводов',
+            label: fo('kpis.transfers'),
             value: String(kpi.trCount),
             sym: '',
-            sub: 'между счетами клиентов',
+            sub: fo('kpis.betweenClientAccounts'),
           },
         ].map((cell, i) => (
           <div key={i} className={cx('px-5 py-4', i < 3 && 'border-r border-[#e7e7e7]')}>
@@ -496,7 +497,7 @@ export default function ClientFinancialOperationsPage() {
       <div className="mb-3.5 flex items-center gap-3 flex-wrap">
         {/* Segment */}
         <div className="flex items-center bg-[#f5f5f5] border border-[#e7e7e7] rounded-[8px] p-[2px]">
-          {([['all', 'Все', counts.all], ['txn', 'Операции', counts.txn], ['transfer', 'Переводы', counts.transfer]] as const).map(([key, label, count]) => (
+          {([['all', fo('filters.all'), counts.all], ['txn', fo('filters.operations'), counts.txn], ['transfer', fo('filters.transfers'), counts.transfer]] as const).map(([key, label, count]) => (
             <button
               key={key}
               onClick={() => setTypeFilter(key as any)}
@@ -518,7 +519,7 @@ export default function ClientFinancialOperationsPage() {
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-[#b5b5b5]" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.5-4.5"/></svg>
           <input
             className="w-[200px] rounded-[8px] border border-[#e7e7e7] bg-white pl-8 pr-3 py-[7px] text-[12.5px] text-[#222] outline-none focus:border-[#222] placeholder-[#b5b5b5] transition-colors"
-            placeholder="Операция или клиент"
+            placeholder={fo('searchPlaceholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -526,7 +527,7 @@ export default function ClientFinancialOperationsPage() {
 
         {/* Site selector */}
         <div className="flex items-center gap-2 text-[12.5px] text-[#555]">
-          <span className="text-[#b5b5b5]">Сайт:</span>
+          <span className="text-[#b5b5b5]">{fo('siteLabel')}</span>
           <select
             className="rounded-[8px] border border-[#e7e7e7] bg-white px-3 py-[7px] text-[12.5px] text-[#222] outline-none focus:border-[#222] transition-colors appearance-none"
             value={siteId}
@@ -539,7 +540,7 @@ export default function ClientFinancialOperationsPage() {
         </div>
 
         <div className="ml-auto text-[12px] text-[#888]">
-          {loading ? 'Загрузка…' : `Показано ${rows.length} из ${allRows.length}`}
+          {loading ? fo('loadingLabel') : fo('shownOfFormat', { shown: rows.length, total: allRows.length })}
         </div>
       </div>
 
@@ -549,12 +550,12 @@ export default function ClientFinancialOperationsPage() {
           <table className="w-full min-w-[760px] border-collapse text-left text-[13px]">
             <thead className="bg-[#fafafa]">
               <tr>
-                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0] whitespace-nowrap">Операция</th>
-                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0]">Клиент</th>
-                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0]">Тип</th>
-                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0]">Статус</th>
-                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0] text-right">Сумма</th>
-                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0] text-right">Дата</th>
+                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0] whitespace-nowrap">{fo('table.colOperation')}</th>
+                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0]">{fo('table.colClient')}</th>
+                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0]">{fo('table.colType')}</th>
+                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0]">{fo('table.colStatus')}</th>
+                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0] text-right">{fo('table.colAmount')}</th>
+                <th className="cd-mono px-4 py-3 text-[10px] font-medium tracking-[0.1em] uppercase text-[#888] border-b border-[#f0f0f0] text-right">{fo('table.colDate')}</th>
                 <th className="px-4 py-3 border-b border-[#f0f0f0] w-[1%]" />
               </tr>
             </thead>
@@ -618,7 +619,7 @@ export default function ClientFinancialOperationsPage() {
                           : 'border-[#e7e7e7] bg-white text-[#555]'
                       )}>
                         <span className={cx('w-[5px] h-[5px] rounded-full flex-shrink-0', isTransfer ? 'bg-white' : 'bg-[#888]')} />
-                        {isTransfer ? 'Перевод' : 'Операция'}
+                        {isTransfer ? fo('typeTransfer') : fo('typeOperation')}
                       </span>
                     </td>
 
@@ -640,13 +641,13 @@ export default function ClientFinancialOperationsPage() {
                           {fmtMoney(row.amount)}
                         </div>
                       ) : (
-                        <span className="cd-mono text-[13px] text-[#1f8a5e] font-semibold">+ пополнение</span>
+                        <span className="cd-mono text-[13px] text-[#1f8a5e] font-semibold">{fo('topUpLabel')}</span>
                       )}
                     </td>
 
                     {/* Дата */}
                     <td className="px-4 py-3 text-right">
-                      <span className="cd-mono text-[11.5px] text-[#555] whitespace-nowrap">{fmtDate(row.date)}</span>
+                      <span className="cd-mono text-[11.5px] text-[#555] whitespace-nowrap">{fmtDate(row.date, dateLocale)}</span>
                     </td>
 
                     {/* Действия */}
@@ -655,7 +656,7 @@ export default function ClientFinancialOperationsPage() {
                         onClick={() => setEditingRow(row)}
                         className="rounded-[7px] border border-[#e7e7e7] bg-white px-2.5 py-1.5 text-[11px] font-medium text-[#555] hover:border-[#ccc] hover:bg-[#fafafa] whitespace-nowrap transition-colors"
                       >
-                        Редактировать
+                        {fo('editBtn')}
                       </button>
                     </td>
                   </tr>
@@ -664,7 +665,7 @@ export default function ClientFinancialOperationsPage() {
               {!loading && rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-[13px] text-[#888]">
-                    Финансовые операции не найдены.
+                    {fo('emptyOperations')}
                   </td>
                 </tr>
               )}
@@ -675,8 +676,7 @@ export default function ClientFinancialOperationsPage() {
         {/* Table footer */}
         <div className="flex items-center justify-between px-4 py-3 bg-[#fafafa] border-t border-[#e7e7e7] text-[12px] text-[#555]">
           <span>
-            Показано <span className="cd-mono font-medium text-[#222]">{rows.length}</span> из{' '}
-            <span className="cd-mono font-medium text-[#222]">{allRows.length}</span> операций
+            {fo('footerShownFormat', { shown: rows.length, total: allRows.length })}
           </span>
           <span className="text-[#888]">
             {currentSiteHost && <><span className="cd-mono text-[#555]">{currentSiteHost}</span></>}
@@ -704,39 +704,42 @@ const ModalShell: React.FC<{
   children: React.ReactNode;
   onClose: () => void;
   onSave: () => void;
-}> = ({ title, busy, children, onClose, onSave }) => (
-  <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
-    <div className="w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-2xl">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
-        <h2 className="cd-display text-[15px] font-semibold text-[#222]">{title}</h2>
-        <button
-          onClick={onClose}
-          className="w-7 h-7 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f0f0f0] hover:text-[#222] transition-colors text-lg leading-none"
-          aria-label="Закрыть"
-        >
-          ×
-        </button>
-      </div>
-      <div className="p-5 max-h-[70vh] overflow-y-auto">{children}</div>
-      <div className="flex justify-end gap-2 px-5 py-4 border-t border-[#f0f0f0]">
-        <button
-          onClick={onClose}
-          disabled={busy}
-          className="rounded-[8px] border border-[#e7e7e7] px-4 py-2 text-[12px] font-medium text-[#555] hover:bg-[#fafafa] disabled:opacity-50 transition-colors"
-        >
-          Отмена
-        </button>
-        <button
-          onClick={onSave}
-          disabled={busy}
-          className="rounded-[8px] border border-[#222] bg-[#222] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#111] disabled:opacity-50 transition-colors"
-        >
-          {busy ? 'Сохранение...' : 'Сохранить'}
-        </button>
+}> = ({ title, busy, children, onClose, onSave }) => {
+  const { t } = useTranslation();
+  return (
+    <div className="fixed inset-0 z-[8500] flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl rounded-[14px] border border-[#e7e7e7] bg-white shadow-2xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[#f0f0f0]">
+          <h2 className="cd-display text-[15px] font-semibold text-[#222]">{title}</h2>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-[#888] hover:bg-[#f0f0f0] hover:text-[#222] transition-colors text-lg leading-none"
+            aria-label={t('crm.clientAccounts.financialOps.modal.close')}
+          >
+            ×
+          </button>
+        </div>
+        <div className="p-5 max-h-[70vh] overflow-y-auto">{children}</div>
+        <div className="flex justify-end gap-2 px-5 py-4 border-t border-[#f0f0f0]">
+          <button
+            onClick={onClose}
+            disabled={busy}
+            className="rounded-[8px] border border-[#e7e7e7] px-4 py-2 text-[12px] font-medium text-[#555] hover:bg-[#fafafa] disabled:opacity-50 transition-colors"
+          >
+            {t('crm.clientAccounts.financialOps.modal.cancel')}
+          </button>
+          <button
+            onClick={onSave}
+            disabled={busy}
+            className="rounded-[8px] border border-[#222] bg-[#222] px-4 py-2 text-[12px] font-medium text-white hover:bg-[#111] disabled:opacity-50 transition-colors"
+          >
+            {busy ? t('crm.clientAccounts.financialOps.modal.savingBtn') : t('crm.clientAccounts.financialOps.modal.saveBtn')}
+          </button>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /* ── Edit field ────────────────────────────────────────────────────────── */
 const EditField: React.FC<{
@@ -791,6 +794,7 @@ const ClientSearchField: React.FC<{
   onChange: (value: string) => void;
   clients: CcpClient[];
 }> = ({ label, value, onChange, clients }) => {
+  const { t } = useTranslation();
   const listId = useMemo(() => `clients-${label.replace(/\s+/g, '-').toLowerCase()}`, [label]);
   const options = useMemo(() => clients.map((client) => ({
     id: String(client.wpUserId),
@@ -823,13 +827,13 @@ const ClientSearchField: React.FC<{
         value={query}
         onChange={(e) => { setQuery(e.target.value); commit(e.target.value, true); }}
         onBlur={() => commit(query)}
-        placeholder="Начните вводить имя или email"
+        placeholder={t('crm.clientAccounts.financialOps.modal.clientSearchPlaceholder')}
       />
       <datalist id={listId}>
         {options.map((o) => <option key={o.id} value={o.label} />)}
       </datalist>
       <div className="mt-1 text-[11px] text-[#888]">
-        {value ? `Выбран: ${selected?.label || 'клиент не найден'}` : 'Выберите клиента из списка'}
+        {value ? t('crm.clientAccounts.financialOps.modal.selectedFormat', { name: selected?.label || t('crm.clientAccounts.financialOps.modal.clientNotFound') }) : t('crm.clientAccounts.financialOps.modal.selectClientHint')}
       </div>
     </div>
   );
@@ -843,6 +847,7 @@ const OperationEditModal: React.FC<{
   onClose: () => void;
   onSave: (patch: any) => void;
 }> = ({ row, clients, busy, onClose, onSave }) => {
+  const { t } = useTranslation();
   const isTransferLike = row.kind === 'transfer';
   const [title, setTitle] = useState(row.title);
   const [date, setDate] = useState(String(row.date || ''));
@@ -866,35 +871,35 @@ const OperationEditModal: React.FC<{
   const credited = String((Number(amount || 0) || 0) * (Number(rate || 1) || 1));
   const statusOptions = STATUS_OPTIONS.some((o) => o.value === status)
     ? STATUS_OPTIONS
-    : [{ value: status, label: humanStatus(status) }, ...STATUS_OPTIONS];
+    : [{ value: status, label: humanStatus(status, t) }, ...STATUS_OPTIONS];
 
   return (
     <ModalShell
-      title={`Редактировать ${isTransferLike ? 'перевод' : 'операцию'}`}
+      title={isTransferLike ? t('crm.clientAccounts.financialOps.modal.editTransferTitle') : t('crm.clientAccounts.financialOps.modal.editOperationTitle')}
       busy={busy}
       onClose={onClose}
       onSave={() => onSave({ title, date, status, amount, currency, toCurrency, rate, credited, spendEur, spendUsd, fromId, toId, desc, note })}
     >
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-        <EditField label="Название" value={title} onChange={setTitle} />
-        <EditSelect label="Статус" value={status} onChange={setStatus} options={statusOptions} />
-        <EditField label="Дата" value={date} onChange={setDate} />
+        <EditField label={t('crm.clientAccounts.financialOps.modal.fieldName')} value={title} onChange={setTitle} />
+        <EditSelect label={t('crm.clientAccounts.financialOps.modal.fieldStatus')} value={status} onChange={setStatus} options={statusOptions} />
+        <EditField label={t('crm.clientAccounts.financialOps.modal.fieldDate')} value={date} onChange={setDate} />
         {isTransferLike ? (
           <>
-            <ClientSearchField label="Отправитель" value={fromId} onChange={setFromId} clients={clients} />
-            <ClientSearchField label="Получатель" value={toId} onChange={setToId} clients={clients} />
-            <EditField label="Сумма" value={amount} onChange={setAmount} />
-            <EditSelect label="Валюта списания" value={currency} onChange={setCurrency} options={CURRENCY_OPTIONS.map((v) => ({ value: v, label: v }))} />
-            <EditSelect label="Валюта зачисления" value={toCurrency} onChange={setToCurrency} options={CURRENCY_OPTIONS.map((v) => ({ value: v, label: v }))} />
-            <EditField label="Курс" value={rate} onChange={setRate} />
-            <div className="md:col-span-2"><EditField label="Описание" value={desc} onChange={setDesc} textarea /></div>
-            <div className="md:col-span-2"><EditField label="Примечание" value={note} onChange={setNote} textarea /></div>
+            <ClientSearchField label={t('crm.clientAccounts.financialOps.modal.fieldSender')} value={fromId} onChange={setFromId} clients={clients} />
+            <ClientSearchField label={t('crm.clientAccounts.financialOps.modal.fieldRecipient')} value={toId} onChange={setToId} clients={clients} />
+            <EditField label={t('crm.clientAccounts.financialOps.modal.fieldAmount')} value={amount} onChange={setAmount} />
+            <EditSelect label={t('crm.clientAccounts.financialOps.modal.fieldFromCurrency')} value={currency} onChange={setCurrency} options={CURRENCY_OPTIONS.map((v) => ({ value: v, label: v }))} />
+            <EditSelect label={t('crm.clientAccounts.financialOps.modal.fieldToCurrency')} value={toCurrency} onChange={setToCurrency} options={CURRENCY_OPTIONS.map((v) => ({ value: v, label: v }))} />
+            <EditField label={t('crm.clientAccounts.financialOps.modal.fieldRate')} value={rate} onChange={setRate} />
+            <div className="md:col-span-2"><EditField label={t('crm.clientAccounts.financialOps.modal.fieldDescription')} value={desc} onChange={setDesc} textarea /></div>
+            <div className="md:col-span-2"><EditField label={t('crm.clientAccounts.financialOps.modal.fieldNote')} value={note} onChange={setNote} textarea /></div>
           </>
         ) : (
           <>
             <EditField label="EUR" value={spendEur} onChange={setSpendEur} />
             <EditField label="USD" value={spendUsd} onChange={setSpendUsd} />
-            <div className="md:col-span-2"><EditField label="Описание / назначение" value={desc} onChange={setDesc} textarea /></div>
+            <div className="md:col-span-2"><EditField label={t('crm.clientAccounts.financialOps.modal.fieldDescriptionPurpose')} value={desc} onChange={setDesc} textarea /></div>
           </>
         )}
       </div>

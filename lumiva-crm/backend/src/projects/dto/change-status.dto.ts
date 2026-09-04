@@ -1,7 +1,7 @@
-import { IsIn } from 'class-validator';
+import { IsString } from 'class-validator';
 import type { ProjectStatus } from '../project.entity';
 
 export class ChangeStatusDto {
-  @IsIn(['Новый', 'В работе', 'На проверке', 'Заморожен', 'Закрыт'])
-  status: ProjectStatus;
+  @IsString()
+  status: ProjectStatus; // валидируется по тенантским ProjectStatusDefinition в ProjectsService
 }

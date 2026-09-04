@@ -7,6 +7,21 @@ import './index.css';
 import { ErrorBoundary } from './ErrorBoundary';
 import './i18n';
 
+// A live deploy replaces every hashed chunk filename — a tab that's been open across a deploy
+// still references the OLD names and 404s the moment it tries to fetch one. Vite's documented
+// fix: reload once instead of leaving the user on a dead "Failed to fetch dynamically imported
+// module" screen. Guarded by sessionStorage so a genuinely broken chunk (not just staleness)
+// doesn't reload-loop forever.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  const key = 'lumiva_chunk_reload_once_v1';
+  const last = Number(sessionStorage.getItem(key) || '0');
+  if (!last || Date.now() - last > 60_000) {
+    sessionStorage.setItem(key, String(Date.now()));
+    window.location.reload();
+  }
+});
+
 const sentryDsn = import.meta.env.VITE_SENTRY_DSN as string | undefined;
 if (sentryDsn) {
   Sentry.init({

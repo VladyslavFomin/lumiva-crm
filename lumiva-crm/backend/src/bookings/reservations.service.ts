@@ -8,11 +8,28 @@ import { Contact } from '../contacts/contact.entity';
 import { StaffUser } from '../staff/staff-user.entity';
 import { BookingService } from './booking-service.entity';
 import { BookingLocation } from './booking-location.entity';
+import { BookingResource } from './booking-resource.entity';
 import { BookingsProjectsService } from './bookings-projects.service';
 import { BookingsAvailabilityService } from './bookings-availability.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { StaffUsersService } from '../staff/staff-users.service';
 import { AutomationsService } from '../automations/automations.service';
 import { TriggerEvent } from '../automations/automation.entity';
+
+/** Расстояние Левенштейна — для восстановления после опечатки LLM в UUID (см. findNearestByTypo). */
+function levenshtein(a: string, b: string): number {
+  const dp: number[] = Array(b.length + 1).fill(0).map((_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let prev = dp[0];
+    dp[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = dp[j];
+      dp[j] = a[i - 1] === b[j - 1] ? prev : 1 + Math.min(prev, dp[j], dp[j - 1]);
+      prev = tmp;
+    }
+  }
+  return dp[b.length];
+}
 
 export interface ReservationListFilters {
   status?: string;
@@ -58,12 +75,35 @@ export class ReservationsService {
     private readonly servicesRepo: Repository<BookingService>,
     @InjectRepository(BookingLocation)
     private readonly locationsRepo: Repository<BookingLocation>,
+    @InjectRepository(BookingResource)
+    private readonly resourcesRepo: Repository<BookingResource>,
     private readonly projects: BookingsProjectsService,
     private readonly availability: BookingsAvailabilityService,
     private readonly notifications: NotificationsService,
+    private readonly staffUsersService: StaffUsersService,
     @Inject(forwardRef(() => AutomationsService))
     private readonly automationsService: AutomationsService,
   ) {}
+
+  /** Уведомляет в колокольчик нового ответственного по брони (только если поле реально
+   * поменялось и это не тот же сотрудник, что совершил действие). */
+  private async notifyNewAssignee(
+    tenantId: string,
+    previousStaffId: string | null | undefined,
+    nextStaffId: string | null | undefined,
+    actingStaffUserId: string | null,
+    reservation: Reservation,
+  ): Promise<void> {
+    if (!nextStaffId || nextStaffId === previousStaffId || nextStaffId === actingStaffUserId) return;
+    const userIds = await this.staffUsersService.resolveNotificationUserIdsForTenant(tenantId, [nextStaffId]);
+    if (!userIds.length) return;
+    const who = reservation.customerName?.trim() || reservation.customerPhone || reservation.customerEmail || 'Бронь';
+    await this.notifications.create(tenantId, userIds, 'Вам назначена бронь', who, {
+      type: 'reservation.assigned',
+      reservationId: reservation.id,
+      link: `/bookings/reservations/${reservation.id}`,
+    });
+  }
 
   /* ---------- список / детали ---------- */
 
@@ -79,8 +119,17 @@ export class ReservationsService {
     if (filters.staffUserId) qb.andWhere('r.staffUserId = :staffUserId', { staffUserId: filters.staffUserId });
     if (filters.assignedUserId) qb.andWhere('r.assignedUserId = :assignedUserId', { assignedUserId: filters.assignedUserId });
     if (filters.source) qb.andWhere('r.source = :source', { source: filters.source });
+    // "YYYY-MM-DD" без времени раньше парсился как полночь UTC ТОГО ЖЕ дня и для from, и для
+    // to — значит диапазон "on 29 августа" (from=to="2026-08-29") превращался в
+    // startAt >= 00:00:00 AND startAt <= 00:00:00, что не находило вообще ничего, кроме
+    // брони ровно в полночь. Дата без времени в to теперь означает конец дня (23:59:59.999).
     if (filters.from) qb.andWhere('r.startAt >= :from', { from: new Date(filters.from) });
-    if (filters.to) qb.andWhere('r.startAt <= :to', { to: new Date(filters.to) });
+    if (filters.to) {
+      const to = /^\d{4}-\d{2}-\d{2}$/.test(filters.to.trim())
+        ? new Date(`${filters.to.trim()}T23:59:59.999Z`)
+        : new Date(filters.to);
+      qb.andWhere('r.startAt <= :to', { to });
+    }
     if (filters.search) {
       qb.andWhere(
         '(r.customerName ILIKE :search OR r.customerPhone ILIKE :search OR r.customerEmail ILIKE :search)',
@@ -95,6 +144,30 @@ export class ReservationsService {
     const reservation = await this.repo.findOne({ where: { id, tenantId } });
     if (!reservation) throw new NotFoundException('Reservation not found');
     return reservation;
+  }
+
+  /**
+   * Восстановление после типичной ошибки ИИ-чата: модель "перепечатывает" UUID из своего же
+   * предыдущего текстового ответа (вместо структурированного результата инструмента) и путает
+   * один символ (напр. "2c86" -> "2d86") — reservationId технически валиден по формату, но не
+   * существует. Ищем среди недавних броней тенанта id с минимальным расстоянием Левенштейна;
+   * возвращаем найденное только при почти точном совпадении (расстояние ≤2 из 36 символов),
+   * иначе это не опечатка, а просто другая/несуществующая бронь — не подсовываем случайную.
+   */
+  async findNearestByTypo(tenantId: string, wrongId: string): Promise<Reservation | null> {
+    const candidates = await this.repo.find({
+      where: { tenantId },
+      select: ['id'],
+      order: { createdAt: 'DESC' },
+      take: 500,
+    });
+    let best: { id: string; dist: number } | null = null;
+    for (const c of candidates) {
+      const dist = levenshtein(wrongId.toLowerCase(), c.id.toLowerCase());
+      if (!best || dist < best.dist) best = { id: c.id, dist };
+    }
+    if (!best || best.dist > 2) return null;
+    return this.repo.findOne({ where: { id: best.id, tenantId } });
   }
 
   /**
@@ -234,6 +307,34 @@ export class ReservationsService {
 
   /* ---------- создание / изменение ---------- */
 
+  /**
+   * Раньше serviceId/staffUserId/resourceId/locationId сохранялись в бронь как есть, без
+   * проверки, что такая запись вообще существует у тенанта — colonки uuid nullable без FK,
+   * поэтому "успешное" создание/изменение брони могло молча сослаться на несуществующую
+   * услугу/мастера (напр. через ИИ-чат, который сперва называет ещё не заведённую услугу).
+   */
+  private async validateReferences(
+    tenantId: string,
+    dto: { serviceId?: string | null; staffUserId?: string | null; resourceId?: string | null; locationId?: string },
+  ): Promise<void> {
+    if (dto.serviceId) {
+      const exists = await this.servicesRepo.exists({ where: { id: dto.serviceId, tenantId } });
+      if (!exists) throw new BadRequestException('Услуга не найдена (serviceId)');
+    }
+    if (dto.staffUserId) {
+      const exists = await this.staffRepo.exists({ where: { id: dto.staffUserId, tenantId } });
+      if (!exists) throw new BadRequestException('Сотрудник не найден (staffUserId)');
+    }
+    if (dto.resourceId) {
+      const exists = await this.resourcesRepo.exists({ where: { id: dto.resourceId, tenantId } });
+      if (!exists) throw new BadRequestException('Ресурс/кабинет не найден (resourceId)');
+    }
+    if (dto.locationId) {
+      const exists = await this.locationsRepo.exists({ where: { id: dto.locationId, tenantId } });
+      if (!exists) throw new BadRequestException('Локация не найдена (locationId)');
+    }
+  }
+
   async create(
     tenantId: string,
     dto: {
@@ -261,6 +362,12 @@ export class ReservationsService {
     const endAt = new Date(dto.endAt);
     if (!(startAt < endAt)) {
       throw new BadRequestException('startAt must be before endAt');
+    }
+    // skipValidation (массовый импорт исторических броней) отключает и эту проверку —
+    // как и правила проекта/конфликты ниже, иначе устаревшие ссылки в старых данных
+    // валили бы весь файл.
+    if (!options.skipValidation) {
+      await this.validateReferences(tenantId, dto);
     }
 
     // Правила проекта (мин. уведомление / горизонт) применяются к само-сервисным источникам
@@ -315,6 +422,7 @@ export class ReservationsService {
       assignedUserId: dto.assignedUserId || actingStaffUserId || null,
     });
     const saved = await this.repo.save(reservation);
+    await this.notifyNewAssignee(tenantId, null, saved.assignedUserId, actingStaffUserId, saved).catch(() => undefined);
 
     await this.logActivity(tenantId, saved.id, 'created', actingStaffUserId, 'Бронь создана');
     try {
@@ -343,12 +451,18 @@ export class ReservationsService {
     actingStaffUserId: string | null,
   ): Promise<Reservation> {
     const reservation = await this.findOne(tenantId, id);
+    await this.validateReferences(tenantId, dto);
     const previousStartAt = reservation.startAt;
     const rescheduling =
       (dto.startAt && new Date(dto.startAt).getTime() !== reservation.startAt.getTime()) ||
       (dto.endAt && new Date(dto.endAt).getTime() !== reservation.endAt.getTime());
+    // Переназначение мастера/ресурса без смены времени раньше вообще не проверялось —
+    // конфликт (двойная бронь) искался только когда менялось время.
+    const reassigningStaff = dto.staffUserId !== undefined && dto.staffUserId !== reservation.staffUserId;
+    const reassigningResource = dto.resourceId !== undefined && dto.resourceId !== reservation.resourceId;
+    const needsConflictCheck = rescheduling || reassigningStaff || reassigningResource;
 
-    if (rescheduling) {
+    if (needsConflictCheck) {
       const startAt = dto.startAt ? new Date(dto.startAt) : reservation.startAt;
       const endAt = dto.endAt ? new Date(dto.endAt) : reservation.endAt;
       const conflict = await this.availability.checkConflict({
@@ -362,9 +476,11 @@ export class ReservationsService {
       if (!conflict.ok) throw new BadRequestException(conflict.reason);
     }
 
+    const previousAssignedUserId = reservation.assignedUserId;
     const { id: _id, tenantId: _t, createdAt, updatedAt, ...rest } = dto as any;
     Object.assign(reservation, rest);
     const saved = await this.repo.save(reservation);
+    await this.notifyNewAssignee(tenantId, previousAssignedUserId, saved.assignedUserId, actingStaffUserId, saved).catch(() => undefined);
 
     if (rescheduling) {
       await this.logActivity(tenantId, id, 'rescheduled', actingStaffUserId, 'Бронь перенесена');

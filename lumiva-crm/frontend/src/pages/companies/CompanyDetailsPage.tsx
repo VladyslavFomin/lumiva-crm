@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { AiEnrichPanel } from '../../components/ai/AiEnrichPanel';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import { useNavigate, useParams } from 'react-router-dom';
 import { fetchCompany, updateCompany, type Company } from '../../api/companies';
 import { fetchContacts, type Contact } from '../../api/contacts';
@@ -15,6 +16,7 @@ import {
 } from '../../api/companies';
 import { fetchCompanyAnalytics, type CompanyAnalytics } from '../../api/companies';
 import { fetchStaff, type StaffUser } from '../../api/staff';
+import { LEGAL_REQUISITE_LABEL } from '../../legal/legalRequisites';
 import { useTranslation } from 'react-i18next';
 import '../projects/ProjectsListPage.css';
 import {
@@ -360,6 +362,7 @@ export const CompanyDetailsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="companyCard" />
       <div className="space-y-4">
         {/* Заголовок */}
         <div className="flex items-center justify-between gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-[0_8px_24px_rgba(15,23,42,0.08)]">
@@ -377,7 +380,7 @@ export const CompanyDetailsPage: React.FC = () => {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => navigate('/contacts/new')}
+              onClick={() => navigate(`/contacts/new?companyId=${id}`)}
               className="px-3 py-1.5 text-xs rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors"
             >
               {t('crm.companies.details.page.actions.addContact')}
@@ -478,6 +481,22 @@ export const CompanyDetailsPage: React.FC = () => {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {company.legalName && (
+                  <div>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.legalName')}
+                    </div>
+                    <div className="text-xs text-slate-700">{company.legalName}</div>
+                  </div>
+                )}
+                {company.taxId && (
+                  <div>
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.taxId')}
+                    </div>
+                    <div className="text-xs text-slate-700">{company.taxId}</div>
+                  </div>
+                )}
                 {company.email && (
                   <div>
                     <div className="text-[10px] text-slate-500 mb-1">Email</div>
@@ -533,6 +552,25 @@ export const CompanyDetailsPage: React.FC = () => {
                       {t('crm.companies.form.fields.size')}
                     </div>
                     <div className="text-xs text-slate-700">{company.size}</div>
+                  </div>
+                )}
+                {company.legalRequisites && company.legalRequisites.length > 0 && (
+                  <div className="md:col-span-2">
+                    <div className="text-[10px] text-slate-500 mb-1">
+                      {t('crm.companies.form.fields.legalRequisites')}
+                    </div>
+                    <div className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      {company.legalRequisites
+                        .filter((item) => item.value && item.value.trim())
+                        .map((item) => (
+                          <div key={item.id} className="flex gap-2 text-xs text-slate-700">
+                            <span className="shrink-0 font-medium text-slate-500">
+                              {LEGAL_REQUISITE_LABEL[item.type] || item.type}:
+                            </span>
+                            <span className="min-w-0 break-words">{item.value}</span>
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 )}
                 <div>

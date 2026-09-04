@@ -1,5 +1,5 @@
 // src/helpdesk/helpdesk.module.ts
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { HelpdeskTicket } from './helpdesk-ticket.entity';
 import { HelpdeskTicketMessage } from './helpdesk-ticket-message.entity';
@@ -41,7 +41,7 @@ import { HelpdeskController, HelpdeskLinkOptionsController, HelpdeskInternalRequ
     RbacModule,
     NotificationsModule,
     EmailModule,
-    TelegramCrmModule,
+    forwardRef(() => TelegramCrmModule),
     WhatsappCrmModule,
     SmsModule,
   ],

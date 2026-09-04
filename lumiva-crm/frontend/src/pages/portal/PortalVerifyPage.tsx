@@ -1,10 +1,12 @@
 // src/pages/portal/PortalVerifyPage.tsx
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { verifyPortalMagicLink } from '../../api/portal';
 import { setPortalSession } from '../../portal/portalSession';
 
 export const PortalVerifyPage: React.FC = () => {
+  const { t } = useTranslation();
   const { clientKey = '' } = useParams<{ clientKey: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -13,7 +15,7 @@ export const PortalVerifyPage: React.FC = () => {
   useEffect(() => {
     const token = searchParams.get('token');
     if (!token) {
-      setError('Ссылка для входа некорректна');
+      setError(t('crm.portal.verify.invalidLink'));
       return;
     }
     verifyPortalMagicLink(token)
@@ -22,7 +24,7 @@ export const PortalVerifyPage: React.FC = () => {
         navigate(`/portal/${clientKey}/dashboard`, { replace: true });
       })
       .catch((e: any) => {
-        setError(e?.message || 'Ссылка недействительна или истекла');
+        setError(e?.message || t('crm.portal.verify.expiredLink'));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -36,11 +38,11 @@ export const PortalVerifyPage: React.FC = () => {
               {error}
             </div>
             <a href={`/portal/${clientKey}/login`} className="text-sm text-lumiva-accent underline">
-              Запросить новую ссылку
+              {t('crm.portal.verify.requestNewLink')}
             </a>
           </>
         ) : (
-          <div className="text-sm text-slate-500">Проверяем ссылку…</div>
+          <div className="text-sm text-slate-500">{t('crm.portal.verify.checking')}</div>
         )}
       </div>
     </div>

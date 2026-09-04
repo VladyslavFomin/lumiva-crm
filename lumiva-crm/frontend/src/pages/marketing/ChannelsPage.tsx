@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MainLayout } from '../../layout/MainLayout';
+import { PageHelpButton } from '../../components/help/PageHelpButton';
 import {
   fetchMarketingTraffic,
   normalizeMarketingTrafficStats,
@@ -279,6 +280,7 @@ export const ChannelsPage: React.FC = () => {
 
   return (
     <MainLayout>
+      <PageHelpButton topic="marketingTraffic" />
       <div className={`${marketingPageShell} space-y-5 md:space-y-6`}>
 
         {/* ── Header ─────────────────────────────────────────────── */}

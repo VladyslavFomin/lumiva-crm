@@ -60,6 +60,14 @@ export class EmailTemplate {
   @Column({ type: 'boolean', default: true })
   isActive: boolean; // Активен ли шаблон
 
+  /**
+   * Оборачивать ли htmlBody/textBody в единый дизайн компании (tenant.aiWrapperEmailTemplateId
+   * или встроенный дизайн) при отправке через автоматизации/ИИ. false для шаблонов, которые сами
+   * являются полноценным HTML-документом (созданы до появления обёртки).
+   */
+  @Column({ type: 'boolean', default: false })
+  useWrapper: boolean;
+
   // ==== AUDIT ====
   @CreateDateColumn({ type: 'timestamptz' })
   createdAt: Date;

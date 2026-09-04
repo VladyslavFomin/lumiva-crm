@@ -21,8 +21,10 @@ import { TenantLogsService } from '../tenants/tenant-logs.service';
 import { StaffUsersService } from '../staff/staff-users.service';
 import { buildPlanEntitlements, normalizeTenantPlan } from '../tenants/plan-entitlements';
 import { MailService } from '../mail/mail.service';
+import { mailCodeBox, renderMailShell } from '../mail/mail-template.util';
 import { UserSessionsService } from './user-sessions.service';
 import { getClientIp } from '../common/client-ip.util';
+import { verifyTotpCode, normalizeBackupCode } from './totp.util';
 import type { AutomationsService as AutomationsServiceType } from '../automations/automations.service';
 import type { EsignService as EsignServiceType } from '../esign/esign.service';
 
@@ -130,14 +132,144 @@ export class AuthService {
       throw new UnauthorizedException('User is disabled');
     }
 
-    const session = await this.userSessions.createSession(
-      user.id,
-      tenant.id,
-      req ? getClientIp(req) : null,
+    const clientIp = req ? getClientIp(req) : null;
+
+    // Office-IP allowlist (data-visibility rule 'ip_mode', per role): 'block' rejects the login
+    // outright, 'warn' logs to TenantLogsService but still lets the user in. Ленивый import —
+    // тот же приём, что и с AutomationsService/EsignService выше, чтобы не тянуть
+    // DataVisibilityModule статически в AuthModule.
+    try {
+      const { DataVisibilityService } = await import('../data-visibility/data-visibility.service.js');
+      const dataVisibility = this.moduleRef.get(DataVisibilityService, { strict: false });
+      const ipCheck = await dataVisibility.checkIp(tenant.id, user.role as any, clientIp);
+      if (!ipCheck.allowed) {
+        if (ipCheck.mode === 'block') {
+          await this.tenantLogs.record({
+            tenantId: tenant.id,
+            type: 'login_denied',
+            statusCode: 403,
+            method: 'POST',
+            path: '/auth/login',
+            message: `Login blocked: IP ${clientIp ?? 'unknown'} not in office allowlist`,
+            meta: { clientKey, email, ip: clientIp },
+          });
+          throw new UnauthorizedException({
+            code: 'IP_NOT_ALLOWED',
+            message: 'Вход разрешён только с рабочих IP-адресов',
+          });
+        }
+        if (ipCheck.mode === 'warn') {
+          await this.tenantLogs.record({
+            tenantId: tenant.id,
+            type: 'login_ip_warning',
+            statusCode: 200,
+            method: 'POST',
+            path: '/auth/login',
+            message: `Login from outside the office IP allowlist: ${clientIp ?? 'unknown'}`,
+            meta: { clientKey, email, ip: clientIp },
+          });
+        }
+      }
+    } catch (e) {
+      if (e instanceof UnauthorizedException) throw e;
+      // best-effort — не блокируем вход, если сам сервис недоступен
+    }
+
+    // 6) Двухфакторная защита: пароль верный, но полноценную сессию/JWT не выдаём, пока не
+    // подтверждён код — вместо этого выдаём короткоживущий challenge-токен без sid (JwtStrategy
+    // отклоняет любой токен без sid, так что challenge-токен физически не может быть использован
+    // как рабочий access-токен, даже если утечёт).
+    if (user.twoFactorEnabled) {
+      const challengeToken = await this.jwtService.signAsync(
+        { type: 'twofactor_challenge', sub: user.id, tenantId: tenant.id },
+        { expiresIn: '5m' },
+      );
+      return { twoFactorRequired: true, challengeToken };
+    }
+
+    const userAgent =
       req && typeof req.headers['user-agent'] === 'string'
         ? req.headers['user-agent'].slice(0, 512)
-        : null,
-    );
+        : null;
+
+    return this.issueAuthResult(user, tenant, staff, tenantBlockReason, clientIp, userAgent);
+  }
+
+  /**
+   * POST /auth/verify-2fa — второй шаг логина при включённой 2FA. Принимает challenge-токен из
+   * login() и либо 6-значный TOTP-код, либо один из резервных кодов (использованный удаляется).
+   */
+  async verifyTwoFactorLogin(challengeToken: string, code: string, req?: Request) {
+    let payload: any;
+    try {
+      payload = await this.jwtService.verifyAsync(challengeToken);
+    } catch {
+      throw new UnauthorizedException('Код подтверждения истёк, войдите заново');
+    }
+    if (payload?.type !== 'twofactor_challenge' || !payload?.sub || !payload?.tenantId) {
+      throw new UnauthorizedException('Недействительный токен подтверждения');
+    }
+
+    const user = await this.userRepo.findOne({ where: { id: payload.sub, tenantId: payload.tenantId } });
+    const tenant = await this.tenantRepo.findOne({ where: { id: payload.tenantId } });
+    if (!user || !tenant || !user.twoFactorEnabled) {
+      throw new UnauthorizedException('Недействительный токен подтверждения');
+    }
+
+    let usedBackupCode = false;
+    const totpOk = user.twoFactorSecret ? verifyTotpCode(user.twoFactorSecret, code) : false;
+    if (!totpOk) {
+      const normalized = normalizeBackupCode(code);
+      const codes = user.twoFactorBackupCodes || [];
+      let matchedIndex = -1;
+      for (let i = 0; i < codes.length; i++) {
+        if (await bcrypt.compare(normalized, codes[i])) {
+          matchedIndex = i;
+          break;
+        }
+      }
+      if (matchedIndex === -1) {
+        throw new UnauthorizedException('Неверный код подтверждения');
+      }
+      usedBackupCode = true;
+      user.twoFactorBackupCodes = codes.filter((_, i) => i !== matchedIndex);
+      await this.userRepo.save(user);
+    }
+
+    const tenantBlockReason = getTenantBlockReason(tenant);
+    const staff = await this.staffRepo.findOne({ where: { tenantId: tenant.id, email: user.email } });
+    const clientIp = req ? getClientIp(req) : null;
+    const userAgent =
+      req && typeof req.headers['user-agent'] === 'string'
+        ? req.headers['user-agent'].slice(0, 512)
+        : null;
+
+    const result = await this.issueAuthResult(user, tenant, staff, tenantBlockReason, clientIp, userAgent);
+    return { ...result, usedBackupCode };
+  }
+
+  /** Создаёт сессию + JWT + формирует ответ логина — общий хвост login()/verifySignupCode()/
+   * verifyTwoFactorLogin(), раньше дублировавшийся дважды один-в-один. */
+  private async issueAuthResult(
+    user: User,
+    tenant: Tenant,
+    staff: StaffUser | null,
+    tenantBlockReason: ReturnType<typeof getTenantBlockReason>,
+    clientIp: string | null,
+    userAgent: string | null,
+  ) {
+    const priorSessions = await this.userSessions.listActiveForUser(tenant.id, user.id);
+    const isNewDevice =
+      priorSessions.length > 0 && !priorSessions.some((s) => (s.userAgent || '') === (userAgent || ''));
+
+    const session = await this.userSessions.createSession(user.id, tenant.id, clientIp, userAgent);
+
+    if (isNewDevice) {
+      const prefsAllow = user.preferences?.notifications?.newDeviceLogin !== false;
+      if (prefsAllow && user.email) {
+        void this.sendNewDeviceLoginEmail(user.email, tenant.name, clientIp, userAgent);
+      }
+    }
 
     user.lastActiveAt = new Date();
     await this.userRepo.save(user);
@@ -168,6 +300,7 @@ export class AuthService {
       tenantPlan: normalizeTenantPlan(tenant.plan),
       billingLocked,
       tenantActiveUntil: tenant.activeUntil,
+      tenantTrialEndsAt: tenant.trialEndsAt,
       tenant: {
         id: tenant.id,
         name: tenant.name,
@@ -218,16 +351,23 @@ export class AuthService {
       throw new BadRequestException('clientKey already exists');
     }
 
+    // 14-дневный бесплатный Enterprise-триал: сразу открываем полный тариф вместо free_locked,
+    // чтобы новый тенант не встречал "пустой" CRM до участия pl1-админа. activeUntil — тот же
+    // механизм, что уже блокирует доступ по истечении оплаченного периода (getTenantBlockReason /
+    // billingLocked); trialEndsAt — отдельная метка именно триала для tenant-trial.scheduler.ts
+    // (billing.service.ts обнуляет её при настоящей оплате, чтобы шедулер не откатил плательщика).
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     const tenant = this.tenantRepo.create({
       clientKey: normalizedClientKey,
       name: dto.companyName.trim(),
       status: 'active',
-      plan: 'free_locked',
+      plan: 'enterprise',
       ownerEmail: normalizedEmail,
       ownerName: dto.companyName.trim(),
       uiLanguage: 'ru',
       apiEnabled: true,
-      activeUntil: null,
+      activeUntil: trialEndsAt,
+      trialEndsAt,
     });
     const entitlements = buildPlanEntitlements({
       plan: tenant.plan,
@@ -373,44 +513,18 @@ export class AuthService {
       await this.staffRepo.save(staffRow);
     }
 
-    const session = await this.userSessions.createSession(
-      user.id,
-      tenant.id,
-      req ? getClientIp(req) : null,
+    // Раньше здесь всегда стоял billingLocked: true — тенант шёл сразу на free_locked, поэтому
+    // это было верно. Теперь signup() выдаёт 14-дневный Enterprise-триал, так что нужно считать
+    // это так же, как login(), иначе только что подтвердивший email клиент увидит заблюренный
+    // CRM и экран оплаты вместо триала.
+    const tenantBlockReason = getTenantBlockReason(tenant);
+    const clientIp = req ? getClientIp(req) : null;
+    const userAgent =
       req && typeof req.headers['user-agent'] === 'string'
         ? req.headers['user-agent'].slice(0, 512)
-        : null,
-    );
+        : null;
 
-    const accessToken = await this.jwtService.signAsync({
-      sub: user.id,
-      tenantId: tenant.id,
-      role: user.role,
-      email: user.email,
-      sid: session.id,
-    });
-
-    return {
-      accessToken,
-      clientKey: tenant.clientKey,
-      tenantId: tenant.id,
-      tenantPlan: normalizeTenantPlan(tenant.plan),
-      billingLocked: true,
-      tenant: {
-        id: tenant.id,
-        name: tenant.name,
-        clientKey: tenant.clientKey,
-        plan: normalizeTenantPlan(tenant.plan),
-      },
-      user: {
-        id: user.id,
-        email: user.email,
-        role: user.role,
-        name: user.name ?? null,
-        phone: user.phone ?? null,
-        avatarUrl: user.avatarUrl ?? null,
-      },
-    };
+    return this.issueAuthResult(user, tenant, staffRow, tenantBlockReason, clientIp, userAgent);
   }
 
   async resendSignupCode(params: { clientKey: string; email: string }) {
@@ -543,6 +657,45 @@ export class AuthService {
     });
   }
 
+  private async sendNewDeviceLoginEmail(
+    to: string,
+    tenantName: string,
+    ip: string | null,
+    userAgent: string | null,
+  ): Promise<void> {
+    const ua = (userAgent || '').toLowerCase();
+    const os = ua.includes('windows')
+      ? 'Windows'
+      : ua.includes('mac os') || ua.includes('macintosh')
+        ? 'macOS'
+        : ua.includes('android')
+          ? 'Android'
+          : ua.includes('iphone') || ua.includes('ipad')
+            ? 'iOS'
+            : ua.includes('linux')
+              ? 'Linux'
+              : 'Неизвестное устройство';
+    const browser = ua.includes('edg/')
+      ? 'Edge'
+      : ua.includes('chrome/')
+        ? 'Chrome'
+        : ua.includes('firefox/')
+          ? 'Firefox'
+          : ua.includes('safari/')
+            ? 'Safari'
+            : 'Браузер';
+    const when = new Date().toLocaleString('ru-RU');
+
+    const html = renderMailShell({
+      headline: 'Вход с нового устройства',
+      bodyHtml: `<p style="margin:0 0 16px;">В аккаунт <strong>${tenantName}</strong> выполнен вход с устройства, которое мы раньше не видели.</p>
+<p style="margin:0 0 16px;color:#71717a;font-size:13px;">${os} · ${browser}${ip ? ` · IP ${ip}` : ''}<br/>${when}</p>
+<p style="margin:0;font-size:13px;color:#71717a;">Если это были не вы — смените пароль и завершите все сессии в разделе «Аккаунт → Безопасность».</p>`,
+    });
+
+    await this.mailService.sendMail({ to, subject: 'Вход с нового устройства — Lumiva CRM', html });
+  }
+
   private generateVerificationCode(): string {
     return String(Math.floor(100000 + Math.random() * 900000));
   }
@@ -554,75 +707,12 @@ export class AuthService {
   }) {
     const { to, companyName, code } = params;
     const subject = 'Код подтверждения регистрации Lumiva CRM';
-    const html = `<!doctype html>
-<html lang="ru">
-  <body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#0f172a;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="padding:20px 10px;background:linear-gradient(180deg,#f8fafc 0%,#e2e8f0 100%);">
-      <tr>
-        <td align="center">
-          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;background:#ffffff;border:1px solid #e2e8f0;border-radius:26px;overflow:hidden;box-shadow:0 20px 60px rgba(15,23,42,0.18);">
-            <tr>
-              <td style="padding:0;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="background:radial-gradient(circle at top left,#22d3ee 0%,#0f172a 60%,#020617 100%);">
-                  <tr>
-                    <td style="padding:34px 28px 26px;">
-                      <div style="display:inline-block;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.28);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:#e2e8f0;">
-                        Lumiva CRM
-                      </div>
-                      <div style="font-size:28px;line-height:1.15;font-weight:700;color:#ffffff;padding-top:14px;">
-                        Подтверждение регистрации
-                      </div>
-                      <div style="font-size:14px;line-height:1.65;color:#cbd5e1;padding-top:10px;max-width:460px;">
-                        Компания <strong style="color:#ffffff;">${companyName}</strong> почти готова к запуску. Введите код ниже, чтобы подтвердить email и перейти к оплате доступа.
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:26px 22px 24px;background:#ffffff;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:20px;background:linear-gradient(135deg,#ffffff 0%,#f8fafc 100%);">
-                  <tr>
-                    <td align="center" style="padding:22px 14px 18px;">
-                      <div style="font-size:12px;color:#64748b;letter-spacing:0.12em;text-transform:uppercase;padding-bottom:10px;">
-                        Ваш код входа
-                      </div>
-                      <div style="display:inline-block;padding:12px 16px;border-radius:14px;background:#0f172a;border:1px solid #1e293b;color:#67e8f9;font-size:32px;line-height:1;font-weight:800;letter-spacing:0.35em;">
-                        ${code}
-                      </div>
-                      <div style="font-size:13px;line-height:1.6;color:#475569;padding-top:14px;">
-                        Код действует <strong>15 минут</strong>
-                      </div>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:0 26px 28px;">
-                <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:separate;">
-                  <tr>
-                    <td style="font-size:12px;line-height:1.7;color:#64748b;">
-                      Если вы не создавали аккаунт в Lumiva CRM, просто проигнорируйте это письмо.
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-          <table width="100%" cellpadding="0" cellspacing="0" style="max-width:620px;">
-            <tr>
-              <td align="center" style="padding-top:14px;font-size:11px;color:#64748b;">
-                © ${new Date().getFullYear()} Lumiva CRM
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>`;
+    const html = renderMailShell({
+      headline: 'Подтверждение регистрации',
+      bodyHtml: `<p style="margin:0 0 16px;">Компания <strong>${companyName}</strong> почти готова к запуску. Введите код ниже, чтобы подтвердить email и перейти к оплате доступа.</p>
+${mailCodeBox(code)}
+<p style="margin:0;font-size:13px;color:#71717a;">Код действует <strong>15 минут</strong>. Если вы не создавали аккаунт в Lumiva CRM, просто проигнорируйте это письмо.</p>`,
+    });
 
     await this.mailService.sendMail({ to, subject, html });
   }

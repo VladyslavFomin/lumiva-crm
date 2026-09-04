@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createIntegration } from '../../api/integrations';
-import { useAlertModal } from '../../contexts/AlertModalContext';
 import type { SalesChannel } from '../../api/salesChannels';
 
 type NewWooFormState = {
@@ -26,7 +25,6 @@ export const WooCommerceConnectSection: React.FC<WooCommerceConnectSectionProps>
   variant = 'default',
 }) => {
   const { t } = useTranslation();
-  const { showAlert } = useAlertModal();
   const [form, setForm] = useState<NewWooFormState>({
     name: '',
     description: '',
@@ -36,12 +34,12 @@ export const WooCommerceConnectSection: React.FC<WooCommerceConnectSectionProps>
     consumerSecret: '',
   });
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleCreate = async () => {
+    setError(null);
     if (!form.url.trim() || !form.consumerKey.trim() || !form.consumerSecret.trim()) {
-      showAlert(t('crm.salesIntegrations.errors.createMissing'), {
-        variant: 'info',
-      });
+      setError(t('crm.salesIntegrations.errors.createMissing'));
       return;
     }
     setCreating(true);
@@ -69,10 +67,7 @@ export const WooCommerceConnectSection: React.FC<WooCommerceConnectSectionProps>
       });
       onCreated();
     } catch (e: unknown) {
-      showAlert(
-        e instanceof Error ? e.message : t('crm.salesIntegrations.errors.create'),
-        { variant: 'error' },
-      );
+      setError(e instanceof Error ? e.message : t('crm.salesIntegrations.errors.create'));
     } finally {
       setCreating(false);
     }
@@ -169,6 +164,7 @@ export const WooCommerceConnectSection: React.FC<WooCommerceConnectSectionProps>
         </div>
       </div>
 
+      {error && <p className="text-[11px] text-rose-600">{error}</p>}
       <div className="flex justify-end pt-1">
         <button
           type="button"

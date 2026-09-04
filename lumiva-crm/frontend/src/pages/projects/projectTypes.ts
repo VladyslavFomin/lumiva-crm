@@ -1,14 +1,28 @@
 // src/pages/projects/projectTypes.ts
 
-// Статусы должны совпадать с бэкендом (ProjectStatus)
-export type ProjectStatus =
-  | 'Новый'
-  | 'В работе'
-  | 'На проверке'
-  | 'Заморожен'
-  | 'Закрыт'
-  | 'Выиграно'
-  | 'Проиграно';
+// Статусы настраиваются тенантом (см. api/project-statuses.ts / useProjectStatuses) —
+// 7 базовых значений остаются как смысловой якорь для типовых меток/цветов-фолбэков,
+// но реальный набор значений динамический, поэтому тип — string.
+export type ProjectStatus = string;
+export const BUILT_IN_PROJECT_STATUS_VALUES = [
+  'Новый',
+  'В работе',
+  'На проверке',
+  'Заморожен',
+  'Закрыт',
+  'Выиграно',
+  'Проиграно',
+] as const;
+
+export type ProjectFileProvider = 'google_drive' | 'onedrive' | 'other';
+
+export interface ProjectFileLink {
+  id: string;
+  label: string;
+  url: string;
+  provider: ProjectFileProvider;
+  createdAt: string;
+}
 
 // Фронтовый тип проекта — уже «удобный» для UI
 export interface Project {
@@ -28,10 +42,13 @@ export interface Project {
   companyId?: string | null;
   /** Название компании лида (если есть на бэке / в списке). */
   companyName?: string | null;
+  /** Привязанный контакт. */
+  contactId?: string | null;
   ownerUserId?: string | null;
   ownerUserIds?: string[] | null;
   briefFileName?: string | null;
   briefFileUrl?: string | null;
+  files?: ProjectFileLink[] | null;
   customFields?: Record<string, any> | null;
   tasks: ProjectTask[];
   comments: ProjectComment[];
@@ -77,11 +94,12 @@ export interface ProjectComment {
   createdAt: string;
   text: string;
   mentions?: string[];
+  parentId?: string | null;
+  likedBy?: string[];
 }
 
 // В справочниках пока просто константы
 export const PROJECT_CATEGORIES = ['Аналитика', 'Разработка', 'Маркетинг', 'Реклама', 'SEO', 'SMM'];
-export const PROJECT_TAGS = ['CRM', 'IT', 'WEB', 'SEO', 'SMM', 'ADS'];
 
 // Пустой проект для "Новый проект"
 export function createEmptyProject(): Project {
@@ -101,9 +119,11 @@ export function createEmptyProject(): Project {
     leadEmail: null,
     companyId: null,
     companyName: null,
+    contactId: null,
     customFields: {},
+    files: [],
     createdAt: '',
     tasks: [],
-    comments: [], 
+    comments: [],
   };
 }
